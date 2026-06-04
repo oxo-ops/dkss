@@ -1,11 +1,18 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>DKSS</title>
-</head>
-<body>
-    <h1>DKSS</h1>
-    <p>初めてのページです。</p>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}ダッシュボード{% endblock %}
+
+{% block content %}
+
+<h2>ダッシュボード</h2>
+<p>Phase1：安全管理・車両管理</p>
+
+<ul>
+    <li><a href="/safety">安全管理</a></li>
+    <li><a href="/vehicles">車両管理</a></li>
+    <li><a href="/analysis">分析ダッシュボード</a></li>
+    <li><a href="/manuals">マニュアル</a></li>
+    <li><a href="/master">マスタ管理</a></li>
+</ul>
+
+{% endblock %}
