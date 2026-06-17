@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        会社編集
+    {% else %}
+        会社登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            会社編集
+        {% else %}
+            会社登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/itc" class="btn btn-back">
+            ← ITC管理へ戻る
+        </a>
+    </div>
+</div>
+
+<form method="post" class="card">
+
+    <label>会社コード</label>
+    <input
+        type="text"
+        name="company_code"
+        value="{{ company.company_code if company else '' }}"
+        required
+    >
+
+    <label>会社名</label>
+    <input
+        type="text"
+        name="company_name"
+        value="{{ company.company_name if company else '' }}"
+        required
+    >
+
+    <label>設定可能車両台数</label>
+    <input
+        type="number"
+        name="vehicle_limit"
+        value="{{ company.vehicle_limit if company else '' }}"
+        required
+    >
+
+    <label>利用状態</label>
+    <select name="active">
+        <option value="1" {% if not company or company.active %}selected{% endif %}>
+            有効
+        </option>
+        <option value="0" {% if company and not company.active %}selected{% endif %}>
+            利用停止
+        </option>
+    </select>
+
+    <button type="submit" class="btn">
+        {% if mode == "edit" %}
+            更新
+        {% else %}
+            登録
+        {% endif %}
+    </button>
+
+</form>
+
+{% endblock %}

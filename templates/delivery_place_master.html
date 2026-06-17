@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}納入先マスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>納入先マスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/delivery-places/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>納入先名</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for place in delivery_places %}
+    <tr>
+        <td>{{ place.name }}</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a
+                    href="/master/delivery-places/{{ place.id }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/delivery-places/{{ place.id }}/delete"
+                    onsubmit="return confirm('この納入先を削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="2">納入先が登録されていません。</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

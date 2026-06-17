@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}初回登録{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>初回登録</h2>
+
+    <div class="header-actions">
+        <a href="/login" class="btn btn-back">
+            ← ログインへ戻る
+        </a>
+    </div>
+</div>
+
+<form method="post" class="card">
+
+    {% if error %}
+        <div class="alert danger">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    <label>会社コード</label>
+    <input
+        type="text"
+        name="company_code"
+        value="{{ company_code }}"
+        required
+    >
+
+    <label>氏名</label>
+    <input
+        type="text"
+        name="name"
+        required
+    >
+
+    <label>ログインID</label>
+    <input
+        type="text"
+        name="employee_id"
+        required
+    >
+
+    <label>パスワード</label>
+    <input
+        type="password"
+        name="password"
+        required
+    >
+
+    <label>営業所</label>
+    <select name="office">
+        <option value="">未設定</option>
+        {% for office in offices %}
+            <option value="{{ office.name }}">
+                {{ office.name }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <label>ユーザー種別</label>
+    <select name="role" required>
+        <option value="user">一般ユーザー</option>
+        <option value="admin">管理者</option>
+    </select>
+
+    <button type="submit" class="btn">
+        登録
+    </button>
+
+</form>
+
+{% endblock %}

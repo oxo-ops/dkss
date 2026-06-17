@@ -1,19 +1,179 @@
 {% extends "base.html" %}
 
-{% block title %}ITC管理画面{% endblock %}
+{% block title %}ITC管理{% endblock %}
 
 {% block content %}
 
-<h2>ITC管理画面</h2>
-
-<p>ITC管理者としてログインしました。</p>
-
-<div>
-    <a href="/">顧客側ダッシュボード</a>
+<div class="page-header">
+    <h2>ITC管理</h2>
 </div>
 
-<div>
-    <a href="/master">マスタ管理</a>
+<div class="dashboard-summary">
+
+    <div class="summary-card main">
+        <div class="summary-title">契約会社数</div>
+        <div class="summary-value">{{ companies|length }}</div>
+        <div class="summary-unit">社</div>
+    </div>
+
+    <div class="summary-card">
+        <div class="summary-title">配信ニュース数</div>
+        <div class="summary-value good">{{ news|length }}</div>
+        <div class="summary-unit">件</div>
+    </div>
+
+</div>
+
+<div class="dashboard-two-column">
+
+    <div class="dashboard-card">
+        <div class="card-title-row">
+            <h3>会社管理</h3>
+            <a href="/itc/companies/new" class="btn-small">会社追加</a>
+        </div>
+
+        <div class="table-scroll">
+        <table class="dashboard-table responsive-table">
+            <tr>
+                <th>会社コード</th>
+                <th>会社名</th>
+                <th>招待URL</th>
+                <th>車両上限</th>
+                <th>登録済み</th>
+                <th>残り</th>
+                <th>状態</th>
+                <th>操作</th>
+            </tr>
+
+            {% for company in companies %}
+            <tr>
+                <td>{{ company.company_code }}</td>
+                <td>{{ company.company_name }}</td>
+                <td>
+                    <a
+                        href="/register?company_code={{ company.company_code }}"
+                        target="_blank"
+                        class="btn-mini"
+                    >
+                        開く
+                    </a>
+                </td>
+                <td>{{ company.vehicle_limit }}台</td>
+                <td>{{ company.vehicle_count }}台</td>
+                <td>{{ company.remaining_vehicles }}台</td>
+                <td>
+                    {% if company.active %}
+                        <span class="status-badge status-approved">有効</span>
+                    {% else %}
+                        <span class="status-badge status-rejected">停止</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/itc/companies/{{ company.id }}/edit" class="btn-mini">
+                        編集
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <div class="mobile-card-list">
+        {% for company in companies %}
+            <div class="mobile-list-card">
+
+                <div class="mobile-card-head">
+                    <strong>{{ company.company_name }}</strong>
+
+                    {% if company.active %}
+                        <span class="status-badge status-approved">有効</span>
+                    {% else %}
+                        <span class="status-badge status-rejected">停止</span>
+                    {% endif %}
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>会社コード</span>
+                    <strong>{{ company.company_code }}</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>車両上限</span>
+                    <strong>{{ company.vehicle_limit }}台</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>登録済み</span>
+                    <strong>{{ company.vehicle_count }}台</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>残り</span>
+                    <strong>{{ company.remaining_vehicles }}台</strong>
+                </div>
+
+                <div class="mobile-card-actions">
+                    <a
+                        href="/register?company_code={{ company.company_code }}"
+                        target="_blank"
+                        class="btn-small"
+                    >
+                        招待URL
+                    </a>
+
+                    <a
+                        href="/itc/companies/{{ company.id }}/edit"
+                        class="btn-small btn-edit"
+                    >
+                        編集
+                    </a>
+                </div>
+
+            </div>
+        {% else %}
+            <div class="mobile-list-card">
+                会社が登録されていません。
+            </div>
+        {% endfor %}
+    </div>
+
+    </div>
+    <div class="dashboard-card">
+        <div class="card-title-row">
+            <h3>ニュース配信</h3>
+            <a href="/itc/news/new" class="btn-small">ニュース作成</a>
+        </div>
+
+        {% if news %}
+            <div class="notification-list">
+                {% for item in news %}
+                    <div class="notification-item">
+                        <div class="notification-body">
+                            <div class="notification-title">{{ item.title }}</div>
+                            <div class="notification-message">{{ item.message }}</div>
+                            <div class="notification-date">{{ item.created_at }}</div>
+                            <a href="/itc/news/{{ item.id }}/edit" class="btn-mini">
+                                編集
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/itc/news/{{ item.id }}/delete"
+                                style="display:inline;"
+                                onsubmit="return confirm('このニュースを削除しますか？');"
+                            >
+                                <button type="submit" class="btn-mini btn-danger">
+                                    削除
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-text">配信ニュースはありません。</p>
+        {% endif %}
+    </div>
+
 </div>
 
 {% endblock %}

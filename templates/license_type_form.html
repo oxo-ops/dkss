@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if mode == "edit" %}
+免許種別編集
+{% else %}
+免許種別登録
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            免許種別編集
+        {% else %}
+            免許種別登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/master/license-types" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+
+    <form method="post">
+
+        <label>免許種別</label>
+
+        <input
+            type="text"
+            name="name"
+            value="{{ license_type.name if license_type else '' }}"
+            required
+        >
+
+        <button type="submit" class="btn">
+            {% if mode == "edit" %}
+                更新
+            {% else %}
+                登録
+            {% endif %}
+        </button>
+
+    </form>
+
+</div>
+
+{% endblock %}

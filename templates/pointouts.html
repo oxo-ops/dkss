@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}安全パトロール結果一覧{% endblock %}
+
+{% block content %}
+
+{% set has_target_column = view_type == "delivery_place" or show_target_user %}
+{% set column_count = 9 if has_target_column else 8 %}
+
+<div class="page-header">
+    <div>
+        <h2>安全パトロール結果一覧</h2>
+        <p class="page-lead">
+            {% if view_type == "user" %}
+                ユーザー事項を表示しています。
+            {% else %}
+                納入先事項を表示しています。
+            {% endif %}
+        </p>
+    </div>
+
+    <a class="btn" href="/pointouts/new">新規登録</a>
+</div>
+
+<div class="tabs">
+    <a class="tab {% if view_type == 'user' %}active{% endif %}" href="/pointouts?type=user">
+        ユーザー事項
+    </a>
+    <a class="tab {% if view_type == 'delivery_place' %}active{% endif %}" href="/pointouts?type=delivery_place">
+        納入先事項
+    </a>
+</div>
+
+<div class="card tab-content search-card">
+    <form method="get" class="search-form">
+        <input type="hidden" name="type" value="{{ view_type }}">
+
+        {% if view_type == "user" %}
+            <label>対象者検索</label>
+            <div class="search-row">
+                <input
+                    type="text"
+                    name="keyword"
+                    value="{{ keyword }}"
+                    list="driver_list"
+                    placeholder="対象者名を入力"
+                >
+                <button type="submit">検索</button>
+            </div>
+
+            <datalist id="driver_list">
+                {% for driver in drivers %}
+                    <option value="{{ driver.name }}">
+                {% endfor %}
+            </datalist>
+        {% else %}
+            <label>納入先検索</label>
+            <div class="search-row">
+                <input
+                    type="text"
+                    name="keyword"
+                    value="{{ keyword }}"
+                    list="delivery_place_list"
+                    placeholder="納入先名を入力"
+                >
+                <button type="submit">検索</button>
+            </div>
+
+            <datalist id="delivery_place_list">
+                {% for place in delivery_places %}
+                    <option value="{{ place.name }}">
+                {% endfor %}
+            </datalist>
+        {% endif %}
+    </form>
+</div>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table">
+    <tr>
+        <th>発生日</th>
+        <th>営業所</th>
+
+        {% if view_type == "delivery_place" %}
+            <th>納入先</th>
+        {% elif show_target_user %}
+            <th>対象者</th>
+        {% endif %}
+
+        <th>分類</th>
+        <th>内容区分</th>
+        <th>内容</th>
+        <th>対策ステータス</th>
+        <th>添付</th>
+        <th>操作</th>
+    </tr>
+
+    {% for item in patrol_results %}
+    <tr>
+        <td>{{ item.date }}</td>
+        <td>{{ item.office }}</td>
+
+        {% if view_type == "delivery_place" %}
+            <td>{{ item.delivery_place }}</td>
+        {% elif show_target_user %}
+            <td>{{ item.target_user }}</td>
+        {% endif %}
+
+        <td>{{ item.category }}</td>
+        <td>{{ item.content_type }}</td>
+        <td class="content-summary">{{ item.content }}</td>
+        <td>
+            {% if item.category == "Good" %}
+                <span class="status-badge status-none">対象外</span>
+            {% elif not item.countermeasure %}
+                <span class="status-badge status-not-started">対策未登録</span>
+            {% elif item.approval_status == "承認待ち" %}
+                <span class="status-badge status-waiting">未承認</span>
+            {% elif item.approval_status == "差し戻し" %}
+                <span class="status-badge status-rejected">差し戻し中</span>
+            {% elif item.approval_status == "承認済み" %}
+                <span class="status-badge status-approved">承認済み</span>
+            {% else %}
+                <span class="status-badge status-not-started">対策未登録</span>
+            {% endif %}
+        </td>
+
+        <td>
+            {% if item.files %}
+                <img src="{{ url_for('static', filename='uploads/' + item.files[0]) }}" class="thumb">
+
+                {% if item.files|length > 1 %}
+                    <div class="subtle-text">他{{ item.files|length - 1 }}件</div>
+                {% endif %}
+            {% else %}
+                <span class="subtle-text">なし</span>
+            {% endif %}
+        </td>
+
+        <td class="action-buttons">
+            <a href="/pointouts/{{ item.index }}" class="btn-small">詳細</a>
+
+            {% if item.can_manage %}
+                <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">編集</a>
+
+                <form
+                    action="/pointouts/{{ item.index }}/delete"
+                    method="post"
+                    onsubmit="return confirm('削除しますか？')"
+                >
+                    <button type="submit" class="btn-small btn-delete">削除</button>
+                </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="{{ column_count }}" class="empty-row">
+            表示できる安全パトロール結果がありません。
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+
+<div class="mobile-card-list">
+    {% for item in patrol_results %}
+        <div class="mobile-list-card">
+
+            <div class="mobile-card-head">
+                <strong>
+                    {{ item.date }}
+                </strong>
+
+                {% if item.category == "Good" %}
+                    <span class="status-badge status-none">対象外</span>
+                {% elif not item.countermeasure %}
+                    <span class="status-badge status-not-started">対策未登録</span>
+                {% elif item.approval_status == "承認待ち" %}
+                    <span class="status-badge status-waiting">未承認</span>
+                {% elif item.approval_status == "差し戻し" %}
+                    <span class="status-badge status-rejected">差し戻し中</span>
+                {% elif item.approval_status == "承認済み" %}
+                    <span class="status-badge status-approved">承認済み</span>
+                {% else %}
+                    <span class="status-badge status-not-started">対策未登録</span>
+                {% endif %}
+            </div>
+
+            <div class="mobile-card-row">
+                <span>営業所</span>
+                <strong>{{ item.office }}</strong>
+            </div>
+
+            {% if view_type == "delivery_place" %}
+                <div class="mobile-card-row">
+                    <span>納入先</span>
+                    <strong>{{ item.delivery_place }}</strong>
+                </div>
+            {% elif show_target_user %}
+                <div class="mobile-card-row">
+                    <span>対象者</span>
+                    <strong>{{ item.target_user }}</strong>
+                </div>
+            {% endif %}
+
+            <div class="mobile-card-row">
+                <span>分類</span>
+                <strong>{{ item.category }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>内容区分</span>
+                <strong>{{ item.content_type }}</strong>
+            </div>
+
+            <div class="mobile-card-content">
+                {{ item.content }}
+            </div>
+
+            {% if item.files %}
+                <div class="mobile-card-file">
+                    <img
+                        src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
+                        class="thumb"
+                    >
+
+                    {% if item.files|length > 1 %}
+                        <span class="subtle-text">
+                            他{{ item.files|length - 1 }}件
+                        </span>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <div class="mobile-card-actions">
+                <a href="/pointouts/{{ item.index }}" class="btn-small">
+                    詳細
+                </a>
+
+                {% if item.can_manage %}
+                    <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">
+                        編集
+                    </a>
+
+                    <form
+                        action="/pointouts/{{ item.index }}/delete"
+                        method="post"
+                        onsubmit="return confirm('削除しますか？')"
+                    >
+                        <button type="submit" class="btn-small btn-delete">
+                            削除
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+
+        </div>
+    {% else %}
+        <div class="mobile-list-card">
+            表示できる安全パトロール結果がありません。
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

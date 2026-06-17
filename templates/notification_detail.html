@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}通知詳細{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>通知詳細</h2>
+
+    <div class="header-actions">
+        <a href="/notifications" class="btn btn-back">
+            ← 通知一覧へ戻る
+        </a>
+
+        <a href="/" class="btn btn-back">
+            × 閉じる
+        </a>
+    </div>
+</div>
+
+<div class="card notification-detail-card">
+
+    <div class="notification-detail-head">
+        <img
+            src="{{ url_for('static', filename='icons/notification.png') }}"
+            alt="通知"
+        >
+
+        <div>
+            <h3>{{ notification.title }}</h3>
+            <p>{{ notification.created_at }}</p>
+        </div>
+    </div>
+
+    <div class="notification-detail-message">
+    {{ notification.message }}
+</div>
+
+{% if notification.files %}
+    <div class="attached-files">
+        <strong>添付ファイル</strong>
+
+        <div class="file-preview-list">
+            {% for file in notification.files %}
+                {% set ext = file.split('.')[-1].lower() %}
+                {% set path = url_for('static', filename='uploads/' ~ file) %}
+
+                {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                    <a href="{{ path }}" target="_blank">
+                        <img src="{{ path }}" class="preview-image">
+                    </a>
+                {% else %}
+                    <a href="{{ path }}" target="_blank" class="file-link">
+                        {{ file }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+{% if notification.link %}
+    <div class="action-row">
+        {% if notification.link %}
+            <a href="{{ notification.link }}" class="btn">
+                該当ページを開く
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<div class="notification-actions">
+    <form
+        method="post"
+        action="/notifications/{{ notification.index }}/delete"
+        onsubmit="return confirm('この通知を削除しますか？');"
+    >
+        <button type="submit" class="btn-small btn-delete">
+            削除
+        </button>
+    </form>
+</div>
+
+</div>
+
+{% endblock %}

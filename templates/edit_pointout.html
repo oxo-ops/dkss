@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}安全パトロール編集{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>安全パトロール編集</h2>
+
+    <div class="header-actions">
+        <a href="/pointouts" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <form method="post" enctype="multipart/form-data">
+
+        <div>
+            <label>発生日</label>
+            <input type="date" name="date" value="{{ result.date }}" required>
+        </div>
+
+        <div>
+            <label>分類</label>
+            <select name="category">
+                <option value="安全" {% if result.category == "安全" %}selected{% endif %}>安全</option>
+                <option value="品質" {% if result.category == "品質" %}selected{% endif %}>品質</option>
+                <option value="Good" {% if result.category == "Good" %}selected{% endif %}>Good</option>
+            </select>
+        </div>
+
+        <div>
+            <label>対象区分</label>
+            <p>
+                {% if result.target_type == "user" %}
+                    個人
+                {% else %}
+                    納入先
+                {% endif %}
+            </p>
+        </div>
+
+        {% if result.target_type == "user" %}
+        <div>
+            <label>対象者</label>
+            <input
+                type="text"
+                name="target_user"
+                value="{{ result.target_user }}"
+                list="driver_list"
+            >
+
+            <datalist id="driver_list">
+                {% for driver in drivers %}
+                    <option value="{{ driver.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+        {% endif %}
+
+        {% if result.target_type == "delivery_place" %}
+        <div>
+            <label>納入先</label>
+            <input
+                type="text"
+                name="delivery_place"
+                value="{{ result.delivery_place }}"
+                list="delivery_place_list"
+            >
+
+            <datalist id="delivery_place_list">
+                {% for place in delivery_places %}
+                    <option value="{{ place.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+        {% endif %}
+
+        <div>
+            <label>内容区分</label>
+            <select name="content_type">
+                <option value="落下" {% if result.content_type == "落下" %}selected{% endif %}>落下</option>
+                <option value="車両" {% if result.content_type == "車両" %}selected{% endif %}>車両</option>
+                <option value="環境" {% if result.content_type == "環境" %}selected{% endif %}>環境</option>
+                <option value="荷扱い" {% if result.content_type == "荷扱い" %}selected{% endif %}>荷扱い</option>
+                <option value="ルール違反" {% if result.content_type == "ルール違反" %}selected{% endif %}>ルール違反</option>
+                <option value="その他" {% if result.content_type == "その他" %}selected{% endif %}>その他</option>
+            </select>
+        </div>
+
+        <div class="manual-card">
+    <h3>マニュアル参照</h3>
+
+    <p class="help-text">
+        関連マニュアルを確認できます。
+    </p>
+
+    <select id="manual_select" onchange="openManual()">
+        <option value="">マニュアルを選択してください</option>
+
+        {% for manual in manuals %}
+            {% if manual.filename %}
+            <option value="{{ url_for('static', filename='manuals/' + manual.filename) }}">
+                {{ manual.category }}｜{{ manual.title }}
+            </option>
+            {% endif %}
+        {% endfor %}
+    </select>
+
+    <div style="margin-top:12px;">
+        <a
+            id="manual_link"
+            class="btn"
+            target="_blank"
+            style="display:none;"
+        >
+            マニュアルを開く
+        </a>
+    </div>
+</div>
+
+        <div>
+            <label>内容</label>
+            <textarea name="content" rows="5">{{ result.content }}</textarea>
+        </div>
+
+        <div>
+    <label>現在の添付ファイル</label>
+
+    {% if result.files %}
+        <div class="current-files">
+            {% for file in result.files %}
+                {% set ext = file.split('.')[-1].lower() %}
+
+                <div class="current-file-item">
+
+                    {% if ext in ['png','jpg','jpeg','gif','webp'] %}
+                        <img
+                            src="{{ url_for('static', filename='uploads/' + file) }}"
+                            class="thumb"
+                        >
+                    {% elif ext in ['mp4','mov','avi','webm'] %}
+                        <video
+                            src="{{ url_for('static', filename='uploads/' + file) }}"
+                            class="thumb"
+                            controls
+                        ></video>
+                    {% elif ext == 'pdf' %}
+                        <a
+                            href="{{ url_for('static', filename='uploads/' + file) }}"
+                            target="_blank"
+                        >
+                            PDFを開く
+                        </a>
+                    {% endif %}
+
+                    <p>{{ file }}</p>
+
+                    <label class="delete-check">
+                        <input
+                            type="checkbox"
+                            name="delete_files"
+                            value="{{ file }}"
+                        >
+                        削除する
+                    </label>
+
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>添付なし</p>
+    {% endif %}
+</div>
+
+        <div>
+    <label>添付ファイル追加</label>
+    <input
+        type="file"
+        name="files"
+        multiple
+        accept="image/*,video/*,.pdf"
+    >
+
+    <p class="help-text">
+        現在の添付ファイルは保持されます。
+        削除したいファイルは「削除する」にチェックを入れてください。
+        新しいファイルを選択すると追加登録されます。
+    </p>
+</div>
+
+        <button type="submit" class="btn">
+            更新
+        </button>
+
+    </form>
+</div>
+
+<script>
+function openManual() {
+    const select = document.getElementById("manual_select");
+    const link = document.getElementById("manual_link");
+
+    if (select.value === "") {
+        link.style.display = "none";
+        return;
+    }
+
+    link.href = select.value;
+    link.style.display = "inline-block";
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}車両チェックリスト実施{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>{{ checklist.name }} 実施</h2>
+
+    <div class="header-actions">
+        <a href="/vehicle/checklists/{{ checklist_index }}" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="responsive-form">
+
+    <div class="card form-card">
+        <h3>実施情報</h3>
+
+        <p>
+            <strong>点検者：</strong>
+            {{ session.name }}
+        </p>
+
+        <div class="form-group">
+            <label>対象車両</label>
+            <select name="vehicle_id" required>
+                <option value="">選択してください</option>
+
+                {% for vehicle in vehicles %}
+                    <option value="{{ vehicle.vehicle_id }}">
+                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>年</label>
+            <input
+                type="number"
+                name="year"
+                value="{{ now_year }}"
+                required
+            >
+        </div>
+
+        <div class="form-group">
+            <label>月</label>
+            <select name="month" required>
+                {% for m in range(1, 13) %}
+                    <option
+                        value="{{ '%02d'|format(m) }}"
+                        {% if now_month == m %}selected{% endif %}
+                    >
+                        {{ m }}月
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>日</label>
+            <select name="day" required>
+                {% for d in range(1, 32) %}
+                    <option
+                        value="{{ '%02d'|format(d) }}"
+                        {% if now_day == d %}selected{% endif %}
+                    >
+                        {{ d }}日
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card form-card">
+        <h3>チェック項目</h3>
+
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <tr>
+                    <th style="width:140px;">カテゴリ</th>
+                    <th>チェック内容</th>
+                    <th style="width:160px;">評価</th>
+                    <th style="width:300px;">コメント</th>
+                    <th style="width:220px;">写真・ファイル</th>
+                    <th style="width:180px;">連携</th>
+                </tr>
+
+                {% set ns = namespace(answer_index=0) %}
+
+                {% for item in checklist["items"] %}
+                    {% if item.item_type != "approval" %}
+
+                    <tr>
+                        <td>{{ item.category }}</td>
+
+                        <td>
+                            {{ item.content }}
+
+                            {% if item.criteria %}
+                                <div class="help-text">
+                                    {{ item.criteria }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.input_type == "select" %}
+                                <select name="answer_{{ ns.answer_index }}" required>
+                                    <option value="">選択</option>
+
+                                    {% for choice in item.choices %}
+                                        <option value="{{ choice }}">
+                                            {{ choice }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input
+                                    type="text"
+                                    name="answer_{{ ns.answer_index }}"
+                                    class="mention-input"
+                                    placeholder="入力"
+                                    required
+                                >
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <input
+                                type="text"
+                                name="comment_{{ ns.answer_index }}"
+                                class="mention-input"
+                                placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
+                                {% if item.comment_required %}required{% endif %}
+                            >
+                        </td>
+
+                        <td>
+                            <input
+                                type="file"
+                                name="files_{{ ns.answer_index }}"
+                                multiple
+                                accept="image/*,video/*,.pdf"
+                            >
+                        </td>
+
+                        <td>
+                            <label class="checkbox-row">
+                                <input
+                                    type="checkbox"
+                                    name="patrol_link_{{ ns.answer_index }}"
+                                    value="1"
+                                >
+                                <span>要対応として登録</span>
+                            </label>
+                        </td>
+                    </tr>
+
+                    {% set ns.answer_index = ns.answer_index + 1 %}
+                    {% endif %}
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    {% for item in checklist["items"] %}
+        {% if item.item_type == "approval" %}
+            <div class="card form-card">
+                <h3>{{ item.approval_label or "承認欄" }}</h3>
+                <p class="help-text">
+                    登録後、管理者が結果画面で承認します。
+                </p>
+                <p>
+                    <strong>状態：</strong>未承認
+                </p>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn">
+            点検結果を登録
+        </button>
+    </div>
+
+</form>
+
+{% endblock %}

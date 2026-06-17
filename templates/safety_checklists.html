@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}安全管理チェックリスト{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>安全管理チェックリスト</h2>
+
+    <div class="header-actions">
+        <a href="/pointouts" class="btn btn-back">
+            ← 安全管理へ戻る
+        </a>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>チェックリスト名</th>
+        <th>項目数</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for checklist in checklists %}
+    <tr>
+        <td>{{ checklist["name"] }}</td>
+        <td>{{ checklist["items"]|length }}件</td>
+
+        <td class="action-cell">
+            <a href="/safety/checklists/{{ checklist.id }}" class="btn-small btn-edit">
+                結果一覧
+            </a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

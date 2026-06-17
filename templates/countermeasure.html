@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}対策登録{% endblock %}
+
+{% block content %}
+
+<h2>対策登録</h2>
+
+<div class="card">
+
+    <p><strong>発生日：</strong>{{ result.date }}</p>
+
+    <p><strong>分類：</strong>{{ result.category }}</p>
+
+    <p><strong>内容区分：</strong>{{ result.content_type }}</p>
+
+    <p><strong>内容：</strong></p>
+
+    <div class="content-box">
+        {{ result.content }}
+    </div>
+
+    <hr>
+
+    <form
+        method="post"
+        action="/pointouts/{{ index }}/countermeasure"
+    >
+
+        <label>対策内容</label>
+
+        <textarea
+            name="countermeasure"
+            class="mention-input"
+            rows="8"
+            required
+        >{{ result.countermeasure }}</textarea>
+
+        <button
+            type="submit"
+            class="btn"
+        >
+            登録
+        </button>
+
+    </form>
+
+</div>
+
+<p>
+    <a href="/pointouts/{{ index }}">
+        詳細へ戻る
+    </a>
+</p>
+
+{% endblock %}

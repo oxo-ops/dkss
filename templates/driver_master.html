@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}ドライバーマスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>ドライバーマスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/drivers/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <form method="get">
+        <label>ユーザーID・氏名検索</label>
+        <input
+            type="text"
+            name="keyword"
+            value="{{ keyword }}"
+            placeholder="ユーザーIDまたは氏名を入力"
+        >
+
+        <label>営業所</label>
+        <select name="office">
+            <option value="">すべて</option>
+            {% for office_item in offices %}
+                <option value="{{ office_item.name }}" {% if office == office_item.name %}selected{% endif %}>
+                    {{ office_item.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label>使用車両</label>
+        <select name="vehicle">
+            <option value="">すべて</option>
+            {% for vehicle_item in vehicles %}
+                <option value="{{ vehicle_item.vehicle_id }}" {% if vehicle == vehicle_item.vehicle_id %}selected{% endif %}>
+                    {{ vehicle_item.number }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn">検索</button>
+        <a href="/master/drivers" class="btn btn-back">クリア</a>
+    </form>
+</div>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table">
+    <thead>
+        <tr>
+            <th>ユーザーID</th>
+            <th>氏名</th>
+            <th>営業所</th>
+            <th>無事故・無違反継続</th>
+            <th>所有免許</th>
+            <th>使用車両</th>
+            <th style="width:180px;">操作</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for driver in drivers %}
+        <tr>
+            <td>{{ driver.employee_id }}</td>
+            <td>{{ driver.name }}</td>
+            <td>{{ driver.office or "-" }}</td>
+            <td>
+                {{ driver.safe_days_display }}
+                <br>
+                <small>起算日: {{ driver.safe_start_date }}</small>
+            </td>
+            <td>
+                {% if driver.licenses %}
+                    {{ driver.licenses[0].type }}
+
+                    {% if driver.licenses|length > 1 %}
+                        <br>
+                        <small>他{{ driver.licenses|length - 1 }}件</small>
+                    {% endif %}
+                {% else %}
+                    なし
+                {% endif %}
+            </td>
+            <td>
+                {% for vehicle in driver.vehicles %}
+                    {{ vehicle }}<br>
+                {% endfor %}
+            </td>
+            <td class="action-cell">
+                <div class="action-buttons">
+                    <a href="/master/drivers/{{ driver.index }}/edit" class="btn-small btn-edit">
+                        編集
+                    </a>
+
+                    <form
+                        method="post"
+                        action="/master/drivers/{{ driver.index }}/delete"
+                        onsubmit="return confirm('このドライバーを削除しますか？');"
+                    >
+                        <button type="submit" class="btn-small btn-delete">
+                            削除
+                        </button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<div class="mobile-card-list">
+    {% for driver in drivers %}
+        <div class="mobile-list-card">
+
+            <div class="mobile-card-head">
+                <strong>{{ driver.name }}</strong>
+                <span class="status-badge status-approved">
+                    {{ driver.employee_id }}
+                </span>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>営業所</span>
+                <strong>{{ driver.office or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>無事故・無違反</span>
+                <strong>{{ driver.safe_days_display }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>起算日</span>
+                <strong>{{ driver.safe_start_date }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>所有免許</span>
+                <strong>
+                    {% if driver.licenses %}
+                        {{ driver.licenses[0].type }}
+                        {% if driver.licenses|length > 1 %}
+                            他{{ driver.licenses|length - 1 }}件
+                        {% endif %}
+                    {% else %}
+                        なし
+                    {% endif %}
+                </strong>
+            </div>
+
+            <div class="mobile-card-content">
+                <strong>使用車両</strong><br>
+                {% if driver.vehicles %}
+                    {% for vehicle in driver.vehicles %}
+                        {{ vehicle }}<br>
+                    {% endfor %}
+                {% else %}
+                    なし
+                {% endif %}
+            </div>
+
+            <div class="mobile-card-actions">
+                <a href="/master/drivers/{{ driver.index }}/edit" class="btn-small btn-edit">
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/drivers/{{ driver.index }}/delete"
+                    onsubmit="return confirm('このドライバーを削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    {% else %}
+        <div class="mobile-list-card">
+            ドライバーが登録されていません。
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

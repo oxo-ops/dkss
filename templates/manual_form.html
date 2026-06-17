@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        マニュアル編集
+    {% else %}
+        マニュアル登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<h2>
+    {% if mode == "edit" %}
+        マニュアル編集
+    {% else %}
+        マニュアル登録
+    {% endif %}
+</h2>
+
+<div class="card">
+    <form method="post" enctype="multipart/form-data">
+
+        <label>タイトル</label>
+        <input
+            type="text"
+            name="title"
+            value="{{ manual.title if manual else '' }}"
+            required
+        >
+
+        <label>分類</label>
+        <select name="category" required>
+            <option value="安全" {% if manual and manual.category == "安全" %}selected{% endif %}>安全</option>
+            <option value="品質" {% if manual and manual.category == "品質" %}selected{% endif %}>品質</option>
+            <option value="荷扱い" {% if manual and manual.category == "荷扱い" %}selected{% endif %}>荷扱い</option>
+            <option value="納入先ルール" {% if manual and manual.category == "納入先ルール" %}selected{% endif %}>納入先ルール</option>
+            <option value="その他" {% if manual and manual.category == "その他" %}selected{% endif %}>その他</option>
+        </select>
+
+        <label>ファイル</label>
+        <input
+            type="file"
+            name="file"
+            accept="image/*,video/*,.pdf"
+        >
+
+        <p class="help-text">
+            PDF、画像、動画を登録できます。編集時に新しいファイルを選択すると差し替えられます。
+        </p>
+
+        {% if manual and manual.filename %}
+            <p>
+                現在のファイル：
+                <a
+                    href="{{ url_for('static', filename='manuals/' + manual.filename) }}"
+                    target="_blank"
+                >
+                    {{ manual.filename }}
+                </a>
+            </p>
+        {% endif %}
+
+        <button type="submit" class="btn">
+            {% if mode == "edit" %}
+                更新
+            {% else %}
+                登録
+            {% endif %}
+        </button>
+
+    </form>
+</div>
+
+<p>
+    <a href="/master/manuals">一覧へ戻る</a>
+</p>
+
+{% endblock %}

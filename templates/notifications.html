@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}通知一覧{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>通知一覧</h2>
+
+    <div class="header-actions">
+        <a href="/" class="btn btn-back">
+            × 閉じる
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    {% if notifications %}
+
+        <div class="notification-list">
+            {% for notification in notifications %}
+
+                <div class="notification-wrapper">
+
+                    <a
+                        href="/notifications/{{ notification.index }}"
+                        class="notification-item {% if not notification.read %}unread{% endif %}"
+                    >
+                        <div class="notification-icon">
+                            <img src="{{ url_for('static', filename='icons/notification.png') }}">
+                        </div>
+
+                        <div class="notification-body">
+                            <div class="notification-title">
+                                {{ notification.title }}
+                            </div>
+
+                            <div class="notification-message">
+                                {{ notification.message }}
+                            </div>
+
+                            <div class="notification-date">
+                                {{ notification.created_at }}
+                            </div>
+                        </div>
+                    </a>
+
+                    <div class="notification-actions">
+                        <form
+                            method="post"
+                            action="/notifications/{{ notification.index }}/delete"
+                            onsubmit="return confirm('この通知を削除しますか？');"
+                        >
+                            <button type="submit" class="btn-small btn-delete">
+                                削除
+                            </button>
+                        </form>
+                    </div>
+
+                </div>
+
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <p class="empty-text">通知はありません。</p>
+    {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        ドライバー編集
+    {% else %}
+        ドライバー登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            ドライバー編集
+        {% else %}
+            ドライバー登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/master/drivers" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="post" class="responsive-form">
+
+        <label>氏名</label>
+        <input
+            type="text"
+            name="name"
+            value="{{ driver.name if driver else '' }}"
+            required
+        >
+
+        <label>ログインID</label>
+        <input
+            type="text"
+            name="employee_id"
+            value="{{ driver.employee_id if driver else '' }}"
+            required
+        >
+
+        <label>パスワード</label>
+        <input
+            type="text"
+            name="password"
+            placeholder="{% if mode == 'edit' %}変更する場合だけ入力{% else %}初期パスワード{% endif %}"
+            {% if mode == "new" %}required{% endif %}
+        >
+
+        <label>権限</label>
+        <select name="role" required>
+            <option value="user" {% if driver and driver.role == "user" %}selected{% endif %}>
+                一般ユーザー
+            </option>
+            <option value="admin" {% if driver and driver.role == "admin" %}selected{% endif %}>
+                管理者
+            </option>
+        </select>
+
+        <label>営業所</label>
+        <select name="office">
+            {% for office in offices %}
+                <option
+                    value="{{ office.name }}"
+                    {% if driver and driver.office == office.name %}selected{% endif %}
+                >
+                    {{ office.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label>無事故・無違反起算日</label>
+        <input
+            type="date"
+            name="safe_start_date"
+            value="{{ driver.safe_start_date if driver else '' }}"
+            required
+        >
+
+        <p class="help-text">
+            無事故・無違反日数を計算する基準日です。
+            事故・違反がない場合は、入社日・免許取得日・システム登録日などを入力してください。
+            事故・違反がある場合は、前回事故日または前回違反日の翌日を入力してください。
+        </p>
+
+        <label>使用車両</label>
+
+        <input
+            type="text"
+            id="vehicle_search"
+            placeholder="車両番号を検索"
+            onkeyup="filterVehicles()"
+        >
+
+        <div class="vehicle-select-box" id="vehicle_list">
+            {% for vehicle in vehicles %}
+                <label class="vehicle-option">
+                    <input
+                        type="checkbox"
+                        name="vehicles"
+                        value="{{ vehicle.vehicle_id }}"
+                        {% if driver and vehicle.vehicle_id in driver.vehicles %}checked{% endif %}
+                        onchange="updateSelectedVehicles()"
+                    >
+                    {{ vehicle.number }}（{{ vehicle.type }}）
+                </label>
+            {% endfor %}
+        </div>
+
+        <div class="selected-box">
+            <strong>選択済み車両</strong>
+            <div id="selected_vehicles">未選択</div>
+        </div>
+
+        <p class="help-text">
+            検索欄で車両を絞り込みできます。
+            チェックを付けると複数車両を選択できます。
+        </p>
+
+        <h3>免許情報</h3>
+
+        <p class="help-text">
+            免許・資格ごとに有効期限を登録してください。
+            例：大型免許、けん引、フォークリフトなど。
+        </p>
+
+        <div id="license_area">
+            {% if driver and driver.licenses %}
+                {% for license in driver.licenses %}
+                    <div class="license-row">
+                        <div>
+                            <label>免許種別</label>
+                            <select name="license_type">
+                                <option value="">免許種別を選択</option>
+                                {% for license_type in license_types %}
+                                    <option
+                                        value="{{ license_type.name }}"
+                                        {% if license.type == license_type.name %}selected{% endif %}
+                                    >
+                                        {{ license_type.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label>有効期限</label>
+                            <input
+                                type="date"
+                                name="license_expiry"
+                                value="{{ license.expiry }}"
+                            >
+                        </div>
+
+                        <button
+                            type="button"
+                            class="btn-small btn-delete"
+                            onclick="removeLicenseRow(this)"
+                        >
+                            削除
+                        </button>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="license-row">
+                    <div>
+                        <label>免許種別</label>
+                        <select name="license_type">
+                            <option value="">免許種別を選択</option>
+                            {% for license_type in license_types %}
+                                <option value="{{ license_type.name }}">{{ license_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>有効期限</label>
+                        <input type="date" name="license_expiry">
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-small btn-delete"
+                        onclick="removeLicenseRow(this)"
+                    >
+                        削除
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+
+            <button
+                type="button"
+                class="btn-small"
+                onclick="addLicenseRow()"
+            >
+                免許情報を追加
+            </button>
+
+        </div>
+
+        <div class="form-actions">
+
+        <button type="submit" class="btn">
+            {% if mode == "edit" %}
+                更新
+            {% else %}
+                登録
+            {% endif %}
+        </button>
+        </div>
+
+    </form>
+</div>
+
+
+<script>
+function addLicenseRow() {
+    const area = document.getElementById("license_area");
+
+    const row = document.createElement("div");
+    row.className = "license-row";
+
+    row.innerHTML = `
+        <div>
+            <label>免許種別</label>
+            <select name="license_type">
+                <option value="">免許種別を選択</option>
+                {% for license_type in license_types %}
+                    <option value="{{ license_type.name }}">{{ license_type.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label>有効期限</label>
+            <input type="date" name="license_expiry">
+        </div>
+
+        <button
+            type="button"
+            class="btn-small btn-delete"
+            onclick="removeLicenseRow(this)"
+        >
+            削除
+        </button>
+    `;
+
+    area.appendChild(row);
+}
+
+function removeLicenseRow(button) {
+    button.parentElement.remove();
+}
+
+function filterVehicles() {
+    const keyword = document
+        .getElementById("vehicle_search")
+        .value
+        .toLowerCase();
+
+    const options = document.querySelectorAll(".vehicle-option");
+
+    options.forEach(option => {
+        const text = option.textContent.toLowerCase();
+
+        if (text.includes(keyword)) {
+            option.style.display = "block";
+        } else {
+            option.style.display = "none";
+        }
+    });
+}
+
+function updateSelectedVehicles() {
+    const checked = document.querySelectorAll(
+        'input[name="vehicles"]:checked'
+    );
+
+    const selectedArea = document.getElementById("selected_vehicles");
+
+    if (checked.length === 0) {
+        selectedArea.innerHTML = "未選択";
+        return;
+    }
+
+    selectedArea.innerHTML = "";
+
+    checked.forEach(item => {
+        const tag = document.createElement("span");
+
+        tag.className = "selected-tag";
+        tag.textContent = item.parentElement.textContent.trim();
+
+        selectedArea.appendChild(tag);
+    });
+}
+
+window.onload = function() {
+    updateSelectedVehicles();
+}
+</script>
+
+{% endblock %}

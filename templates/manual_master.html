@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}マニュアルマスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>マニュアルマスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/manuals/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>タイトル</th>
+        <th>分類</th>
+        <th>ファイル</th>
+        <th style="width:220px;">操作</th>
+    </tr>
+
+    {% for manual in manuals %}
+    <tr>
+        <td>{{ manual.title }}</td>
+        <td>{{ manual.category }}</td>
+
+        <td>
+            {% if manual.filename %}
+                <a
+                    href="{{ url_for('static', filename='manuals/' + manual.filename) }}"
+                    target="_blank"
+                >
+                    開く
+                </a>
+            {% else %}
+                未登録
+            {% endif %}
+        </td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a
+                    href="/master/manuals/{{ manual.id }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/manuals/{{ manual.id }}/delete"
+                    onsubmit="return confirm('このマニュアルを削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

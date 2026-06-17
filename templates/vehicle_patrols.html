@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}車両パトロール一覧{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両パトロール一覧</h2>
+
+    <div class="header-actions">
+        <a href="/vehicle-patrols/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<div class="favorite-setting-box">
+    <h3>使用車両設定</h3>
+
+    <div class="favorite-setting-row">
+        <div class="favorite-list">
+            {% for vehicle_id in favorite_vehicles %}
+                <span class="favorite-tag">
+                    {{ vehicle_id }}
+
+                    <form
+                        method="post"
+                        action="/vehicle-favorites/remove/{{ vehicle_id }}"
+                    >
+                        <button type="submit" class="tag-remove">×</button>
+                    </form>
+                </span>
+            {% else %}
+                <span class="help-text">使用車両は未設定です。</span>
+            {% endfor %}
+        </div>
+
+        <form method="post" action="/vehicle-favorites/add" class="favorite-add-form">
+            <input
+                type="text"
+                name="vehicle_id"
+                list="vehicle_list"
+                placeholder="車両ID・ナンバーで検索して追加"
+            >
+
+            <datalist id="vehicle_list">
+                {% for vehicle in vehicles %}
+                    <option value="{{ vehicle.vehicle_id }}">
+                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                    </option>
+                {% endfor %}
+            </datalist>
+
+            <button type="submit" class="btn-small btn-outline">
+                追加
+            </button>
+        </form>
+    </div>
+</div>
+
+<form method="get" class="patrol-search-box">
+    <input
+        type="text"
+        name="keyword"
+        value="{{ keyword }}"
+        placeholder="車両ID・故障内容・修理実施者で検索"
+    >
+
+    <select name="status">
+        <option value="active" {% if status_filter == "active" %}selected{% endif %}>
+            未対応・対応中
+        </option>
+        <option value="未対応" {% if status_filter == "未対応" %}selected{% endif %}>
+            未対応
+        </option>
+        <option value="対応中" {% if status_filter == "対応中" %}selected{% endif %}>
+            対応中
+        </option>
+        <option value="修理完了" {% if status_filter == "修理完了" %}selected{% endif %}>
+            修理完了
+        </option>
+        <option value="" {% if status_filter == "" %}selected{% endif %}>
+            すべて
+        </option>
+    </select>
+
+    <button type="submit" class="btn">
+        検索
+    </button>
+</form>
+
+<h3>使用車両</h3>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table">
+    <tr>
+        <th>発生日</th>
+        <th>車両</th>
+        <th>故障内容</th>
+        <th>状態</th>
+        <th style="width:220px;">操作</th>
+    </tr>
+
+    {% for patrol in favorite_patrols %}
+    <tr>
+        <td>{{ patrol.occurred_date or "-" }}</td>
+        <td>★ {{ patrol.vehicle_id or "-" }}</td>
+        <td>{{ patrol.content or "-" }}</td>
+
+        <td>
+            {% if patrol.status == "修理完了" %}
+                <span class="status-badge status-approved">修理完了</span>
+            {% elif patrol.status == "対応中" %}
+                <span class="status-badge status-waiting">対応中</span>
+            {% else %}
+                <span class="status-badge status-rejected">未対応</span>
+            {% endif %}
+        </td>
+
+        <td class="action-cell">
+            <a href="/vehicle-patrols/{{ patrol.index }}" class="btn-small btn-detail">
+                詳細
+            </a>
+
+            <a href="/vehicle-patrols/{{ patrol.index }}/edit" class="btn-small btn-edit">
+                更新
+            </a>
+
+            <form
+                method="post"
+                action="/vehicle-patrols/{{ patrol.index }}/delete"
+                style="display:inline;"
+                onsubmit="return confirm('削除しますか？');"
+            >
+                <button type="submit" class="btn-small btn-delete">
+                    削除
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="5">使用車両の履歴はありません。</td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+<div class="mobile-card-list">
+    {% for patrol in favorite_patrols %}
+        <div class="mobile-list-card">
+            <div class="mobile-card-head">
+                <strong>★ {{ patrol.vehicle_id or "-" }}</strong>
+
+                {% if patrol.status == "修理完了" %}
+                    <span class="status-badge status-approved">修理完了</span>
+                {% elif patrol.status == "対応中" %}
+                    <span class="status-badge status-waiting">対応中</span>
+                {% else %}
+                    <span class="status-badge status-rejected">未対応</span>
+                {% endif %}
+            </div>
+
+            <div class="mobile-card-row">
+                <span>発生日</span>
+                <strong>{{ patrol.occurred_date or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-content">
+                {{ patrol.content or "-" }}
+            </div>
+
+            <div class="mobile-card-actions">
+                <a href="/vehicle-patrols/{{ patrol.index }}" class="btn-small btn-detail">
+                    詳細
+                </a>
+
+                <a href="/vehicle-patrols/{{ patrol.index }}/edit" class="btn-small btn-edit">
+                    更新
+                </a>
+
+                <form
+                    method="post"
+                    action="/vehicle-patrols/{{ patrol.index }}/delete"
+                    onsubmit="return confirm('削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="mobile-list-card">
+            使用車両の履歴はありません。
+        </div>
+    {% endfor %}
+</div>
+
+<h3>その他の車両</h3>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table">
+    <tr>
+        <th>発生日</th>
+        <th>車両</th>
+        <th>故障内容</th>
+        <th>状態</th>
+        <th style="width:220px;">操作</th>
+    </tr>
+
+    {% for patrol in other_patrols %}
+    <tr>
+        <td>{{ patrol.occurred_date or "-" }}</td>
+        <td>{{ patrol.vehicle_id or "-" }}</td>
+        <td>{{ patrol.content or "-" }}</td>
+
+        <td>
+            {% if patrol.status == "修理完了" %}
+                <span class="status-badge status-approved">修理完了</span>
+            {% elif patrol.status == "対応中" %}
+                <span class="status-badge status-waiting">対応中</span>
+            {% else %}
+                <span class="status-badge status-rejected">未対応</span>
+            {% endif %}
+        </td>
+
+        <td class="action-cell">
+            <a href="/vehicle-patrols/{{ patrol.index }}" class="btn-small btn-detail">
+                詳細
+            </a>
+
+            <a href="/vehicle-patrols/{{ patrol.index }}/edit" class="btn-small btn-edit">
+                更新
+            </a>
+
+            <form
+                method="post"
+                action="/vehicle-patrols/{{ patrol.index }}/delete"
+                style="display:inline;"
+                onsubmit="return confirm('削除しますか？');"
+            >
+                <button type="submit" class="btn-small btn-delete">
+                    削除
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="5">その他車両の履歴はありません。</td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+<div class="mobile-card-list">
+    {% for patrol in other_patrols %}
+        <div class="mobile-list-card">
+            <div class="mobile-card-head">
+                <strong>{{ patrol.vehicle_id or "-" }}</strong>
+
+                {% if patrol.status == "修理完了" %}
+                    <span class="status-badge status-approved">修理完了</span>
+                {% elif patrol.status == "対応中" %}
+                    <span class="status-badge status-waiting">対応中</span>
+                {% else %}
+                    <span class="status-badge status-rejected">未対応</span>
+                {% endif %}
+            </div>
+
+            <div class="mobile-card-row">
+                <span>発生日</span>
+                <strong>{{ patrol.occurred_date or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-content">
+                {{ patrol.content or "-" }}
+            </div>
+
+            <div class="mobile-card-actions">
+                <a href="/vehicle-patrols/{{ patrol.index }}" class="btn-small btn-detail">
+                    詳細
+                </a>
+
+                <a href="/vehicle-patrols/{{ patrol.index }}/edit" class="btn-small btn-edit">
+                    更新
+                </a>
+
+                <form
+                    method="post"
+                    action="/vehicle-patrols/{{ patrol.index }}/delete"
+                    onsubmit="return confirm('削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="mobile-list-card">
+            その他車両の履歴はありません。
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

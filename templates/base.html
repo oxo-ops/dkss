@@ -3,17 +3,340 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}DKSS{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-<header>
-    <h1>DKSS</h1>
-</header>
+{% set path = request.path %}
 
-<main>
-    {% block content %}
-    {% endblock %}
-</main>
+<div class="app-layout">
 
+    <aside class="sidebar">
+
+        <div class="sidebar-head">
+            <a href="/" class="logo">
+                <span class="logo-mark">L</span>
+                <span class="logo-text">LOGO</span>
+            </a>
+
+            <button type="button" class="sidebar-toggle" onclick="toggleSidebar()">
+                ☰
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <a href="/" class="menu-item {% if path == '/' %}active{% endif %}">
+                <span class="menu-icon">
+                    <img src="{{ url_for('static',
+                        filename='icons/dashboard.png') }}">
+                </span>
+                <span class="menu-text">ダッシュボード</span>
+            </a>
+
+            <div class="sidebar-group {% if path.startswith('/pointouts') or path.startswith('/safety') %}open{% endif %}" data-menu-key="safety">
+                <button type="button" class="menu-item sidebar-parent" onclick="toggleMenu(this)">
+                    <span class="menu-icon">
+                        <img src="{{ url_for('static',
+                            filename='icons/safety.png') }}">
+                    </span>
+                    <span class="menu-text">安全管理</span>
+                    <span class="menu-arrow">▼</span>
+                </button>
+
+                <div class="sidebar-submenu">
+                    <a href="/pointouts" class="menu-item submenu-item {% if path.startswith('/pointouts') %}active{% endif %}">
+                        <span class="menu-text">安全パトロール</span>
+                    </a>
+
+                    <a href="/safety/checklists" class="menu-item submenu-item {% if path.startswith('/safety/checklists') %}active{% endif %}">
+                        <span class="menu-text">チェックリスト</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="sidebar-group {% if path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
+                <button type="button" class="menu-item sidebar-parent" onclick="toggleMenu(this)">
+                    <span class="menu-icon">
+                        <img src="{{ url_for('static',
+                            filename='icons/vehicle.png') }}">
+                    </span>
+                    <span class="menu-text">車両管理</span>
+                    <span class="menu-arrow">▼</span>
+                </button>
+
+                <div class="sidebar-submenu">
+                    <a href="/vehicle-patrols" class="menu-item submenu-item {% if path.startswith('/vehicle-patrols') %}active{% endif %}">
+                        <span class="menu-text">車両パトロール</span>
+                    </a>
+
+                    <a href="/vehicle/checklists" class="menu-item submenu-item {% if path.startswith('/vehicle/checklists') %}active{% endif %}">
+                        <span class="menu-text">チェックリスト</span>
+                    </a>
+                </div>
+            </div>
+
+            {% if session.get("role") in ["admin", "itc"] %}
+            <div class="sidebar-group {% if path.startswith('/master') %}open{% endif %}" data-menu-key="master">
+                <button type="button" class="menu-item sidebar-parent" onclick="toggleMenu(this)">
+                    <span class="menu-icon">
+                        <img src="{{ url_for('static',
+                            filename='icons/master.png') }}">
+                    </span>
+                    <span class="menu-text">マスタ管理</span>
+                    <span class="menu-arrow">▼</span>
+                </button>
+
+                <div class="sidebar-submenu">
+                    <a href="/master/drivers" class="menu-item submenu-item {% if path.startswith('/master/drivers') %}active{% endif %}">
+                        <span class="menu-text">ドライバーマスタ</span>
+                    </a>
+
+                    <a href="/master/offices" class="menu-item submenu-item {% if path.startswith('/master/offices') %}active{% endif %}">
+                        <span class="menu-text">営業所マスタ</span>
+                    </a>
+
+                    <a href="/master/vehicles" class="menu-item submenu-item {% if path.startswith('/master/vehicles') %}active{% endif %}">
+                        <span class="menu-text">車両マスタ</span>
+                    </a>
+
+                    <a href="/master/vehicle-types"
+                    class="menu-item submenu-item {% if path.startswith('/master/vehicle-types') %}active{% endif %}">
+                        <span class="menu-text">車種マスタ</span>
+                    </a>
+
+                    <a href="/master/license-types"
+                    class="menu-item submenu-item {% if path.startswith('/master/license-types') %}active{% endif %}">
+                        <span class="menu-text">免許種別マスタ</span>
+                    </a>
+
+                    <a href="/master/delivery-places" class="menu-item submenu-item {% if path.startswith('/master/delivery-places') %}active{% endif %}">
+                        <span class="menu-text">納入先マスタ</span>
+                    </a>
+
+                    <a href="/master/manuals" class="menu-item submenu-item {% if path.startswith('/master/manuals') %}active{% endif %}">
+                            <span class="menu-text">マニュアルマスタ</span>
+                    </a>
+
+                    <a href="/master/checklists" class="menu-item submenu-item {% if path.startswith('/master/checklists') %}active{% endif %}">
+                        <span class="menu-text">チェックリストマスタ</span>
+                    </a>
+                    {% if session.get("role") == "itc" %}
+                    <a href="/itc" class="menu-item submenu-item {% if path.startswith('/itc') %}active{% endif %}">
+                        <span class="menu-text">ITC管理</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </nav>
+
+        <div class="sidebar-footer">
+            <p class="sidebar-user">
+                ユーザー：{{ session.get("name") }}
+            </p>
+
+            <a href="/settings" class="logout-link menu-item">
+                <span class="menu-icon">
+                    <img src="{{ url_for('static', filename='icons/master.png') }}">
+                </span>
+                <span class="menu-text">設定</span>
+            </a>
+
+            <a href="/logout" class="logout-link menu-item">
+                <span class="menu-icon">
+                    <img src="{{ url_for('static',
+                        filename='icons/logout.png') }}">
+                </span>
+                <span class="menu-text">ログアウト</span>
+            </a>
+        </div>
+
+    </aside>
+
+    <main class="main-content">
+
+        <div class="top-bar">
+            <a href="/notifications" class="notification-bell">
+                <img src="{{ url_for('static', filename='icons/notification.png') }}" alt="通知">
+
+                {% if unread_notification_count > 0 %}
+                    <span class="notification-count">
+                        {{ unread_notification_count }}
+                    </span>
+                {% endif %}
+            </a>
+        </div>
+
+        {% block content %}
+        {% endblock %}
+
+    </main>
+
+</div>
+
+<script>
+function toggleSidebar() {
+    if (window.innerWidth <= 900) {
+        document.body.classList.toggle("sidebar-open");
+        return;
+    }
+
+    document.body.classList.toggle("sidebar-collapsed");
+
+    if (document.body.classList.contains("sidebar-collapsed")) {
+        localStorage.setItem("sidebarCollapsed", "1");
+    } else {
+        localStorage.setItem("sidebarCollapsed", "0");
+    }
+}
+
+function toggleMenu(button) {
+    const group = button.closest(".sidebar-group");
+    const key = group.dataset.menuKey;
+
+    if (document.body.classList.contains("sidebar-collapsed")) {
+        document.body.classList.remove("sidebar-collapsed");
+        localStorage.setItem("sidebarCollapsed", "0");
+    }
+
+    group.classList.toggle("open");
+
+    if (key) {
+        localStorage.setItem(
+            "menuOpen_" + key,
+            group.classList.contains("open") ? "1" : "0"
+        );
+    }
+}
+
+window.addEventListener("DOMContentLoaded", function () {
+    if (localStorage.getItem("sidebarCollapsed") === "1") {
+        document.body.classList.add("sidebar-collapsed");
+    }
+
+    document.querySelectorAll(".sidebar-group").forEach(function(group) {
+        const key = group.dataset.menuKey;
+
+        if (!key) {
+            return;
+        }
+
+        const saved = localStorage.getItem("menuOpen_" + key);
+
+        if (saved === "1") {
+            group.classList.add("open");
+        }
+
+        if (saved === "0") {
+            group.classList.remove("open");
+        }
+    });
+});
+</script>
+<div id="mentionBox" class="mention-box" style="display:none;"></div>
+
+<script>
+document.addEventListener("input", function(e) {
+    if (!e.target.classList.contains("mention-input")) {
+        return;
+    }
+
+    const input = e.target;
+    const text = input.value;
+    const caret = input.selectionStart;
+    const beforeCaret = text.slice(0, caret);
+
+    const match = beforeCaret.match(/@([^@\s]*)$/);
+
+    if (!match) {
+        closeMentionBox();
+        return;
+    }
+
+    const keyword = match[1];
+
+    fetch("/api/mention-users?q=" + encodeURIComponent(keyword))
+        .then(res => res.json())
+        .then(data => {
+            showMentionBox(input, data.users, match[0]);
+        });
+});
+
+function showMentionBox(input, users, mentionText) {
+    const box = document.getElementById("mentionBox");
+
+    if (!users || users.length === 0) {
+        closeMentionBox();
+        return;
+    }
+
+    box.innerHTML = "";
+
+    users.forEach(function(user) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "mention-item";
+
+        item.innerHTML =
+            "<strong>" + user.name + "</strong>" +
+            "<span>" + (user.office || "") + "</span>";
+
+        item.onclick = function() {
+            insertMention(input, mentionText, user.name);
+        };
+
+        box.appendChild(item);
+    });
+
+    const rect = input.getBoundingClientRect();
+
+    box.style.left = rect.left + "px";
+    box.style.top = (rect.bottom + window.scrollY + 6) + "px";
+    box.style.width = rect.width + "px";
+    box.style.display = "block";
+}
+
+function insertMention(input, mentionText, name) {
+    const caret = input.selectionStart;
+    const text = input.value;
+
+    const before = text.slice(0, caret);
+    const after = text.slice(caret);
+
+    const newBefore = before.replace(/@([^@\s]*)$/, "@" + name + " ");
+
+    input.value = newBefore + after;
+    input.focus();
+    input.selectionStart = input.selectionEnd = newBefore.length;
+
+    closeMentionBox();
+}
+
+function closeMentionBox() {
+    const box = document.getElementById("mentionBox");
+    if (box) {
+        box.style.display = "none";
+    }
+}
+
+document.addEventListener("click", function(e) {
+    if (
+        !e.target.closest(".mention-box") &&
+        !e.target.classList.contains("mention-input")
+    ) {
+        closeMentionBox();
+    }
+});
+
+document.addEventListener("click", function(e) {
+    const link = e.target.closest(".sidebar a");
+
+    if (link && window.innerWidth <= 900) {
+        document.body.classList.remove("sidebar-open");
+    }
+});
+</script>
 </body>
 </html>

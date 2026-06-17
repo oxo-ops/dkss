@@ -4,15 +4,180 @@
 
 {% block content %}
 
-<h2>ダッシュボード</h2>
-<p>Phase1：安全管理・車両管理</p>
+<div class="dashboard-page">
 
-<ul>
-    <li><a href="/safety">安全管理</a></li>
-    <li><a href="/vehicles">車両管理</a></li>
-    <li><a href="/analysis">分析ダッシュボード</a></li>
-    <li><a href="/manuals">マニュアル</a></li>
-    <li><a href="/master">マスタ管理</a></li>
-</ul>
+    <div class="dashboard-header">
+        <div>
+            <h2>ダッシュボード</h2>
+            <p>今日の安全状況と対応状況を確認できます。</p>
+            {% if setup_tasks %}
+            <div class="card setup-guide-card">
+                <h3>初期設定ガイド</h3>
+
+                <p class="help-text">
+                    システム利用前に、以下のマスタを設定してください。
+                </p>
+
+                <div class="setup-task-list">
+                    {% for task in setup_tasks %}
+                        <div class="setup-task-item">
+                            <div>
+                                <strong>{{ task.name }}</strong>
+                                <p>{{ task.description }}</p>
+                            </div>
+
+                            <a href="{{ task.url }}" class="btn-small">
+                                設定する
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="dashboard-summary">
+
+        <div class="summary-card main">
+            <div class="summary-title">あなたの無事故無違反</div>
+            <div class="summary-value">{{ my_safe_days }}</div>
+            <div class="summary-unit">日継続中</div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-title">あなたのGood件数</div>
+            <div class="summary-value good">{{ my_good_count }}</div>
+            <div class="summary-unit">件</div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-title">あなたへの未対応指摘</div>
+            <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
+            <div class="summary-unit">件</div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-title">車検期限90日以内</div>
+            <div class="summary-value warning">{{ inspection_alerts|length }}</div>
+            <div class="summary-unit">台</div>
+        </div>
+
+    </div>
+
+    <div class="dashboard-two-column">
+
+        <div class="dashboard-card">
+            <div class="card-title-row">
+                <h3>無事故無違反ランキング</h3>
+                <span>上位10名</span>
+            </div>
+
+            {% if ranking %}
+                <table class="dashboard-table">
+                    <tr>
+                        <th style="width:70px;">順位</th>
+                        <th>氏名</th>
+                        <th>営業所</th>
+                        <th style="width:120px;">継続日数</th>
+                    </tr>
+
+                    {% for driver in ranking %}
+                    <tr>
+                        <td>
+                            <span class="rank-badge rank-{{ loop.index }}">
+                                {{ loop.index }}
+                            </span>
+                        </td>
+                        <td>{{ driver.name }}</td>
+                        <td>{{ driver.office }}</td>
+                        <td>
+                            <strong>{{ driver.safe_days }}</strong> 日
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p class="empty-text">ランキング対象のドライバーがありません。</p>
+            {% endif %}
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-title-row">
+                <h3>車検期限が近い車両</h3>
+                <span>90日以内</span>
+            </div>
+
+            {% if inspection_alerts %}
+                <table class="dashboard-table">
+                    <tr>
+                        <th>車両</th>
+                        <th>車検期限</th>
+                        <th style="width:100px;">残日数</th>
+                    </tr>
+
+                    {% for vehicle in inspection_alerts %}
+                    <tr>
+                        <td>{{ vehicle.vehicle_id }}｜{{ vehicle.number }}</td>
+                        <td>{{ vehicle.inspection_expiry }}</td>
+                        <td>
+                            {% if vehicle.remaining_days < 0 %}
+                                <span class="danger-text">期限切れ</span>
+                            {% elif vehicle.remaining_days <= 30 %}
+                                <span class="danger-text">{{ vehicle.remaining_days }}日</span>
+                            {% else %}
+                                <span class="warning-text">{{ vehicle.remaining_days }}日</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p class="empty-text">車検期限が近い車両はありません。</p>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <div class="dashboard-card">
+        <div class="card-title-row">
+            <h3>あなたへの未対応指摘</h3>
+            <span>{{ my_pending_pointouts|length }}件</span>
+        </div>
+
+        {% if my_pending_pointouts %}
+            <table class="dashboard-table">
+                <tr>
+                    <th style="width:120px;">日付</th>
+                    <th style="width:120px;">区分</th>
+                    <th>内容</th>
+                    <th style="width:130px;">状態</th>
+                    <th style="width:100px;">詳細</th>
+                </tr>
+
+                {% for item in my_pending_pointouts %}
+                <tr>
+                    <td>{{ item.date }}</td>
+                    <td>{{ item.category }}</td>
+                    <td>{{ item.content }}</td>
+                    <td>
+                        <span class="status-badge status-waiting">
+                            {{ item.approval_status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="/pointouts/{{ item.index }}" class="btn-mini">
+                            確認
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="empty-text">未対応の指摘はありません。</p>
+        {% endif %}
+    </div>
+
+</div>
 
 {% endblock %}

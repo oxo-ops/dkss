@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        ニュース編集
+    {% else %}
+        ニュース作成
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            ニュース編集
+        {% else %}
+            ニュース作成
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/itc" class="btn btn-back">← ITC管理へ戻る</a>
+    </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card">
+
+    <label>投稿先</label>
+    <select name="target_type" required>
+        <option value="all" {% if news and news.target_type == "all" %}selected{% endif %}>
+            全ユーザー
+        </option>
+        <option value="admins" {% if news and news.target_type == "admins" %}selected{% endif %}>
+            管理者ユーザーのみ
+        </option>
+        <option value="company" {% if news and news.target_type == "company" %}selected{% endif %}>
+            特定の会社
+        </option>
+        <option value="office" {% if news and news.target_type == "office" %}selected{% endif %}>
+            特定営業所
+        </option>
+        <option value="user" {% if news and news.target_type == "user" %}selected{% endif %}>
+            特定のユーザー
+        </option>
+    </select>
+
+    <div id="targetSearchArea">
+        <label>投稿先指定</label>
+
+        <input
+            type="text"
+            id="newsTargetSearch"
+            class="news-target-search"
+            placeholder="会社名・営業所名・ユーザー名を入力"
+            autocomplete="off"
+        >
+
+        <input
+            type="hidden"
+            name="target_value"
+            id="newsTargetValue"
+            value="{{ news.target_value if news else '' }}"
+        >
+
+        <div
+            id="newsTargetResults"
+            class="news-target-results"
+            style="display:none;"
+        ></div>
+
+        <p class="help-text">
+            全ユーザー・管理者ユーザーのみの場合は指定不要です。特定会社・特定営業所・特定ユーザーの場合のみ検索して選択してください。
+        </p>
+    </div>
+
+    <label>タイトル</label>
+    <input
+        type="text"
+        name="title"
+        value="{{ news.title if news else '' }}"
+        required
+    >
+
+    <label>本文</label>
+    <textarea name="message" rows="6" class="mention-input" required>{{ news.message if news else '' }}</textarea>
+
+    <label>添付ファイル</label>
+    <input
+        type="file"
+        name="files"
+        multiple
+        accept="image/*,video/*,.pdf,.xlsx,.docx"
+    >
+
+    {% if news and news.files %}
+        <div class="attached-files">
+            <strong>登録済みファイル</strong>
+
+            {% for file in news.files %}
+                <div>
+                    <a href="{{ url_for('static', filename='uploads/' ~ file) }}" target="_blank">
+                        {{ file }}
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <button type="submit" class="btn">
+        {% if mode == "edit" %}
+            更新
+        {% else %}
+            配信
+        {% endif %}
+    </button>
+    
+{% if mode == "edit" and news %}
+    <button
+        type="submit"
+        class="btn btn-danger"
+        formaction="/itc/news/{{ index }}/delete"
+        formmethod="post"
+        onclick="return confirm('このニュースを削除しますか？');"
+    >
+        削除
+    </button>
+{% endif %}
+</form>
+<script>
+const targetTypeSelect = document.querySelector('select[name="target_type"]');
+const targetSearchArea = document.getElementById("targetSearchArea");
+const targetSearchInput = document.getElementById("newsTargetSearch");
+const targetValueInput = document.getElementById("newsTargetValue");
+const targetResults = document.getElementById("newsTargetResults");
+
+function updateTargetSearchArea() {
+    const type = targetTypeSelect.value;
+
+    if (type === "all" || type === "admins") {
+        targetSearchArea.style.display = "none";
+        targetSearchInput.value = "";
+        targetValueInput.value = "";
+        targetResults.style.display = "none";
+    } else {
+        targetSearchArea.style.display = "block";
+    }
+}
+
+targetTypeSelect.addEventListener("change", function () {
+    updateTargetSearchArea();
+});
+
+targetSearchInput.addEventListener("input", function () {
+    const keyword = targetSearchInput.value.trim();
+    const type = targetTypeSelect.value;
+
+    if (!keyword) {
+        targetResults.innerHTML = "";
+        targetResults.style.display = "none";
+        targetValueInput.value = "";
+        return;
+    }
+
+    fetch("/api/news-targets?type=" + encodeURIComponent(type) + "&q=" + encodeURIComponent(keyword))
+        .then(response => response.json())
+        .then(data => {
+            targetResults.innerHTML = "";
+
+            if (!data.results || data.results.length === 0) {
+                targetResults.style.display = "none";
+                return;
+            }
+
+            data.results.forEach(function (item) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "news-target-item";
+
+                button.innerHTML =
+                    "<strong>" + item.name + "</strong>" +
+                    "<span>" + item.sub + "</span>";
+
+                button.onclick = function () {
+                    targetSearchInput.value = item.name;
+                    targetValueInput.value = item.id;
+                    targetResults.style.display = "none";
+                };
+
+                targetResults.appendChild(button);
+            });
+
+            targetResults.style.display = "block";
+        });
+});
+
+document.addEventListener("click", function (e) {
+    if (!e.target.closest("#targetSearchArea")) {
+        targetResults.style.display = "none";
+    }
+});
+
+window.addEventListener("DOMContentLoaded", function () {
+    updateTargetSearchArea();
+});
+</script>
+{% endblock %}

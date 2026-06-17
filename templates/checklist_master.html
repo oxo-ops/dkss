@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}チェックリストマスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>チェックリストマスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/checklists/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>チェックリスト名</th>
+        <th>用途</th>
+        <th>項目数</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for checklist in checklists %}
+    <tr>
+        <td>{{ checklist["name"] }}</td>
+        <td>{{ checklist["target"] }}</td>
+        <td>{{ checklist["items"]|length }}件</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a
+                    href="/master/checklists/{{ checklist.id }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/checklists/{{ checklist.id }}/delete"
+                    onsubmit="return confirm('このチェックリストを削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

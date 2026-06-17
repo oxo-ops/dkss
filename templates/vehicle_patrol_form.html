@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        車両パトロール更新
+    {% else %}
+        車両パトロール登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            車両パトロール更新
+        {% else %}
+            車両パトロール登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/vehicle-patrols" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<form method="post" class="responsive-form">
+
+    <div class="card form-card">
+        <h3>基本情報</h3>
+
+        <div class="form-group">
+            <label>対象車両</label>
+
+            <input
+                type="text"
+                id="vehicle_search"
+                placeholder="車両ID・ナンバーで検索"
+                onkeyup="filterVehicleOptions()"
+            >
+
+            <select name="vehicle_id" id="vehicle_id" required size="8">
+                <option value="">選択してください</option>
+
+                <optgroup label="使用車両">
+                    {% for vehicle in vehicles %}
+                        {% if vehicle.vehicle_id in session.get("vehicles", []) %}
+                            <option
+                                value="{{ vehicle.vehicle_id }}"
+                                {% if patrol and patrol.vehicle_id == vehicle.vehicle_id %}selected{% endif %}
+                            >
+                                ★ {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </optgroup>
+
+                <optgroup label="その他の車両">
+                    {% for vehicle in vehicles %}
+                        {% if vehicle.vehicle_id not in session.get("vehicles", []) %}
+                            <option
+                                value="{{ vehicle.vehicle_id }}"
+                                {% if patrol and patrol.vehicle_id == vehicle.vehicle_id %}selected{% endif %}
+                            >
+                                {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </optgroup>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>発生日</label>
+            <input
+                type="date"
+                name="occurred_date"
+                value="{{ patrol.occurred_date if patrol else '' }}"
+                required
+            >
+        </div>
+
+        <div class="form-group">
+            <label>分類</label>
+            <select name="category">
+                <option value="故障" {% if patrol and patrol.category == "故障" %}selected{% endif %}>故障</option>
+                <option value="不具合" {% if patrol and patrol.category == "不具合" %}selected{% endif %}>不具合</option>
+                <option value="事故" {% if patrol and patrol.category == "事故" %}selected{% endif %}>事故</option>
+                <option value="点検指摘" {% if patrol and patrol.category == "点検指摘" %}selected{% endif %}>点検指摘</option>
+                <option value="その他" {% if patrol and patrol.category == "その他" %}selected{% endif %}>その他</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>重要度</label>
+            <select name="priority">
+                <option value="高" {% if patrol and patrol.priority == "高" %}selected{% endif %}>高</option>
+                <option value="中" {% if patrol and patrol.priority == "中" %}selected{% endif %}>中</option>
+                <option value="低" {% if patrol and patrol.priority == "低" %}selected{% endif %}>低</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>状態</label>
+            <select name="status">
+                <option value="未対応" {% if patrol and patrol.status == "未対応" %}selected{% endif %}>未対応</option>
+                <option value="対応中" {% if patrol and patrol.status == "対応中" %}selected{% endif %}>対応中</option>
+                <option value="修理完了" {% if patrol and patrol.status == "修理完了" %}selected{% endif %}>修理完了</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card form-card">
+        <h3>不具合内容</h3>
+
+        <div class="form-group">
+            <label>内容</label>
+            <textarea
+                name="content"
+                class="mention-input"
+                rows="4"
+                placeholder="例：エンジン始動時に異音あり、右後輪タイヤに亀裂あり"
+                required
+            >{{ patrol.content if patrol else '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="card form-card">
+        <h3>対応記録</h3>
+
+        <p class="help-text">
+            初回登録時点で未確定の場合は空欄で問題ありません。原因や修理内容が分かった時点で更新してください。
+        </p>
+
+        <div class="form-group">
+            <label>確認結果・原因</label>
+            <textarea
+                name="cause"
+                class="mention-input"
+                rows="3"
+                placeholder="例：バッテリー劣化、タイヤ摩耗、配線接触不良"
+            >{{ patrol.cause if patrol else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>応急対応</label>
+            <textarea
+                name="temporary_action"
+                class="mention-input"
+                rows="3"
+                placeholder="例：予備車両へ切替、ジャンプスターターで始動、走行停止"
+            >{{ patrol.temporary_action if patrol else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>修理・対応内容</label>
+            <textarea
+                name="repair_content"
+                class="mention-input"
+                rows="3"
+                placeholder="例：バッテリー交換、タイヤ交換、配線修理"
+            >{{ patrol.repair_content if patrol else '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="card form-card">
+        <h3>修理情報</h3>
+
+        <div class="form-group">
+            <label>修理日</label>
+            <input
+                type="date"
+                name="repair_date"
+                value="{{ patrol.repair_date if patrol else '' }}"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>修理実施者</label>
+            <input
+                type="text"
+                name="repair_person"
+                value="{{ patrol.repair_person if patrol else '' }}"
+                placeholder="例：自社対応、〇〇自動車"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>修理所要時間</label>
+            <input
+                type="text"
+                name="repair_time"
+                value="{{ patrol.repair_time if patrol else '' }}"
+                placeholder="例：2時間、半日、1日"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>交換部品</label>
+            <input
+                type="text"
+                name="parts"
+                value="{{ patrol.parts if patrol else '' }}"
+                placeholder="例：バッテリー、タイヤ、ランプ"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>修理費用</label>
+            <input
+                type="number"
+                name="cost"
+                value="{{ patrol.cost if patrol else '' }}"
+                placeholder="例：15000"
+            >
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn">
+            {% if mode == "edit" %}
+                更新
+            {% else %}
+                登録
+            {% endif %}
+        </button>
+    </div>
+
+</form>
+
+<script>
+function filterVehicleOptions() {
+    const keyword = document
+        .getElementById("vehicle_search")
+        .value
+        .toLowerCase();
+
+    const options = document.querySelectorAll("#vehicle_id option");
+
+    options.forEach(option => {
+        const text = option.textContent.toLowerCase();
+
+        if (text.includes(keyword) || option.value === "") {
+            option.style.display = "";
+        } else {
+            option.style.display = "none";
+        }
+    });
+}
+</script>
+
+{% endblock %}

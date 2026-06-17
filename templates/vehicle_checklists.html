@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}車両チェックリスト{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両チェックリスト</h2>
+</div>
+
+<table>
+    <tr>
+        <th>チェックリスト名</th>
+        <th>頻度</th>
+        <th>表示形式</th>
+        <th style="width:160px;">操作</th>
+    </tr>
+
+    {% for checklist in checklists %}
+    <tr>
+        <td>{{ checklist.name }}</td>
+        <td>
+            {{ checklist.frequency_value }}
+            {% if checklist.frequency_unit == "day" %}
+                日ごと
+            {% elif checklist.frequency_unit == "month" %}
+                ヶ月ごと
+            {% elif checklist.frequency_unit == "year" %}
+                年ごと
+            {% else %}
+                -
+            {% endif %}
+        </td>
+        <td>
+            {% if checklist.display_type == "month" %}
+                月表示
+            {% elif checklist.display_type == "year" %}
+                年表示
+            {% else %}
+                -
+            {% endif %}
+        </td>
+        <td>
+            <a href="/vehicle/checklists/{{ checklist.id }}" class="btn-small">
+                開く
+            </a>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="4">車両管理用チェックリストはありません。</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

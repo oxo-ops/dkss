@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}車種マスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車種マスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/vehicle-types/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:15px;">
+    <p class="help-text">
+        車両登録時に選択する車両の分類を登録します。<br>
+        例：大型トラック、中型トラック、小型トラック、トレーラー、フォークリフト など
+    </p>
+</div>
+
+<table>
+    <tr>
+        <th>車種名</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for vehicle_type in vehicle_types %}
+    <tr>
+        <td>{{ vehicle_type.name }}</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a
+                    href="/master/vehicle-types/{{ vehicle_type.id }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/vehicle-types/{{ vehicle_type.id }}/delete"
+                    onsubmit="return confirm('この車種を削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="2">車種が登録されていません。</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}車両マスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両マスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/vehicles/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-summary">
+
+    <div class="summary-card">
+        <div class="summary-title">契約上限</div>
+        <div class="summary-value">
+            {{ vehicle_limit }}
+        </div>
+        <div class="summary-unit">台</div>
+    </div>
+
+    <div class="summary-card">
+        <div class="summary-title">登録済み</div>
+        <div class="summary-value">
+            {{ vehicle_count }}
+        </div>
+        <div class="summary-unit">台</div>
+    </div>
+
+    <div class="summary-card">
+        <div class="summary-title">残り登録可能</div>
+        <div class="summary-value good">
+            {{ remaining_vehicles }}
+        </div>
+        <div class="summary-unit">台</div>
+    </div>
+
+</div>
+
+<div class="card">
+    <form method="get">
+
+        <label>ナンバープレート検索</label>
+        <input
+            type="text"
+            name="keyword"
+            value="{{ keyword }}"
+            placeholder="例：品川、100、あ、12-34"
+        >
+
+        <label>営業所</label>
+        <select name="office">
+            <option value="">すべて</option>
+            {% for office_item in offices %}
+                <option value="{{ office_item.name }}" {% if office == office_item.name %}selected{% endif %}>
+                    {{ office_item.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label>車種</label>
+        <select name="vehicle_type">
+            <option value="">すべて</option>
+            {% for vehicle_type_item in vehicle_types %}
+                <option
+                    value="{{ vehicle_type_item.name }}"
+                    {% if vehicle_type == vehicle_type_item.name %}selected{% endif %}
+                >
+                    {{ vehicle_type_item.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn">検索</button>
+        <a href="/master/vehicles" class="btn btn-back">クリア</a>
+
+    </form>
+</div>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table">
+    <tr>
+        <th>車両ID</th>
+        <th>ナンバープレート</th>
+        <th>車種</th>
+        <th>営業所</th>
+        <th>車検満了日</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for vehicle in vehicles %}
+    <tr>
+        <td>{{ vehicle.vehicle_id }}</td>
+        <td>
+            {{ vehicle.plate_area }}
+            {{ vehicle.plate_class }}
+            {{ vehicle.plate_kana }}
+            {{ vehicle.plate_number }}
+        </td>
+        <td>{{ vehicle.type }}</td>
+        <td>{{ vehicle.office }}</td>
+        <td>{{ vehicle.inspection_expiry }}</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a
+                    href="/master/vehicles/{{ vehicle.index }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/vehicles/{{ vehicle.index }}/delete"
+                    onsubmit="return confirm('この車両を削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+</div>
+
+<div class="mobile-card-list">
+    {% for vehicle in vehicles %}
+        <div class="mobile-list-card">
+
+            <div class="mobile-card-head">
+                <strong>{{ vehicle.vehicle_id }}</strong>
+                <span class="status-badge status-approved">
+                    {{ vehicle.type }}
+                </span>
+            </div>
+
+            <div class="mobile-card-content">
+                <strong>ナンバープレート</strong><br>
+                {{ vehicle.plate_area }}
+                {{ vehicle.plate_class }}
+                {{ vehicle.plate_kana }}
+                {{ vehicle.plate_number }}
+            </div>
+
+            <div class="mobile-card-row">
+                <span>営業所</span>
+                <strong>{{ vehicle.office }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>車検満了日</span>
+                <strong>{{ vehicle.inspection_expiry or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-actions">
+                <a
+                    href="/master/vehicles/{{ vehicle.index }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/vehicles/{{ vehicle.index }}/delete"
+                    onsubmit="return confirm('この車両を削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    {% else %}
+        <div class="mobile-list-card">
+            車両が登録されていません。
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

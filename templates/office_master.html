@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}営業所マスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>営業所マスタ</h2>
+
+    <div class="header-actions">
+
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/offices/new" class="btn">
+            新規登録
+        </a>
+
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>営業所名</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for office in offices %}
+    <tr>
+        <td>{{ office.name }}</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+
+                <a
+                    href="/master/offices/{{ office.id }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/offices/{{ office.id }}/delete"
+                    onsubmit="return confirm('この営業所を削除しますか？');"
+                >
+                    <button
+                        type="submit"
+                        class="btn-small btn-delete"
+                    >
+                        削除
+                    </button>
+                </form>
+
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+
+{% endblock %}

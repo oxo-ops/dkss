@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}安全パトロール結果登録{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>安全パトロール結果登録</h2>
+</div>
+
+<div class="card form-card">
+
+    <form method="post" enctype="multipart/form-data" class="responsive-form">
+
+        <div class="form-group">
+            <label>発生日</label>
+            <input
+                type="date"
+                name="date"
+                id="event_date"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>分類</label>
+            <select name="category">
+                <option value="安全">安全</option>
+                <option value="品質">品質</option>
+                <option value="Good">Good</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>対象区分</label>
+
+            <div class="button-group">
+                <button
+                    type="button"
+                    class="choice-btn active"
+                    onclick="selectTargetType('user', this)"
+                >
+                    個人
+                </button>
+
+                <button
+                    type="button"
+                    class="choice-btn"
+                    onclick="selectTargetType('delivery_place', this)"
+                >
+                    納入先
+                </button>
+            </div>
+
+            <input type="hidden" name="target_type" id="target_type" value="user">
+        </div>
+
+        <div id="user_target_area" class="form-group">
+            <label>対象者</label>
+
+            <input
+                type="text"
+                name="target_user"
+                list="driver_list"
+                placeholder="氏名を入力"
+            >
+
+            <datalist id="driver_list">
+                {% for driver in drivers %}
+                    <option value="{{ driver.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+
+        <div id="delivery_place_area" class="form-group" style="display:none;">
+            <label>納入先</label>
+
+            <input
+                type="text"
+                name="delivery_place"
+                list="delivery_place_list"
+                placeholder="納入先名を入力"
+            >
+
+            <datalist id="delivery_place_list">
+                {% for place in delivery_places %}
+                    <option value="{{ place.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+
+        <div class="form-group">
+            <label>内容区分</label>
+            <select name="content_type">
+                <option value="落下">落下</option>
+                <option value="車両">車両</option>
+                <option value="環境">環境</option>
+                <option value="荷扱い">荷扱い</option>
+                <option value="ルール違反">ルール違反</option>
+                <option value="その他">その他</option>
+            </select>
+        </div>
+
+        <div class="card manual-card">
+            <h3>マニュアル参照</h3>
+
+            <p class="help-text">
+                登録前に関連マニュアルを確認できます。
+            </p>
+
+            <select id="manual_select" onchange="openManual()">
+                <option value="">
+                    マニュアルを選択してください
+                </option>
+
+                {% for manual in manuals %}
+                <option
+                    value="{{ url_for('static', filename='manuals/' + manual.filename) }}"
+                >
+                    {{ manual.category }}｜{{ manual.title }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <div style="margin-top:12px;">
+                <a
+                    id="manual_link"
+                    class="btn"
+                    target="_blank"
+                    style="display:none;"
+                >
+                    マニュアルを開く
+                </a>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>内容</label>
+            <textarea
+                name="content"
+                class="mention-input"
+                rows="5"
+                placeholder="内容を入力してください"
+            ></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>添付ファイル</label>
+
+            <input
+                type="file"
+                name="files"
+                id="files"
+                multiple
+                accept="image/*,video/*,.pdf"
+                onchange="previewFiles()"
+            >
+
+            <div id="preview_area" class="preview-area"></div>
+
+            <p class="help-text">
+                Ctrlキーを押しながら選択すると複数選択できます。
+            </p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">
+                登録
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+<div class="form-bottom-actions">
+    <a href="/pointouts" class="btn btn-back">
+        ← 一覧へ戻る
+    </a>
+</div>
+
+<script>
+function selectTargetType(type, button) {
+    document.getElementById("target_type").value = type;
+
+    const buttons = document.querySelectorAll(".choice-btn");
+    buttons.forEach(btn => btn.classList.remove("active"));
+
+    button.classList.add("active");
+
+    const userArea = document.getElementById("user_target_area");
+    const deliveryArea = document.getElementById("delivery_place_area");
+
+    if (type === "user") {
+        userArea.style.display = "block";
+        deliveryArea.style.display = "none";
+    } else {
+        userArea.style.display = "none";
+        deliveryArea.style.display = "block";
+    }
+}
+
+function previewFiles() {
+    const files = document.getElementById("files").files;
+    const previewArea = document.getElementById("preview_area");
+
+    previewArea.innerHTML = "";
+
+    for (const file of files) {
+        const fileBox = document.createElement("div");
+        fileBox.className = "preview-item";
+
+        if (file.type.startsWith("image/")) {
+            const img = document.createElement("img");
+            img.src = URL.createObjectURL(file);
+            img.className = "preview-image";
+            fileBox.appendChild(img);
+        } else if (file.type.startsWith("video/")) {
+            const video = document.createElement("video");
+            video.src = URL.createObjectURL(file);
+            video.className = "preview-video";
+            video.controls = true;
+            fileBox.appendChild(video);
+        } else {
+            const text = document.createElement("p");
+            text.textContent = "PDF：" + file.name;
+            fileBox.appendChild(text);
+        }
+
+        previewArea.appendChild(fileBox);
+    }
+}
+</script>
+
+<script>
+window.addEventListener("DOMContentLoaded", function () {
+    const dateInput = document.getElementById("event_date");
+
+    if (dateInput && !dateInput.value) {
+        const today = new Date().toISOString().split("T")[0];
+        dateInput.value = today;
+    }
+});
+</script>
+
+<script>
+function openManual() {
+    const select = document.getElementById("manual_select");
+    const link = document.getElementById("manual_link");
+
+    if (select.value === "") {
+        link.style.display = "none";
+        return;
+    }
+
+    link.href = select.value;
+    link.style.display = "inline-block";
+}
+</script>
+
+{% endblock %}

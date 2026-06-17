@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        チェックリスト結果編集
+    {% else %}
+        チェックリスト実施
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            {{ checklist["name"] }} 結果編集
+        {% else %}
+            {{ checklist["name"] }} 実施
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/safety/checklists/{{ index }}" class="btn btn-back">
+            ← 結果一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <p>
+        <strong>点検者：</strong>
+        {% if result %}
+            {{ result.checked_by }}
+        {% else %}
+            {{ session.name }}
+        {% endif %}
+    </p>
+
+    <p>
+        <strong>状態：</strong>
+        {% if mode == "edit" %}
+            編集中
+        {% else %}
+            入力中
+        {% endif %}
+    </p>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+
+    <div class="card">
+        <h3>対象情報</h3>
+
+        <label>対象区分</label>
+        <select name="target_type" id="target_type" onchange="switchChecklistTarget()">
+            <option value="" {% if result and not result.target_type %}selected{% endif %}>
+                指定なし
+            </option>
+
+            <option value="user" {% if result and result.target_type == "user" %}selected{% endif %}>
+                ユーザー
+            </option>
+
+            <option value="vehicle" {% if result and result.target_type == "vehicle" %}selected{% endif %}>
+                車両
+            </option>
+
+            <option value="office" {% if result and result.target_type == "office" %}selected{% endif %}>
+                営業所
+            </option>
+        </select>
+
+        <div id="target_user_area" style="display:none;">
+            <label>対象者</label>
+            <input
+                type="text"
+                name="target_user"
+                list="driver_list"
+                value="{{ result.target_user if result else '' }}"
+                placeholder="対象者名を入力"
+            >
+
+            <datalist id="driver_list">
+                {% for driver in drivers %}
+                    <option value="{{ driver.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+
+        <div id="target_vehicle_area" style="display:none;">
+            <label>対象車両</label>
+            <select name="target_vehicle">
+                <option value="">選択してください</option>
+
+                {% for vehicle in vehicles %}
+                    <option
+                        value="{{ vehicle.vehicle_id }}"
+                        {% if result and result.target_vehicle == vehicle.vehicle_id %}selected{% endif %}
+                    >
+                        {{ vehicle.plate_area }} {{ vehicle.plate_class }} {{ vehicle.plate_kana }} {{ vehicle.plate_number }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="target_office_area" style="display:none;">
+            <label>対象営業所</label>
+            <select name="target_office">
+                <option value="">選択してください</option>
+
+                {% for office in offices %}
+                    <option
+                        value="{{ office.name }}"
+                        {% if result and result.target_office == office.name %}selected{% endif %}
+                    >
+                        {{ office.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>チェック項目</h3>
+        
+        {% if criteria_list %}
+    <div class="criteria-box">
+        <strong>評価基準</strong>
+
+        {% for criteria in criteria_list %}
+            <div class="criteria-line">
+                {{ criteria }}
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+        <table class="checklist-table">
+            <tr>
+                <th style="width:120px;">カテゴリ</th>
+                <th>チェック内容</th>
+                <th style="width:160px;">評価</th>
+                <th style="width:260px;">コメント</th>
+                <th style="width:220px;">写真・ファイル</th>
+                <th style="width:220px;">連携</th>
+            </tr>
+
+            {% set ns = namespace(answer_index=0) %}
+
+            {% for item in checklist["items"] %}
+            {% if item.item_type != "approval" %}
+
+            {% set saved_answer = result.answers[ns.answer_index] if result and result.answers|length > ns.answer_index else None %}
+
+            <tr>
+                <td>{{ item.category }}</td>
+
+                <td>{{ item.content }}</td>
+
+                <td>
+                    {% if item.input_type == "select" %}
+                        <select name="answer_{{ ns.answer_index }}" required>
+                            <option value="">選択</option>
+
+                            {% for choice in item.choices %}
+                                <option
+                                    value="{{ choice }}"
+                                    {% if saved_answer and saved_answer.value == choice %}selected{% endif %}
+                                >
+                                    {{ choice }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <input
+                            type="text"
+                            name="answer_{{ ns.answer_index }}"
+                            value="{{ saved_answer.value if saved_answer else '' }}"
+                            placeholder="入力"
+                            required
+                        >
+                    {% endif %}
+                </td>
+
+                <td>
+                    <input
+                        type="text"
+                        name="comment_{{ ns.answer_index }}"
+                        class="mention-input"
+                        value="{{ saved_answer.comment if saved_answer else '' }}"
+                        placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
+                        {% if item.comment_required %}required{% endif %}
+                    >
+                </td>
+                <td>
+                    <input
+                        type="file"
+                        name="files_{{ ns.answer_index }}"
+                        multiple
+                        accept="image/*,video/*,.pdf"
+                    >
+                </td>
+
+                <td class="center-cell">
+                    <label class="checkbox-row">
+                        <input
+                            type="checkbox"
+                            name="patrol_link_{{ ns.answer_index }}"
+                            value="1"
+                        >
+                        <span>要対応として安全パトロールへ登録</span>
+                    </label>
+                </td>
+            </tr>
+
+            {% set ns.answer_index = ns.answer_index + 1 %}
+            {% endif %}
+            {% endfor %}
+        </table>
+    </div>
+
+    <button type="submit" class="btn">
+        {% if mode == "edit" %}
+            チェック結果を更新
+        {% else %}
+            チェック結果を登録
+        {% endif %}
+    </button>
+
+</form>
+
+<script>
+function switchChecklistTarget() {
+    const type = document.getElementById("target_type").value;
+
+    document.getElementById("target_user_area").style.display = "none";
+    document.getElementById("target_vehicle_area").style.display = "none";
+    document.getElementById("target_office_area").style.display = "none";
+
+    if (type === "user") {
+        document.getElementById("target_user_area").style.display = "block";
+    }
+
+    if (type === "vehicle") {
+        document.getElementById("target_vehicle_area").style.display = "block";
+    }
+
+    if (type === "office") {
+        document.getElementById("target_office_area").style.display = "block";
+    }
+}
+
+window.addEventListener("DOMContentLoaded", function () {
+    switchChecklistTarget();
+});
+</script>
+
+{% endblock %}

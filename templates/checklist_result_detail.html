@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}チェックリスト結果詳細{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>{{ result.checklist_name }} 結果詳細</h2>
+
+    <div class="header-actions">
+        <a href="/safety/checklists" class="btn btn-back">
+            ← チェックリスト一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <p>
+        <strong>点検者：</strong>
+        {{ result.checked_by }}
+    </p>
+
+    <p>
+        <strong>実施日：</strong>
+        {{ result.checked_date or "-" }}
+    </p>
+
+    <p>
+        <strong>対象区分：</strong>
+        {% if result.target_type == "user" %}
+            ユーザー
+        {% elif result.target_type == "vehicle" %}
+            車両
+        {% elif result.target_type == "office" %}
+            営業所
+        {% else %}
+            指定なし
+        {% endif %}
+    </p>
+
+    <p>
+        <strong>対象：</strong>
+        {% if result.target_type == "user" %}
+            {{ result.target_user }}
+        {% elif result.target_type == "vehicle" %}
+            {{ result.target_vehicle }}
+        {% elif result.target_type == "office" %}
+            {{ result.target_office }}
+        {% else %}
+            -
+        {% endif %}
+    </p>
+
+    <p>
+        <strong>状態：</strong>
+        {% if result.status == "承認済み" %}
+            <span class="status-badge status-approved">承認済み</span>
+        {% elif result.status == "差し戻し" %}
+            <span class="status-badge status-rejected">差し戻し</span>
+        {% else %}
+            <span class="status-badge status-waiting">承認待ち</span>
+        {% endif %}
+    </p>
+
+    <p>
+        <strong>承認者：</strong>
+        {{ result.approved_by or "-" }}
+    </p>
+
+    <p>
+        <strong>承認日：</strong>
+        {{ result.approved_date or "-" }}
+    </p>
+
+    {% if result.reject_reason %}
+        <p><strong>差し戻し理由：</strong></p>
+        <div class="content-box">
+            {{ result.reject_reason }}
+        </div>
+    {% endif %}
+</div>
+
+{% set criteria_list = [] %}
+
+{% for answer in result.answers %}
+    {% if answer.criteria and answer.criteria not in criteria_list %}
+        {% set _ = criteria_list.append(answer.criteria) %}
+    {% endif %}
+{% endfor %}
+
+<div class="card">
+    <h3>チェック結果</h3>
+
+    {% if criteria_list %}
+        <div class="criteria-box">
+            <strong>評価基準</strong>
+
+            {% for criteria in criteria_list %}
+                <div class="criteria-line">
+                    {{ criteria }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="summary-row">
+        <strong>評価集計</strong>
+
+        {% for value, count in summary.items() %}
+            <span class="summary-item">
+                {{ value }}：{{ count }}件
+            </span>
+        {% endfor %}
+    </div>
+
+    <table class="checklist-table">
+        <tr>
+            <th style="width:140px;">カテゴリ</th>
+            <th>チェック内容</th>
+            <th style="width:160px;">評価</th>
+            <th style="width:300px;">コメント</th>
+        </tr>
+
+        {% for answer in result.answers %}
+        <tr>
+            <td>{{ answer.category }}</td>
+            <td>{{ answer.content }}</td>
+            <td>{{ answer.value }}</td>
+            <td>{{ answer.comment or "-" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% if result.status != "承認済み" and can_approve %}
+<div class="card">
+    <h3>承認管理</h3>
+
+    <div class="action-row">
+        <form method="post" action="/safety/checklist-results/{{ result_index }}/approve">
+            <button type="submit" class="btn">
+                承認
+            </button>
+        </form>
+    </div>
+
+    <form
+        method="post"
+        action="/safety/checklist-results/{{ result_index }}/reject"
+        class="approval-form"
+    >
+        <label>差し戻し理由</label>
+        <textarea
+            name="reject_reason"
+            rows="4"
+            placeholder="差し戻し理由を入力"
+            required
+        ></textarea>
+
+        <button type="submit" class="btn danger">
+            差し戻し
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% if can_manage %}
+<div class="action-row">
+    <a href="/safety/checklist-results/{{ result_index }}/edit" class="btn">
+        更新
+    </a>
+
+    <form
+        method="post"
+        action="/safety/checklist-results/{{ result_index }}/delete"
+        onsubmit="return confirm('この結果を削除しますか？');"
+    >
+        <button type="submit" class="btn danger">
+            削除
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}

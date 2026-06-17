@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        チェックリスト編集
+    {% else %}
+        チェックリスト登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            チェックリスト編集
+        {% else %}
+            チェックリスト登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/master/checklists" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form
+        method="post"
+        enctype="multipart/form-data"
+        class="responsive-form"
+    >
+
+        <label>チェックリスト名</label>
+        <input
+            type="text"
+            name="name"
+            value="{{ checklist.name if checklist else '' }}"
+            placeholder="例：車両日常点検表"
+            required
+        >
+
+        <label>用途</label>
+        <select name="target" required onchange="toggleVehicleChecklistSetting()">
+            <option value="安全管理" {% if checklist and checklist.target == "安全管理" %}selected{% endif %}>
+                安全管理
+            </option>
+            <option value="車両管理" {% if checklist and checklist.target == "車両管理" %}selected{% endif %}>
+                車両管理
+            </option>
+        </select>
+
+        <div id="vehicle_checklist_setting" class="vehicle-checklist-setting" style="display:none;">
+            <h3>車両チェックリスト設定</h3>
+
+            <p class="help-text">
+                車両管理のチェックリストのみ、点検頻度と表示形式を設定します。
+            </p>
+
+            <label>頻度</label>
+            <div class="frequency-row">
+                <input
+                    type="number"
+                    name="frequency_value"
+                    min="1"
+                    value="{{ checklist.frequency_value if checklist and checklist.frequency_value else 1 }}"
+                    style="width:120px;"
+                >
+
+                <select name="frequency_unit" style="width:160px;">
+                    <option value="day" {% if checklist and checklist.frequency_unit == "day" %}selected{% endif %}>
+                        日ごと
+                    </option>
+                    <option value="month" {% if checklist and checklist.frequency_unit == "month" %}selected{% endif %}>
+                        ヶ月ごと
+                    </option>
+                    <option value="year" {% if checklist and checklist.frequency_unit == "year" %}selected{% endif %}>
+                        年ごと
+                    </option>
+                </select>
+            </div>
+            <p class="help-text">
+                1ヶ月未満の点検は「月表示」、1ヶ月以上の点検は「年表示」がおすすめです。
+                例：日常点検は月表示、月例点検・四半期点検・年次点検は年表示。
+            </p>
+
+            <label>表示形式</label>
+            <select name="display_type">
+                <option value="month" {% if checklist and checklist.display_type == "month" %}selected{% endif %}>
+                    月表示（1ヶ月分を横並び）
+                </option>
+                <option value="year" {% if checklist and checklist.display_type == "year" %}selected{% endif %}>
+                    年表示（1年分を横並び）
+                </option>
+            </select>
+        </div>
+
+        <h3>チェック項目</h3>
+
+        <p class="help-text">
+            評価方式が「選択式」の場合は、選択肢をカンマ区切りで入力してください。
+            例：2,1,0 または 〇,△,×
+        </p>
+
+        <div id="checklist_items">
+
+            {% if checklist and checklist["items"] %}
+                {% for item in checklist["items"] %}
+                    <div class="checklist-item-row">
+
+                        <label>項目種別</label>
+                        <select name="item_type" onchange="toggleItemType(this)">
+                            <option value="check"
+                                {% if item.item_type == "check" or not item.item_type %}selected{% endif %}
+                            >
+                                点検項目
+                            </option>
+
+                            <option value="approval"
+                                {% if item.item_type == "approval" %}selected{% endif %}
+                            >
+                                承認項目
+                            </option>
+                        </select>
+
+                        <div class="check-fields">
+
+                            <label>カテゴリ</label>
+                            <input
+                                type="text"
+                                name="item_category"
+                                value="{{ item.category if item.category else '' }}"
+                                placeholder="例：荷扱い"
+                            >
+
+                            <label>チェック内容</label>
+                            <textarea
+                                name="item_content"
+                                rows="3"
+                                placeholder="例：安全な立ち位置で作業しているか"
+                            >{{ item.content if item.content else '' }}</textarea>
+
+                            <label>評価方式</label>
+                            <select name="input_type" onchange="toggleChoices(this)">
+                                <option value="select" {% if item.input_type == "select" %}selected{% endif %}>
+                                    選択式
+                                </option>
+                                <option value="text" {% if item.input_type == "text" %}selected{% endif %}>
+                                    自由記入
+                                </option>
+                            </select>
+
+                            <label>選択肢</label>
+                            <input
+                                type="text"
+                                name="choices"
+                                value="{{ item.choices|join(',') if item.choices else '' }}"
+                                placeholder="例：2,1,0"
+                                {% if item.input_type == "text" %}style="display:none;"{% endif %}
+                            >
+
+                            <label>評価基準</label>
+                            <textarea
+                                name="criteria"
+                                rows="3"
+                                placeholder="例：2＝完全にできている、1＝できている、0＝できていない"
+                            >{{ item.criteria if item.criteria else '' }}</textarea>
+
+                            <label>評価基準ファイル</label>
+                            <input
+                                type="file"
+                                name="criteria_files_{{ loop.index0 }}"
+                                multiple
+                                accept="image/*,video/*,.pdf"
+                            >
+
+                            {% if item.criteria_files %}
+                                <div class="criteria-file-list">
+                                    {% for file in item.criteria_files %}
+                                        <a href="/static/uploads/{{ file }}" target="_blank">
+                                            {{ file }}
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <label class="checkbox-row">
+                                <input
+                                    type="checkbox"
+                                    name="comment_required"
+                                    value="{{ loop.index0 }}"
+                                    {% if item.comment_required %}checked{% endif %}
+                                >
+                                <span>コメント入力あり</span>
+                            </label>
+
+                        </div>
+
+                        <div class="approval-fields" style="display:none;">
+                            <label>承認欄名</label>
+                            <input
+                                type="text"
+                                name="approval_label"
+                                value="{{ item.approval_label if item.approval_label else '' }}"
+                                placeholder="例：管理者印"
+                            >
+                        </div>
+
+                        <button
+                            type="button"
+                            class="btn-small btn-delete"
+                            onclick="removeChecklistItem(this)"
+                        >
+                            項目削除
+                        </button>
+
+                    </div>
+                {% endfor %}
+            {% else %}
+
+                <div class="checklist-item-row">
+
+                    <label>項目種別</label>
+                    <select name="item_type" onchange="toggleItemType(this)">
+                        <option value="check">点検項目</option>
+                        <option value="approval">承認項目</option>
+                    </select>
+
+                    <div class="check-fields">
+
+                        <label>カテゴリ</label>
+                        <input
+                            type="text"
+                            name="item_category"
+                            placeholder="例：荷扱い"
+                        >
+
+                        <label>チェック内容</label>
+                        <textarea
+                            name="item_content"
+                            rows="3"
+                            placeholder="例：荷台床板に異常はないか"
+                        ></textarea>
+
+                        <label>評価方式</label>
+                        <select name="input_type" onchange="toggleChoices(this)">
+                            <option value="select">選択式</option>
+                            <option value="text">自由記入</option>
+                        </select>
+
+                        <label>選択肢</label>
+                        <input
+                            type="text"
+                            name="choices"
+                            placeholder="例：〇,△,×"
+                        >
+
+                        <label>評価基準</label>
+                        <textarea
+                            name="criteria"
+                            rows="3"
+                            placeholder="例：〇＝異常なし、△＝要注意、×＝使用禁止"
+                        ></textarea>
+
+                        <label>評価基準ファイル</label>
+                        <input
+                            type="file"
+                            name="criteria_files_0"
+                            multiple
+                            accept="image/*,video/*,.pdf"
+                        >
+
+                        <label class="checkbox-row">
+                            <input
+                                type="checkbox"
+                                name="comment_required"
+                                value="0"
+                            >
+                            <span>コメント入力あり</span>
+                        </label>
+
+                    </div>
+
+                    <div class="approval-fields" style="display:none;">
+                        <label>承認欄名</label>
+                        <input
+                            type="text"
+                            name="approval_label"
+                            placeholder="例：管理者印"
+                        >
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-small btn-delete"
+                        onclick="removeChecklistItem(this)"
+                    >
+                        項目削除
+                    </button>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+        <div class="form-actions">
+
+            <button
+                type="button"
+                class="btn-small"
+                onclick="addChecklistItem()"
+            >
+                チェック項目を追加
+            </button>
+
+        </div>
+
+        <div class="form-actions">
+
+            <button type="submit" class="btn">
+                {% if mode == "edit" %}
+                    更新
+                {% else %}
+                    登録
+                {% endif %}
+            </button>
+            </div>
+
+    </form>
+</div>
+
+<script>
+function addChecklistItem() {
+    const area = document.getElementById("checklist_items");
+    const index = area.querySelectorAll(".checklist-item-row").length;
+
+    const row = document.createElement("div");
+    row.className = "checklist-item-row";
+
+    row.innerHTML = `
+        <label>項目種別</label>
+        <select name="item_type" onchange="toggleItemType(this)">
+            <option value="check">点検項目</option>
+            <option value="approval">承認項目</option>
+        </select>
+
+        <div class="check-fields">
+
+            <label>カテゴリ</label>
+            <input
+                type="text"
+                name="item_category"
+                placeholder="例：荷扱い"
+            >
+
+            <label>チェック内容</label>
+            <textarea
+                name="item_content"
+                rows="3"
+                placeholder="例：荷台床板に異常はないか"
+            ></textarea>
+
+            <label>評価方式</label>
+            <select name="input_type" onchange="toggleChoices(this)">
+                <option value="select">選択式</option>
+                <option value="text">自由記入</option>
+            </select>
+
+            <label>選択肢</label>
+            <input
+                type="text"
+                name="choices"
+                placeholder="例：〇,△,×"
+            >
+
+            <label>評価基準</label>
+            <textarea
+                name="criteria"
+                rows="3"
+                placeholder="例：〇＝異常なし、△＝要注意、×＝使用禁止"
+            ></textarea>
+
+            <label>評価基準ファイル</label>
+            <input
+                type="file"
+                name="criteria_files_${index}"
+                multiple
+                accept="image/*,video/*,.pdf"
+            >
+
+            <label class="checkbox-row">
+                <input
+                    type="checkbox"
+                    name="comment_required"
+                    value="${index}"
+                >
+                <span>コメント入力あり</span>
+            </label>
+
+        </div>
+
+        <div class="approval-fields" style="display:none;">
+            <label>承認欄名</label>
+            <input
+                type="text"
+                name="approval_label"
+                placeholder="例：管理者印"
+            >
+        </div>
+
+        <button
+            type="button"
+            class="btn-small btn-delete"
+            onclick="removeChecklistItem(this)"
+        >
+            項目削除
+        </button>
+    `;
+
+    area.appendChild(row);
+}
+
+function removeChecklistItem(button) {
+    button.parentElement.remove();
+    resetCommentIndexes();
+    resetFileIndexes();
+}
+
+function resetCommentIndexes() {
+    const rows = document.querySelectorAll(".checklist-item-row");
+
+    rows.forEach((row, index) => {
+        const checkbox = row.querySelector('input[name="comment_required"]');
+
+        if (checkbox) {
+            checkbox.value = index;
+        }
+    });
+}
+
+function resetFileIndexes() {
+    const rows = document.querySelectorAll(".checklist-item-row");
+
+    rows.forEach((row, index) => {
+        const fileInput = row.querySelector('input[type="file"][name^="criteria_files_"]');
+
+        if (fileInput) {
+            fileInput.name = `criteria_files_${index}`;
+        }
+    });
+}
+
+function toggleChoices(select) {
+    const row = select.closest(".checklist-item-row");
+    const choicesInput = row.querySelector('input[name="choices"]');
+
+    if (!choicesInput) {
+        return;
+    }
+
+    if (select.value === "text") {
+        choicesInput.style.display = "none";
+        choicesInput.value = "";
+    } else {
+        choicesInput.style.display = "block";
+    }
+}
+
+function toggleVehicleChecklistSetting() {
+    const target = document.querySelector('select[name="target"]').value;
+    const area = document.getElementById("vehicle_checklist_setting");
+
+    if (target === "車両管理") {
+        area.style.display = "block";
+    } else {
+        area.style.display = "none";
+    }
+}
+
+function toggleItemType(select) {
+    const row = select.closest(".checklist-item-row");
+
+    const checkFields = row.querySelector(".check-fields");
+    const approvalFields = row.querySelector(".approval-fields");
+
+    if (select.value === "approval") {
+        checkFields.style.display = "none";
+        approvalFields.style.display = "block";
+    } else {
+        checkFields.style.display = "block";
+        approvalFields.style.display = "none";
+    }
+}
+
+window.addEventListener("DOMContentLoaded", function () {
+    toggleVehicleChecklistSetting();
+
+    document
+        .querySelectorAll('select[name="item_type"]')
+        .forEach(function(select) {
+            toggleItemType(select);
+        });
+
+    document
+        .querySelectorAll('select[name="input_type"]')
+        .forEach(function(select) {
+            toggleChoices(select);
+        });
+});
+</script>
+
+{% endblock %}

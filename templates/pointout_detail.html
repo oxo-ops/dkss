@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}安全パトロール詳細{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>安全パトロール詳細</h2>
+
+    <div class="header-actions">
+        <a href="/pointouts?type={{ result.target_type }}" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+
+    <p>
+        <strong>発生日：</strong>
+        {{ result.date }}
+    </p>
+
+    <p>
+        <strong>分類：</strong>
+        {{ result.category }}
+    </p>
+
+    <p>
+        <strong>内容区分：</strong>
+        {{ result.content_type }}
+    </p>
+
+    {% if result.target_type == "user" %}
+    <p>
+        <strong>対象者：</strong>
+        {{ result.target_user }}
+    </p>
+    {% endif %}
+
+    {% if result.target_type == "delivery_place" %}
+    <p>
+        <strong>納入先：</strong>
+        {{ result.delivery_place }}
+    </p>
+    {% endif %}
+
+    <div class="manual-card">
+    <h3>マニュアル参照</h3>
+
+    <p class="help-text">
+        関連マニュアルを確認できます。
+    </p>
+
+    <select id="manual_select" onchange="openManual()">
+        <option value="">マニュアルを選択してください</option>
+
+        {% for manual in manuals %}
+            {% if manual.filename %}
+            <option value="{{ url_for('static', filename='manuals/' + manual.filename) }}">
+                {{ manual.category }}｜{{ manual.title }}
+            </option>
+            {% endif %}
+        {% endfor %}
+    </select>
+
+    <div style="margin-top:12px;">
+        <a
+            id="manual_link"
+            class="btn"
+            target="_blank"
+            style="display:none;"
+        >
+            マニュアルを開く
+        </a>
+            </div>
+        </div>
+
+    <p>
+        <strong>内容：</strong>
+    </p>
+
+    <div class="content-box">
+        {{ result.content }}
+    </div>
+
+</div>
+
+<div class="card">
+
+    <h3>添付ファイル</h3>
+
+    {% if result.files %}
+
+        {% for file in result.files %}
+
+            {% set ext = file.split('.')[-1].lower() %}
+
+            <div class="attachment-box">
+
+                {% if ext in ['png','jpg','jpeg','gif','webp'] %}
+
+                    <img
+                        src="{{ url_for('static', filename='uploads/' + file) }}"
+                        class="detail-image"
+                    >
+
+                {% elif ext in ['mp4','mov','avi','webm'] %}
+
+                    <video
+                        class="detail-video"
+                        controls
+                    >
+                        <source
+                            src="{{ url_for('static', filename='uploads/' + file) }}">
+                    </video>
+
+                {% elif ext == 'pdf' %}
+
+                    <a
+                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                        target="_blank"
+                        class="btn"
+                    >
+                        PDFを開く
+                    </a>
+
+                {% endif %}
+
+                <p>{{ file }}</p>
+
+            </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <p>添付なし</p>
+
+    {% endif %}
+
+</div>
+
+{% if result.category != "Good" %}
+
+<div class="card">
+    <h3>対策管理</h3>
+
+    <p>
+        <strong>状態：</strong>
+        {{ result.approval_status or "未対応" }}
+    </p>
+
+    {% if result.countermeasure %}
+        <p><strong>対策内容：</strong></p>
+
+        <div class="content-box">
+            {{ result.countermeasure }}
+        </div>
+
+        {% if can_manage %}
+            <div class="action-row">
+                <a class="btn btn-edit" href="/pointouts/{{ index }}/countermeasure/new">
+                    対策内容編集
+                </a>
+            </div>
+        {% endif %}
+    {% else %}
+        {% if can_manage %}
+            <a class="btn" href="/pointouts/{{ index }}/countermeasure/new">
+                対策登録
+            </a>
+        {% endif %}
+    {% endif %}
+
+    {% if result.reject_reason %}
+        <p><strong>差し戻し理由：</strong></p>
+
+        <div class="content-box">
+            {{ result.reject_reason }}
+        </div>
+    {% endif %}
+</div>
+
+{% if result.approval_status == "承認待ち" and can_approve %}
+<div class="card">
+    <h3>承認管理</h3>
+
+    <div class="action-row">
+        <form method="post" action="/pointouts/{{ index }}/approve">
+            <button type="submit" class="btn">
+                承認
+            </button>
+        </form>
+    </div>
+
+    <form
+        method="post"
+        action="/pointouts/{{ index }}/reject"
+        class="approval-form"
+    >
+        <label>差し戻し理由</label>
+
+        <textarea
+            name="reject_reason"
+            class="mention-input"
+            rows="4"
+            placeholder="差し戻し理由を入力"
+            required
+        ></textarea>
+
+        <button type="submit" class="btn danger">
+            差し戻し
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% if can_manage %}
+    <div class="action-row">
+        <a class="btn" href="/pointouts/{{ index }}/edit">
+            登録内容編集
+        </a>
+
+        <form method="post" action="/pointouts/{{ index }}/delete" onsubmit="return confirm('削除しますか？');">
+            <button type="submit" class="btn danger">
+                削除
+            </button>
+        </form>
+    </div>
+{% endif %}
+
+<script>
+function openManual() {
+    const select = document.getElementById("manual_select");
+    const link = document.getElementById("manual_link");
+
+    if (select.value === "") {
+        link.style.display = "none";
+        return;
+    }
+
+    link.href = select.value;
+    link.style.display = "inline-block";
+}
+</script>
+
+{% endblock %}

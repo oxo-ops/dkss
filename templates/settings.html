@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}設定{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>設定</h2>
+</div>
+
+<div class="card">
+    <h3>ユーザー情報</h3>
+
+    <p><strong>会社コード：</strong>{{ user.company_code }}</p>
+    <p><strong>ユーザーID：</strong>{{ user.username }}</p>
+    <p><strong>氏名：</strong>{{ user.name }}</p>
+    <p><strong>権限：</strong>{{ user.role }}</p>
+    <p><strong>営業所：</strong>{{ user.office }}</p>
+</div>
+
+<form method="post" class="card">
+    <h3>パスワード変更</h3>
+
+    {% if error %}
+        <div class="alert danger">{{ error }}</div>
+    {% endif %}
+
+    {% if success %}
+        <div class="alert success">{{ success }}</div>
+    {% endif %}
+
+    <label>現在のパスワード</label>
+    <input type="password" name="current_password" required>
+
+    <label>新しいパスワード</label>
+    <input type="password" name="new_password" required>
+
+    <label>新しいパスワード確認</label>
+    <input type="password" name="new_password_confirm" required>
+
+    <button type="submit" class="btn">
+        変更
+    </button>
+</form>
+
+{% endblock %}

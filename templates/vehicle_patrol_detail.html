@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}車両パトロール詳細{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両パトロール詳細</h2>
+
+    <div class="header-actions">
+        <a href="/vehicle-patrols" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+
+    <p><strong>車両：</strong>{{ patrol.vehicle_id or "-" }}</p>
+    <p><strong>発生日：</strong>{{ patrol.occurred_date or "-" }}</p>
+    <p><strong>状態：</strong>{{ patrol.status or "-" }}</p>
+
+    <p><strong>故障内容：</strong></p>
+    <div class="content-box">
+        {{ patrol.content or "-" }}
+    </div>
+
+    <p><strong>確認結果・原因：</strong></p>
+    <div class="content-box">
+        {{ patrol.cause or "-" }}
+    </div>
+
+    <p><strong>応急対応：</strong></p>
+    <div class="content-box">
+        {{ patrol.temporary_action or "-" }}
+    </div>
+
+    <p><strong>修理・対応内容：</strong></p>
+    <div class="content-box">
+        {{ patrol.repair_content or "-" }}
+    </div>
+
+    <p><strong>修理日：</strong>{{ patrol.repair_date or "-" }}</p>
+    <p><strong>修理実施者：</strong>{{ patrol.repair_person or "-" }}</p>
+    <p><strong>修理時間：</strong>{{ patrol.repair_time or "-" }}</p>
+    <p><strong>交換部品：</strong>{{ patrol.parts or "-" }}</p>
+    <p><strong>修理費用：</strong>{{ patrol.cost or "-" }}</p>
+
+</div>
+
+<div class="action-row">
+    
+    <a href="/vehicle-patrols/{{ index }}/edit" class="btn">
+        更新
+    </a>
+
+    <form
+        method="post"
+        action="/vehicle-patrols/{{ index }}/delete"
+        onsubmit="return confirm('削除しますか？');"
+    >
+        <button type="submit" class="btn danger">
+            削除
+        </button>
+    </form>
+
+</div>
+
+{% endblock %}
