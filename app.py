@@ -9,7 +9,10 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///dkss.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///dkss.db"
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -4145,7 +4148,7 @@ def reject_checklist_result(result_index):
 
     return redirect(f"/safety/checklist-results/{result_record.id}")
 
-if __name__ == "__main__":
+def init_db():
     with app.app_context():
         db.create_all()
 
@@ -4170,4 +4173,9 @@ if __name__ == "__main__":
 
         db.session.commit()
 
+
+init_db()
+
+
+if __name__ == "__main__":
     app.run(debug=False)
