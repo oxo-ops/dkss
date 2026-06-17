@@ -55,7 +55,7 @@ class User(db.Model):
     )
 
     password = db.Column(
-        db.String(100),
+        db.String(255),
         nullable=False
     )
 
@@ -4150,6 +4150,7 @@ def reject_checklist_result(result_index):
 
 def init_db():
     with app.app_context():
+        db.drop_all()
         db.create_all()
 
         if not Company.query.filter_by(company_code="ITC").first():
