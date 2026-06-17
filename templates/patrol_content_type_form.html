@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == "edit" %}
+        内容区分編集
+    {% else %}
+        内容区分登録
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>
+        {% if mode == "edit" %}
+            内容区分編集
+        {% else %}
+            内容区分登録
+        {% endif %}
+    </h2>
+
+    <div class="header-actions">
+        <a href="/master/patrol-content-types" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="post" class="responsive-form">
+
+        <div class="form-group">
+            <label>内容区分名</label>
+            <input
+                type="text"
+                name="name"
+                value="{{ item.name if item else '' }}"
+                placeholder="例：落下、車両、環境、荷扱い"
+                required
+            >
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">
+                {% if mode == "edit" %}
+                    更新
+                {% else %}
+                    登録
+                {% endif %}
+            </button>
+        </div>
+
+    </form>
+</div>
+
+{% endblock %}

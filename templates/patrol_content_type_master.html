@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}安全パトロール内容区分マスタ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>安全パトロール内容区分マスタ</h2>
+
+    <div class="header-actions">
+        <a href="/master" class="btn btn-back">
+            ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/patrol-content-types/new" class="btn">
+            新規登録
+        </a>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>内容区分名</th>
+        <th style="width:180px;">操作</th>
+    </tr>
+
+    {% for content_type in content_types %}
+    <tr>
+        <td>{{ content_type.name }}</td>
+
+        <td class="action-cell">
+            <div class="action-buttons">
+                <a href="/master/patrol-content-types/{{ content_type.id }}/edit" class="btn-small btn-edit">
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/master/patrol-content-types/{{ content_type.id }}/delete"
+                    onsubmit="return confirm('この内容区分を削除しますか？');"
+                >
+                    <button type="submit" class="btn-small btn-delete">
+                        削除
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="2">内容区分が登録されていません。</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

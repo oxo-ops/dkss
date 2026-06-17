@@ -90,13 +90,12 @@
 
         <div class="form-group">
             <label>内容区分</label>
-            <select name="content_type">
-                <option value="落下">落下</option>
-                <option value="車両">車両</option>
-                <option value="環境">環境</option>
-                <option value="荷扱い">荷扱い</option>
-                <option value="ルール違反">ルール違反</option>
-                <option value="その他">その他</option>
+            <select name="content_type" required>
+                {% for content_type in content_types %}
+                    <option value="{{ content_type.name }}">
+                        {{ content_type.name }}
+                    </option>
+                {% endfor %}
             </select>
         </div>
 

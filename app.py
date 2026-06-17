@@ -160,6 +160,12 @@ class DeliveryPlace(db.Model):
     company_code = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(100), nullable=False)
 
+class PatrolContentType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+
 class Manual(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -401,6 +407,22 @@ def delivery_places_for_current_company():
             "name": place.name
         }
         for place in query.all()
+    ]
+
+def patrol_content_types_for_current_company():
+    query = PatrolContentType.query
+
+    if session.get("role") != "itc":
+        query = query.filter_by(company_code=session.get("company_code"))
+
+    return [
+        {
+            "id": item.id,
+            "index": item.id,
+            "company_code": item.company_code,
+            "name": item.name
+        }
+        for item in query.all()
     ]
 
 def manuals_for_current_company():
@@ -1292,6 +1314,7 @@ def dashboard():
         target_type="user",
         target_user=user_name
     ).filter(
+        PatrolResult.category != "Good",
         PatrolResult.approval_status != "承認済み"
     ).order_by(
         PatrolResult.id.desc()
@@ -1680,6 +1703,7 @@ def new_pointout():
         drivers=drivers_for_current_company(),
         delivery_places=delivery_places_for_current_company(),
         manuals=manuals_for_current_company(),
+        content_types=patrol_content_types_for_current_company(),
     )
 
 @app.route("/pointouts/<int:index>")
@@ -2503,6 +2527,82 @@ def delete_delivery_place(index):
     db.session.commit()
 
     return redirect("/master/delivery-places")
+
+@app.route("/master/patrol-content-types")
+def patrol_content_type_master():
+    return render_template(
+        "patrol_content_type_master.html",
+        content_types=patrol_content_types_for_current_company()
+    )
+
+
+@app.route("/master/patrol-content-types/new", methods=["GET", "POST"])
+def new_patrol_content_type():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+
+        if PatrolContentType.query.filter_by(
+            company_code=session.get("company_code"),
+            name=name
+        ).first():
+            return "この内容区分はすでに登録されています。"
+
+        item = PatrolContentType(
+            company_code=session.get("company_code"),
+            name=name
+        )
+
+        db.session.add(item)
+        db.session.commit()
+
+        return redirect("/master/patrol-content-types")
+
+    return render_template(
+        "patrol_content_type_form.html",
+        item=None,
+        mode="new"
+    )
+
+
+@app.route("/master/patrol-content-types/<int:index>/edit", methods=["GET", "POST"])
+def edit_patrol_content_type(index):
+    item = PatrolContentType.query.get(index)
+
+    if not item:
+        return redirect("/master/patrol-content-types")
+
+    if session.get("role") != "itc":
+        if item.company_code != session.get("company_code"):
+            return redirect("/master/patrol-content-types")
+
+    if request.method == "POST":
+        item.name = request.form.get("name", "").strip()
+        db.session.commit()
+
+        return redirect("/master/patrol-content-types")
+
+    return render_template(
+        "patrol_content_type_form.html",
+        item=item,
+        mode="edit"
+    )
+
+
+@app.route("/master/patrol-content-types/<int:index>/delete", methods=["POST"])
+def delete_patrol_content_type(index):
+    item = PatrolContentType.query.get(index)
+
+    if not item:
+        return redirect("/master/patrol-content-types")
+
+    if session.get("role") != "itc":
+        if item.company_code != session.get("company_code"):
+            return redirect("/master/patrol-content-types")
+
+    db.session.delete(item)
+    db.session.commit()
+
+    return redirect("/master/patrol-content-types")
 
 @app.route("/master/drivers")
 def driver_master():
@@ -4159,6 +4259,7 @@ def init_db():
                 vehicle_limit=9999,
                 active=True
             ))
+            db.session.commit()
 
         if not User.query.filter_by(company_code="ITC", username="itc").first():
             db.session.add(User(
@@ -4170,6 +4271,29 @@ def init_db():
                 office="ITC",
                 favorite_vehicles_json="[]"
             ))
+
+        default_content_types = [
+            "落下",
+            "車両",
+            "環境",
+            "荷扱い",
+            "ルール違反",
+            "Good",
+            "その他"
+        ]
+
+        for company in Company.query.all():
+            for name in default_content_types:
+                exists = PatrolContentType.query.filter_by(
+                    company_code=company.company_code,
+                    name=name
+                ).first()
+
+                if not exists:
+                    db.session.add(PatrolContentType(
+                        company_code=company.company_code,
+                        name=name
+                    ))
 
         db.session.commit()
 
