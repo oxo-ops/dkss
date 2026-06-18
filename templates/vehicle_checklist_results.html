@@ -17,15 +17,38 @@
 <form method="get" class="vehicle-check-filter">
 
     <div class="filter-item filter-vehicle">
-        <label>車両</label>
-        <select name="vehicle_id" required>
-            <option value="">選択してください</option>
+        <label>対象車両</label>
+
+        <input
+            type="text"
+            name="vehicle_id"
+            list="vehicle_list"
+            value="{{ vehicle_id }}"
+            placeholder="車両ID・ナンバーで検索"
+            required
+        >
+
+        <datalist id="vehicle_list">
             {% for vehicle in vehicles %}
-                <option value="{{ vehicle.vehicle_id }}" {% if vehicle_id == vehicle.vehicle_id %}selected{% endif %}>
-                    {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                </option>
+                {% if vehicle.vehicle_id in session.get("vehicles", []) %}
+                    <option value="{{ vehicle.vehicle_id }}">
+                        ★ {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                    </option>
+                {% endif %}
             {% endfor %}
-        </select>
+
+            {% for vehicle in vehicles %}
+                {% if vehicle.vehicle_id not in session.get("vehicles", []) %}
+                    <option value="{{ vehicle.vehicle_id }}">
+                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                    </option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+
+        <p class="help-text">
+            使用車両を先に表示します。車両IDまたはナンバーで検索できます。
+        </p>
     </div>
 
     <div class="filter-item">

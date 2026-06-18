@@ -2544,3 +2544,16 @@ textarea[name="item_content"]{
         text-align: center;
     }
 }
+
+.vehicle-check-filter {
+    align-items: flex-start;
+}
+
+.vehicle-check-filter .filter-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.vehicle-check-filter .filter-button {
+    padding-top: 34px;
+}
