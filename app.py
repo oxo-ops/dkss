@@ -374,12 +374,9 @@ def get_company(company_code):
 
 
 def offices_for_current_company():
-    query = Office.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = Office.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         {
@@ -392,12 +389,9 @@ def offices_for_current_company():
     ]
 
 def delivery_places_for_current_company():
-    query = DeliveryPlace.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = DeliveryPlace.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         {
@@ -410,10 +404,9 @@ def delivery_places_for_current_company():
     ]
 
 def patrol_content_types_for_current_company():
-    query = PatrolContentType.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(company_code=session.get("company_code"))
+    query = PatrolContentType.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         {
@@ -426,12 +419,9 @@ def patrol_content_types_for_current_company():
     ]
 
 def manuals_for_current_company():
-    query = Manual.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = Manual.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         {
@@ -468,12 +458,9 @@ def vehicle_patrol_to_dict(patrol):
 
 
 def vehicle_patrols_for_current_company():
-    query = VehiclePatrol.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = VehiclePatrol.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         vehicle_patrol_to_dict(patrol)
@@ -495,12 +482,9 @@ def checklist_to_dict(checklist):
 
 
 def checklists_for_current_company():
-    query = Checklist.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = Checklist.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         checklist_to_dict(checklist)
@@ -568,12 +552,9 @@ def patrol_result_to_dict(result):
 
 
 def patrol_results_for_current_company():
-    query = PatrolResult.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = PatrolResult.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         patrol_result_to_dict(result)
@@ -648,10 +629,7 @@ def is_same_company_result(result):
 def can_view_patrol_result(result):
     role = session.get("role")
 
-    if role == "itc":
-        return True
-
-    if role == "admin":
+    if role in ["itc", "admin"]:
         return is_same_company_result(result)
 
     if not is_same_company_result(result):
@@ -670,11 +648,6 @@ def can_view_patrol_result(result):
 
 
 def can_manage_patrol_result(result):
-    role = session.get("role")
-
-    if role == "itc":
-        return True
-
     return is_same_company_result(result)
 
 
@@ -718,12 +691,10 @@ def vehicle_number(vehicle):
 
 
 def vehicles_with_numbers():
-    query = Vehicle.query.filter_by(deleted=False)
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = Vehicle.query.filter_by(
+        company_code=session.get("company_code"),
+        deleted=False
+    )
 
     vehicles = []
 
@@ -748,12 +719,9 @@ def vehicles_with_numbers():
     return vehicles
 
 def vehicle_types_for_current_company():
-    query = VehicleType.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = VehicleType.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         {
@@ -766,13 +734,10 @@ def vehicle_types_for_current_company():
     ]
 
 def license_types_for_current_company():
-    query = LicenseType.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
-
+    query = LicenseType.query.filter_by(
+        company_code=session.get("company_code")
+    )
+    
     return [
         {
             "id": license_type.id,
@@ -805,12 +770,9 @@ def driver_to_dict(driver):
 
 
 def drivers_for_current_company():
-    query = Driver.query
-
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+    query = Driver.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     return [
         driver_to_dict(driver)
@@ -1656,6 +1618,16 @@ def new_pointout():
                 file_names.append(filename)
 
         target_type = request.form.get("target_type")
+        target_office = session.get("office")
+
+        if target_type == "user":
+            target_driver = Driver.query.filter_by(
+                company_code=session.get("company_code"),
+                name=request.form.get("target_user")
+            ).first()
+
+            if target_driver:
+                target_office = target_driver.office
 
         if target_type not in PATROL_VIEW_TYPES:
             target_type = "user"
@@ -1665,7 +1637,7 @@ def new_pointout():
             created_by_username=session.get("username"),
             created_by_name=session.get("name"),
             date=request.form.get("date"),
-            office=session.get("office"),
+            office=target_office,
             category=request.form.get("category"),
             content_type=request.form.get("content_type"),
             target_type=target_type,
@@ -1749,6 +1721,14 @@ def edit_pointout(index):
 
         if result_record.target_type == "user":
             result_record.target_user = request.form.get("target_user")
+
+            target_driver = Driver.query.filter_by(
+                company_code=session.get("company_code"),
+                name=result_record.target_user
+            ).first()
+
+            if target_driver:
+                result_record.office = target_driver.office
 
         if result_record.target_type == "delivery_place":
             result_record.delivery_place = request.form.get("delivery_place")
@@ -3281,6 +3261,7 @@ def safety_checklist_results(index):
     results = []
 
     query = ChecklistResult.query.filter_by(
+        company_code=session.get("company_code"),
         checklist_id=checklist_record.id
     )
 
@@ -3535,9 +3516,9 @@ def vehicle_checklist_results(index):
     results = []
 
     query = VehicleChecklistResult.query.filter_by(
+        company_code=session.get("company_code"),
         checklist_id=checklist_record.id
     )
-
     if session.get("role") != "itc":
         query = query.filter_by(
             company_code=session.get("company_code")
@@ -3968,6 +3949,15 @@ def new_safety_checklist_result(index):
         answers = []
         answer_index = 0
 
+        target_user = request.form.get("target_user") or session.get("name")
+
+        target_driver = Driver.query.filter_by(
+            company_code=session.get("company_code"),
+            name=target_user
+        ).first()
+
+        target_office = target_driver.office if target_driver else session.get("office")
+
         for item in checklist["items"]:
             if item.get("item_type") == "approval":
                 continue
@@ -3997,19 +3987,19 @@ def new_safety_checklist_result(index):
                 "files": file_names,
                 "patrol_link": patrol_link == "1",
             })
-
+            
             if patrol_link == "1":
                 db.session.add(PatrolResult(
                     company_code=session.get("company_code"),
                     created_by_username=session.get("username"),
                     created_by_name=session.get("name"),
                     date=datetime.now().strftime("%Y-%m-%d"),
-                    office=session.get("office"),
                     delivery_place="",
                     category="点検指摘",
                     content_type="安全",
                     target_type=request.form.get("target_type") or "user",
-                    target_user=request.form.get("target_user") or session.get("name"),
+                    target_user=target_user,
+                    office=target_office,
                     content=(
                         f"{item.get('category', '')}：{item.get('content', '')}"
                         f" / 評価：{value or '-'}"
