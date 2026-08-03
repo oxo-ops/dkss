@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, session
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from uuid import uuid4
 import os
 import json
 
@@ -350,6 +351,25 @@ class PatrolResult(db.Model):
 
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+
+def save_uploaded_file(file, folder=None):
+    if not file or not file.filename:
+        return ""
+
+    original_filename = secure_filename(file.filename)
+    extension = os.path.splitext(original_filename)[1]
+
+    filename = f"{uuid4().hex}{extension}"
+
+    save_folder = folder or app.config["UPLOAD_FOLDER"]
+    os.makedirs(save_folder, exist_ok=True)
+
+    save_path = os.path.join(save_folder, filename)
+    file.save(save_path)
+
+    return filename
+
 
 PATROL_VIEW_TYPES = {"user", "delivery_place"}
 
@@ -842,10 +862,9 @@ def itc_new_news():
         uploaded_files = request.files.getlist("files")
 
         for file in uploaded_files:
-            if file.filename:
-                filename = secure_filename(file.filename)
-                save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                file.save(save_path)
+            filename = save_uploaded_file(file)
+
+            if filename:
                 file_names.append(filename)
 
         add_news(
@@ -927,10 +946,9 @@ def itc_edit_news(index):
         uploaded_files = request.files.getlist("files")
 
         for file in uploaded_files:
-            if file.filename:
-                filename = secure_filename(file.filename)
-                save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                file.save(save_path)
+            filename = save_uploaded_file(file)
+
+            if filename:
                 files.append(filename)
 
         news.files_json = json.dumps(files, ensure_ascii=False)
@@ -1611,10 +1629,9 @@ def new_pointout():
         file_names = []
 
         for file in uploaded_files:
-            if file.filename:
-                filename = secure_filename(file.filename)
-                save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                file.save(save_path)
+            filename = save_uploaded_file(file)
+
+            if filename:
                 file_names.append(filename)
 
         target_type = request.form.get("target_type")
@@ -1752,15 +1769,9 @@ def edit_pointout(index):
         uploaded_files = request.files.getlist("files")
 
         for file in uploaded_files:
-            if file.filename:
-                filename = secure_filename(file.filename)
+            filename = save_uploaded_file(file)
 
-                save_path = os.path.join(
-                    app.config["UPLOAD_FOLDER"],
-                    filename
-                )
-
-                file.save(save_path)
+            if filename:
                 files.append(filename)
 
         result_record.files_json = json.dumps(
@@ -2893,8 +2904,7 @@ def new_vehicle():
     if request.method == "POST":
         company_code = session.get("company_code")
 
-        if session.get("role") == "itc":
-            company_code = request.form.get("company_code") or "AAA"
+
 
         vehicle_count = Vehicle.query.filter_by(
             company_code=company_code,
@@ -3045,11 +3055,10 @@ def new_manual():
     if request.method == "POST":
         file = request.files.get("file")
 
-        filename = ""
-        if file and file.filename:
-            filename = secure_filename(file.filename)
-            save_path = os.path.join("static/manuals", filename)
-            file.save(save_path)
+        filename = save_uploaded_file(
+            file,
+            folder="static/manuals"
+        )
 
         manual = Manual(
             company_code=session.get("company_code"),
@@ -3086,10 +3095,12 @@ def edit_manual(index):
         manual.category = request.form.get("category")
 
         file = request.files.get("file")
-        if file and file.filename:
-            filename = secure_filename(file.filename)
-            save_path = os.path.join("static/manuals", filename)
-            file.save(save_path)
+        filename = save_uploaded_file(
+            file,
+            folder="static/manuals"
+        )
+
+        if filename:
             manual.filename = filename
 
         db.session.commit()
@@ -3184,10 +3195,9 @@ def new_checklist():
             criteria_files = []
 
             for file in request.files.getlist(f"criteria_files_{i}"):
-                if file.filename:
-                    filename = secure_filename(file.filename)
-                    save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                    file.save(save_path)
+                filename = save_uploaded_file(file)
+
+                if filename:
                     criteria_files.append(filename)
 
             items.append({
@@ -3799,10 +3809,9 @@ def save_vehicle_checklist_detail(index):
     answer.setdefault("files", [])
 
     for file in uploaded_files:
-        if file.filename:
-            filename = secure_filename(file.filename)
-            save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            file.save(save_path)
+        filename = save_uploaded_file(file)
+
+        if filename:
             answer["files"].append(filename)
 
     answer["comment"] = comment
@@ -3881,10 +3890,9 @@ def new_vehicle_checklist_result(index):
             uploaded_files = request.files.getlist(f"files_{answer_index}")
 
             for file in uploaded_files:
-                if file.filename:
-                    filename = secure_filename(file.filename)
-                    save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                    file.save(save_path)
+                filename = save_uploaded_file(file)
+
+                if filename:
                     file_names.append(filename)
 
             answers.append({
@@ -3971,10 +3979,9 @@ def new_safety_checklist_result(index):
             uploaded_files = request.files.getlist(f"files_{answer_index}")
 
             for file in uploaded_files:
-                if file.filename:
-                    filename = secure_filename(file.filename)
-                    save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                    file.save(save_path)
+                filename = save_uploaded_file(file)
+
+                if filename:
                     file_names.append(filename)
 
             answers.append({
@@ -4118,10 +4125,9 @@ def edit_checklist(index):
                 criteria_files = list(old_items[i].get("criteria_files", []))
 
             for file in request.files.getlist(f"criteria_files_{i}"):
-                if file.filename:
-                    filename = secure_filename(file.filename)
-                    save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-                    file.save(save_path)
+                filename = save_uploaded_file(file)
+
+                if filename:
                     criteria_files.append(filename)
 
             items.append({
