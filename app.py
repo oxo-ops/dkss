@@ -5,6 +5,8 @@ from datetime import datetime
 from uuid import uuid4
 import os
 import json
+import boto3
+from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
@@ -352,16 +354,49 @@ class PatrolResult(db.Model):
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+
+s3_client = None
+
+if S3_BUCKET_NAME:
+    s3_client = boto3.client(
+        "s3",
+        region_name=AWS_REGION,
+        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
+    )
+
 
 def save_uploaded_file(file, folder=None):
     if not file or not file.filename:
         return ""
 
     original_filename = secure_filename(file.filename)
-    extension = os.path.splitext(original_filename)[1]
-
+    extension = os.path.splitext(original_filename)[1].lower()
     filename = f"{uuid4().hex}{extension}"
 
+    # Renderなど、S3設定がある環境
+    if s3_client and S3_BUCKET_NAME:
+        if folder == "static/manuals":
+            s3_folder = "manuals"
+        else:
+            s3_folder = "uploads"
+
+        object_key = f"{s3_folder}/{filename}"
+
+        s3_client.upload_fileobj(
+            file,
+            S3_BUCKET_NAME,
+            object_key,
+            ExtraArgs={
+                "ContentType": file.mimetype or "application/octet-stream"
+            }
+        )
+
+        return filename
+
+    # ローカル開発環境では従来どおり保存
     save_folder = folder or app.config["UPLOAD_FOLDER"]
     os.makedirs(save_folder, exist_ok=True)
 
@@ -370,6 +405,79 @@ def save_uploaded_file(file, folder=None):
 
     return filename
 
+@app.route("/files/<folder>/<filename>")
+def uploaded_file(folder, filename):
+    if folder not in {"uploads", "manuals"}:
+        return "Not found", 404
+
+    # RenderなどS3利用環境
+    if s3_client and S3_BUCKET_NAME:
+        object_key = f"{folder}/{filename}"
+
+        try:
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": S3_BUCKET_NAME,
+                    "Key": object_key
+                },
+                ExpiresIn=3600
+            )
+
+            return redirect(url)
+
+        except ClientError as e:
+            print("S3取得エラー:", e)
+            return "File not found", 404
+
+    # ローカル環境
+    if folder == "manuals":
+        local_path = f"/static/manuals/{filename}"
+    else:
+        local_path = f"/static/uploads/{filename}"
+
+    return redirect(local_path)
+
+@app.route("/static/uploads/<path:filename>")
+def s3_uploads_file(filename):
+    if s3_client and S3_BUCKET_NAME:
+        try:
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": S3_BUCKET_NAME,
+                    "Key": f"uploads/{filename}"
+                },
+                ExpiresIn=3600
+            )
+            return redirect(url)
+
+        except ClientError as e:
+            print("S3取得エラー:", e)
+            return "File not found", 404
+
+    return app.send_static_file(f"uploads/{filename}")
+
+
+@app.route("/static/manuals/<path:filename>")
+def s3_manual_file(filename):
+    if s3_client and S3_BUCKET_NAME:
+        try:
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": S3_BUCKET_NAME,
+                    "Key": f"manuals/{filename}"
+                },
+                ExpiresIn=3600
+            )
+            return redirect(url)
+
+        except ClientError as e:
+            print("S3取得エラー:", e)
+            return "File not found", 404
+
+    return app.send_static_file(f"manuals/{filename}")
 
 PATROL_VIEW_TYPES = {"user", "delivery_place"}
 
