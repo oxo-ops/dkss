@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="page-header">
-    <h2>{{ checklist.name }}</h2>
+    <h2>{{ checklist.name }} </h2>
 
     <div class="header-actions">
         <a href="/vehicle/checklists" class="btn btn-back">
@@ -19,30 +19,24 @@
     <div class="filter-item filter-vehicle">
         <label>対象車両</label>
 
-        <input
-            type="text"
-            name="vehicle_id"
-            list="vehicle_list"
-            value="{{ vehicle_id }}"
-            placeholder="車両ID・ナンバーで検索"
-            required
-        >
+        <input type="text" name="vehicle_id" list="vehicle_list" value="{{ vehicle_id }}" placeholder="車両ID・ナンバーで検索"
+            required>
 
         <datalist id="vehicle_list">
             {% for vehicle in vehicles %}
-                {% if vehicle.vehicle_id in session.get("vehicles", []) %}
-                    <option value="{{ vehicle.vehicle_id }}">
-                        ★ {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                    </option>
-                {% endif %}
+            {% if vehicle.vehicle_id in session.get("vehicles", []) %}
+            <option value="{{ vehicle.vehicle_id }}">
+                ★ {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+            </option>
+            {% endif %}
             {% endfor %}
 
             {% for vehicle in vehicles %}
-                {% if vehicle.vehicle_id not in session.get("vehicles", []) %}
-                    <option value="{{ vehicle.vehicle_id }}">
-                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                    </option>
-                {% endif %}
+            {% if vehicle.vehicle_id not in session.get("vehicles", []) %}
+            <option value="{{ vehicle.vehicle_id }}">
+                {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+            </option>
+            {% endif %}
             {% endfor %}
         </datalist>
 
@@ -61,9 +55,9 @@
         <label>月</label>
         <select name="month">
             {% for m in range(1, 13) %}
-                <option value="{{ '%02d'|format(m) }}" {% if month == '%02d'|format(m) %}selected{% endif %}>
-                    {{ m }}月
-                </option>
+            <option value="{{ '%02d'|format(m) }}" {% if month=='%02d' |format(m) %}selected{% endif %}>
+                {{ m }}月
+            </option>
             {% endfor %}
         </select>
     </div>
@@ -72,28 +66,28 @@
     <div class="filter-item">
         <label>
             {% if display_mode == "year_list" %}
-                入力年
+            入力年
             {% elif display_mode == "month_list" %}
-                入力月
+            入力月
             {% else %}
-                入力日
+            入力日
             {% endif %}
         </label>
         <select name="active_day">
             {% for d in display_days %}
-                {% if display_mode == "year_list" %}
-                    <option value="{{ d }}" {% if active_day|string == d|string %}selected{% endif %}>
+            {% if display_mode == "year_list" %}
+            <option value="{{ d }}" {% if active_day|string==d|string %}selected{% endif %}>
                 {% else %}
-                    <option value="{{ '%02d'|format(d|int) }}" {% if active_day == '%02d'|format(d|int) %}selected{% endif %}>
+            <option value="{{ '%02d'|format(d|int) }}" {% if active_day=='%02d' |format(d|int) %}selected{% endif %}>
                 {% endif %}
-                    {% if display_mode == "year_list" %}
-                        {{ d }}年
-                    {% elif display_mode == "month_list" %}
-                        {{ d }}月
-                    {% else %}
-                        {{ d }}日
-                    {% endif %}
-                </option>
+                {% if display_mode == "year_list" %}
+                {{ d }}年
+                {% elif display_mode == "month_list" %}
+                {{ d }}月
+                {% else %}
+                {{ d }}日
+                {% endif %}
+            </option>
             {% endfor %}
         </select>
     </div>
@@ -115,9 +109,9 @@
 <div class="card">
     <h3>
         {% if checklist.display_type == "month" %}
-            {{ year }}年{{ month|int }}月 点検状況
+        {{ year }}年{{ month|int }}月 点検状況
         {% else %}
-            {{ year }}年 点検状況
+        {{ year }}年 点検状況
         {% endif %}
     </h3>
 
@@ -128,35 +122,35 @@
     {% set criteria_keys = [] %}
 
     {% for item in checklist["items"] %}
-        {% if item.item_type != "approval" %}
-            {% set criteria_text = item.criteria or "" %}
-            {% set criteria_files_text = item.get("criteria_files", [])|join(",") %}
-            {% set criteria_key = criteria_text ~ "|" ~ criteria_files_text %}
+    {% if item.item_type != "approval" %}
+    {% set criteria_text = item.criteria or "" %}
+    {% set criteria_files_text = item.get("criteria_files", [])|join(",") %}
+    {% set criteria_key = criteria_text ~ "|" ~ criteria_files_text %}
 
-            {% if criteria_key != "|" and criteria_key not in criteria_keys %}
-                {% set _ = criteria_keys.append(criteria_key) %}
+    {% if criteria_key != "|" and criteria_key not in criteria_keys %}
+    {% set _ = criteria_keys.append(criteria_key) %}
 
-                <div class="criteria-box">
-                    <strong>評価基準</strong>
+    <div class="criteria-box">
+        <strong>評価基準</strong>
 
-                    {% if criteria_text %}
-                        <div class="criteria-line">
-                            {{ criteria_text }}
-                        </div>
-                    {% endif %}
-
-                    {% if item.get("criteria_files", []) %}
-                        <div class="criteria-file-list">
-                            {% for file in item.get("criteria_files", []) %}
-                                <a href="/static/uploads/{{ file }}" target="_blank">
-                                    {{ file }}
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                </div>
-            {% endif %}
+        {% if criteria_text %}
+        <div class="criteria-line">
+            {{ criteria_text }}
+        </div>
         {% endif %}
+
+        {% if item.get("criteria_files", []) %}
+        <div class="criteria-file-list">
+            {% for file in item.get("criteria_files", []) %}
+            <a href="/static/uploads/{{ file }}" target="_blank">
+                {{ file }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
     {% endfor %}
 
     {% if checklist["items"] %}
@@ -168,9 +162,9 @@
                 <th></th>
 
                 {% for d in display_days %}
-                    <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
-                        {{ d }}
-                    </th>
+                <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
+                    {{ d }}
+                </th>
                 {% endfor %}
             </tr>
 
@@ -179,9 +173,9 @@
                 <th style="width:320px;">点検項目</th>
 
                 {% for d in display_days %}
-                    <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
-                        {{ display_weekdays[d].name }}
-                    </th>
+                <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
+                    {{ display_weekdays[d].name }}
+                </th>
                 {% endfor %}
             </tr>
 
@@ -191,240 +185,198 @@
             <tr>
                 <td>
                     {% if item.item_type == "approval" %}
-                        承認
+                    承認
                     {% else %}
-                        {{ item.category or "-" }}
+                    {{ item.category or "-" }}
                     {% endif %}
                 </td>
 
                 <td>
                     {% if item.item_type == "approval" %}
-                        {{ item.approval_label or "承認欄" }}
+                    {{ item.approval_label or "承認欄" }}
                     {% else %}
-                        {{ item.content|replace('\n', '<br>')|safe }}
+                    {{ item.content|replace('\n', '<br>')|safe }}
                     {% endif %}
                 </td>
 
                 {% for d in display_days %}
-                    {% if display_mode == "year_list" %}
-                        {% set day_text = d|string %}
+                {% if display_mode == "year_list" %}
+                {% set day_text = d|string %}
+                {% else %}
+                {% set day_text = '%02d'|format(d|int) %}
+                {% endif %}
+
+                <td class="center-cell {% if day_text == active_day %}active-day-cell{% endif %}">
+
+                    {% set ns = namespace(
+                    target_result=None,
+                    answer_value="",
+                    comment_text="",
+                    has_comment=false,
+                    has_files=false,
+                    files_text=""
+                    ) %}
+
+                    {% for result in results %}
+                    {% if result.vehicle_id == vehicle_id %}
+                    {% if display_mode == "year_list" and result.year|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% elif display_mode == "month_list" and result.month|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% elif display_mode == "day_list" and result.day|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if item.item_type == "approval" %}
+
+                    {% if ns.target_result %}
+
+                    {% if ns.target_result.status == "承認済み" %}
+
+                    {% if can_approve %}
+                    <form method="post" action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
+                        style="display:inline;" onsubmit="return confirm('承認を取り消しますか？');">
+                        <button type="submit" class="status-badge status-approved approval-toggle-btn"
+                            title="{{ ns.target_result.approved_by }}">
+                            {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
+                        </button>
+                    </form>
                     {% else %}
-                        {% set day_text = '%02d'|format(d|int) %}
+                    <span class="status-badge status-approved" title="{{ ns.target_result.approved_by }}">
+                        {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
+                    </span>
                     {% endif %}
 
-                    <td class="center-cell {% if day_text == active_day %}active-day-cell{% endif %}">
+                    {% else %}
 
-                        {% set ns = namespace(
-                            target_result=None,
-                            answer_value="",
-                            comment_text="",
-                            has_comment=false,
-                            has_files=false,
-                            files_text=""
-                        ) %}
+                    {% if can_approve %}
+                    <form method="post" action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
+                        style="display:inline;">
+                        <button type="submit" class="btn-mini">
+                            承認
+                        </button>
+                    </form>
+                    {% else %}
+                    <span class="status-badge status-waiting">
+                        未
+                    </span>
+                    {% endif %}
 
-                        {% for result in results %}
-                            {% if result.vehicle_id == vehicle_id %}
-                                {% if display_mode == "year_list" and result.year|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% elif display_mode == "month_list" and result.month|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% elif display_mode == "day_list" and result.day|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
+                    {% endif %}
 
-                        {% if item.item_type == "approval" %}
+                    {% else %}
+                    -
+                    {% endif %}
 
-                            {% if ns.target_result %}
+                    {% else %}
 
-                                {% if ns.target_result.status == "承認済み" %}
+                    {% if ns.target_result %}
+                    {% for answer in ns.target_result.answers %}
+                    {% if answer.item_no|string == item_no|string %}
+                    {% set ns.answer_value = answer.value or "" %}
+                    {% set ns.comment_text = answer.comment or "" %}
 
-                                    {% if can_approve %}
-                                        <form
-                                            method="post"
-                                            action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
-                                            style="display:inline;"
-                                            onsubmit="return confirm('承認を取り消しますか？');"
-                                        >
-                                            <button
-                                                type="submit"
-                                                class="status-badge status-approved approval-toggle-btn"
-                                                title="{{ ns.target_result.approved_by }}"
-                                            >
-                                                {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
-                                            </button>
-                                        </form>
-                                    {% else %}
-                                        <span
-                                            class="status-badge status-approved"
-                                            title="{{ ns.target_result.approved_by }}"
-                                        >
-                                            {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
-                                        </span>
-                                    {% endif %}
+                    {% if answer.comment %}
+                    {% set ns.has_comment = true %}
+                    {% endif %}
 
-                                {% else %}
+                    {% if answer.files %}
+                    {% set ns.has_files = true %}
+                    {% set ns.files_text = answer.files|join(',') %}
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
 
-                                    {% if can_approve %}
-                                        <form
-                                            method="post"
-                                            action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
-                                            style="display:inline;"
-                                        >
-                                            <button type="submit" class="btn-mini">
-                                                承認
-                                            </button>
-                                        </form>
-                                    {% else %}
-                                        <span class="status-badge status-waiting">
-                                            未
-                                        </span>
-                                    {% endif %}
+                    {% if day_text == active_day %}
 
-                                {% endif %}
-
-                            {% else %}
-                                -
-                            {% endif %}
-
+                    <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
+                        class="inline-check-form">
+                        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+                        {% if display_mode == "year_list" %}
+                        <input type="hidden" name="year" value="{{ day_text }}">
+                        <input type="hidden" name="month" value="01">
+                        <input type="hidden" name="day" value="01">
+                        {% elif display_mode == "month_list" %}
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="month" value="{{ day_text }}">
+                        <input type="hidden" name="day" value="01">
                         {% else %}
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="month" value="{{ month }}">
+                        <input type="hidden" name="day" value="{{ day_text }}">
+                        {% endif %}
+                        <input type="hidden" name="content" value="{{ item.content }}">
+                        <input type="hidden" name="category" value="{{ item.category }}">
+                        <input type="hidden" name="criteria" value="{{ item.criteria or '' }}">
+                        <input type="hidden" name="item_no" value="{{ item_no }}">
+                        <input type="hidden" name="active_day" value="{{ active_day }}">
 
-                            {% if ns.target_result %}
-                                {% for answer in ns.target_result.answers %}
-                                    {% if answer.item_no|string == item_no|string %}
-                                        {% set ns.answer_value = answer.value or "" %}
-                                        {% set ns.comment_text = answer.comment or "" %}
+                        {% if item.input_type == "select" %}
+                        <select name="value" class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                            onpointerdown="rememberChecklistPosition()" onchange="saveInlineCheck(this)">
+                            <option value="">-</option>
 
-                                        {% if answer.comment %}
-                                            {% set ns.has_comment = true %}
-                                        {% endif %}
-
-                                        {% if answer.files %}
-                                            {% set ns.has_files = true %}
-                                            {% set ns.files_text = answer.files|join(',') %}
-                                        {% endif %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-
-                            {% if day_text == active_day %}
-
-                                <form
-                                    method="post"
-                                    action="/vehicle/checklists/{{ checklist_index }}/save-one"
-                                    class="inline-check-form"
-                                >
-                                    <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
-                                    {% if display_mode == "year_list" %}
-                                        <input type="hidden" name="year" value="{{ day_text }}">
-                                        <input type="hidden" name="month" value="01">
-                                        <input type="hidden" name="day" value="01">
-                                    {% elif display_mode == "month_list" %}
-                                        <input type="hidden" name="year" value="{{ year }}">
-                                        <input type="hidden" name="month" value="{{ day_text }}">
-                                        <input type="hidden" name="day" value="01">
-                                    {% else %}
-                                        <input type="hidden" name="year" value="{{ year }}">
-                                        <input type="hidden" name="month" value="{{ month }}">
-                                        <input type="hidden" name="day" value="{{ day_text }}">
-                                    {% endif %}
-                                    <input type="hidden" name="content" value="{{ item.content }}">
-                                    <input type="hidden" name="category" value="{{ item.category }}">
-                                    <input type="hidden" name="criteria" value="{{ item.criteria or '' }}">
-                                    <input type="hidden" name="item_no" value="{{ item_no }}">
-                                    <input type="hidden" name="active_day" value="{{ active_day }}">
-
-                                    {% if item.input_type == "select" %}
-                                        <select
-                                            name="value"
-                                            class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                                            onchange="this.form.submit()"
-                                        >
-                                            <option value="">-</option>
-
-                                            {% for choice in item.choices %}
-                                                <option value="{{ choice }}" {% if ns.answer_value == choice %}selected{% endif %}>
-                                                    {{ choice }}
-                                                </option>
-                                            {% endfor %}
-                                        </select>
-                                    {% else %}
-                                        <input
-                                            type="text"
-                                            name="value"
-                                            value="{{ ns.answer_value }}"
-                                            title="{{ ns.answer_value }}"
-                                            maxlength="50"
-                                            onchange="this.form.submit()"
-                                        >
-                                    {% endif %}
-
-                                    <button
-                                        type="button"
-                                        class="btn-mini {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                                        data-content="{{ item.content|e }}"
-                                        data-category="{{ (item.category or '')|e }}"
-                                        data-criteria="{{ (item.criteria or '')|e }}"
-                                        data-day="{{ d }}"
-                                        data-item-no="{{ item_no }}"
-                                        data-comment="{{ ns.comment_text|e }}"
-                                        data-files="{{ ns.files_text|e }}"
-                                        data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
-                                        onclick="openDetailFromButton(this)"
-                                    >
-                                        詳細
-                                    </button>
-                                </form>
-
-                            {% else %}
-
-                                {% if ns.answer_value or ns.has_comment or ns.has_files %}
-                                    {% if ns.has_comment or ns.has_files %}
-                                        <button
-                                            type="button"
-                                            class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                                            title="{{ ns.answer_value }}"
-                                            data-content="{{ item.content|e }}"
-                                            data-category="{{ (item.category or '')|e }}"
-                                            data-criteria="{{ (item.criteria or '')|e }}"
-                                            data-day="{{ d }}"
-                                            data-item-no="{{ item_no }}"
-                                            data-comment="{{ ns.comment_text|e }}"
-                                            data-files="{{ ns.files_text|e }}"
-                                            data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
-                                            onclick="openDetailFromButton(this)"
-                                        >
-                                            {{ ns.answer_value }}
-                                        </button>
-                                    {% else %}
-                                        {% if item.input_type == "text" %}
-                                            <button
-                                                type="button"
-                                                class="text-preview-button"
-                                                data-title="{{ item.content|e }}"
-                                                data-text="{{ ns.answer_value|e }}"
-                                                onclick="openTextFromButton(this)"
-                                                title="{{ ns.answer_value }}"
-                                            >
-                                                {{ ns.answer_value[:2] if ns.answer_value else "詳" }}
-                                            </button>
-                                        {% else %}
-                                            <span title="{{ ns.answer_value }}">
-                                                {{ ns.answer_value }}
-                                            </span>
-                                        {% endif %}
-                                    {% endif %}
-                                {% else %}
-                                    -
-                                {% endif %}
-
-                            {% endif %}
-
+                            {% for choice in item.choices %}
+                            <option value="{{ choice }}" {% if ns.answer_value==choice %}selected{% endif %}>
+                                {{ choice }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <input type="text" name="value" value="{{ ns.answer_value }}" title="{{ ns.answer_value }}"
+                            maxlength="50" onchange="saveInlineCheck(this)">
                         {% endif %}
 
-                    </td>
+                        <button type="button"
+                            class="btn-mini {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                            data-content="{{ item.content|e }}" data-category="{{ (item.category or '')|e }}"
+                            data-criteria="{{ (item.criteria or '')|e }}" data-day="{{ d }}"
+                            data-item-no="{{ item_no }}" data-comment="{{ ns.comment_text|e }}"
+                            data-files="{{ ns.files_text|e }}"
+                            data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
+                            onclick="openDetailFromButton(this)">
+                            詳細
+                        </button>
+                    </form>
+
+                    {% else %}
+
+                    {% if ns.answer_value or ns.has_comment or ns.has_files %}
+                    {% if ns.has_comment or ns.has_files %}
+                    <button type="button" class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                        title="{{ ns.answer_value }}" data-content="{{ item.content|e }}"
+                        data-category="{{ (item.category or '')|e }}" data-criteria="{{ (item.criteria or '')|e }}"
+                        data-day="{{ d }}" data-item-no="{{ item_no }}" data-comment="{{ ns.comment_text|e }}"
+                        data-files="{{ ns.files_text|e }}"
+                        data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
+                        onclick="openDetailFromButton(this)">
+                        {{ ns.answer_value }}
+                    </button>
+                    {% else %}
+                    {% if item.input_type == "text" %}
+                    <button type="button" class="text-preview-button" data-title="{{ item.content|e }}"
+                        data-text="{{ ns.answer_value|e }}" onclick="openTextFromButton(this)"
+                        title="{{ ns.answer_value }}">
+                        {{ ns.answer_value[:2] if ns.answer_value else "詳" }}
+                    </button>
+                    {% else %}
+                    <span title="{{ ns.answer_value }}">
+                        {{ ns.answer_value }}
+                    </span>
+                    {% endif %}
+                    {% endif %}
+                    {% else %}
+                    -
+                    {% endif %}
+
+                    {% endif %}
+
+                    {% endif %}
+
+                </td>
                 {% endfor %}
             </tr>
             {% endfor %}
@@ -434,36 +386,36 @@
                 <td>点検者</td>
 
                 {% for d in display_days %}
-                    <td class="center-cell">
-                        {% set ns = namespace(target_result=None) %}
+                <td class="center-cell">
+                    {% set ns = namespace(target_result=None) %}
 
-                        {% for result in results %}
-                            {% if result.vehicle_id == vehicle_id %}
-                                {% if display_mode == "year_list" and result.year|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% elif display_mode == "month_list" and result.month|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% elif display_mode == "day_list" and result.day|int == d|int %}
-                                    {% set ns.target_result = result %}
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
+                    {% for result in results %}
+                    {% if result.vehicle_id == vehicle_id %}
+                    {% if display_mode == "year_list" and result.year|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% elif display_mode == "month_list" and result.month|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% elif display_mode == "day_list" and result.day|int == d|int %}
+                    {% set ns.target_result = result %}
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
 
-                        {% if ns.target_result %}
-                            <span title="{{ ns.target_result.checked_by }}">
-                                {{ ns.target_result.checked_by[:1] }}
-                            </span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+                    {% if ns.target_result %}
+                    <span title="{{ ns.target_result.checked_by }}">
+                        {{ ns.target_result.checked_by[:1] }}
+                    </span>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
                 {% endfor %}
             </tr>
 
         </table>
     </div>
     {% else %}
-        <p>点検項目が登録されていません。</p>
+    <p>点検項目が登録されていません。</p>
     {% endif %}
 </div>
 
@@ -479,11 +431,8 @@
             <div id="criteriaFilesArea"></div>
         </div>
 
-        <form
-            method="post"
-            enctype="multipart/form-data"
-            action="/vehicle/checklists/{{ checklist_index }}/save-detail"
-        >
+        <form method="post" enctype="multipart/form-data"
+            action="/vehicle/checklists/{{ checklist_index }}/save-detail">
             <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
             <input type="hidden" name="year" id="detailYear">
             <input type="hidden" name="month" id="detailMonth">
@@ -498,13 +447,7 @@
             <textarea name="comment" rows="4" class="mention-input"></textarea>
 
             <label>写真・ファイル</label>
-            <input
-                type="file"
-                name="files"
-                multiple
-                accept="image/*,video/*,.pdf"
-                onchange="previewDetailFiles(this)"
-            >
+            <input type="file" name="files" multiple accept="image/*,video/*,.pdf" onchange="previewDetailFiles(this)">
 
             <div id="savedFilesArea"></div>
             <div id="detailPreview"></div>
@@ -534,136 +477,192 @@
 </div>
 
 <script>
-function openDetailFromButton(button) {
-    openDetailModal(
-        button.dataset.content,
-        button.dataset.category,
-        button.dataset.criteria,
-        button.dataset.day,
-        button.dataset.itemNo,
-        button.dataset.comment,
-        button.dataset.files,
-        button.dataset.criteriaFiles
-    );
-}
-
-function openTextFromButton(button) {
-    openTextModal(
-        button.dataset.title,
-        button.dataset.text
-    );
-}
-
-function renderFiles(areaId, filesText, titleText) {
-    const area = document.getElementById(areaId);
-    area.innerHTML = "";
-
-    if (!filesText) {
-        return;
+    function openDetailFromButton(button) {
+        openDetailModal(
+            button.dataset.content,
+            button.dataset.category,
+            button.dataset.criteria,
+            button.dataset.day,
+            button.dataset.itemNo,
+            button.dataset.comment,
+            button.dataset.files,
+            button.dataset.criteriaFiles
+        );
     }
 
-    const files = filesText.split(",").filter(function(filename) {
-        return filename.trim() !== "";
-    });
-
-    if (files.length === 0) {
-        return;
+    function openTextFromButton(button) {
+        openTextModal(
+            button.dataset.title,
+            button.dataset.text
+        );
     }
 
-    const title = document.createElement("p");
-    title.innerHTML = "<strong>" + titleText + "</strong>";
-    area.appendChild(title);
+    function renderFiles(areaId, filesText, titleText) {
+        const area = document.getElementById(areaId);
+        area.innerHTML = "";
 
-    files.forEach(function(filename) {
-        const cleanName = filename.trim();
-        const ext = cleanName.split(".").pop().toLowerCase();
-        const path = "/static/uploads/" + cleanName;
-
-        if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-            const img = document.createElement("img");
-            img.src = path;
-            img.className = "preview-image";
-            img.onclick = function () {
-                window.open(path, "_blank");
-            };
-            area.appendChild(img);
-        } else {
-            const link = document.createElement("a");
-            link.href = path;
-            link.target = "_blank";
-            link.innerText = cleanName;
-            area.appendChild(link);
+        if (!filesText) {
+            return;
         }
-    });
-}
 
-function openDetailModal(content, category, criteria, day, itemNo, comment, filesText, criteriaFilesText) {
-    document.getElementById("detailTitle").innerText = content;
-    document.getElementById("detailContent").value = content;
-    document.getElementById("detailCategory").value = category || "";
-    document.getElementById("detailCriteria").value = criteria || "";
-    document.getElementById("detailCriteriaText").innerText = criteria || "未設定";
-    if ("{{ display_mode }}" === "year_list") {
-        document.getElementById("detailYear").value = String(day);
-        document.getElementById("detailMonth").value = "01";
-        document.getElementById("detailDay").value = "01";
-    } else if ("{{ display_mode }}" === "month_list") {
-        document.getElementById("detailYear").value = "{{ year }}";
-        document.getElementById("detailMonth").value = String(day).padStart(2, "0");
-        document.getElementById("detailDay").value = "01";
-    } else {
-        document.getElementById("detailYear").value = "{{ year }}";
-        document.getElementById("detailMonth").value = "{{ month }}";
-        document.getElementById("detailDay").value = String(day).padStart(2, "0");
-    }
-    document.getElementById("detailItemNo").value = itemNo;
+        const files = filesText.split(",").filter(function (filename) {
+            return filename.trim() !== "";
+        });
 
-    const commentBox = document.querySelector('#detailModal textarea[name="comment"]');
-    if (commentBox) {
-        commentBox.value = comment || "";
-    }
-
-    renderFiles("criteriaFilesArea", criteriaFilesText, "評価基準ファイル：");
-    renderFiles("savedFilesArea", filesText, "登録済みファイル：");
-
-    document.getElementById("detailPreview").innerHTML = "";
-    document.getElementById("detailModal").style.display = "flex";
-}
-
-function closeDetailModal() {
-    document.getElementById("detailModal").style.display = "none";
-}
-
-function previewDetailFiles(input) {
-    const preview = document.getElementById("detailPreview");
-    preview.innerHTML = "";
-
-    Array.from(input.files).forEach(function(file) {
-        if (file.type.startsWith("image/")) {
-            const img = document.createElement("img");
-            img.src = URL.createObjectURL(file);
-            img.className = "preview-image";
-            img.onclick = function () {
-                window.open(img.src, "_blank");
-            };
-            preview.appendChild(img);
-        } else {
-            const p = document.createElement("p");
-            p.innerText = file.name;
-            preview.appendChild(p);
+        if (files.length === 0) {
+            return;
         }
-    });
-}
 
-function openTextModal(title, text) {
-    document.getElementById("textModalTitle").innerText = title;
-    document.getElementById("textModalBody").innerText = text || "";
-    document.getElementById("textModal").style.display = "flex";
-}
+        const title = document.createElement("p");
+        title.innerHTML = "<strong>" + titleText + "</strong>";
+        area.appendChild(title);
 
-function closeTextModal() {
-    document.getElementById("textModal").style.display = "none";
-}
+        files.forEach(function (filename) {
+            const cleanName = filename.trim();
+            const ext = cleanName.split(".").pop().toLowerCase();
+            const path = "/static/uploads/" + cleanName;
+
+            if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+                const img = document.createElement("img");
+                img.src = path;
+                img.className = "preview-image";
+                img.onclick = function () {
+                    window.open(path, "_blank");
+                };
+                area.appendChild(img);
+            } else {
+                const link = document.createElement("a");
+                link.href = path;
+                link.target = "_blank";
+                link.innerText = cleanName;
+                area.appendChild(link);
+            }
+        });
+    }
+
+    function openDetailModal(content, category, criteria, day, itemNo, comment, filesText, criteriaFilesText) {
+        document.getElementById("detailTitle").innerText = content;
+        document.getElementById("detailContent").value = content;
+        document.getElementById("detailCategory").value = category || "";
+        document.getElementById("detailCriteria").value = criteria || "";
+        document.getElementById("detailCriteriaText").innerText = criteria || "未設定";
+        if ("{{ display_mode }}" === "year_list") {
+            document.getElementById("detailYear").value = String(day);
+            document.getElementById("detailMonth").value = "01";
+            document.getElementById("detailDay").value = "01";
+        } else if ("{{ display_mode }}" === "month_list") {
+            document.getElementById("detailYear").value = "{{ year }}";
+            document.getElementById("detailMonth").value = String(day).padStart(2, "0");
+            document.getElementById("detailDay").value = "01";
+        } else {
+            document.getElementById("detailYear").value = "{{ year }}";
+            document.getElementById("detailMonth").value = "{{ month }}";
+            document.getElementById("detailDay").value = String(day).padStart(2, "0");
+        }
+        document.getElementById("detailItemNo").value = itemNo;
+
+        const commentBox = document.querySelector('#detailModal textarea[name="comment"]');
+        if (commentBox) {
+            commentBox.value = comment || "";
+        }
+
+        renderFiles("criteriaFilesArea", criteriaFilesText, "評価基準ファイル：");
+        renderFiles("savedFilesArea", filesText, "登録済みファイル：");
+
+        document.getElementById("detailPreview").innerHTML = "";
+        document.getElementById("detailModal").style.display = "flex";
+    }
+
+    function closeDetailModal() {
+        document.getElementById("detailModal").style.display = "none";
+    }
+
+    function previewDetailFiles(input) {
+        const preview = document.getElementById("detailPreview");
+        preview.innerHTML = "";
+
+        Array.from(input.files).forEach(function (file) {
+            if (file.type.startsWith("image/")) {
+                const img = document.createElement("img");
+                img.src = URL.createObjectURL(file);
+                img.className = "preview-image";
+                img.onclick = function () {
+                    window.open(img.src, "_blank");
+                };
+                preview.appendChild(img);
+            } else {
+                const p = document.createElement("p");
+                p.innerText = file.name;
+                preview.appendChild(p);
+            }
+        });
+    }
+
+    function openTextModal(title, text) {
+        document.getElementById("textModalTitle").innerText = title;
+        document.getElementById("textModalBody").innerText = text || "";
+        document.getElementById("textModal").style.display = "flex";
+    }
+
+    function closeTextModal() {
+        document.getElementById("textModal").style.display = "none";
+    }
+
+    let checklistPageY = null;
+    let checklistPageX = null;
+    let checklistTableX = null;
+
+    function rememberChecklistPosition() {
+        const scrollArea = document.querySelector(".table-scroll");
+
+        checklistPageY = window.scrollY;
+        checklistPageX = window.scrollX;
+        checklistTableX = scrollArea ? scrollArea.scrollLeft : 0;
+    }
+
+    function restoreChecklistPosition() {
+        const scrollArea = document.querySelector(".table-scroll");
+
+        if (checklistPageY !== null) {
+            window.scrollTo(checklistPageX, checklistPageY);
+        }
+
+        if (scrollArea && checklistTableX !== null) {
+            scrollArea.scrollLeft = checklistTableX;
+        }
+    }
+
+    async function saveInlineCheck(input) {
+        const form = input.form;
+
+        // selectのフォーカスによる自動スクロールも解除
+        input.blur();
+
+        restoreChecklistPosition();
+
+        try {
+            const formData = new FormData(form);
+
+            await fetch(form.action, {
+                method: "POST",
+                body: formData
+            });
+
+        } catch (error) {
+            console.error("保存エラー:", error);
+        }
+
+        restoreChecklistPosition();
+
+        requestAnimationFrame(function () {
+            restoreChecklistPosition();
+        });
+
+        setTimeout(restoreChecklistPosition, 50);
+        setTimeout(restoreChecklistPosition, 200);
+    }
+
+
 </script>
 
 {% endblock %}
