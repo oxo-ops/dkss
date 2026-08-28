@@ -8,13 +8,19 @@
     <h2>車両マスタ</h2>
 
     <div class="header-actions">
+
         <a href="/master" class="btn btn-back">
             ← マスタ管理へ戻る
+        </a>
+
+        <a href="/master/vehicles/import" class="btn">
+            Excel一括登録
         </a>
 
         <a href="/master/vehicles/new" class="btn">
             新規登録
         </a>
+
     </div>
 </div>
 
@@ -49,13 +55,51 @@
 <div class="card">
     <form method="get">
 
-        <label>ナンバープレート検索</label>
+        <label>キーワード検索</label>
+
         <input
             type="text"
             name="keyword"
             value="{{ keyword }}"
-            placeholder="例：品川、100、あ、12-34"
+            placeholder="車番・車台番号・型式・メーカーなど"
         >
+
+        <label>状態</label>
+        <select name="status">
+            <option value="">すべて</option>
+            <option value="active" {% if status == "active" %}selected{% endif %}>
+                有効
+            </option>
+            <option value="inactive" {% if status == "inactive" %}selected{% endif %}>
+                無効
+            </option>
+        </select>
+
+        <label>メーカー・車名</label>
+        <select name="manufacturer">
+            <option value="">すべて</option>
+            {% for manufacturer_item in manufacturers %}
+                <option
+                    value="{{ manufacturer_item }}"
+                    {% if manufacturer == manufacturer_item %}selected{% endif %}
+                >
+                    {{ manufacturer_item }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label>型式</label>
+        <select name="model_code">
+            <option value="">すべて</option>
+            {% for model_code_item in model_codes %}
+                <option
+                    value="{{ model_code_item }}"
+                    {% if model_code == model_code_item %}selected{% endif %}
+                >
+                    {{ model_code_item }}
+                </option>
+            {% endfor %}
+        </select>
 
         <label>営業所</label>
         <select name="office">
@@ -86,19 +130,69 @@
     </form>
 </div>
 
+<div
+    style="display:flex; align-items:center; gap:12px; margin:12px 0;"
+>
+    <strong id="selected-count">0件選択中</strong>
+
+    <button
+        type="submit"
+        form="bulk-delete-form"
+        id="bulk-delete-button"
+        class="btn-small btn-delete"
+        disabled
+    >
+        選択した車両を一括削除
+    </button>
+</div>
+
+<form
+    id="bulk-delete-form"
+    method="post"
+    action="/master/vehicles/bulk-delete"
+></form>
+
 <div class="table-scroll">
 <table class="checklist-table responsive-table">
     <tr>
+
+        <th style="width:70px; text-align:center;">
+            <label style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                <input
+                    type="checkbox"
+                    id="select-all-visible"
+                    style="margin:0;"
+                >
+                <span style="font-size:12px;">全選択</span>
+            </label>
+        </th>
+
         <th>車両ID</th>
         <th>ナンバープレート</th>
+        <th>車台番号</th>
+        <th>型式</th>
+        <th>メーカー・車名</th>
         <th>車種</th>
         <th>営業所</th>
         <th>車検満了日</th>
+        <th>無効</th>
         <th style="width:180px;">操作</th>
     </tr>
 
     {% for vehicle in vehicles %}
     <tr>
+
+        <td style="text-align:center;">
+            <input
+                type="checkbox"
+                name="vehicle_ids"
+                value="{{ vehicle.index }}"
+                class="vehicle-select"
+                form="bulk-delete-form"
+                style="margin:0;"
+            >
+        </td>
+
         <td>{{ vehicle.vehicle_id }}</td>
         <td>
             {{ vehicle.plate_area }}
@@ -106,12 +200,36 @@
             {{ vehicle.plate_kana }}
             {{ vehicle.plate_number }}
         </td>
+
+        <td>{{ vehicle.chassis_number or "-" }}</td>
+        <td>{{ vehicle.model_code or "-" }}</td>
+        <td>{{ vehicle.manufacturer or "-" }}</td>
+
         <td>{{ vehicle.type }}</td>
         <td>{{ vehicle.office }}</td>
-        <td>{{ vehicle.inspection_expiry }}</td>
+        <td>{{ vehicle.inspection_expiry or "-" }}</td>
+        <td>
+            <form
+                method="post"
+                action="/master/vehicles/{{ vehicle.index }}/inactive"
+                style="display:flex; justify-content:center; align-items:center; margin:0;"
+            >
+                <input
+                    type="checkbox"
+                    name="inactive"
+                    value="1"
+                    {% if vehicle.deleted %}checked{% endif %}
+                    onchange="this.form.submit()"
+                    style="margin:0;"
+                >
+            </form>
+        </td>
 
-        <td class="action-cell">
-            <div class="action-buttons">
+        <td class="action-cell" style="vertical-align:middle;">
+            <div
+                class="action-buttons"
+                style="display:flex; justify-content:center; align-items:center; gap:8px;"
+            >
                 <a
                     href="/master/vehicles/{{ vehicle.index }}/edit"
                     class="btn-small btn-edit"
@@ -122,7 +240,7 @@
                 <form
                     method="post"
                     action="/master/vehicles/{{ vehicle.index }}/delete"
-                    onsubmit="return confirm('この車両を削除しますか？');"
+                    onsubmit="return confirm('この車両と関連データはすべて削除されます。\n本当に削除しますか？');"
                 >
                     <button type="submit" class="btn-small btn-delete">
                         削除
@@ -134,6 +252,65 @@
     {% endfor %}
 </table>
 </div>
+
+{% if total_pages > 1 %}
+
+<div
+    style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        gap:16px;
+        margin:24px 0;
+    "
+>
+
+    {% if page > 1 %}
+        <a
+            class="btn btn-back"
+            href="{{ url_for(
+                'vehicle_master',
+                page=page - 1,
+                keyword=keyword,
+                status=status,
+                manufacturer=manufacturer,
+                model_code=model_code,
+                office=office,
+                vehicle_type=vehicle_type
+            ) }}"
+        >
+            ← 前へ
+        </a>
+    {% endif %}
+
+
+    <strong>
+        {{ page }} / {{ total_pages }} ページ
+        （{{ total_count }}台）
+    </strong>
+
+
+    {% if page < total_pages %}
+        <a
+            class="btn"
+            href="{{ url_for(
+                'vehicle_master',
+                page=page + 1,
+                keyword=keyword,
+                status=status,
+                manufacturer=manufacturer,
+                model_code=model_code,
+                office=office,
+                vehicle_type=vehicle_type
+            ) }}"
+        >
+            次へ →
+        </a>
+    {% endif %}
+
+</div>
+
+{% endif %}
 
 <div class="mobile-card-list">
     {% for vehicle in vehicles %}
@@ -155,6 +332,21 @@
             </div>
 
             <div class="mobile-card-row">
+                <span>車台番号</span>
+                <strong>{{ vehicle.chassis_number or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>型式</span>
+                <strong>{{ vehicle.model_code or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>メーカー・車名</span>
+                <strong>{{ vehicle.manufacturer or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
                 <span>営業所</span>
                 <strong>{{ vehicle.office }}</strong>
             </div>
@@ -162,6 +354,27 @@
             <div class="mobile-card-row">
                 <span>車検満了日</span>
                 <strong>{{ vehicle.inspection_expiry or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+
+                <span>無効</span>
+
+                <form
+                    method="post"
+                    action="/master/vehicles/{{ vehicle.index }}/inactive"
+                >
+
+                    <input
+                        type="checkbox"
+                        name="inactive"
+                        value="1"
+                        {% if vehicle.deleted %}checked{% endif %}
+                        onchange="this.form.submit()"
+                    >
+
+                </form>
+
             </div>
 
             <div class="mobile-card-actions">
@@ -175,7 +388,7 @@
                 <form
                     method="post"
                     action="/master/vehicles/{{ vehicle.index }}/delete"
-                    onsubmit="return confirm('この車両を削除しますか？');"
+                    onsubmit="return confirm('この車両と関連データはすべて削除されます。\n本当に削除しますか？');"
                 >
                     <button type="submit" class="btn-small btn-delete">
                         削除
@@ -190,5 +403,107 @@
         </div>
     {% endfor %}
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const selectAll = document.getElementById("select-all-visible");
+    const checkboxes = document.querySelectorAll(".vehicle-select");
+    const countDisplay = document.getElementById("selected-count");
+    const bulkDeleteButton = document.getElementById("bulk-delete-button");
+    const bulkDeleteForm = document.getElementById("bulk-delete-form");
+
+
+    function updateSelectedCount() {
+
+        const selectedCount =
+            document.querySelectorAll(".vehicle-select:checked").length;
+
+        countDisplay.textContent =
+            selectedCount + "件選択中";
+
+        bulkDeleteButton.disabled =
+            selectedCount === 0;
+
+
+        if (selectedCount === 0) {
+
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+
+        }
+        else if (selectedCount === checkboxes.length) {
+
+            selectAll.checked = true;
+            selectAll.indeterminate = false;
+
+        }
+        else {
+
+            selectAll.checked = false;
+            selectAll.indeterminate = true;
+
+        }
+    }
+
+
+    selectAll.addEventListener("change", function () {
+
+        checkboxes.forEach(function (checkbox) {
+
+            checkbox.checked = selectAll.checked;
+
+        });
+
+        updateSelectedCount();
+
+    });
+
+
+    checkboxes.forEach(function (checkbox) {
+
+        checkbox.addEventListener("change", function () {
+
+            updateSelectedCount();
+
+        });
+
+    });
+
+
+    bulkDeleteForm.addEventListener("submit", function (event) {
+
+        const selectedCount =
+            document.querySelectorAll(".vehicle-select:checked").length;
+
+
+        if (selectedCount === 0) {
+
+            event.preventDefault();
+            return;
+
+        }
+
+
+        const confirmed = confirm(
+            selectedCount +
+            "台の車両と関連データはすべて削除されます。\n" +
+            "本当に削除しますか？"
+        );
+
+
+        if (!confirmed) {
+
+            event.preventDefault();
+
+        }
+
+    });
+
+
+    updateSelectedCount();
+
+});
+</script>
 
 {% endblock %}

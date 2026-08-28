@@ -91,6 +91,84 @@
             >
         </div>
 
+        <div>
+            <h3>車両台帳情報</h3>
+            <p class="help-text">
+                車検証・車両台帳に記載されている情報を入力してください。
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label>車台番号</label>
+            <input
+                type="text"
+                name="chassis_number"
+                value="{{ vehicle.chassis_number if vehicle else '' }}"
+                placeholder="例：FQ1ARB-10122"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>型式</label>
+            <input
+                type="text"
+                name="model_code"
+                value="{{ vehicle.model_code if vehicle else '' }}"
+                placeholder="例：QKG-FQ1ARBA"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>初年度登録</label>
+            <input
+                type="date"
+                name="first_registration_date"
+                value="{{ vehicle.first_registration_date if vehicle else '' }}"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>メーカー・車名</label>
+            <input
+                type="text"
+                name="manufacturer"
+                value="{{ vehicle.manufacturer if vehicle else '' }}"
+                placeholder="例：日野"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>形状</label>
+            <input
+                type="text"
+                name="body_type"
+                value="{{ vehicle.body_type if vehicle else '' }}"
+                placeholder="例：キャブオーバ"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>車両総重量（kg）</label>
+            <input
+                type="number"
+                name="gross_vehicle_weight"
+                value="{{ vehicle.gross_vehicle_weight if vehicle else '' }}"
+                placeholder="例：24950"
+                min="0"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>最大積載量（kg）</label>
+            <input
+                type="number"
+                name="max_payload"
+                value="{{ vehicle.max_payload if vehicle else '' }}"
+                placeholder="例：12000"
+                min="0"
+            >
+        </div>
+
         <div class="form-group">
             <label>車種</label>
             <select name="type" required>

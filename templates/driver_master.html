@@ -39,14 +39,18 @@
         </select>
 
         <label>使用車両</label>
-        <select name="vehicle">
-            <option value="">すべて</option>
-            {% for vehicle_item in vehicles %}
-                <option value="{{ vehicle_item.vehicle_id }}" {% if vehicle == vehicle_item.vehicle_id %}selected{% endif %}>
-                    {{ vehicle_item.number }}
-                </option>
-            {% endfor %}
-        </select>
+
+        <input
+            type="text"
+            name="vehicle"
+            id="driver_vehicle_filter"
+            list="driver_vehicle_options"
+            value="{{ vehicle }}"
+            placeholder="車番・車台番号・型式・メーカーなどで検索"
+            autocomplete="off"
+        >
+
+        <datalist id="driver_vehicle_options"></datalist>
 
         <button type="submit" class="btn">検索</button>
         <a href="/master/drivers" class="btn btn-back">クリア</a>
@@ -191,4 +195,68 @@
         </div>
     {% endfor %}
 </div>
+<script>
+const driverVehicleFilter =
+    document.getElementById("driver_vehicle_filter");
+
+const driverVehicleOptions =
+    document.getElementById("driver_vehicle_options");
+
+let driverVehicleSearchTimer = null;
+
+
+driverVehicleFilter.addEventListener("input", function () {
+
+    clearTimeout(driverVehicleSearchTimer);
+
+    const keyword =
+        driverVehicleFilter.value.trim();
+
+    if (!keyword) {
+        driverVehicleOptions.innerHTML = "";
+        return;
+    }
+
+
+    driverVehicleSearchTimer = setTimeout(function () {
+
+        fetch(
+            "/api/vehicles?q=" +
+            encodeURIComponent(keyword)
+        )
+        .then(response => response.json())
+        .then(data => {
+
+            driverVehicleOptions.innerHTML = "";
+
+            data.results.forEach(vehicle => {
+
+                const option =
+                    document.createElement("option");
+
+                option.value =
+                    vehicle.vehicle_id;
+
+                const details = [
+                    vehicle.number,
+                    vehicle.manufacturer,
+                    vehicle.model_code
+                ].filter(Boolean);
+
+                option.label =
+                    details.join(" / ");
+
+                driverVehicleOptions.appendChild(
+                    option
+                );
+
+            });
+
+        });
+
+    }, 300);
+
+});
+</script>
+
 {% endblock %}

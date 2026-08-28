@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}車両Excel取込確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両Excel取込確認</h2>
+
+    <div class="header-actions">
+        <a href="/master/vehicles/import" class="btn btn-back">
+            ← Excel選択へ戻る
+        </a>
+    </div>
+</div>
+
+
+<div class="card">
+
+    <h3>一括編集</h3>
+
+    <p class="help-text">
+        同じ値をまとめて変更できます。
+    </p>
+
+    <div class="responsive-form">
+
+        <div class="form-group">
+            <label>項目</label>
+
+            <select id="bulk-field">
+                <option value="plate_full">車番</option>
+                <option value="gross_vehicle_weight">車両総重量</option>
+                <option value="chassis_number">車台番号</option>
+                <option value="model_code">型式</option>
+                <option value="first_registration_date">初年度登録</option>
+                <option value="inspection_expiry">車検満了日</option>
+                <option value="vehicle_name">車名</option>
+                <option value="body_type">形状</option>
+                <option value="max_payload">最大積載量</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>現在の値</label>
+            <input
+                type="text"
+                id="bulk-old-value"
+                placeholder="変更前の値"
+            >
+        </div>
+
+        <div class="form-group">
+            <label>変更後の値</label>
+            <input
+                type="text"
+                id="bulk-new-value"
+                placeholder="変更後の値"
+            >
+        </div>
+
+        <div class="form-actions">
+            <button
+                type="button"
+                class="btn"
+                onclick="bulkReplace()"
+            >
+                一括置換
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <h3>取込対象車両</h3>
+
+    <p class="help-text">
+        {{ vehicles|length }}台読み込みました。
+        登録前にすべての項目を修正できます。
+    </p>
+
+
+    <form method="post" action="/master/vehicles/import/confirm">
+
+        <div class="table-scroll">
+
+            <table class="checklist-table">
+
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>車番</th>
+                        <th>車両総重量</th>
+                        <th>車台番号</th>
+                        <th>型式</th>
+                        <th>初年度登録</th>
+                        <th>車検満了日</th>
+                        <th>車名</th>
+                        <th>形状</th>
+                        <th>最大積載量</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for vehicle in vehicles %}
+
+                    <tr>
+
+                        <td>
+                            {{ loop.index }}
+
+                            <input
+                                type="hidden"
+                                name="excel_row"
+                                value="{{ vehicle.excel_row }}"
+                            >
+                        </td>
+
+
+                        <td>
+
+                            <div style="display:flex; gap:4px; min-width:300px;">
+
+                                <input
+                                    type="text"
+                                    name="plate_area"
+                                    class="bulk-plate_area"
+                                    value="{{ vehicle.plate_area or '' }}"
+                                    placeholder="地域"
+                                    style="width:75px;"
+                                >
+
+                                <input
+                                    type="text"
+                                    name="plate_class"
+                                    class="bulk-plate_class"
+                                    value="{{ vehicle.plate_class or '' }}"
+                                    placeholder="分類"
+                                    style="width:65px;"
+                                >
+
+                                <input
+                                    type="text"
+                                    name="plate_kana"
+                                    class="bulk-plate_kana"
+                                    value="{{ vehicle.plate_kana or '' }}"
+                                    placeholder="かな"
+                                    style="width:50px;"
+                                >
+
+                                <input
+                                    type="text"
+                                    name="plate_number"
+                                    class="bulk-plate_number"
+                                    value="{{ vehicle.plate_number or '' }}"
+                                    placeholder="番号"
+                                    style="width:80px;"
+                                >
+
+                            </div>
+
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="number"
+                                name="gross_vehicle_weight"
+                                class="bulk-gross_vehicle_weight"
+                                value="{{ vehicle.gross_vehicle_weight or '' }}"
+                            >
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="text"
+                                name="chassis_number"
+                                class="bulk-chassis_number"
+                                value="{{ vehicle.chassis_number or '' }}"
+                            >
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="text"
+                                name="model_code"
+                                class="bulk-model_code"
+                                value="{{ vehicle.model_code or '' }}"
+                            >
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="text"
+                                name="first_registration_date"
+                                class="bulk-first_registration_date"
+                                value="{{ vehicle.first_registration_date or '' }}"
+                            >
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="text"
+                                name="inspection_expiry"
+                                class="bulk-inspection_expiry"
+                                value="{{ vehicle.inspection_expiry or '' }}"
+                            >
+                        </td>
+
+
+                        <td>
+
+                            <input
+                                type="text"
+                                name="vehicle_name"
+                                class="bulk-vehicle_name"
+                                value="{{ vehicle.vehicle_name or '' }}"
+                            >
+
+                        </td>
+
+
+                        <td>
+
+                            <input
+                                type="text"
+                                name="body_type"
+                                class="bulk-body_type"
+                                value="{{ vehicle.body_type or '' }}"
+                            >
+
+                        </td>
+
+
+                        <td>
+                            <input
+                                type="number"
+                                name="max_payload"
+                                class="bulk-max_payload"
+                                value="{{ vehicle.max_payload or '' }}"
+                            >
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <div class="form-actions" style="margin-top:20px;">
+
+            <button type="submit" class="btn">
+                この内容で全件登録
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+
+<script>
+
+function bulkReplace() {
+
+    const field = document.getElementById("bulk-field").value;
+    const oldValue = document.getElementById("bulk-old-value").value;
+    const newValue = document.getElementById("bulk-new-value").value;
+
+
+    if (!oldValue) {
+        alert("現在の値を入力してください。");
+        return;
+    }
+
+
+    // 車番だけは4項目に分かれているため今回は対象外
+    if (field === "plate_full") {
+
+        alert(
+            "車番は地域名・分類番号・ひらがな・番号に分かれているため、" +
+            "個別編集してください。"
+        );
+
+        return;
+    }
+
+
+    const inputs = document.querySelectorAll(
+        ".bulk-" + field
+    );
+
+
+    let changedCount = 0;
+
+
+    inputs.forEach(function(input) {
+
+        if (String(input.value).trim() === String(oldValue).trim()) {
+
+            input.value = newValue;
+
+            changedCount += 1;
+        }
+
+    });
+
+
+    alert(
+        changedCount + "件変更しました。"
+    );
+
+}
+
+</script>
+
+{% endblock %}

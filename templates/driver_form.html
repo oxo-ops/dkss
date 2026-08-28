@@ -94,33 +94,70 @@
         <input
             type="text"
             id="vehicle_search"
-            placeholder="車両番号を検索"
-            onkeyup="filterVehicles()"
+            placeholder="車番・車台番号・型式・メーカーなどで検索"
+            autocomplete="off"
         >
 
-        <div class="vehicle-select-box" id="vehicle_list">
-            {% for vehicle in vehicles %}
-                <label class="vehicle-option">
-                    <input
-                        type="checkbox"
-                        name="vehicles"
-                        value="{{ vehicle.vehicle_id }}"
-                        {% if driver and vehicle.vehicle_id in driver.vehicles %}checked{% endif %}
-                        onchange="updateSelectedVehicles()"
-                    >
-                    {{ vehicle.number }}（{{ vehicle.type }}）
-                </label>
-            {% endfor %}
+        <div
+            class="vehicle-select-box"
+            id="vehicle_search_results"
+        >
+            <p class="help-text">
+                車両を検索してください。
+            </p>
         </div>
 
+
         <div class="selected-box">
+
             <strong>選択済み車両</strong>
-            <div id="selected_vehicles">未選択</div>
+
+            <div id="selected_vehicles">
+
+                {% for vehicle in selected_vehicles %}
+
+                    <div
+                        class="selected-vehicle"
+                        data-vehicle-id="{{ vehicle.vehicle_id }}"
+                    >
+
+                        <input
+                            type="hidden"
+                            name="vehicles"
+                            value="{{ vehicle.vehicle_id }}"
+                        >
+
+                        <span>
+                            {{ vehicle.number }}
+                            {% if vehicle.type %}
+                                （{{ vehicle.type }}）
+                            {% endif %}
+                        </span>
+
+                        <button
+                            type="button"
+                            class="btn-small btn-delete"
+                            onclick="removeSelectedVehicle('{{ vehicle.vehicle_id }}')"
+                        >
+                            削除
+                        </button>
+
+                    </div>
+
+                {% else %}
+
+                    <span id="no_selected_vehicle">
+                        未選択
+                    </span>
+
+                {% endfor %}
+
+            </div>
+
         </div>
 
         <p class="help-text">
-            検索欄で車両を絞り込みできます。
-            チェックを付けると複数車両を選択できます。
+            検索結果から車両を選択できます。複数選択可能です。
         </p>
 
         <h3>免許情報</h3>
@@ -261,51 +298,236 @@ function removeLicenseRow(button) {
     button.parentElement.remove();
 }
 
-function filterVehicles() {
-    const keyword = document
-        .getElementById("vehicle_search")
-        .value
-        .toLowerCase();
+const vehicleSearch =
+    document.getElementById("vehicle_search");
 
-    const options = document.querySelectorAll(".vehicle-option");
+const vehicleSearchResults =
+    document.getElementById("vehicle_search_results");
 
-    options.forEach(option => {
-        const text = option.textContent.toLowerCase();
+const selectedVehiclesArea =
+    document.getElementById("selected_vehicles");
 
-        if (text.includes(keyword)) {
-            option.style.display = "block";
-        } else {
-            option.style.display = "none";
-        }
-    });
-}
+let vehicleSearchTimer = null;
 
-function updateSelectedVehicles() {
-    const checked = document.querySelectorAll(
-        'input[name="vehicles"]:checked'
-    );
 
-    const selectedArea = document.getElementById("selected_vehicles");
+vehicleSearch.addEventListener("input", function () {
 
-    if (checked.length === 0) {
-        selectedArea.innerHTML = "未選択";
+    clearTimeout(vehicleSearchTimer);
+
+    const keyword = vehicleSearch.value.trim();
+
+
+    if (!keyword) {
+
+        vehicleSearchResults.innerHTML =
+            '<p class="help-text">車両を検索してください。</p>';
+
         return;
     }
 
-    selectedArea.innerHTML = "";
 
-    checked.forEach(item => {
-        const tag = document.createElement("span");
+    vehicleSearchTimer = setTimeout(function () {
 
-        tag.className = "selected-tag";
-        tag.textContent = item.parentElement.textContent.trim();
+        fetch(
+            "/api/vehicles?q=" +
+            encodeURIComponent(keyword)
+        )
+        .then(response => response.json())
+        .then(data => {
 
-        selectedArea.appendChild(tag);
-    });
+            vehicleSearchResults.innerHTML = "";
+
+
+            if (!data.results.length) {
+
+                vehicleSearchResults.innerHTML =
+                    '<p class="help-text">該当する車両がありません。</p>';
+
+                return;
+            }
+
+
+            data.results.forEach(vehicle => {
+
+                const alreadySelected =
+                    document.querySelector(
+                        '.selected-vehicle[data-vehicle-id="' +
+                        CSS.escape(vehicle.vehicle_id) +
+                        '"]'
+                    );
+
+
+                const row =
+                    document.createElement("div");
+
+                row.className = "vehicle-option";
+
+
+                const labelParts = [
+                    vehicle.number,
+                    vehicle.manufacturer,
+                    vehicle.model_code
+                ].filter(Boolean);
+
+
+                row.innerHTML = `
+                    <button
+                        type="button"
+                        class="btn-small"
+                        ${alreadySelected ? "disabled" : ""}
+                    >
+                        ${alreadySelected ? "選択済み" : "選択"}
+                    </button>
+
+                    <span>
+                        ${labelParts.join(" / ")}
+                    </span>
+                `;
+
+
+                if (!alreadySelected) {
+
+                    row.querySelector("button")
+                        .addEventListener(
+                            "click",
+                            function () {
+
+                                addSelectedVehicle(vehicle);
+
+                            }
+                        );
+
+                }
+
+
+                vehicleSearchResults.appendChild(row);
+
+            });
+
+        });
+
+    }, 300);
+
+});
+
+
+function addSelectedVehicle(vehicle) {
+
+    const exists =
+        document.querySelector(
+            '.selected-vehicle[data-vehicle-id="' +
+            CSS.escape(vehicle.vehicle_id) +
+            '"]'
+        );
+
+
+    if (exists) {
+        return;
+    }
+
+
+    const noSelected =
+        document.getElementById(
+            "no_selected_vehicle"
+        );
+
+
+    if (noSelected) {
+        noSelected.remove();
+    }
+
+
+    const row =
+        document.createElement("div");
+
+    row.className =
+        "selected-vehicle";
+
+    row.dataset.vehicleId =
+        vehicle.vehicle_id;
+
+
+    const labelParts = [
+        vehicle.number,
+        vehicle.manufacturer,
+        vehicle.model_code
+    ].filter(Boolean);
+
+
+    row.innerHTML = `
+        <input
+            type="hidden"
+            name="vehicles"
+            value="${vehicle.vehicle_id}"
+        >
+
+        <span>
+            ${labelParts.join(" / ")}
+        </span>
+
+        <button
+            type="button"
+            class="btn-small btn-delete"
+        >
+            削除
+        </button>
+    `;
+
+
+    row.querySelector("button")
+        .addEventListener(
+            "click",
+            function () {
+
+                removeSelectedVehicle(
+                    vehicle.vehicle_id
+                );
+
+            }
+        );
+
+
+    selectedVehiclesArea.appendChild(row);
+
+
+    vehicleSearch.dispatchEvent(
+        new Event("input")
+    );
+
 }
 
-window.onload = function() {
-    updateSelectedVehicles();
+
+function removeSelectedVehicle(vehicleId) {
+
+    const row =
+        document.querySelector(
+            '.selected-vehicle[data-vehicle-id="' +
+            CSS.escape(vehicleId) +
+            '"]'
+        );
+
+
+    if (row) {
+        row.remove();
+    }
+
+
+    if (
+        document.querySelectorAll(
+            ".selected-vehicle"
+        ).length === 0
+    ) {
+
+        selectedVehiclesArea.innerHTML =
+            '<span id="no_selected_vehicle">未選択</span>';
+
+    }
+
+
+    vehicleSearch.dispatchEvent(
+        new Event("input")
+    );
+
 }
 </script>
 

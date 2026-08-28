@@ -1,15 +1,12 @@
 from flask import Flask, render_template, request, redirect, session
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
 import os
 import json
-import boto3
-from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
-from openpyxl import load_workbook
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
 
@@ -81,37 +78,21 @@ class User(db.Model):
         db.Text,
         default="[]"
     )
-    
 class Vehicle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
-
-    # システム内で使用する車両ID
     vehicle_id = db.Column(db.String(50), nullable=False)
 
-    # 車番・ナンバー
     plate_area = db.Column(db.String(50))
     plate_class = db.Column(db.String(50))
     plate_kana = db.Column(db.String(10))
     plate_number = db.Column(db.String(50))
 
-    # 車両台帳情報
-    chassis_number = db.Column(db.String(100))
-    model_code = db.Column(db.String(100))
-    first_registration_date = db.Column(db.String(20))
-    manufacturer = db.Column(db.String(100))
-    body_type = db.Column(db.String(100))
-
-    gross_vehicle_weight = db.Column(db.Integer)
-    max_payload = db.Column(db.Integer)
-
-    # 既存項目
     type = db.Column(db.String(100))
     office = db.Column(db.String(100))
     inspection_expiry = db.Column(db.String(20))
 
-    # 廃車・登録外になってもデータ自体は残す
     deleted = db.Column(
         db.Boolean,
         default=False
@@ -371,49 +352,16 @@ class PatrolResult(db.Model):
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "")
-AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
-
-s3_client = None
-
-if S3_BUCKET_NAME:
-    s3_client = boto3.client(
-        "s3",
-        region_name=AWS_REGION,
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
-    )
-
 
 def save_uploaded_file(file, folder=None):
     if not file or not file.filename:
         return ""
 
     original_filename = secure_filename(file.filename)
-    extension = os.path.splitext(original_filename)[1].lower()
+    extension = os.path.splitext(original_filename)[1]
+
     filename = f"{uuid4().hex}{extension}"
 
-    # Renderなど、S3設定がある環境
-    if s3_client and S3_BUCKET_NAME:
-        if folder == "static/manuals":
-            s3_folder = "manuals"
-        else:
-            s3_folder = "uploads"
-
-        object_key = f"{s3_folder}/{filename}"
-
-        s3_client.upload_fileobj(
-            file,
-            S3_BUCKET_NAME,
-            object_key,
-            ExtraArgs={
-                "ContentType": file.mimetype or "application/octet-stream"
-            }
-        )
-
-        return filename
-
-    # ローカル開発環境では従来どおり保存
     save_folder = folder or app.config["UPLOAD_FOLDER"]
     os.makedirs(save_folder, exist_ok=True)
 
@@ -422,79 +370,6 @@ def save_uploaded_file(file, folder=None):
 
     return filename
 
-@app.route("/files/<folder>/<filename>")
-def uploaded_file(folder, filename):
-    if folder not in {"uploads", "manuals"}:
-        return "Not found", 404
-
-    # RenderなどS3利用環境
-    if s3_client and S3_BUCKET_NAME:
-        object_key = f"{folder}/{filename}"
-
-        try:
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": S3_BUCKET_NAME,
-                    "Key": object_key
-                },
-                ExpiresIn=3600
-            )
-
-            return redirect(url)
-
-        except ClientError as e:
-            print("S3取得エラー:", e)
-            return "File not found", 404
-
-    # ローカル環境
-    if folder == "manuals":
-        local_path = f"/static/manuals/{filename}"
-    else:
-        local_path = f"/static/uploads/{filename}"
-
-    return redirect(local_path)
-
-@app.route("/static/uploads/<path:filename>")
-def s3_uploads_file(filename):
-    if s3_client and S3_BUCKET_NAME:
-        try:
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": S3_BUCKET_NAME,
-                    "Key": f"uploads/{filename}"
-                },
-                ExpiresIn=3600
-            )
-            return redirect(url)
-
-        except ClientError as e:
-            print("S3取得エラー:", e)
-            return "File not found", 404
-
-    return app.send_static_file(f"uploads/{filename}")
-
-
-@app.route("/static/manuals/<path:filename>")
-def s3_manual_file(filename):
-    if s3_client and S3_BUCKET_NAME:
-        try:
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": S3_BUCKET_NAME,
-                    "Key": f"manuals/{filename}"
-                },
-                ExpiresIn=3600
-            )
-            return redirect(url)
-
-        except ClientError as e:
-            print("S3取得エラー:", e)
-            return "File not found", 404
-
-    return app.send_static_file(f"manuals/{filename}")
 
 PATROL_VIEW_TYPES = {"user", "delivery_place"}
 
@@ -835,77 +710,30 @@ def vehicle_number(vehicle):
     ).strip()
 
 
-def delete_vehicle_related_data(vehicle):
-
-    vehicle_id = vehicle.vehicle_id
-    company_code = vehicle.company_code
-
-
-    # 車両パトロール・修理履歴を削除
-    VehiclePatrol.query.filter_by(
-        company_code=company_code,
-        vehicle_id=vehicle_id
-    ).delete(synchronize_session=False)
-
-
-    # 車両点検・チェックリスト履歴を削除
-    VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        vehicle_id=vehicle_id
-    ).delete(synchronize_session=False)
-
-
-    # 汎用チェックリストで
-    # この車両を対象にした履歴を削除
-    ChecklistResult.query.filter_by(
-        company_code=company_code,
-        target_vehicle=vehicle_id
-    ).delete(synchronize_session=False)
-
-
-def vehicles_with_numbers(include_inactive=False):
-
+def vehicles_with_numbers():
     query = Vehicle.query.filter_by(
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        deleted=False
     )
-
-    if not include_inactive:
-        query = query.filter_by(
-            deleted=False
-        )
 
     vehicles = []
 
     for vehicle in query.all():
-
         item = {
             "index": vehicle.id,
             "id": vehicle.id,
             "company_code": vehicle.company_code,
             "vehicle_id": vehicle.vehicle_id,
-            "deleted": vehicle.deleted,
-
             "plate_area": vehicle.plate_area,
             "plate_class": vehicle.plate_class,
             "plate_kana": vehicle.plate_kana,
             "plate_number": vehicle.plate_number,
-
-            "chassis_number": vehicle.chassis_number,
-            "model_code": vehicle.model_code,
-            "first_registration_date": vehicle.first_registration_date,
-            "manufacturer": vehicle.manufacturer,
-            "body_type": vehicle.body_type,
-
-            "gross_vehicle_weight": vehicle.gross_vehicle_weight,
-            "max_payload": vehicle.max_payload,
-
             "type": vehicle.type,
             "office": vehicle.office,
             "inspection_expiry": vehicle.inspection_expiry,
         }
 
         item["number"] = vehicle_number(item)
-
         vehicles.append(item)
 
     return vehicles
@@ -1402,72 +1230,6 @@ def mention_users():
 
     return {"users": users[:10]}
 
-@app.route("/api/vehicles")
-def search_vehicles():
-
-    keyword = request.args.get("q", "").strip()
-
-    query = Vehicle.query.filter_by(
-        company_code=session.get("company_code"),
-        deleted=False
-    )
-
-
-    if keyword:
-
-        keyword_like = f"%{keyword}%"
-
-        query = query.filter(
-            db.or_(
-                Vehicle.vehicle_id.ilike(keyword_like),
-                Vehicle.plate_area.ilike(keyword_like),
-                Vehicle.plate_class.ilike(keyword_like),
-                Vehicle.plate_kana.ilike(keyword_like),
-                Vehicle.plate_number.ilike(keyword_like),
-                Vehicle.chassis_number.ilike(keyword_like),
-                Vehicle.model_code.ilike(keyword_like),
-                Vehicle.manufacturer.ilike(keyword_like),
-            )
-        )
-
-
-    vehicles = (
-        query
-        .order_by(Vehicle.id.asc())
-        .limit(20)
-        .all()
-    )
-
-
-    results = []
-
-    for vehicle in vehicles:
-
-        number = " ".join(
-            value
-            for value in [
-                vehicle.plate_area or "",
-                vehicle.plate_class or "",
-                vehicle.plate_kana or "",
-                vehicle.plate_number or "",
-            ]
-            if value
-        )
-
-        results.append({
-            "id": vehicle.vehicle_id,
-            "vehicle_id": vehicle.vehicle_id,
-            "number": number,
-            "chassis_number": vehicle.chassis_number or "",
-            "manufacturer": vehicle.manufacturer or "",
-            "model_code": vehicle.model_code or "",
-        })
-
-
-    return {
-        "results": results
-    }
-    
 @app.route("/")
 def dashboard():
     today = datetime.now().date()
@@ -1546,55 +1308,24 @@ def dashboard():
     # 車検が近い車両
     inspection_alerts = []
 
-    inspection_limit_date = (
-        today + timedelta(days=90)
-    ).strftime("%Y-%m-%d")
+    for vehicle in vehicles_with_numbers():
+        expiry = vehicle.get("inspection_expiry")
 
-
-    inspection_vehicle_records = Vehicle.query.filter(
-        Vehicle.company_code == session.get("company_code"),
-        Vehicle.deleted == False,
-        Vehicle.inspection_expiry.isnot(None),
-        Vehicle.inspection_expiry != "",
-        Vehicle.inspection_expiry <= inspection_limit_date
-    ).order_by(
-        Vehicle.inspection_expiry.asc()
-    ).all()
-
-
-    for vehicle in inspection_vehicle_records:
-
-        try:
-            expiry_date = datetime.strptime(
-                vehicle.inspection_expiry,
-                "%Y-%m-%d"
-            ).date()
-        except ValueError:
+        if not expiry:
             continue
 
+        expiry_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+        remaining_days = (expiry_date - today).days
 
-        remaining_days = (
-            expiry_date - today
-        ).days
+        if remaining_days <= 90:
+            item = vehicle.copy()
+            item["remaining_days"] = remaining_days
+            inspection_alerts.append(item)
 
-
-        item = {
-            "vehicle_id": vehicle.vehicle_id,
-            "number": " ".join(
-                value
-                for value in [
-                    vehicle.plate_area or "",
-                    vehicle.plate_class or "",
-                    vehicle.plate_kana or "",
-                    vehicle.plate_number or "",
-                ]
-                if value
-            ),
-            "inspection_expiry": vehicle.inspection_expiry,
-            "remaining_days": remaining_days,
-        }
-
-        inspection_alerts.append(item)
+    inspection_alerts = sorted(
+        inspection_alerts,
+        key=lambda x: x.get("remaining_days", 9999)
+    )
 
     setup_tasks = []
 
@@ -2213,7 +1944,7 @@ def new_vehicle_patrol():
     return render_template(
         "vehicle_patrol_form.html",
         patrol=None,
-        selected_vehicle=None,
+        vehicles=vehicles_with_numbers(),
         mode="new"
     )
 
@@ -2319,6 +2050,7 @@ def vehicle_patrols():
         favorite_patrols=favorite_patrols,
         other_patrols=other_patrols,
         favorite_vehicles=favorite_vehicles,
+        vehicles=vehicles_with_numbers(),
         keyword=keyword,
         status_filter=status_filter
     )
@@ -2376,39 +2108,11 @@ def edit_vehicle_patrol(index):
 
         return redirect(f"/vehicle-patrols/{patrol.id}")
 
-    selected_vehicle = None
-
-    vehicle = Vehicle.query.filter_by(
-        company_code=patrol.company_code,
-        vehicle_id=patrol.vehicle_id
-    ).first()
-
-    if vehicle:
-
-        number = " ".join(
-            value
-            for value in [
-                vehicle.plate_area or "",
-                vehicle.plate_class or "",
-                vehicle.plate_kana or "",
-                vehicle.plate_number or "",
-            ]
-            if value
-        )
-
-        selected_vehicle = {
-            "vehicle_id": vehicle.vehicle_id,
-            "number": number,
-            "manufacturer": vehicle.manufacturer or "",
-            "model_code": vehicle.model_code or "",
-        }
-
-
     return render_template(
         "vehicle_patrol_form.html",
         patrol=vehicle_patrol_to_dict(patrol),
         index=patrol.id,
-        selected_vehicle=selected_vehicle,
+        vehicles=vehicles_with_numbers(),
         mode="edit"
     )
 
@@ -2945,6 +2649,7 @@ def driver_master():
         "driver_master.html",
         drivers=filtered_drivers,
         offices=offices_for_current_company(),
+        vehicles=vehicles_with_numbers(),
         keyword=keyword,
         office=office,
         vehicle=vehicle,
@@ -3012,7 +2717,7 @@ def new_driver():
         "driver_form.html",
         driver=None,
         offices=offices_for_current_company(),
-        selected_vehicles=[],
+        vehicles=vehicles_with_numbers(),
         license_types=license_types_for_current_company(),
         mode="new"
     )
@@ -3102,46 +2807,12 @@ def edit_driver(index):
 
     driver_dict = driver_to_dict(driver)
 
-
-    selected_vehicle_records = []
-
-    if driver_dict["vehicles"]:
-
-        selected_vehicle_records = Vehicle.query.filter(
-            Vehicle.company_code == driver.company_code,
-            Vehicle.vehicle_id.in_(driver_dict["vehicles"]),
-            Vehicle.deleted == False
-        ).all()
-
-
-    selected_vehicles = []
-
-    for vehicle in selected_vehicle_records:
-
-        number = " ".join(
-            value
-            for value in [
-                vehicle.plate_area or "",
-                vehicle.plate_class or "",
-                vehicle.plate_kana or "",
-                vehicle.plate_number or "",
-            ]
-            if value
-        )
-
-        selected_vehicles.append({
-            "vehicle_id": vehicle.vehicle_id,
-            "number": number,
-            "type": vehicle.type or "",
-        })
-
-
     return render_template(
         "driver_form.html",
         driver=driver_dict,
         index=driver.id,
         offices=offices_for_current_company(),
-        selected_vehicles=selected_vehicles,
+        vehicles=vehicles_with_numbers(),
         license_types=license_types_for_current_company(),
         mode="edit"
     )
@@ -3176,177 +2847,37 @@ def vehicle_master():
     keyword = request.args.get("keyword", "").strip()
     office = request.args.get("office", "").strip()
     vehicle_type = request.args.get("vehicle_type", "").strip()
-    status = request.args.get("status", "").strip()
-    manufacturer = request.args.get("manufacturer", "").strip()
-    model_code = request.args.get("model_code", "").strip()
 
-    query = Vehicle.query.filter_by(
-        company_code=session.get("company_code")
-    )
-
-
-    # キーワード検索
-    if keyword:
-
-        keyword_like = f"%{keyword}%"
-
-        query = query.filter(
-            db.or_(
-                Vehicle.vehicle_id.ilike(keyword_like),
-                Vehicle.plate_area.ilike(keyword_like),
-                Vehicle.plate_class.ilike(keyword_like),
-                Vehicle.plate_kana.ilike(keyword_like),
-                Vehicle.plate_number.ilike(keyword_like),
-                Vehicle.chassis_number.ilike(keyword_like),
-                Vehicle.model_code.ilike(keyword_like),
-                Vehicle.manufacturer.ilike(keyword_like),
-                Vehicle.body_type.ilike(keyword_like),
-            )
-        )
-
-
-    # 有効・無効
-    if status == "active":
-        query = query.filter(
-            Vehicle.deleted == False
-        )
-
-    elif status == "inactive":
-        query = query.filter(
-            Vehicle.deleted == True
-        )
-
-
-    # メーカー・車名
-    if manufacturer:
-        query = query.filter(
-            Vehicle.manufacturer == manufacturer
-        )
-
-
-    # 型式
-    if model_code:
-        query = query.filter(
-            Vehicle.model_code == model_code
-        )
-
-
-    # 営業所
-    if office:
-        query = query.filter(
-            Vehicle.office == office
-        )
-
-
-    # 車種
-    if vehicle_type:
-        query = query.filter(
-            Vehicle.type == vehicle_type
-        )
-
-
-    # メーカー候補
-    manufacturers = [
-        item[0]
-        for item in db.session.query(Vehicle.manufacturer)
-        .filter(
-            Vehicle.company_code == session.get("company_code"),
-            Vehicle.manufacturer.isnot(None),
-            Vehicle.manufacturer != ""
-        )
-        .distinct()
-        .order_by(Vehicle.manufacturer)
-        .all()
-    ]
-
-
-    # 型式候補
-    model_codes = [
-        item[0]
-        for item in db.session.query(Vehicle.model_code)
-        .filter(
-            Vehicle.company_code == session.get("company_code"),
-            Vehicle.model_code.isnot(None),
-            Vehicle.model_code != ""
-        )
-        .distinct()
-        .order_by(Vehicle.model_code)
-        .all()
-    ]
-
-
-    # ページ分割
-    page = request.args.get("page", 1, type=int)
-    per_page = 100
-
-    total_count = query.count()
-
-    total_pages = max(
-        1,
-        (total_count + per_page - 1) // per_page
-    )
-
-    if page < 1:
-        page = 1
-
-    if page > total_pages:
-        page = total_pages
-
-
-    vehicle_records = (
-        query
-        .order_by(Vehicle.id.asc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
-
-
+    vehicles = vehicles_with_numbers()
     filtered_vehicles = []
 
-    for vehicle in vehicle_records:
+    for vehicle in vehicles:
+        if keyword:
+            search_text = (
+                str(vehicle.get("vehicle_id", "")) +
+                str(vehicle.get("plate_area", "")) +
+                str(vehicle.get("plate_class", "")) +
+                str(vehicle.get("plate_kana", "")) +
+                str(vehicle.get("plate_number", ""))
+            )
 
-        item = {
-            "index": vehicle.id,
-            "id": vehicle.id,
-            "company_code": vehicle.company_code,
-            "vehicle_id": vehicle.vehicle_id,
-            "deleted": vehicle.deleted,
+            if keyword not in search_text:
+                continue
 
-            "plate_area": vehicle.plate_area,
-            "plate_class": vehicle.plate_class,
-            "plate_kana": vehicle.plate_kana,
-            "plate_number": vehicle.plate_number,
+        if office and vehicle.get("office") != office:
+            continue
 
-            "chassis_number": vehicle.chassis_number,
-            "model_code": vehicle.model_code,
-            "first_registration_date": vehicle.first_registration_date,
-            "manufacturer": vehicle.manufacturer,
-            "body_type": vehicle.body_type,
+        if vehicle_type and vehicle.get("type") != vehicle_type:
+            continue
 
-            "gross_vehicle_weight": vehicle.gross_vehicle_weight,
-            "max_payload": vehicle.max_payload,
-
-            "type": vehicle.type,
-            "office": vehicle.office,
-            "inspection_expiry": vehicle.inspection_expiry,
-        }
-
-        item["number"] = vehicle_number(item)
-
-        filtered_vehicles.append(item)
+        filtered_vehicles.append(vehicle)
 
     company = Company.query.filter_by(
         company_code=session.get("company_code")
     ).first()
 
     vehicle_limit = 0
-
-    vehicle_count = Vehicle.query.filter_by(
-        company_code=session.get("company_code"),
-        deleted=False
-    ).count()
-
+    vehicle_count = len(vehicles)
     remaining_vehicles = 0
 
     if company:
@@ -3361,341 +2892,13 @@ def vehicle_master():
         keyword=keyword,
         office=office,
         vehicle_type=vehicle_type,
-        status=status,
-        manufacturer=manufacturer,
-        model_code=model_code,
-
-        manufacturers=manufacturers,
-        model_codes=model_codes,
 
         vehicle_limit=vehicle_limit,
         vehicle_count=vehicle_count,
         remaining_vehicles=remaining_vehicles,
-        
-        page=page,
-        total_pages=total_pages,
-        total_count=total_count,
     )
 
-@app.route("/master/vehicles/import", methods=["GET", "POST"])
-def import_vehicles():
 
-    if request.method == "POST":
-
-        excel_file = request.files.get("excel_file")
-
-        if not excel_file or not excel_file.filename:
-            return "Excelファイルを選択してください。"
-
-        if not excel_file.filename.lower().endswith(".xlsx"):
-            return "xlsx形式のExcelファイルを選択してください。"
-
-        workbook = load_workbook(
-            excel_file,
-            data_only=True
-        )
-
-        sheet = workbook.active
-
-        header_row = None
-
-        for row in sheet.iter_rows():
-            values = [cell.value for cell in row]
-
-            if (
-                "ID" in values
-                and "車両番号" in values
-                and "車体番号" in values
-                and "車番" in values
-            ):
-                header_row = row[0].row
-                break
-
-        if header_row is None:
-            return "車両台帳の見出し行が見つかりませんでした。"
-
-        headers = [
-            cell.value
-            for cell in sheet[header_row]
-        ]
-
-        header_map = {
-            name: index
-            for index, name in enumerate(headers)
-            if name is not None
-        }
-
-        vehicles_data = []
-
-        for data_row in range(header_row + 1, sheet.max_row + 1):
-
-            row_values = [
-                cell.value
-                for cell in sheet[data_row]
-            ]
-
-            # 空行は読み飛ばす
-            if not any(value is not None for value in row_values):
-                continue
-
-            # 車番も車体番号も無い行は車両データではないとして読み飛ばす
-            plate_number = row_values[header_map["車番"]]
-            chassis_number = row_values[header_map["車体番号"]]
-
-            if not plate_number and not chassis_number:
-                continue
-
-            vehicle_data = {
-                "excel_row": data_row,
-
-                "plate_area": row_values[header_map["車番・地域名"]],
-                "plate_class": row_values[header_map["車番・分類"]],
-                "plate_kana": row_values[header_map["車番・ひらがな"]],
-                "plate_number": plate_number,
-
-                "gross_vehicle_weight": row_values[header_map["車両総重量"]],
-                "chassis_number": chassis_number,
-                "model_code": row_values[header_map["車体型式"]],
-
-                "first_registration_date": row_values[header_map["初年度車検"]],
-                "inspection_expiry": row_values[header_map["車検期間終了日"]],
-
-                "vehicle_name_raw": row_values[header_map["車両メーカー"]],
-                "body_type_raw": row_values[header_map["車両形状"]],
-
-                "vehicle_name": row_values[header_map["車両メーカー"]],
-                "body_type": row_values[header_map["車両形状"]],
-
-                "max_payload": row_values[header_map["最大積載量"]],
-            }
-
-            vehicles_data.append(vehicle_data)
-
-
-        return render_template(
-            "vehicle_import_preview.html",
-            vehicles=vehicles_data,
-            vehicle_types=vehicle_types_for_current_company(),
-        )
-
-    return render_template(
-        "vehicle_import.html"
-    )
-
-@app.route("/master/vehicles/import/confirm", methods=["POST"])
-def confirm_vehicle_import():
-
-    company_code = session.get("company_code")
-
-    plate_areas = request.form.getlist("plate_area")
-    plate_classes = request.form.getlist("plate_class")
-    plate_kanas = request.form.getlist("plate_kana")
-    plate_numbers = request.form.getlist("plate_number")
-
-    gross_weights = request.form.getlist("gross_vehicle_weight")
-    chassis_numbers = request.form.getlist("chassis_number")
-    model_codes = request.form.getlist("model_code")
-
-    first_registration_dates = request.form.getlist(
-        "first_registration_date"
-    )
-
-    inspection_expiries = request.form.getlist(
-        "inspection_expiry"
-    )
-
-    vehicle_names = request.form.getlist("vehicle_name")
-    body_types = request.form.getlist("body_type")
-    max_payloads = request.form.getlist("max_payload")
-
-
-    import_count = len(plate_numbers)
-
-    company = Company.query.filter_by(
-        company_code=company_code
-    ).first()
-
-    current_count = Vehicle.query.filter_by(
-        company_code=company_code,
-        deleted=False
-    ).count()
-
-
-    # 一括登録開始前から存在している車台番号
-    existing_chassis_numbers = {
-        vehicle.chassis_number.strip()
-        for vehicle in Vehicle.query.filter_by(
-            company_code=company_code,
-            deleted=False
-        ).all()
-        if vehicle.chassis_number
-    }
-
-
-    # 上限チェック用
-    # Excel内で一度数えた車台番号を記録
-    counted_chassis_numbers = set()
-
-    new_vehicle_count = 0
-
-
-    for i in range(import_count):
-
-        chassis_number = chassis_numbers[i].strip()
-
-
-        # すでに登録済みなら新規台数に含めない
-        if chassis_number:
-
-            if chassis_number in existing_chassis_numbers:
-                continue
-
-
-            # Excel内重複も1台として数える
-            if chassis_number in counted_chassis_numbers:
-                continue
-
-
-            counted_chassis_numbers.add(chassis_number)
-
-
-        # 車台番号なしの行は、
-        # 実際の登録処理と同じく1行＝1台として数える
-        new_vehicle_count += 1
-
-
-    # 新規登録予定台数で上限チェック
-    if company:
-        if current_count + new_vehicle_count > company.vehicle_limit:
-            return (
-                f"登録上限を超えます。"
-                f"現在 {current_count} 台、"
-                f"新規登録予定 {new_vehicle_count} 台、"
-                f"上限 {company.vehicle_limit} 台です。"
-            )
-
-
-    existing_vehicles = Vehicle.query.filter_by(
-        company_code=company_code
-    ).all()
-
-    max_number = 0
-
-    for existing in existing_vehicles:
-
-        if not existing.vehicle_id:
-            continue
-
-        if existing.vehicle_id.startswith("V"):
-
-            try:
-                number = int(existing.vehicle_id[1:])
-                max_number = max(max_number, number)
-
-            except ValueError:
-                pass
-
-
-    # 今回のExcel内ですでに処理した車台番号
-    processed_chassis_numbers = set()
-
-    registered_count = 0
-    existing_skip_count = 0
-    duplicate_skip_count = 0
-
-
-    for i in range(import_count):
-
-        chassis_number = chassis_numbers[i].strip()
-        plate_area = plate_areas[i].strip()
-        plate_class = plate_classes[i].strip()
-        plate_kana = plate_kanas[i].strip()
-        plate_number = plate_numbers[i].strip()
-
-
-        # 一括登録開始前から存在していた車両
-        if chassis_number and chassis_number in existing_chassis_numbers:
-            existing_skip_count += 1
-            continue
-
-
-        # Excelファイル内で同じ車台番号が重複している場合
-        if chassis_number and chassis_number in processed_chassis_numbers:
-            duplicate_skip_count += 1
-            continue
-
-
-        if chassis_number:
-            processed_chassis_numbers.add(chassis_number)
-
-
-        max_number += 1
-
-        new_id = f"V{max_number:03}"
-
-
-        def to_int(value):
-            value = str(value or "").replace(",", "").strip()
-
-            if not value:
-                return None
-
-            return int(float(value))
-
-
-        vehicle = Vehicle(
-            company_code=company_code,
-            vehicle_id=new_id,
-
-            plate_area=plate_area,
-            plate_class=plate_class,
-            plate_kana=plate_kana,
-            plate_number=plate_number,
-
-            gross_vehicle_weight=to_int(
-                gross_weights[i]
-            ),
-
-            chassis_number=chassis_number,
-            model_code=model_codes[i].strip(),
-
-            first_registration_date=
-                first_registration_dates[i].strip(),
-
-            inspection_expiry=
-                inspection_expiries[i].strip(),
-
-            # 画面上は「車名」だが、
-            # 現在のDBでは manufacturer に保存
-            manufacturer=vehicle_names[i].strip(),
-
-            body_type=body_types[i].strip(),
-
-            max_payload=to_int(
-                max_payloads[i]
-            ),
-
-            # 今回のExcel登録対象外
-            type="",
-            office="",
-
-            deleted=False,
-        )
-
-        db.session.add(vehicle)
-
-        registered_count += 1
-
-
-    db.session.commit()
-
-    return render_template(
-        "vehicle_import_complete.html",
-        registered_count=registered_count,
-        existing_skip_count=existing_skip_count,
-        duplicate_skip_count=duplicate_skip_count,
-    )
-        
 @app.route("/master/vehicles/new", methods=["GET", "POST"])
 def new_vehicle():
     if request.method == "POST":
@@ -3716,46 +2919,19 @@ def new_vehicle():
             if vehicle_count >= company.vehicle_limit:
                 return "登録可能台数の上限に達しています。"
 
-        existing_vehicles = Vehicle.query.filter_by(
+        all_vehicle_count = Vehicle.query.filter_by(
             company_code=company_code
-        ).all()
+        ).count()
 
-        max_number = 0
-
-        for existing in existing_vehicles:
-
-            if not existing.vehicle_id:
-                continue
-
-            if existing.vehicle_id.startswith("V"):
-
-                try:
-                    number = int(existing.vehicle_id[1:])
-                    max_number = max(max_number, number)
-
-                except ValueError:
-                    pass
-
-        new_id = f"V{max_number + 1:03}"
+        new_id = f"V{all_vehicle_count + 1:03}"
 
         vehicle = Vehicle(
             company_code=company_code,
             vehicle_id=new_id,
-
             plate_area=request.form.get("plate_area"),
             plate_class=request.form.get("plate_class"),
             plate_kana=request.form.get("plate_kana"),
             plate_number=request.form.get("plate_number"),
-
-            chassis_number=request.form.get("chassis_number"),
-            model_code=request.form.get("model_code"),
-            first_registration_date=request.form.get("first_registration_date"),
-            manufacturer=request.form.get("manufacturer"),
-            body_type=request.form.get("body_type"),
-
-            gross_vehicle_weight=int(request.form.get("gross_vehicle_weight") or 0),
-            max_payload=int(request.form.get("max_payload") or 0),
-
             type=request.form.get("type"),
             office=request.form.get("office"),
             inspection_expiry=request.form.get("inspection_expiry"),
@@ -3791,21 +2967,6 @@ def edit_vehicle(index):
         vehicle.plate_class = request.form.get("plate_class")
         vehicle.plate_kana = request.form.get("plate_kana")
         vehicle.plate_number = request.form.get("plate_number")
-
-        vehicle.chassis_number = request.form.get("chassis_number")
-        vehicle.model_code = request.form.get("model_code")
-        vehicle.first_registration_date = request.form.get("first_registration_date")
-        vehicle.manufacturer = request.form.get("manufacturer")
-        vehicle.body_type = request.form.get("body_type")
-
-        vehicle.gross_vehicle_weight = int(
-            request.form.get("gross_vehicle_weight") or 0
-        )
-
-        vehicle.max_payload = int(
-            request.form.get("max_payload") or 0
-        )
-
         vehicle.type = request.form.get("type")
         vehicle.office = request.form.get("office")
         vehicle.inspection_expiry = request.form.get("inspection_expiry")
@@ -3820,13 +2981,6 @@ def edit_vehicle(index):
         "plate_class": vehicle.plate_class,
         "plate_kana": vehicle.plate_kana,
         "plate_number": vehicle.plate_number,
-        "chassis_number": vehicle.chassis_number,
-        "model_code": vehicle.model_code,
-        "first_registration_date": vehicle.first_registration_date,
-        "manufacturer": vehicle.manufacturer,
-        "body_type": vehicle.body_type,
-        "gross_vehicle_weight": vehicle.gross_vehicle_weight,
-        "max_payload": vehicle.max_payload,
         "number": vehicle_number({
             "plate_area": vehicle.plate_area,
             "plate_class": vehicle.plate_class,
@@ -3846,108 +3000,6 @@ def edit_vehicle(index):
         vehicle_types=vehicle_types_for_current_company(),
         mode="edit"
     )
-
-@app.route("/master/vehicles/<int:index>/inactive", methods=["POST"])
-def toggle_vehicle_inactive(index):
-
-    vehicle = Vehicle.query.get(index)
-
-    if not vehicle:
-        return redirect("/master/vehicles")
-
-    if session.get("role") != "itc":
-        if vehicle.company_code != session.get("company_code"):
-            return redirect("/master/vehicles")
-
-    vehicle.deleted = request.form.get("inactive") == "1"
-
-    db.session.commit()
-
-    return redirect("/master/vehicles")
-
-@app.route("/master/vehicles/bulk-delete", methods=["POST"])
-def bulk_delete_vehicles():
-
-    vehicle_indexes = request.form.getlist("vehicle_ids")
-
-    if not vehicle_indexes:
-        return redirect("/master/vehicles")
-
-    company_code = session.get("company_code")
-
-    vehicles_to_delete = Vehicle.query.filter(
-        Vehicle.id.in_(vehicle_indexes),
-        Vehicle.company_code == company_code
-    ).all()
-
-    if not vehicles_to_delete:
-        return redirect("/master/vehicles")
-
-
-    vehicle_ids_to_delete = {
-        vehicle.vehicle_id
-        for vehicle in vehicles_to_delete
-        if vehicle.vehicle_id
-    }
-
-
-    # ドライバーの車両割当から削除
-    for driver in Driver.query.filter_by(
-        company_code=company_code
-    ).all():
-
-        driver_vehicles = json.loads(
-            driver.vehicles_json or "[]"
-        )
-
-        new_driver_vehicles = [
-            vehicle_id
-            for vehicle_id in driver_vehicles
-            if vehicle_id not in vehicle_ids_to_delete
-        ]
-
-        if new_driver_vehicles != driver_vehicles:
-
-            driver.vehicles_json = json.dumps(
-                new_driver_vehicles,
-                ensure_ascii=False
-            )
-
-
-    # ユーザーのお気に入り車両から削除
-    for user in User.query.filter_by(
-        company_code=company_code
-    ).all():
-
-        favorite_vehicles = json.loads(
-            user.favorite_vehicles_json or "[]"
-        )
-
-        new_favorite_vehicles = [
-            vehicle_id
-            for vehicle_id in favorite_vehicles
-            if vehicle_id not in vehicle_ids_to_delete
-        ]
-
-        if new_favorite_vehicles != favorite_vehicles:
-
-            user.favorite_vehicles_json = json.dumps(
-                new_favorite_vehicles,
-                ensure_ascii=False
-            )
-
-
-    # 関連履歴を削除してから車両本体を完全削除
-    for vehicle in vehicles_to_delete:
-
-        delete_vehicle_related_data(vehicle)
-
-        db.session.delete(vehicle)
-
-
-    db.session.commit()
-
-    return redirect("/master/vehicles")
 
 @app.route("/master/vehicles/<int:index>/delete", methods=["POST"])
 def delete_vehicle(index):
@@ -3986,13 +3038,9 @@ def delete_vehicle(index):
                 ensure_ascii=False
             )
 
-    # 関連履歴も完全削除
-    delete_vehicle_related_data(vehicle)
-
-    # 車両本体を完全削除
-    db.session.delete(vehicle)
-
+    vehicle.deleted = True
     db.session.commit()
+
     return redirect("/master/vehicles")
 
 @app.route("/master/manuals")
@@ -4511,42 +3559,12 @@ def vehicle_checklist_results(index):
 
         results.append(result)
 
-
-    selected_vehicle = None
-
-    if vehicle_id:
-
-        vehicle_record = Vehicle.query.filter_by(
-            company_code=session.get("company_code"),
-            vehicle_id=vehicle_id
-        ).first()
-
-        if vehicle_record:
-
-            number = " ".join(
-                value
-                for value in [
-                    vehicle_record.plate_area or "",
-                    vehicle_record.plate_class or "",
-                    vehicle_record.plate_kana or "",
-                    vehicle_record.plate_number or "",
-                ]
-                if value
-            )
-
-            selected_vehicle = {
-                "vehicle_id": vehicle_record.vehicle_id,
-                "number": number,
-                "manufacturer": vehicle_record.manufacturer or "",
-                "model_code": vehicle_record.model_code or "",
-            }
-            
     return render_template(
         "vehicle_checklist_results.html",
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
-        selected_vehicle=selected_vehicle,
+        vehicles=vehicles_with_numbers(),
         year=year,
         month=month,
         vehicle_id=vehicle_id,
@@ -4915,6 +3933,7 @@ def new_vehicle_checklist_result(index):
         "vehicle_checklist_form.html",
         checklist=checklist,
         checklist_index=checklist_record.id,
+        vehicles=vehicles_with_numbers(),
         mode="new",
         now_year=datetime.now().year,
         now_month=datetime.now().month,
@@ -5278,35 +4297,5 @@ def init_db():
 init_db()
 
 
-with app.app_context():
-
-    columns = [
-        ("chassis_number", "VARCHAR(100)"),
-        ("model_code", "VARCHAR(100)"),
-        ("first_registration_date", "VARCHAR(20)"),
-        ("manufacturer", "VARCHAR(100)"),
-        ("body_type", "VARCHAR(100)"),
-        ("gross_vehicle_weight", "INTEGER"),
-        ("max_payload", "INTEGER"),
-    ]
-
-    existing_columns = [
-        row[1]
-        for row in db.session.execute(
-            db.text("PRAGMA table_info(vehicle)")
-        )
-    ]
-
-    for column_name, column_type in columns:
-        if column_name not in existing_columns:
-            db.session.execute(
-                db.text(
-                    f"ALTER TABLE vehicle "
-                    f"ADD COLUMN {column_name} {column_type}"
-                )
-            )
-
-    db.session.commit()
-    
 if __name__ == "__main__":
     app.run(debug=False)

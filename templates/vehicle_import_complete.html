@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}車両一括登録完了{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両一括登録完了</h2>
+</div>
+
+<div class="card">
+
+    <h3 style="margin-top:0;">
+        Excel一括登録が完了しました
+    </h3>
+
+    <div
+        style="
+            display:flex;
+            gap:20px;
+            flex-wrap:wrap;
+            margin:24px 0;
+        "
+    >
+
+        <div class="summary-card">
+            <div class="summary-title">
+                登録
+            </div>
+
+            <div class="summary-value good">
+                {{ registered_count }}
+            </div>
+
+            <div class="summary-unit">
+                台
+            </div>
+        </div>
+
+
+        <div class="summary-card">
+            <div class="summary-title">
+                登録済みのためスキップ
+            </div>
+
+            <div class="summary-value">
+                {{ existing_skip_count }}
+            </div>
+
+            <div class="summary-unit">
+                台
+            </div>
+        </div>
+
+
+        <div class="summary-card">
+            <div class="summary-title">
+                Excel内重複
+            </div>
+
+            <div class="summary-value">
+                {{ duplicate_skip_count }}
+            </div>
+
+            <div class="summary-unit">
+                台
+            </div>
+        </div>
+
+    </div>
+
+
+    <a href="/master/vehicles" class="btn">
+        車両マスタへ戻る
+    </a>
+
+</div>
+
+{% endblock %}

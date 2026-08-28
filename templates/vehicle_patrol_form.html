@@ -32,44 +32,63 @@
         <h3>基本情報</h3>
 
         <div class="form-group">
+
             <label>対象車両</label>
 
             <input
                 type="text"
                 id="vehicle_search"
-                placeholder="車両ID・ナンバーで検索"
-                onkeyup="filterVehicleOptions()"
+                placeholder="車番・車台番号・型式・メーカーなどで検索"
+                autocomplete="off"
             >
 
-            <select name="vehicle_id" id="vehicle_id" required size="8">
-                <option value="">選択してください</option>
+            <div
+                class="vehicle-select-box"
+                id="vehicle_search_results"
+            >
+                <p class="help-text">
+                    車両を検索してください。
+                </p>
+            </div>
 
-                <optgroup label="使用車両">
-                    {% for vehicle in vehicles %}
-                        {% if vehicle.vehicle_id in session.get("vehicles", []) %}
-                            <option
-                                value="{{ vehicle.vehicle_id }}"
-                                {% if patrol and patrol.vehicle_id == vehicle.vehicle_id %}selected{% endif %}
-                            >
-                                ★ {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                            </option>
-                        {% endif %}
-                    {% endfor %}
-                </optgroup>
 
-                <optgroup label="その他の車両">
-                    {% for vehicle in vehicles %}
-                        {% if vehicle.vehicle_id not in session.get("vehicles", []) %}
-                            <option
-                                value="{{ vehicle.vehicle_id }}"
-                                {% if patrol and patrol.vehicle_id == vehicle.vehicle_id %}selected{% endif %}
-                            >
-                                {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                            </option>
+            <input
+                type="hidden"
+                name="vehicle_id"
+                id="vehicle_id"
+                value="{{ selected_vehicle.vehicle_id if selected_vehicle else '' }}"
+                required
+            >
+
+
+            <div class="selected-box">
+
+                <strong>選択中の車両</strong>
+
+                <div id="selected_vehicle_display">
+
+                    {% if selected_vehicle %}
+
+                        {{ selected_vehicle.number }}
+
+                        {% if selected_vehicle.manufacturer %}
+                            / {{ selected_vehicle.manufacturer }}
                         {% endif %}
-                    {% endfor %}
-                </optgroup>
-            </select>
+
+                        {% if selected_vehicle.model_code %}
+                            / {{ selected_vehicle.model_code }}
+                        {% endif %}
+
+                    {% else %}
+
+                        未選択
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
         </div>
 
         <div class="form-group">
@@ -231,24 +250,113 @@
 </form>
 
 <script>
-function filterVehicleOptions() {
-    const keyword = document
-        .getElementById("vehicle_search")
-        .value
-        .toLowerCase();
+const vehicleSearch =
+    document.getElementById("vehicle_search");
 
-    const options = document.querySelectorAll("#vehicle_id option");
+const vehicleSearchResults =
+    document.getElementById("vehicle_search_results");
 
-    options.forEach(option => {
-        const text = option.textContent.toLowerCase();
+const vehicleId =
+    document.getElementById("vehicle_id");
 
-        if (text.includes(keyword) || option.value === "") {
-            option.style.display = "";
-        } else {
-            option.style.display = "none";
-        }
-    });
-}
+const selectedVehicleDisplay =
+    document.getElementById("selected_vehicle_display");
+
+let vehicleSearchTimer = null;
+
+
+vehicleSearch.addEventListener("input", function () {
+
+    clearTimeout(vehicleSearchTimer);
+
+    const keyword =
+        vehicleSearch.value.trim();
+
+
+    if (!keyword) {
+
+        vehicleSearchResults.innerHTML =
+            '<p class="help-text">車両を検索してください。</p>';
+
+        return;
+    }
+
+
+    vehicleSearchTimer = setTimeout(function () {
+
+        fetch(
+            "/api/vehicles?q=" +
+            encodeURIComponent(keyword)
+        )
+        .then(response => response.json())
+        .then(data => {
+
+            vehicleSearchResults.innerHTML = "";
+
+
+            if (!data.results.length) {
+
+                vehicleSearchResults.innerHTML =
+                    '<p class="help-text">該当する車両がありません。</p>';
+
+                return;
+            }
+
+
+            data.results.forEach(vehicle => {
+
+                const row =
+                    document.createElement("div");
+
+                row.className =
+                    "vehicle-option";
+
+
+                const labelParts = [
+                    vehicle.number,
+                    vehicle.manufacturer,
+                    vehicle.model_code
+                ].filter(Boolean);
+
+
+                row.innerHTML = `
+                    <button
+                        type="button"
+                        class="btn-small"
+                    >
+                        選択
+                    </button>
+
+                    <span>
+                        ${labelParts.join(" / ")}
+                    </span>
+                `;
+
+
+                row.querySelector("button")
+                    .addEventListener(
+                        "click",
+                        function () {
+
+                            vehicleId.value =
+                                vehicle.vehicle_id;
+
+                            selectedVehicleDisplay.textContent =
+                                labelParts.join(" / ");
+
+                        }
+                    );
+
+
+                vehicleSearchResults.appendChild(row);
+
+            });
+
+        });
+
+    }, 300);
+
+});
 </script>
 
 {% endblock %}

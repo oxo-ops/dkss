@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}車両Excel一括登録{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <h2>車両Excel一括登録</h2>
+
+    <div class="header-actions">
+
+        <a href="/master/vehicles" class="btn btn-back">
+            ← 車両マスタへ戻る
+        </a>
+
+    </div>
+
+</div>
+
+<div class="card form-card">
+
+    <form
+        method="post"
+        enctype="multipart/form-data"
+        class="responsive-form"
+    >
+
+        <div class="form-group">
+
+            <label>Excelファイル</label>
+
+            <input
+                type="file"
+                name="excel_file"
+                accept=".xlsx"
+                required
+            >
+
+            <p class="help-text">
+                車両台帳のExcelファイル（.xlsx）を選択してください。
+            </p>
+
+        </div>
+
+        <div class="form-actions">
+
+            <button type="submit" class="btn">
+                読み込む
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}
