@@ -4354,6 +4354,34 @@ def edit_checklist_result(result_index):
         if criteria and criteria not in criteria_list:
             criteria_list.append(criteria)
 
+    selected_vehicle = None
+
+    if result.get("target_vehicle"):
+
+        vehicle_record = Vehicle.query.filter_by(
+            company_code=session.get("company_code"),
+            vehicle_id=result.get("target_vehicle")
+        ).first()
+
+        if vehicle_record:
+
+            number = " ".join(
+                value
+                for value in [
+                    vehicle_record.plate_area or "",
+                    vehicle_record.plate_class or "",
+                    vehicle_record.plate_kana or "",
+                    vehicle_record.plate_number or "",
+                ]
+                if value
+            )
+
+            selected_vehicle = {
+                "vehicle_id": vehicle_record.vehicle_id,
+                "number": number,
+                "manufacturer": vehicle_record.manufacturer or "",
+                "model_code": vehicle_record.model_code or "",
+            }
     return render_template(
         "checklist_result_form.html",
         checklist=checklist,
@@ -4363,7 +4391,7 @@ def edit_checklist_result(result_index):
         mode="edit",
         criteria_list=criteria_list,
         drivers=drivers_for_current_company(),
-        vehicles=vehicles_with_numbers(),
+        selected_vehicle=selected_vehicle,
         offices=offices_for_current_company()
     )
 
@@ -5038,7 +5066,7 @@ def new_safety_checklist_result(index):
         index=checklist_record.id,
         criteria_list=criteria_list,
         drivers=drivers_for_current_company(),
-        vehicles=vehicles_with_numbers(),
+        selected_vehicle=None,
         offices=offices_for_current_company()
     )
 

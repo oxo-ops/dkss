@@ -88,19 +88,39 @@
         </div>
 
         <div id="target_vehicle_area" style="display:none;">
-            <label>対象車両</label>
-            <select name="target_vehicle">
-                <option value="">選択してください</option>
 
-                {% for vehicle in vehicles %}
-                    <option
-                        value="{{ vehicle.vehicle_id }}"
-                        {% if result and result.target_vehicle == vehicle.vehicle_id %}selected{% endif %}
-                    >
-                        {{ vehicle.plate_area }} {{ vehicle.plate_class }} {{ vehicle.plate_kana }} {{ vehicle.plate_number }}
-                    </option>
-                {% endfor %}
-            </select>
+            <label>対象車両</label>
+
+            <input
+                type="text"
+                id="vehicle_search"
+                placeholder="車両ID・ナンバー・車台番号・型式・メーカーで検索"
+                autocomplete="off"
+            >
+
+            <input
+                type="hidden"
+                name="target_vehicle"
+                id="target_vehicle"
+                value="{{ result.target_vehicle if result else '' }}"
+            >
+
+            <div id="selected_vehicle_display">
+                {% if selected_vehicle %}
+                    {{ selected_vehicle.vehicle_id }}
+                    /
+                    {{ selected_vehicle.number }}
+                    /
+                    {{ selected_vehicle.manufacturer }}
+                    /
+                    {{ selected_vehicle.model_code }}
+                {% else %}
+                    未選択
+                {% endif %}
+            </div>
+
+            <div id="vehicle_search_results"></div>
+
         </div>
 
         <div id="target_office_area" style="display:none;">
@@ -230,6 +250,73 @@
 </form>
 
 <script>
+let vehicleSearchTimer = null;
+
+function selectVehicle(vehicle) {
+
+    document.getElementById("target_vehicle").value = vehicle.vehicle_id;
+
+    document.getElementById("selected_vehicle_display").innerText =
+        vehicle.vehicle_id
+        + " / "
+        + (vehicle.number || "")
+        + " / "
+        + (vehicle.manufacturer || "")
+        + " / "
+        + (vehicle.model_code || "");
+
+    document.getElementById("vehicle_search_results").innerHTML = "";
+
+    document.getElementById("vehicle_search").value = "";
+}
+
+function searchVehicles() {
+
+    const keyword = document.getElementById("vehicle_search").value.trim();
+
+    if (!keyword) {
+        document.getElementById("vehicle_search_results").innerHTML = "";
+        return;
+    }
+
+    fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
+        .then(response => response.json())
+        .then(data => {
+
+            const resultArea =
+                document.getElementById("vehicle_search_results");
+
+            resultArea.innerHTML = "";
+
+            if (!data.results || data.results.length === 0) {
+                resultArea.innerHTML = "<div>該当する車両はありません。</div>";
+                return;
+            }
+
+            data.results.forEach(vehicle => {
+
+                const row = document.createElement("div");
+
+                row.innerHTML =
+                    vehicle.vehicle_id
+                    + " / "
+                    + (vehicle.number || "")
+                    + " / "
+                    + (vehicle.manufacturer || "")
+                    + " / "
+                    + (vehicle.model_code || "");
+
+                row.style.cursor = "pointer";
+
+                row.addEventListener("click", function () {
+                    selectVehicle(vehicle);
+                });
+
+                resultArea.appendChild(row);
+            });
+        });
+}
+
 function switchChecklistTarget() {
     const type = document.getElementById("target_type").value;
 
@@ -251,7 +338,24 @@ function switchChecklistTarget() {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
+
     switchChecklistTarget();
+
+    const vehicleSearchInput = document.getElementById("vehicle_search");
+
+    if (vehicleSearchInput) {
+
+        vehicleSearchInput.addEventListener("input", function () {
+
+            clearTimeout(vehicleSearchTimer);
+
+            vehicleSearchTimer = setTimeout(function () {
+                searchVehicles();
+            }, 300);
+
+        });
+    }
+
 });
 </script>
 
