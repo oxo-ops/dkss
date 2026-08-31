@@ -3893,12 +3893,29 @@ def bulk_delete_vehicles():
         for vehicle in vehicles_to_delete
         if vehicle.vehicle_id
     }
+    
+    delete_vehicle_patterns = [
+        f'"{vehicle_id}"'
+        for vehicle_id in vehicle_ids_to_delete
+    ]
 
 
     # ドライバーの車両割当から削除
-    for driver in Driver.query.filter_by(
-        company_code=company_code
-    ).all():
+    driver_query = Driver.query.filter(
+        Driver.company_code == company_code
+    )
+
+    if delete_vehicle_patterns:
+        driver_query = driver_query.filter(
+            db.or_(
+                *[
+                    Driver.vehicles_json.contains(pattern)
+                    for pattern in delete_vehicle_patterns
+                ]
+            )
+        )
+
+    for driver in driver_query.all():
 
         driver_vehicles = json.loads(
             driver.vehicles_json or "[]"
@@ -3919,9 +3936,21 @@ def bulk_delete_vehicles():
 
 
     # ユーザーのお気に入り車両から削除
-    for user in User.query.filter_by(
-        company_code=company_code
-    ).all():
+    user_query = User.query.filter(
+        User.company_code == company_code
+    )
+
+    if delete_vehicle_patterns:
+        user_query = user_query.filter(
+            db.or_(
+                *[
+                    User.favorite_vehicles_json.contains(pattern)
+                    for pattern in delete_vehicle_patterns
+                ]
+            )
+        )
+
+    for user in user_query.all():
 
         favorite_vehicles = json.loads(
             user.favorite_vehicles_json or "[]"
