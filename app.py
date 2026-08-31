@@ -230,6 +230,10 @@ class Checklist(db.Model):
     display_type = db.Column(db.String(20))
 
     items_json = db.Column(db.Text, default="[]")
+    notify_users_json = db.Column(
+        db.Text,
+        default="[]"
+    )
 
 class ChecklistResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -293,6 +297,11 @@ class VehicleChecklistResult(db.Model):
     approved_date = db.Column(db.String(30))
 
     reject_reason = db.Column(db.Text)
+    
+    notify_users_json = db.Column(
+        db.Text,
+        default="[]"
+    )
 
     answers_json = db.Column(
         db.Text,
@@ -625,6 +634,9 @@ def checklist_to_dict(checklist):
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
         "items": items,
+        "notify_users": json.loads(
+            checklist.notify_users_json or "[]"
+        ),
         "score_enabled": any(
             item.get("score_enabled", False)
             for item in items
@@ -4312,7 +4324,11 @@ def new_checklist():
             frequency_value=frequency_value,
             frequency_unit=frequency_unit,
             display_type=display_type,
-            items_json=json.dumps(items, ensure_ascii=False)
+            items_json=json.dumps(items, ensure_ascii=False),
+            notify_users_json=json.dumps(
+                request.form.getlist("notify_users"),
+                ensure_ascii=False
+            )
         )
 
         db.session.add(checklist)
@@ -4324,7 +4340,10 @@ def new_checklist():
         "checklist_form.html",
         checklist=None,
         index=None,
-        mode="new"
+        mode="new",
+        users=User.query.filter_by(
+            company_code=session.get("company_code")
+        ).order_by(User.name.asc()).all()
     )
 
 @app.route("/safety/checklists")
@@ -4851,7 +4870,7 @@ def save_vehicle_checklist_one(index):
             day=day,
             checked_by=session.get("name"),
             checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-            status="承認待ち",
+            status="入力中",
             approved_by="",
             approved_date="",
             reject_reason="",
@@ -4888,7 +4907,7 @@ def save_vehicle_checklist_one(index):
 
     result_record.checked_by = session.get("name")
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    result_record.status = "承認待ち"
+    result_record.status = "入力中"
     result_record.approved_by = ""
     result_record.approved_date = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
@@ -4952,7 +4971,7 @@ def save_vehicle_checklist_detail(index):
             day=day,
             checked_by=session.get("name"),
             checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-            status="承認待ち",
+            status="入力中",
             approved_by="",
             approved_date="",
             reject_reason="",
@@ -4997,7 +5016,7 @@ def save_vehicle_checklist_detail(index):
 
     result_record.checked_by = session.get("name")
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    result_record.status = "承認待ち"
+    result_record.status = "入力中"
     result_record.approved_by = ""
     result_record.approved_date = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
@@ -5032,6 +5051,90 @@ def save_vehicle_checklist_detail(index):
         f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
     )
 
+@app.route("/vehicle/checklists/<int:index>/complete", methods=["POST"])
+def complete_vehicle_checklist(index):
+    checklist_record = Checklist.query.get(index)
+
+    if not checklist_record:
+        return redirect("/vehicle/checklists")
+
+    if session.get("role") != "itc":
+        if checklist_record.company_code != session.get("company_code"):
+            return redirect("/vehicle/checklists")
+
+    vehicle_id = request.form.get("vehicle_id")
+    year = request.form.get("year", "")
+    month = request.form.get("month", "")
+    day = request.form.get("day", "")
+    active_day = request.form.get("active_day", "")
+
+    checklist = checklist_to_dict(checklist_record)
+
+    if checklist.get("frequency_unit") == "year":
+        month = "01"
+        day = "01"
+    elif checklist.get("display_type") == "month":
+        month = str(month).zfill(2)
+        day = str(day).zfill(2)
+    else:
+        month = str(month).zfill(2)
+        day = "01"
+
+    result_record = VehicleChecklistResult.query.filter_by(
+        company_code=session.get("company_code"),
+        checklist_id=checklist_record.id,
+        vehicle_id=vehicle_id,
+        year=year,
+        month=month,
+        day=day
+    ).first()
+
+    if not result_record:
+        return redirect(
+            f"/vehicle/checklists/{checklist_record.id}"
+            f"?vehicle_id={vehicle_id}"
+            f"&year={year}"
+            f"&month={month}"
+            f"&active_day={active_day}"
+        )
+
+    result_record.status = "承認待ち"
+    result_record.checked_by = session.get("name")
+    result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    result_record.approved_by = ""
+    result_record.approved_date = ""
+
+    db.session.commit()
+    
+    notify_users = checklist.get("notify_users", [])
+
+    notification_link = (
+        f"/vehicle/checklists/{checklist_record.id}"
+        f"?vehicle_id={vehicle_id}"
+        f"&year={year}"
+        f"&month={month}"
+        f"&active_day={active_day}"
+    )
+
+    for target_user in set(notify_users):
+        add_notification(
+            target_user,
+            "車両点検完了のお知らせ",
+            (
+                f"{vehicle_id} の「{checklist_record.name}」が"
+                f"点検完了しました。"
+            ),
+            notification_link
+        )
+
+    return redirect(
+        f"/vehicle/checklists/{checklist_record.id}"
+        f"?vehicle_id={vehicle_id}"
+        f"&year={year}"
+        f"&month={month}"
+        f"&active_day={active_day}"
+    )
+    
 @app.route("/vehicle/checklists/<int:index>/new", methods=["GET", "POST"])
 def new_vehicle_checklist_result(index):
     checklist_record = Checklist.query.get(index)
@@ -5338,6 +5441,11 @@ def edit_checklist(index):
 
         checklist_record.items_json = json.dumps(items, ensure_ascii=False)
 
+        checklist_record.notify_users_json = json.dumps(
+            request.form.getlist("notify_users"),
+            ensure_ascii=False
+        )
+
         db.session.commit()
 
         return redirect("/master/checklists")
@@ -5346,7 +5454,10 @@ def edit_checklist(index):
         "checklist_form.html",
         checklist=checklist,
         index=checklist_record.id,
-        mode="edit"
+        mode="edit",
+        users=User.query.filter_by(
+            company_code=session.get("company_code")
+        ).order_by(User.name.asc()).all()
     )
 
 
@@ -5504,6 +5615,50 @@ with app.app_context():
             db.session.execute(
                 db.text(
                     f"ALTER TABLE vehicle "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+    
+    checklist_columns = [
+        ("notify_users_json", "TEXT"),
+    ]
+
+    existing_checklist_columns = [
+        row[1]
+        for row in db.session.execute(
+            db.text("PRAGMA table_info(checklist)")
+        )
+    ]
+
+    for column_name, column_type in checklist_columns:
+        if column_name not in existing_checklist_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE checklist "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+
+    vehicle_checklist_result_columns = [
+        ("notify_users_json", "TEXT"),
+    ]
+
+    existing_vehicle_checklist_result_columns = [
+        row[1]
+        for row in db.session.execute(
+            db.text("PRAGMA table_info(vehicle_checklist_result)")
+        )
+    ]
+
+    for column_name, column_type in vehicle_checklist_result_columns:
+        if column_name not in existing_vehicle_checklist_result_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE vehicle_checklist_result "
                     f"ADD COLUMN {column_name} {column_type}"
                 )
             )

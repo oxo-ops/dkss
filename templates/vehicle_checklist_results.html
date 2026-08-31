@@ -152,6 +152,40 @@
         入力日はプルダウンで変更できます。コメント・写真・要対応登録は「詳細」から入力します。
     </p>
 
+    <form
+        method="post"
+        action="/vehicle/checklists/{{ checklist_index }}/complete"
+        style="margin-bottom:16px;"
+        onsubmit="return confirm('この日の点検を完了しますか？');"
+    >
+        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+        <input type="hidden" name="active_day" value="{{ active_day }}">
+
+        {% if display_mode == "year_list" %}
+
+            <input type="hidden" name="year" value="{{ active_day }}">
+            <input type="hidden" name="month" value="01">
+            <input type="hidden" name="day" value="01">
+
+        {% elif display_mode == "month_list" %}
+
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ active_day }}">
+            <input type="hidden" name="day" value="01">
+
+        {% else %}
+
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <input type="hidden" name="day" value="{{ active_day }}">
+
+        {% endif %}
+
+        <button type="submit" class="btn">
+            点検完了
+        </button>
+    </form>
+
     {% set criteria_keys = [] %}
 
     {% for item in checklist["items"] %}
