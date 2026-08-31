@@ -2598,12 +2598,14 @@ def delete_vehicle_type(index):
         if vehicle_type.company_code != session.get("company_code"):
             return redirect("/master/vehicle-types")
 
-    for vehicle in Vehicle.query.filter_by(
+    Vehicle.query.filter_by(
         company_code=vehicle_type.company_code,
         type=vehicle_type.name,
         deleted=False
-    ).all():
-        vehicle.type = ""
+    ).update(
+        {"type": ""},
+        synchronize_session=False
+    )
 
     db.session.delete(vehicle_type)
     db.session.commit()
@@ -2708,24 +2710,30 @@ def delete_office(index):
         if office.company_code != session.get("company_code"):
             return redirect("/master/offices")
 
-    for driver in Driver.query.filter_by(
+    Driver.query.filter_by(
         company_code=office.company_code,
         office=office.name
-    ).all():
-        driver.office = ""
+    ).update(
+        {"office": ""},
+        synchronize_session=False
+    )
 
-    for user in User.query.filter_by(
+    User.query.filter_by(
         company_code=office.company_code,
         office=office.name
-    ).all():
-        user.office = ""
+    ).update(
+        {"office": ""},
+        synchronize_session=False
+    )
 
-    for vehicle in Vehicle.query.filter_by(
+    Vehicle.query.filter_by(
         company_code=office.company_code,
         office=office.name,
         deleted=False
-    ).all():
-        vehicle.office = ""
+    ).update(
+        {"office": ""},
+        synchronize_session=False
+    )
 
     db.session.delete(office)
     db.session.commit()
@@ -3955,13 +3963,13 @@ def bulk_inactive_vehicles():
     if not vehicle_indexes:
         return redirect("/master/vehicles")
 
-    vehicles_to_inactivate = Vehicle.query.filter(
+    Vehicle.query.filter(
         Vehicle.id.in_(vehicle_indexes),
         Vehicle.company_code == company_code
-    ).all()
-
-    for vehicle in vehicles_to_inactivate:
-        vehicle.deleted = True
+    ).update(
+        {"deleted": True},
+        synchronize_session=False
+    )
 
     db.session.commit()
 
