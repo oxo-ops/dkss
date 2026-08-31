@@ -3522,14 +3522,26 @@ def confirm_vehicle_import():
 
 
     # 一括登録開始前から存在している車台番号
-    existing_chassis_numbers = {
-        vehicle.chassis_number.strip()
-        for vehicle in Vehicle.query.filter_by(
-            company_code=company_code,
-            deleted=False
-        ).all()
-        if vehicle.chassis_number
+    import_chassis_numbers = {
+        value.strip()
+        for value in chassis_numbers
+        if value and value.strip()
     }
+
+    existing_chassis_numbers = set()
+
+    if import_chassis_numbers:
+        existing_chassis_numbers = {
+            chassis_number.strip()
+            for (chassis_number,) in db.session.query(
+                Vehicle.chassis_number
+            ).filter(
+                Vehicle.company_code == company_code,
+                Vehicle.deleted == False,
+                Vehicle.chassis_number.in_(import_chassis_numbers)
+            ).all()
+            if chassis_number
+        }
 
 
     # 上限チェック用
@@ -3575,25 +3587,17 @@ def confirm_vehicle_import():
             )
 
 
-    existing_vehicles = Vehicle.query.filter_by(
-        company_code=company_code
-    ).all()
-
-    max_number = 0
-
-    for existing in existing_vehicles:
-
-        if not existing.vehicle_id:
-            continue
-
-        if existing.vehicle_id.startswith("V"):
-
-            try:
-                number = int(existing.vehicle_id[1:])
-                max_number = max(max_number, number)
-
-            except ValueError:
-                pass
+    max_number = db.session.query(
+        db.func.max(
+            db.cast(
+                db.func.substr(Vehicle.vehicle_id, 2),
+                db.Integer
+            )
+        )
+    ).filter(
+        Vehicle.company_code == company_code,
+        Vehicle.vehicle_id.like("V%")
+    ).scalar() or 0
 
 
     # 今回のExcel内ですでに処理した車台番号
@@ -3716,25 +3720,17 @@ def new_vehicle():
             if vehicle_count >= company.vehicle_limit:
                 return "登録可能台数の上限に達しています。"
 
-        existing_vehicles = Vehicle.query.filter_by(
-            company_code=company_code
-        ).all()
-
-        max_number = 0
-
-        for existing in existing_vehicles:
-
-            if not existing.vehicle_id:
-                continue
-
-            if existing.vehicle_id.startswith("V"):
-
-                try:
-                    number = int(existing.vehicle_id[1:])
-                    max_number = max(max_number, number)
-
-                except ValueError:
-                    pass
+        max_number = db.session.query(
+            db.func.max(
+                db.cast(
+                    db.func.substr(Vehicle.vehicle_id, 2),
+                    db.Integer
+                )
+            )
+        ).filter(
+            Vehicle.company_code == company_code,
+            Vehicle.vehicle_id.like("V%")
+        ).scalar() or 0
 
         new_id = f"V{max_number + 1:03}"
 
@@ -3944,6 +3940,28 @@ def bulk_delete_vehicles():
 
         db.session.delete(vehicle)
 
+
+    db.session.commit()
+
+    return redirect("/master/vehicles")
+
+@app.route("/master/vehicles/bulk-inactive", methods=["POST"])
+def bulk_inactive_vehicles():
+
+    company_code = session.get("company_code")
+
+    vehicle_indexes = request.form.getlist("vehicle_ids")
+
+    if not vehicle_indexes:
+        return redirect("/master/vehicles")
+
+    vehicles_to_inactivate = Vehicle.query.filter(
+        Vehicle.id.in_(vehicle_indexes),
+        Vehicle.company_code == company_code
+    ).all()
+
+    for vehicle in vehicles_to_inactivate:
+        vehicle.deleted = True
 
     db.session.commit()
 
