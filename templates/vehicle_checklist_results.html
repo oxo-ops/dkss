@@ -217,7 +217,9 @@
 
             <tr>
                 <td>
-                    {% if item.item_type == "approval" %}
+                    {% if item.item_type == "inspector" %}
+                    -
+                    {% elif item.item_type == "approval" %}
                     承認
                     {% else %}
                     {{ item.category or "-" }}
@@ -225,7 +227,9 @@
                 </td>
 
                 <td>
-                    {% if item.item_type == "approval" %}
+                    {% if item.item_type == "inspector" %}
+                    点検者
+                    {% elif item.item_type == "approval" %}
                     {{ item.approval_label or "承認欄" }}
                     {% else %}
                     {{ item.content|replace('\n', '<br>')|safe }}
@@ -262,7 +266,17 @@
                     {% endif %}
                     {% endfor %}
 
-                    {% if item.item_type == "approval" %}
+                    {% if item.item_type == "inspector" %}
+
+                    {% if ns.target_result %}
+                        <span title="{{ ns.target_result.checked_by }}">
+                            {{ ns.target_result.checked_by[:1] }}
+                        </span>
+                    {% else %}
+                        -
+                    {% endif %}
+
+                {% elif item.item_type == "approval" %}
 
                     {% if ns.target_result %}
 
@@ -413,37 +427,6 @@
                 {% endfor %}
             </tr>
             {% endfor %}
-
-            <tr>
-                <td>-</td>
-                <td>点検者</td>
-
-                {% for d in display_days %}
-                <td class="center-cell">
-                    {% set ns = namespace(target_result=None) %}
-
-                    {% for result in results %}
-                    {% if result.vehicle_id == vehicle_id %}
-                    {% if display_mode == "year_list" and result.year|int == d|int %}
-                    {% set ns.target_result = result %}
-                    {% elif display_mode == "month_list" and result.month|int == d|int %}
-                    {% set ns.target_result = result %}
-                    {% elif display_mode == "day_list" and result.day|int == d|int %}
-                    {% set ns.target_result = result %}
-                    {% endif %}
-                    {% endif %}
-                    {% endfor %}
-
-                    {% if ns.target_result %}
-                    <span title="{{ ns.target_result.checked_by }}">
-                        {{ ns.target_result.checked_by[:1] }}
-                    </span>
-                    {% else %}
-                    -
-                    {% endif %}
-                </td>
-                {% endfor %}
-            </tr>
 
         </table>
     </div>

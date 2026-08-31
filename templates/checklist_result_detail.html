@@ -103,15 +103,31 @@
         </div>
     {% endif %}
 
-    <div class="summary-row">
-        <strong>評価集計</strong>
+    {% if summary %}
+        <div class="summary-row">
+            <strong>評価集計</strong>
 
-        {% for value, count in summary.items() %}
-            <span class="summary-item">
-                {{ value }}：{{ count }}件
-            </span>
-        {% endfor %}
-    </div>
+            {% for value, count in summary.items() %}
+                <span class="summary-item">
+                    {{ value }}：{{ count }}件
+                </span>
+            {% endfor %}
+
+            {% if checklist.score_enabled %}
+                <span class="summary-item">
+                    <strong>
+                        合計点：
+                        {{ total_score|int }}
+                        {% if max_score %}
+                            / {{ max_score|int }}点
+                        {% else %}
+                            点
+                        {% endif %}
+                    </strong>
+                </span>
+            {% endif %}
+        </div>
+    {% endif %}
 
     <table class="checklist-table">
         <tr>

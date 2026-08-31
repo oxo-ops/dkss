@@ -2557,3 +2557,117 @@ textarea[name="item_content"]{
 .vehicle-check-filter .filter-button {
     padding-top: 34px;
 }
+
+.checklist-item-row {
+    cursor: default;
+    position: relative;
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+/* 項目種別・カテゴリ部分 */
+.check-item-header {
+    display: block;
+    padding-right: 46px;
+}
+
+/* ドラッグハンドルをカード右上へ */
+.check-item-drag-handle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    width: 36px;
+    height: 36px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    cursor: grab;
+    user-select: none;
+
+    font-size: 22px;
+    line-height: 1;
+    color: #64748b;
+
+    border-radius: 9px;
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.check-item-drag-handle:hover {
+    background: #eaf2ff;
+    color: #2563eb;
+}
+
+.check-item-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* 項目種別＋カテゴリ */
+.check-main-row {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 14px;
+    align-items: end;
+}
+
+.check-main-field {
+    min-width: 0;
+}
+
+.check-main-field input,
+.check-main-field select {
+    margin-bottom: 16px;
+}
+
+/* 動かしているカード */
+.checklist-item-row.dragging {
+    opacity: 1;
+    border: 2px solid #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.22);
+}
+
+/* 挿入位置 */
+.checklist-drop-indicator {
+    height: 4px;
+    margin: 4px 6px 12px;
+    border-radius: 999px;
+    background: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    pointer-events: none;
+}
+
+@media (max-width: 900px) {
+    .check-item-header {
+        align-items: flex-start;
+    }
+
+    .check-main-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+}
+
+.check-detail-settings {
+    margin-top: 12px;
+    border-top: 1px solid #dbe3ef;
+    padding-top: 10px;
+}
+
+.check-detail-settings summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 8px 0;
+    user-select: none;
+}
+
+.check-detail-body {
+    padding-top: 8px;
+}
+

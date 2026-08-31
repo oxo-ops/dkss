@@ -613,6 +613,8 @@ def vehicle_patrols_for_current_company():
     ]
 
 def checklist_to_dict(checklist):
+    items = json.loads(checklist.items_json or "[]")
+
     return {
         "id": checklist.id,
         "index": checklist.id,
@@ -622,7 +624,12 @@ def checklist_to_dict(checklist):
         "frequency_value": checklist.frequency_value,
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
-        "items": json.loads(checklist.items_json or "[]"),
+        "items": items,
+        "score_enabled": any(
+            item.get("score_enabled", False)
+            for item in items
+            if item.get("item_type") == "check"
+        ),
     }
 
 
@@ -1300,67 +1307,78 @@ def settings():
 @app.route("/api/news-targets")
 def news_targets():
     target_type = request.args.get("type", "")
-    keyword = request.args.get("q", "").strip().lower()
+    keyword = request.args.get("q", "").strip()
 
     results = []
 
     if target_type == "company":
-        for company in Company.query.all():
-            company_name = company.company_name
-            company_code = company.company_code
+        query = Company.query
 
-            search_text = (company_name + company_code).lower()
+        if keyword:
+            keyword_like = f"%{keyword}%"
+            query = query.filter(
+                db.or_(
+                    Company.company_name.ilike(keyword_like),
+                    Company.company_code.ilike(keyword_like)
+                )
+            )
 
-            if keyword and keyword not in search_text:
-                continue
-
+        for company in query.order_by(
+            Company.company_name.asc()
+        ).limit(10).all():
             results.append({
-                "id": company_code,
-                "name": company_name,
-                "sub": "会社コード：" + company_code
+                "id": company.company_code,
+                "name": company.company_name,
+                "sub": "会社コード：" + company.company_code
             })
 
     elif target_type == "office":
-        office_query = Office.query
+        query = Office.query
 
-        for office in office_query.all():
-            office_name = office.name or ""
-            company_code = office.company_code or ""
+        if keyword:
+            keyword_like = f"%{keyword}%"
+            query = query.filter(
+                db.or_(
+                    Office.name.ilike(keyword_like),
+                    Office.company_code.ilike(keyword_like)
+                )
+            )
 
-            search_text = (office_name + company_code).lower()
-
-            if keyword and keyword not in search_text:
-                continue
-
+        for office in query.order_by(
+            Office.name.asc()
+        ).limit(10).all():
             results.append({
-                "id": office_name,
-                "name": office_name,
-                "sub": "営業所 / " + company_code
+                "id": office.name or "",
+                "name": office.name or "",
+                "sub": "営業所 / " + (office.company_code or "")
             })
 
     elif target_type == "user":
-        user_query = User.query.filter(User.role != "itc")
+        query = User.query.filter(
+            User.role != "itc"
+        )
 
-        for user in user_query.all():
-            user_name = user.name or ""
-            username = user.username or ""
-            office = user.office or ""
-            company_code = user.company_code or ""
+        if keyword:
+            keyword_like = f"%{keyword}%"
+            query = query.filter(
+                db.or_(
+                    User.name.ilike(keyword_like),
+                    User.username.ilike(keyword_like),
+                    User.office.ilike(keyword_like),
+                    User.company_code.ilike(keyword_like)
+                )
+            )
 
-            search_text = (
-                user_name + username + office + company_code
-            ).lower()
-
-            if keyword and keyword not in search_text:
-                continue
-
+        for user in query.order_by(
+            User.name.asc()
+        ).limit(10).all():
             results.append({
-                "id": username,
-                "name": user_name,
-                "sub": office + " / " + company_code
+                "id": user.username,
+                "name": user.name or "",
+                "sub": (user.office or "") + " / " + (user.company_code or "")
             })
 
-    return {"results": results[:10]}
+    return {"results": results}
 
 @app.route("/api/mention-users")
 def mention_users():
@@ -1473,49 +1491,51 @@ def dashboard():
     today = datetime.now().date()
     user_name = session.get("name")
 
-    drivers = drivers_for_current_company()
+    company_code = session.get("company_code")
 
     # 自分の無事故無違反日数
-    my_driver = None
-
-    for driver in drivers:
-        if driver.get("name") == user_name:
-            my_driver = driver
-            break
+    my_driver = Driver.query.filter_by(
+        company_code=company_code,
+        name=user_name
+    ).first()
 
     my_safe_days = 0
 
-    if my_driver and my_driver.get("safe_start_date"):
+    if my_driver and my_driver.safe_start_date:
         start_date = datetime.strptime(
-            my_driver["safe_start_date"],
+            my_driver.safe_start_date,
             "%Y-%m-%d"
         ).date()
-
+    
         my_safe_days = (today - start_date).days
 
     # 社内ランキング
+    ranking_records = Driver.query.filter(
+        Driver.company_code == company_code,
+        Driver.safe_start_date.isnot(None),
+        Driver.safe_start_date != ""
+    ).order_by(
+        Driver.safe_start_date.asc()
+    ).limit(10).all()
+
     ranking = []
 
-    for driver in drivers:
-        if not driver.get("safe_start_date"):
-            continue
-
+    for driver in ranking_records:
         start_date = datetime.strptime(
-            driver["safe_start_date"],
+            driver.safe_start_date,
             "%Y-%m-%d"
         ).date()
 
-        safe_days = (today - start_date).days
-
-        item = driver.copy()
-        item["safe_days"] = safe_days
-        ranking.append(item)
-
-    ranking = sorted(
-        ranking,
-        key=lambda x: x.get("safe_days", 0),
-        reverse=True
-    )[:10]
+        ranking.append({
+            "id": driver.id,
+            "index": driver.id,
+            "employee_id": driver.employee_id,
+            "name": driver.name,
+            "role": driver.role,
+            "office": driver.office,
+            "safe_start_date": driver.safe_start_date,
+            "safe_days": (today - start_date).days,
+        })
 
     # 自分のGood件数
     my_good_count = PatrolResult.query.filter_by(
@@ -1852,31 +1872,43 @@ def pointouts():
 
     keyword = request.args.get("keyword", "").strip()
 
+    query = PatrolResult.query.filter(
+        PatrolResult.company_code == session.get("company_code"),
+        PatrolResult.target_type == view_type
+    )
+
+    if keyword:
+        keyword_like = f"%{keyword}%"
+
+        if view_type == "user":
+            query = query.filter(
+                PatrolResult.target_user.ilike(keyword_like)
+            )
+        elif view_type == "delivery_place":
+            query = query.filter(
+                PatrolResult.delivery_place.ilike(keyword_like)
+            )
+
+    result_records = query.order_by(
+        PatrolResult.id.desc()
+    ).all()
+
     visible_results = []
 
-    for result in patrol_results_for_current_company():
-        if result.get("target_type") != view_type:
-            continue
+    for result_record in result_records:
+        result = patrol_result_to_dict(result_record)
 
         if not can_view_patrol_result(result):
             continue
 
-        if (
-            keyword
-            and view_type == "user"
-            and keyword not in result.get("target_user", "")
-        ):
-            continue
-
-        if (
-            keyword
-            and view_type == "delivery_place"
-            and keyword not in result.get("delivery_place", "")
-        ):
-            continue
-
         result["can_manage"] = can_manage_patrol_result(result)
         visible_results.append(result)
+
+    driver_options = Driver.query.filter(
+        Driver.company_code == session.get("company_code")
+    ).order_by(
+        Driver.name.asc()
+    ).all()
 
     return render_template(
         "pointouts.html",
@@ -1885,7 +1917,7 @@ def pointouts():
         keyword=keyword,
         role=role,
         show_target_user=view_type == "user",
-        drivers=drivers_for_current_company(),
+        drivers=driver_options,
         delivery_places=delivery_places_for_current_company(),
     )
 
@@ -2290,24 +2322,36 @@ def vehicle_patrols():
     favorite_patrols = []
     other_patrols = []
 
-    for patrol in vehicle_patrols_for_current_company():
+    query = VehiclePatrol.query.filter(
+        VehiclePatrol.company_code == session.get("company_code")
+    )
 
-        if status_filter == "active":
-            if patrol.get("status") == "修理完了":
-                continue
-        elif status_filter:
-            if patrol.get("status") != status_filter:
-                continue
+    if status_filter == "active":
+        query = query.filter(
+            VehiclePatrol.status != "修理完了"
+        )
+    elif status_filter:
+        query = query.filter(
+            VehiclePatrol.status == status_filter
+        )
 
-        if keyword:
-            search_text = (
-                str(patrol.get("vehicle_id", "")) +
-                str(patrol.get("content", "")) +
-                str(patrol.get("repair_person", ""))
-            ).lower()
+    if keyword:
+        keyword_like = f"%{keyword}%"
 
-            if keyword.lower() not in search_text:
-                continue
+        query = query.filter(
+            db.or_(
+                VehiclePatrol.vehicle_id.ilike(keyword_like),
+                VehiclePatrol.content.ilike(keyword_like),
+                VehiclePatrol.repair_person.ilike(keyword_like)
+            )
+        )
+
+    patrol_records = query.order_by(
+        VehiclePatrol.id.desc()
+    ).all()
+
+    for patrol_record in patrol_records:
+        patrol = vehicle_patrol_to_dict(patrol_record)
 
         if patrol.get("vehicle_id") in favorite_vehicles:
             favorite_patrols.append(patrol)
@@ -2901,31 +2945,56 @@ def delete_patrol_content_type(index):
 
 @app.route("/master/drivers")
 def driver_master():
-    keyword = request.args.get("keyword", "")
-    office = request.args.get("office", "")
-    vehicle = request.args.get("vehicle", "")
+    keyword = request.args.get("keyword", "").strip()
+    office = request.args.get("office", "").strip()
+    vehicle = request.args.get("vehicle", "").strip()
+
+    query = Driver.query.filter(
+        Driver.company_code == session.get("company_code")
+    )
+
+    if keyword:
+        keyword_like = f"%{keyword}%"
+
+        query = query.filter(
+            db.or_(
+                Driver.employee_id.ilike(keyword_like),
+                Driver.name.ilike(keyword_like)
+            )
+        )
+
+    if office:
+        query = query.filter(
+            Driver.office == office
+        )
+
+    if vehicle:
+        query = query.filter(
+            Driver.vehicles_json.contains(f'"{vehicle}"')
+        )
+
+    driver_records = query.order_by(
+        Driver.id.asc()
+    ).all()
 
     filtered_drivers = []
 
-    drivers = drivers_for_current_company()
+    for driver in driver_records:
+        driver_item = {
+            "index": driver.id,
+            "id": driver.id,
+            "company_code": driver.company_code,
+            "employee_id": driver.employee_id,
+            "username": driver.employee_id,
+            "name": driver.name,
+            "role": driver.role,
+            "office": driver.office,
+            "safe_start_date": driver.safe_start_date,
+            "vehicles": json.loads(driver.vehicles_json or "[]"),
+            "licenses": json.loads(driver.licenses_json or "[]"),
+        }
 
-    for driver in drivers:
-        if keyword:
-            if (
-                keyword not in driver["employee_id"]
-                and keyword not in driver["name"]
-            ):
-                continue
-
-        if office:
-            if driver["office"] != office:
-                continue
-
-        if vehicle:
-            if vehicle not in driver["vehicles"]:
-                continue
-
-        safe_start_date = driver.get("safe_start_date")
+        safe_start_date = driver.safe_start_date
 
         if safe_start_date:
             start_date = datetime.strptime(
@@ -2940,7 +3009,6 @@ def driver_master():
         years = days // 365
         remaining_days = days % 365
 
-        driver_item = driver.copy()
         driver_item["safe_days_display"] = (
             f"{years}年{remaining_days}日継続中"
             if years > 0
@@ -2957,7 +3025,7 @@ def driver_master():
         office=office,
         vehicle=vehicle,
     )
-
+    
 @app.route("/master/drivers/new", methods=["GET", "POST"])
 def new_driver():
     if request.method == "POST":
@@ -4166,11 +4234,18 @@ def new_checklist():
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
+        score_enabled = request.form.get("score_enabled") == "1"
 
         items = []
 
         for i in range(len(item_types)):
             item_type = item_types[i]
+            
+            if item_type == "inspector":
+                items.append({
+                    "item_type": "inspector",
+                })
+                continue
 
             if item_type == "approval":
                 label = ""
@@ -4218,6 +4293,7 @@ def new_checklist():
                 "criteria": criteria_list[i],
                 "criteria_files": criteria_files,
                 "comment_required": str(i) in comment_required_list,
+                "score_enabled": score_enabled,
             })
 
         frequency_value = ""
@@ -4333,20 +4409,53 @@ def checklist_result_detail(result_index):
             criteria_list.append(criteria)
 
     summary = {}
+    total_score = 0
+    max_score = 0
 
-    for answer in result["answers"]:
-        value = answer.get("value") or "未入力"
+    check_items = [
+        item
+        for item in checklist["items"]
+        if item.get("item_type") != "approval"
+    ]
 
-        if value not in summary:
-            summary[value] = 0
+    for item, answer in zip(check_items, result["answers"]):
+        value = answer.get("value")
 
-        summary[value] += 1
+        # 自由記入は集計対象外
+        if item.get("input_type") != "select":
+            continue
+
+        if value:
+            if value not in summary:
+                summary[value] = 0
+
+            summary[value] += 1
+
+        # 点数集計ONの場合だけ数値として計算
+        if checklist.get("score_enabled"):
+            try:
+                total_score += float(value)
+            except (TypeError, ValueError):
+                pass
+
+            numeric_choices = []
+
+            for choice in item.get("choices", []):
+                try:
+                    numeric_choices.append(float(choice))
+                except (TypeError, ValueError):
+                    pass
+
+            if numeric_choices:
+                max_score += max(numeric_choices)
 
     return render_template(
         "checklist_result_detail.html",
         result=result,
         result_index=result_record.id,
         summary=summary,
+        total_score=total_score,
+        max_score=max_score,
         criteria_list=criteria_list,
         checklist=checklist,
         can_manage=can_manage_checklist_result(result),
@@ -5149,12 +5258,19 @@ def edit_checklist(index):
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
+        score_enabled = request.form.get("score_enabled") == "1"
 
         old_items = checklist.get("items", [])
         items = []
 
         for i in range(len(item_types)):
             item_type = item_types[i]
+            
+            if item_type == "inspector":
+                items.append({
+                    "item_type": "inspector",
+                })
+                continue
 
             if item_type == "approval":
                 label = ""
@@ -5205,6 +5321,7 @@ def edit_checklist(index):
                 "criteria": criteria_list[i],
                 "criteria_files": criteria_files,
                 "comment_required": str(i) in comment_required_list,
+                "score_enabled": score_enabled,
             })
 
         checklist_record.name = request.form.get("name")

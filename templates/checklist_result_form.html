@@ -10,6 +10,23 @@
 
 {% block content %}
 
+<style>
+.free-answer-input {
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    resize: both;
+    transition: width 0.2s ease, height 0.2s ease;
+}
+
+.free-answer-input:focus {
+    position: relative;
+    z-index: 20;
+    width: 500px;
+    height: 160px;
+}
+</style>
+
 <div class="page-header">
     <h2>
         {% if mode == "edit" %}
@@ -192,13 +209,12 @@
                             {% endfor %}
                         </select>
                     {% else %}
-                        <input
-                            type="text"
+                        <textarea
                             name="answer_{{ ns.answer_index }}"
-                            value="{{ saved_answer.value if saved_answer else '' }}"
+                            class="free-answer-input"
                             placeholder="入力"
                             required
-                        >
+                        >{{ saved_answer.value if saved_answer else '' }}</textarea>
                     {% endif %}
                 </td>
 
