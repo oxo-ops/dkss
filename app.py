@@ -3988,8 +3988,9 @@ def delete_vehicle(index):
 
     vehicle_id = vehicle.vehicle_id
 
-    for driver in Driver.query.filter_by(
-        company_code=vehicle.company_code
+    for driver in Driver.query.filter(
+        Driver.company_code == vehicle.company_code,
+        Driver.vehicles_json.contains(f'"{vehicle_id}"')
     ).all():
         vehicles = json.loads(driver.vehicles_json or "[]")
 
@@ -4000,8 +4001,9 @@ def delete_vehicle(index):
                 ensure_ascii=False
             )
 
-    for user in User.query.filter_by(
-        company_code=vehicle.company_code
+    for user in User.query.filter(
+        User.company_code == vehicle.company_code,
+        User.favorite_vehicles_json.contains(f'"{vehicle_id}"')
     ).all():
         favorite_vehicles = json.loads(user.favorite_vehicles_json or "[]")
 
