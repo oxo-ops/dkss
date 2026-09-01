@@ -3059,3 +3059,85 @@ textarea[name="item_content"]{
     margin: 0;
     white-space: nowrap;
 }
+
+.approval-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.approval-item:last-of-type {
+    border-bottom: none;
+}
+
+.approval-item-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 0 0 auto;
+}
+
+.approval-item-info strong {
+    min-width: 70px;
+}
+
+.approval-item form {
+    margin: 0;
+}
+
+.approval-card .btn {
+    padding: 6px 14px;
+    min-height: 32px;
+    font-size: 13px;
+}
+
+.btn-approve {
+    background: #f4f7ff;
+    color: #2563eb;
+    border: 1px solid #dbe7ff;
+    padding: 5px 10px;
+    min-height: auto;
+    font-size: 13px;
+    border-radius: 6px;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.btn-approve:hover {
+    background: #eaf1ff;
+    color: #1d4ed8;
+}
+
+.btn-secondary {
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    font-size: 13px;
+    box-shadow: none;
+    border-radius: 7px;
+}
+
+.btn-secondary:hover {
+    background: #eef2f7;
+    border-color: #94a3b8;
+    color: #1e293b;
+}
+
+.btn-danger-light {
+    background: #fff7f7;
+    color: #dc2626;
+    border: 1px solid #f3b4b4;
+    padding: 6px 10px;
+    font-size: 13px;
+    box-shadow: none;
+    border-radius: 7px;
+}
+
+.btn-danger-light:hover {
+    background: #feecec;
+    border-color: #ef8f8f;
+    color: #b91c1c;
+}

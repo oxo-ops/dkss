@@ -16,8 +16,8 @@
             Excel出力
         </a>
 
-        <a href="/safety/checklists" class="btn btn-back">
-            ← チェックリスト一覧へ戻る
+        <a href="/safety/checklists/{{ checklist.id }}" class="btn btn-back">
+            ← 結果一覧へ戻る
         </a>
 
     </div>
@@ -225,8 +225,8 @@
                         method="post"
                         action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
                     >
-                        <button type="submit" class="btn">
-                            {{ approval.label or "承認" }}を承認
+                        <button type="submit" class="btn btn-approve">
+                            承認
                         </button>
                     </form>
                 {% endif %}
@@ -251,7 +251,7 @@
                 required
             ></textarea>
 
-            <button type="submit" class="btn danger">
+            <button type="submit" class="btn btn-danger-light">
                 差し戻し
             </button>
         </form>
@@ -262,8 +262,11 @@
 
 {% if can_manage %}
 <div class="action-row">
-    <a href="/safety/checklist-results/{{ result_index }}/edit" class="btn">
-        更新
+    <a
+        href="/safety/checklist-results/{{ result_index }}/edit"
+        class="btn btn-secondary"
+    >
+        結果を修正
     </a>
 
     <form
@@ -271,11 +274,37 @@
         action="/safety/checklist-results/{{ result_index }}/delete"
         onsubmit="return confirm('この結果を削除しますか？');"
     >
-        <button type="submit" class="btn danger">
+        <button type="submit" class="btn btn-danger-light">
             削除
         </button>
     </form>
 </div>
 {% endif %}
+<script>
+document.addEventListener("submit", function (event) {
+    const form = event.target;
+
+    if (
+        form.action.includes("/approve/") ||
+        form.action.includes("/reject")
+    ) {
+        sessionStorage.setItem(
+            "checklistResultScrollY",
+            window.scrollY
+        );
+    }
+});
+
+window.addEventListener("load", function () {
+    const savedScrollY = sessionStorage.getItem(
+        "checklistResultScrollY"
+    );
+
+    if (savedScrollY !== null) {
+        window.scrollTo(0, Number(savedScrollY));
+        sessionStorage.removeItem("checklistResultScrollY");
+    }
+});
+</script>
 
 {% endblock %}

@@ -4919,10 +4919,31 @@ def export_checklist_result_excel(result_index):
         if item.get("item_type") == "approval"
     ]
 
+    approval_results = result.get("approvals", [])
+
+    stamp_entries = []
+
+    for approval_index, item in enumerate(approval_items):
+        label = item.get("approval_label", "").strip()
+
+        if not label:
+            continue
+
+        approval_result = (
+            approval_results[approval_index]
+            if approval_index < len(approval_results)
+            else {}
+        )
+
+        stamp_entries.append({
+            "label": label,
+            "approved_by": approval_result.get("approved_by", ""),
+            "approved_date": approval_result.get("approved_date", ""),
+        })
+
     stamp_headers = [
-        item.get("approval_label", "").strip()
-        for item in approval_items
-        if item.get("approval_label", "").strip()
+        entry["label"]
+        for entry in stamp_entries
     ]
 
     stamp_start_row = current_row + 2
@@ -4944,16 +4965,16 @@ def export_checklist_result_excel(result_index):
         ).font = Font(bold=True)
 
         # 1行につき最大4つまで表示
-        header_chunks = [
-            stamp_headers[i:i + 4]
-            for i in range(0, len(stamp_headers), 4)
+        entry_chunks = [
+            stamp_entries[i:i + 4]
+            for i in range(0, len(stamp_entries), 4)
         ]
 
         row_number = stamp_start_row + 1
 
-        for header_chunk in header_chunks:
+        for entry_chunk in entry_chunks:
 
-            item_count = len(header_chunk)
+            item_count = len(entry_chunk)
 
             # 右寄せで配置
             # 1個 → D列
@@ -4965,7 +4986,9 @@ def export_checklist_result_excel(result_index):
             stamp_header_row = row_number
             stamp_box_row = row_number + 1
 
-            for offset, header in enumerate(header_chunk):
+            for offset, entry in enumerate(entry_chunk):
+
+                header = entry["label"]
 
                 column = start_column + offset
 
@@ -4992,10 +5015,34 @@ def export_checklist_result_excel(result_index):
                 )
 
                 # 押印・サイン欄
+                approval_index = stamp_headers.index(header)
+
+                approval_result = (
+                    approval_results[approval_index]
+                    if approval_index < len(approval_results)
+                    else {}
+                )
+
+                approved_by = approval_result.get("approved_by", "")
+                approved_date = approval_result.get("approved_date", "")
+
+                stamp_value = ""
+
+                if approved_by:
+                    stamp_value = approved_by
+
+                    if approved_date:
+                        stamp_value += f"\n{approved_date}"
+
+                stamp_value = entry["approved_by"]
+
+                if entry["approved_by"] and entry["approved_date"]:
+                    stamp_value += f"\n{entry['approved_date']}"
+
                 stamp_cell = sheet.cell(
                     row=stamp_box_row,
                     column=column,
-                    value=""
+                    value=stamp_value
                 )
 
                 stamp_cell.border = Border(
@@ -5007,9 +5054,9 @@ def export_checklist_result_excel(result_index):
 
                 stamp_cell.alignment = Alignment(
                     horizontal="center",
-                    vertical="center"
+                    vertical="center",
+                    wrap_text=True
                 )
-
             sheet.row_dimensions[stamp_header_row].height = 22
             sheet.row_dimensions[stamp_box_row].height = 55
 
@@ -6136,6 +6183,22 @@ def approve_checklist_result(result_index, approval_index):
     result = checklist_result_to_dict(result_record)
 
     approvals = result.get("approvals", [])
+    if not approvals:
+        checklist_record = Checklist.query.get(result_record.checklist_id)
+
+        if checklist_record:
+            checklist = checklist_to_dict(checklist_record)
+
+            for item in checklist.get("items", []):
+                if item.get("item_type") != "approval":
+                    continue
+
+                approvals.append({
+                    "label": item.get("approval_label", ""),
+                    "allow_general": item.get("approval_allow_general", False),
+                    "approved_by": "",
+                    "approved_date": "",
+                })
 
     if approval_index < 0 or approval_index >= len(approvals):
         return redirect(f"/safety/checklist-results/{result_index}")
