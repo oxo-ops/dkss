@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, send_file
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -9,7 +9,9 @@ import boto3
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from io import BytesIO
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
 
@@ -4483,6 +4485,530 @@ def checklist_result_detail(result_index):
         can_approve=can_approve_checklist_result(result),
     )
 
+@app.route("/safety/checklist-results/<int:result_index>/excel")
+def export_checklist_result_excel(result_index):
+
+    result_record = ChecklistResult.query.get(result_index)
+
+    if not result_record:
+        return redirect("/safety/checklists")
+
+    result = checklist_result_to_dict(result_record)
+
+    if not can_view_checklist_result(result):
+        return redirect("/safety/checklists")
+
+    checklist_record = Checklist.query.get(result_record.checklist_id)
+
+    if not checklist_record:
+        return redirect("/safety/checklists")
+
+    checklist = checklist_to_dict(checklist_record)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "チェックリスト結果"
+    sheet.sheet_view.view = "pageBreakPreview"
+    sheet.sheet_view.showGridLines = False
+
+    # タイトル
+    sheet.merge_cells("A1:D1")
+
+    sheet["A1"] = f"{checklist['name']} 結果"
+    sheet["A1"].font = Font(size=16, bold=True)
+    sheet["A1"].alignment = Alignment(
+        horizontal="center",
+        vertical="center"
+    )
+
+    sheet.row_dimensions[1].height = 28
+
+    # 対象表示
+    if result["target_type"] == "user":
+        target_type_label = "ユーザー"
+        target_value = result["target_user"] or "-"
+    elif result["target_type"] == "vehicle":
+        target_type_label = "車両"
+        target_value = result["target_vehicle"] or "-"
+    elif result["target_type"] == "office":
+        target_type_label = "営業所"
+        target_value = result["target_office"] or "-"
+    else:
+        target_type_label = "指定なし"
+        target_value = ""
+
+    info_rows = [
+        ["実施日", result["checked_date"] or "", "点検者", result["checked_by"] or ""],
+        ["対象区分", target_type_label, "対象", target_value],
+        ["状態", result["status"] or "", "承認者", result["approved_by"] or ""],
+        ["承認日", result["approved_date"] or "", "", ""],
+    ]
+
+    start_row = 3
+
+    for row_offset, values in enumerate(info_rows):
+        row_number = start_row + row_offset
+
+        for col_number, value in enumerate(values, start=1):
+            sheet.cell(
+                row=row_number,
+                column=col_number,
+                value=value
+            )
+   
+    thin = Side(style="thin")
+
+    for row_number in range(start_row, start_row + len(info_rows)):
+
+        for col_number in range(1, 5):
+
+            cell = sheet.cell(
+                row=row_number,
+                column=col_number
+            )
+
+            cell.border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+
+            cell.alignment = Alignment(
+                vertical="center",
+                wrap_text=True
+            )
+
+            if col_number in [1, 3]:
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(
+                    fill_type="solid",
+                    fgColor="D9EAF7"
+                )
+    # 評価基準
+    criteria_list = []
+
+    for answer in result["answers"]:
+        criteria = answer.get("criteria", "")
+
+        if criteria and criteria not in criteria_list:
+            criteria_list.append(criteria)
+
+    current_row = start_row + len(info_rows) + 2
+
+    if criteria_list:
+        criteria_title_cell = sheet.cell(
+            row=current_row,
+            column=1,
+            value="評価基準"
+        )
+
+        criteria_title_cell.font = Font(bold=True)
+        criteria_title_cell.fill = PatternFill(
+            fill_type="solid",
+            fgColor="D9EAF7"
+        )
+
+        current_row += 1
+
+        for criteria in criteria_list:
+            criteria_row = current_row
+
+            sheet.cell(
+                row=criteria_row,
+                column=1,
+                value=criteria
+            )
+
+            sheet.merge_cells(
+                start_row=criteria_row,
+                start_column=1,
+                end_row=criteria_row,
+                end_column=4
+            )
+
+            for col_number in range(1, 5):
+                cell = sheet.cell(
+                    row=criteria_row,
+                    column=col_number
+                )
+
+                cell.border = Border(
+                    left=thin,
+                    right=thin,
+                    top=thin,
+                    bottom=thin
+                )
+
+            current_row += 1
+
+    # 評価集計
+    summary = {}
+    total_score = 0
+    max_score = 0
+
+    check_items = [
+        item
+        for item in checklist["items"]
+        if item.get("item_type") != "approval"
+    ]
+
+    for item, answer in zip(check_items, result["answers"]):
+
+        value = answer.get("value")
+
+        if item.get("input_type") != "select":
+            continue
+
+        if value:
+            summary[value] = summary.get(value, 0) + 1
+
+        if checklist.get("score_enabled"):
+
+            try:
+                total_score += float(value)
+            except (TypeError, ValueError):
+                pass
+
+            numeric_choices = []
+
+            for choice in item.get("choices", []):
+
+                try:
+                    numeric_choices.append(float(choice))
+                except (TypeError, ValueError):
+                    pass
+
+            if numeric_choices:
+                max_score += max(numeric_choices)
+
+    if summary:
+        summary_title_cell = sheet.cell(
+            row=current_row,
+            column=1,
+            value="評価集計"
+        )
+
+        summary_title_cell.font = Font(bold=True)
+        summary_title_cell.fill = PatternFill(
+            fill_type="solid",
+            fgColor="D9EAF7"
+        )
+
+        summary_text = " / ".join(
+            f"{value}：{count}件"
+            for value, count in summary.items()
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=2,
+            value=summary_text
+        )
+        
+        for col_number in range(1, 5):
+            sheet.cell(
+                row=current_row,
+                column=col_number
+            ).border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+
+        current_row += 1
+
+    if checklist.get("score_enabled"):
+        score_title_cell = sheet.cell(
+            row=current_row,
+            column=1,
+            value="合計点"
+        )
+
+        score_title_cell.font = Font(bold=True)
+        score_title_cell.fill = PatternFill(
+            fill_type="solid",
+            fgColor="D9EAF7"
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=2,
+            value=f"{int(total_score)} / {int(max_score)}点"
+            if max_score
+            else f"{int(total_score)}点"
+        )
+        
+        for col_number in range(1, 5):
+            sheet.cell(
+                row=current_row,
+                column=col_number
+            ).border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+
+        current_row += 2
+    else:
+        current_row += 1
+
+    # チェック結果
+    headers = [
+        "カテゴリ",
+        "チェック内容",
+        "評価",
+        "コメント"
+    ]
+
+    result_header_row = current_row
+    sheet.row_dimensions[result_header_row].height = 24
+
+    for column, header in enumerate(headers, start=1):
+        cell = sheet.cell(
+            row=current_row,
+            column=column,
+            value=header
+        )
+
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill(
+            fill_type="solid",
+            fgColor="D9EAF7"
+        )
+        cell.alignment = Alignment(
+            horizontal="center",
+            vertical="center"
+        )
+
+    current_row += 1
+
+    for item, answer in zip(
+        check_items,
+        result["answers"]
+    ):
+
+        sheet.cell(
+            row=current_row,
+            column=1,
+            value=answer.get("category", "")
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=2,
+            value=answer.get("content", "")
+        )
+
+        if item.get("input_type") == "select":
+            sheet.cell(
+                row=current_row,
+                column=3,
+                value=answer.get("value", "")
+            )
+
+            sheet.cell(
+                row=current_row,
+                column=4,
+                value=answer.get("comment", "") or ""
+            )
+        else:
+            sheet.cell(
+                row=current_row,
+                column=3,
+                value=""
+            )
+
+            sheet.cell(
+                row=current_row,
+                column=4,
+                value=answer.get("value", "") or ""
+            )
+
+        current_row += 1
+
+    sheet.auto_filter.ref = (
+        f"A{result_header_row}:D{current_row - 1}"
+    )
+    
+    for row in sheet.iter_rows(
+        min_row=result_header_row,
+        max_row=current_row - 1,
+        min_col=1,
+        max_col=4
+    ):
+        for cell in row:
+            cell.border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+    # 列幅
+    sheet.column_dimensions["A"].width = 18
+    sheet.column_dimensions["B"].width = 55
+    sheet.column_dimensions["C"].width = 14
+    sheet.column_dimensions["D"].width = 45
+
+    # 折り返し
+    for row in sheet.iter_rows():
+        for cell in row:
+            if cell.column == 3 and cell.row > result_header_row:
+                continue
+
+            cell.alignment = Alignment(
+                horizontal=cell.alignment.horizontal,
+                vertical=cell.alignment.vertical or "top",
+                wrap_text=True
+            )
+            
+    # 評価列を中央揃え
+    for row_number in range(
+        result_header_row + 1,
+        current_row
+    ):
+        sheet.cell(
+            row=row_number,
+            column=3
+        ).alignment = Alignment(
+            horizontal="center",
+            vertical="center",
+            wrap_text=True
+        )
+    
+    # 押印欄
+    stamp_start_row = current_row + 2
+
+    sheet.merge_cells(
+        start_row=stamp_start_row,
+        start_column=2,
+        end_row=stamp_start_row,
+        end_column=4
+    )
+
+    sheet.cell(
+        row=stamp_start_row,
+        column=2,
+        value="確認・押印"
+    ).font = Font(bold=True)
+
+    stamp_header_row = stamp_start_row + 1
+    stamp_box_row = stamp_start_row + 2
+
+    stamp_headers = ["管理者", "実施者", "対象者"]
+
+    for column, header in enumerate(stamp_headers, start=2):
+        cell = sheet.cell(
+            row=stamp_header_row,
+            column=column,
+            value=header
+        )
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(
+            horizontal="center",
+            vertical="center"
+        )
+        cell.border = Border(
+            left=thin,
+            right=thin,
+            top=thin,
+            bottom=thin
+        )
+
+        stamp_cell = sheet.cell(
+            row=stamp_box_row,
+            column=column,
+            value=""
+        )
+        stamp_cell.border = Border(
+            left=thin,
+            right=thin,
+            top=thin,
+            bottom=thin
+        )
+        stamp_cell.alignment = Alignment(
+            horizontal="center",
+            vertical="center"
+        )
+
+    # 印鑑を押しやすい高さ
+    sheet.row_dimensions[stamp_header_row].height = 22
+    sheet.row_dimensions[stamp_box_row].height = 55
+
+    current_row = stamp_box_row + 1
+
+    # A4印刷設定
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+    sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+    sheet.page_setup.orientation = sheet.ORIENTATION_LANDSCAPE
+
+    # 横は必ず1ページ、縦は項目数に応じて自動
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+
+    # 印刷範囲
+    sheet.print_area = f"A1:D{current_row - 1}"
+
+    # 余白
+    sheet.page_margins.left = 0.25
+    sheet.page_margins.right = 0.25
+    sheet.page_margins.top = 0.4
+    sheet.page_margins.bottom = 0.4
+    sheet.page_margins.header = 0.2
+    sheet.page_margins.footer = 0.2
+
+    # 2ページ目以降もチェック結果の見出しを表示
+    sheet.print_title_rows = (
+        f"{result_header_row}:{result_header_row}"
+    )
+    
+    # チェック結果の行高を内容に応じて調整
+    for row_number in range(
+        result_header_row + 1,
+        stamp_start_row
+    ):
+        content = str(
+            sheet.cell(
+                row=row_number,
+                column=2
+            ).value or ""
+        )
+
+        if len(content) > 45:
+            sheet.row_dimensions[row_number].height = 32
+        else:
+            sheet.row_dimensions[row_number].height = 22
+            
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    safe_checklist_name = checklist["name"].replace("/", "_").replace("\\", "_")
+    safe_checked_date = (
+        (result["checked_date"] or "")
+        .replace("/", "-")
+        .replace(":", "-")
+    )
+
+    filename = (
+        f"{safe_checklist_name}_"
+        f"{safe_checked_date}_"
+        f"結果.xlsx"
+    )
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        )
+    )
+    
 @app.route("/safety/checklist-results/<int:result_index>/edit", methods=["GET", "POST"])
 def edit_checklist_result(result_index):
     result_record = ChecklistResult.query.get(result_index)

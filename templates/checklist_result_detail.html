@@ -9,13 +9,12 @@
 
     <div class="header-actions">
 
-        <button
-            type="button"
+        <a
+            href="/safety/checklist-results/{{ result_index }}/excel"
             class="btn"
-            onclick="window.print()"
         >
-            印刷
-        </button>
+            Excel出力
+        </a>
 
         <a href="/safety/checklists" class="btn btn-back">
             ← チェックリスト一覧へ戻る
@@ -24,70 +23,97 @@
     </div>
 </div>
 
-<div class="card">
-    <p>
-        <strong>点検者：</strong>
-        {{ result.checked_by }}
-    </p>
+<div class="print-report-title">
+    {{ result.checklist_name }} 結果
+</div>
 
-    <p>
-        <strong>実施日：</strong>
-        {{ result.checked_date or "-" }}
-    </p>
+<div class="card result-info-card">
 
-    <p>
-        <strong>対象区分：</strong>
-        {% if result.target_type == "user" %}
-            ユーザー
-        {% elif result.target_type == "vehicle" %}
-            車両
-        {% elif result.target_type == "office" %}
-            営業所
-        {% else %}
-            指定なし
-        {% endif %}
-    </p>
+    <table class="result-info-table">
 
-    <p>
-        <strong>対象：</strong>
-        {% if result.target_type == "user" %}
-            {{ result.target_user }}
-        {% elif result.target_type == "vehicle" %}
-            {{ result.target_vehicle }}
-        {% elif result.target_type == "office" %}
-            {{ result.target_office }}
-        {% else %}
-            -
-        {% endif %}
-    </p>
+        <tr>
+            <th>実施日</th>
+            <td>
+                {{ result.checked_date or "-" }}
+            </td>
 
-    <p>
-        <strong>状態：</strong>
-        {% if result.status == "承認済み" %}
-            <span class="status-badge status-approved">承認済み</span>
-        {% elif result.status == "差し戻し" %}
-            <span class="status-badge status-rejected">差し戻し</span>
-        {% else %}
-            <span class="status-badge status-waiting">承認待ち</span>
-        {% endif %}
-    </p>
+            <th>点検者</th>
+            <td>
+                {{ result.checked_by }}
+            </td>
+        </tr>
 
-    <p>
-        <strong>承認者：</strong>
-        {{ result.approved_by or "-" }}
-    </p>
+        <tr>
+            <th>対象区分</th>
+            <td>
+                {% if result.target_type == "user" %}
+                    ユーザー
+                {% elif result.target_type == "vehicle" %}
+                    車両
+                {% elif result.target_type == "office" %}
+                    営業所
+                {% else %}
+                    指定なし
+                {% endif %}
+            </td>
 
-    <p>
-        <strong>承認日：</strong>
-        {{ result.approved_date or "-" }}
-    </p>
+            <th>対象</th>
+            <td>
+                {% if result.target_type == "user" %}
+                    {{ result.target_user }}
+                {% elif result.target_type == "vehicle" %}
+                    {{ result.target_vehicle }}
+                {% elif result.target_type == "office" %}
+                    {{ result.target_office }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+
+        <tr>
+            <th>状態</th>
+            <td>
+                {% if result.status == "承認済み" %}
+                    <span class="status-badge status-approved">
+                        承認済み
+                    </span>
+                {% elif result.status == "差し戻し" %}
+                    <span class="status-badge status-rejected">
+                        差し戻し
+                    </span>
+                {% else %}
+                    <span class="status-badge status-waiting">
+                        承認待ち
+                    </span>
+                {% endif %}
+            </td>
+
+            <th>承認者</th>
+            <td>
+                {{ result.approved_by or "-" }}
+            </td>
+        </tr>
+
+        <tr>
+            <th>承認日</th>
+            <td colspan="3">
+                {{ result.approved_date or "-" }}
+            </td>
+        </tr>
+
+    </table>
 
     {% if result.reject_reason %}
-        <p><strong>差し戻し理由：</strong></p>
-        <div class="content-box">
-            {{ result.reject_reason }}
+        <div class="reject-reason-section">
+            <strong>差し戻し理由</strong>
+
+            <div class="content-box">
+                {{ result.reject_reason }}
+            </div>
         </div>
     {% endif %}
+
 </div>
 
 {% set criteria_list = [] %}
@@ -99,7 +125,7 @@
 {% endfor %}
 
 <div class="card">
-    <h3>チェック結果</h3>
+    <h3 class="check-result-title">チェック結果</h3>
 
     {% if criteria_list %}
         <div class="criteria-box">
@@ -140,26 +166,33 @@
     {% endif %}
 
     <table class="checklist-table">
-        <tr>
-            <th style="width:140px;">カテゴリ</th>
-            <th>チェック内容</th>
-            <th style="width:160px;">評価</th>
-            <th style="width:300px;">コメント</th>
-        </tr>
 
-        {% for answer in result.answers %}
-        <tr>
-            <td>{{ answer.category }}</td>
-            <td>{{ answer.content }}</td>
-            <td>{{ answer.value }}</td>
-            <td>{{ answer.comment or "-" }}</td>
-        </tr>
-        {% endfor %}
+        <thead>
+            <tr>
+                <th>カテゴリ</th>
+                <th>チェック内容</th>
+                <th>評価</th>
+                <th>コメント</th>
+                <th>添付</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for answer in result.answers %}
+            <tr>
+                <td>{{ answer.category }}</td>
+                <td>{{ answer.content }}</td>
+                <td>{{ answer.value }}</td>
+                <td>{{ answer.comment or "-" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+
     </table>
 </div>
 
 {% if result.status != "承認済み" and can_approve %}
-<div class="card">
+<div class="card approval-card">
     <h3>承認管理</h3>
 
     <div class="action-row">

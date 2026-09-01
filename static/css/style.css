@@ -2812,3 +2812,205 @@ textarea[name="item_content"]{
     margin-left: auto;
     flex-shrink: 0;
 }
+
+.result-info-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.result-info-table th,
+.result-info-table td {
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.result-info-table th {
+    width: 120px;
+    background: #f5f5f5;
+    white-space: nowrap;
+}
+
+.result-info-table td {
+    background: #fff;
+}
+
+.reject-reason-section {
+    margin-top: 16px;
+}
+
+@media print {
+
+    /* サイドバー・ヘッダーの操作部分を印刷しない */
+    .sidebar,
+    .page-header,
+    .header-actions,
+    .action-row,
+    .approval-form,
+    .approval-card,
+    button,
+    .btn {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+
+    .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    .card {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin-bottom: 16px !important;
+        background: #fff !important;
+    }
+
+    .checklist-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 11px;
+    }
+
+    .checklist-table th,
+    .checklist-table td {
+        border: 1px solid #999 !important;
+        padding: 6px !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .status-badge {
+        border: 1px solid #999;
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .print-report-title {
+        display: block !important;
+        text-align: center;
+        font-size: 22px;
+        font-weight: bold;
+        margin-bottom: 16px;
+    }
+
+    /* 評価基準 */
+    .criteria-box {
+        margin: 0 0 10px !important;
+        padding: 8px 10px !important;
+        border: 1px solid #999 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #000 !important;
+        font-size: 11px;
+    }
+
+    .criteria-box strong {
+        margin-bottom: 4px !important;
+    }
+
+    .criteria-line {
+        margin-top: 2px !important;
+        line-height: 1.4 !important;
+        color: #000 !important;
+    }
+
+    /* 評価集計 */
+    .summary-row {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 16px !important;
+
+        margin: 0 0 12px !important;
+        padding: 8px 10px !important;
+
+        border: 1px solid #999 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #000 !important;
+
+        font-size: 11px;
+    }
+
+    .summary-item {
+        color: #000 !important;
+    }
+
+    .checklist-table thead {
+        display: table-header-group;
+    }
+
+    .checklist-table tbody {
+        display: table-row-group;
+    }
+
+    .checklist-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .result-info-card,
+    .criteria-box,
+    .summary-row {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .result-info-table {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .print-report-title {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .check-result-title {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .checklist-table th:nth-child(1),
+    .checklist-table td:nth-child(1) {
+        width: 18% !important;
+    }
+
+    .checklist-table th:nth-child(2),
+    .checklist-table td:nth-child(2) {
+        width: 42% !important;
+    }
+
+    .checklist-table th:nth-child(3),
+    .checklist-table td:nth-child(3) {
+        width: 12% !important;
+    }
+
+    .checklist-table th:nth-child(4),
+    .checklist-table td:nth-child(4) {
+        width: 28% !important;
+    }
+
+    .checklist-table th,
+    .checklist-table td {
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 12mm;
+    }
+}
+
+.print-report-title {
+    display: none;
+}
