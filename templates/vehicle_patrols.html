@@ -36,24 +36,34 @@
         </div>
 
         <form method="post" action="/vehicle-favorites/add" class="favorite-add-form">
-            <input
-                type="text"
-                name="vehicle_id"
-                list="vehicle_list"
-                placeholder="車両ID・ナンバーで検索して追加"
-            >
 
-            <datalist id="vehicle_list">
-                {% for vehicle in vehicles %}
-                    <option value="{{ vehicle.vehicle_id }}">
-                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                    </option>
-                {% endfor %}
-            </datalist>
+            <div class="favorite-vehicle-search-wrap">
+
+                <input
+                    type="text"
+                    id="favorite_vehicle_search"
+                    placeholder="車両ID・ナンバー・車台番号で検索"
+                    autocomplete="off"
+                >
+
+                <input
+                    type="hidden"
+                    name="vehicle_id"
+                    id="favorite_vehicle_id"
+                >
+
+                <div
+                    id="favorite_vehicle_results"
+                    class="vehicle-select-box favorite-vehicle-results"
+                    style="display:none;"
+                ></div>
+
+            </div>
 
             <button type="submit" class="btn-small btn-outline">
                 追加
             </button>
+
         </form>
     </div>
 </div>
@@ -302,5 +312,101 @@
         </div>
     {% endfor %}
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("favorite_vehicle_search");
+    const vehicleIdInput = document.getElementById("favorite_vehicle_id");
+    const resultBox = document.getElementById("favorite_vehicle_results");
+    const form = searchInput ? searchInput.closest("form") : null;
+
+    if (!searchInput || !vehicleIdInput || !resultBox || !form) {
+        return;
+    }
+
+    let searchTimer = null;
+
+    searchInput.addEventListener("input", function () {
+        clearTimeout(searchTimer);
+
+        vehicleIdInput.value = "";
+
+        const keyword = searchInput.value.trim();
+
+        if (!keyword) {
+            resultBox.innerHTML = "";
+            resultBox.style.display = "none";
+            return;
+        }
+
+        searchTimer = setTimeout(function () {
+            fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
+                .then(response => response.json())
+                .then(data => {
+                    resultBox.innerHTML = "";
+
+                    if (!data.results || data.results.length === 0) {
+                        resultBox.innerHTML =
+                            '<p class="help-text">該当する車両がありません。</p>';
+                        resultBox.style.display = "block";
+                        return;
+                    }
+
+                    data.results.forEach(function (vehicle) {
+
+                        const row = document.createElement("div");
+                        row.className = "vehicle-option";
+
+                        const labelParts = [
+                            vehicle.vehicle_id,
+                            vehicle.number,
+                            vehicle.manufacturer,
+                            vehicle.model_code
+                        ].filter(Boolean);
+
+                        row.innerHTML = `
+                            <button
+                                type="button"
+                                class="btn-small"
+                            >
+                                選択
+                            </button>
+
+                            <span>
+                                ${labelParts.join(" / ")}
+                            </span>
+                        `;
+
+                        row.querySelector("button")
+                            .addEventListener("click", function () {
+
+                                vehicleIdInput.value =
+                                    vehicle.vehicle_id;
+
+                                searchInput.value =
+                                    labelParts.join(" / ");
+
+                                resultBox.innerHTML = "";
+                                resultBox.style.display = "none";
+                            });
+
+                        resultBox.appendChild(row);
+                    });
+
+                    resultBox.style.display = "block";
+                });
+        }, 250);
+    });
+
+    form.addEventListener("submit", function (event) {
+        if (!vehicleIdInput.value) {
+            event.preventDefault();
+
+            alert("候補から車両を選択してください。");
+            searchInput.focus();
+        }
+    });
+});
+</script>
 
 {% endblock %}

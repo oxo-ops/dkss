@@ -25,6 +25,10 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 0 18px 40px rgba(20, 35, 60, 0.22);
+
+    position: sticky;
+    top: 28px;
+    height: calc(100vh - 56px);
 }
 
 .logo {
@@ -2671,3 +2675,140 @@ textarea[name="item_content"]{
     padding-top: 8px;
 }
 
+.tag-remove-btn {
+    border: none;
+    background: #e8eefc;
+    color: #4a67a1;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin-left: 4px;
+    border-radius: 50%;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.tag-remove-btn:hover {
+    background: #d7e2fb;
+}
+
+/* 車両点検：左2列固定 */
+
+.table-scroll {
+    position: relative;
+    overflow-x: auto;
+}
+
+.monthly-check-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: visible;
+}
+
+/* カテゴリ */
+.monthly-check-table .fixed-category {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 10;
+
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+
+    background: #fff;
+
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+}
+
+/* 点検項目 */
+.monthly-check-table .fixed-item {
+    position: sticky !important;
+    left: 140px !important;
+    z-index: 10;
+
+    width: 360px;
+    min-width: 360px;
+    max-width: 360px;
+
+    background: #fff;
+
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+
+    box-shadow: 4px 0 6px rgba(15, 23, 42, 0.12);
+}
+
+/* 左上の見出し */
+.monthly-check-table th.fixed-category,
+.monthly-check-table th.fixed-item {
+    z-index: 11;
+    background: #f5f8fd;
+}
+
+.favorite-add-form .btn-outline {
+    background: #ffffff;
+    border: 1px solid #2f78f6;
+    color: #2f78f6;
+}
+
+.favorite-add-form .btn-outline:hover {
+    background: #2f78f6;
+    border-color: #2f78f6;
+    color: #ffffff !important;
+}
+
+.favorite-vehicle-shortcuts {
+    display: none;
+    margin-top: 6px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #d7e1ef;
+    border-radius: 10px;
+}
+
+.filter-vehicle:focus-within .favorite-vehicle-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.favorite-vehicle-title {
+    width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.favorite-vehicle-shortcut {
+    border: 1px solid #d7e1ef;
+    background: #f8fafc;
+    border-radius: 7px;
+    padding: 6px 10px;
+    cursor: pointer;
+    color: #1e293b;
+}
+
+.favorite-vehicle-shortcut:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+}
+
+.vehicle-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vehicle-option-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.vehicle-option-select {
+    margin-left: auto;
+    flex-shrink: 0;
+}

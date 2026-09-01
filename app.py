@@ -634,9 +634,6 @@ def checklist_to_dict(checklist):
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
         "items": items,
-        "notify_users": json.loads(
-            checklist.notify_users_json or "[]"
-        ),
         "score_enabled": any(
             item.get("score_enabled", False)
             for item in items
@@ -690,6 +687,9 @@ def vehicle_checklist_result_to_dict(result):
         "approved_by": result.approved_by,
         "approved_date": result.approved_date,
         "reject_reason": result.reject_reason,
+        "notify_users": json.loads(
+            result.notify_users_json or "[]"
+        ),
         "answers": json.loads(result.answers_json or "[]"),
     }
 
@@ -2264,9 +2264,18 @@ def new_vehicle_patrol():
 
 @app.route("/vehicle-favorites/add", methods=["POST"])
 def add_vehicle_favorite():
-    vehicle_id = request.form.get("vehicle_id")
+    vehicle_id = request.form.get("vehicle_id", "").strip()
 
     if not vehicle_id:
+        return redirect("/vehicle-patrols")
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=session.get("company_code"),
+        vehicle_id=vehicle_id,
+        deleted=False
+    ).first()
+
+    if not vehicle:
         return redirect("/vehicle-patrols")
 
     current_user = User.query.filter_by(
@@ -4324,11 +4333,7 @@ def new_checklist():
             frequency_value=frequency_value,
             frequency_unit=frequency_unit,
             display_type=display_type,
-            items_json=json.dumps(items, ensure_ascii=False),
-            notify_users_json=json.dumps(
-                request.form.getlist("notify_users"),
-                ensure_ascii=False
-            )
+            items_json=json.dumps(items, ensure_ascii=False)
         )
 
         db.session.add(checklist)
@@ -4340,10 +4345,7 @@ def new_checklist():
         "checklist_form.html",
         checklist=None,
         index=None,
-        mode="new",
-        users=User.query.filter_by(
-            company_code=session.get("company_code")
-        ).order_by(User.name.asc()).all()
+        mode="new"
     )
 
 @app.route("/safety/checklists")
@@ -4723,7 +4725,29 @@ def vehicle_checklist_results(index):
                 continue
 
         results.append(result)
+    selected_notify_users = []
 
+    for result in results:
+        if display_mode == "year_list":
+            is_active_result = (
+                str(result.get("year")) == str(active_day)
+            )
+
+        elif display_mode == "month_list":
+            is_active_result = (
+                str(result.get("month")).zfill(2)
+                == str(active_day).zfill(2)
+            )
+
+        else:
+            is_active_result = (
+                str(result.get("day")).zfill(2)
+                == str(active_day).zfill(2)
+            )
+
+        if is_active_result:
+            selected_notify_users = result.get("notify_users", [])
+            break
 
     selected_vehicle = None
 
@@ -4759,6 +4783,7 @@ def vehicle_checklist_results(index):
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
+        selected_notify_users=selected_notify_users,
         selected_vehicle=selected_vehicle,
         year=year,
         month=month,
@@ -5103,10 +5128,19 @@ def complete_vehicle_checklist(index):
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
     result_record.approved_by = ""
     result_record.approved_date = ""
+    
+    notify_users = list(dict.fromkeys(
+        name.strip()
+        for name in request.form.getlist("notify_users")
+        if name.strip()
+    ))
+
+    result_record.notify_users_json = json.dumps(
+        notify_users,
+        ensure_ascii=False
+    )
 
     db.session.commit()
-    
-    notify_users = checklist.get("notify_users", [])
 
     notification_link = (
         f"/vehicle/checklists/{checklist_record.id}"
@@ -5441,11 +5475,6 @@ def edit_checklist(index):
 
         checklist_record.items_json = json.dumps(items, ensure_ascii=False)
 
-        checklist_record.notify_users_json = json.dumps(
-            request.form.getlist("notify_users"),
-            ensure_ascii=False
-        )
-
         db.session.commit()
 
         return redirect("/master/checklists")
@@ -5454,10 +5483,7 @@ def edit_checklist(index):
         "checklist_form.html",
         checklist=checklist,
         index=checklist_record.id,
-        mode="edit",
-        users=User.query.filter_by(
-            company_code=session.get("company_code")
-        ).order_by(User.name.asc()).all()
+        mode="edit"
     )
 
 

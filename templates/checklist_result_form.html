@@ -25,6 +25,62 @@
     width: 500px;
     height: 160px;
 }
+
+.patrol-link-header {
+    width: 190px;
+    min-width: 190px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.patrol-link-cell {
+    width: 190px;
+    min-width: 190px;
+    text-align: center;
+}
+
+.patrol-link-checkbox {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.file-upload-cell {
+    width: 180px;
+    min-width: 180px;
+}
+
+.file-upload-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 11px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.file-upload-button:hover {
+    background: #dbeafe;
+}
+
+.file-upload-input {
+    display: none;
+}
+
+.selected-file-names {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.4;
+    word-break: break-all;
+}
 </style>
 
 <div class="page-header">
@@ -178,8 +234,10 @@
                 <th>チェック内容</th>
                 <th style="width:160px;">評価</th>
                 <th style="width:260px;">コメント</th>
-                <th style="width:220px;">写真・ファイル</th>
-                <th style="width:220px;">連携</th>
+                <th style="width:180px;">写真・ファイル</th>
+                <th class="patrol-link-header">
+                    安全パトロールへ登録
+                </th>
             </tr>
 
             {% set ns = namespace(answer_index=0) %}
@@ -228,24 +286,34 @@
                         {% if item.comment_required %}required{% endif %}
                     >
                 </td>
-                <td>
-                    <input
-                        type="file"
-                        name="files_{{ ns.answer_index }}"
-                        multiple
-                        accept="image/*,video/*,.pdf"
-                    >
+                <td class="file-upload-cell">
+
+                    <label class="file-upload-button">
+                        ＋ ファイル追加
+
+                        <input
+                            type="file"
+                            name="files_{{ ns.answer_index }}"
+                            multiple
+                            accept="image/*,video/*,.pdf"
+                            class="file-upload-input"
+                            onchange="showSelectedFiles(this)"
+                        >
+                    </label>
+
+                    <div class="selected-file-names"></div>
+
                 </td>
 
-                <td class="center-cell">
-                    <label class="checkbox-row">
-                        <input
-                            type="checkbox"
-                            name="patrol_link_{{ ns.answer_index }}"
-                            value="1"
-                        >
-                        <span>要対応として安全パトロールへ登録</span>
-                    </label>
+                <td class="center-cell patrol-link-cell">
+                    <input
+                        type="checkbox"
+                        name="patrol_link_{{ ns.answer_index }}"
+                        value="1"
+                        class="patrol-link-checkbox"
+                        title="安全パトロールへ登録"
+                        {% if saved_answer and saved_answer.patrol_link %}checked{% endif %}
+                    >
                 </td>
             </tr>
 
@@ -267,6 +335,24 @@
 
 <script>
 let vehicleSearchTimer = null;
+function showSelectedFiles(input) {
+
+    const area =
+        input.closest(".file-upload-cell")
+            .querySelector(".selected-file-names");
+
+    area.innerHTML = "";
+
+    if (!input.files || input.files.length === 0) {
+        return;
+    }
+
+    Array.from(input.files).forEach(function(file) {
+        const item = document.createElement("div");
+        item.textContent = file.name;
+        area.appendChild(item);
+    });
+}
 
 function selectVehicle(vehicle) {
 

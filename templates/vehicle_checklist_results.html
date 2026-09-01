@@ -14,7 +14,7 @@
     </div>
 </div>
 
-<form method="get" class="vehicle-check-filter">
+<form method="get" class="vehicle-check-filter" id="vehicle_check_filter">
 
     <div class="filter-item filter-vehicle">
 
@@ -28,13 +28,33 @@
         >
 
         <div
+            id="favorite_vehicle_shortcuts"
+            class="favorite-vehicle-shortcuts"
+        >
+            <div class="favorite-vehicle-title">
+                使用車両
+            </div>
+
+            {% for favorite_vehicle_id in session.get("vehicles", []) %}
+                <button
+                    type="button"
+                    class="favorite-vehicle-shortcut"
+                    data-vehicle-id="{{ favorite_vehicle_id }}"
+                >
+                    {{ favorite_vehicle_id }}
+                </button>
+            {% else %}
+                <span class="help-text">
+                    使用車両は未設定です。
+                </span>
+            {% endfor %}
+        </div>
+
+        <div
             id="vehicle_search_results"
             class="vehicle-select-box"
-        >
-            <p class="help-text">
-                車両を検索してください。
-            </p>
-        </div>
+            style="display:none;"
+        ></div>
 
 
         <input
@@ -125,10 +145,6 @@
         </select>
     </div>
 
-    <div class="filter-button">
-        <button type="submit" class="btn-small">表示</button>
-    </div>
-
 </form>
 
 {% if not vehicle_id %}
@@ -181,6 +197,30 @@
 
         {% endif %}
 
+        <div class="notify-user-selector">
+
+            <label>点検完了通知先</label>
+
+            <input
+                type="text"
+                id="notify_user_search"
+                placeholder="名前で検索"
+                autocomplete="off"
+            >
+
+            <div
+                id="notify_user_search_results"
+                class="vehicle-select-box"
+                style="display:none;"
+            ></div>
+
+            <div
+                id="selected_notify_users"
+                class="selected-vehicle-tags"
+            ></div>
+
+        </div>
+
         <button type="submit" class="btn">
             点検完了
         </button>
@@ -225,8 +265,8 @@
         <table class="checklist-table monthly-check-table">
 
             <tr>
-                <th></th>
-                <th></th>
+                <th class="fixed-category"></th>
+                <th class="fixed-item"></th>
 
                 {% for d in display_days %}
                 <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
@@ -236,8 +276,8 @@
             </tr>
 
             <tr>
-                <th style="width:120px;">カテゴリ</th>
-                <th style="width:320px;">点検項目</th>
+                <th class="fixed-category">カテゴリ</th>
+                <th class="fixed-item">点検項目</th>
 
                 {% for d in display_days %}
                 <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
@@ -250,7 +290,7 @@
             {% set item_no = loop.index0 %}
 
             <tr>
-                <td>
+                <td class="fixed-category">
                     {% if item.item_type == "inspector" %}
                     -
                     {% elif item.item_type == "approval" %}
@@ -260,7 +300,7 @@
                     {% endif %}
                 </td>
 
-                <td>
+                <td class="fixed-item">
                     {% if item.item_type == "inspector" %}
                     点検者
                     {% elif item.item_type == "approval" %}
@@ -715,6 +755,141 @@
 
 </script>
 
+<script
+    type="application/json"
+    id="saved_notify_users_json"
+>{{ selected_notify_users | tojson }}</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("notify_user_search");
+    const searchResults = document.getElementById("notify_user_search_results");
+    const selectedContainer = document.getElementById("selected_notify_users");
+
+    if (!searchInput || !searchResults || !selectedContainer) {
+        return;
+    }
+
+    const selectedUsers = new Map();
+    const savedNotifyUsers = JSON.parse(
+        document.getElementById("saved_notify_users_json").textContent || "[]"
+    );
+
+    savedNotifyUsers.forEach(function (name) {
+        selectedUsers.set(name, name);
+    });
+
+    function renderSelectedUsers() {
+        selectedContainer.innerHTML = "";
+
+        selectedUsers.forEach((name, username) => {
+            const tag = document.createElement("span");
+            tag.className = "selected-vehicle-tag";
+
+            tag.innerHTML = `
+                ${name}
+                <button
+                    type="button"
+                    class="tag-remove-btn"
+                    data-username="${username}"
+                >
+                    ×
+                </button>
+
+                <input
+                    type="hidden"
+                    name="notify_users"
+                    value="${name}"
+                >
+            `;
+
+            selectedContainer.appendChild(tag);
+        });
+    }
+    renderSelectedUsers();
+
+    selectedContainer.addEventListener("click", function (event) {
+        const button = event.target.closest(".tag-remove-btn");
+
+        if (!button) {
+            return;
+        }
+
+        selectedUsers.delete(button.dataset.username);
+        renderSelectedUsers();
+    });
+
+    let searchTimer = null;
+
+    searchInput.addEventListener("input", function () {
+        clearTimeout(searchTimer);
+
+        const keyword = searchInput.value.trim();
+
+        if (!keyword) {
+            searchResults.innerHTML = "";
+            searchResults.style.display = "none";
+            return;
+        }
+
+        searchTimer = setTimeout(async function () {
+            const response = await fetch(
+                `/api/mention-users?q=${encodeURIComponent(keyword)}`
+            );
+
+            const data = await response.json();
+
+            searchResults.innerHTML = "";
+
+            if (!data.users || data.users.length === 0) {
+                searchResults.innerHTML =
+                    '<p class="help-text">該当するユーザーがいません。</p>';
+
+                searchResults.style.display = "block";
+                return;
+            }
+
+            data.users.forEach(user => {
+                const item = document.createElement("button");
+
+                item.type = "button";
+                item.className = "vehicle-select-item";
+
+                item.innerHTML = `
+                    <strong>${user.name}</strong>
+                    <span>
+                        ${user.office || ""}
+                        ${user.username ? " / " + user.username : ""}
+                    </span>
+                `;
+
+                item.addEventListener("click", function () {
+                    if (selectedUsers.has(user.name)) {
+                        // ここで「すでに追加されています」を表示
+                        return;
+                    }
+
+                    selectedUsers.set(
+                        user.name,
+                        user.name
+                    );
+
+                    renderSelectedUsers();
+
+                    searchInput.value = "";
+                    searchResults.innerHTML = "";
+                    searchResults.style.display = "none";
+                });
+
+                searchResults.appendChild(item);
+            });
+
+            searchResults.style.display = "block";
+        }, 250);
+    });
+});
+</script>
+
 <script>
 
 const vehicleSearch =
@@ -731,6 +906,21 @@ const selectedVehicleDisplay =
 
 let vehicleSearchTimer = null;
 
+document.querySelectorAll(".favorite-vehicle-shortcut")
+    .forEach(function (button) {
+
+        button.addEventListener("click", function () {
+
+            vehicleId.value =
+                button.dataset.vehicleId;
+
+            document.getElementById(
+                "vehicle_check_filter"
+            ).requestSubmit();
+
+        });
+
+    });
 
 vehicleSearch.addEventListener("input", function () {
 
@@ -741,10 +931,9 @@ vehicleSearch.addEventListener("input", function () {
 
 
     if (!keyword) {
-
-        vehicleSearchResults.innerHTML =
-            '<p class="help-text">車両を検索してください。</p>';
-
+        vehicleSearchResults.innerHTML = "";
+        vehicleSearchResults.style.display = "block";
+        vehicleSearchResults.style.display = "none";
         return;
     }
 
@@ -759,6 +948,9 @@ vehicleSearch.addEventListener("input", function () {
         .then(data => {
 
             vehicleSearchResults.innerHTML = "";
+            vehicleSearchResults.style.display = "block";
+
+            console.log("vehicle search:", data);
 
 
             if (!data.results.length) {
@@ -788,18 +980,17 @@ vehicleSearch.addEventListener("input", function () {
 
 
                 row.innerHTML = `
+                    <span class="vehicle-option-label">
+                        ${labelParts.join(" / ")}
+                    </span>
+
                     <button
                         type="button"
-                        class="btn-small"
+                        class="btn-small vehicle-option-select"
                     >
                         選択
                     </button>
-
-                    <span>
-                        ${labelParts.join(" / ")}
-                    </span>
                 `;
-
 
                 row.querySelector("button")
                     .addEventListener(
@@ -811,6 +1002,12 @@ vehicleSearch.addEventListener("input", function () {
 
                             selectedVehicleDisplay.textContent =
                                 labelParts.join(" / ");
+                                document.getElementById(
+                                    "vehicle_check_filter"
+                                ).requestSubmit();
+                                vehicleSearch.value = "";
+                                vehicleSearchResults.innerHTML = "";
+                                vehicleSearchResults.style.display = "none";
 
                         }
                     );
@@ -826,6 +1023,80 @@ vehicleSearch.addEventListener("input", function () {
 
 });
 
+function moveToActiveDay() {
+
+    const scrollArea =
+        document.querySelector(".table-scroll");
+
+    const activeCell =
+        document.querySelector("td.active-day-cell");
+
+    const categoryCell =
+        document.querySelector("td.fixed-category");
+
+    const itemCell =
+        document.querySelector("td.fixed-item");
+
+    if (
+        !scrollArea ||
+        !activeCell ||
+        !categoryCell ||
+        !itemCell
+    ) {
+        return;
+    }
+
+    const fixedWidth =
+        categoryCell.offsetWidth +
+        itemCell.offsetWidth;
+
+    const targetLeft =
+        activeCell.offsetLeft - fixedWidth;
+
+    scrollArea.scrollTo({
+        left: targetLeft,
+        behavior: "instant"
+    });
+}
+
+window.addEventListener("load", function () {
+    setTimeout(moveToActiveDay, 300);
+    setTimeout(moveToActiveDay, 700);
+});
+
+const vehicleFilterForm =
+    document.getElementById("vehicle_check_filter");
+
+const yearInput =
+    vehicleFilterForm.querySelector('input[name="year"]');
+
+const monthSelect =
+    vehicleFilterForm.querySelector('select[name="month"]');
+
+const activeDaySelect =
+    vehicleFilterForm.querySelector('select[name="active_day"]');
+
+
+function submitVehicleFilter() {
+    if (!vehicleId.value) {
+        return;
+    }
+
+    vehicleFilterForm.requestSubmit();
+}
+
+
+if (yearInput) {
+    yearInput.addEventListener("change", submitVehicleFilter);
+}
+
+if (monthSelect) {
+    monthSelect.addEventListener("change", submitVehicleFilter);
+}
+
+if (activeDaySelect) {
+    activeDaySelect.addEventListener("change", submitVehicleFilter);
+}
 </script>
 
 {% endblock %}

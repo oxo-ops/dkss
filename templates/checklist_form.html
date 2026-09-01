@@ -95,30 +95,6 @@
                     年表示（1年分を横並び）
                 </option>
             </select>
-            <label>点検完了時の通知先</label>
-
-            <div class="notify-user-list">
-                {% for user in users %}
-                    <label class="checkbox-row">
-                        <input
-                            type="checkbox"
-                            name="notify_users"
-                            value="{{ user.name }}"
-                            {% if checklist and user.name in checklist.notify_users %}checked{% endif %}
-                        >
-                        <span>
-                            {{ user.name }}
-                            {% if user.office %}
-                                （{{ user.office }}）
-                            {% endif %}
-                        </span>
-                    </label>
-                {% endfor %}
-            </div>
-
-            <p class="help-text">
-                点検完了時に通知する整備管理者・整備管理補助者を複数選択できます。
-            </p>
         </div>
 
         <label class="checkbox-row">

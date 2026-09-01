@@ -217,7 +217,33 @@ function toggleMenu(button) {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
-    if (localStorage.getItem("sidebarCollapsed") === "1") {
+
+    const currentPath = window.location.pathname;
+
+    const isSafetyInputPage =
+        /^\/safety\/checklists\/\d+\/new\/?$/.test(currentPath);
+
+    const isSafetyResultListPage =
+        /^\/safety\/checklists\/\d+\/?$/.test(currentPath);
+
+    const isVehicleInputPage =
+        /^\/vehicle\/checklists\/\d+\/?$/.test(currentPath);
+
+    if (
+        (isSafetyInputPage || isVehicleInputPage) &&
+        window.innerWidth > 900
+    ) {
+        document.body.classList.add("sidebar-collapsed");
+
+    } else if (
+        isSafetyResultListPage &&
+        window.innerWidth > 900
+    ) {
+        document.body.classList.remove("sidebar-collapsed");
+
+    } else if (
+        localStorage.getItem("sidebarCollapsed") === "1"
+    ) {
         document.body.classList.add("sidebar-collapsed");
     }
 
