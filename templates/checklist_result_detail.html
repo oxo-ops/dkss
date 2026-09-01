@@ -191,35 +191,72 @@
     </table>
 </div>
 
-{% if result.status != "承認済み" and can_approve %}
+{% if result.approvals %}
 <div class="card approval-card">
     <h3>承認管理</h3>
 
-    <div class="action-row">
-        <form method="post" action="/safety/checklist-results/{{ result_index }}/approve">
-            <button type="submit" class="btn">
-                承認
+    {% for approval in result.approvals %}
+
+        <div class="approval-item">
+
+            <div class="approval-item-info">
+                <strong>
+                    {{ approval.label or "承認" }}
+                </strong>
+
+                {% if approval.approved_by %}
+                    <div>
+                        承認者：{{ approval.approved_by }}
+                    </div>
+
+                    <div>
+                        承認日：{{ approval.approved_date or "-" }}
+                    </div>
+                {% else %}
+                    <div>
+                        未承認
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if not approval.approved_by %}
+                {% if session.role in ["admin", "itc"] or approval.allow_general %}
+                    <form
+                        method="post"
+                        action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
+                    >
+                        <button type="submit" class="btn">
+                            {{ approval.label or "承認" }}を承認
+                        </button>
+                    </form>
+                {% endif %}
+            {% endif %}
+
+        </div>
+
+    {% endfor %}
+
+    {% if result.status != "承認済み" and can_reject %}
+        <form
+            method="post"
+            action="/safety/checklist-results/{{ result_index }}/reject"
+            class="approval-form"
+        >
+            <label>差し戻し理由</label>
+
+            <textarea
+                name="reject_reason"
+                rows="4"
+                placeholder="差し戻し理由を入力"
+                required
+            ></textarea>
+
+            <button type="submit" class="btn danger">
+                差し戻し
             </button>
         </form>
-    </div>
+    {% endif %}
 
-    <form
-        method="post"
-        action="/safety/checklist-results/{{ result_index }}/reject"
-        class="approval-form"
-    >
-        <label>差し戻し理由</label>
-        <textarea
-            name="reject_reason"
-            rows="4"
-            placeholder="差し戻し理由を入力"
-            required
-        ></textarea>
-
-        <button type="submit" class="btn danger">
-            差し戻し
-        </button>
-    </form>
 </div>
 {% endif %}
 

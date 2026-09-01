@@ -263,6 +263,11 @@ class ChecklistResult(db.Model):
     approved_by = db.Column(db.String(100))
     approved_date = db.Column(db.String(30))
     reject_reason = db.Column(db.Text)
+    
+    approvals_json = db.Column(
+        db.Text,
+        default="[]"
+    )
 
     answers_json = db.Column(
         db.Text,
@@ -670,6 +675,7 @@ def checklist_result_to_dict(result):
         "approved_by": result.approved_by,
         "approved_date": result.approved_date,
         "reject_reason": result.reject_reason,
+        "approvals": json.loads(result.approvals_json or "[]"),
         "answers": json.loads(result.answers_json or "[]"),
     }
 
@@ -843,9 +849,20 @@ def can_manage_checklist_result(result):
     return result.get("checked_by") == session.get("name")
 
 
-def can_approve_checklist_result(result):
-    return session.get("role") in ["admin", "itc"]
+def can_approve_checklist_result(result, approval=None):
+    role = session.get("role")
 
+    if role in ["admin", "itc"]:
+        return True
+
+    if not approval:
+        return False
+
+    return approval.get("allow_general", False)
+
+
+def can_reject_checklist_result(result):
+    return session.get("role") in ["admin", "itc"]
 
 def vehicle_number(vehicle):
     return vehicle.get("number") or (
@@ -4254,6 +4271,7 @@ def new_checklist():
         input_types = request.form.getlist("input_type")
         item_types = request.form.getlist("item_type")
         approval_labels = request.form.getlist("approval_label")
+        approval_allow_general_list = request.form.getlist("approval_allow_general")
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
@@ -4279,6 +4297,7 @@ def new_checklist():
                 items.append({
                     "item_type": "approval",
                     "approval_label": label,
+                    "approval_allow_general": str(i) in approval_allow_general_list,
                     "criteria_files": [],
                 })
 
@@ -4423,6 +4442,21 @@ def checklist_result_detail(result_index):
         return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
+    if not result.get("approvals"):
+        approvals = []
+
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get("approval_allow_general", False),
+                "approved_by": "",
+                "approved_date": "",
+            })
+
+        result["approvals"] = approvals
 
     criteria_list = []
 
@@ -4482,7 +4516,7 @@ def checklist_result_detail(result_index):
         criteria_list=criteria_list,
         checklist=checklist,
         can_manage=can_manage_checklist_result(result),
-        can_approve=can_approve_checklist_result(result),
+        can_reject=can_reject_checklist_result(result),
     )
 
 @app.route("/safety/checklist-results/<int:result_index>/excel")
@@ -4878,67 +4912,111 @@ def export_checklist_result_excel(result_index):
             wrap_text=True
         )
     
-    # 押印欄
+    # 承認・押印欄
+    approval_items = [
+        item
+        for item in checklist["items"]
+        if item.get("item_type") == "approval"
+    ]
+
+    stamp_headers = [
+        item.get("approval_label", "").strip()
+        for item in approval_items
+        if item.get("approval_label", "").strip()
+    ]
+
     stamp_start_row = current_row + 2
 
-    sheet.merge_cells(
-        start_row=stamp_start_row,
-        start_column=2,
-        end_row=stamp_start_row,
-        end_column=4
-    )
+    if stamp_headers:
 
-    sheet.cell(
-        row=stamp_start_row,
-        column=2,
-        value="確認・押印"
-    ).font = Font(bold=True)
-
-    stamp_header_row = stamp_start_row + 1
-    stamp_box_row = stamp_start_row + 2
-
-    stamp_headers = ["管理者", "実施者", "対象者"]
-
-    for column, header in enumerate(stamp_headers, start=2):
-        cell = sheet.cell(
-            row=stamp_header_row,
-            column=column,
-            value=header
-        )
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
-        cell.border = Border(
-            left=thin,
-            right=thin,
-            top=thin,
-            bottom=thin
+        # 承認欄タイトル
+        sheet.merge_cells(
+            start_row=stamp_start_row,
+            start_column=1,
+            end_row=stamp_start_row,
+            end_column=4
         )
 
-        stamp_cell = sheet.cell(
-            row=stamp_box_row,
-            column=column,
-            value=""
-        )
-        stamp_cell.border = Border(
-            left=thin,
-            right=thin,
-            top=thin,
-            bottom=thin
-        )
-        stamp_cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
+        sheet.cell(
+            row=stamp_start_row,
+            column=1,
+            value="確認・押印"
+        ).font = Font(bold=True)
 
-    # 印鑑を押しやすい高さ
-    sheet.row_dimensions[stamp_header_row].height = 22
-    sheet.row_dimensions[stamp_box_row].height = 55
+        # 1行につき最大4つまで表示
+        header_chunks = [
+            stamp_headers[i:i + 4]
+            for i in range(0, len(stamp_headers), 4)
+        ]
 
-    current_row = stamp_box_row + 1
+        row_number = stamp_start_row + 1
 
+        for header_chunk in header_chunks:
+
+            item_count = len(header_chunk)
+
+            # 右寄せで配置
+            # 1個 → D列
+            # 2個 → C:D
+            # 3個 → B:D
+            # 4個 → A:D
+            start_column = 5 - item_count
+
+            stamp_header_row = row_number
+            stamp_box_row = row_number + 1
+
+            for offset, header in enumerate(header_chunk):
+
+                column = start_column + offset
+
+                # 見出し
+                cell = sheet.cell(
+                    row=stamp_header_row,
+                    column=column,
+                    value=header
+                )
+
+                cell.font = Font(bold=True)
+
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                cell.border = Border(
+                    left=thin,
+                    right=thin,
+                    top=thin,
+                    bottom=thin
+                )
+
+                # 押印・サイン欄
+                stamp_cell = sheet.cell(
+                    row=stamp_box_row,
+                    column=column,
+                    value=""
+                )
+
+                stamp_cell.border = Border(
+                    left=thin,
+                    right=thin,
+                    top=thin,
+                    bottom=thin
+                )
+
+                stamp_cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center"
+                )
+
+            sheet.row_dimensions[stamp_header_row].height = 22
+            sheet.row_dimensions[stamp_box_row].height = 55
+
+            row_number = stamp_box_row + 1
+
+        current_row = row_number
+        
     # A4印刷設定
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
 
@@ -5858,6 +5936,18 @@ def new_safety_checklist_result(index):
 
             answer_index += 1
 
+        approvals = []
+
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get("approval_allow_general", False),
+                "approved_by": "",
+                "approved_date": "",
+            })
         result = ChecklistResult(
             company_code=session.get("company_code"),
             checklist_id=checklist_record.id,
@@ -5871,6 +5961,7 @@ def new_safety_checklist_result(index):
             approved_date="",
             reject_reason="",
             status="承認待ち",
+            approvals_json=json.dumps(approvals, ensure_ascii=False),
             answers_json=json.dumps(answers, ensure_ascii=False)
         )
 
@@ -5918,6 +6009,7 @@ def edit_checklist(index):
         input_types = request.form.getlist("input_type")
         item_types = request.form.getlist("item_type")
         approval_labels = request.form.getlist("approval_label")
+        approval_allow_general_list = request.form.getlist("approval_allow_general")
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
@@ -5944,6 +6036,7 @@ def edit_checklist(index):
                 items.append({
                     "item_type": "approval",
                     "approval_label": label,
+                    "approval_allow_general": str(i) in approval_allow_general_list,
                     "criteria_files": [],
                 })
 
@@ -6030,8 +6123,11 @@ def delete_checklist(index):
     return redirect("/master/checklists")
 
 
-@app.route("/safety/checklist-results/<int:result_index>/approve", methods=["POST"])
-def approve_checklist_result(result_index):
+@app.route(
+    "/safety/checklist-results/<int:result_index>/approve/<int:approval_index>",
+    methods=["POST"]
+)
+def approve_checklist_result(result_index, approval_index):
     result_record = ChecklistResult.query.get(result_index)
 
     if not result_record:
@@ -6039,13 +6135,37 @@ def approve_checklist_result(result_index):
 
     result = checklist_result_to_dict(result_record)
 
-    if not can_approve_checklist_result(result):
+    approvals = result.get("approvals", [])
+
+    if approval_index < 0 or approval_index >= len(approvals):
         return redirect(f"/safety/checklist-results/{result_index}")
 
-    result_record.status = "承認済み"
-    result_record.approved_by = session.get("name")
-    result_record.approved_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    approval = approvals[approval_index]
+
+    if not can_approve_checklist_result(result, approval):
+        return redirect(f"/safety/checklist-results/{result_index}")
+
+    approval["approved_by"] = session.get("name")
+    approval["approved_date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    result_record.approvals_json = json.dumps(
+        approvals,
+        ensure_ascii=False
+    )
+
     result_record.reject_reason = ""
+
+    all_approved = all(
+        item.get("approved_by")
+        for item in approvals
+    )
+
+    if approvals and all_approved:
+        result_record.status = "承認済み"
+        result_record.approved_by = session.get("name")
+        result_record.approved_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    else:
+        result_record.status = "承認待ち"
 
     db.session.commit()
 
@@ -6060,7 +6180,7 @@ def reject_checklist_result(result_index):
 
     result = checklist_result_to_dict(result_record)
 
-    if not can_approve_checklist_result(result):
+    if not can_reject_checklist_result(result):
         return redirect(f"/safety/checklist-results/{result_index}")
 
     reject_reason = request.form.get("reject_reason", "")

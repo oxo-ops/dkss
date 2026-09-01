@@ -155,6 +155,18 @@
                                     </select>
                                 </div>
 
+                                <div class="approval-user-setting" style="display:none;">
+                                    <label class="checkbox-row approval-user-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="approval_allow_general"
+                                            value="{{ loop.index0 }}"
+                                            {% if item.approval_allow_general %}checked{% endif %}
+                                        >
+                                        <span>一般ユーザーも承認可能</span>
+                                    </label>
+                                </div>
+
                                 <div class="check-main-field check-category-field">
                                     <label>カテゴリ</label>
 
@@ -256,6 +268,7 @@
                                 value="{{ item.approval_label if item.approval_label else '' }}"
                                 placeholder="例：管理者印"
                             >
+
                         </div>
 
                         <button
@@ -293,6 +306,17 @@
                                 </select>
                             </div>
 
+                            <div class="approval-user-setting" style="display:none;">
+                                <label class="checkbox-row approval-user-checkbox">
+                                    <input
+                                        type="checkbox"
+                                        name="approval_allow_general"
+                                        value="0"
+                                    >
+                                    <span>一般ユーザーも承認可能</span>
+                                </label>
+                            </div>
+                                    
                             <div class="check-main-field check-category-field">
                                 <label>カテゴリ</label>
 
@@ -440,6 +464,17 @@ function addChecklistItem() {
                         <option value="inspector">点検者</option>
                         <option value="approval">承認項目</option>
                     </select>
+                </div>
+
+                <div class="approval-user-setting" style="display:none;">
+                    <label class="checkbox-row approval-user-checkbox">
+                        <input
+                            type="checkbox"
+                            name="approval_allow_general"
+                            value="${index}"
+                        >
+                        <span>一般ユーザーも承認可能</span>
+                    </label>
                 </div>
 
                 <div class="check-main-field check-category-field">
@@ -720,6 +755,7 @@ function toggleItemType(select) {
     const checkFields = row.querySelector(".check-fields");
     const categoryField = row.querySelector(".check-category-field");
     const approvalFields = row.querySelector(".approval-fields");
+    const approvalUserSetting = row.querySelector(".approval-user-setting");
 
     if (select.value === "approval") {
 
@@ -727,17 +763,29 @@ function toggleItemType(select) {
         categoryField.style.display = "none";
         approvalFields.style.display = "block";
 
+        if (approvalUserSetting) {
+            approvalUserSetting.style.display = "flex";
+        }
+
     } else if (select.value === "inspector") {
 
         checkFields.style.display = "none";
         categoryField.style.display = "none";
         approvalFields.style.display = "none";
 
+        if (approvalUserSetting) {
+            approvalUserSetting.style.display = "none";
+        }
+
     } else {
 
         checkFields.style.display = "block";
         categoryField.style.display = "block";
         approvalFields.style.display = "none";
+
+        if (approvalUserSetting) {
+            approvalUserSetting.style.display = "none";
+        }
     }
 }
 
