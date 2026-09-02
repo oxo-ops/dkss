@@ -4997,12 +4997,6 @@ def export_checklist_result_excel(result_index):
 
             sheet.cell(
                 row=current_row,
-                column=5,
-                value=""
-            )
-
-            sheet.cell(
-                row=current_row,
                 column=9,
                 value=answer.get("value", "") or ""
             )
