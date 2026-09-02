@@ -4538,6 +4538,63 @@ def export_checklist_result_excel(result_index):
         return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
+        # 評価基準
+    criteria_list = []
+
+    for answer in result["answers"]:
+        criteria = answer.get("criteria", "")
+
+        if criteria and criteria not in criteria_list:
+            criteria_list.append(criteria)
+
+
+    # チェック項目
+    check_items = [
+        item
+        for item in checklist["items"]
+        if item.get("item_type") != "approval"
+    ]
+
+
+    # 評価集計・合計点
+    summary = {}
+    total_score = 0
+    max_score = 0
+
+    for item, answer in zip(
+        check_items,
+        result["answers"]
+    ):
+        value = answer.get("value")
+
+        # 自由記入は集計対象外
+        if item.get("input_type") != "select":
+            continue
+
+        if value:
+            summary[value] = summary.get(value, 0) + 1
+
+        # 点数集計ONの場合だけ計算
+        if checklist.get("score_enabled"):
+
+            try:
+                total_score += float(value)
+            except (TypeError, ValueError):
+                pass
+
+            numeric_choices = []
+
+            for choice in item.get("choices", []):
+                try:
+                    numeric_choices.append(
+                        float(choice)
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+            if numeric_choices:
+                max_score += max(numeric_choices)
+
 
     workbook = Workbook()
     sheet = workbook.active
@@ -4546,7 +4603,7 @@ def export_checklist_result_excel(result_index):
     sheet.sheet_view.showGridLines = False
 
     # タイトル
-    sheet.merge_cells("A1:D1")
+    sheet.merge_cells("A1:L1")
 
     sheet["A1"] = f"{checklist['name']} 結果"
     sheet["A1"].font = Font(size=16, bold=True)
@@ -4572,65 +4629,82 @@ def export_checklist_result_excel(result_index):
         target_value = ""
 
     info_rows = [
-        ["実施日", result["checked_date"] or "", "点検者", result["checked_by"] or ""],
-        ["対象区分", target_type_label, "対象", target_value],
-        ["状態", result["status"] or "", "承認者", result["approved_by"] or ""],
-        ["承認日", result["approved_date"] or "", "", ""],
+        ["実施日", result["checked_date"] or ""],
+        ["点検者", result["checked_by"] or ""],
+        ["対象", target_value or target_type_label],
+        ["状態", result["status"] or ""],
     ]
 
     start_row = 3
 
+    thin = Side(style="thin")
+
     for row_offset, values in enumerate(info_rows):
         row_number = start_row + row_offset
 
-        for col_number, value in enumerate(values, start=1):
+        # 見出し A:B
+        sheet.merge_cells(
+            start_row=row_number,
+            start_column=1,
+            end_row=row_number,
+            end_column=2
+        )
+
+        label_cell = sheet.cell(
+            row=row_number,
+            column=1,
+            value=values[0]
+        )
+
+        label_cell.font = Font(bold=True)
+        label_cell.fill = PatternFill(
+            fill_type="solid",
+            fgColor="D9EAF7"
+        )
+
+        label_cell.alignment = Alignment(
+            vertical="center",
+            wrap_text=True
+        )
+
+        # 値 C:L
+        sheet.merge_cells(
+            start_row=row_number,
+            start_column=3,
+            end_row=row_number,
+            end_column=12
+        )
+
+        value_cell = sheet.cell(
+            row=row_number,
+            column=3,
+            value=values[1]
+        )
+
+        value_cell.alignment = Alignment(
+            vertical="center",
+            wrap_text=True
+        )
+
+        # 罫線
+        for col_number in range(1, 13):
             sheet.cell(
                 row=row_number,
-                column=col_number,
-                value=value
-            )
-   
-    thin = Side(style="thin")
-
-    for row_number in range(start_row, start_row + len(info_rows)):
-
-        for col_number in range(1, 5):
-
-            cell = sheet.cell(
-                row=row_number,
                 column=col_number
-            )
-
-            cell.border = Border(
+            ).border = Border(
                 left=thin,
                 right=thin,
                 top=thin,
                 bottom=thin
             )
 
-            cell.alignment = Alignment(
-                vertical="center",
-                wrap_text=True
-            )
-
-            if col_number in [1, 3]:
-                cell.font = Font(bold=True)
-                cell.fill = PatternFill(
-                    fill_type="solid",
-                    fgColor="D9EAF7"
-                )
-    # 評価基準
-    criteria_list = []
-
-    for answer in result["answers"]:
-        criteria = answer.get("criteria", "")
-
-        if criteria and criteria not in criteria_list:
-            criteria_list.append(criteria)
-
+    # 上部情報の下から次の表示を開始
     current_row = start_row + len(info_rows) + 2
 
+
+    # 評価基準
     if criteria_list:
+
         criteria_title_cell = sheet.cell(
             row=current_row,
             column=1,
@@ -4638,36 +4712,48 @@ def export_checklist_result_excel(result_index):
         )
 
         criteria_title_cell.font = Font(bold=True)
+
         criteria_title_cell.fill = PatternFill(
             fill_type="solid",
             fgColor="D9EAF7"
         )
 
+        # 見出しはA:Hを結合
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=1,
+            end_row=current_row,
+            end_column=12
+        )
+
         current_row += 1
 
-        for criteria in criteria_list:
-            criteria_row = current_row
 
-            sheet.cell(
-                row=criteria_row,
+        for criteria in criteria_list:
+
+            sheet.merge_cells(
+                start_row=current_row,
+                start_column=1,
+                end_row=current_row,
+                end_column=12
+            )
+
+            criteria_cell = sheet.cell(
+                row=current_row,
                 column=1,
                 value=criteria
             )
 
-            sheet.merge_cells(
-                start_row=criteria_row,
-                start_column=1,
-                end_row=criteria_row,
-                end_column=4
+            criteria_cell.alignment = Alignment(
+                vertical="top",
+                wrap_text=True
             )
 
-            for col_number in range(1, 5):
-                cell = sheet.cell(
-                    row=criteria_row,
+            for col_number in range(1, 13):
+                sheet.cell(
+                    row=current_row,
                     column=col_number
-                )
-
-                cell.border = Border(
+                ).border = Border(
                     left=thin,
                     right=thin,
                     top=thin,
@@ -4676,47 +4762,18 @@ def export_checklist_result_excel(result_index):
 
             current_row += 1
 
+
     # 評価集計
-    summary = {}
-    total_score = 0
-    max_score = 0
-
-    check_items = [
-        item
-        for item in checklist["items"]
-        if item.get("item_type") != "approval"
-    ]
-
-    for item, answer in zip(check_items, result["answers"]):
-
-        value = answer.get("value")
-
-        if item.get("input_type") != "select":
-            continue
-
-        if value:
-            summary[value] = summary.get(value, 0) + 1
-
-        if checklist.get("score_enabled"):
-
-            try:
-                total_score += float(value)
-            except (TypeError, ValueError):
-                pass
-
-            numeric_choices = []
-
-            for choice in item.get("choices", []):
-
-                try:
-                    numeric_choices.append(float(choice))
-                except (TypeError, ValueError):
-                    pass
-
-            if numeric_choices:
-                max_score += max(numeric_choices)
-
     if summary:
+
+        # 見出し A:B
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=1,
+            end_row=current_row,
+            end_column=2
+        )
+
         summary_title_cell = sheet.cell(
             row=current_row,
             column=1,
@@ -4724,9 +4781,18 @@ def export_checklist_result_excel(result_index):
         )
 
         summary_title_cell.font = Font(bold=True)
+
         summary_title_cell.fill = PatternFill(
             fill_type="solid",
             fgColor="D9EAF7"
+        )
+
+        # 内容 C:H
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=3,
+            end_row=current_row,
+            end_column=12
         )
 
         summary_text = " / ".join(
@@ -4736,11 +4802,11 @@ def export_checklist_result_excel(result_index):
 
         sheet.cell(
             row=current_row,
-            column=2,
+            column=3,
             value=summary_text
         )
-        
-        for col_number in range(1, 5):
+
+        for col_number in range(1, 13):
             sheet.cell(
                 row=current_row,
                 column=col_number
@@ -4752,8 +4818,18 @@ def export_checklist_result_excel(result_index):
             )
 
         current_row += 1
-
+        
+    # 合計点
     if checklist.get("score_enabled"):
+
+        # 見出し A:B
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=1,
+            end_row=current_row,
+            end_column=2
+        )
+
         score_title_cell = sheet.cell(
             row=current_row,
             column=1,
@@ -4761,20 +4837,31 @@ def export_checklist_result_excel(result_index):
         )
 
         score_title_cell.font = Font(bold=True)
+
         score_title_cell.fill = PatternFill(
             fill_type="solid",
             fgColor="D9EAF7"
         )
 
+        # 点数 C:H
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=3,
+            end_row=current_row,
+            end_column=12
+        )
+
         sheet.cell(
             row=current_row,
-            column=2,
-            value=f"{int(total_score)} / {int(max_score)}点"
-            if max_score
-            else f"{int(total_score)}点"
+            column=3,
+            value=(
+                f"{int(total_score)} / {int(max_score)}点"
+                if max_score
+                else f"{int(total_score)}点"
+            )
         )
-        
-        for col_number in range(1, 5):
+
+        for col_number in range(1, 13):
             sheet.cell(
                 row=current_row,
                 column=col_number
@@ -4786,43 +4873,82 @@ def export_checklist_result_excel(result_index):
             )
 
         current_row += 2
+
     else:
         current_row += 1
 
     # チェック結果
-    headers = [
-        "カテゴリ",
-        "チェック内容",
-        "評価",
-        "コメント"
-    ]
-
     result_header_row = current_row
     sheet.row_dimensions[result_header_row].height = 24
 
-    for column, header in enumerate(headers, start=1):
+    # A:B = カテゴリ
+    # C:G = チェック内容
+    # H   = 評価
+    # I:L = コメント
+    header_ranges = [
+        ("カテゴリ", 1, 2),
+        ("チェック内容", 3, 7),
+        ("評価", 8, 8),
+        ("コメント", 9, 12),
+    ]
+
+    for header, start_col, end_col in header_ranges:
+
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=start_col,
+            end_row=current_row,
+            end_column=end_col
+        )
+
         cell = sheet.cell(
             row=current_row,
-            column=column,
+            column=start_col,
             value=header
         )
 
         cell.font = Font(bold=True)
+
         cell.fill = PatternFill(
             fill_type="solid",
             fgColor="D9EAF7"
         )
+
         cell.alignment = Alignment(
             horizontal="center",
-            vertical="center"
+            vertical="center",
+            wrap_text=True
         )
 
+        for col_number in range(
+            start_col,
+            end_col + 1
+        ):
+            sheet.cell(
+                row=current_row,
+                column=col_number
+            ).border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+
     current_row += 1
+
 
     for item, answer in zip(
         check_items,
         result["answers"]
     ):
+
+        # カテゴリ A:B
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=1,
+            end_row=current_row,
+            end_column=2
+        )
 
         sheet.cell(
             row=current_row,
@@ -4830,82 +4956,169 @@ def export_checklist_result_excel(result_index):
             value=answer.get("category", "")
         )
 
+        # チェック内容 C:G
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=3,
+            end_row=current_row,
+            end_column=7
+        )
+
         sheet.cell(
             row=current_row,
-            column=2,
+            column=3,
             value=answer.get("content", "")
         )
 
+        # コメント I:L
+        sheet.merge_cells(
+            start_row=current_row,
+            start_column=9,
+            end_row=current_row,
+            end_column=12
+        )
+
         if item.get("input_type") == "select":
+
             sheet.cell(
                 row=current_row,
-                column=3,
+                column=8,
                 value=answer.get("value", "")
             )
 
             sheet.cell(
                 row=current_row,
-                column=4,
+                column=9,
                 value=answer.get("comment", "") or ""
             )
+
         else:
+
             sheet.cell(
                 row=current_row,
-                column=3,
+                column=5,
                 value=""
             )
 
             sheet.cell(
                 row=current_row,
-                column=4,
+                column=9,
                 value=answer.get("value", "") or ""
             )
 
-        current_row += 1
-
-    sheet.auto_filter.ref = (
-        f"A{result_header_row}:D{current_row - 1}"
-    )
-    
-    for row in sheet.iter_rows(
-        min_row=result_header_row,
-        max_row=current_row - 1,
-        min_col=1,
-        max_col=4
-    ):
-        for cell in row:
-            cell.border = Border(
+        # 罫線
+        for col_number in range(1, 13):
+            sheet.cell(
+                row=current_row,
+                column=col_number
+            ).border = Border(
                 left=thin,
                 right=thin,
                 top=thin,
                 bottom=thin
             )
-    # 列幅
-    sheet.column_dimensions["A"].width = 18
-    sheet.column_dimensions["B"].width = 55
-    sheet.column_dimensions["C"].width = 14
-    sheet.column_dimensions["D"].width = 45
+
+        current_row += 1
+    
+    # 12列構成
+    # A～Lはすべて同じ幅
+    for column_letter in [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L"
+    ]:
+        sheet.column_dimensions[column_letter].width = 9
 
     # 折り返し
     for row in sheet.iter_rows():
         for cell in row:
-            if cell.column == 3 and cell.row > result_header_row:
-                continue
-
             cell.alignment = Alignment(
                 horizontal=cell.alignment.horizontal,
                 vertical=cell.alignment.vertical or "top",
                 wrap_text=True
             )
-            
-    # 評価列を中央揃え
+
+
+    import math
+    import unicodedata
+
+
+    def text_width(text):
+        width = 0
+
+        for char in str(text or ""):
+            if unicodedata.east_asian_width(char) in ("W", "F", "A"):
+                width += 2
+            else:
+                width += 1
+
+        return width
+
+
+    def wrapped_line_count(text, available_width):
+        text = str(text or "")
+
+        if not text:
+            return 1
+
+        line_count = 0
+
+        for line in text.split("\n"):
+            line_count += max(
+                1,
+                math.ceil(
+                    text_width(line) / available_width
+                )
+            )
+
+        return line_count
+
+
+    # チェック項目の文字量に応じて行高を調整
+    for row_number in range(
+        result_header_row + 1,
+        current_row
+    ):
+
+        # チェック内容 C:G
+        content = sheet.cell(
+            row=row_number,
+            column=3
+        ).value or ""
+
+        # コメント I:L
+        comment = sheet.cell(
+            row=row_number,
+            column=9
+        ).value or ""
+
+        content_lines = wrapped_line_count(
+            content,
+            52
+        )
+
+        comment_lines = wrapped_line_count(
+            comment,
+            41
+        )
+
+        line_count = max(
+            content_lines,
+            comment_lines
+        )
+
+        sheet.row_dimensions[row_number].height = max(
+            28,
+            (line_count * 22) + 6
+        )
+
+    # 評価列 H を中央揃え
     for row_number in range(
         result_header_row + 1,
         current_row
     ):
         sheet.cell(
             row=row_number,
-            column=3
+            column=8
         ).alignment = Alignment(
             horizontal="center",
             vertical="center",
@@ -4951,23 +5164,23 @@ def export_checklist_result_excel(result_index):
     if stamp_headers:
 
         # 承認欄タイトル
-        sheet.merge_cells(
-            start_row=stamp_start_row,
-            start_column=1,
-            end_row=stamp_start_row,
-            end_column=4
+        stamp_title_cell = sheet.cell(
+            row=stamp_start_row,
+            column=12,
+            value="確認・押印"
         )
 
-        sheet.cell(
-            row=stamp_start_row,
-            column=1,
-            value="確認・押印"
-        ).font = Font(bold=True)
+        stamp_title_cell.font = Font(bold=True)
 
-        # 1行につき最大4つまで表示
+        stamp_title_cell.alignment = Alignment(
+            horizontal="right",
+            vertical="center"
+        )
+
+        # 1行につき最大6つ
         entry_chunks = [
-            stamp_entries[i:i + 4]
-            for i in range(0, len(stamp_entries), 4)
+            stamp_entries[i:i + 6]
+            for i in range(0, len(stamp_entries), 6)
         ]
 
         row_number = stamp_start_row + 1
@@ -4976,73 +5189,71 @@ def export_checklist_result_excel(result_index):
 
             item_count = len(entry_chunk)
 
-            # 右寄せで配置
-            # 1個 → D列
-            # 2個 → C:D
-            # 3個 → B:D
-            # 4個 → A:D
-            start_column = 5 - item_count
-
             stamp_header_row = row_number
             stamp_box_row = row_number + 1
 
-            for offset, entry in enumerate(entry_chunk):
+            # 押印欄はセル結合しない
+            # A～Lは全列同じ幅
+            # 1項目につき1セル、間に1セル空けて均等配置
+            #
+            # 1個 → L
+            # 2個 → J / L
+            # 3個 → H / J / L
+            # 4個 → F / H / J / L
+            # 5個 → D / F / H / J / L
+            # 6個 → B / D / F / H / J / L
 
-                header = entry["label"]
+            all_stamp_columns = [7, 8, 9, 10, 11, 12]
 
-                column = start_column + offset
+            stamp_columns = all_stamp_columns[
+                6 - item_count:
+            ]
+
+            for entry, column in zip(
+                entry_chunk,
+                stamp_columns
+            ):
 
                 # 見出し
-                cell = sheet.cell(
+                header_cell = sheet.cell(
                     row=stamp_header_row,
                     column=column,
-                    value=header
+                    value=entry["label"]
                 )
 
-                cell.font = Font(bold=True)
+                header_cell.font = Font(bold=True)
 
-                cell.alignment = Alignment(
+                header_cell.alignment = Alignment(
                     horizontal="center",
                     vertical="center",
                     wrap_text=True
                 )
 
-                cell.border = Border(
+                header_cell.border = Border(
                     left=thin,
                     right=thin,
                     top=thin,
                     bottom=thin
                 )
 
-                # 押印・サイン欄
-                approval_index = stamp_headers.index(header)
-
-                approval_result = (
-                    approval_results[approval_index]
-                    if approval_index < len(approval_results)
-                    else {}
-                )
-
-                approved_by = approval_result.get("approved_by", "")
-                approved_date = approval_result.get("approved_date", "")
-
-                stamp_value = ""
-
-                if approved_by:
-                    stamp_value = approved_by
-
-                    if approved_date:
-                        stamp_value += f"\n{approved_date}"
-
+                # 押印内容
                 stamp_value = entry["approved_by"]
 
                 if entry["approved_by"] and entry["approved_date"]:
-                    stamp_value += f"\n{entry['approved_date']}"
+                    stamp_value += (
+                        f"\n{entry['approved_date']}"
+                    )
 
                 stamp_cell = sheet.cell(
                     row=stamp_box_row,
                     column=column,
                     value=stamp_value
+                )
+
+                stamp_cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
                 )
 
                 stamp_cell.border = Border(
@@ -5052,36 +5263,37 @@ def export_checklist_result_excel(result_index):
                     bottom=thin
                 )
 
-                stamp_cell.alignment = Alignment(
-                    horizontal="center",
-                    vertical="center",
-                    wrap_text=True
-                )
-            sheet.row_dimensions[stamp_header_row].height = 22
-            sheet.row_dimensions[stamp_box_row].height = 55
+            sheet.row_dimensions[
+                stamp_header_row
+            ].height = 22
+
+            sheet.row_dimensions[
+                stamp_box_row
+            ].height = 55
 
             row_number = stamp_box_row + 1
 
         current_row = row_number
-        
+                
     # A4印刷設定
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
 
     sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
-    sheet.page_setup.orientation = sheet.ORIENTATION_LANDSCAPE
-
-    # 横は必ず1ページ、縦は項目数に応じて自動
+    sheet.page_setup.orientation = sheet.ORIENTATION_PORTRAIT
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
+    
+    # 印刷時に水平方向の中央へ配置
+    sheet.print_options.horizontalCentered = True
 
     # 印刷範囲
-    sheet.print_area = f"A1:D{current_row - 1}"
+    sheet.print_area = f"A1:L{current_row - 1}"
 
     # 余白
     sheet.page_margins.left = 0.25
     sheet.page_margins.right = 0.25
-    sheet.page_margins.top = 0.4
-    sheet.page_margins.bottom = 0.4
+    sheet.page_margins.top = 0.25
+    sheet.page_margins.bottom = 0.25
     sheet.page_margins.header = 0.2
     sheet.page_margins.footer = 0.2
 
@@ -5090,22 +5302,6 @@ def export_checklist_result_excel(result_index):
         f"{result_header_row}:{result_header_row}"
     )
     
-    # チェック結果の行高を内容に応じて調整
-    for row_number in range(
-        result_header_row + 1,
-        stamp_start_row
-    ):
-        content = str(
-            sheet.cell(
-                row=row_number,
-                column=2
-            ).value or ""
-        )
-
-        if len(content) > 45:
-            sheet.row_dimensions[row_number].height = 32
-        else:
-            sheet.row_dimensions[row_number].height = 22
             
     output = BytesIO()
     workbook.save(output)
