@@ -9,6 +9,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from io import BytesIO
@@ -6534,11 +6535,11 @@ with app.app_context():
         ("max_payload", "INTEGER"),
     ]
 
+    inspector = inspect(db.engine)
+
     existing_columns = [
-        row[1]
-        for row in db.session.execute(
-            db.text("PRAGMA table_info(vehicle)")
-        )
+        column["name"]
+        for column in inspector.get_columns("vehicle")
     ]
 
     for column_name, column_type in columns:
@@ -6557,10 +6558,8 @@ with app.app_context():
     ]
 
     existing_checklist_columns = [
-        row[1]
-        for row in db.session.execute(
-            db.text("PRAGMA table_info(checklist)")
-        )
+        column["name"]
+        for column in inspector.get_columns("checklist")
     ]
 
     for column_name, column_type in checklist_columns:
@@ -6579,9 +6578,9 @@ with app.app_context():
     ]
 
     existing_vehicle_checklist_result_columns = [
-        row[1]
-        for row in db.session.execute(
-            db.text("PRAGMA table_info(vehicle_checklist_result)")
+        column["name"]
+        for column in inspector.get_columns(
+            "vehicle_checklist_result"
         )
     ]
 
