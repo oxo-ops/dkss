@@ -6571,6 +6571,26 @@ with app.app_context():
                 )
             )
 
+    checklist_result_columns = [
+        ("approvals_json", "TEXT"),
+    ]
+
+    existing_checklist_result_columns = [
+        column["name"]
+        for column in inspector.get_columns(
+            "checklist_result"
+        )
+    ]
+
+    for column_name, column_type in checklist_result_columns:
+        if column_name not in existing_checklist_result_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE checklist_result "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
     db.session.commit()
 
     vehicle_checklist_result_columns = [
