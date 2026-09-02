@@ -6,6 +6,7 @@ from uuid import uuid4
 import os
 import json
 import boto3
+import calendar
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -305,6 +306,11 @@ class VehicleChecklistResult(db.Model):
     approved_date = db.Column(db.String(30))
 
     reject_reason = db.Column(db.Text)
+    
+    approvals_json = db.Column(
+        db.Text,
+        default="[]"
+    )
     
     notify_users_json = db.Column(
         db.Text,
@@ -696,6 +702,9 @@ def vehicle_checklist_result_to_dict(result):
         "approved_by": result.approved_by,
         "approved_date": result.approved_date,
         "reject_reason": result.reject_reason,
+        "approvals": json.loads(
+            result.approvals_json or "[]"
+        ),
         "notify_users": json.loads(
             result.notify_users_json or "[]"
         ),
@@ -4765,7 +4774,7 @@ def export_checklist_result_excel(result_index):
 
 
     # 評価集計
-    if summary:
+    if checklist.get("score_enabled") and summary:
 
         # 見出し A:B
         sheet.merge_cells(
@@ -5638,8 +5647,11 @@ def vehicle_checklist_results(index):
     )
 
 
-@app.route("/vehicle/checklist-results/<int:result_index>/approve", methods=["POST"])
-def approve_vehicle_checklist_result(result_index):
+@app.route(
+    "/vehicle/checklist-results/<int:result_index>/approve/<int:approval_index>",
+    methods=["POST"]
+)
+def approve_vehicle_checklist_result(result_index, approval_index):
     result_record = VehicleChecklistResult.query.get(result_index)
 
     if not result_record:
@@ -5652,18 +5664,69 @@ def approve_vehicle_checklist_result(result_index):
         if result_record.company_code != session.get("company_code"):
             return redirect("/vehicle/checklists")
 
-    if result_record.status == "承認済み":
+    approvals = json.loads(
+        result_record.approvals_json or "[]"
+    )
+    if not approvals:
+        checklist_record = Checklist.query.get(
+            result_record.checklist_id
+        )
+
+        if checklist_record:
+            checklist = checklist_to_dict(checklist_record)
+
+            for item in checklist.get("items", []):
+                if item.get("item_type") != "approval":
+                    continue
+
+                approvals.append({
+                    "label": item.get("approval_label", ""),
+                    "approved_by": "",
+                    "approved_date": "",
+                })
+
+    if approval_index < 0 or approval_index >= len(approvals):
+        return redirect("/vehicle/checklists")
+
+    approval = approvals[approval_index]
+
+    if approval.get("approved_by"):
+        approval["approved_by"] = ""
+        approval["approved_date"] = ""
+    else:
+        approval["approved_by"] = session.get("name")
+        approval["approved_date"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M"
+        )
+
+    result_record.approvals_json = json.dumps(
+        approvals,
+        ensure_ascii=False
+    )
+
+    result_record.reject_reason = ""
+
+    all_approved = all(
+        item.get("approved_by")
+        for item in approvals
+    )
+
+    if approvals and all_approved:
+        result_record.status = "承認済み"
+        result_record.approved_by = session.get("name")
+        result_record.approved_date = datetime.now().strftime(
+            "%Y-%m-%d %H:%M"
+        )
+    else:
         result_record.status = "承認待ち"
         result_record.approved_by = ""
         result_record.approved_date = ""
-    else:
-        result_record.status = "承認済み"
-        result_record.approved_by = session.get("name")
-        result_record.approved_date = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     db.session.commit()
 
-    checklist_record = Checklist.query.get(result_record.checklist_id)
+    checklist_record = Checklist.query.get(
+        result_record.checklist_id
+    )
 
     if checklist_record:
         checklist = checklist_to_dict(checklist_record)
@@ -5683,6 +5746,273 @@ def approve_vehicle_checklist_result(result_index):
         f"&active_day={active_value}"
     )
 
+@app.route("/vehicle/checklist-results/<int:result_index>/excel")
+def export_vehicle_checklist_result_excel(result_index):
+    result_record = VehicleChecklistResult.query.get(result_index)
+
+    if not result_record:
+        return redirect("/vehicle/checklists")
+
+    if session.get("role") != "itc":
+        if result_record.company_code != session.get("company_code"):
+            return redirect("/vehicle/checklists")
+
+    result = vehicle_checklist_result_to_dict(result_record)
+
+    checklist_record = Checklist.query.get(
+        result_record.checklist_id
+    )
+
+    if not checklist_record:
+        return redirect("/vehicle/checklists")
+
+    checklist = checklist_to_dict(checklist_record)
+    vehicle_record = Vehicle.query.filter_by(
+        company_code=result_record.company_code,
+        vehicle_id=result_record.vehicle_id
+    ).first()
+
+    vehicle_info = {
+        "vehicle_id": result_record.vehicle_id or "",
+        "number": "",
+        "manufacturer": "",
+        "model_code": "",
+    }
+
+    if vehicle_record:
+        vehicle_info["number"] = " ".join(
+            value
+            for value in [
+                vehicle_record.plate_area or "",
+                vehicle_record.plate_class or "",
+                vehicle_record.plate_kana or "",
+                vehicle_record.plate_number or "",
+            ]
+            if value
+        )
+
+        vehicle_info["manufacturer"] = (
+            vehicle_record.manufacturer or ""
+        )
+
+        vehicle_info["model_code"] = (
+            vehicle_record.model_code or ""
+        )
+    
+    monthly_result_records = VehicleChecklistResult.query.filter_by(
+        company_code=result_record.company_code,
+        checklist_id=result_record.checklist_id,
+        vehicle_id=result_record.vehicle_id,
+        year=result_record.year,
+        month=result_record.month
+    ).order_by(
+        VehicleChecklistResult.day.asc()
+    ).all()
+
+    monthly_results = [
+        vehicle_checklist_result_to_dict(record)
+        for record in monthly_result_records
+    ]
+    
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "車両点検結果"
+
+    # 印刷設定
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+    sheet.page_setup.orientation = sheet.ORIENTATION_LANDSCAPE
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.print_options.horizontalCentered = True
+
+    # 月間表用の列幅
+    sheet.column_dimensions["A"].width = 9
+    sheet.column_dimensions["B"].width = 42
+
+    for column in range(3, 34):
+        sheet.column_dimensions[
+            sheet.cell(row=1, column=column).column_letter
+        ].width = 3.2
+
+    # タイトル
+    sheet.merge_cells("A1:AG2")
+
+    title_cell = sheet["A1"]
+    title_cell.value = (
+        f"{result_record.year}年 "
+        f"{int(result_record.month)}月 "
+        f"{checklist.get('name', '車両点検表')}"
+    )
+    title_cell.font = Font(
+        bold=True,
+        size=16
+    )
+    title_cell.alignment = Alignment(
+        horizontal="center",
+        vertical="center"
+    )
+
+    # 月間帳票の車両情報
+    sheet["A4"] = "車番"
+    sheet["B4"] = vehicle_info["number"] or vehicle_info["vehicle_id"]
+
+    sheet["A4"].font = Font(bold=True)
+
+    sheet["B4"].alignment = Alignment(
+        horizontal="left",
+        vertical="center"
+    )
+    
+    # 月間表ヘッダー
+    header_row = 5
+    weekday_row = 6
+
+    sheet["A5"] = "カテゴリ"
+    sheet["B5"] = "点検項目"
+
+    sheet.merge_cells(
+        start_row=5,
+        start_column=1,
+        end_row=6,
+        end_column=1
+    )
+
+    sheet.merge_cells(
+        start_row=5,
+        start_column=2,
+        end_row=6,
+        end_column=2
+    )
+
+    year = int(result_record.year)
+    month = int(result_record.month)
+
+    days_in_month = calendar.monthrange(
+        year,
+        month
+    )[1]
+
+    weekday_names = [
+        "月", "火", "水", "木", "金", "土", "日"
+    ]
+
+    # 日付・曜日
+    for day in range(1, 32):
+        column = day + 2
+
+        if day <= days_in_month:
+            sheet.cell(
+                row=header_row,
+                column=column,
+                value=day
+            )
+
+            weekday_index = datetime(
+                year,
+                month,
+                day
+            ).weekday()
+
+            sheet.cell(
+                row=weekday_row,
+                column=column,
+                value=weekday_names[weekday_index]
+            )
+
+    # 点検項目を縦に並べる
+    current_row = 7
+    check_item_no = 0
+
+    for item in checklist.get("items", []):
+        if item.get("item_type") != "check":
+            continue
+
+        sheet.cell(
+            row=current_row,
+            column=1,
+            value=item.get("category", "")
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=2,
+            value=item.get("content", "")
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=1
+        ).alignment = Alignment(
+            vertical="center",
+            wrap_text=True
+        )
+
+        sheet.cell(
+            row=current_row,
+            column=2
+        ).alignment = Alignment(
+            vertical="center",
+            wrap_text=True
+        )
+
+    # 1日～31日の点検結果を入れる
+    for day_result in monthly_results:
+        try:
+            day = int(day_result.get("day", 0))
+        except (TypeError, ValueError):
+            continue
+
+        if day < 1 or day > 31:
+            continue
+
+        matched_answer = None
+
+        for answer in day_result.get("answers", []):
+            if (
+                answer.get("category", "") == item.get("category", "")
+                and answer.get("content", "") == item.get("content", "")
+            ):
+                matched_answer = answer
+                break
+
+        if not matched_answer:
+            continue
+
+        result_cell = sheet.cell(
+            row=current_row,
+            column=day + 2,
+            value=matched_answer.get("value", "") or ""
+        )
+
+        result_cell.alignment = Alignment(
+            horizontal="center",
+            vertical="center"
+        )
+            
+        check_item_no += 1
+        current_row += 1
+        column = day + 2
+
+        if day <= days_in_month:
+            sheet.cell(
+                row=header_row,
+                column=column,
+                value=day
+            )
+
+            weekday_index = datetime(
+                year,
+                month,
+                day
+            ).weekday()
+
+            sheet.cell(
+                row=weekday_row,
+                column=column,
+                value=weekday_names[weekday_index]
+            )
+        
 @app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])
 def save_vehicle_checklist_one(index):
     checklist_record = Checklist.query.get(index)
@@ -6060,7 +6390,18 @@ def new_vehicle_checklist_result(index):
             })
 
             answer_index += 1
+        approvals = []
 
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "approved_by": "",
+                "approved_date": ""
+            })
+            
         result = VehicleChecklistResult(
             company_code=session.get("company_code"),
             checklist_id=checklist_record.id,
@@ -6074,6 +6415,10 @@ def new_vehicle_checklist_result(index):
             approved_by="",
             approved_date="",
             reject_reason="",
+            approvals_json=json.dumps(
+                approvals,
+                ensure_ascii=False
+            ),
             answers_json=json.dumps(answers, ensure_ascii=False)
         )
 
@@ -6589,6 +6934,7 @@ with app.app_context():
 
     vehicle_checklist_result_columns = [
         ("notify_users_json", "TEXT"),
+        ("approvals_json", "TEXT"),
     ]
 
     existing_vehicle_checklist_result_columns = [
