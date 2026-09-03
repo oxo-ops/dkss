@@ -73,18 +73,97 @@
 
 </div>
 
+{% set import_counts = namespace(
+    new=0,
+    update=0,
+    unchanged=0,
+    duplicate=0
+) %}
+
+{% for vehicle in vehicles %}
+
+    {% if vehicle.import_status == "新規" %}
+        {% set import_counts.new = import_counts.new + 1 %}
+
+    {% elif vehicle.import_status == "更新" %}
+        {% set import_counts.update = import_counts.update + 1 %}
+
+    {% elif vehicle.import_status == "変更なし" %}
+        {% set import_counts.unchanged =
+            import_counts.unchanged + 1 %}
+
+    {% elif vehicle.import_status == "Excel内重複" %}
+        {% set import_counts.duplicate =
+            import_counts.duplicate + 1 %}
+    {% endif %}
+
+{% endfor %}
 
 <div class="card">
 
     <h3>取込対象車両</h3>
 
-    <p class="help-text">
-        {{ vehicles|length }}台読み込みました。
-        登録前にすべての項目を修正できます。
-    </p>
+<p class="help-text">
+    {{ vehicles|length }}台読み込みました。
+    登録前にすべての項目を修正できます。
+</p>
 
+<div
+    style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        margin:16px 0;
+        flex-wrap:wrap;
+        width:100%;
+    "
+>
+    <div
+        style="
+            display:flex;
+            align-items:center;
+            gap:20px;
+            flex-wrap:wrap;
+        "
+    >
+        <strong style="color:green;">
+            新規：{{ import_counts.new }}件
+        </strong>
 
-    <form method="post" action="/master/vehicles/import/confirm">
+        <strong style="color:#0066cc;">
+            更新：{{ import_counts.update }}件
+        </strong>
+
+        <strong style="color:#666;">
+            変更なし：{{ import_counts.unchanged }}件
+        </strong>
+
+        <strong style="color:red;">
+            Excel内重複（取込対象外）：
+            {{ import_counts.duplicate }}件
+        </strong>
+    </div>
+
+    <button
+        type="button"
+        class="btn"
+        onclick="openImportConfirm()"
+        style="
+            margin-left:auto;
+            flex-shrink:0;
+            white-space:nowrap;
+        "
+    >
+        登録・更新内容を確認
+    </button>
+</div>
+
+<form
+    id="vehicle-import-form"
+    method="post"
+    action="/master/vehicles/import/confirm"
+>
 
         <div class="table-scroll">
 
@@ -93,6 +172,7 @@
                 <thead>
                     <tr>
                         <th>No.</th>
+                        <th>処理</th>
                         <th>車番</th>
                         <th>車両総重量</th>
                         <th>車台番号</th>
@@ -119,6 +199,30 @@
                                 name="excel_row"
                                 value="{{ vehicle.excel_row }}"
                             >
+                        </td>
+
+
+                        <td>
+                            {% if vehicle.import_status == "新規" %}
+                                <strong style="color:#008000;">
+                                    新規
+                                </strong>
+
+                            {% elif vehicle.import_status == "更新" %}
+                                <strong style="color:#0066cc;">
+                                    更新
+                                </strong>
+
+                            {% elif vehicle.import_status == "変更なし" %}
+                                <strong style="color:#666;">
+                                    変更なし
+                                </strong>
+
+                            {% else %}
+                                <strong style="color:#cc0000;">
+                                    Excel内重複
+                                </strong>
+                            {% endif %}
                         </td>
 
 
@@ -263,14 +367,104 @@
 
         <div class="form-actions" style="margin-top:20px;">
 
-            <button type="submit" class="btn">
-                この内容で全件登録
+            <button
+                type="button"
+                class="btn"
+                onclick="openImportConfirm()"
+            >
+                登録・更新内容を確認
             </button>
 
         </div>
 
     </form>
+<div
+    id="import-confirm-modal"
+    style="
+        display:none;
+        position:fixed;
+        inset:0;
+        background:rgba(0, 0, 0, 0.45);
+        z-index:1000;
+        align-items:center;
+        justify-content:center;
+    "
+>
+    <div
+        style="
+            background:white;
+            border-radius:12px;
+            padding:28px;
+            width:min(460px, 90%);
+            box-shadow:0 10px 30px rgba(0, 0, 0, 0.25);
+        "
+    >
+        <h3 style="margin-top:0;">
+            車両データを登録・更新しますか？
+        </h3>
 
+        <div style="line-height:2; margin:20px 0;">
+
+            <div>
+                新規登録：
+                <strong style="color:green;">
+                    {{ import_counts.new }}件
+                </strong>
+            </div>
+
+            <div>
+                既存車両の更新：
+                <strong style="color:#0066cc;">
+                    {{ import_counts.update }}件
+                </strong>
+            </div>
+
+            <div>
+                変更なし：
+                <strong style="color:#666;">
+                    {{ import_counts.unchanged }}件
+                </strong>
+            </div>            
+
+            <div>
+                Excel内重複（取込対象外）：
+                <strong style="color:red;">
+                    {{ import_counts.duplicate }}件
+                </strong>
+            </div>
+
+        </div>
+
+        <p class="help-text">
+            Excel内重複のデータは登録されません。
+        </p>
+
+        <div
+            style="
+                display:flex;
+                justify-content:flex-end;
+                gap:12px;
+                margin-top:24px;
+            "
+        >
+            <button
+                type="button"
+                class="btn btn-back"
+                onclick="closeImportConfirm()"
+            >
+                編集に戻る
+            </button>
+
+            <button
+                type="submit"
+                form="vehicle-import-form"
+                class="btn"
+            >
+                登録・更新する
+            </button>
+        </div>
+    </div>
+</div>
 </div>
 
 
@@ -326,6 +520,28 @@ function bulkReplace() {
     );
 
 }
+function openImportConfirm() {
+
+    document.getElementById(
+        "import-confirm-modal"
+    ).style.display = "flex";
+
+}
+
+
+function closeImportConfirm() {
+
+    document.getElementById(
+        "import-confirm-modal"
+    ).style.display = "none";
+
+}
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+        openImportConfirm();
+    }
+);
 
 </script>
 

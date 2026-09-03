@@ -3559,7 +3559,40 @@ def import_vehicles():
             for index, name in enumerate(headers)
             if name is not None
         }
+        required_headers = [
+            "車番・地域名",
+            "車番・分類",
+            "車番・ひらがな",
+            "車番",
+            "車両総重量",
+            "車体番号",
+            "車体型式",
+            "初年度車検",
+            "車検期間終了日",
+            "車両メーカー",
+            "車両形状",
+            "最大積載量",
+        ]
 
+        missing_headers = [
+            header
+            for header in required_headers
+            if header not in header_map
+        ]
+
+        if missing_headers:
+            return (
+                "Excelに必要な見出しがありません："
+                + "、".join(missing_headers)
+            )
+        def normalize_excel_date(value):
+            if value in (None, ""):
+                return ""
+
+            if hasattr(value, "strftime"):
+                return value.strftime("%Y-%m-%d")
+
+            return str(value).strip()            
         vehicles_data = []
 
         for data_row in range(header_row + 1, sheet.max_row + 1):
@@ -3592,8 +3625,12 @@ def import_vehicles():
                 "chassis_number": chassis_number,
                 "model_code": row_values[header_map["車体型式"]],
 
-                "first_registration_date": row_values[header_map["初年度車検"]],
-                "inspection_expiry": row_values[header_map["車検期間終了日"]],
+                "first_registration_date": normalize_excel_date(
+                    row_values[header_map["初年度車検"]]
+                ),
+                "inspection_expiry": normalize_excel_date(
+                    row_values[header_map["車検期間終了日"]]
+                ),
 
                 "vehicle_name_raw": row_values[header_map["車両メーカー"]],
                 "body_type_raw": row_values[header_map["車両形状"]],
@@ -3606,7 +3643,244 @@ def import_vehicles():
 
             vehicles_data.append(vehicle_data)
 
+        def clean_preview_text(value):
+            return str(value or "").strip()
 
+        def preview_int(value):
+            cleaned_value = clean_preview_text(
+                value
+            ).replace(",", "")
+
+            if not cleaned_value:
+                return None
+
+            try:
+                return int(float(cleaned_value))
+            except (TypeError, ValueError):
+                return None
+
+        def preview_plate_key(vehicle):
+            return (
+                clean_preview_text(
+                    vehicle.get("plate_area")
+                ),
+                clean_preview_text(
+                    vehicle.get("plate_class")
+                ),
+                clean_preview_text(
+                    vehicle.get("plate_kana")
+                ),
+                clean_preview_text(
+                    vehicle.get("plate_number")
+                ),
+            )
+
+        incoming_chassis_numbers = {
+            clean_preview_text(
+                vehicle.get("chassis_number")
+            )
+            for vehicle in vehicles_data
+            if clean_preview_text(
+                vehicle.get("chassis_number")
+            )
+        }
+
+        incoming_plate_numbers = {
+            clean_preview_text(
+                vehicle.get("plate_number")
+            )
+            for vehicle in vehicles_data
+            if (
+                not clean_preview_text(
+                    vehicle.get("chassis_number")
+                )
+                and clean_preview_text(
+                    vehicle.get("plate_number")
+                )
+            )
+        }
+
+        existing_preview_records = []
+
+        if incoming_chassis_numbers:
+            existing_preview_records.extend(
+                Vehicle.query.filter(
+                    Vehicle.company_code
+                    == session.get("company_code"),
+                    db.func.trim(
+                        Vehicle.chassis_number
+                    ).in_(incoming_chassis_numbers)
+                ).all()
+            )
+
+        if incoming_plate_numbers:
+            existing_preview_records.extend(
+                Vehicle.query.filter(
+                    Vehicle.company_code
+                    == session.get("company_code"),
+                    db.func.trim(
+                        Vehicle.plate_number
+                    ).in_(incoming_plate_numbers)
+                ).all()
+            )
+
+        existing_preview_by_chassis = {}
+        existing_preview_by_plate = {}
+
+        for existing_vehicle in existing_preview_records:
+
+            existing_chassis = clean_preview_text(
+                existing_vehicle.chassis_number
+            )
+
+            if existing_chassis:
+                existing_preview_by_chassis[
+                    existing_chassis
+                ] = existing_vehicle
+
+            existing_plate_key = (
+                clean_preview_text(
+                    existing_vehicle.plate_area
+                ),
+                clean_preview_text(
+                    existing_vehicle.plate_class
+                ),
+                clean_preview_text(
+                    existing_vehicle.plate_kana
+                ),
+                clean_preview_text(
+                    existing_vehicle.plate_number
+                ),
+            )
+
+            if existing_plate_key[3]:
+                existing_preview_by_plate.setdefault(
+                    existing_plate_key,
+                    existing_vehicle
+                )
+
+        processed_import_keys = set()
+
+        for vehicle in vehicles_data:
+
+            chassis_number = clean_preview_text(
+                vehicle.get("chassis_number")
+            )
+
+            plate_key = preview_plate_key(vehicle)
+
+            if chassis_number:
+                import_key = (
+                    "chassis",
+                    chassis_number
+                )
+                existing_vehicle = (
+                    existing_preview_by_chassis.get(
+                        chassis_number
+                    )
+                )
+            else:
+                import_key = (
+                    "plate",
+                    *plate_key
+                )
+                existing_vehicle = (
+                    existing_preview_by_plate.get(
+                        plate_key
+                    )
+                )
+
+            if import_key in processed_import_keys:
+                vehicle["import_status"] = (
+                    "Excel内重複"
+                )
+
+            elif existing_vehicle:
+
+                update_values = {
+                    "plate_area": clean_preview_text(
+                        vehicle.get("plate_area")
+                    ),
+                    "plate_class": clean_preview_text(
+                        vehicle.get("plate_class")
+                    ),
+                    "plate_kana": clean_preview_text(
+                        vehicle.get("plate_kana")
+                    ),
+                    "plate_number": clean_preview_text(
+                        vehicle.get("plate_number")
+                    ),
+                    "gross_vehicle_weight": preview_int(
+                        vehicle.get(
+                            "gross_vehicle_weight"
+                        )
+                    ),
+                    "model_code": clean_preview_text(
+                        vehicle.get("model_code")
+                    ),
+                    "first_registration_date":
+                        clean_preview_text(
+                            vehicle.get(
+                                "first_registration_date"
+                            )
+                        ),
+                    "inspection_expiry":
+                        clean_preview_text(
+                            vehicle.get(
+                                "inspection_expiry"
+                            )
+                        ),
+                    "manufacturer": clean_preview_text(
+                        vehicle.get("vehicle_name")
+                    ),
+                    "body_type": clean_preview_text(
+                        vehicle.get("body_type")
+                    ),
+                    "max_payload": preview_int(
+                        vehicle.get("max_payload")
+                    ),
+                }
+
+                vehicle_changed = False
+
+                for field_name, new_value in (
+                    update_values.items()
+                ):
+                    # Excelが空欄なら既存値を維持
+                    if new_value in ("", None):
+                        continue
+
+                    old_value = getattr(
+                        existing_vehicle,
+                        field_name
+                    )
+
+                    if isinstance(new_value, int):
+                        try:
+                            old_value = int(old_value)
+                        except (TypeError, ValueError):
+                            old_value = None
+                    else:
+                        old_value = clean_preview_text(
+                            old_value
+                        )
+
+                    if old_value != new_value:
+                        vehicle_changed = True
+                        break
+
+                if vehicle_changed:
+                    vehicle["import_status"] = "更新"
+                else:
+                    vehicle["import_status"] = (
+                        "変更なし"
+                    )
+
+            else:
+                vehicle["import_status"] = "新規"
+
+            processed_import_keys.add(import_key)
+            
         return render_template(
             "vehicle_import_preview.html",
             vehicles=vehicles_data,
@@ -3656,61 +3930,133 @@ def confirm_vehicle_import():
     ).count()
 
 
-    # 一括登録開始前から存在している車台番号
+    def normalize_import_text(value):
+        return str(value or "").strip()
+
+    def import_plate_key(index):
+        return (
+            normalize_import_text(plate_areas[index]),
+            normalize_import_text(plate_classes[index]),
+            normalize_import_text(plate_kanas[index]),
+            normalize_import_text(plate_numbers[index]),
+        )
+
     import_chassis_numbers = {
-        value.strip()
+        normalize_import_text(value)
         for value in chassis_numbers
-        if value and value.strip()
+        if normalize_import_text(value)
     }
 
-    existing_chassis_numbers = set()
+    import_plate_numbers = {
+        normalize_import_text(plate_numbers[i])
+        for i in range(import_count)
+        if (
+            not normalize_import_text(
+                chassis_numbers[i]
+            )
+            and normalize_import_text(
+                plate_numbers[i]
+            )
+        )
+    }
+
+    existing_vehicle_records = []
 
     if import_chassis_numbers:
-        existing_chassis_numbers = {
-            chassis_number.strip()
-            for (chassis_number,) in db.session.query(
-                Vehicle.chassis_number
-            ).filter(
+        existing_vehicle_records.extend(
+            Vehicle.query.filter(
                 Vehicle.company_code == company_code,
-                Vehicle.deleted == False,
-                Vehicle.chassis_number.in_(import_chassis_numbers)
+                db.func.trim(
+                    Vehicle.chassis_number
+                ).in_(import_chassis_numbers)
             ).all()
-            if chassis_number
-        }
+        )
 
+    if import_plate_numbers:
+        existing_vehicle_records.extend(
+            Vehicle.query.filter(
+                Vehicle.company_code == company_code,
+                db.func.trim(
+                    Vehicle.plate_number
+                ).in_(import_plate_numbers)
+            ).all()
+        )
 
-    # 上限チェック用
-    # Excel内で一度数えた車台番号を記録
-    counted_chassis_numbers = set()
+    existing_vehicles_by_chassis = {}
+    existing_vehicles_by_plate = {}
 
+    for existing_vehicle in existing_vehicle_records:
+
+        existing_chassis = normalize_import_text(
+            existing_vehicle.chassis_number
+        )
+
+        if existing_chassis:
+            existing_vehicles_by_chassis[
+                existing_chassis
+            ] = existing_vehicle
+
+        existing_plate_key = (
+            normalize_import_text(
+                existing_vehicle.plate_area
+            ),
+            normalize_import_text(
+                existing_vehicle.plate_class
+            ),
+            normalize_import_text(
+                existing_vehicle.plate_kana
+            ),
+            normalize_import_text(
+                existing_vehicle.plate_number
+            ),
+        )
+
+        if existing_plate_key[3]:
+            existing_vehicles_by_plate.setdefault(
+                existing_plate_key,
+                existing_vehicle
+            )
+
+    counted_import_keys = set()
     new_vehicle_count = 0
-
 
     for i in range(import_count):
 
-        chassis_number = chassis_numbers[i].strip()
+        chassis_number = normalize_import_text(
+            chassis_numbers[i]
+        )
+        plate_key = import_plate_key(i)
 
-
-        # すでに登録済みなら新規台数に含めない
         if chassis_number:
+            import_key = (
+                "chassis",
+                chassis_number
+            )
+            existing_vehicle = (
+                existing_vehicles_by_chassis.get(
+                    chassis_number
+                )
+            )
+        else:
+            import_key = (
+                "plate",
+                *plate_key
+            )
+            existing_vehicle = (
+                existing_vehicles_by_plate.get(
+                    plate_key
+                )
+            )
 
-            if chassis_number in existing_chassis_numbers:
-                continue
+        if existing_vehicle:
+            continue
 
+        if import_key in counted_import_keys:
+            continue
 
-            # Excel内重複も1台として数える
-            if chassis_number in counted_chassis_numbers:
-                continue
-
-
-            counted_chassis_numbers.add(chassis_number)
-
-
-        # 車台番号なしの行は、
-        # 実際の登録処理と同じく1行＝1台として数える
+        counted_import_keys.add(import_key)
         new_vehicle_count += 1
-
-
+        
     # 新規登録予定台数で上限チェック
     if company:
         if current_count + new_vehicle_count > company.vehicle_limit:
@@ -3735,52 +4081,124 @@ def confirm_vehicle_import():
     ).scalar() or 0
 
 
-    # 今回のExcel内ですでに処理した車台番号
-    processed_chassis_numbers = set()
+    # 今回のExcel内ですでに処理した車両
+    processed_import_keys = set()
 
     registered_count = 0
-    existing_skip_count = 0
+    updated_count = 0
+    unchanged_count = 0
     duplicate_skip_count = 0
+
+    def clean_text(value):
+        return str(value or "").strip()
+
+    def to_int(value):
+        value = clean_text(value).replace(",", "")
+
+        if not value:
+            return None
+
+        return int(float(value))
 
 
     for i in range(import_count):
 
-        chassis_number = chassis_numbers[i].strip()
-        plate_area = plate_areas[i].strip()
-        plate_class = plate_classes[i].strip()
-        plate_kana = plate_kanas[i].strip()
-        plate_number = plate_numbers[i].strip()
+        chassis_number = normalize_import_text(
+            chassis_numbers[i]
+        )
+        plate_area = normalize_import_text(
+            plate_areas[i]
+        )
+        plate_class = normalize_import_text(
+            plate_classes[i]
+        )
+        plate_kana = normalize_import_text(
+            plate_kanas[i]
+        )
+        plate_number = normalize_import_text(
+            plate_numbers[i]
+        )
 
+        plate_key = (
+            plate_area,
+            plate_class,
+            plate_kana,
+            plate_number,
+        )
 
-        # 一括登録開始前から存在していた車両
-        if chassis_number and chassis_number in existing_chassis_numbers:
-            existing_skip_count += 1
-            continue
+        if chassis_number:
+            import_key = (
+                "chassis",
+                chassis_number
+            )
+            existing_vehicle = (
+                existing_vehicles_by_chassis.get(
+                    chassis_number
+                )
+            )
+        else:
+            import_key = (
+                "plate",
+                *plate_key
+            )
+            existing_vehicle = (
+                existing_vehicles_by_plate.get(
+                    plate_key
+                )
+            )
 
-
-        # Excelファイル内で同じ車台番号が重複している場合
-        if chassis_number and chassis_number in processed_chassis_numbers:
+        # Excel内で同じ車両が重複している場合
+        if import_key in processed_import_keys:
             duplicate_skip_count += 1
             continue
 
+        processed_import_keys.add(import_key)
 
-        if chassis_number:
-            processed_chassis_numbers.add(chassis_number)
+        # 車台番号または車番が一致する既存車両を更新
+        if existing_vehicle:
+            update_values = {
+                "plate_area": clean_text(plate_areas[i]),
+                "plate_class": clean_text(plate_classes[i]),
+                "plate_kana": clean_text(plate_kanas[i]),
+                "plate_number": clean_text(plate_numbers[i]),
+                "gross_vehicle_weight": to_int(gross_weights[i]),
+                "model_code": clean_text(model_codes[i]),
+                "first_registration_date": clean_text(
+                    first_registration_dates[i]
+                ),
+                "inspection_expiry": clean_text(
+                    inspection_expiries[i]
+                ),
+                "manufacturer": clean_text(vehicle_names[i]),
+                "body_type": clean_text(body_types[i]),
+                "max_payload": to_int(max_payloads[i]),
+            }
 
+            vehicle_changed = False
+
+            for field_name, new_value in update_values.items():
+                # Excelが空欄なら既存値を残す
+                if new_value in ("", None):
+                    continue
+
+                if getattr(existing_vehicle, field_name) != new_value:
+                    setattr(
+                        existing_vehicle,
+                        field_name,
+                        new_value
+                    )
+                    vehicle_changed = True
+
+            if vehicle_changed:
+                updated_count += 1
+            else:
+                unchanged_count += 1
+
+            continue
 
         max_number += 1
 
         new_id = f"V{max_number:03}"
-
-
-        def to_int(value):
-            value = str(value or "").replace(",", "").strip()
-
-            if not value:
-                return None
-
-            return int(float(value))
-
 
         vehicle = Vehicle(
             company_code=company_code,
@@ -3831,7 +4249,8 @@ def confirm_vehicle_import():
     return render_template(
         "vehicle_import_complete.html",
         registered_count=registered_count,
-        existing_skip_count=existing_skip_count,
+        updated_count=updated_count,
+        unchanged_count=unchanged_count,
         duplicate_skip_count=duplicate_skip_count,
     )
         
@@ -3990,7 +4409,32 @@ def toggle_vehicle_inactive(index):
         if vehicle.company_code != session.get("company_code"):
             return redirect("/master/vehicles")
 
-    vehicle.deleted = request.form.get("inactive") == "1"
+    new_inactive = (
+        request.form.get("inactive") == "1"
+    )
+
+    # 無効から有効へ戻す場合は登録上限を確認
+    if vehicle.deleted and not new_inactive:
+        company = Company.query.filter_by(
+            company_code=vehicle.company_code
+        ).first()
+
+        current_active_count = Vehicle.query.filter_by(
+            company_code=vehicle.company_code,
+            deleted=False
+        ).count()
+
+        if (
+            company
+            and current_active_count >= company.vehicle_limit
+        ):
+            return (
+                f"登録上限を超えるため有効化できません。"
+                f"現在 {current_active_count} 台、"
+                f"上限 {company.vehicle_limit} 台です。"
+            )
+
+    vehicle.deleted = new_inactive
 
     db.session.commit()
 
@@ -4126,6 +4570,54 @@ def bulk_inactive_vehicles():
         {"deleted": True},
         synchronize_session=False
     )
+
+    db.session.commit()
+
+    return redirect("/master/vehicles")
+
+@app.route("/master/vehicles/bulk-active", methods=["POST"])
+def bulk_active_vehicles():
+
+    company_code = session.get("company_code")
+    vehicle_indexes = request.form.getlist("vehicle_ids")
+
+    if not vehicle_indexes:
+        return redirect("/master/vehicles")
+
+    vehicles_to_activate = Vehicle.query.filter(
+        Vehicle.id.in_(vehicle_indexes),
+        Vehicle.company_code == company_code,
+        Vehicle.deleted == True
+    ).all()
+
+    if not vehicles_to_activate:
+        return redirect("/master/vehicles")
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).first()
+
+    current_active_count = Vehicle.query.filter_by(
+        company_code=company_code,
+        deleted=False
+    ).count()
+
+    activate_count = len(vehicles_to_activate)
+
+    if (
+        company
+        and current_active_count + activate_count
+        > company.vehicle_limit
+    ):
+        return (
+            f"登録上限を超えるため有効化できません。"
+            f"現在 {current_active_count} 台、"
+            f"有効化予定 {activate_count} 台、"
+            f"上限 {company.vehicle_limit} 台です。"
+        )
+
+    for vehicle in vehicles_to_activate:
+        vehicle.deleted = False
 
     db.session.commit()
 

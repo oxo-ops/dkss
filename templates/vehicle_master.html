@@ -144,6 +144,27 @@
     >
         選択した車両を一括削除
     </button>
+    <button
+        type="submit"
+        form="bulk-delete-form"
+        formaction="/master/vehicles/bulk-inactive"
+        id="bulk-inactive-button"
+        class="btn-small"
+        disabled
+    >
+        選択した車両を一括無効化
+    </button>    
+    <button
+        type="submit"
+        form="bulk-delete-form"
+        formaction="/master/vehicles/bulk-active"
+        id="bulk-active-button"
+        class="btn-small"
+        style="display:none;"
+        disabled
+    >
+        選択した車両を一括有効化
+    </button>    
 </div>
 
 <form
@@ -158,11 +179,11 @@
 
         <th style="width:70px; text-align:center;">
             <label style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                <input
-                    type="checkbox"
-                    id="select-all-visible"
-                    style="margin:0;"
-                >
+            <input
+                type="checkbox"
+                id="select-all-visible"
+                style="margin:0;"
+            >
                 <span style="font-size:12px;">全選択</span>
             </label>
         </th>
@@ -188,6 +209,7 @@
                 name="vehicle_ids"
                 value="{{ vehicle.index }}"
                 class="vehicle-select"
+                data-inactive="{{ 'true' if vehicle.deleted else 'false' }}"
                 form="bulk-delete-form"
                 style="margin:0;"
             >
@@ -411,6 +433,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const checkboxes = document.querySelectorAll(".vehicle-select");
     const countDisplay = document.getElementById("selected-count");
     const bulkDeleteButton = document.getElementById("bulk-delete-button");
+    const bulkInactiveButton = document.getElementById("bulk-inactive-button");
+    const bulkActiveButton = document.getElementById("bulk-active-button");
     const bulkDeleteForm = document.getElementById("bulk-delete-form");
 
 
@@ -418,13 +442,28 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const selectedCount =
             document.querySelectorAll(".vehicle-select:checked").length;
+        const selectedInactiveCount = [
+            ...document.querySelectorAll(
+                ".vehicle-select:checked"
+            )
+        ].filter(function(checkbox) {
+            return checkbox.dataset.inactive === "true";
+        }).length;            
 
         countDisplay.textContent =
             selectedCount + "件選択中";
 
         bulkDeleteButton.disabled =
             selectedCount === 0;
+        bulkInactiveButton.disabled =
+            selectedCount === 0;
+        bulkActiveButton.disabled =
+            selectedInactiveCount === 0;
 
+        bulkActiveButton.style.display =
+            selectedInactiveCount > 0
+                ? "inline-block"
+                : "none";            
 
         if (selectedCount === 0) {
 
@@ -485,12 +524,47 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
 
-        const confirmed = confirm(
-            selectedCount +
-            "台の車両と関連データはすべて削除されます。\n" +
-            "本当に削除しますか？"
-        );
+        const submitButtonId =
+            event.submitter
+                ? event.submitter.id
+                : "";
 
+        let message = "";
+
+        if (submitButtonId === "bulk-active-button") {
+
+            const inactiveSelectedCount = [
+                ...document.querySelectorAll(
+                    ".vehicle-select:checked"
+                )
+            ].filter(function(checkbox) {
+                return checkbox.dataset.inactive === "true";
+            }).length;
+
+            message =
+                inactiveSelectedCount +
+                "台の車両を有効化します。\n" +
+                "よろしいですか？";
+
+        } else if (
+            submitButtonId === "bulk-inactive-button"
+        ) {
+
+            message =
+                selectedCount +
+                "台の車両を無効化します。\n" +
+                "点検履歴などの関連データは削除されません。\n" +
+                "よろしいですか？";
+
+        } else {
+
+            message =
+                selectedCount +
+                "台の車両と関連データはすべて削除されます。\n" +
+                "本当に削除しますか？";
+        }
+
+        const confirmed = confirm(message);
 
         if (!confirmed) {
 

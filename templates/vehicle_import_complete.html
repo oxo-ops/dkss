@@ -40,11 +40,26 @@
 
         <div class="summary-card">
             <div class="summary-title">
-                登録済みのためスキップ
+                既存車両を更新
+            </div>
+
+            <div class="summary-value good">
+                {{ updated_count }}
+            </div>
+
+            <div class="summary-unit">
+                台
+            </div>
+        </div>
+
+
+        <div class="summary-card">
+            <div class="summary-title">
+                変更なし
             </div>
 
             <div class="summary-value">
-                {{ existing_skip_count }}
+                {{ unchanged_count }}
             </div>
 
             <div class="summary-unit">
