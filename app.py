@@ -5999,12 +5999,21 @@ def export_vehicle_checklist_result_excel(result_index):
         )
     
     # 月間帳票の車両情報
-    sheet["A4"] = "車番"
-    sheet["B4"] = vehicle_info["number"] or vehicle_info["vehicle_id"]
+    vehicle_number = (
+        vehicle_info["number"]
+        or vehicle_info["vehicle_id"]
+    )
 
+    sheet.merge_cells(
+        start_row=4,
+        start_column=1,
+        end_row=4,
+        end_column=end_column
+    )
+
+    sheet["A4"] = f"車番　{vehicle_number}"
     sheet["A4"].font = Font(bold=True)
-
-    sheet["B4"].alignment = Alignment(
+    sheet["A4"].alignment = Alignment(
         horizontal="left",
         vertical="center"
     )
@@ -6111,20 +6120,52 @@ def export_vehicle_checklist_result_excel(result_index):
 
     # 点検項目を縦に並べる
     current_row = 7
+    previous_category = None
+    category_rows = set()
 
     for item_no, item in enumerate(checklist.get("items", [])):
+        
         if item.get("item_type") != "check":
             continue
 
         category = item.get("category", "").strip()
         content = item.get("content", "").strip()
 
-        item_text = (
-            f"【{category}】 {content}"
-            if category
-            else content
-        )
+        # カテゴリが変わったら横一列のカテゴリ行を追加
+        if category and category != previous_category:
+            category_row = current_row
+            category_rows.add(category_row)
 
+            sheet.merge_cells(
+                start_row=category_row,
+                start_column=1,
+                end_row=category_row,
+                end_column=end_column
+            )
+
+            category_cell = sheet.cell(
+                row=category_row,
+                column=1,
+                value=f"（{category}）"
+            )
+
+            category_cell.font = Font(bold=True)
+            category_cell.alignment = Alignment(
+                horizontal="left",
+                vertical="center"
+            )
+
+            sheet.row_dimensions[category_row].height = 20
+
+            current_row += 1
+            previous_category = category
+
+        # 点検項目にはカテゴリ名を付けない
+        item_text = content
+
+        if "\n" not in item_text and len(item_text) <= 35:
+            sheet.row_dimensions[current_row].height = 24
+            
         sheet.cell(
             row=current_row,
             column=1,
@@ -6419,7 +6460,39 @@ def export_vehicle_checklist_result_excel(result_index):
     table_end_row = current_row - 1
 
     for row_number in range(5, table_end_row + 1):
+
+        # カテゴリ行は横一列にして日付マスの縦線を付けない
+        if row_number in category_rows:
+            no_border = Side(style=None)
+
+            for category_column in range(
+                1,
+                title_end_column + 1
+            ):
+                category_cell = sheet.cell(
+                    row=row_number,
+                    column=category_column
+                )
+
+                category_cell.border = Border(
+                    left=(
+                        thin
+                        if category_column == 1
+                        else no_border
+                    ),
+                    right=(
+                        thin
+                        if category_column == title_end_column
+                        else no_border
+                    ),
+                    top=thin,
+                    bottom=thin
+                )
+
+            continue
+
         for column_number in range(1, title_end_column + 1):
+            
             cell = sheet.cell(
                 row=row_number,
                 column=column_number
@@ -6432,12 +6505,12 @@ def export_vehicle_checklist_result_excel(result_index):
                 bottom=thin
             )
 
-        if column_number >= 2:
-            cell.alignment = Alignment(
-                horizontal="center",
-                vertical="center",
-                wrap_text=True
-            )
+            if column_number >= 2:
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
 
     # ヘッダー装飾
     header_fill = PatternFill(
