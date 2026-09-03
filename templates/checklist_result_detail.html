@@ -139,7 +139,7 @@
         </div>
     {% endif %}
 
-    {% if summary %}
+    {% if checklist.score_enabled and summary %}
         <div class="summary-row">
             <strong>評価集計</strong>
 
@@ -149,19 +149,17 @@
                 </span>
             {% endfor %}
 
-            {% if checklist.score_enabled %}
-                <span class="summary-item">
-                    <strong>
-                        合計点：
-                        {{ total_score|int }}
-                        {% if max_score %}
-                            / {{ max_score|int }}点
-                        {% else %}
-                            点
-                        {% endif %}
-                    </strong>
-                </span>
-            {% endif %}
+            <span class="summary-item">
+                <strong>
+                    合計点：
+                    {{ total_score|int }}
+                    {% if max_score %}
+                        / {{ max_score|int }}点
+                    {% else %}
+                        点
+                    {% endif %}
+                </strong>
+            </span>
         </div>
     {% endif %}
 

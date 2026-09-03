@@ -6,11 +6,28 @@
 
 <div class="page-header">
     <h2>{{ checklist.name }} </h2>
+{% set export_ns = namespace(result=None) %}
 
+{% for result in results %}
+    {% if export_ns.result is none %}
+        {% set export_ns.result = result %}
+    {% endif %}
+{% endfor %}
     <div class="header-actions">
+
+        {% if vehicle_id and export_ns.result %}
+        <a
+            href="/vehicle/checklist-results/{{ export_ns.result.index }}/excel"
+            class="btn"
+        >
+            Excel出力
+        </a>
+        {% endif %}
+
         <a href="/vehicle/checklists" class="btn btn-back">
             ← 一覧へ戻る
         </a>
+
     </div>
 </div>
 
@@ -286,8 +303,14 @@
                 {% endfor %}
             </tr>
 
+            {% set approval_ns = namespace(index=-1) %}
+
             {% for item in checklist["items"] %}
             {% set item_no = loop.index0 %}
+
+            {% if item.item_type == "approval" %}
+            {% set approval_ns.index = approval_ns.index + 1 %}
+            {% endif %}
 
             <tr>
                 <td class="fixed-category">
@@ -354,27 +377,38 @@
 
                     {% if ns.target_result %}
 
-                    {% if ns.target_result.status == "承認済み" %}
+                    {% set approval = ns.target_result.approvals[approval_ns.index]
+                        if approval_ns.index < ns.target_result.approvals|length
+                        else none %}
 
-                    {% if can_approve %}
-                    <form method="post" action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
-                        style="display:inline;" onsubmit="return confirm('承認を取り消しますか？');">
-                        <button type="submit" class="status-badge status-approved approval-toggle-btn"
-                            title="{{ ns.target_result.approved_by }}">
-                            {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
-                        </button>
-                    </form>
-                    {% else %}
-                    <span class="status-badge status-approved" title="{{ ns.target_result.approved_by }}">
-                        {{ ns.target_result.approved_by[:1] if ns.target_result.approved_by else "済" }}
-                    </span>
+                    {% set approval_allow_general = item.get("approval_allow_general", false) %}
+
+                    {% if approval and "allow_general" in approval %}
+                    {% set approval_allow_general = approval.get("allow_general", false) %}
                     {% endif %}
 
+                    {% set approval_can_approve =
+                        session.get("role") in ["admin", "itc"]
+                        or approval_allow_general
+                    %}
+
+                    {% if approval and approval.approved_by %}
+
+                    <span
+                        class="status-badge status-approved"
+                        title="{{ approval.approved_by }}"
+                    >
+                        {{ approval.approved_by[:1] if approval.approved_by else "済" }}
+                    </span>
+
                     {% else %}
 
-                    {% if can_approve %}
-                    <form method="post" action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve"
-                        style="display:inline;">
+                    {% if approval_can_approve %}
+                    <form
+                        method="post"
+                        action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
+                        style="display:inline;"
+                    >
                         <button type="submit" class="btn-mini">
                             承認
                         </button>
@@ -942,7 +976,9 @@ vehicleSearch.addEventListener("input", function () {
 
         fetch(
             "/api/vehicles?q=" +
-            encodeURIComponent(keyword)
+            encodeURIComponent(keyword) +
+            "&company_code=" +
+            encodeURIComponent("{{ checklist.company_code }}")
         )
         .then(response => response.json())
         .then(data => {

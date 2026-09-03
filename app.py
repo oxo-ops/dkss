@@ -1466,12 +1466,18 @@ def search_vehicles():
 
     keyword = request.args.get("q", "").strip()
 
-    query = Vehicle.query.filter_by(
-        company_code=session.get("company_code"),
-        deleted=False
+    company_code = request.args.get(
+        "company_code",
+        session.get("company_code")
     )
 
+    if session.get("role") != "itc":
+        company_code = session.get("company_code")
 
+    query = Vehicle.query.filter_by(
+        company_code=company_code,
+        deleted=False
+    )
     if keyword:
 
         keyword_like = f"%{keyword}%"
@@ -1489,14 +1495,12 @@ def search_vehicles():
             )
         )
 
-
     vehicles = (
         query
         .order_by(Vehicle.id.asc())
         .limit(20)
         .all()
     )
-
 
     results = []
 
@@ -1521,7 +1525,6 @@ def search_vehicles():
             "manufacturer": vehicle.manufacturer or "",
             "model_code": vehicle.model_code or "",
         })
-
 
     return {
         "results": results
@@ -5472,9 +5475,8 @@ def vehicle_checklist_results(index):
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -5544,13 +5546,9 @@ def vehicle_checklist_results(index):
     results = []
 
     query = VehicleChecklistResult.query.filter_by(
-        company_code=session.get("company_code"),
+        company_code=checklist_record.company_code,
         checklist_id=checklist_record.id
     )
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
 
     if vehicle_id:
         query = query.filter_by(
@@ -5605,7 +5603,7 @@ def vehicle_checklist_results(index):
     if vehicle_id:
 
         vehicle_record = Vehicle.query.filter_by(
-            company_code=session.get("company_code"),
+            company_code=checklist_record.company_code,
             vehicle_id=vehicle_id
         ).first()
 
@@ -5628,7 +5626,7 @@ def vehicle_checklist_results(index):
                 "manufacturer": vehicle_record.manufacturer or "",
                 "model_code": vehicle_record.model_code or "",
             }
-            
+                    
     return render_template(
         "vehicle_checklist_results.html",
         checklist=checklist,
@@ -5642,8 +5640,7 @@ def vehicle_checklist_results(index):
         active_day=active_day,
         display_days=display_days,
         display_weekdays=display_weekdays,
-        display_mode=display_mode,
-        can_approve=session.get("role") in ["admin", "itc"]
+        display_mode=display_mode
     )
 
 
@@ -5657,12 +5654,8 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     if not result_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") not in ["admin", "itc"]:
+    if result_record.company_code != session.get("company_code"):
         return redirect("/vehicle/checklists")
-
-    if session.get("role") != "itc":
-        if result_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
 
     approvals = json.loads(
         result_record.approvals_json or "[]"
@@ -5681,6 +5674,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
                 approvals.append({
                     "label": item.get("approval_label", ""),
+                    "allow_general": item.get("approval_allow_general", False),
                     "approved_by": "",
                     "approved_date": "",
                 })
@@ -5689,15 +5683,40 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         return redirect("/vehicle/checklists")
 
     approval = approvals[approval_index]
-
-    if approval.get("approved_by"):
-        approval["approved_by"] = ""
-        approval["approved_date"] = ""
-    else:
-        approval["approved_by"] = session.get("name")
-        approval["approved_date"] = datetime.now().strftime(
-            "%Y-%m-%d %H:%M"
+    
+    # 旧データに allow_general が無い場合は
+    # 現在のチェックリストマスタから補完
+    if "allow_general" not in approval:
+        checklist_record = Checklist.query.get(
+            result_record.checklist_id
         )
+
+        if checklist_record:
+            checklist = checklist_to_dict(checklist_record)
+
+            approval_items = [
+                item
+                for item in checklist.get("items", [])
+                if item.get("item_type") == "approval"
+            ]
+
+            if approval_index < len(approval_items):
+                approval["allow_general"] = approval_items[
+                    approval_index
+                ].get(
+                    "approval_allow_general",
+                    False
+                )
+                
+    result = vehicle_checklist_result_to_dict(result_record)
+
+    if not can_approve_checklist_result(result, approval):
+        return redirect("/vehicle/checklists")
+    
+    approval["approved_by"] = session.get("name")
+    approval["approved_date"] = datetime.now().strftime(
+        "%Y-%m-%d %H:%M"
+    )
 
     result_record.approvals_json = json.dumps(
         approvals,
@@ -5733,8 +5752,13 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
         if checklist.get("frequency_unit") == "year":
             active_value = result_record.year
-        else:
+
+        elif checklist.get("display_type") == "month":
             active_value = result_record.day
+
+        else:
+            active_value = result_record.month
+
     else:
         active_value = result_record.day
 
@@ -5767,6 +5791,34 @@ def export_vehicle_checklist_result_excel(result_index):
         return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
+    # 点検頻度
+    try:
+        frequency_value = int(
+            checklist.get("frequency_value") or 1
+        )
+    except (TypeError, ValueError):
+        frequency_value = 1
+
+    frequency_unit = checklist.get(
+        "frequency_unit",
+        ""
+    )
+
+    display_type = checklist.get(
+        "display_type",
+        ""
+    )
+    
+    # Excelの表示単位を決定
+    if frequency_unit == "year":
+        excel_display_mode = "year"
+
+    elif display_type == "month":
+        excel_display_mode = "day"
+
+    else:
+        excel_display_mode = "month"
+        
     vehicle_record = Vehicle.query.filter_by(
         company_code=result_record.company_code,
         vehicle_id=result_record.vehicle_id
@@ -5799,19 +5851,39 @@ def export_vehicle_checklist_result_excel(result_index):
             vehicle_record.model_code or ""
         )
     
-    monthly_result_records = VehicleChecklistResult.query.filter_by(
+    # 点検頻度に応じて出力対象を取得
+    result_query = VehicleChecklistResult.query.filter_by(
         company_code=result_record.company_code,
         checklist_id=result_record.checklist_id,
-        vehicle_id=result_record.vehicle_id,
-        year=result_record.year,
-        month=result_record.month
-    ).order_by(
-        VehicleChecklistResult.day.asc()
-    ).all()
+        vehicle_id=result_record.vehicle_id
+    )
 
-    monthly_results = [
+    if frequency_unit == "year":
+        # 年次・複数年ごとの点検
+        result_records = result_query.order_by(
+            VehicleChecklistResult.year.asc()
+        ).all()
+
+    elif display_type == "month":
+        # 日次系
+        result_records = result_query.filter_by(
+            year=result_record.year,
+            month=result_record.month
+        ).order_by(
+            VehicleChecklistResult.day.asc()
+        ).all()
+
+    else:
+        # 月例・3か月ごと・6か月ごと等
+        result_records = result_query.filter_by(
+            year=result_record.year
+        ).order_by(
+            VehicleChecklistResult.month.asc()
+        ).all()
+
+    period_results = [
         vehicle_checklist_result_to_dict(record)
-        for record in monthly_result_records
+        for record in result_records
     ]
     
     workbook = Workbook()
@@ -5826,24 +5898,59 @@ def export_vehicle_checklist_result_excel(result_index):
     sheet.page_setup.fitToHeight = 0
     sheet.print_options.horizontalCentered = True
 
-    # 月間表用の列幅
-    sheet.column_dimensions["A"].width = 9
-    sheet.column_dimensions["B"].width = 42
+    # 点検頻度に応じた列幅
+    sheet.column_dimensions["A"].width = 42
 
-    for column in range(3, 34):
+    if excel_display_mode == "day":
+        days_in_month = calendar.monthrange(
+            int(result_record.year),
+            int(result_record.month)
+        )[1]
+
+        end_column = days_in_month + 1
+        period_width = 3.8
+
+    elif excel_display_mode == "month":
+        end_column = 13
+        period_width = 6
+
+    else:
+        end_column = 6
+        period_width = 12
+
+    for column in range(2, end_column + 1):
         sheet.column_dimensions[
             sheet.cell(row=1, column=column).column_letter
-        ].width = 3.2
+        ].width = period_width
 
     # タイトル
-    sheet.merge_cells("A1:AG2")
+    title_end_column = end_column
+
+    sheet.merge_cells(
+        start_row=1,
+        start_column=1,
+        end_row=2,
+        end_column=title_end_column
+    )
 
     title_cell = sheet["A1"]
-    title_cell.value = (
-        f"{result_record.year}年 "
-        f"{int(result_record.month)}月 "
-        f"{checklist.get('name', '車両点検表')}"
-    )
+    if excel_display_mode == "day":
+        title_cell.value = (
+            f"{result_record.year}年 "
+            f"{int(result_record.month)}月 "
+            f"{checklist.get('name', '車両点検表')}"
+        )
+
+    elif excel_display_mode == "month":
+        title_cell.value = (
+            f"{result_record.year}年 "
+            f"{checklist.get('name', '車両点検表')}"
+        )
+
+    else:
+        title_cell.value = (
+            f"{checklist.get('name', '車両点検表')}"
+        )
     title_cell.font = Font(
         bold=True,
         size=16
@@ -5853,6 +5960,44 @@ def export_vehicle_checklist_result_excel(result_index):
         vertical="center"
     )
 
+    # 評価基準
+    criteria_list = []
+
+    for item in checklist.get("items", []):
+        if item.get("item_type") != "check":
+            continue
+
+        criteria = (item.get("criteria") or "").strip()
+
+        if criteria and criteria not in criteria_list:
+            criteria_list.append(criteria)
+
+    if criteria_list:
+        sheet.row_dimensions[3].height = 24
+        
+        sheet.merge_cells(
+            start_row=3,
+            start_column=1,
+            end_row=3,
+            end_column=end_column
+        )
+
+        criteria_cell = sheet.cell(
+            row=3,
+            column=1,
+            value="評価基準：" + " / ".join(criteria_list)
+        )
+
+        criteria_cell.font = Font(
+            size=9
+        )
+
+        criteria_cell.alignment = Alignment(
+            horizontal="left",
+            vertical="center",
+            wrap_text=True
+        )
+    
     # 月間帳票の車両情報
     sheet["A4"] = "車番"
     sheet["B4"] = vehicle_info["number"] or vehicle_info["vehicle_id"]
@@ -5864,12 +6009,11 @@ def export_vehicle_checklist_result_excel(result_index):
         vertical="center"
     )
     
-    # 月間表ヘッダー
+    # 点検表ヘッダー
     header_row = 5
     weekday_row = 6
 
-    sheet["A5"] = "カテゴリ"
-    sheet["B5"] = "点検項目"
+    sheet["A5"] = "点検項目"
 
     sheet.merge_cells(
         start_row=5,
@@ -5878,66 +6022,113 @@ def export_vehicle_checklist_result_excel(result_index):
         end_column=1
     )
 
-    sheet.merge_cells(
-        start_row=5,
-        start_column=2,
-        end_row=6,
-        end_column=2
-    )
-
     year = int(result_record.year)
     month = int(result_record.month)
 
-    days_in_month = calendar.monthrange(
-        year,
-        month
-    )[1]
+    if excel_display_mode == "day":
+        # 日次：1～31日
+        days_in_month = calendar.monthrange(
+            year,
+            month
+        )[1]
 
-    weekday_names = [
-        "月", "火", "水", "木", "金", "土", "日"
-    ]
+        weekday_names = [
+            "月", "火", "水", "木", "金", "土", "日"
+        ]
 
-    # 日付・曜日
-    for day in range(1, 32):
-        column = day + 2
+        for day in range(1, days_in_month + 1):
+            column = day + 1
 
-        if day <= days_in_month:
+            if day <= days_in_month:
+                sheet.cell(
+                    row=header_row,
+                    column=column,
+                    value=day
+                )
+
+                weekday_index = datetime(
+                    year,
+                    month,
+                    day
+                ).weekday()
+
+                sheet.cell(
+                    row=weekday_row,
+                    column=column,
+                    value=weekday_names[weekday_index]
+                )
+
+                if weekday_index == 5:
+                    sheet.cell(
+                        row=weekday_row,
+                        column=column
+                    ).font = Font(color="0000FF")
+
+                elif weekday_index == 6:
+                    sheet.cell(
+                        row=weekday_row,
+                        column=column
+                    ).font = Font(color="FF0000")
+                    
+    elif excel_display_mode == "month":
+        # 月例・3か月・6か月ごと等：1～12月
+        for month_no in range(1, 13):
+            column = month_no + 1
+
             sheet.cell(
                 row=header_row,
                 column=column,
-                value=day
+                value=f"{month_no}月"
             )
 
-            weekday_index = datetime(
-                year,
-                month,
-                day
-            ).weekday()
+            sheet.merge_cells(
+                start_row=header_row,
+                start_column=column,
+                end_row=weekday_row,
+                end_column=column
+            )
+
+    else:
+        # 年次・複数年ごと
+        base_year = int(result_record.year)
+
+        for offset in range(5):
+            column = offset + 2
+            target_year = base_year + offset
 
             sheet.cell(
-                row=weekday_row,
+                row=header_row,
                 column=column,
-                value=weekday_names[weekday_index]
+                value=f"{target_year}年"
+            )
+
+            sheet.merge_cells(
+                start_row=header_row,
+                start_column=column,
+                end_row=weekday_row,
+                end_column=column
             )
 
     # 点検項目を縦に並べる
     current_row = 7
-    check_item_no = 0
 
-    for item in checklist.get("items", []):
+    for item_no, item in enumerate(checklist.get("items", [])):
         if item.get("item_type") != "check":
             continue
 
-        sheet.cell(
-            row=current_row,
-            column=1,
-            value=item.get("category", "")
+        category = item.get("category", "").strip()
+        content = item.get("content", "").strip()
+
+        item_text = (
+            f"【{category}】 {content}"
+            if category
+            else content
         )
 
         sheet.cell(
             row=current_row,
-            column=2,
-            value=item.get("content", "")
+            column=1,
+            value=item_text
         )
 
         sheet.cell(
@@ -5947,59 +6138,345 @@ def export_vehicle_checklist_result_excel(result_index):
             vertical="center",
             wrap_text=True
         )
+        
+        # 点検結果を表示単位に応じて入れる
+        for period_result in period_results:
+
+            if excel_display_mode == "day":
+                try:
+                    period_value = int(
+                        period_result.get("day", 0)
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                if period_value < 1 or period_value > 31:
+                    continue
+
+                column = period_value + 1
+
+            elif excel_display_mode == "month":
+                try:
+                    period_value = int(
+                        period_result.get("month", 0)
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                if period_value < 1 or period_value > 12:
+                    continue
+
+                column = period_value + 1
+
+            else:
+                try:
+                    period_year = int(
+                        period_result.get("year", 0)
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                year_offset = period_year - base_year
+
+                if year_offset < 0 or year_offset >= 5:
+                    continue
+
+                column = year_offset + 2
+
+            matched_answer = None
+
+            for answer in period_result.get("answers", []):
+                answer_item_no = answer.get("item_no")
+
+                # item_no があるデータは番号だけで照合
+                if answer_item_no not in (None, ""):
+                    if str(answer_item_no) == str(item_no):
+                        matched_answer = answer
+                        break
+                    continue
+
+                # item_no が無い旧データだけカテゴリー＋内容で照合
+                if (
+                    answer.get("category", "")
+                    == item.get("category", "")
+                    and answer.get("content", "")
+                    == item.get("content", "")
+                ):
+                    matched_answer = answer
+                    break
+
+            if not matched_answer:
+                continue
+
+            result_cell = sheet.cell(
+                row=current_row,
+                column=column,
+                value=matched_answer.get("value", "") or ""
+            )
+
+            result_cell.alignment = Alignment(
+                horizontal="center",
+                vertical="center"
+            )
+
+        current_row += 1
+                    
+    if checklist.get("score_enabled"):
+        score_row = current_row
 
         sheet.cell(
-            row=current_row,
-            column=2
-        ).alignment = Alignment(
+            row=score_row,
+            column=1,
+            value="合計点"
+        )
+
+        sheet.cell(
+            row=score_row,
+            column=1
+        ).font = Font(bold=True)
+
+        for period_result in period_results:
+            total_score = 0
+
+            for answer in period_result.get("answers", []):
+                try:
+                    total_score += float(answer.get("value") or 0)
+                except (TypeError, ValueError):
+                    pass
+
+            if excel_display_mode == "day":
+                try:
+                    column = int(period_result.get("day", 0)) + 1
+                except (TypeError, ValueError):
+                    continue
+
+            elif excel_display_mode == "month":
+                try:
+                    column = int(period_result.get("month", 0)) + 1
+                except (TypeError, ValueError):
+                    continue
+
+            else:
+                try:
+                    period_year = int(period_result.get("year", 0))
+                except (TypeError, ValueError):
+                    continue
+
+                year_offset = period_year - base_year
+
+                if year_offset < 0 or year_offset >= 5:
+                    continue
+
+                column = year_offset + 2
+
+            sheet.cell(
+                row=score_row,
+                column=column,
+                value=int(total_score)
+            )
+
+        current_row += 1
+                                    
+    # 点検実施者
+    inspector_row = current_row
+
+    sheet.cell(
+        row=inspector_row,
+        column=1,
+        value="点検実施者"
+    )
+
+    for period_result in period_results:
+
+        if excel_display_mode == "day":
+            try:
+                period_value = int(
+                    period_result.get("day", 0)
+                )
+            except (TypeError, ValueError):
+                continue
+
+            if period_value < 1 or period_value > 31:
+                continue
+
+            column = period_value + 1
+
+        elif excel_display_mode == "month":
+            try:
+                period_value = int(
+                    period_result.get("month", 0)
+                )
+            except (TypeError, ValueError):
+                continue
+
+            if period_value < 1 or period_value > 12:
+                continue
+
+            column = period_value + 1
+
+        else:
+            try:
+                period_year = int(
+                    period_result.get("year", 0)
+                )
+            except (TypeError, ValueError):
+                continue
+
+            year_offset = period_year - base_year
+
+            if year_offset < 0 or year_offset >= 5:
+                continue
+
+            column = year_offset + 2
+
+        inspector_cell = sheet.cell(
+            row=inspector_row,
+            column=column,
+            value=period_result.get("checked_by", "") or ""
+        )
+
+        inspector_cell.alignment = Alignment(
+            horizontal="center",
             vertical="center",
             wrap_text=True
         )
 
-    # 1日～31日の点検結果を入れる
-    for day_result in monthly_results:
-        try:
-            day = int(day_result.get("day", 0))
-        except (TypeError, ValueError):
-            continue
+    current_row += 1     
 
-        if day < 1 or day > 31:
-            continue
+    # 承認欄
+    approval_items = [
+        item
+        for item in checklist.get("items", [])
+        if item.get("item_type") == "approval"
+    ]
 
-        matched_answer = None
+    for approval_index, approval_item in enumerate(approval_items):
+        approval_row = current_row
+        
+        sheet.row_dimensions[approval_row].height = 28
 
-        for answer in day_result.get("answers", []):
-            if (
-                answer.get("category", "") == item.get("category", "")
-                and answer.get("content", "") == item.get("content", "")
-            ):
-                matched_answer = answer
-                break
-
-        if not matched_answer:
-            continue
-
-        result_cell = sheet.cell(
-            row=current_row,
-            column=day + 2,
-            value=matched_answer.get("value", "") or ""
+        sheet.cell(
+            row=approval_row,
+            column=1,
+            value=approval_item.get("approval_label", "") or "承認"
         )
 
-        result_cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
-            
-        check_item_no += 1
-        current_row += 1
-        column = day + 2
+        for period_result in period_results:
+            approvals = period_result.get("approvals", [])
 
-        if day <= days_in_month:
+            if approval_index >= len(approvals):
+                continue
+
+            approval = approvals[approval_index]
+
+            if not approval.get("approved_by"):
+                continue
+
+            if excel_display_mode == "day":
+                try:
+                    column = int(period_result.get("day", 0)) + 1
+                    
+                except (TypeError, ValueError):
+                    continue
+
+            elif excel_display_mode == "month":
+                try:
+                    column = int(period_result.get("month", 0)) + 1
+                except (TypeError, ValueError):
+                    continue
+
+            else:
+                try:
+                    period_year = int(period_result.get("year", 0))
+                except (TypeError, ValueError):
+                    continue
+
+                year_offset = period_year - base_year
+
+                if year_offset < 0 or year_offset >= 5:
+                    continue
+
+                column = year_offset + 2
+
             sheet.cell(
-                row=header_row,
+                row=approval_row,
                 column=column,
-                value=day
+                value=approval.get("approved_by", "")
+            ).alignment = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=True
             )
+
+        current_row += 1
+
+    # 表全体の罫線・配置
+    thin = Side(
+        style="thin",
+        color="000000"
+    )
+
+    table_end_row = current_row - 1
+
+    for row_number in range(5, table_end_row + 1):
+        for column_number in range(1, title_end_column + 1):
+            cell = sheet.cell(
+                row=row_number,
+                column=column_number
+            )
+
+            cell.border = Border(
+                left=thin,
+                right=thin,
+                top=thin,
+                bottom=thin
+            )
+
+        if column_number >= 2:
+            cell.alignment = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=True
+            )
+
+    # ヘッダー装飾
+    header_fill = PatternFill(
+        fill_type="solid",
+        fgColor="D9E1F2"
+    )
+
+    for row_number in range(header_row, weekday_row + 1):
+        for column_number in range(1, title_end_column + 1):
+            header_cell = sheet.cell(
+                row=row_number,
+                column=column_number
+            )
+
+            header_cell.fill = header_fill
+            header_cell.font = Font(bold=True)
+            header_cell.alignment = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=True
+            )
+
+    # 日次表の土日列を薄く色付け
+    if excel_display_mode == "day":
+        saturday_fill = PatternFill(
+            fill_type="solid",
+            fgColor="EAF2F8"
+        )
+
+        sunday_fill = PatternFill(
+            fill_type="solid",
+            fgColor="FCE8E6"
+        )
+
+        for day in range(1, days_in_month + 1):
+            if day > days_in_month:
+                continue
+
+            column = day + 1
 
             weekday_index = datetime(
                 year,
@@ -6007,12 +6484,83 @@ def export_vehicle_checklist_result_excel(result_index):
                 day
             ).weekday()
 
-            sheet.cell(
+            if weekday_index == 5:
+                fill = saturday_fill
+            elif weekday_index == 6:
+                fill = sunday_fill
+            else:
+                continue
+
+            for row_number in range(
+                header_row,
+                table_end_row + 1
+            ):
+                sheet.cell(
+                    row=row_number,
+                    column=column
+                ).fill = fill
+
+                                
+    # 日次表の土日文字色を再設定
+    if excel_display_mode == "day":
+        for column_number in range(2, title_end_column + 1):
+
+            weekday_cell = sheet.cell(
                 row=weekday_row,
-                column=column,
-                value=weekday_names[weekday_index]
+                column=column_number
             )
+
+            if weekday_cell.value == "土":
+                weekday_cell.font = Font(
+                    bold=True,
+                    color="0000FF"
+                )
+
+            elif weekday_cell.value == "日":
+                weekday_cell.font = Font(
+                    bold=True,
+                    color="FF0000"
+                )
+                
+    # Excelファイルをメモリ上に保存
+    output = BytesIO()
+    sheet.print_area = (
+        f"A1:{sheet.cell(
+            row=table_end_row,
+            column=title_end_column
+        ).coordinate}"
+    )
+    
+    sheet.page_margins.left = 0.25
+    sheet.page_margins.right = 0.25
+    sheet.page_margins.top = 0.25
+    sheet.page_margins.bottom = 0.25
+    sheet.page_margins.header = 0.2
+    sheet.page_margins.footer = 0.2
         
+    workbook.save(output)
+    output.seek(0)
+
+    filename = (
+        f"{checklist.get('name', '車両点検表')}_"
+        f"{result_record.year}"
+    )
+
+    if excel_display_mode == "day":
+        filename += f"_{int(result_record.month):02d}"
+
+    filename += ".xlsx"
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        )
+    )
+                                                
 @app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])
 def save_vehicle_checklist_one(index):
     checklist_record = Checklist.query.get(index)
@@ -6050,16 +6598,17 @@ def save_vehicle_checklist_one(index):
     value = request.form.get("value")
 
     result_record = VehicleChecklistResult.query.filter_by(
+        company_code=checklist_record.company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
         month=month,
         day=day
     ).first()
-
+    
     if not result_record:
         result_record = VehicleChecklistResult(
-            company_code=session.get("company_code"),
+            company_code=checklist_record.company_code,
             checklist_id=checklist_record.id,
             vehicle_id=vehicle_id,
             year=year,
@@ -6151,6 +6700,7 @@ def save_vehicle_checklist_detail(index):
     comment = request.form.get("comment")
 
     result_record = VehicleChecklistResult.query.filter_by(
+        company_code=checklist_record.company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
@@ -6220,7 +6770,7 @@ def save_vehicle_checklist_detail(index):
 
     if request.form.get("patrol_link") == "1":
         db.session.add(VehiclePatrol(
-            company_code=session.get("company_code"),
+            company_code=checklist_record.company_code,
             vehicle_id=vehicle_id,
             occurred_date=f"{year}-{month}-{day}",
             category="点検指摘",
@@ -6278,7 +6828,7 @@ def complete_vehicle_checklist(index):
         day = "01"
 
     result_record = VehicleChecklistResult.query.filter_by(
-        company_code=session.get("company_code"),
+        company_code=checklist_record.company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
@@ -6381,6 +6931,7 @@ def new_vehicle_checklist_result(index):
                     file_names.append(filename)
 
             answers.append({
+                "item_no": answer_index,
                 "category": item.get("category", ""),
                 "content": item.get("content", ""),
                 "criteria": item.get("criteria", ""),
@@ -6398,12 +6949,13 @@ def new_vehicle_checklist_result(index):
 
             approvals.append({
                 "label": item.get("approval_label", ""),
+                "allow_general": item.get("approval_allow_general", False),
                 "approved_by": "",
                 "approved_date": ""
             })
             
         result = VehicleChecklistResult(
-            company_code=session.get("company_code"),
+            company_code=checklist_record.company_code,
             checklist_id=checklist_record.id,
             vehicle_id=vehicle_id,
             year=year,
