@@ -1716,6 +1716,68 @@ def dashboard():
                 "url": "/master/checklists"
             })
 
+    checklist_score_summaries = []
+
+    score_checklists = Checklist.query.filter_by(
+        company_code=company_code,
+        target="安全管理"
+    ).all()
+
+    for checklist_record in score_checklists:
+        checklist = checklist_to_dict(checklist_record)
+
+        if not checklist.get("score_enabled"):
+            continue
+
+        check_items = [
+            item
+            for item in checklist.get("items", [])
+            if item.get("item_type") == "check"
+        ]
+
+        result_records = ChecklistResult.query.filter_by(
+            company_code=company_code,
+            checklist_id=checklist_record.id
+        ).all()
+
+        result_scores = []
+
+        for result_record in result_records:
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            total_score = 0
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                try:
+                    total_score += float(
+                        answer.get("value")
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+            result_scores.append(total_score)
+
+        average_score = (
+            round(
+                sum(result_scores) / len(result_scores),
+                1
+            )
+            if result_scores
+            else None
+        )
+
+        checklist_score_summaries.append({
+            "id": checklist_record.id,
+            "name": checklist_record.name,
+            "average_score": average_score,
+            "result_count": len(result_scores),
+        })
+            
     return render_template(
         "index.html",
         my_safe_days=my_safe_days,
@@ -1723,7 +1785,7 @@ def dashboard():
         my_good_count=my_good_count,
         my_pending_pointouts=my_pending_pointouts,
         inspection_alerts=inspection_alerts,
-        setup_tasks=setup_tasks
+        setup_tasks=setup_tasks,
     )
 
 @app.route("/notifications")
