@@ -126,6 +126,7 @@
             評価方式が「選択式」の場合は、選択肢をカンマ区切りで入力してください。
             例：2,1,0 または 〇,△,×
         </p>
+        <datalist id="choices_candidates"></datalist>
 
         <div id="checklist_items">
 
@@ -228,8 +229,10 @@
                                     <input
                                         type="text"
                                         name="choices"
+                                        list="choices_candidates"
                                         value="{{ item.choices|join(',') if item.choices else '' }}"
                                         placeholder="例：2,1,0"
+                                        onfocus="updateChoiceCandidates()"
                                         {% if item.input_type == "text" %}style="display:none;"{% endif %}
                                     >
 
@@ -368,8 +371,12 @@
                                 <input
                                     type="text"
                                     name="choices"
+                                    list="choices_candidates"
                                     placeholder="例：〇,△,×"
+                                    onfocus="updateChoiceCandidates()"
                                 >
+
+
 
                                 <label>評価基準</label>
                                 <textarea
@@ -450,6 +457,32 @@
 </div>
 
 <script>
+function updateChoiceCandidates() {
+    const datalist = document.getElementById("choices_candidates");
+
+    if (!datalist) {
+        return;
+    }
+
+    const values = new Set();
+
+    document.querySelectorAll('input[name="choices"]').forEach(function(input) {
+        const value = input.value.trim();
+
+        if (value) {
+            values.add(value);
+        }
+    });
+
+    datalist.innerHTML = "";
+
+    values.forEach(function(value) {
+        const option = document.createElement("option");
+        option.value = value;
+        datalist.appendChild(option);
+    });
+}
+
 function addChecklistItem() {
     const area = document.getElementById("checklist_items");
     const index = area.querySelectorAll(".checklist-item-row").length;
@@ -528,7 +561,9 @@ function addChecklistItem() {
                     <input
                         type="text"
                         name="choices"
+                        list="choices_candidates"
                         placeholder="例：〇,△,×"
+                        onfocus="updateChoiceCandidates()"
                     >
 
                     <label>評価基準</label>
