@@ -2843,6 +2843,434 @@ def delete_office(index):
 
     return redirect("/master/offices")
 
+@app.route("/master/delivery-places/import", methods=["GET", "POST"])
+def import_delivery_places():
+
+    if request.method == "POST":
+
+        excel_file = request.files.get("excel_file")
+
+        if not excel_file or not excel_file.filename:
+            return "Excelファイルを選択してください。"
+
+        if not excel_file.filename.lower().endswith(".xlsx"):
+            return "xlsx形式のExcelファイルを選択してください。"
+
+        try:
+            workbook = load_workbook(
+                excel_file,
+                data_only=True
+            )
+        except Exception:
+            return "Excelファイルを読み込めませんでした。"
+
+        sheet = workbook.active
+
+        header_names = {
+            "納入先",
+            "納入先名",
+            "納入先名称",
+            "配送先",
+            "配送先名",
+            "届け先",
+            "届先",
+            "得意先",
+            "得意先名",
+            "顧客名",
+            "現場名",
+        }
+
+        def normalize_header(value):
+            return (
+                str(value or "")
+                .strip()
+                .replace(" ", "")
+                .replace("　", "")
+            )
+
+        header_row = None
+        delivery_column = None
+        candidate_columns = []
+
+        scan_end_row = min(sheet.max_row, 30)
+
+        for row_number in range(1, scan_end_row + 1):
+
+            row_candidates = []
+
+            for column_number in range(
+                1,
+                sheet.max_column + 1
+            ):
+                cell_value = sheet.cell(
+                    row=row_number,
+                    column=column_number
+                ).value
+
+                normalized_value = normalize_header(
+                    cell_value
+                )
+
+                if normalized_value in header_names:
+                    row_candidates.append({
+                        "column": column_number,
+                        "header": str(cell_value).strip()
+                    })
+
+            if row_candidates:
+                header_row = row_number
+                candidate_columns = row_candidates
+
+                if len(row_candidates) == 1:
+                    delivery_column = row_candidates[0][
+                        "column"
+                    ]
+
+                break
+
+        if delivery_column:
+
+            def normalize_delivery_name(value):
+                return "".join(
+                    str(value or "").split()
+                ).casefold()
+
+            existing_places = DeliveryPlace.query.filter_by(
+                company_code=session.get("company_code")
+            ).all()
+
+            existing_names = {
+                normalize_delivery_name(place.name)
+                for place in existing_places
+                if normalize_delivery_name(place.name)
+            }
+
+            delivery_places_data = []
+            processed_names = set()
+
+            for row_number in range(
+                header_row + 1,
+                sheet.max_row + 1
+            ):
+                cell_value = sheet.cell(
+                    row=row_number,
+                    column=delivery_column
+                ).value
+
+                place_name = str(
+                    cell_value or ""
+                ).strip()
+
+                # 空欄は読み飛ばす
+                if not place_name:
+                    continue
+
+                normalized_name = normalize_delivery_name(
+                    place_name
+                )
+
+                if normalized_name in processed_names:
+                    import_status = "Excel内重複"
+
+                elif normalized_name in existing_names:
+                    import_status = "登録済み"
+
+                else:
+                    import_status = "新規"
+
+                processed_names.add(normalized_name)
+
+                delivery_places_data.append({
+                    "excel_row": row_number,
+                    "name": place_name,
+                    "import_status": import_status,
+                })
+
+            if not delivery_places_data:
+                return (
+                    "納入先として読み込めるデータが"
+                    "見つかりませんでした。"
+                )
+
+            return render_template(
+                "delivery_place_import_preview.html",
+                delivery_places=delivery_places_data,
+            )
+
+        # 自動判定できない場合は、ユーザーに列を選択してもらう
+        selectable_columns = []
+
+        for column_number in range(1, sheet.max_column + 1):
+
+            sample_values = []
+
+            for row_number in range(1, min(sheet.max_row, 5) + 1):
+
+                value = sheet.cell(
+                    row=row_number,
+                    column=column_number
+                ).value
+
+                if value is not None and str(value).strip():
+                    sample_values.append(str(value).strip())
+
+            selectable_columns.append({
+                "column": column_number,
+                "samples": sample_values[:3],
+            })
+
+        sheet_rows = []
+
+        for row in sheet.iter_rows(values_only=True):
+            sheet_rows.append([
+                "" if value is None else str(value)
+                for value in row
+            ])
+
+        if candidate_columns:
+            message = (
+                "納入先と思われる列が複数見つかりました。"
+                "使用する列を選択してください。"
+            )
+            start_row = (header_row or 0) + 1
+
+        else:
+            message = (
+                "納入先の列を自動判定できませんでした。"
+                "使用する列を選択してください。"
+            )
+            start_row = 1
+
+        return render_template(
+            "delivery_place_import_column_select.html",
+            columns=selectable_columns,
+            rows_json=json.dumps(
+                sheet_rows,
+                ensure_ascii=False
+            ),
+            start_row=start_row,
+            message=message,
+        )
+
+    return render_template(
+        "delivery_place_import.html"
+    )
+
+@app.route(
+    "/master/delivery-places/import/column-select",
+    methods=["POST"]
+)
+def select_delivery_place_import_column():
+
+    rows_json = request.form.get("rows_json", "[]")
+    delivery_column = request.form.get(
+        "delivery_column",
+        type=int
+    )
+    start_row = request.form.get(
+        "start_row",
+        1,
+        type=int
+    )
+
+    if not delivery_column:
+        return "納入先の列を選択してください。"
+
+    try:
+        sheet_rows = json.loads(rows_json)
+    except Exception:
+        return "Excelデータを読み込めませんでした。"
+
+    def normalize_delivery_name(value):
+        return "".join(
+            str(value or "").split()
+        ).casefold()
+
+    existing_places = DeliveryPlace.query.filter_by(
+        company_code=session.get("company_code")
+    ).all()
+
+    existing_names = {
+        normalize_delivery_name(place.name)
+        for place in existing_places
+        if normalize_delivery_name(place.name)
+    }
+
+    delivery_places_data = []
+    processed_names = set()
+
+    # HTML側は1列目、2列目…の1始まり
+    column_index = delivery_column - 1
+
+    # start_rowもExcel行番号の1始まり
+    for row_number in range(
+        start_row,
+        len(sheet_rows) + 1
+    ):
+
+        row = sheet_rows[row_number - 1]
+
+        if column_index >= len(row):
+            continue
+
+        place_name = str(
+            row[column_index] or ""
+        ).strip()
+
+        # 空欄は読み飛ばす
+        if not place_name:
+            continue
+
+        normalized_header = (
+            place_name
+            .replace(" ", "")
+            .replace("　", "")
+        )
+
+        # 見出しそのものは納入先として取り込まない
+        manual_header_names = {
+            "納入先",
+            "納入先名",
+            "納入先名称",
+            "配送先",
+            "配送先名",
+            "届け先",
+            "届先",
+            "得意先",
+            "得意先名",
+            "顧客名",
+            "現場名",
+        }
+
+        if normalized_header in manual_header_names:
+            continue
+
+        # 「納入先一覧」のようなタイトル行も読み飛ばす
+        if (
+            "一覧" in normalized_header
+            and any(
+                word in normalized_header
+                for word in [
+                    "納入先",
+                    "配送先",
+                    "届け先",
+                    "届先",
+                    "得意先",
+                    "顧客",
+                    "現場",
+                ]
+            )
+        ):
+            continue
+        normalized_name = normalize_delivery_name(
+            place_name
+        )
+
+        if normalized_name in processed_names:
+            import_status = "Excel内重複"
+
+        elif normalized_name in existing_names:
+            import_status = "登録済み"
+
+        else:
+            import_status = "新規"
+
+        processed_names.add(normalized_name)
+
+        delivery_places_data.append({
+            "excel_row": row_number,
+            "name": place_name,
+            "import_status": import_status,
+        })
+
+    if not delivery_places_data:
+        return (
+            "選択した列に納入先として読み込める"
+            "データがありませんでした。"
+        )
+
+    return render_template(
+        "delivery_place_import_preview.html",
+        delivery_places=delivery_places_data,
+    )
+        
+@app.route(
+    "/master/delivery-places/import/confirm",
+    methods=["POST"]
+)
+def confirm_delivery_place_import():
+
+    company_code = session.get("company_code")
+
+    submitted_names = request.form.getlist(
+        "delivery_place_name"
+    )
+
+    def normalize_delivery_name(value):
+        return "".join(
+            str(value or "").split()
+        ).casefold()
+
+    existing_places = DeliveryPlace.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    existing_names = {
+        normalize_delivery_name(place.name)
+        for place in existing_places
+        if normalize_delivery_name(place.name)
+    }
+
+    processed_names = set()
+
+    registered_count = 0
+    existing_count = 0
+    duplicate_count = 0
+
+    for submitted_name in submitted_names:
+
+        place_name = str(
+            submitted_name or ""
+        ).strip()
+
+        if not place_name:
+            continue
+
+        normalized_name = normalize_delivery_name(
+            place_name
+        )
+
+        # 送信された一覧内で同じ納入先が重複している
+        if normalized_name in processed_names:
+            duplicate_count += 1
+            continue
+
+        processed_names.add(normalized_name)
+
+        # データベースにすでに登録されている
+        if normalized_name in existing_names:
+            existing_count += 1
+            continue
+
+        place = DeliveryPlace(
+            company_code=company_code,
+            name=place_name
+        )
+
+        db.session.add(place)
+
+        existing_names.add(normalized_name)
+        registered_count += 1
+
+    db.session.commit()
+
+    return render_template(
+        "delivery_place_import_complete.html",
+        registered_count=registered_count,
+        existing_count=existing_count,
+        duplicate_count=duplicate_count,
+    )
+        
 @app.route("/master/delivery-places")
 def delivery_place_master():
     return render_template(

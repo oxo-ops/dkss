@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}納入先Excel一括登録{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>納入先Excel一括登録</h2>
+
+    <div class="header-actions">
+        <a href="/master/delivery-places" class="btn btn-back">
+            ← 納入先マスターへ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card">
+
+    <h3>Excelファイルを選択</h3>
+
+    <p class="help-text">
+        納入先が記載されたExcelファイルを選択してください。
+        見出し行と納入先の列は自動で判定します。
+    </p>
+
+    <form
+        method="post"
+        enctype="multipart/form-data"
+    >
+        <div class="form-group">
+            <label>Excelファイル</label>
+
+            <input
+                type="file"
+                name="excel_file"
+                accept=".xlsx"
+                required
+            >
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">
+                Excelを読み込む
+            </button>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

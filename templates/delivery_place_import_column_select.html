@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}納入先Excel列選択{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>納入先Excel列選択</h2>
+
+    <a
+        href="/master/delivery-places/import"
+        class="btn btn-back"
+    >
+        ← Excel選択へ戻る
+    </a>
+</div>
+
+<div class="card">
+
+    <p>
+        {{ message }}
+    </p>
+
+    <p>
+        納入先名が入っている列を選択してください。
+    </p>
+
+    <form
+        method="post"
+        action="/master/delivery-places/import/column-select"
+    >
+
+        <input
+            type="hidden"
+            name="rows_json"
+            value='{{ rows_json | e }}'
+        >
+
+        <input
+            type="hidden"
+            name="start_row"
+            value="{{ start_row }}"
+        >
+
+        <div style="margin-top: 20px;">
+
+            {% for column in columns %}
+
+            <label
+                style="
+                    display: block;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    padding: 12px;
+                    margin-bottom: 10px;
+                    cursor: pointer;
+                "
+            >
+
+                <input
+                    type="radio"
+                    name="delivery_column"
+                    value="{{ column.column }}"
+                    required
+                >
+
+                <strong>
+                    {{ column.column }}列目
+                </strong>
+
+                {% if column.samples %}
+
+                <span style="margin-left: 15px;">
+                    例：
+                    {{ column.samples | join(" / ") }}
+                </span>
+
+                {% endif %}
+
+            </label>
+
+            {% endfor %}
+
+        </div>
+
+        <div style="margin-top: 20px;">
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                この列を納入先として読み込む
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}

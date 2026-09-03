@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}納入先Excel取込確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>納入先Excel取込確認</h2>
+
+    <div class="header-actions">
+        <a
+            href="/master/delivery-places/import"
+            class="btn btn-back"
+        >
+            ← Excel選択へ戻る
+        </a>
+    </div>
+</div>
+
+{% set counts = namespace(
+    new=0,
+    existing=0,
+    duplicate=0
+) %}
+
+{% for place in delivery_places %}
+    {% if place.import_status == "新規" %}
+        {% set counts.new = counts.new + 1 %}
+    {% elif place.import_status == "登録済み" %}
+        {% set counts.existing = counts.existing + 1 %}
+    {% elif place.import_status == "Excel内重複" %}
+        {% set counts.duplicate = counts.duplicate + 1 %}
+    {% endif %}
+{% endfor %}
+
+<div class="card">
+
+    <h3>取込内容</h3>
+
+    <p class="help-text">
+        {{ delivery_places|length }}件読み込みました。
+        登録前に納入先名を編集できます。
+    </p>
+
+    <div
+        style="
+            display:flex;
+            gap:20px;
+            flex-wrap:wrap;
+            margin:16px 0;
+        "
+    >
+        <strong style="color:green;">
+            新規：{{ counts.new }}件
+        </strong>
+
+        <strong style="color:#666;">
+            登録済み：{{ counts.existing }}件
+        </strong>
+
+        <strong style="color:red;">
+            Excel内重複：{{ counts.duplicate }}件
+        </strong>
+    </div>
+
+</div>
+
+<form
+    method="post"
+    action="/master/delivery-places/import/confirm"
+    onsubmit="return confirmDeliveryPlaceImport();"
+>
+
+    <div class="table-scroll">
+
+        <table class="checklist-table">
+
+            <thead>
+                <tr>
+                    <th style="width:80px;">Excel行</th>
+                    <th style="width:140px;">処理</th>
+                    <th>納入先名</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for place in delivery_places %}
+                <tr>
+
+                    <td class="center-cell">
+                        {{ place.excel_row }}
+                    </td>
+
+                    <td class="center-cell">
+
+                        {% if place.import_status == "新規" %}
+                            <span
+                                class="status-badge status-approved"
+                            >
+                                新規
+                            </span>
+
+                        {% elif place.import_status == "登録済み" %}
+                            <span
+                                class="status-badge status-waiting"
+                            >
+                                登録済み
+                            </span>
+
+                        {% else %}
+                            <span
+                                class="status-badge"
+                                style="
+                                    background:#ffe5e5;
+                                    color:#cc0000;
+                                "
+                            >
+                                Excel内重複
+                            </span>
+                        {% endif %}
+
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            name="delivery_place_name"
+                            value="{{ place.name }}"
+                            maxlength="100"
+                            required
+                            style="width:100%;"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="excel_row"
+                            value="{{ place.excel_row }}"
+                        >
+                    </td>
+
+                </tr>
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <div
+        class="form-actions"
+        style="margin-top:20px;"
+    >
+        <a
+            href="/master/delivery-places/import"
+            class="btn btn-back"
+        >
+            編集をやめる
+        </a>
+
+        <button type="submit" class="btn">
+            登録内容を確認
+        </button>
+    </div>
+
+</form>
+<script>
+function confirmDeliveryPlaceImport() {
+
+    const newCount = Number("{{ counts.new }}");
+    const existingCount = Number("{{ counts.existing }}");
+    const duplicateCount = Number("{{ counts.duplicate }}");
+
+    const message =
+        "納入先データを登録しますか？\n\n" +
+        "新規登録：" + newCount + "件\n" +
+        "登録済み：" + existingCount + "件\n" +
+        "Excel内重複：" + duplicateCount + "件\n\n" +
+        "登録済みとExcel内重複は登録されません。";
+
+    return window.confirm(message);
+}
+</script>
+
+{% endblock %}
