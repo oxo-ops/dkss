@@ -95,6 +95,19 @@
                     年表示（1年分を横並び）
                 </option>
             </select>
+            <label class="checkbox-row">
+                <input
+                    type="checkbox"
+                    name="print_portrait"
+                    value="1"
+                    {% if checklist and checklist.print_portrait %}checked{% endif %}
+                >
+                <span>Excel帳票を縦向きで出力する</span>
+            </label>
+
+            <p class="help-text">
+                未チェックの場合は横向きで出力します。
+            </p>            
         </div>
 
         <label class="checkbox-row">

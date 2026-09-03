@@ -232,6 +232,11 @@ class Checklist(db.Model):
     frequency_value = db.Column(db.String(20))
     frequency_unit = db.Column(db.String(20))
     display_type = db.Column(db.String(20))
+    print_portrait = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
 
     items_json = db.Column(db.Text, default="[]")
     notify_users_json = db.Column(
@@ -647,6 +652,7 @@ def checklist_to_dict(checklist):
         "frequency_value": checklist.frequency_value,
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
+        "print_portrait": bool(checklist.print_portrait),
         "items": items,
         "score_enabled": any(
             item.get("score_enabled", False)
@@ -4289,7 +4295,10 @@ def new_checklist():
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
         score_enabled = request.form.get("score_enabled") == "1"
-
+        print_portrait = (
+            request.form.get("target") == "車両管理"
+            and request.form.get("print_portrait") == "1"
+        )
         items = []
 
         for i in range(len(item_types)):
@@ -4367,6 +4376,7 @@ def new_checklist():
             frequency_value=frequency_value,
             frequency_unit=frequency_unit,
             display_type=display_type,
+            print_portrait=print_portrait,
             items_json=json.dumps(items, ensure_ascii=False)
         )
 
@@ -5893,7 +5903,10 @@ def export_vehicle_checklist_result_excel(result_index):
     # 印刷設定
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
     sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
-    sheet.page_setup.orientation = sheet.ORIENTATION_LANDSCAPE
+    if checklist.get("print_portrait"):
+        sheet.page_setup.orientation = sheet.ORIENTATION_PORTRAIT
+    else:
+        sheet.page_setup.orientation = sheet.ORIENTATION_LANDSCAPE
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
     sheet.print_options.horizontalCentered = True
@@ -7222,7 +7235,10 @@ def edit_checklist(index):
         criteria_list = request.form.getlist("criteria")
         comment_required_list = request.form.getlist("comment_required")
         score_enabled = request.form.get("score_enabled") == "1"
-
+        print_portrait = (
+            request.form.get("target") == "車両管理"
+            and request.form.get("print_portrait") == "1"
+        )
         old_items = checklist.get("items", [])
         items = []
 
@@ -7295,10 +7311,12 @@ def edit_checklist(index):
             checklist_record.frequency_value = request.form.get("frequency_value")
             checklist_record.frequency_unit = request.form.get("frequency_unit")
             checklist_record.display_type = request.form.get("display_type")
+            checklist_record.print_portrait = print_portrait
         else:
             checklist_record.frequency_value = ""
             checklist_record.frequency_unit = ""
             checklist_record.display_type = ""
+            checklist_record.print_portrait = False
 
         checklist_record.items_json = json.dumps(items, ensure_ascii=False)
 
@@ -7519,6 +7537,10 @@ with app.app_context():
     
     checklist_columns = [
         ("notify_users_json", "TEXT"),
+        (
+            "print_portrait",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
     ]
 
     existing_checklist_columns = [
