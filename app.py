@@ -1863,6 +1863,25 @@ def itc_new_company():
         )
 
         db.session.add(company)
+
+        default_content_types = [
+            "落下",
+            "車両",
+            "環境",
+            "荷扱い",
+            "ルール違反",
+            "Good",
+            "その他",
+        ]
+
+        for name in default_content_types:
+            db.session.add(
+                PatrolContentType(
+                    company_code=company.company_code,
+                    name=name
+                )
+            )
+
         db.session.commit()
 
         return redirect("/itc")
