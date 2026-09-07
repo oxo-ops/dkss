@@ -141,6 +141,7 @@
             例：2,1,0 または 〇,△,×
         </p>
         <datalist id="choices_candidates"></datalist>
+        <datalist id="category_candidates"></datalist>
 
         <div id="checklist_items">
 
@@ -201,8 +202,10 @@
                                     <input
                                         type="text"
                                         name="item_category"
+                                        list="category_candidates"
                                         value="{{ item.category if item.category else '' }}"
                                         placeholder="例：荷扱い"
+                                        onfocus="updateCategoryCandidates()"
                                     >
                                 </div>
 
@@ -353,7 +356,9 @@
                                 <input
                                     type="text"
                                     name="item_category"
+                                    list="category_candidates"
                                     placeholder="例：荷扱い"
+                                    onfocus="updateCategoryCandidates()"
                                 >
                             </div>
 
@@ -471,6 +476,32 @@
 </div>
 
 <script>
+function updateCategoryCandidates() {
+    const datalist = document.getElementById("category_candidates");
+
+    if (!datalist) {
+        return;
+    }
+
+    const values = new Set();
+
+    document.querySelectorAll('input[name="item_category"]').forEach(function(input) {
+        const value = input.value.trim();
+
+        if (value) {
+            values.add(value);
+        }
+    });
+
+    datalist.innerHTML = "";
+
+    values.forEach(function(value) {
+        const option = document.createElement("option");
+        option.value = value;
+        datalist.appendChild(option);
+    });
+}
+
 function updateChoiceCandidates() {
     const datalist = document.getElementById("choices_candidates");
 
@@ -543,7 +574,9 @@ function addChecklistItem() {
                     <input
                         type="text"
                         name="item_category"
+                        list="category_candidates"
                         placeholder="例：荷扱い"
+                        onfocus="updateCategoryCandidates()"
                     >
                 </div>
 
