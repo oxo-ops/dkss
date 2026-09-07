@@ -7710,20 +7710,8 @@ def export_vehicle_checklist_result_excel(result_index):
         item_text = content
 
         # 点検項目の文字量に応じて行高を調整
-        chars_per_line = 20
+        sheet.row_dimensions[current_row].height = None
 
-        explicit_lines = item_text.count("\n") + 1
-
-        estimated_lines = max(
-            explicit_lines,
-            (len(item_text) + chars_per_line - 1) // chars_per_line
-        )
-
-        sheet.row_dimensions[current_row].height = max(
-            30,
-            estimated_lines * 24
-        )
-            
         sheet.cell(
             row=current_row,
             column=1,
