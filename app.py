@@ -1740,6 +1740,23 @@ def dashboard():
             checklist_id=checklist_record.id
         ).all()
 
+        max_score = 0
+
+        for item in check_items:
+            if item.get("input_type") != "select":
+                continue
+
+            numeric_choices = []
+
+            for choice in item.get("choices", []):
+                try:
+                    numeric_choices.append(float(choice))
+                except (TypeError, ValueError):
+                    pass
+
+            if numeric_choices:
+                max_score += max(numeric_choices)
+                
         result_scores = []
 
         for result_record in result_records:
@@ -1762,6 +1779,20 @@ def dashboard():
 
             result_scores.append(total_score)
 
+        score_distribution = {}
+
+        for score in result_scores:
+            score_value = float(score)
+            score_label = (
+                int(score_value)
+                if score_value.is_integer()
+                else score_value
+            )
+
+            score_distribution[score_label] = (
+                score_distribution.get(score_label, 0) + 1
+            )
+            
         average_score = (
             round(
                 sum(result_scores) / len(result_scores),
@@ -1771,12 +1802,15 @@ def dashboard():
             else None
         )
 
-        checklist_score_summaries.append({
-            "id": checklist_record.id,
-            "name": checklist_record.name,
-            "average_score": average_score,
-            "result_count": len(result_scores),
-        })
+    checklist_score_summaries.append({
+        "id": checklist_record.id,
+        "name": checklist_record.name,
+        "average_score": average_score,
+        "result_count": len(result_scores),
+        "scores": result_scores,
+        "max_score": max_score,
+        "score_distribution": score_distribution,
+    })
             
     return render_template(
         "index.html",
@@ -1786,6 +1820,7 @@ def dashboard():
         my_pending_pointouts=my_pending_pointouts,
         inspection_alerts=inspection_alerts,
         setup_tasks=setup_tasks,
+        checklist_score_summaries=checklist_score_summaries
     )
 
 @app.route("/notifications")
@@ -6987,8 +7022,23 @@ def export_vehicle_checklist_result_excel(result_index):
             criteria_list.append(criteria)
 
     if criteria_list:
-        sheet.row_dimensions[3].height = 24
-        
+        criteria_text = "評価基準：\n" + "\n".join(criteria_list)
+
+        # 評価基準の改行数と文字量から必要な行数を計算
+        chars_per_line = 100
+        line_count = 0
+
+        for line in criteria_text.split("\n"):
+            line_count += max(
+                1,
+                (len(line) + chars_per_line - 1) // chars_per_line
+            )
+
+        sheet.row_dimensions[3].height = max(
+            24,
+            line_count * 18
+        )
+
         sheet.merge_cells(
             start_row=3,
             start_column=1,
@@ -6999,7 +7049,7 @@ def export_vehicle_checklist_result_excel(result_index):
         criteria_cell = sheet.cell(
             row=3,
             column=1,
-            value="評価基準：" + " / ".join(criteria_list)
+            value=criteria_text
         )
 
         criteria_cell.font = Font(
@@ -7177,8 +7227,20 @@ def export_vehicle_checklist_result_excel(result_index):
         # 点検項目にはカテゴリ名を付けない
         item_text = content
 
-        if "\n" not in item_text and len(item_text) <= 35:
-            sheet.row_dimensions[current_row].height = 24
+        # 点検項目の文字量に応じて行高を調整
+        chars_per_line = 32
+
+        explicit_lines = item_text.count("\n") + 1
+
+        estimated_lines = max(
+            explicit_lines,
+            (len(item_text) + chars_per_line - 1) // chars_per_line
+        )
+
+        sheet.row_dimensions[current_row].height = max(
+            24,
+            estimated_lines * 18
+        )
             
         sheet.cell(
             row=current_row,
@@ -8170,13 +8232,16 @@ def new_safety_checklist_result(index):
                 "approved_by": "",
                 "approved_date": "",
             })
+
+        target_type = request.form.get("target_type")
+                            
         result = ChecklistResult(
             company_code=session.get("company_code"),
             checklist_id=checklist_record.id,
-            target_type=request.form.get("target_type"),
-            target_user=request.form.get("target_user"),
+            target_type=target_type,
+            target_user=target_user,
             target_vehicle=request.form.get("target_vehicle"),
-            target_office=request.form.get("target_office"),
+            target_office=target_office,
             checked_by=session.get("name"),
             checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
             approved_by="",

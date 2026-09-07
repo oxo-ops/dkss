@@ -50,7 +50,7 @@
             <div class="summary-value good">{{ my_good_count }}</div>
             <div class="summary-unit">件</div>
         </div>
-
+     
         <div class="summary-card">
             <div class="summary-title">あなたへの未対応指摘</div>
             <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
@@ -64,6 +64,49 @@
         </div>
 
     </div>
+
+    {% if checklist_score_summaries %}
+    <div class="dashboard-card">
+        <div class="card-title-row">
+            <h3>チェックリスト集計</h3>
+        </div>
+
+        <table class="dashboard-table">
+            <tr>
+                <th>チェックリスト</th>
+                <th style="width:120px;">平均点</th>
+                <th style="width:120px;">実施件数</th>
+                <th>点数分布</th>
+            </tr>
+
+            {% for item in checklist_score_summaries %}
+            <tr>
+                <td>{{ item.name }}</td>
+
+                <td>
+                    {% if item.average_score is not none %}
+                        <strong>{{ item.average_score }}</strong> / {{ item.max_score }} 点
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+
+                <td>{{ item.result_count }}件</td>
+
+                <td>
+                    {% if item.score_distribution %}
+                        {% for score, count in item.score_distribution|dictsort(reverse=true) %}
+                            {{ score }}点：{{ count }}件{% if not loop.last %} / {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
 
     <div class="dashboard-two-column">
 

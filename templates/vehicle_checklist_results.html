@@ -258,9 +258,7 @@
         <strong>評価基準</strong>
 
         {% if criteria_text %}
-        <div class="criteria-line">
-            {{ criteria_text }}
-        </div>
+        <div class="criteria-line" style="white-space: pre-line;">{{ criteria_text }}</div>
         {% endif %}
 
         {% if item.get("criteria_files", []) %}
