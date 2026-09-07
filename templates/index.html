@@ -39,78 +39,450 @@
 
     <div class="dashboard-summary">
 
-        <div class="summary-card main">
-            <div class="summary-title">あなたの無事故無違反</div>
-            <div class="summary-value">{{ my_safe_days }}</div>
-            <div class="summary-unit">日継続中</div>
-        </div>
-
-        <div class="summary-card">
-            <div class="summary-title">あなたのGood件数</div>
-            <div class="summary-value good">{{ my_good_count }}</div>
-            <div class="summary-unit">件</div>
-        </div>
+            <a
+                href="/master/drivers?keyword={{ my_user_name|urlencode }}"
+                class="summary-card main"
+                style="
+                    display:block;
+                    color:inherit;
+                    text-decoration:none;
+                    cursor:pointer;
+                "
+            >
+                <div class="summary-title">あなたの無事故無違反</div>
+                <div class="summary-value">{{ my_safe_days }}</div>
+                <div class="summary-unit">日継続中</div>
+            </a>
+            <a
+                href="/pointouts?type=user&category=Good&mine=1"
+                class="summary-card"
+                style="
+                    display:block;
+                    color:inherit;
+                    text-decoration:none;
+                    cursor:pointer;
+                "
+            >
+                <div class="summary-title">あなたのGood件数</div>
+                <div class="summary-value good">{{ my_good_count }}</div>
+                <div class="summary-unit">件</div>
+            </a>
      
-        <div class="summary-card">
-            <div class="summary-title">あなたへの未対応指摘</div>
-            <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
-            <div class="summary-unit">件</div>
-        </div>
+            <a
+                href="/pointouts?type=user&mine=1&pending=1"
+                class="summary-card"
+                style="
+                    display:block;
+                    color:inherit;
+                    text-decoration:none;
+                    cursor:pointer;
+                "
+            >
+                <div class="summary-title">あなたへの未対応指摘</div>
+                <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
+                <div class="summary-unit">件</div>
+            </a>
 
-        <div class="summary-card">
-            <div class="summary-title">車検期限90日以内</div>
-            <div class="summary-value warning">{{ inspection_alerts|length }}</div>
-            <div class="summary-unit">台</div>
-        </div>
+            <a
+                href="/master/vehicles"
+                class="summary-card"
+                style="
+                    display:block;
+                    color:inherit;
+                    text-decoration:none;
+                    cursor:pointer;
+                "
+            >
+                <div class="summary-title">車検期限90日以内</div>
+                <div class="summary-value warning">{{ inspection_alerts|length }}</div>
+                <div class="summary-unit">台</div>
+            </a>
 
     </div>
+
+{% if my_checklist_summaries %}
+
+<div style="margin-bottom:24px;">
+
+    <div class="card-title-row" style="margin-bottom:12px;">
+        <h3>あなたのチェックリスト</h3>
+    </div>
+
+    <div style="
+        display:flex;
+        flex-wrap:wrap;
+        gap:16px;
+    ">
+
+        {% for item in my_checklist_summaries %}
+
+    <a
+        href="/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_user|urlencode }}"
+        class="dashboard-card"
+        style="
+            display:block;
+            width:100%;
+            max-width:360px;
+            flex:0 1 360px;
+            margin:0;
+            padding:18px;
+            color:inherit;
+            text-decoration:none;
+            cursor:pointer;
+        "
+    >
+
+            <strong style="font-size:15px;">
+                {{ item.name }}
+            </strong>
+
+            <div style="
+                display:flex;
+                align-items:end;
+                justify-content:space-between;
+                margin-top:12px;
+            ">
+
+                <div>
+                    <span style="
+                        font-size:26px;
+                        font-weight:700;
+                    ">
+                        {{ item.average_score }}
+                    </span>
+
+                    <span style="color:#64748b;">
+                        / {{ item.max_score }}点
+                    </span>
+                </div>
+
+                <span style="
+                    font-size:12px;
+                    color:#64748b;
+                ">
+                    {{ item.result_count }}件
+                </span>
+
+            </div>
+
+
+            {% if item.average_difference is not none %}
+
+            <div style="
+                margin-top:4px;
+                font-size:12px;
+                color:#64748b;
+            ">
+                全体平均 {{ item.overall_average_score }}点
+
+                {% if item.average_difference > 0 %}
+                    ・ +{{ item.average_difference }}点
+                {% elif item.average_difference < 0 %}
+                    ・ {{ item.average_difference }}点
+                {% else %}
+                    ・ ±0点
+                {% endif %}
+            </div>
+
+            {% endif %}
+
+
+            {% if item.category_analysis %}
+
+            <div style="
+                border-top:1px solid #edf1f5;
+                margin-top:14px;
+                padding-top:12px;
+            ">
+
+                <div style="
+                    font-size:12px;
+                    color:#64748b;
+                    margin-bottom:7px;
+                ">
+                    注意したい分野
+                </div>
+
+                {% for category in item.category_analysis %}
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    margin-bottom:5px;
+                    font-size:13px;
+                ">
+                    <span>{{ category.category }}</span>
+                    <strong>{{ category.improvement_rate }}%</strong>
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+            {% endif %}
+
+        </a>
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+{% endif %}
 
     {% if checklist_score_summaries %}
-    <div class="dashboard-card">
-        <div class="card-title-row">
-            <h3>チェックリスト集計</h3>
+
+    <div style="margin-bottom:24px;">
+
+        <div class="card-title-row" style="margin-bottom:14px;">
+            <h3>チェックリスト分析</h3>
+            <span>改善優先度が高い項目を表示</span>
         </div>
 
-        <table class="dashboard-table">
-            <tr>
-                <th>チェックリスト</th>
-                <th style="width:120px;">平均点</th>
-                <th style="width:120px;">実施件数</th>
-                <th>点数分布</th>
-            </tr>
+        <div style="
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+            gap:16px;
+        ">
 
             {% for item in checklist_score_summaries %}
-            <tr>
-                <td>{{ item.name }}</td>
 
-                <td>
-                    {% if item.average_score is not none %}
-                        <strong>{{ item.average_score }}</strong> / {{ item.max_score }} 点
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
+        <div
+            class="dashboard-card"
+            onclick="window.location.href='/safety/checklists/{{ item.id }}'"
+            style="
+                display:block;
+                margin:0;
+                padding:20px;
+                min-width:0;
+                color:inherit;
+                cursor:pointer;
+            "
+        >
 
-                <td>{{ item.result_count }}件</td>
+                <!-- チェックリスト名 -->
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:flex-start;
+                    gap:10px;
+                    margin-bottom:14px;
+                ">
 
-                <td>
-                    {% if item.score_distribution %}
-                        {% for score, count in item.score_distribution|dictsort(reverse=true) %}
-                            {{ score }}点：{{ count }}件{% if not loop.last %} / {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            </tr>
+                    <div style="min-width:0;">
+                        <h4 style="
+                            margin:0 0 5px;
+                            white-space:nowrap;
+                            overflow:hidden;
+                            text-overflow:ellipsis;
+                        ">
+                            {{ item.name }}
+                        </h4>
+
+                        <span class="help-text">
+                            {{ item.result_count }}件実施
+                        </span>
+                    </div>
+
+                    <div style="
+                        text-align:right;
+                        white-space:nowrap;
+                    ">
+                        <strong style="font-size:20px;">
+                            {{ item.average_score }}
+                        </strong>
+                        <span style="color:#64748b;">
+                            / {{ item.max_score }}点
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <!-- 改善優先分野 -->
+                <div style="margin-bottom:16px;">
+
+                    <div style="
+                        font-size:12px;
+                        color:#64748b;
+                        margin-bottom:8px;
+                    ">
+                        改善優先分野
+                    </div>
+
+                    {% for category in item.category_analysis %}
+
+                        {% if loop.index <= 2 %}
+
+                        <div style="margin-bottom:9px;">
+
+                            <div style="
+                                display:flex;
+                                justify-content:space-between;
+                                font-size:13px;
+                                margin-bottom:3px;
+                            ">
+                                <strong>
+                                    {{ category.category }}
+                                </strong>
+
+                                <strong>
+                                    {{ category.improvement_rate }}%
+                                </strong>
+                            </div>
+
+                            <progress
+                                value="{{ category.improvement_rate }}"
+                                max="100"
+                                style="
+                                    width:100%;
+                                    height:12px;
+                                "
+                            ></progress>
+
+                        </div>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                </div>
+
+
+                <!-- 最重要項目 -->
+                {% if item.improvement_items %}
+
+                <div style="
+                    background:#f8fafc;
+                    border-radius:10px;
+                    padding:11px 12px;
+                ">
+
+                    <div style="
+                        font-size:11px;
+                        color:#64748b;
+                        margin-bottom:4px;
+                    ">
+                        最優先で確認
+                    </div>
+
+                    <div style="
+                        display:flex;
+                        gap:10px;
+                        align-items:center;
+                    ">
+
+                        <div style="
+                            flex:1;
+                            min-width:0;
+                            font-weight:600;
+                            font-size:13px;
+                            white-space:nowrap;
+                            overflow:hidden;
+                            text-overflow:ellipsis;
+                        ">
+                            {{ item.improvement_items[0].content }}
+                        </div>
+
+                        <strong style="
+                            white-space:nowrap;
+                            font-size:15px;
+                        ">
+                            {{ item.improvement_items[0].improvement_rate }}%
+                        </strong>
+
+                    </div>
+
+                    <div style="
+                        font-size:11px;
+                        color:#64748b;
+                        margin-top:3px;
+                    ">
+                        {{ item.improvement_items[0].category }}
+                    </div>
+
+                </div>
+
+                {% endif %}
+                {% if item.target_analysis %}
+
+                <div style="
+                    border-top:1px solid #edf1f5;
+                    margin-top:14px;
+                    padding-top:12px;
+                ">
+
+                    <div style="
+                        font-size:12px;
+                        color:#64748b;
+                        margin-bottom:8px;
+                    ">
+                        要注意対象
+                    </div>
+
+                    {% for target in item.target_analysis %}
+
+                        {% if target.target_type != "user" or is_dashboard_admin %}
+
+                    <a
+                        href="/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}"
+                        onclick="event.stopPropagation();"
+                        style="
+                            display:flex;
+                            justify-content:space-between;
+                            align-items:center;
+                            gap:12px;
+                            margin-bottom:6px;
+                            font-size:13px;
+                            color:inherit;
+                            text-decoration:none;
+                            cursor:pointer;
+                        "
+                    >
+
+                            <span>
+                                {% if target.target_type == "user" %}
+                                    👤
+                                {% elif target.target_type == "vehicle" %}
+                                    🚚
+                                {% elif target.target_type == "office" %}
+                                    🏢
+                                {% endif %}
+
+                                {{ target.target_label }}
+                            </span>
+
+                            <strong>
+                                {{ target.improvement_rate }}%
+                            </strong>
+
+                        </a>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                </div>
+
+            {% endif %}
+            </div>
+
             {% endfor %}
-        </table>
+
+        </div>
+
     </div>
+
     {% endif %}
 
     <div class="dashboard-two-column">
 
-        <div class="dashboard-card">
+        <div
+            class="dashboard-card"
+            onclick="window.location.href='/master/drivers'"
+            style="cursor:pointer;"
+        >
             <div class="card-title-row">
                 <h3>無事故無違反ランキング</h3>
                 <span>上位10名</span>
@@ -132,7 +504,19 @@
                                 {{ loop.index }}
                             </span>
                         </td>
-                        <td>{{ driver.name }}</td>
+                        <td>
+                            <a
+                                href="/master/drivers?keyword={{ driver.name|urlencode }}"
+                                onclick="event.stopPropagation();"
+                                style="
+                                    color:inherit;
+                                    text-decoration:none;
+                                    font-weight:600;
+                                "
+                            >
+                                {{ driver.name }}
+                            </a>
+                        </td>
                         <td>{{ driver.office }}</td>
                         <td>
                             <strong>{{ driver.safe_days }}</strong> 日
@@ -145,7 +529,11 @@
             {% endif %}
         </div>
 
-        <div class="dashboard-card">
+        <div
+            class="dashboard-card"
+            onclick="window.location.href='/master/vehicles'"
+            style="cursor:pointer;"
+        >
             <div class="card-title-row">
                 <h3>車検期限が近い車両</h3>
                 <span>90日以内</span>
@@ -160,8 +548,23 @@
                     </tr>
 
                     {% for vehicle in inspection_alerts %}
-                    <tr>
-                        <td>{{ vehicle.vehicle_id }}｜{{ vehicle.number }}</td>
+                    <tr
+                        onclick="window.location.href='/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}'"
+                        style="cursor:pointer;"
+                    >
+                        <td>
+                            <a
+                                href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+                                onclick="event.stopPropagation();"
+                                style="
+                                    color:inherit;
+                                    text-decoration:none;
+                                    font-weight:600;
+                                "
+                            >
+                                {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                            </a>
+                        </td>
                         <td>{{ vehicle.inspection_expiry }}</td>
                         <td>
                             {% if vehicle.remaining_days < 0 %}
@@ -182,7 +585,11 @@
 
     </div>
 
-    <div class="dashboard-card">
+    <div
+        class="dashboard-card"
+        onclick="window.location.href='/pointouts?type=user&mine=1&pending=1'"
+        style="cursor:pointer;"
+    >
         <div class="card-title-row">
             <h3>あなたへの未対応指摘</h3>
             <span>{{ my_pending_pointouts|length }}件</span>
@@ -199,7 +606,10 @@
                 </tr>
 
                 {% for item in my_pending_pointouts %}
-                <tr>
+                <tr
+                    onclick="window.location.href='/pointouts/{{ item.index }}'"
+                    style="cursor:pointer;"
+                >
                     <td>{{ item.date }}</td>
                     <td>{{ item.category }}</td>
                     <td>{{ item.content }}</td>
@@ -209,7 +619,11 @@
                         </span>
                     </td>
                     <td>
-                        <a href="/pointouts/{{ item.index }}" class="btn-mini">
+                        <a
+                            href="/pointouts/{{ item.index }}"
+                            class="btn-mini"
+                            onclick="event.stopPropagation();"
+                        >
                             確認
                         </a>
                     </td>

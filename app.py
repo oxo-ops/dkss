@@ -857,10 +857,15 @@ def can_view_checklist_result(result):
     if role in ["admin", "itc"]:
         return True
 
-    if result.get("checked_by") == name:
+    target_type = result.get("target_type")
+
+    if target_type == "user":
+        return result.get("target_user") == name
+
+    if target_type in ["vehicle", "office"]:
         return True
 
-    return result.get("target_type") == "user" and result.get("target_user") == name
+    return False
 
 
 def can_manage_checklist_result(result):
@@ -1724,6 +1729,7 @@ def dashboard():
             })
 
     checklist_score_summaries = []
+    my_checklist_summaries = []
 
     score_checklists = Checklist.query.filter_by(
         company_code=company_code,
@@ -1747,6 +1753,16 @@ def dashboard():
             checklist_id=checklist_record.id
         ).all()
 
+        # ログイン中ユーザー本人が対象の結果
+        my_result_records = [
+            result_record
+            for result_record in result_records
+            if (
+                result_record.target_type == "user"
+                and result_record.target_user == user_name
+            )
+        ]
+        
         max_score = 0
 
         for item in check_items:
@@ -1809,15 +1825,395 @@ def dashboard():
             else None
         )
 
-    checklist_score_summaries.append({
-        "id": checklist_record.id,
-        "name": checklist_record.name,
-        "average_score": average_score,
-        "result_count": len(result_scores),
-        "scores": result_scores,
-        "max_score": max_score,
-        "score_distribution": score_distribution,
-    })
+        my_result_scores = []
+
+        for result_record in my_result_records:
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            total_score = 0
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                try:
+                    total_score += float(
+                        answer.get("value")
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+            my_result_scores.append(total_score)
+
+        my_average_score = (
+            round(
+                sum(my_result_scores) / len(my_result_scores),
+                1
+            )
+            if my_result_scores
+            else None
+        )
+
+        if my_average_score is not None:
+            average_difference = (
+                round(my_average_score - average_score, 1)
+                if average_score is not None
+                else None
+            )
+
+        my_category_stats = {}
+
+        for result_record in my_result_records:
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                category = (
+                    item.get("category") or "その他"
+                ).strip()
+
+                numeric_choices = []
+
+                for choice in item.get("choices", []):
+                    try:
+                        numeric_choices.append(float(choice))
+                    except (TypeError, ValueError):
+                        pass
+
+                if not numeric_choices:
+                    continue
+
+                try:
+                    score = float(answer.get("value"))
+                except (TypeError, ValueError):
+                    continue
+
+                item_max_score = max(numeric_choices)
+
+                if category not in my_category_stats:
+                    my_category_stats[category] = {
+                        "score": 0,
+                        "max_score": 0,
+                    }
+
+                my_category_stats[category]["score"] += score
+                my_category_stats[category]["max_score"] += item_max_score
+
+
+        my_category_analysis = []
+
+        for category, stats in my_category_stats.items():
+            if stats["max_score"] <= 0:
+                continue
+
+            score_rate = round(
+                stats["score"] / stats["max_score"] * 100,
+                1
+            )
+
+            my_category_analysis.append({
+                "category": category,
+                "score_rate": score_rate,
+                "improvement_rate": round(
+                    100 - score_rate,
+                    1
+                ),
+            })
+
+        my_category_analysis.sort(
+            key=lambda item: item["score_rate"]
+        )
+
+        my_category_analysis = my_category_analysis[:2]
+
+
+        if my_average_score is not None:
+            average_difference = (
+                round(my_average_score - average_score, 1)
+                if average_score is not None
+                else None
+            )
+
+            my_checklist_summaries.append({
+                "id": checklist_record.id,
+                "name": checklist_record.name,
+                "target_user": user_name,
+                "average_score": my_average_score,
+                "overall_average_score": average_score,
+                "average_difference": average_difference,
+                "result_count": len(my_result_scores),
+                "max_score": max_score,
+                "category_analysis": my_category_analysis,
+            })
+                    
+        # カテゴリ別の評価を集計
+        category_stats = {}
+
+        for result_record in result_records:
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                category = (
+                    item.get("category") or "その他"
+                ).strip()
+
+                numeric_choices = []
+
+                for choice in item.get("choices", []):
+                    try:
+                        numeric_choices.append(float(choice))
+                    except (TypeError, ValueError):
+                        pass
+
+                if not numeric_choices:
+                    continue
+
+                try:
+                    score = float(answer.get("value"))
+                except (TypeError, ValueError):
+                    continue
+
+                item_max_score = max(numeric_choices)
+
+                if category not in category_stats:
+                    category_stats[category] = {
+                        "score": 0,
+                        "max_score": 0,
+                        "count": 0,
+                    }
+
+                category_stats[category]["score"] += score
+                category_stats[category]["max_score"] += item_max_score
+                category_stats[category]["count"] += 1
+
+        category_analysis = []
+
+        for category, stats in category_stats.items():
+            if stats["max_score"] <= 0:
+                continue
+
+            score_rate = round(
+                stats["score"] / stats["max_score"] * 100,
+                1
+            )
+
+            category_analysis.append({
+                "category": category,
+                "score_rate": score_rate,
+                "improvement_rate": round(
+                    100 - score_rate,
+                    1
+                ),
+                "count": stats["count"],
+            })
+
+        # 改善が必要な順
+        category_analysis.sort(
+            key=lambda item: item["score_rate"]
+        )
+        
+        # 点検項目別の評価を集計
+        item_stats = {}
+
+        for result_record in result_records:
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                content = (
+                    item.get("content") or "項目名なし"
+                ).strip()
+
+                category = (
+                    item.get("category") or "その他"
+                ).strip()
+
+                numeric_choices = []
+
+                for choice in item.get("choices", []):
+                    try:
+                        numeric_choices.append(float(choice))
+                    except (TypeError, ValueError):
+                        pass
+
+                if not numeric_choices:
+                    continue
+
+                try:
+                    score = float(answer.get("value"))
+                except (TypeError, ValueError):
+                    continue
+
+                item_max_score = max(numeric_choices)
+
+                key = (category, content)
+
+                if key not in item_stats:
+                    item_stats[key] = {
+                        "score": 0,
+                        "max_score": 0,
+                        "count": 0,
+                    }
+
+                item_stats[key]["score"] += score
+                item_stats[key]["max_score"] += item_max_score
+                item_stats[key]["count"] += 1
+
+        improvement_items = []
+
+        for (category, content), stats in item_stats.items():
+            if stats["max_score"] <= 0:
+                continue
+
+            score_rate = round(
+                stats["score"] / stats["max_score"] * 100,
+                1
+            )
+
+            improvement_items.append({
+                "category": category,
+                "content": content,
+                "score_rate": score_rate,
+                "improvement_rate": round(
+                    100 - score_rate,
+                    1
+                ),
+                "count": stats["count"],
+            })
+
+        improvement_items.sort(
+            key=lambda item: item["improvement_rate"],
+            reverse=True
+        )
+
+        improvement_items = improvement_items[:5]
+        target_stats = {}
+
+        for result_record in result_records:
+            target_type = result_record.target_type
+
+            if target_type == "user":
+                # 個人名は管理者だけ集計対象にする
+                if session.get("role") not in ["admin", "itc"]:
+                    continue
+
+                target_label = result_record.target_user
+
+            elif target_type == "vehicle":
+                target_label = result_record.target_vehicle
+
+            elif target_type == "office":
+                target_label = result_record.target_office
+
+            else:
+                continue
+
+            if not target_label:
+                continue
+
+            answers = json.loads(
+                result_record.answers_json or "[]"
+            )
+
+            target_score = 0
+            target_max_score = 0
+
+            for item, answer in zip(check_items, answers):
+                if item.get("input_type") != "select":
+                    continue
+
+                numeric_choices = []
+
+                for choice in item.get("choices", []):
+                    try:
+                        numeric_choices.append(float(choice))
+                    except (TypeError, ValueError):
+                        pass
+
+                if not numeric_choices:
+                    continue
+
+                try:
+                    score = float(answer.get("value"))
+                except (TypeError, ValueError):
+                    continue
+
+                target_score += score
+                target_max_score += max(numeric_choices)
+
+            if target_max_score <= 0:
+                continue
+
+            key = (target_type, target_label)
+
+            if key not in target_stats:
+                target_stats[key] = {
+                    "score": 0,
+                    "max_score": 0,
+                    "count": 0,
+                }
+
+            target_stats[key]["score"] += target_score
+            target_stats[key]["max_score"] += target_max_score
+            target_stats[key]["count"] += 1
+
+
+        target_analysis = []
+
+        for (target_type, target_label), stats in target_stats.items():
+            if stats["max_score"] <= 0:
+                continue
+
+            score_rate = round(
+                stats["score"] / stats["max_score"] * 100,
+                1
+            )
+
+            target_analysis.append({
+                "target_type": target_type,
+                "target_label": target_label,
+                "score_rate": score_rate,
+                "improvement_rate": round(
+                    100 - score_rate,
+                    1
+                ),
+                "count": stats["count"],
+            })
+
+        target_analysis.sort(
+            key=lambda item: item["improvement_rate"],
+            reverse=True
+        )
+
+        target_analysis = target_analysis[:5]
+        
+        checklist_score_summaries.append({
+            "id": checklist_record.id,
+            "name": checklist_record.name,
+            "average_score": average_score,
+            "result_count": len(result_scores),
+            "scores": result_scores,
+            "max_score": max_score,
+            "score_distribution": score_distribution,
+            "category_analysis": category_analysis,
+            "target_analysis": target_analysis,
+            "improvement_items": improvement_items,
+        })
             
     return render_template(
         "index.html",
@@ -1827,7 +2223,10 @@ def dashboard():
         my_pending_pointouts=my_pending_pointouts,
         inspection_alerts=inspection_alerts,
         setup_tasks=setup_tasks,
-        checklist_score_summaries=checklist_score_summaries
+        checklist_score_summaries=checklist_score_summaries,
+        my_checklist_summaries=my_checklist_summaries,
+        my_user_name=user_name,
+        is_dashboard_admin=session.get("role") in ["admin", "itc"],
     )
 
 @app.route("/notifications")
@@ -2044,12 +2443,31 @@ def pointouts():
         view_type = "user"
 
     keyword = request.args.get("keyword", "").strip()
+    category = request.args.get("category", "").strip()
+    mine = request.args.get("mine") == "1"
+    pending = request.args.get("pending") == "1"
 
     query = PatrolResult.query.filter(
         PatrolResult.company_code == session.get("company_code"),
         PatrolResult.target_type == view_type
     )
 
+    if mine and view_type == "user":
+        query = query.filter(
+            PatrolResult.target_user == session.get("name")
+        )
+
+    if pending:
+        query = query.filter(
+            PatrolResult.category != "Good",
+            PatrolResult.approval_status != "承認済み"
+        )
+        
+    if category:
+        query = query.filter(
+            PatrolResult.category == category
+        )
+        
     if keyword:
         keyword_like = f"%{keyword}%"
 
@@ -5473,6 +5891,27 @@ def safety_checklist_results(index):
         checklist_id=checklist_record.id
     )
 
+    target_type = request.args.get("target_type", "").strip()
+    target_value = request.args.get("target_value", "").strip()
+
+    if target_type == "user" and target_value:
+        query = query.filter(
+            ChecklistResult.target_type == "user",
+            ChecklistResult.target_user == target_value
+        )
+
+    elif target_type == "vehicle" and target_value:
+        query = query.filter(
+            ChecklistResult.target_type == "vehicle",
+            ChecklistResult.target_vehicle == target_value
+        )
+
+    elif target_type == "office" and target_value:
+        query = query.filter(
+            ChecklistResult.target_type == "office",
+            ChecklistResult.target_office == target_value
+        )
+        
     if session.get("role") != "itc":
         query = query.filter_by(
             company_code=session.get("company_code")
@@ -8250,6 +8689,8 @@ def new_safety_checklist_result(index):
         answers = []
         answer_index = 0
 
+        target_type = request.form.get("target_type")
+
         target_user = request.form.get("target_user") or session.get("name")
 
         target_driver = Driver.query.filter_by(
@@ -8257,7 +8698,14 @@ def new_safety_checklist_result(index):
             name=target_user
         ).first()
 
-        target_office = target_driver.office if target_driver else session.get("office")
+        if target_type == "office":
+            target_office = request.form.get("target_office")
+        else:
+            target_office = (
+                target_driver.office
+                if target_driver
+                else session.get("office")
+            )
 
         for item in checklist["items"]:
             if item.get("item_type") == "approval":
