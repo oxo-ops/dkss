@@ -182,6 +182,65 @@
                 <td>{{ answer.content }}</td>
                 <td>{{ answer.value }}</td>
                 <td>{{ answer.comment or "-" }}</td>
+                <td>
+                    {% if answer.files %}
+                        {% for file in answer.files %}
+
+                            {% set ext = file.rsplit('.', 1)[-1]|lower %}
+
+                            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+
+                                <a
+                                    href="/static/uploads/{{ file }}"
+                                    target="_blank"
+                                >
+                                    <img
+                                        src="/static/uploads/{{ file }}"
+                                        style="
+                                            max-width: 160px;
+                                            max-height: 110px;
+                                            object-fit: contain;
+                                            border-radius: 6px;
+                                        "
+                                    >
+                                </a>
+
+                            {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+
+                                <video
+                                    controls
+                                    preload="metadata"
+                                    style="
+                                        max-width: 180px;
+                                        max-height: 120px;
+                                        border-radius: 6px;
+                                    "
+                                >
+                                    <source
+                                        src="/static/uploads/{{ file }}"
+                                    >
+                                </video>
+
+                            {% else %}
+
+                                <a
+                                    href="/static/uploads/{{ file }}"
+                                    target="_blank"
+                                >
+                                    {{ file }}
+                                </a>
+
+                            {% endif %}
+
+                            {% if not loop.last %}
+                                <br>
+                            {% endif %}
+
+                        {% endfor %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

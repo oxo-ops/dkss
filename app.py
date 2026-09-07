@@ -13,6 +13,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
@@ -6233,7 +6234,7 @@ def export_checklist_result_excel(result_index):
             end_row=current_row,
             end_column=12
         )
-
+            
         current_row += 1
 
 
@@ -6859,6 +6860,23 @@ def edit_checklist_result(result_index):
             if item.get("item_type") == "approval":
                 continue
 
+            file_names = []
+
+            if answer_index < len(result["answers"]):
+                file_names = list(
+                    result["answers"][answer_index].get("files", [])
+                )
+
+            uploaded_files = request.files.getlist(
+                f"files_{answer_index}"
+            )
+
+            for file in uploaded_files:
+                filename = save_uploaded_file(file)
+
+                if filename:
+                    file_names.append(filename)
+
             answers.append({
                 "category": item.get("category", ""),
                 "content": item.get("content", ""),
@@ -6866,7 +6884,7 @@ def edit_checklist_result(result_index):
                 "criteria_files": item.get("criteria_files", []),
                 "value": request.form.get(f"answer_{answer_index}"),
                 "comment": request.form.get(f"comment_{answer_index}"),
-                "files": result["answers"][answer_index].get("files", []) if answer_index < len(result["answers"]) else [],
+                "files": file_names,
                 "patrol_link": False,
             })
 
