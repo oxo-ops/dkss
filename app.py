@@ -7710,7 +7710,33 @@ def export_vehicle_checklist_result_excel(result_index):
         item_text = content
 
         # 点検項目の文字量に応じて行高を調整
-        sheet.row_dimensions[current_row].height = None
+        import math
+        import unicodedata
+
+        def item_text_width(text):
+            width = 0
+
+            for char in str(text or ""):
+                if unicodedata.east_asian_width(char) in ("W", "F", "A"):
+                    width += 2
+                else:
+                    width += 1
+
+            return width
+
+
+        item_line_count = 0
+
+        for line in item_text.split("\n"):
+            item_line_count += max(
+                1,
+                math.ceil(item_text_width(line) / 42)
+            )
+
+        sheet.row_dimensions[current_row].height = max(
+            21,
+            item_line_count * 18 + 4
+        )
 
         sheet.cell(
             row=current_row,
@@ -7723,7 +7749,7 @@ def export_vehicle_checklist_result_excel(result_index):
             column=1
         ).alignment = Alignment(
             vertical="center",
-            wrap_text=True
+            wrap_text=True,
         )
         
         # 点検結果を表示単位に応じて入れる
