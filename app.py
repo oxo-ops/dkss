@@ -857,15 +857,13 @@ def can_view_checklist_result(result):
     if role in ["admin", "itc"]:
         return True
 
-    target_type = result.get("target_type")
-
-    if target_type == "user":
-        return result.get("target_user") == name
-
-    if target_type in ["vehicle", "office"]:
+    if result.get("checked_by") == name:
         return True
 
-    return False
+    return (
+        result.get("target_type") == "user"
+        and result.get("target_user") == name
+    )
 
 
 def can_manage_checklist_result(result):
