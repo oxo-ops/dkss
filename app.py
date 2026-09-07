@@ -237,6 +237,12 @@ class Checklist(db.Model):
         default=False,
         nullable=False
     )
+    
+    print_half_month = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
 
     items_json = db.Column(db.Text, default="[]")
     notify_users_json = db.Column(
@@ -653,6 +659,7 @@ def checklist_to_dict(checklist):
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
         "print_portrait": bool(checklist.print_portrait),
+        "print_half_month": bool(checklist.print_half_month),
         "items": items,
         "score_enabled": any(
             item.get("score_enabled", False)
@@ -5335,6 +5342,10 @@ def new_checklist():
             request.form.get("target") == "車両管理"
             and request.form.get("print_portrait") == "1"
         )
+        print_half_month = (
+            request.form.get("target") == "車両管理"
+            and request.form.get("print_half_month") == "1"
+        )
         items = []
 
         for i in range(len(item_types)):
@@ -5413,6 +5424,7 @@ def new_checklist():
             frequency_unit=frequency_unit,
             display_type=display_type,
             print_portrait=print_portrait,
+            print_half_month=print_half_month,
             items_json=json.dumps(items, ensure_ascii=False)
         )
 
@@ -6931,7 +6943,36 @@ def export_vehicle_checklist_result_excel(result_index):
         vehicle_checklist_result_to_dict(record)
         for record in result_records
     ]
-    
+    # 月間帳票を半月ごとに分ける設定
+    half_month_mode = (
+        excel_display_mode == "day"
+        and checklist.get("print_half_month")
+    )
+
+    if half_month_mode:
+        print_periods = [
+            {
+                "sheet_name": "表 1～15日",
+                "start_day": 1,
+                "end_day": 15,
+            },
+            {
+                "sheet_name": "裏 16日～月末",
+                "start_day": 16,
+                "end_day": calendar.monthrange(
+                    int(result_record.year),
+                    int(result_record.month)
+                )[1],
+            },
+        ]
+    else:
+        print_periods = [
+            {
+                "sheet_name": "車両点検結果",
+                "start_day": None,
+                "end_day": None,
+            },
+        ]
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "車両点検結果"
@@ -6957,7 +6998,11 @@ def export_vehicle_checklist_result_excel(result_index):
         )[1]
 
         end_column = days_in_month + 1
-        period_width = 3.8
+
+        if half_month_mode:
+            period_width = 7.0
+        else:
+            period_width = 3.8
 
     elif excel_display_mode == "month":
         end_column = 13
@@ -7228,7 +7273,7 @@ def export_vehicle_checklist_result_excel(result_index):
         item_text = content
 
         # 点検項目の文字量に応じて行高を調整
-        chars_per_line = 32
+        chars_per_line = 20
 
         explicit_lines = item_text.count("\n") + 1
 
@@ -7238,8 +7283,8 @@ def export_vehicle_checklist_result_excel(result_index):
         )
 
         sheet.row_dimensions[current_row].height = max(
-            24,
-            estimated_lines * 18
+            30,
+            estimated_lines * 24
         )
             
         sheet.cell(
@@ -7671,21 +7716,69 @@ def export_vehicle_checklist_result_excel(result_index):
                     color="FF0000"
                 )
                 
+    # 半月ごとに分ける場合は、表・裏の2シートにする
+    if half_month_mode:
+        sheet.title = "表 1～15日"
+
+        back_sheet = workbook.copy_worksheet(sheet)
+        back_sheet.title = "裏 16日～月末"
+
+        # 表：16日～月末を非表示
+        for day in range(16, days_in_month + 1):
+            column = day + 1
+            column_letter = sheet.cell(
+                row=5,
+                column=column
+            ).column_letter
+            sheet.column_dimensions[column_letter].hidden = True
+
+        # 裏：1～15日を非表示
+        for day in range(1, 16):
+            column = day + 1
+            column_letter = back_sheet.cell(
+                row=5,
+                column=column
+            ).column_letter
+            back_sheet.column_dimensions[column_letter].hidden = True
+                        
     # Excelファイルをメモリ上に保存
     output = BytesIO()
-    sheet.print_area = (
-        f"A1:{sheet.cell(
-            row=table_end_row,
-            column=title_end_column
-        ).coordinate}"
-    )
-    
-    sheet.page_margins.left = 0.25
-    sheet.page_margins.right = 0.25
-    sheet.page_margins.top = 0.25
-    sheet.page_margins.bottom = 0.25
-    sheet.page_margins.header = 0.2
-    sheet.page_margins.footer = 0.2
+
+    if half_month_mode:
+        print_sheets = [sheet, back_sheet]
+    else:
+        print_sheets = [sheet]
+
+    for print_sheet in print_sheets:
+        print_sheet.print_area = (
+            f"A1:{print_sheet.cell(
+                row=table_end_row,
+                column=title_end_column
+            ).coordinate}"
+        )
+
+        print_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        print_sheet.page_setup.paperSize = print_sheet.PAPERSIZE_A4
+
+        if checklist.get("print_portrait"):
+            print_sheet.page_setup.orientation = (
+                print_sheet.ORIENTATION_PORTRAIT
+            )
+        else:
+            print_sheet.page_setup.orientation = (
+                print_sheet.ORIENTATION_LANDSCAPE
+            )
+
+        print_sheet.page_setup.fitToWidth = 1
+        print_sheet.page_setup.fitToHeight = 0
+        print_sheet.print_options.horizontalCentered = True
+
+        print_sheet.page_margins.left = 0.25
+        print_sheet.page_margins.right = 0.25
+        print_sheet.page_margins.top = 0.25
+        print_sheet.page_margins.bottom = 0.25
+        print_sheet.page_margins.header = 0.2
+        print_sheet.page_margins.footer = 0.2
         
     workbook.save(output)
     output.seek(0)
@@ -8305,6 +8398,10 @@ def edit_checklist(index):
             request.form.get("target") == "車両管理"
             and request.form.get("print_portrait") == "1"
         )
+        print_half_month = (
+            request.form.get("target") == "車両管理"
+            and request.form.get("print_half_month") == "1"
+        )
         old_items = checklist.get("items", [])
         items = []
 
@@ -8378,11 +8475,13 @@ def edit_checklist(index):
             checklist_record.frequency_unit = request.form.get("frequency_unit")
             checklist_record.display_type = request.form.get("display_type")
             checklist_record.print_portrait = print_portrait
+            checklist_record.print_half_month = print_half_month
         else:
             checklist_record.frequency_value = ""
             checklist_record.frequency_unit = ""
             checklist_record.display_type = ""
             checklist_record.print_portrait = False
+            checklist_record.print_half_month = False
 
         checklist_record.items_json = json.dumps(items, ensure_ascii=False)
 
@@ -8605,6 +8704,10 @@ with app.app_context():
         ("notify_users_json", "TEXT"),
         (
             "print_portrait",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+        (
+            "print_half_month",
             "BOOLEAN NOT NULL DEFAULT FALSE"
         ),
     ]
