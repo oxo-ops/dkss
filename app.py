@@ -6609,8 +6609,8 @@ def export_checklist_result_excel(result_index):
         )
 
         sheet.row_dimensions[row_number].height = max(
-            28,
-            (line_count * 22) + 6
+            20,
+            (line_count * 17) + 2
         )
 
     # 評価列 H を中央揃え
