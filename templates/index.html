@@ -250,7 +250,8 @@
 
         <div
             class="dashboard-card"
-            onclick="window.location.href='/safety/checklists/{{ item.id }}'"
+            data-url="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}"
+            onclick="window.location.href=this.dataset.url"
             style="
                 display:block;
                 margin:0;
@@ -426,7 +427,7 @@
                         {% if target.target_type != "user" or is_dashboard_admin %}
 
                     <a
-                        href="/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}"
+                        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_id={{ target.target_label|urlencode }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}{% endif %}"
                         onclick="event.stopPropagation();"
                         style="
                             display:flex;

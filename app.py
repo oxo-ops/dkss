@@ -1757,40 +1757,97 @@ def dashboard():
                 "url": "/master/checklists"
             })
 
+    def dashboard_score_value(value):
+        text = str(value or "").strip()
+
+        symbol_scores = {
+            # 良好
+            "○": 2.0,
+            "〇": 2.0,
+            "✓": 2.0,
+            "✔": 2.0,
+            "☑": 2.0,
+
+            # 注意
+            "△": 1.0,
+            "▲": 1.0,
+
+            # 不良
+            "×": 0.0,
+            "✕": 0.0,
+            "✖": 0.0,
+            "✗": 0.0,
+            "✘": 0.0,
+            "X": 0.0,
+            "x": 0.0,
+        }
+
+        if text in symbol_scores:
+            return symbol_scores[text]
+
+        try:
+            return float(text)
+        except (TypeError, ValueError):
+            return None
+    
     checklist_score_summaries = []
     my_checklist_summaries = []
 
     score_checklists = Checklist.query.filter_by(
-        company_code=company_code,
-        target="安全管理"
+        company_code=company_code
+    ).filter(
+        Checklist.target.in_(["安全管理", "車両管理"])
     ).all()
 
     for checklist_record in score_checklists:
         checklist = checklist_to_dict(checklist_record)
 
-        if not checklist.get("score_enabled"):
-            continue
+        has_dashboard_score = checklist.get("score_enabled") or any(
+            dashboard_score_value(choice) is not None
+            for item in checklist.get("items", [])
+            if item.get("item_type") == "check"
+            and item.get("input_type") == "select"
+            for choice in item.get("choices", [])
+        )
 
+        if not has_dashboard_score:
+            continue
         check_items = [
             item
             for item in checklist.get("items", [])
             if item.get("item_type") == "check"
         ]
 
-        result_records = ChecklistResult.query.filter_by(
-            company_code=company_code,
-            checklist_id=checklist_record.id
-        ).all()
+        is_vehicle_checklist = (
+            checklist_record.target == "車両管理"
+        )
 
-        # ログイン中ユーザー本人が対象の結果
-        my_result_records = [
-            result_record
-            for result_record in result_records
-            if (
-                result_record.target_type == "user"
-                and result_record.target_user == user_name
-            )
-        ]
+        if is_vehicle_checklist:
+
+            result_records = VehicleChecklistResult.query.filter_by(
+                company_code=company_code,
+                checklist_id=checklist_record.id
+            ).all()
+
+            # 車両チェックリストには「本人が対象」という概念はない
+            my_result_records = []
+
+        else:
+
+            result_records = ChecklistResult.query.filter_by(
+                company_code=company_code,
+                checklist_id=checklist_record.id
+            ).all()
+
+            # ログイン中ユーザー本人が対象の結果
+            my_result_records = [
+                result_record
+                for result_record in result_records
+                if (
+                    result_record.target_type == "user"
+                    and result_record.target_user == user_name
+                )
+            ]
         
         max_score = 0
 
@@ -1801,10 +1858,10 @@ def dashboard():
             numeric_choices = []
 
             for choice in item.get("choices", []):
-                try:
-                    numeric_choices.append(float(choice))
-                except (TypeError, ValueError):
-                    pass
+                score_value = dashboard_score_value(choice)
+
+                if score_value is not None:
+                    numeric_choices.append(score_value)
 
             if numeric_choices:
                 max_score += max(numeric_choices)
@@ -1822,12 +1879,12 @@ def dashboard():
                 if item.get("input_type") != "select":
                     continue
 
-                try:
-                    total_score += float(
-                        answer.get("value")
-                    )
-                except (TypeError, ValueError):
-                    pass
+                score_value = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score_value is not None:
+                    total_score += score_value
 
             result_scores.append(total_score)
 
@@ -1867,12 +1924,12 @@ def dashboard():
                 if item.get("input_type") != "select":
                     continue
 
-                try:
-                    total_score += float(
-                        answer.get("value")
-                    )
-                except (TypeError, ValueError):
-                    pass
+                score_value = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score_value is not None:
+                    total_score += score_value
 
             my_result_scores.append(total_score)
 
@@ -1910,17 +1967,19 @@ def dashboard():
                 numeric_choices = []
 
                 for choice in item.get("choices", []):
-                    try:
-                        numeric_choices.append(float(choice))
-                    except (TypeError, ValueError):
-                        pass
+                    score_value = dashboard_score_value(choice)
+
+                    if score_value is not None:
+                        numeric_choices.append(score_value)
 
                 if not numeric_choices:
                     continue
 
-                try:
-                    score = float(answer.get("value"))
-                except (TypeError, ValueError):
+                score = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score is None:
                     continue
 
                 item_max_score = max(numeric_choices)
@@ -2000,17 +2059,19 @@ def dashboard():
                 numeric_choices = []
 
                 for choice in item.get("choices", []):
-                    try:
-                        numeric_choices.append(float(choice))
-                    except (TypeError, ValueError):
-                        pass
+                    score_value = dashboard_score_value(choice)
+
+                    if score_value is not None:
+                        numeric_choices.append(score_value)
 
                 if not numeric_choices:
                     continue
 
-                try:
-                    score = float(answer.get("value"))
-                except (TypeError, ValueError):
+                score = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score is None:
                     continue
 
                 item_max_score = max(numeric_choices)
@@ -2075,17 +2136,19 @@ def dashboard():
                 numeric_choices = []
 
                 for choice in item.get("choices", []):
-                    try:
-                        numeric_choices.append(float(choice))
-                    except (TypeError, ValueError):
-                        pass
+                    score_value = dashboard_score_value(choice)
+
+                    if score_value is not None:
+                        numeric_choices.append(score_value)
 
                 if not numeric_choices:
                     continue
 
-                try:
-                    score = float(answer.get("value"))
-                except (TypeError, ValueError):
+                score = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score is None:
                     continue
 
                 item_max_score = max(numeric_choices)
@@ -2134,23 +2197,29 @@ def dashboard():
         target_stats = {}
 
         for result_record in result_records:
-            target_type = result_record.target_type
 
-            if target_type == "user":
-                # 個人名は管理者だけ集計対象にする
-                if session.get("role") not in ["admin", "itc"]:
-                    continue
-
-                target_label = result_record.target_user
-
-            elif target_type == "vehicle":
-                target_label = result_record.target_vehicle
-
-            elif target_type == "office":
-                target_label = result_record.target_office
+            if is_vehicle_checklist:
+                target_type = "vehicle"
+                target_label = result_record.vehicle_id
 
             else:
-                continue
+                target_type = result_record.target_type
+
+                if target_type == "user":
+                    # 個人名は管理者だけ集計対象にする
+                    if session.get("role") not in ["admin", "itc"]:
+                        continue
+
+                    target_label = result_record.target_user
+
+                elif target_type == "vehicle":
+                    target_label = result_record.target_vehicle
+
+                elif target_type == "office":
+                    target_label = result_record.target_office
+
+                else:
+                    continue
 
             if not target_label:
                 continue
@@ -2169,17 +2238,19 @@ def dashboard():
                 numeric_choices = []
 
                 for choice in item.get("choices", []):
-                    try:
-                        numeric_choices.append(float(choice))
-                    except (TypeError, ValueError):
-                        pass
+                    score_value = dashboard_score_value(choice)
+
+                    if score_value is not None:
+                        numeric_choices.append(score_value)
 
                 if not numeric_choices:
                     continue
 
-                try:
-                    score = float(answer.get("value"))
-                except (TypeError, ValueError):
+                score = dashboard_score_value(
+                    answer.get("value")
+                )
+
+                if score is None:
                     continue
 
                 target_score += score
@@ -2234,6 +2305,7 @@ def dashboard():
         checklist_score_summaries.append({
             "id": checklist_record.id,
             "name": checklist_record.name,
+            "target": checklist_record.target,
             "average_score": average_score,
             "result_count": len(result_scores),
             "scores": result_scores,
@@ -6037,10 +6109,10 @@ def checklist_result_detail(result_index):
             numeric_choices = []
 
             for choice in item.get("choices", []):
-                try:
-                    numeric_choices.append(float(choice))
-                except (TypeError, ValueError):
-                    pass
+                score_value = dashboard_score_value(choice)
+
+                if score_value is not None:
+                    numeric_choices.append(score_value)
 
             if numeric_choices:
                 max_score += max(numeric_choices)
@@ -6124,12 +6196,10 @@ def export_checklist_result_excel(result_index):
             numeric_choices = []
 
             for choice in item.get("choices", []):
-                try:
-                    numeric_choices.append(
-                        float(choice)
-                    )
-                except (TypeError, ValueError):
-                    pass
+                score_value = dashboard_score_value(choice)
+
+                if score_value is not None:
+                    numeric_choices.append(score_value)
 
             if numeric_choices:
                 max_score += max(numeric_choices)
