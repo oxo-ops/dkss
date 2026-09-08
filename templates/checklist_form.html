@@ -828,8 +828,10 @@ function toggleChoices(select) {
     if (select.value === "text") {
         choicesInput.style.display = "none";
         choicesInput.value = "";
+        choicesInput.required = false;
     } else {
         choicesInput.style.display = "block";
+        choicesInput.required = true;
     }
 }
 
@@ -883,6 +885,18 @@ function toggleItemType(select) {
         }
     }
 }
+
+document.querySelector(".responsive-form").addEventListener(
+    "invalid",
+    function (event) {
+        const details = event.target.closest(".check-detail-settings");
+
+        if (details) {
+            details.open = true;
+        }
+    },
+    true
+);
 
 window.addEventListener("DOMContentLoaded", function () {
     toggleVehicleChecklistSetting();

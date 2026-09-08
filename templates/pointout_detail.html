@@ -105,15 +105,26 @@
                         class="detail-image"
                     >
 
-                {% elif ext in ['mp4','mov','avi','webm'] %}
+                {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
 
                     <video
                         class="detail-video"
                         controls
+                        preload="metadata"
                     >
                         <source
                             src="{{ url_for('static', filename='uploads/' + file) }}">
                     </video>
+
+                {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+
+                    <a
+                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                        target="_blank"
+                        class="btn"
+                    >
+                        ▶ 動画を開く
+                    </a>
 
                 {% elif ext == 'pdf' %}
 

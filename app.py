@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, send_file
+from flask import Flask, render_template, request, redirect, session, send_file, url_for
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -457,6 +457,36 @@ def save_uploaded_file(file, folder=None):
 
     return filename
 
+def load_upload_bytes(filename):
+    # Render / S3
+    if s3_client and S3_BUCKET_NAME:
+        buffer = BytesIO()
+
+        try:
+            s3_client.download_fileobj(
+                S3_BUCKET_NAME,
+                f"uploads/{filename}",
+                buffer
+            )
+        except ClientError as e:
+            print("S3添付ファイル取得エラー:", e)
+            return None
+
+        buffer.seek(0)
+        return buffer
+
+    # ローカル
+    file_path = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(file_path):
+        return None
+
+    with open(file_path, "rb") as file:
+        return BytesIO(file.read())
+    
 @app.route("/files/<folder>/<filename>")
 def uploaded_file(folder, filename):
     if folder not in {"uploads", "manuals"}:
@@ -6234,7 +6264,7 @@ def export_checklist_result_excel(result_index):
             end_row=current_row,
             end_column=12
         )
-            
+
         current_row += 1
 
 
@@ -6805,7 +6835,104 @@ def export_checklist_result_excel(result_index):
         f"{result_header_row}:{result_header_row}"
     )
     
-            
+    # 添付画像シート
+    attachment_items = []
+
+    for answer in result["answers"]:
+        for filename in answer.get("files", []):
+            extension = os.path.splitext(filename)[1].lower()
+
+            if extension in [".png", ".jpg", ".jpeg", ".gif", ".webp"]:
+                attachment_type = "image"
+
+            elif extension in [
+                ".mp4",
+                ".webm",
+                ".mov",
+                ".m4v",
+                ".avi",
+                ".mkv",
+                ".mts",
+                ".m2ts",
+                ".mpg",
+                ".mpeg",
+            ]:
+                attachment_type = "video"
+
+            else:
+                continue
+
+            attachment_items.append({
+                "category": answer.get("category", ""),
+                "content": answer.get("content", ""),
+                "filename": filename,
+                "type": attachment_type,
+            })
+
+    if attachment_items:
+        attachment_sheet = workbook.create_sheet("添付画像")
+        attachment_sheet.sheet_view.showGridLines = False
+
+        attachment_sheet["A1"] = "添付画像"
+        attachment_sheet["A1"].font = Font(
+            size=16,
+            bold=True
+        )
+
+        attachment_row = 3
+
+        for attachment in attachment_items:
+            attachment_sheet["A" + str(attachment_row)] = "カテゴリ"
+            attachment_sheet["B" + str(attachment_row)] = attachment["category"]
+
+            attachment_sheet["A" + str(attachment_row + 1)] = "チェック内容"
+            attachment_sheet["B" + str(attachment_row + 1)] = attachment["content"]
+
+            if attachment["type"] == "image":
+
+                image_buffer = load_upload_bytes(
+                    attachment["filename"]
+                )
+
+                if image_buffer:
+                    excel_image = ExcelImage(image_buffer)
+
+                    excel_image.width = 420
+                    excel_image.height = 280
+
+                    attachment_sheet.add_image(
+                        excel_image,
+                        f"B{attachment_row + 2}"
+                    )
+
+                attachment_sheet.row_dimensions[
+                    attachment_row + 2
+                ].height = 215
+
+                attachment_row += 18
+
+            elif attachment["type"] == "video":
+
+                video_cell = attachment_sheet[
+                    "B" + str(attachment_row + 2)
+                ]
+
+                video_cell.value = "▶ 動画を開く"
+
+                video_cell.hyperlink = url_for(
+                    "uploaded_file",
+                    folder="uploads",
+                    filename=attachment["filename"],
+                    _external=True
+                )
+
+                video_cell.style = "Hyperlink"
+
+                attachment_row += 5
+
+        attachment_sheet.column_dimensions["A"].width = 14
+        attachment_sheet.column_dimensions["B"].width = 65
+
     output = BytesIO()
     workbook.save(output)
     output.seek(0)

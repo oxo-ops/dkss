@@ -216,6 +216,27 @@
                                         border-radius: 6px;
                                     "
                                 >
+                                    <source src="/static/uploads/{{ file }}">
+                                </video>
+
+                            {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+
+                                <a
+                                    href="/static/uploads/{{ file }}"
+                                    target="_blank"
+                                >
+                                    ▶ 動画を開く
+                                </a>
+
+                                <video
+                                    controls
+                                    preload="metadata"
+                                    style="
+                                        max-width: 180px;
+                                        max-height: 120px;
+                                        border-radius: 6px;
+                                    "
+                                >
                                     <source
                                         src="/static/uploads/{{ file }}"
                                     >

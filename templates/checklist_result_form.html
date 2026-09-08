@@ -254,7 +254,10 @@
 
                 <td>
                     {% if item.input_type == "select" %}
-                        <select name="answer_{{ ns.answer_index }}" required>
+                        <select
+                            name="answer_{{ ns.answer_index }}"
+                            {% if item.choices %}required{% endif %}
+                        >
                             <option value="">選択</option>
 
                             {% for choice in item.choices %}

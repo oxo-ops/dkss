@@ -645,18 +645,45 @@
             const path = "/static/uploads/" + cleanName;
 
             if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+
                 const img = document.createElement("img");
                 img.src = path;
                 img.className = "preview-image";
+
                 img.onclick = function () {
                     window.open(path, "_blank");
                 };
+
                 area.appendChild(img);
+
+            } else if (["mp4", "webm", "mov", "m4v"].includes(ext)) {
+
+                const video = document.createElement("video");
+                video.src = path;
+                video.controls = true;
+                video.preload = "metadata";
+                video.className = "preview-video";
+
+                area.appendChild(video);
+
+            } else if (
+                ["avi", "mkv", "mts", "m2ts", "mpg", "mpeg"].includes(ext)
+            ) {
+
+                const link = document.createElement("a");
+                link.href = path;
+                link.target = "_blank";
+                link.innerText = "▶ 動画を開く：" + cleanName;
+
+                area.appendChild(link);
+
             } else {
+
                 const link = document.createElement("a");
                 link.href = path;
                 link.target = "_blank";
                 link.innerText = cleanName;
+
                 area.appendChild(link);
             }
         });
@@ -704,15 +731,43 @@
         preview.innerHTML = "";
 
         Array.from(input.files).forEach(function (file) {
+            const ext = file.name.split(".").pop().toLowerCase();
+
             if (file.type.startsWith("image/")) {
+
                 const img = document.createElement("img");
                 img.src = URL.createObjectURL(file);
                 img.className = "preview-image";
+
                 img.onclick = function () {
                     window.open(img.src, "_blank");
                 };
+
                 preview.appendChild(img);
+
+            } else if (
+                file.type.startsWith("video/") &&
+                ["mp4", "webm", "mov", "m4v"].includes(ext)
+            ) {
+
+                const video = document.createElement("video");
+                video.src = URL.createObjectURL(file);
+                video.controls = true;
+                video.preload = "metadata";
+                video.className = "preview-video";
+
+                preview.appendChild(video);
+
+            } else if (
+                ["avi", "mkv", "mts", "m2ts", "mpg", "mpeg"].includes(ext)
+            ) {
+
+                const p = document.createElement("p");
+                p.innerText = "▶ 動画ファイル：" + file.name;
+                preview.appendChild(p);
+
             } else {
+
                 const p = document.createElement("p");
                 p.innerText = file.name;
                 preview.appendChild(p);
