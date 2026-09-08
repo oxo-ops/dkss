@@ -7,6 +7,9 @@ import os
 import json
 import boto3
 import calendar
+import smtplib
+from email.message import EmailMessage
+import msal
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -18,7 +21,35 @@ from io import BytesIO
 from zoneinfo import ZoneInfo
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
+MICROSOFT_CLIENT_ID = os.environ.get(
+    "MICROSOFT_CLIENT_ID",
+    ""
+)
 
+MICROSOFT_CLIENT_SECRET = os.environ.get(
+    "MICROSOFT_CLIENT_SECRET",
+    ""
+)
+
+MICROSOFT_TENANT_ID = os.environ.get(
+    "MICROSOFT_TENANT_ID",
+    "common"
+)
+
+MICROSOFT_AUTHORITY = (
+    "https://login.microsoftonline.com/"
+    f"{MICROSOFT_TENANT_ID}"
+)
+
+MICROSOFT_REDIRECT_URI = os.environ.get(
+    "MICROSOFT_REDIRECT_URI",
+    "http://127.0.0.1:5000/microsoft/callback"
+)
+
+MICROSOFT_SCOPES = [
+    "User.Read",
+    "Mail.Send",
+]
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL",
     "sqlite:///dkss.db"
@@ -109,6 +140,25 @@ class User(db.Model):
         default=False,
         nullable=False
     )
+    
+    microsoft_account_email = db.Column(
+        db.String(255)
+    )
+
+    microsoft_tenant_id = db.Column(
+        db.String(100)
+    )
+
+    microsoft_user_id = db.Column(
+        db.String(100)
+    )
+
+    microsoft_connected = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+    
 class Vehicle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -882,31 +932,46 @@ def get_vehicle_checklist_notify_users(
 
     return notify_users
 
-def is_vehicle_checklist_completed_today(
+def get_user_local_now(company_code, target_user):
+    user = User.query.filter_by(
+        company_code=company_code,
+        name=target_user
+    ).first()
+
+    timezone_name = (
+        user.timezone
+        if user and user.timezone
+        else "Asia/Tokyo"
+    )
+
+    try:
+        return datetime.now(
+            ZoneInfo(timezone_name)
+        )
+    except Exception:
+        return datetime.now(
+            ZoneInfo("Asia/Tokyo")
+        )
+
+
+def is_vehicle_checklist_completed_on_date(
     company_code,
     checklist_id,
-    vehicle_id
+    vehicle_id,
+    target_date
 ):
-    today = datetime.now()
-
     result = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_id,
         vehicle_id=vehicle_id,
-        year=str(today.year),
-        month=str(today.month).zfill(2),
-        day=str(today.day).zfill(2)
+        year=str(target_date.year),
+        month=str(target_date.month).zfill(2),
+        day=str(target_date.day).zfill(2)
     ).first()
 
     return result is not None
 
 def send_vehicle_checklist_reminders(company_code):
-    today = datetime.now(
-        ZoneInfo("Asia/Tokyo")
-    )
-    today_text = today.strftime("%Y-%m-%d")
-    current_time = today.strftime("%H:%M")
-
     checklists = Checklist.query.filter_by(
         company_code=company_code,
         target="車両管理",
@@ -916,17 +981,16 @@ def send_vehicle_checklist_reminders(company_code):
     for checklist in checklists:
 
         # 今回は日次点検のみ対象
-        # 月次・年次は後で別判定を追加する
         if (
             checklist.frequency_unit != "day"
             or str(checklist.frequency_value or "1") != "1"
         ):
             continue
 
-        reminder_time = checklist.reminder_time or "17:00"
-
-        if current_time < reminder_time:
-            continue
+        reminder_time = (
+            checklist.reminder_time
+            or "17:00"
+        )
 
         vehicles = Vehicle.query.filter_by(
             company_code=company_code,
@@ -935,35 +999,56 @@ def send_vehicle_checklist_reminders(company_code):
 
         for vehicle in vehicles:
 
-            if is_vehicle_checklist_completed_today(
-                company_code,
-                checklist.id,
-                vehicle.vehicle_id
-            ):
-                continue
-
-            notify_users = get_vehicle_checklist_notify_users(
-                company_code,
-                checklist.id,
-                vehicle.vehicle_id
+            notify_users = (
+                get_vehicle_checklist_notify_users(
+                    company_code,
+                    checklist.id,
+                    vehicle.vehicle_id
+                )
             )
 
             for target_user in notify_users:
+
+                local_now = get_user_local_now(
+                    company_code,
+                    target_user
+                )
+
+                current_time = local_now.strftime(
+                    "%H:%M"
+                )
+
+                if current_time < reminder_time:
+                    continue
+
+                local_date = local_now.date()
+
+                if is_vehicle_checklist_completed_on_date(
+                    company_code,
+                    checklist.id,
+                    vehicle.vehicle_id,
+                    local_date
+                ):
+                    continue
+
+                reminder_date = (
+                    local_date.strftime("%Y-%m-%d")
+                )
 
                 title = "車両点検が未実施です"
 
                 link = (
                     f"/vehicle/checklists/{checklist.id}"
                     f"?vehicle_id={vehicle.vehicle_id}"
+                    f"&reminder_date={reminder_date}"
                 )
 
-                # 同じ人・同じ車両・同じ日に二重通知しない
-                already_sent = Notification.query.filter(
-                    Notification.company_code == company_code,
-                    Notification.target_user == target_user,
-                    Notification.title == title,
-                    Notification.link == link,
-                    Notification.created_at.like(f"{today_text}%")
+                # 同じ人・車両・現地日付では1回だけ
+                already_sent = Notification.query.filter_by(
+                    company_code=company_code,
+                    target_user=target_user,
+                    title=title,
+                    link=link
                 ).first()
 
                 if already_sent:
@@ -980,7 +1065,7 @@ def send_vehicle_checklist_reminders(company_code):
                     link,
                     company_code=company_code
                 )
-
+                
 def patrol_result_to_dict(result):
     return {
         "id": result.id,
@@ -1013,6 +1098,101 @@ def patrol_results_for_current_company():
         for result in query.order_by(PatrolResult.id.desc()).all()
     ]
 
+def send_email_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return False
+
+    if not user.email_notify_enabled:
+        return False
+
+    if not user.email_address:
+        return False
+
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_port = int(
+        os.environ.get("SMTP_PORT", "587")
+    )
+    smtp_username = os.environ.get(
+        "SMTP_USERNAME",
+        ""
+    )
+    smtp_password = os.environ.get(
+        "SMTP_PASSWORD",
+        ""
+    )
+    smtp_from = os.environ.get(
+        "SMTP_FROM",
+        smtp_username
+    )
+
+    if not smtp_host or not smtp_from:
+        print(
+            "メール通知未送信：SMTP設定がありません。"
+        )
+        return False
+
+    base_url = os.environ.get(
+        "APP_BASE_URL",
+        "http://127.0.0.1:5000"
+    ).rstrip("/")
+
+    full_link = ""
+
+    if link:
+        if link.startswith("http://") or link.startswith(
+            "https://"
+        ):
+            full_link = link
+        else:
+            full_link = base_url + link
+
+    email = EmailMessage()
+
+    email["Subject"] = title
+    email["From"] = smtp_from
+    email["To"] = user.email_address
+
+    body = message or ""
+
+    if full_link:
+        body += (
+            "\n\n"
+            "該当画面を開く：\n"
+            f"{full_link}"
+        )
+
+    email.set_content(body)
+
+    try:
+        with smtplib.SMTP(
+            smtp_host,
+            smtp_port,
+            timeout=20
+        ) as server:
+            server.starttls()
+
+            if smtp_username:
+                server.login(
+                    smtp_username,
+                    smtp_password
+                )
+
+            server.send_message(email)
+
+        return True
+
+    except Exception as e:
+        print(
+            "メール通知送信エラー:",
+            e
+        )
+        return False
+    
 def add_notification(
     target_user,
     title,
@@ -1037,7 +1217,18 @@ def add_notification(
 
     db.session.add(notification)
     db.session.commit()
+    
+    target_user_record = User.query.filter_by(
+        company_code=notification.company_code,
+        name=target_user
+    ).first()
 
+    send_email_notification(
+        target_user_record,
+        title,
+        message,
+        link
+    )
 
 def add_news(title, message, files=None, target_type="", target_value=""):
     news = News(
@@ -1598,6 +1789,125 @@ def logout():
     session.clear()
     return redirect("/login")
 
+def get_microsoft_app():
+    if not MICROSOFT_CLIENT_ID:
+        return None
+
+    return msal.ConfidentialClientApplication(
+        client_id=MICROSOFT_CLIENT_ID,
+        client_credential=MICROSOFT_CLIENT_SECRET or None,
+        authority=MICROSOFT_AUTHORITY
+    )
+
+@app.route("/microsoft/connect")
+def microsoft_connect():
+    microsoft_app = get_microsoft_app()
+
+    if not microsoft_app:
+        return (
+            "Microsoft連携設定がまだ登録されていません。"
+            " MICROSOFT_CLIENT_ID を設定してください。",
+            503
+        )
+
+    flow = microsoft_app.initiate_auth_code_flow(
+        scopes=MICROSOFT_SCOPES,
+        redirect_uri=MICROSOFT_REDIRECT_URI
+    )
+
+    session["microsoft_auth_flow"] = flow
+
+    return redirect(
+        flow["auth_uri"]
+    )
+
+
+@app.route("/microsoft/callback")
+def microsoft_callback():
+    flow = session.get(
+        "microsoft_auth_flow"
+    )
+
+    if not flow:
+        return (
+            "Microsoft連携情報が見つかりません。"
+            "もう一度連携を開始してください。",
+            400
+        )
+
+    microsoft_app = get_microsoft_app()
+
+    if not microsoft_app:
+        return (
+            "Microsoft連携設定がありません。",
+            503
+        )
+
+    try:
+        result = (
+            microsoft_app.acquire_token_by_auth_code_flow(
+                flow,
+                request.args
+            )
+        )
+
+    except ValueError:
+        return (
+            "Microsoft認証の確認に失敗しました。",
+            400
+        )
+
+    session.pop(
+        "microsoft_auth_flow",
+        None
+    )
+
+    if "error" in result:
+        return (
+            "Microsoft連携に失敗しました："
+            + result.get(
+                "error_description",
+                result.get("error", "")
+            ),
+            400
+        )
+
+    claims = result.get(
+        "id_token_claims",
+        {}
+    )
+
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not current_user:
+        return redirect("/logout")
+
+    current_user.microsoft_account_email = (
+        claims.get("preferred_username")
+        or claims.get("email")
+        or claims.get("upn")
+        or ""
+    )
+
+    current_user.microsoft_tenant_id = (
+        claims.get("tid")
+        or ""
+    )
+
+    current_user.microsoft_user_id = (
+        claims.get("oid")
+        or ""
+    )
+
+    current_user.microsoft_connected = True
+
+    db.session.commit()
+
+    return redirect("/settings")
+    
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
     current_user = User.query.filter_by(
@@ -1612,23 +1922,55 @@ def settings():
     success = None
 
     if request.method == "POST":
-        current_password = request.form.get("current_password")
-        new_password = request.form.get("new_password")
-        new_password_confirm = request.form.get("new_password_confirm")
+        action = request.form.get("action", "password")
 
-        if not check_password_hash(current_user.password, current_password):
-            error = "現在のパスワードが違います。"
+        if action == "notifications":
+            current_user.timezone = (
+                request.form.get("timezone")
+                or current_user.timezone
+                or "Asia/Tokyo"
+            )
 
-        elif not new_password:
-            error = "新しいパスワードを入力してください。"
+            current_user.email_address = (
+                request.form.get("email_address", "").strip()
+            )
 
-        elif new_password != new_password_confirm:
-            error = "新しいパスワードが一致しません。"
+            current_user.email_notify_enabled = (
+                request.form.get("email_notify_enabled") == "1"
+            )
+
+            current_user.teams_notify_enabled = (
+                request.form.get("teams_notify_enabled") == "1"
+            )
+
+            db.session.commit()
+            success = "通知設定を保存しました。"
 
         else:
-            current_user.password = generate_password_hash(new_password)
-            db.session.commit()
-            success = "パスワードを変更しました。"
+            current_password = request.form.get("current_password")
+            new_password = request.form.get("new_password")
+            new_password_confirm = request.form.get(
+                "new_password_confirm"
+            )
+
+            if not check_password_hash(
+                current_user.password,
+                current_password
+            ):
+                error = "現在のパスワードが違います。"
+
+            elif not new_password:
+                error = "新しいパスワードを入力してください。"
+
+            elif new_password != new_password_confirm:
+                error = "新しいパスワードが一致しません。"
+
+            else:
+                current_user.password = generate_password_hash(
+                    new_password
+                )
+                db.session.commit()
+                success = "パスワードを変更しました。"
 
     return render_template(
         "settings.html",
@@ -7662,6 +8004,52 @@ def test_vehicle_checklist_reminders():
     return {"ok": True}
 
 @app.route(
+    "/notifications/email-test",
+    methods=["POST"]
+)
+def test_email_notification():
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not current_user:
+        return {
+            "ok": False,
+            "message": "ユーザーが見つかりません。"
+        }, 404
+
+    if not current_user.email_notify_enabled:
+        return {
+            "ok": False,
+            "message": "メール通知がOFFです。"
+        }, 400
+
+    if not current_user.email_address:
+        return {
+            "ok": False,
+            "message": "メールアドレスが未設定です。"
+        }, 400
+
+    sent = send_email_notification(
+        current_user,
+        "メール通知テスト",
+        "通知メールの送信テストです。",
+        "/settings"
+    )
+
+    if not sent:
+        return {
+            "ok": False,
+            "message": "メール送信に失敗しました。"
+        }, 500
+
+    return {
+        "ok": True,
+        "message": "メールを送信しました。"
+    }
+    
+@app.route(
     "/vehicle/checklist-results/<int:result_index>/approve/<int:approval_index>",
     methods=["POST"]
 )
@@ -9649,10 +10037,6 @@ def init_db():
 
         db.session.commit()
 
-
-init_db()
-
-
 with app.app_context():
 
     columns = [
@@ -9779,6 +10163,22 @@ with app.app_context():
             "teams_notify_enabled",
             "BOOLEAN NOT NULL DEFAULT FALSE"
         ),
+                (
+            "microsoft_account_email",
+            "VARCHAR(255)"
+        ),
+        (
+            "microsoft_tenant_id",
+            "VARCHAR(100)"
+        ),
+        (
+            "microsoft_user_id",
+            "VARCHAR(100)"
+        ),
+        (
+            "microsoft_connected",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
     ]
 
     existing_user_columns = [
@@ -9817,7 +10217,11 @@ with app.app_context():
                 )
             )
 
-    db.session.commit()
+        db.session.commit()
+
+
+init_db()
+
 
 if __name__ == "__main__":
     app.run(debug=False)

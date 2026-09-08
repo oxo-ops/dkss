@@ -19,6 +19,124 @@
 </div>
 
 <form method="post" class="card">
+    <input
+        type="hidden"
+        name="action"
+        value="notifications"
+    >
+
+    <h3>通知設定</h3>
+
+    {% if success %}
+        <div class="alert success">
+            {{ success }}
+        </div>
+    {% endif %}
+
+    <label>タイムゾーン</label>
+
+    <input
+        type="text"
+        id="timezone_display"
+        value="{{ user.timezone or 'Asia/Tokyo' }}"
+        readonly
+    >
+
+    <input
+        type="hidden"
+        name="timezone"
+        id="timezone"
+        value="{{ user.timezone or 'Asia/Tokyo' }}"
+    >
+
+    <p class="help-text">
+        現在利用している端末の現地時間を自動判定します。
+    </p>
+
+    <label class="checkbox-row">
+        <input
+            type="checkbox"
+            name="email_notify_enabled"
+            value="1"
+            {% if user.email_notify_enabled %}checked{% endif %}
+        >
+        <span>メールでも通知を受け取る</span>
+    </label>
+
+    <label>メールアドレス</label>
+
+    <input
+        type="email"
+        name="email_address"
+        value="{{ user.email_address or '' }}"
+        placeholder="example@example.com"
+    >
+
+    <label class="checkbox-row">
+        <input
+            type="checkbox"
+            name="teams_notify_enabled"
+            value="1"
+            {% if user.teams_notify_enabled %}checked{% endif %}
+        >
+        <span>Microsoft Teamsでも通知を受け取る</span>
+    </label>
+
+<div style="margin-top:12px;">
+    {% if user.microsoft_connected %}
+        <p>
+            Microsoft連携済み
+        </p>
+
+        <p class="help-text">
+            {{ user.microsoft_account_email or 'Microsoftアカウント' }}
+        </p>
+    {% else %}
+        <a
+            href="/microsoft/connect"
+            class="btn"
+        >
+            Microsoftと連携する
+        </a>
+
+        <p class="help-text">
+            メール通知・Teams通知を利用するために、
+            Microsoftアカウントを連携します。
+        </p>
+    {% endif %}
+</div>
+
+    <button type="submit" class="btn">
+        通知設定を保存
+    </button>
+</form>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const timezone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    if (!timezone) {
+        return;
+    }
+
+    const hiddenInput =
+        document.getElementById("timezone");
+
+    const displayInput =
+        document.getElementById("timezone_display");
+
+    if (hiddenInput) {
+        hiddenInput.value = timezone;
+    }
+
+    if (displayInput) {
+        displayInput.value = timezone;
+    }
+});
+</script>
+
+<form method="post" class="card">
     <h3>パスワード変更</h3>
 
     {% if error %}
