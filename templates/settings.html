@@ -82,11 +82,9 @@
         <span>Microsoft Teamsでも通知を受け取る</span>
     </label>
 
-<div style="margin-top:12px;">
+<div class="microsoft-connect-section">
     {% if user.microsoft_connected %}
-        <p>
-            Microsoft連携済み
-        </p>
+        <p>Microsoft連携済み</p>
 
         <p class="help-text">
             {{ user.microsoft_account_email or 'Microsoftアカウント' }}
@@ -94,12 +92,12 @@
     {% else %}
         <a
             href="/microsoft/connect"
-            class="btn"
+            class="microsoft-connect-btn"
         >
             Microsoftと連携する
         </a>
 
-        <p class="help-text">
+        <p class="help-text microsoft-connect-help">
             メール通知・Teams通知を利用するために、
             Microsoftアカウントを連携します。
         </p>
