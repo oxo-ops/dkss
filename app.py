@@ -6109,10 +6109,10 @@ def checklist_result_detail(result_index):
             numeric_choices = []
 
             for choice in item.get("choices", []):
-                score_value = dashboard_score_value(choice)
-
-                if score_value is not None:
-                    numeric_choices.append(score_value)
+                try:
+                    numeric_choices.append(float(choice))
+                except (TypeError, ValueError):
+                    pass
 
             if numeric_choices:
                 max_score += max(numeric_choices)
@@ -6196,10 +6196,10 @@ def export_checklist_result_excel(result_index):
             numeric_choices = []
 
             for choice in item.get("choices", []):
-                score_value = dashboard_score_value(choice)
-
-                if score_value is not None:
-                    numeric_choices.append(score_value)
+                try:
+                    numeric_choices.append(float(choice))
+                except (TypeError, ValueError):
+                    pass
 
             if numeric_choices:
                 max_score += max(numeric_choices)
