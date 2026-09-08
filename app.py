@@ -15,6 +15,7 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
+from zoneinfo import ZoneInfo
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
 
@@ -86,7 +87,28 @@ class User(db.Model):
         db.Text,
         default="[]"
     )
-    
+
+    timezone = db.Column(
+        db.String(100),
+        default="Asia/Tokyo",
+        nullable=False
+    )
+
+    email_address = db.Column(
+        db.String(255)
+    )
+
+    email_notify_enabled = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    teams_notify_enabled = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
 class Vehicle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -164,6 +186,8 @@ class News(db.Model):
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
+    company_code = db.Column(db.String(50))
+
     target_user = db.Column(db.String(100), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text)
@@ -238,10 +262,22 @@ class Checklist(db.Model):
         default=False,
         nullable=False
     )
-    
+
     print_half_month = db.Column(
         db.Boolean,
         default=False,
+        nullable=False
+    )
+
+    reminder_enabled = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
+    reminder_time = db.Column(
+        db.String(5),
+        default="17:00",
         nullable=False
     )
 
@@ -277,7 +313,7 @@ class ChecklistResult(db.Model):
     approved_by = db.Column(db.String(100))
     approved_date = db.Column(db.String(30))
     reject_reason = db.Column(db.Text)
-    
+
     approvals_json = db.Column(
         db.Text,
         default="[]"
@@ -318,18 +354,41 @@ class VehicleChecklistResult(db.Model):
     approved_date = db.Column(db.String(30))
 
     reject_reason = db.Column(db.Text)
-    
+
     approvals_json = db.Column(
         db.Text,
         default="[]"
     )
-    
+
     notify_users_json = db.Column(
         db.Text,
         default="[]"
     )
 
     answers_json = db.Column(
+        db.Text,
+        default="[]"
+    )
+
+class VehicleChecklistNotifySetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    checklist_id = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    vehicle_id = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    notify_users_json = db.Column(
         db.Text,
         default="[]"
     )
@@ -486,7 +545,7 @@ def load_upload_bytes(filename):
 
     with open(file_path, "rb") as file:
         return BytesIO(file.read())
-    
+
 @app.route("/files/<folder>/<filename>")
 def uploaded_file(folder, filename):
     if folder not in {"uploads", "manuals"}:
@@ -691,6 +750,8 @@ def checklist_to_dict(checklist):
         "display_type": checklist.display_type,
         "print_portrait": bool(checklist.print_portrait),
         "print_half_month": bool(checklist.print_half_month),
+        "reminder_enabled": bool(checklist.reminder_enabled),
+        "reminder_time": checklist.reminder_time or "17:00",
         "items": items,
         "score_enabled": any(
             item.get("score_enabled", False)
@@ -755,6 +816,171 @@ def vehicle_checklist_result_to_dict(result):
         "answers": json.loads(result.answers_json or "[]"),
     }
 
+def get_vehicle_checklist_notify_users(
+    company_code,
+    checklist_id,
+    vehicle_id
+):
+    if not vehicle_id:
+        return []
+
+    # すでに通知先設定がある場合は、その設定を優先
+    setting = VehicleChecklistNotifySetting.query.filter_by(
+        company_code=company_code,
+        checklist_id=checklist_id,
+        vehicle_id=vehicle_id
+    ).first()
+
+    if setting:
+        return json.loads(
+            setting.notify_users_json or "[]"
+        )
+
+    # 初回だけ、過去の点検者・承認者から自動作成
+    notify_users = set()
+
+    past_results = VehicleChecklistResult.query.filter_by(
+        company_code=company_code,
+        checklist_id=checklist_id,
+        vehicle_id=vehicle_id
+    ).all()
+
+    for result in past_results:
+
+        if result.checked_by:
+            notify_users.add(result.checked_by)
+
+        if result.approved_by:
+            notify_users.add(result.approved_by)
+
+        approvals = json.loads(
+            result.approvals_json or "[]"
+        )
+
+        for approval in approvals:
+            approved_by = approval.get("approved_by")
+
+            if approved_by:
+                notify_users.add(approved_by)
+
+    notify_users = sorted(notify_users)
+
+    # 空でも設定レコードを作る
+    # → ユーザーが全員削除した場合に勝手に復活させないため
+    setting = VehicleChecklistNotifySetting(
+        company_code=company_code,
+        checklist_id=checklist_id,
+        vehicle_id=vehicle_id,
+        notify_users_json=json.dumps(
+            notify_users,
+            ensure_ascii=False
+        )
+    )
+
+    db.session.add(setting)
+    db.session.commit()
+
+    return notify_users
+
+def is_vehicle_checklist_completed_today(
+    company_code,
+    checklist_id,
+    vehicle_id
+):
+    today = datetime.now()
+
+    result = VehicleChecklistResult.query.filter_by(
+        company_code=company_code,
+        checklist_id=checklist_id,
+        vehicle_id=vehicle_id,
+        year=str(today.year),
+        month=str(today.month).zfill(2),
+        day=str(today.day).zfill(2)
+    ).first()
+
+    return result is not None
+
+def send_vehicle_checklist_reminders(company_code):
+    today = datetime.now(
+        ZoneInfo("Asia/Tokyo")
+    )
+    today_text = today.strftime("%Y-%m-%d")
+    current_time = today.strftime("%H:%M")
+
+    checklists = Checklist.query.filter_by(
+        company_code=company_code,
+        target="車両管理",
+        reminder_enabled=True
+    ).all()
+
+    for checklist in checklists:
+
+        # 今回は日次点検のみ対象
+        # 月次・年次は後で別判定を追加する
+        if (
+            checklist.frequency_unit != "day"
+            or str(checklist.frequency_value or "1") != "1"
+        ):
+            continue
+
+        reminder_time = checklist.reminder_time or "17:00"
+
+        if current_time < reminder_time:
+            continue
+
+        vehicles = Vehicle.query.filter_by(
+            company_code=company_code,
+            deleted=False
+        ).all()
+
+        for vehicle in vehicles:
+
+            if is_vehicle_checklist_completed_today(
+                company_code,
+                checklist.id,
+                vehicle.vehicle_id
+            ):
+                continue
+
+            notify_users = get_vehicle_checklist_notify_users(
+                company_code,
+                checklist.id,
+                vehicle.vehicle_id
+            )
+
+            for target_user in notify_users:
+
+                title = "車両点検が未実施です"
+
+                link = (
+                    f"/vehicle/checklists/{checklist.id}"
+                    f"?vehicle_id={vehicle.vehicle_id}"
+                )
+
+                # 同じ人・同じ車両・同じ日に二重通知しない
+                already_sent = Notification.query.filter(
+                    Notification.company_code == company_code,
+                    Notification.target_user == target_user,
+                    Notification.title == title,
+                    Notification.link == link,
+                    Notification.created_at.like(f"{today_text}%")
+                ).first()
+
+                if already_sent:
+                    continue
+
+                add_notification(
+                    target_user,
+                    title,
+                    (
+                        f"{checklist.name}："
+                        f"車両 {vehicle.vehicle_id} の"
+                        f"本日の点検が完了していません。"
+                    ),
+                    link,
+                    company_code=company_code
+                )
+
 def patrol_result_to_dict(result):
     return {
         "id": result.id,
@@ -787,11 +1013,19 @@ def patrol_results_for_current_company():
         for result in query.order_by(PatrolResult.id.desc()).all()
     ]
 
-def add_notification(target_user, title, message, link="", files=None):
+def add_notification(
+    target_user,
+    title,
+    message,
+    link="",
+    files=None,
+    company_code=None
+):
     if not target_user:
         return
 
     notification = Notification(
+        company_code=company_code or session.get("company_code"),
         target_user=target_user,
         title=title,
         message=message,
@@ -823,12 +1057,9 @@ def notify_mentions(text, link=""):
     if not text:
         return
 
-    user_query = User.query
-
-    if session.get("role") != "itc":
-        user_query = user_query.filter_by(
-            company_code=session.get("company_code")
-        )
+    user_query = User.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     for user in user_query.all():
         name = user.name
@@ -849,7 +1080,7 @@ def notify_mentions(text, link=""):
 
 def is_same_company_result(result):
     company_code = result.get("company_code")
-    return not company_code or company_code == session.get("company_code")
+    return company_code == session.get("company_code")
 
 
 def can_view_patrol_result(result):
@@ -885,6 +1116,9 @@ def can_view_checklist_result(result):
     role = session.get("role")
     name = session.get("name")
 
+    if not is_same_company_result(result):
+        return False
+
     if role in ["admin", "itc"]:
         return True
 
@@ -900,6 +1134,9 @@ def can_view_checklist_result(result):
 def can_manage_checklist_result(result):
     role = session.get("role")
 
+    if not is_same_company_result(result):
+        return False
+
     if role in ["admin", "itc"]:
         return True
 
@@ -908,6 +1145,9 @@ def can_manage_checklist_result(result):
 
 def can_approve_checklist_result(result, approval=None):
     role = session.get("role")
+
+    if not is_same_company_result(result):
+        return False
 
     if role in ["admin", "itc"]:
         return True
@@ -919,6 +1159,9 @@ def can_approve_checklist_result(result, approval=None):
 
 
 def can_reject_checklist_result(result):
+    if not is_same_company_result(result):
+        return False
+
     return session.get("role") in ["admin", "itc"]
 
 def vehicle_number(vehicle):
@@ -1024,7 +1267,7 @@ def license_types_for_current_company():
     query = LicenseType.query.filter_by(
         company_code=session.get("company_code")
     )
-    
+
     return [
         {
             "id": license_type.id,
@@ -1177,7 +1420,8 @@ def itc_new_news():
                 title,
                 message,
                 "",
-                files=file_names
+                files=file_names,
+                company_code=user.company_code
             )
         notify_mentions(message, "/notifications")
 
@@ -1268,6 +1512,7 @@ def inject_notification_count():
 
     if user_name:
         unread_count = Notification.query.filter_by(
+            company_code=session.get("company_code"),
             target_user=user_name,
             read=False
         ).count()
@@ -1474,12 +1719,9 @@ def mention_users():
 
     users = []
 
-    user_query = User.query
-
-    if session.get("role") != "itc":
-        user_query = user_query.filter_by(
-            company_code=session.get("company_code")
-        )
+    user_query = User.query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     for user in user_query.all():
         name = user.name or ""
@@ -1513,13 +1755,7 @@ def search_vehicles():
 
     keyword = request.args.get("q", "").strip()
 
-    company_code = request.args.get(
-        "company_code",
-        session.get("company_code")
-    )
-
-    if session.get("role") != "itc":
-        company_code = session.get("company_code")
+    company_code = session.get("company_code")
 
     query = Vehicle.query.filter_by(
         company_code=company_code,
@@ -1576,7 +1812,7 @@ def search_vehicles():
     return {
         "results": results
     }
-    
+
 @app.route("/")
 def dashboard():
     today = datetime.now().date()
@@ -1597,7 +1833,7 @@ def dashboard():
             my_driver.safe_start_date,
             "%Y-%m-%d"
         ).date()
-    
+
         my_safe_days = (today - start_date).days
 
     # 社内ランキング
@@ -1789,7 +2025,7 @@ def dashboard():
             return float(text)
         except (TypeError, ValueError):
             return None
-    
+
     checklist_score_summaries = []
     my_checklist_summaries = []
 
@@ -1848,7 +2084,7 @@ def dashboard():
                     and result_record.target_user == user_name
                 )
             ]
-        
+
         max_score = 0
 
         for item in check_items:
@@ -1865,7 +2101,7 @@ def dashboard():
 
             if numeric_choices:
                 max_score += max(numeric_choices)
-                
+
         result_scores = []
 
         for result_record in result_records:
@@ -1901,7 +2137,7 @@ def dashboard():
             score_distribution[score_label] = (
                 score_distribution.get(score_label, 0) + 1
             )
-            
+
         average_score = (
             round(
                 sum(result_scores) / len(result_scores),
@@ -2039,7 +2275,7 @@ def dashboard():
                 "max_score": max_score,
                 "category_analysis": my_category_analysis,
             })
-                    
+
         # カテゴリ別の評価を集計
         category_stats = {}
 
@@ -2112,7 +2348,7 @@ def dashboard():
         category_analysis.sort(
             key=lambda item: item["score_rate"]
         )
-        
+
         # 点検項目別の評価を集計
         item_stats = {}
 
@@ -2301,7 +2537,7 @@ def dashboard():
         )
 
         target_analysis = target_analysis[:5]
-        
+
         checklist_score_summaries.append({
             "id": checklist_record.id,
             "name": checklist_record.name,
@@ -2315,7 +2551,7 @@ def dashboard():
             "target_analysis": target_analysis,
             "improvement_items": improvement_items,
         })
-            
+
     return render_template(
         "index.html",
         my_safe_days=my_safe_days,
@@ -2337,6 +2573,7 @@ def notifications():
     items = []
 
     notification_records = Notification.query.filter_by(
+        company_code=session.get("company_code"),
         target_user=user_name
     ).order_by(Notification.id.desc()).all()
 
@@ -2365,7 +2602,10 @@ def notification_detail(index):
     if not notification:
         return redirect("/notifications")
 
-    if notification.target_user != session.get("name"):
+    if (
+        notification.company_code != session.get("company_code")
+        or notification.target_user != session.get("name")
+    ):
         return redirect("/notifications")
 
     notification.read = True
@@ -2396,7 +2636,10 @@ def delete_notification(index):
     if not notification:
         return redirect("/notifications")
 
-    if notification.target_user != session.get("name"):
+    if (
+        notification.company_code != session.get("company_code")
+        or notification.target_user != session.get("name")
+    ):
         return redirect("/notifications")
 
     db.session.delete(notification)
@@ -2563,12 +2806,12 @@ def pointouts():
             PatrolResult.category != "Good",
             PatrolResult.approval_status != "承認済み"
         )
-        
+
     if category:
         query = query.filter(
             PatrolResult.category == category
         )
-        
+
     if keyword:
         keyword_like = f"%{keyword}%"
 
@@ -3076,9 +3319,8 @@ def vehicle_patrol_detail(index):
     if not patrol:
         return redirect("/vehicle-patrols")
 
-    if session.get("role") != "itc":
-        if patrol.company_code != session.get("company_code"):
-            return redirect("/vehicle-patrols")
+    if patrol.company_code != session.get("company_code"):
+        return redirect("/vehicle-patrols")
 
     return render_template(
         "vehicle_patrol_detail.html",
@@ -3094,9 +3336,8 @@ def edit_vehicle_patrol(index):
     if not patrol:
         return redirect("/vehicle-patrols")
 
-    if session.get("role") != "itc":
-        if patrol.company_code != session.get("company_code"):
-            return redirect("/vehicle-patrols")
+    if patrol.company_code != session.get("company_code"):
+        return redirect("/vehicle-patrols")
 
     if request.method == "POST":
 
@@ -3165,9 +3406,8 @@ def delete_vehicle_patrol(index):
     if not patrol:
         return redirect("/vehicle-patrols")
 
-    if session.get("role") != "itc":
-        if patrol.company_code != session.get("company_code"):
-            return redirect("/vehicle-patrols")
+    if patrol.company_code != session.get("company_code"):
+        return redirect("/vehicle-patrols")
 
     db.session.delete(patrol)
     db.session.commit()
@@ -3224,9 +3464,8 @@ def edit_license_type(index):
     if not license_type:
         return redirect("/master/license-types")
 
-    if session.get("role") != "itc":
-        if license_type.company_code != session.get("company_code"):
-            return redirect("/master/license-types")
+    if license_type.company_code != session.get("company_code"):
+        return redirect("/master/license-types")
 
     if request.method == "POST":
         license_type.name = request.form.get("name")
@@ -3252,10 +3491,9 @@ def delete_license_type(index):
     if not license_type:
         return redirect("/master/license-types")
 
-    if session.get("role") != "itc":
-        if license_type.company_code != session.get("company_code"):
-            return redirect("/master/license-types")
-        
+    if license_type.company_code != session.get("company_code"):
+        return redirect("/master/license-types")
+
     for driver in Driver.query.filter_by(
         company_code=license_type.company_code
     ).all():
@@ -3312,9 +3550,8 @@ def edit_vehicle_type(index):
     if not vehicle_type:
         return redirect("/master/vehicle-types")
 
-    if session.get("role") != "itc":
-        if vehicle_type.company_code != session.get("company_code"):
-            return redirect("/master/vehicle-types")
+    if vehicle_type.company_code != session.get("company_code"):
+        return redirect("/master/vehicle-types")
 
     if request.method == "POST":
         vehicle_type.name = request.form.get("name")
@@ -3339,9 +3576,8 @@ def delete_vehicle_type(index):
     if not vehicle_type:
         return redirect("/master/vehicle-types")
 
-    if session.get("role") != "itc":
-        if vehicle_type.company_code != session.get("company_code"):
-            return redirect("/master/vehicle-types")
+    if vehicle_type.company_code != session.get("company_code"):
+        return redirect("/master/vehicle-types")
 
     Vehicle.query.filter_by(
         company_code=vehicle_type.company_code,
@@ -3419,9 +3655,8 @@ def edit_office(index):
     if not office:
         return redirect("/master/offices")
 
-    if session.get("role") != "itc":
-        if office.company_code != session.get("company_code"):
-            return redirect("/master/offices")
+    if office.company_code != session.get("company_code"):
+        return redirect("/master/offices")
 
     if request.method == "POST":
         office.name = request.form.get("name")
@@ -3451,9 +3686,8 @@ def delete_office(index):
     if not office:
         return redirect("/master/offices")
 
-    if session.get("role") != "itc":
-        if office.company_code != session.get("company_code"):
-            return redirect("/master/offices")
+    if office.company_code != session.get("company_code"):
+        return redirect("/master/offices")
 
     Driver.query.filter_by(
         company_code=office.company_code,
@@ -3835,7 +4069,7 @@ def select_delivery_place_import_column():
         "delivery_place_import_preview.html",
         delivery_places=delivery_places_data,
     )
-        
+
 @app.route(
     "/master/delivery-places/import/confirm",
     methods=["POST"]
@@ -3912,7 +4146,7 @@ def confirm_delivery_place_import():
         existing_count=existing_count,
         duplicate_count=duplicate_count,
     )
-        
+
 @app.route("/master/delivery-places")
 def delivery_place_master():
     return render_template(
@@ -3957,9 +4191,8 @@ def edit_delivery_place(index):
     if not place:
         return redirect("/master/delivery-places")
 
-    if session.get("role") != "itc":
-        if place.company_code != session.get("company_code"):
-            return redirect("/master/delivery-places")
+    if place.company_code != session.get("company_code"):
+        return redirect("/master/delivery-places")
 
     if request.method == "POST":
         place.name = request.form.get("name")
@@ -3987,9 +4220,8 @@ def delete_delivery_place(index):
     if not place:
         return redirect("/master/delivery-places")
 
-    if session.get("role") != "itc":
-        if place.company_code != session.get("company_code"):
-            return redirect("/master/delivery-places")
+    if place.company_code != session.get("company_code"):
+        return redirect("/master/delivery-places")
 
     db.session.delete(place)
     db.session.commit()
@@ -4039,9 +4271,8 @@ def edit_patrol_content_type(index):
     if not item:
         return redirect("/master/patrol-content-types")
 
-    if session.get("role") != "itc":
-        if item.company_code != session.get("company_code"):
-            return redirect("/master/patrol-content-types")
+    if item.company_code != session.get("company_code"):
+        return redirect("/master/patrol-content-types")
 
     if request.method == "POST":
         item.name = request.form.get("name", "").strip()
@@ -4063,9 +4294,8 @@ def delete_patrol_content_type(index):
     if not item:
         return redirect("/master/patrol-content-types")
 
-    if session.get("role") != "itc":
-        if item.company_code != session.get("company_code"):
-            return redirect("/master/patrol-content-types")
+    if item.company_code != session.get("company_code"):
+        return redirect("/master/patrol-content-types")
 
     db.session.delete(item)
     db.session.commit()
@@ -4154,7 +4384,7 @@ def driver_master():
         office=office,
         vehicle=vehicle,
     )
-    
+
 @app.route("/master/drivers/new", methods=["GET", "POST"])
 def new_driver():
     if request.method == "POST":
@@ -4229,9 +4459,8 @@ def edit_driver(index):
     if not driver:
         return redirect("/master/drivers")
 
-    if session.get("role") != "itc":
-        if driver.company_code != session.get("company_code"):
-            return redirect("/master/drivers")
+    if driver.company_code != session.get("company_code"):
+        return redirect("/master/drivers")
 
     if request.method == "POST":
         licenses = []
@@ -4359,9 +4588,8 @@ def delete_driver(index):
     if not driver:
         return redirect("/master/drivers")
 
-    if session.get("role") != "itc":
-        if driver.company_code != session.get("company_code"):
-            return redirect("/master/drivers")
+    if driver.company_code != session.get("company_code"):
+        return redirect("/master/drivers")
 
     user = User.query.filter_by(
         company_code=driver.company_code,
@@ -4576,7 +4804,7 @@ def vehicle_master():
         vehicle_limit=vehicle_limit,
         vehicle_count=vehicle_count,
         remaining_vehicles=remaining_vehicles,
-        
+
         page=page,
         total_pages=total_pages,
         total_count=total_count,
@@ -4662,7 +4890,7 @@ def import_vehicles():
             if hasattr(value, "strftime"):
                 return value.strftime("%Y-%m-%d")
 
-            return str(value).strip()            
+            return str(value).strip()
         vehicles_data = []
 
         for data_row in range(header_row + 1, sheet.max_row + 1):
@@ -4950,7 +5178,7 @@ def import_vehicles():
                 vehicle["import_status"] = "新規"
 
             processed_import_keys.add(import_key)
-            
+
         return render_template(
             "vehicle_import_preview.html",
             vehicles=vehicles_data,
@@ -5126,7 +5354,7 @@ def confirm_vehicle_import():
 
         counted_import_keys.add(import_key)
         new_vehicle_count += 1
-        
+
     # 新規登録予定台数で上限チェック
     if company:
         if current_count + new_vehicle_count > company.vehicle_limit:
@@ -5323,7 +5551,7 @@ def confirm_vehicle_import():
         unchanged_count=unchanged_count,
         duplicate_skip_count=duplicate_skip_count,
     )
-        
+
 @app.route("/master/vehicles/new", methods=["GET", "POST"])
 def new_vehicle():
     if request.method == "POST":
@@ -5402,9 +5630,8 @@ def edit_vehicle(index):
     if not vehicle:
         return redirect("/master/vehicles")
 
-    if session.get("role") != "itc":
-        if vehicle.company_code != session.get("company_code"):
-            return redirect("/master/vehicles")
+    if vehicle.company_code != session.get("company_code"):
+        return redirect("/master/vehicles")
 
     if request.method == "POST":
         vehicle.plate_area = request.form.get("plate_area")
@@ -5475,9 +5702,8 @@ def toggle_vehicle_inactive(index):
     if not vehicle:
         return redirect("/master/vehicles")
 
-    if session.get("role") != "itc":
-        if vehicle.company_code != session.get("company_code"):
-            return redirect("/master/vehicles")
+    if vehicle.company_code != session.get("company_code"):
+        return redirect("/master/vehicles")
 
     new_inactive = (
         request.form.get("inactive") == "1"
@@ -5534,7 +5760,7 @@ def bulk_delete_vehicles():
         for vehicle in vehicles_to_delete
         if vehicle.vehicle_id
     }
-    
+
     delete_vehicle_patterns = [
         f'"{vehicle_id}"'
         for vehicle_id in vehicle_ids_to_delete
@@ -5700,9 +5926,8 @@ def delete_vehicle(index):
     if not vehicle:
         return redirect("/master/vehicles")
 
-    if session.get("role") != "itc":
-        if vehicle.company_code != session.get("company_code"):
-            return redirect("/master/vehicles")
+    if vehicle.company_code != session.get("company_code"):
+        return redirect("/master/vehicles")
 
     vehicle_id = vehicle.vehicle_id
 
@@ -5784,9 +6009,8 @@ def edit_manual(index):
     if not manual:
         return redirect("/master/manuals")
 
-    if session.get("role") != "itc":
-        if manual.company_code != session.get("company_code"):
-            return redirect("/master/manuals")
+    if manual.company_code != session.get("company_code"):
+        return redirect("/master/manuals")
 
     if request.method == "POST":
         manual.title = request.form.get("title")
@@ -5828,9 +6052,8 @@ def delete_manual(index):
     if not manual:
         return redirect("/master/manuals")
 
-    if session.get("role") != "itc":
-        if manual.company_code != session.get("company_code"):
-            return redirect("/master/manuals")
+    if manual.company_code != session.get("company_code"):
+        return redirect("/master/manuals")
 
     db.session.delete(manual)
     db.session.commit()
@@ -5865,11 +6088,20 @@ def new_checklist():
             request.form.get("target") == "車両管理"
             and request.form.get("print_half_month") == "1"
         )
+
+        reminder_enabled = (
+            request.form.get("reminder_enabled") == "1"
+        )
+
+        reminder_time = (
+            request.form.get("reminder_time") or "17:00"
+        )
+
         items = []
 
         for i in range(len(item_types)):
             item_type = item_types[i]
-            
+
             if item_type == "inspector":
                 items.append({
                     "item_type": "inspector",
@@ -5944,6 +6176,8 @@ def new_checklist():
             display_type=display_type,
             print_portrait=print_portrait,
             print_half_month=print_half_month,
+            reminder_enabled=reminder_enabled,
+            reminder_time=reminder_time,
             items_json=json.dumps(items, ensure_ascii=False)
         )
 
@@ -5979,9 +6213,8 @@ def safety_checklist_results(index):
     if not checklist_record:
         return redirect("/safety/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/safety/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -6012,11 +6245,10 @@ def safety_checklist_results(index):
             ChecklistResult.target_type == "office",
             ChecklistResult.target_office == target_value
         )
-        
-    if session.get("role") != "itc":
-        query = query.filter_by(
-            company_code=session.get("company_code")
-        )
+
+    query = query.filter_by(
+        company_code=session.get("company_code")
+    )
 
     for result in query.order_by(ChecklistResult.id.desc()).all():
         item = checklist_result_to_dict(result)
@@ -6427,7 +6659,7 @@ def export_checklist_result_excel(result_index):
             )
 
         current_row += 1
-        
+
     # 合計点
     if checklist.get("score_enabled"):
 
@@ -6622,7 +6854,7 @@ def export_checklist_result_excel(result_index):
             )
 
         current_row += 1
-    
+
     # 12列構成
     # A～Lはすべて同じ幅
     for column_letter in [
@@ -6727,7 +6959,7 @@ def export_checklist_result_excel(result_index):
             vertical="center",
             wrap_text=True
         )
-    
+
     # 承認・押印欄
     approval_items = [
         item
@@ -6877,7 +7109,7 @@ def export_checklist_result_excel(result_index):
             row_number = stamp_box_row + 1
 
         current_row = row_number
-                
+
     # A4印刷設定
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
 
@@ -6885,7 +7117,7 @@ def export_checklist_result_excel(result_index):
     sheet.page_setup.orientation = sheet.ORIENTATION_PORTRAIT
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
-    
+
     # 印刷時に水平方向の中央へ配置
     sheet.print_options.horizontalCentered = True
 
@@ -6904,7 +7136,7 @@ def export_checklist_result_excel(result_index):
     sheet.print_title_rows = (
         f"{result_header_row}:{result_header_row}"
     )
-    
+
     # 添付画像シート
     attachment_items = []
 
@@ -7029,7 +7261,7 @@ def export_checklist_result_excel(result_index):
             "spreadsheetml.sheet"
         )
     )
-    
+
 @app.route("/safety/checklist-results/<int:result_index>/edit", methods=["GET", "POST"])
 def edit_checklist_result(result_index):
     result_record = ChecklistResult.query.get(result_index)
@@ -7308,6 +7540,16 @@ def vehicle_checklist_results(index):
             selected_notify_users = result.get("notify_users", [])
             break
 
+    selected_reminder_notify_users = (
+        get_vehicle_checklist_notify_users(
+            checklist_record.company_code,
+            checklist_record.id,
+            vehicle_id
+        )
+        if vehicle_id
+        else []
+    )
+
     selected_vehicle = None
 
     if vehicle_id:
@@ -7336,13 +7578,14 @@ def vehicle_checklist_results(index):
                 "manufacturer": vehicle_record.manufacturer or "",
                 "model_code": vehicle_record.model_code or "",
             }
-                    
+
     return render_template(
         "vehicle_checklist_results.html",
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
         selected_notify_users=selected_notify_users,
+        selected_reminder_notify_users=selected_reminder_notify_users,
         selected_vehicle=selected_vehicle,
         year=year,
         month=month,
@@ -7353,6 +7596,70 @@ def vehicle_checklist_results(index):
         display_mode=display_mode
     )
 
+@app.route(
+    "/vehicle/checklists/<int:checklist_index>/reminder-notify-users",
+    methods=["POST"]
+)
+def save_vehicle_checklist_reminder_notify_users(checklist_index):
+    company_code = session.get("company_code")
+
+    vehicle_id = request.form.get(
+        "vehicle_id",
+        ""
+    ).strip()
+
+    notify_users = request.form.getlist(
+        "reminder_notify_users"
+    )
+
+    checklist_record = Checklist.query.filter_by(
+        id=checklist_index,
+        company_code=company_code
+    ).first()
+
+    if not checklist_record or not vehicle_id:
+        return {"ok": False}, 404
+
+    setting = VehicleChecklistNotifySetting.query.filter_by(
+        company_code=company_code,
+        checklist_id=checklist_record.id,
+        vehicle_id=vehicle_id
+    ).first()
+
+    if not setting:
+        setting = VehicleChecklistNotifySetting(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_id=vehicle_id
+        )
+
+        db.session.add(setting)
+
+    setting.notify_users_json = json.dumps(
+        notify_users,
+        ensure_ascii=False
+    )
+
+    db.session.commit()
+
+    return {
+        "ok": True
+    }
+
+@app.route(
+    "/vehicle/checklist-reminders/test",
+    methods=["POST"]
+)
+def test_vehicle_checklist_reminders():
+
+    if session.get("role") not in ["admin", "itc"]:
+        return {"ok": False}, 403
+
+    send_vehicle_checklist_reminders(
+        session.get("company_code")
+    )
+
+    return {"ok": True}
 
 @app.route(
     "/vehicle/checklist-results/<int:result_index>/approve/<int:approval_index>",
@@ -7393,7 +7700,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         return redirect("/vehicle/checklists")
 
     approval = approvals[approval_index]
-    
+
     # 旧データに allow_general が無い場合は
     # 現在のチェックリストマスタから補完
     if "allow_general" not in approval:
@@ -7417,12 +7724,12 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                     "approval_allow_general",
                     False
                 )
-                
+
     result = vehicle_checklist_result_to_dict(result_record)
 
     if not can_approve_checklist_result(result, approval):
         return redirect("/vehicle/checklists")
-    
+
     approval["approved_by"] = session.get("name")
     approval["approved_date"] = datetime.now().strftime(
         "%Y-%m-%d %H:%M"
@@ -7487,9 +7794,8 @@ def export_vehicle_checklist_result_excel(result_index):
     if not result_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if result_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if result_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     result = vehicle_checklist_result_to_dict(result_record)
 
@@ -7518,7 +7824,7 @@ def export_vehicle_checklist_result_excel(result_index):
         "display_type",
         ""
     )
-    
+
     # Excelの表示単位を決定
     if frequency_unit == "year":
         excel_display_mode = "year"
@@ -7528,7 +7834,7 @@ def export_vehicle_checklist_result_excel(result_index):
 
     else:
         excel_display_mode = "month"
-        
+
     vehicle_record = Vehicle.query.filter_by(
         company_code=result_record.company_code,
         vehicle_id=result_record.vehicle_id
@@ -7560,7 +7866,7 @@ def export_vehicle_checklist_result_excel(result_index):
         vehicle_info["model_code"] = (
             vehicle_record.model_code or ""
         )
-    
+
     # 点検頻度に応じて出力対象を取得
     result_query = VehicleChecklistResult.query.filter_by(
         company_code=result_record.company_code,
@@ -7758,7 +8064,7 @@ def export_vehicle_checklist_result_excel(result_index):
             vertical="center",
             wrap_text=True
         )
-    
+
     # 月間帳票の車両情報
     vehicle_number = (
         vehicle_info["number"]
@@ -7778,7 +8084,7 @@ def export_vehicle_checklist_result_excel(result_index):
         horizontal="left",
         vertical="center"
     )
-    
+
     # 点検表ヘッダー
     header_row = 5
     weekday_row = 6
@@ -7839,7 +8145,7 @@ def export_vehicle_checklist_result_excel(result_index):
                         row=weekday_row,
                         column=column
                     ).font = Font(color="FF0000")
-                    
+
     elif excel_display_mode == "month":
         # 月例・3か月・6か月ごと等：1～12月
         for month_no in range(1, 13):
@@ -7885,7 +8191,7 @@ def export_vehicle_checklist_result_excel(result_index):
     category_rows = set()
 
     for item_no, item in enumerate(checklist.get("items", [])):
-        
+
         if item.get("item_type") != "check":
             continue
 
@@ -7966,7 +8272,7 @@ def export_vehicle_checklist_result_excel(result_index):
             vertical="center",
             wrap_text=True,
         )
-        
+
         # 点検結果を表示単位に応じて入れる
         for period_result in period_results:
 
@@ -8048,7 +8354,7 @@ def export_vehicle_checklist_result_excel(result_index):
             )
 
         current_row += 1
-                    
+
     if checklist.get("score_enabled"):
         score_row = current_row
 
@@ -8104,7 +8410,7 @@ def export_vehicle_checklist_result_excel(result_index):
             )
 
         current_row += 1
-                                    
+
     # 点検実施者
     inspector_row = current_row
 
@@ -8169,7 +8475,7 @@ def export_vehicle_checklist_result_excel(result_index):
             wrap_text=True
         )
 
-    current_row += 1     
+    current_row += 1
 
     # 承認欄
     approval_items = [
@@ -8180,7 +8486,7 @@ def export_vehicle_checklist_result_excel(result_index):
 
     for approval_index, approval_item in enumerate(approval_items):
         approval_row = current_row
-        
+
         sheet.row_dimensions[approval_row].height = 28
 
         sheet.cell(
@@ -8203,7 +8509,7 @@ def export_vehicle_checklist_result_excel(result_index):
             if excel_display_mode == "day":
                 try:
                     column = int(period_result.get("day", 0)) + 1
-                    
+
                 except (TypeError, ValueError):
                     continue
 
@@ -8279,7 +8585,7 @@ def export_vehicle_checklist_result_excel(result_index):
             continue
 
         for column_number in range(1, title_end_column + 1):
-            
+
             cell = sheet.cell(
                 row=row_number,
                 column=column_number
@@ -8360,7 +8666,7 @@ def export_vehicle_checklist_result_excel(result_index):
                     column=column
                 ).fill = fill
 
-                                
+
     # 日次表の土日文字色を再設定
     if excel_display_mode == "day":
         for column_number in range(2, title_end_column + 1):
@@ -8381,7 +8687,7 @@ def export_vehicle_checklist_result_excel(result_index):
                     bold=True,
                     color="FF0000"
                 )
-                
+
     # 半月ごとに分ける場合は、表・裏の2シートにする
     if half_month_mode:
         sheet.title = "表 1～15日"
@@ -8406,7 +8712,7 @@ def export_vehicle_checklist_result_excel(result_index):
                 column=column
             ).column_letter
             back_sheet.column_dimensions[column_letter].hidden = True
-                        
+
     # Excelファイルをメモリ上に保存
     output = BytesIO()
 
@@ -8445,7 +8751,7 @@ def export_vehicle_checklist_result_excel(result_index):
         print_sheet.page_margins.bottom = 0.25
         print_sheet.page_margins.header = 0.2
         print_sheet.page_margins.footer = 0.2
-        
+
     workbook.save(output)
     output.seek(0)
 
@@ -8468,7 +8774,7 @@ def export_vehicle_checklist_result_excel(result_index):
             "spreadsheetml.sheet"
         )
     )
-                                                
+
 @app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])
 def save_vehicle_checklist_one(index):
     checklist_record = Checklist.query.get(index)
@@ -8476,9 +8782,8 @@ def save_vehicle_checklist_one(index):
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -8513,7 +8818,7 @@ def save_vehicle_checklist_one(index):
         month=month,
         day=day
     ).first()
-    
+
     if not result_record:
         result_record = VehicleChecklistResult(
             company_code=checklist_record.company_code,
@@ -8579,9 +8884,8 @@ def save_vehicle_checklist_detail(index):
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -8713,9 +9017,8 @@ def complete_vehicle_checklist(index):
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     vehicle_id = request.form.get("vehicle_id")
     year = request.form.get("year", "")
@@ -8758,7 +9061,7 @@ def complete_vehicle_checklist(index):
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
     result_record.approved_by = ""
     result_record.approved_date = ""
-    
+
     notify_users = list(dict.fromkeys(
         name.strip()
         for name in request.form.getlist("notify_users")
@@ -8798,7 +9101,7 @@ def complete_vehicle_checklist(index):
         f"&month={month}"
         f"&active_day={active_day}"
     )
-    
+
 @app.route("/vehicle/checklists/<int:index>/new", methods=["GET", "POST"])
 def new_vehicle_checklist_result(index):
     checklist_record = Checklist.query.get(index)
@@ -8806,9 +9109,8 @@ def new_vehicle_checklist_result(index):
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/vehicle/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -8861,7 +9163,7 @@ def new_vehicle_checklist_result(index):
                 "approved_by": "",
                 "approved_date": ""
             })
-            
+
         result = VehicleChecklistResult(
             company_code=checklist_record.company_code,
             checklist_id=checklist_record.id,
@@ -8906,9 +9208,8 @@ def new_safety_checklist_result(index):
     if not checklist_record:
         return redirect("/safety/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/safety/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -8962,7 +9263,7 @@ def new_safety_checklist_result(index):
                 "files": file_names,
                 "patrol_link": patrol_link == "1",
             })
-            
+
             if patrol_link == "1":
                 db.session.add(PatrolResult(
                     company_code=session.get("company_code"),
@@ -9002,7 +9303,7 @@ def new_safety_checklist_result(index):
             })
 
         target_type = request.form.get("target_type")
-                            
+
         result = ChecklistResult(
             company_code=session.get("company_code"),
             checklist_id=checklist_record.id,
@@ -9052,9 +9353,8 @@ def edit_checklist(index):
     if not checklist_record:
         return redirect("/master/checklists")
 
-    if session.get("role") != "itc":
-        if checklist_record.company_code != session.get("company_code"):
-            return redirect("/master/checklists")
+    if checklist_record.company_code != session.get("company_code"):
+        return redirect("/master/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
@@ -9077,12 +9377,19 @@ def edit_checklist(index):
             request.form.get("target") == "車両管理"
             and request.form.get("print_half_month") == "1"
         )
+        reminder_enabled = (
+            request.form.get("reminder_enabled") == "1"
+        )
+
+        reminder_time = (
+            request.form.get("reminder_time") or "17:00"
+        )
         old_items = checklist.get("items", [])
         items = []
 
         for i in range(len(item_types)):
             item_type = item_types[i]
-            
+
             if item_type == "inspector":
                 items.append({
                     "item_type": "inspector",
@@ -9144,6 +9451,8 @@ def edit_checklist(index):
 
         checklist_record.name = request.form.get("name")
         checklist_record.target = request.form.get("target")
+        checklist_record.reminder_enabled = reminder_enabled
+        checklist_record.reminder_time = reminder_time
 
         if request.form.get("target") == "車両管理":
             checklist_record.frequency_value = request.form.get("frequency_value")
@@ -9179,9 +9488,8 @@ def delete_checklist(index):
     if not checklist:
         return redirect("/master/checklists")
 
-    if session.get("role") != "itc":
-        if checklist.company_code != session.get("company_code"):
-            return redirect("/master/checklists")
+    if checklist.company_code != session.get("company_code"):
+        return redirect("/master/checklists")
 
     db.session.delete(checklist)
     db.session.commit()
@@ -9374,7 +9682,7 @@ with app.app_context():
             )
 
     db.session.commit()
-    
+
     checklist_columns = [
         ("notify_users_json", "TEXT"),
         (
@@ -9384,6 +9692,14 @@ with app.app_context():
         (
             "print_half_month",
             "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+                (
+            "reminder_enabled",
+            "BOOLEAN NOT NULL DEFAULT TRUE"
+        ),
+        (
+            "reminder_time",
+            "VARCHAR(5) NOT NULL DEFAULT '17:00'"
         ),
     ]
 
@@ -9445,6 +9761,63 @@ with app.app_context():
             )
 
     db.session.commit()
-    
+
+    user_columns = [
+        (
+            "timezone",
+            "VARCHAR(100) NOT NULL DEFAULT 'Asia/Tokyo'"
+        ),
+        (
+            "email_address",
+            "VARCHAR(255)"
+        ),
+        (
+            "email_notify_enabled",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+        (
+            "teams_notify_enabled",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+    ]
+
+    existing_user_columns = [
+        column["name"]
+        for column in inspector.get_columns("user")
+    ]
+
+    for column_name, column_type in user_columns:
+        if column_name not in existing_user_columns:
+            db.session.execute(
+                db.text(
+                    f'ALTER TABLE "user" '
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+
+    notification_columns = [
+        ("company_code", "VARCHAR(50)"),
+    ]
+
+    existing_notification_columns = [
+        column["name"]
+        for column in inspector.get_columns(
+            "notification"
+        )
+    ]
+
+    for column_name, column_type in notification_columns:
+        if column_name not in existing_notification_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE notification "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+
 if __name__ == "__main__":
     app.run(debug=False)

@@ -214,27 +214,72 @@
 
         {% endif %}
 
-        <div class="notify-user-selector">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
 
-            <label>点検完了通知先</label>
+            <div class="notify-user-selector">
 
-            <input
-                type="text"
-                id="notify_user_search"
-                placeholder="名前で検索"
-                autocomplete="off"
-            >
+                <label>点検完了通知先</label>
 
-            <div
-                id="notify_user_search_results"
-                class="vehicle-select-box"
-                style="display:none;"
-            ></div>
+                <input
+                    type="text"
+                    id="notify_user_search"
+                    placeholder="名前で検索"
+                    autocomplete="off"
+                >
 
-            <div
-                id="selected_notify_users"
-                class="selected-vehicle-tags"
-            ></div>
+                <div
+                    id="notify_user_search_results"
+                    class="vehicle-select-box"
+                    style="display:none;"
+                ></div>
+
+                <div
+                    id="selected_notify_users"
+                    class="selected-vehicle-tags"
+                ></div>
+
+            </div>
+
+
+            <div class="notify-user-selector">
+
+                <label>点検未実施通知先</label>
+
+                <input
+                    type="text"
+                    id="reminder_notify_user_search"
+                    placeholder="名前で検索"
+                    autocomplete="off"
+                >
+
+                <div
+                    id="reminder_notify_user_search_results"
+                    class="vehicle-select-box"
+                    style="display:none;"
+                ></div>
+
+                <div
+                    id="selected_reminder_notify_users"
+                    class="selected-vehicle-tags"
+                >
+                    {% for user_name in selected_reminder_notify_users %}
+                        <span
+                            class="selected-vehicle-tag"
+                            data-user-name="{{ user_name }}"
+                        >
+                            {{ user_name }}
+                            <button
+                                type="button"
+                                class="remove-reminder-notify-user"
+                                data-user-name="{{ user_name }}"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    {% endfor %}
+                </div>
+
+            </div>
 
         </div>
 
@@ -847,6 +892,11 @@
     id="saved_notify_users_json"
 >{{ selected_notify_users | tojson }}</script>
 
+<script
+    type="application/json"
+    id="saved_reminder_notify_users_json"
+>{{ selected_reminder_notify_users | tojson }}</script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const searchInput = document.getElementById("notify_user_search");
@@ -974,6 +1024,229 @@ document.addEventListener("DOMContentLoaded", function () {
             searchResults.style.display = "block";
         }, 250);
     });
+});
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput =
+        document.getElementById("reminder_notify_user_search");
+
+    const searchResults =
+        document.getElementById("reminder_notify_user_search_results");
+
+    const selectedContainer =
+        document.getElementById("selected_reminder_notify_users");
+
+    const savedJson =
+        document.getElementById("saved_reminder_notify_users_json");
+
+    if (
+        !searchInput ||
+        !searchResults ||
+        !selectedContainer ||
+        !savedJson
+    ) {
+        return;
+    }
+
+    const selectedUsers = new Map();
+
+    const savedUsers = JSON.parse(
+        savedJson.textContent || "[]"
+    );
+
+    savedUsers.forEach(function (name) {
+        selectedUsers.set(name, name);
+    });
+
+    async function saveReminderNotifyUsers() {
+        const formData = new FormData();
+
+        formData.append(
+            "vehicle_id",
+            "{{ vehicle_id }}"
+        );
+
+        selectedUsers.forEach(function (name) {
+            formData.append(
+                "reminder_notify_users",
+                name
+            );
+        });
+
+        const response = await fetch(
+            "/vehicle/checklists/{{ checklist_index }}/reminder-notify-users",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        if (!response.ok) {
+            console.error(
+                "点検忘れ通知先の保存に失敗しました。"
+            );
+        }
+    }
+
+    function renderSelectedUsers() {
+        selectedContainer.innerHTML = "";
+
+        selectedUsers.forEach((name, username) => {
+            const tag = document.createElement("span");
+
+            tag.className = "selected-vehicle-tag";
+
+            tag.innerHTML = `
+                ${name}
+
+                <button
+                    type="button"
+                    class="tag-remove-btn reminder-tag-remove-btn"
+                    data-username="${username}"
+                >
+                    ×
+                </button>
+            `;
+
+            selectedContainer.appendChild(tag);
+        });
+    }
+
+    renderSelectedUsers();
+
+    selectedContainer.addEventListener(
+        "click",
+        function (event) {
+
+            const button =
+                event.target.closest(
+                    ".reminder-tag-remove-btn"
+                );
+
+            if (!button) {
+                return;
+            }
+
+            selectedUsers.delete(
+                button.dataset.username
+            );
+
+            renderSelectedUsers();
+            saveReminderNotifyUsers();
+        }
+    );
+
+    let searchTimer = null;
+
+    searchInput.addEventListener(
+        "input",
+        function () {
+
+            clearTimeout(searchTimer);
+
+            const keyword =
+                searchInput.value.trim();
+
+            if (!keyword) {
+                searchResults.innerHTML = "";
+                searchResults.style.display = "none";
+                return;
+            }
+
+            searchTimer = setTimeout(
+                async function () {
+
+                    const response = await fetch(
+                        `/api/mention-users?q=${encodeURIComponent(keyword)}`
+                    );
+
+                    const data =
+                        await response.json();
+
+                    searchResults.innerHTML = "";
+
+                    if (
+                        !data.users ||
+                        data.users.length === 0
+                    ) {
+                        searchResults.innerHTML =
+                            '<p class="help-text">該当するユーザーがいません。</p>';
+
+                        searchResults.style.display =
+                            "block";
+
+                        return;
+                    }
+
+                    data.users.forEach(user => {
+
+                        const item =
+                            document.createElement(
+                                "button"
+                            );
+
+                        item.type = "button";
+
+                        item.className =
+                            "vehicle-select-item";
+
+                        item.innerHTML = `
+                            <strong>${user.name}</strong>
+
+                            <span>
+                                ${user.office || ""}
+                                ${
+                                    user.username
+                                        ? " / " + user.username
+                                        : ""
+                                }
+                            </span>
+                        `;
+
+                        item.addEventListener(
+                            "click",
+                            function () {
+
+                                if (
+                                    selectedUsers.has(
+                                        user.name
+                                    )
+                                ) {
+                                    return;
+                                }
+
+                                selectedUsers.set(
+                                    user.name,
+                                    user.name
+                                );
+
+                                renderSelectedUsers();
+                                saveReminderNotifyUsers();
+
+                                searchInput.value = "";
+
+                                searchResults.innerHTML =
+                                    "";
+
+                                searchResults.style.display =
+                                    "none";
+                            }
+                        );
+
+                        searchResults.appendChild(
+                            item
+                        );
+                    });
+
+                    searchResults.style.display =
+                        "block";
+                },
+                250
+            );
+        }
+    );
 });
 </script>
 

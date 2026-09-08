@@ -53,11 +53,11 @@
         </select>
 
         <div id="vehicle_checklist_setting" class="vehicle-checklist-setting" style="display:none;">
-            <h3>車両チェックリスト設定</h3>
 
-            <p class="help-text">
-                車両管理のチェックリストのみ、点検頻度と表示形式を設定します。
-            </p>
+            <details class="check-detail-settings">
+                <summary>詳細設定</summary>
+
+                <div class="check-detail-body">
 
             <label>頻度</label>
             <div class="frequency-row">
@@ -121,7 +121,35 @@
             <p class="help-text">
                 チェックした場合は、1～15日を表面、16日～月末を裏面として出力します。
                 未チェックの場合は、従来どおり1ヶ月分を1枚で出力します。
-            </p>            
+            </p>
+            <hr>
+
+            <label class="checkbox-row">
+                <input
+                    type="checkbox"
+                    name="reminder_enabled"
+                    value="1"
+                    id="reminder_enabled"
+                    {% if not checklist or checklist.reminder_enabled %}checked{% endif %}
+                    onchange="toggleReminderTime()"
+                >
+                <span>点検未実施通知を有効にする</span>
+            </label>
+
+            <label>未実施通知時刻</label>
+            <input
+                type="time"
+                name="reminder_time"
+                id="reminder_time"
+                value="{{ checklist.reminder_time if checklist and checklist.reminder_time else '17:00' }}"
+                onclick="openTimePicker(this)"
+            >
+
+            <p class="help-text">
+                この時刻になっても当日の点検が完了していない場合、設定された通知先へ通知します。
+            </p>
+        </div>
+    </details>
         </div>
 
         <label class="checkbox-row">
@@ -349,7 +377,7 @@
                                     <span>一般ユーザーも承認可能</span>
                                 </label>
                             </div>
-                                    
+
                             <div class="check-main-field check-category-field">
                                 <label>カテゴリ</label>
 
@@ -663,6 +691,16 @@ function addChecklistItem() {
     area.appendChild(row);
 }
 
+function openTimePicker(input) {
+    if (input.disabled) {
+        return;
+    }
+
+    if (typeof input.showPicker === "function") {
+        input.showPicker();
+    }
+}
+
 let draggedChecklistItem = null;
 let checklistDropIndicator = null;
 let checklistDropTarget = null;
@@ -831,8 +869,19 @@ function toggleChoices(select) {
         choicesInput.required = false;
     } else {
         choicesInput.style.display = "block";
-        choicesInput.required = true;
+        choicesInput.required = false;
     }
+}
+
+function toggleReminderTime() {
+    const checkbox = document.getElementById("reminder_enabled");
+    const timeInput = document.getElementById("reminder_time");
+
+    if (!checkbox || !timeInput) {
+        return;
+    }
+
+    timeInput.disabled = !checkbox.checked;
 }
 
 function toggleVehicleChecklistSetting() {
@@ -900,6 +949,7 @@ document.querySelector(".responsive-form").addEventListener(
 
 window.addEventListener("DOMContentLoaded", function () {
     toggleVehicleChecklistSetting();
+    toggleReminderTime();
 
     document
         .querySelectorAll('select[name="item_type"]')
