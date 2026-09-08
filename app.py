@@ -10,6 +10,7 @@ import calendar
 import smtplib
 from email.message import EmailMessage
 import msal
+import requests
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -44,6 +45,11 @@ MICROSOFT_AUTHORITY = (
 MICROSOFT_REDIRECT_URI = os.environ.get(
     "MICROSOFT_REDIRECT_URI",
     "http://127.0.0.1:5000/microsoft/callback"
+)
+
+NOTIFICATION_SENDER_EMAIL = os.environ.get(
+    "NOTIFICATION_SENDER_EMAIL",
+    ""
 )
 
 MICROSOFT_SCOPES = [
@@ -1098,6 +1104,230 @@ def patrol_results_for_current_company():
         for result in query.order_by(PatrolResult.id.desc()).all()
     ]
 
+def send_microsoft_email_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return False
+
+    if not user.email_notify_enabled:
+        return False
+
+    if not user.email_address:
+        return False
+
+    access_token = session.get(
+        "microsoft_access_token"
+    )
+
+    if not access_token:
+        print(
+            "Microsoftメール未送信："
+            "アクセストークンがありません。"
+        )
+        return False
+
+    base_url = os.environ.get(
+        "APP_BASE_URL",
+        "https://dkss.onrender.com"
+    ).rstrip("/")
+
+    full_link = ""
+
+    if link:
+        if (
+            link.startswith("http://")
+            or link.startswith("https://")
+        ):
+            full_link = link
+        else:
+            full_link = base_url + link
+
+    body = message or ""
+
+    if full_link:
+        body += (
+            "\n\n"
+            "該当画面を開く：\n"
+            f"{full_link}"
+        )
+
+    payload = {
+        "message": {
+            "subject": title,
+            "body": {
+                "contentType": "Text",
+                "content": body,
+            },
+            "toRecipients": [
+                {
+                    "emailAddress": {
+                        "address": user.email_address
+                    }
+                }
+            ],
+        },
+        "saveToSentItems": True,
+    }
+
+    try:
+        response = requests.post(
+            "https://graph.microsoft.com/v1.0/me/sendMail",
+            headers={
+                "Authorization": (
+                    f"Bearer {access_token}"
+                ),
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=20,
+        )
+
+        if response.status_code == 202:
+            return True
+
+        print(
+            "Microsoftメール送信エラー:",
+            response.status_code,
+            response.text,
+        )
+
+        return False
+
+    except Exception as e:
+        print(
+            "Microsoftメール送信エラー:",
+            e
+        )
+        return False
+
+def send_system_email_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return False
+
+    if not user.email_notify_enabled:
+        return False
+
+    if not user.email_address:
+        return False
+
+    if not NOTIFICATION_SENDER_EMAIL:
+        print(
+            "Microsoft自動メール未送信："
+            "NOTIFICATION_SENDER_EMAIL がありません。"
+        )
+        return False
+
+    microsoft_app = get_microsoft_app()
+
+    if not microsoft_app:
+        print(
+            "Microsoft自動メール未送信："
+            "Microsoftアプリ設定がありません。"
+        )
+        return False
+
+    token_result = microsoft_app.acquire_token_for_client(
+        scopes=[
+            "https://graph.microsoft.com/.default"
+        ]
+    )
+
+    access_token = token_result.get("access_token")
+
+    if not access_token:
+        print(
+            "Microsoft自動メール用トークン取得失敗：",
+            token_result.get(
+                "error_description",
+                token_result
+            )
+        )
+        return False
+
+    base_url = os.environ.get(
+        "APP_BASE_URL",
+        "https://dkss.onrender.com"
+    ).rstrip("/")
+
+    full_link = ""
+
+    if link:
+        if (
+            link.startswith("http://")
+            or link.startswith("https://")
+        ):
+            full_link = link
+        else:
+            full_link = base_url + link
+
+    body = message or ""
+
+    if full_link:
+        body += (
+            "\n\n"
+            "該当画面を開く：\n"
+            f"{full_link}"
+        )
+
+    payload = {
+        "message": {
+            "subject": title,
+            "body": {
+                "contentType": "Text",
+                "content": body,
+            },
+            "toRecipients": [
+                {
+                    "emailAddress": {
+                        "address": user.email_address
+                    }
+                }
+            ],
+        },
+        "saveToSentItems": True,
+    }
+
+    try:
+        response = requests.post(
+            (
+                "https://graph.microsoft.com/v1.0/"
+                f"users/{NOTIFICATION_SENDER_EMAIL}/sendMail"
+            ),
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=20,
+        )
+
+        if response.status_code == 202:
+            return True
+
+        print(
+            "Microsoft自動メール送信エラー:",
+            response.status_code,
+            response.text,
+        )
+
+        return False
+
+    except Exception as e:
+        print(
+            "Microsoft自動メール送信エラー:",
+            e
+        )
+        return False
+        
 def send_email_notification(
     user,
     title,
@@ -1192,7 +1422,31 @@ def send_email_notification(
             e
         )
         return False
-    
+def dispatch_external_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return
+
+    if user.email_notify_enabled:
+        send_system_email_notification(
+            user,
+            title,
+            message,
+            link
+        )
+
+    if user.teams_notify_enabled:
+        send_teams_notification(
+            user,
+            title,
+            message,
+            link
+        )
+
 def add_notification(
     target_user,
     title,
@@ -1223,12 +1477,61 @@ def add_notification(
         name=target_user
     ).first()
 
-    send_email_notification(
+    dispatch_external_notification(
         target_user_record,
         title,
         message,
         link
     )
+
+def build_absolute_app_url(link=""):
+    if not link:
+        return ""
+
+    if (
+        link.startswith("http://")
+        or link.startswith("https://")
+    ):
+        return link
+
+    base_url = os.environ.get(
+        "APP_BASE_URL",
+        "https://dkss.onrender.com"
+    ).rstrip("/")
+
+    if not link.startswith("/"):
+        link = "/" + link
+
+    return base_url + link
+
+def send_teams_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return False
+
+    if not user.teams_notify_enabled:
+        return False
+
+    if not user.microsoft_connected:
+        print(
+            "Teams通知未送信："
+            "Microsoftアカウントが連携されていません。"
+        )
+        return False
+    full_link = build_absolute_app_url(link)
+
+    print(
+        "Teams通知準備済み：",
+        user.name,
+        title,
+        full_link
+    )
+
+    return False
 
 def add_news(title, message, files=None, target_type="", target_value=""):
     news = News(
@@ -1850,7 +2153,7 @@ def microsoft_callback():
                 request.args
             )
         )
-
+      
     except ValueError:
         return (
             "Microsoft認証の確認に失敗しました。",
@@ -1871,6 +2174,11 @@ def microsoft_callback():
             ),
             400
         )
+
+    access_token = result.get("access_token")
+
+    if access_token:
+        session["microsoft_access_token"] = access_token
 
     claims = result.get(
         "id_token_claims",
@@ -1919,7 +2227,8 @@ def settings():
         return redirect("/logout")
 
     error = None
-    success = None
+    notification_success = None
+    password_success = None
 
     if request.method == "POST":
         action = request.form.get("action", "password")
@@ -1944,7 +2253,7 @@ def settings():
             )
 
             db.session.commit()
-            success = "通知設定を保存しました。"
+            notification_success = "通知設定を保存しました。"
 
         else:
             current_password = request.form.get("current_password")
@@ -1970,13 +2279,14 @@ def settings():
                     new_password
                 )
                 db.session.commit()
-                success = "パスワードを変更しました。"
+                password_success = "パスワードを変更しました。"
 
     return render_template(
         "settings.html",
         user=current_user,
         error=error,
-        success=success
+        notification_success=notification_success,
+        password_success=password_success
     )
 
 @app.route("/api/news-targets")
@@ -7667,6 +7977,16 @@ def edit_checklist_result(result_index):
         result_record.target_office = request.form.get("target_office")
         result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
+        mention_text = "\n".join(
+            answer.get("comment", "")
+            for answer in answers
+        )
+
+        notify_mentions(
+            mention_text,
+            f"/safety/checklist-results/{result_record.id}"
+        )
+
         db.session.commit()
 
         return redirect(f"/safety/checklist-results/{result_record.id}")
@@ -8031,7 +8351,7 @@ def test_email_notification():
             "message": "メールアドレスが未設定です。"
         }, 400
 
-    sent = send_email_notification(
+    sent = send_microsoft_email_notification(
         current_user,
         "メール通知テスト",
         "通知メールの送信テストです。",

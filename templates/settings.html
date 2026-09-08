@@ -27,9 +27,9 @@
 
     <h3>通知設定</h3>
 
-    {% if success %}
+    {% if notification_success %}
         <div class="alert success">
-            {{ success }}
+            {{ notification_success }}
         </div>
     {% endif %}
 
@@ -141,8 +141,10 @@ document.addEventListener("DOMContentLoaded", function () {
         <div class="alert danger">{{ error }}</div>
     {% endif %}
 
-    {% if success %}
-        <div class="alert success">{{ success }}</div>
+    {% if password_success %}
+        <div class="alert success">
+            {{ password_success }}
+        </div>
     {% endif %}
 
     <label>現在のパスワード</label>
