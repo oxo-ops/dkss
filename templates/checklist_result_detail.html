@@ -108,9 +108,10 @@
         <div class="reject-reason-section">
             <strong>差し戻し理由</strong>
 
-            <div class="content-box">
-                {{ result.reject_reason }}
-            </div>
+            <div
+                class="content-box mention-display"
+                data-value="{{ result.reject_reason }}"
+            ></div>
         </div>
     {% endif %}
 
@@ -181,7 +182,16 @@
                 <td>{{ answer.category }}</td>
                 <td>{{ answer.content }}</td>
                 <td>{{ answer.value }}</td>
-                <td>{{ answer.comment or "-" }}</td>
+                <td>
+                    {% if answer.comment %}
+                        <div
+                            class="mention-display"
+                            data-value="{{ answer.comment }}"
+                        ></div>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
                 <td>
                     {% if answer.files %}
                         {% for file in answer.files %}
@@ -308,12 +318,19 @@
         >
             <label>差し戻し理由</label>
 
-            <textarea
+            <input
+                type="hidden"
                 name="reject_reason"
-                rows="4"
-                placeholder="差し戻し理由を入力"
-                required
-            ></textarea>
+                value=""
+            >
+
+            <div
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value=""
+                data-required="true"
+                data-placeholder="差し戻し理由を入力"
+            ></div>
 
             <button type="submit" class="btn btn-danger-light">
                 差し戻し

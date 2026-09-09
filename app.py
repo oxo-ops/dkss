@@ -1432,7 +1432,7 @@ def dispatch_external_notification(
         return
 
     if user.email_notify_enabled:
-        send_system_email_notification(
+        send_email_notification(
             user,
             title,
             message,
@@ -1562,8 +1562,9 @@ def notify_mentions(text, link=""):
             continue
 
         mention_text = "@" + name
+        mention_tag = f"[[{name}]]"
 
-        if mention_text in text:
+        if mention_text in text or mention_tag in text:
             add_notification(
                 name,
                 "メンションされました",
@@ -3623,6 +3624,10 @@ def edit_pointout(index):
         result_record.category = request.form.get("category")
         result_record.content_type = request.form.get("content_type")
         result_record.content = request.form.get("content")
+        notify_mentions(
+            result_record.content,
+            f"/pointouts/{result_record.id}"
+        )
 
         if result_record.target_type == "user":
             result_record.target_user = request.form.get("target_user")
@@ -3718,6 +3723,11 @@ def register_countermeasure(index):
 
     db.session.commit()
 
+    notify_mentions(
+        result_record.countermeasure,
+        f"/pointouts/{result_record.id}"
+    )
+
     return redirect(f"/pointouts/{result_record.id}")
 
 
@@ -3776,7 +3786,12 @@ def reject_countermeasure(index):
             reject_reason or "安全パトロールが差し戻されました。",
             f"/pointouts/{result_record.id}"
         )
-
+        
+    notify_mentions(
+        reject_reason,
+        f"/pointouts/{result_record.id}"
+    )
+    
     db.session.commit()
 
     return redirect(f"/pointouts/{result_record.id}")
@@ -7978,7 +7993,10 @@ def edit_checklist_result(result_index):
         result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
         mention_text = "\n".join(
-            answer.get("comment", "")
+            "\n".join([
+                answer.get("value", "") or "",
+                answer.get("comment", "") or "",
+            ])
             for answer in answers
         )
 
@@ -9895,10 +9913,23 @@ def new_vehicle_checklist_result(index):
         db.session.add(result)
         db.session.commit()
 
+        mention_text = "\n".join(
+            "\n".join([
+                answer.get("value", "") or "",
+                answer.get("comment", "") or "",
+            ])
+            for answer in answers
+        )
+
+        notify_mentions(
+            mention_text,
+            f"/vehicle/checklists/{checklist_record.id}"
+        )
+
         return redirect(
             f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={str(month).zfill(2)}"
         )
-
+        
     return render_template(
         "vehicle_checklist_form.html",
         checklist=checklist,
@@ -10031,6 +10062,19 @@ def new_safety_checklist_result(index):
 
         db.session.add(result)
         db.session.commit()
+
+        mention_text = "\n".join(
+            "\n".join([
+                answer.get("value", "") or "",
+                answer.get("comment", "") or "",
+            ])
+            for answer in answers
+        )
+
+        notify_mentions(
+            mention_text,
+            f"/safety/checklist-results/{result.id}"
+        )
 
         return redirect(f"/safety/checklists/{checklist_record.id}")
 

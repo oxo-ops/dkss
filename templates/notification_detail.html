@@ -32,10 +32,10 @@
         </div>
     </div>
 
-    <div class="notification-detail-message">
-    {{ notification.message }}
-</div>
-
+    <div
+        class="notification-detail-message mention-display"
+        data-value="{{ notification.message }}"
+    ></div>
 {% if notification.files %}
     <div class="attached-files">
         <strong>添付ファイル</strong>

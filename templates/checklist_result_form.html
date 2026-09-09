@@ -281,13 +281,18 @@
 
                 <td>
                     <input
-                        type="text"
+                        type="hidden"
                         name="comment_{{ ns.answer_index }}"
-                        class="mention-input"
                         value="{{ saved_answer.comment if saved_answer else '' }}"
-                        placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
-                        {% if item.comment_required %}required{% endif %}
                     >
+
+                    <div
+                        class="mention-rich-editor"
+                        contenteditable="true"
+                        data-value="{{ saved_answer.comment if saved_answer else '' }}"
+                        data-required="{{ 'true' if item.comment_required else 'false' }}"
+                        data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
+                    ></div>
                 </td>
                 <td class="file-upload-cell">
 

@@ -123,7 +123,19 @@
 
         <div>
             <label>内容</label>
-            <textarea name="content" rows="5">{{ result.content }}</textarea>
+            <input
+                type="hidden"
+                name="content"
+                id="content_value"
+                value="{{ result.content }}"
+            >
+
+            <div
+                id="content_editor"
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ result.content }}"
+            ></div>
         </div>
 
         <div>

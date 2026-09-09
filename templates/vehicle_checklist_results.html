@@ -611,7 +611,22 @@
             <input type="hidden" name="criteria" id="detailCriteria">
 
             <label>コメント</label>
-            <textarea name="comment" rows="4" class="mention-input"></textarea>
+
+            <div class="mention-field">
+                <input
+                    type="hidden"
+                    name="comment"
+                    value=""
+                >
+
+                <div
+                    id="detailCommentEditor"
+                    class="mention-rich-editor"
+                    contenteditable="true"
+                    data-value=""
+                    data-placeholder="コメントを入力"
+                ></div>
+            </div>
 
             <label>写真・ファイル</label>
             <input type="file" name="files" multiple accept="image/*,video/*,.pdf" onchange="previewDetailFiles(this)">
@@ -755,9 +770,23 @@
         }
         document.getElementById("detailItemNo").value = itemNo;
 
-        const commentBox = document.querySelector('#detailModal textarea[name="comment"]');
-        if (commentBox) {
-            commentBox.value = comment || "";
+        const commentEditor =
+            document.getElementById("detailCommentEditor");
+
+        const commentInput =
+            document.querySelector(
+                '#detailModal input[type="hidden"][name="comment"]'
+            );
+
+        if (commentEditor) {
+            renderMentionValue(
+                commentEditor,
+                comment || ""
+            );
+        }
+
+        if (commentInput) {
+            commentInput.value = comment || "";
         }
 
         renderFiles("criteriaFilesArea", criteriaFilesText, "評価基準ファイル：");

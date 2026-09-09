@@ -16,9 +16,10 @@
 
     <p><strong>内容：</strong></p>
 
-    <div class="content-box">
-        {{ result.content }}
-    </div>
+    <div
+        class="content-box mention-display"
+        data-value="{{ result.content }}"
+    ></div>
 
     <hr>
 
@@ -29,12 +30,19 @@
 
         <label>対策内容</label>
 
-        <textarea
+        <input
+            type="hidden"
             name="countermeasure"
-            class="mention-input"
-            rows="8"
-            required
-        >{{ result.countermeasure }}</textarea>
+            value="{{ result.countermeasure or '' }}"
+        >
+
+        <div
+            class="mention-rich-editor"
+            contenteditable="true"
+            data-value="{{ result.countermeasure or '' }}"
+            data-required="true"
+            data-placeholder="対策内容を入力"
+        ></div>
 
         <button
             type="submit"

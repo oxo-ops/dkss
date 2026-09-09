@@ -35,9 +35,10 @@
                                 {{ notification.title }}
                             </div>
 
-                            <div class="notification-message">
-                                {{ notification.message }}
-                            </div>
+                            <div
+                                class="notification-message mention-display"
+                                data-value="{{ notification.message }}"
+                            ></div>
 
                             <div class="notification-date">
                                 {{ notification.created_at }}

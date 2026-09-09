@@ -80,10 +80,10 @@
         <strong>内容：</strong>
     </p>
 
-    <div class="content-box">
-        {{ result.content }}
-    </div>
-
+    <div
+        class="content-box mention-display"
+        data-value="{{ result.content }}"
+    ></div>
 </div>
 
 <div class="card">
@@ -165,9 +165,10 @@
     {% if result.countermeasure %}
         <p><strong>対策内容：</strong></p>
 
-        <div class="content-box">
-            {{ result.countermeasure }}
-        </div>
+        <div
+            class="content-box mention-display"
+            data-value="{{ result.countermeasure }}"
+        ></div>
 
         {% if can_manage %}
             <div class="action-row">
@@ -187,9 +188,10 @@
     {% if result.reject_reason %}
         <p><strong>差し戻し理由：</strong></p>
 
-        <div class="content-box">
-            {{ result.reject_reason }}
-        </div>
+        <div
+            class="content-box mention-display"
+            data-value="{{ result.reject_reason }}"
+        ></div>
     {% endif %}
 </div>
 

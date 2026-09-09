@@ -3167,3 +3167,50 @@ textarea[name="item_content"]{
 .microsoft-connect-help {
     margin: 0;
 }
+
+.mention-rich-editor {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.mention-chip {
+    display: inline-block;
+    padding: 1px 5px;
+    margin: 0 2px;
+    border-radius: 5px;
+    font-weight: 600;
+    cursor: default;
+}
+
+.mention-chip-other {
+    color: #2563eb;
+    background: #eff6ff;
+}
+
+.mention-chip-self {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.checklist-table .mention-rich-editor {
+    min-height: 38px;
+    padding: 7px 9px;
+    border-radius: 8px;
+}
+
+.mention-rich-editor:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.mention-rich-editor:focus:empty::before {
+    color: #cbd5e1;
+}

@@ -146,24 +146,42 @@
                                     {% endfor %}
                                 </select>
                             {% else %}
-                                <input
-                                    type="text"
-                                    name="answer_{{ ns.answer_index }}"
-                                    class="mention-input"
-                                    placeholder="入力"
-                                    required
-                                >
+
+                                <div class="mention-field">
+
+                                    <input
+                                        type="hidden"
+                                        name="answer_{{ ns.answer_index }}"
+                                        value=""
+                                    >
+
+                                    <div
+                                        class="mention-rich-editor"
+                                        contenteditable="true"
+                                        data-value=""
+                                        data-required="true"
+                                        data-placeholder="入力"
+                                    ></div>
+
+                                </div>
+
                             {% endif %}
                         </td>
 
                         <td>
                             <input
-                                type="text"
+                                type="hidden"
                                 name="comment_{{ ns.answer_index }}"
-                                class="mention-input"
-                                placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
-                                {% if item.comment_required %}required{% endif %}
+                                value=""
                             >
+
+                            <div
+                                class="mention-rich-editor"
+                                contenteditable="true"
+                                data-value=""
+                                data-required="{{ 'true' if item.comment_required else 'false' }}"
+                                data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
+                            ></div>
                         </td>
 
                         <td>
