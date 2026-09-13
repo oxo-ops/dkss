@@ -37,6 +37,134 @@
         </div>
     </div>
 
+    <form
+        method="post"
+        action="/dashboard/settings"
+        id="dashboardFilterForm"
+        style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            flex-wrap:wrap;
+            margin-bottom:20px;
+            padding:12px 16px;
+            background:#fff;
+            border:1px solid #e5e7eb;
+            border-radius:14px;
+        "
+    >
+        <div style="
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+        ">
+            <span style="
+                font-size:13px;
+                font-weight:600;
+                color:#64748b;
+            ">
+                表示条件
+            </span>
+
+            <label style="
+                display:flex;
+                align-items:center;
+                gap:6px;
+                font-size:13px;
+                color:#475569;
+            ">
+                営業所
+
+                <select
+                    name="office"
+                    onchange="this.form.submit()"
+                    style="
+                        min-width:160px;
+                        padding:7px 30px 7px 10px;
+                        border:1px solid #dbe3ea;
+                        border-radius:8px;
+                        background:#fff;
+                    "
+                >
+                    <option value="">
+                        全営業所
+                    </option>
+
+                    {% for office in dashboard_offices %}
+                        <option
+                            value="{{ office.name }}"
+                            {% if dashboard_settings.office == office.name %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ office.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label style="
+                display:flex;
+                align-items:center;
+                gap:6px;
+                font-size:13px;
+                color:#475569;
+            ">
+                期間
+
+                <select
+                    name="period"
+                    onchange="this.form.submit()"
+                    style="
+                        padding:7px 30px 7px 10px;
+                        border:1px solid #dbe3ea;
+                        border-radius:8px;
+                        background:#fff;
+                    "
+                >
+                    <option value="7d"
+                        {% if dashboard_settings.period == "7d" %}selected{% endif %}
+                    >
+                        直近7日
+                    </option>
+
+                    <option value="30d"
+                        {% if dashboard_settings.period == "30d" %}selected{% endif %}
+                    >
+                        直近30日
+                    </option>
+
+                    <option value="90d"
+                        {% if dashboard_settings.period == "90d" %}selected{% endif %}
+                    >
+                        直近90日
+                    </option>
+
+                    <option value="365d"
+                        {% if dashboard_settings.period == "365d" %}selected{% endif %}
+                    >
+                        直近1年
+                    </option>
+                </select>
+            </label>
+        </div>
+
+        <button
+            type="button"
+            id="dashboardCustomizeButton"
+            class="btn-small"
+            style="
+                display:flex;
+                align-items:center;
+                gap:6px;
+            "
+        >
+            ⚙ カスタマイズ
+        </button>
+    </form>
+
     <div class="dashboard-summary">
 
             <a
@@ -99,6 +227,173 @@
             </a>
 
     </div>
+<div
+    class="dashboard-card"
+    style="
+        margin-bottom:24px;
+        padding:20px;
+    "
+>
+    <div class="card-title-row">
+        <div>
+            <h3>使用車両</h3>
+            <span>普段使用する車両を登録できます</span>
+        </div>
+    </div>
+
+    {% if my_vehicles %}
+        <div style="
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            margin-top:14px;
+            margin-bottom:16px;
+        ">
+            {% for vehicle in my_vehicles %}
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:10px;
+                    padding:10px 12px;
+                    border:1px solid #e2e8f0;
+                    border-radius:10px;
+                    background:#f8fafc;
+                ">
+
+                    {% set vehicle_type_text =
+                        ((vehicle.type or "") ~ " " ~ (vehicle.body_type or ""))|lower
+                    %}
+
+                    {% if "トレーラ" in vehicle_type_text %}
+                        {% set vehicle_icon = "trailer.png" %}
+                    {% elif "トラクタ" in vehicle_type_text or "ヘッド" in vehicle_type_text %}
+                        {% set vehicle_icon = "tractor.png" %}
+                    {% elif "クレーン" in vehicle_type_text or "ユニック" in vehicle_type_text %}
+                        {% set vehicle_icon = "crane.png" %}
+                    {% elif "平ボディ" in vehicle_type_text or "平車" in vehicle_type_text %}
+                        {% set vehicle_icon = "flatbed.png" %}
+                    {% elif "乗用" in vehicle_type_text or "普通車" in vehicle_type_text %}
+                        {% set vehicle_icon = "car.png" %}
+                    {% else %}
+                        {% set vehicle_icon = "truck.png" %}
+                    {% endif %}
+
+                    <img
+                        src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                        alt=""
+                        style="
+                            width:42px;
+                            height:42px;
+                            object-fit:contain;
+                            flex:0 0 42px;
+                        "
+                    >
+                    <div>
+                        <strong>{{ vehicle.vehicle_id }}</strong>
+
+                        {% if vehicle.plate_number %}
+                            <span style="
+                                margin-left:6px;
+                                color:#64748b;
+                                font-size:13px;
+                            ">
+                                {{ vehicle.plate_area or "" }}
+                                {{ vehicle.plate_class or "" }}
+                                {{ vehicle.plate_kana or "" }}
+                                {{ vehicle.plate_number or "" }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <form
+                        method="post"
+                        action="/vehicle-favorites/remove/{{ vehicle.vehicle_id }}"
+                        style="margin:0;"
+                    >
+                        <input type="hidden" name="next" value="/">
+
+                        <button
+                            type="submit"
+                            class="btn-mini"
+                            style="
+                                border:none;
+                                background:none;
+                                color:#64748b;
+                                cursor:pointer;
+                                padding:2px 5px;
+                            "
+                            title="使用車両から削除"
+                        >
+                            ×
+                        </button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty-text" style="margin-top:14px;">
+            使用車両はまだ登録されていません。
+        </p>
+    {% endif %}
+
+    <button
+        type="button"
+        class="btn-small"
+        onclick="document.getElementById('dashboardVehicleAddArea').style.display='block'; this.style.display='none';"
+    >
+        ＋ 使用車両を追加
+    </button>
+
+    <div
+        id="dashboardVehicleAddArea"
+        style="
+            display:none;
+            margin-top:14px;
+            max-width:520px;
+        "
+    >
+        <form
+            method="post"
+            action="/vehicle-favorites/add"
+            id="dashboardVehicleForm"
+        >
+            <input type="hidden" name="next" value="/">
+            <input
+                type="hidden"
+                name="vehicle_id"
+                id="dashboardVehicleId"
+            >
+
+            <div style="position:relative;">
+                <input
+                    type="text"
+                    id="dashboardVehicleSearch"
+                    placeholder="車両ID・ナンバーなどで検索"
+                    autocomplete="off"
+                    style="width:100%;"
+                >
+
+                <div
+                    id="dashboardVehicleResults"
+                    style="
+                        display:none;
+                        position:absolute;
+                        top:100%;
+                        left:0;
+                        right:0;
+                        z-index:20;
+                        background:#fff;
+                        border:1px solid #dbe3ea;
+                        border-radius:8px;
+                        box-shadow:0 6px 18px rgba(0,0,0,.08);
+                        max-height:260px;
+                        overflow:auto;
+                    "
+                ></div>
+            </div>
+        </form>
+    </div>
+</div>
 
 {% if my_checklist_summaries %}
 
@@ -117,7 +412,7 @@
         {% for item in my_checklist_summaries %}
 
     <a
-        href="/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_user|urlencode }}"
+        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_user|urlencode }}{% endif %}"
         class="dashboard-card"
         style="
             display:block;
@@ -314,33 +609,59 @@
 
                     {% for category in item.category_analysis %}
 
-                        {% if loop.index <= 2 %}
+                        {% if loop.index <= 3 %}
 
-                        <div style="margin-bottom:9px;">
+                        <div style="margin-bottom:12px;">
 
                             <div style="
                                 display:flex;
                                 justify-content:space-between;
+                                align-items:center;
+                                gap:12px;
                                 font-size:13px;
-                                margin-bottom:3px;
+                                margin-bottom:5px;
                             ">
-                                <strong>
+                                <span style="
+                                    font-weight:600;
+                                    color:#334155;
+                                    overflow:hidden;
+                                    text-overflow:ellipsis;
+                                    white-space:nowrap;
+                                ">
                                     {{ category.category }}
-                                </strong>
+                                </span>
 
-                                <strong>
+                                <strong style="
+                                    font-size:12px;
+                                    color:#475569;
+                                    white-space:nowrap;
+                                ">
                                     {{ category.improvement_rate }}%
                                 </strong>
                             </div>
 
-                            <progress
-                                value="{{ category.improvement_rate }}"
-                                max="100"
-                                style="
-                                    width:100%;
-                                    height:12px;
-                                "
-                            ></progress>
+                            <div style="
+                                width:100%;
+                                height:10px;
+                                background:#edf2f7;
+                                border-radius:999px;
+                                overflow:hidden;
+                            ">
+                                <div
+                                    class="dashboard-improvement-bar"
+                                    data-rate="{{ category.improvement_rate }}"
+                                    style="
+                                        width:0;
+                                        height:100%;
+                                        background:linear-gradient(
+                                            90deg,
+                                            #2563eb,
+                                            #38bdf8
+                                        );
+                                        border-radius:999px;
+                                    "
+                                ></div>
+                            </div>
 
                         </div>
 
@@ -442,16 +763,73 @@
                         "
                     >
 
-                            <span>
+                            <span style="
+                                display:flex;
+                                align-items:center;
+                                gap:8px;
+                                min-width:0;
+                            ">
                                 {% if target.target_type == "user" %}
-                                    👤
+                                    <img
+                                        src="{{ url_for('static', filename='icons/user.png') }}"
+                                        alt=""
+                                        style="
+                                            width:26px;
+                                            height:26px;
+                                            object-fit:contain;
+                                            flex:0 0 26px;
+                                        "
+                                    >
                                 {% elif target.target_type == "vehicle" %}
-                                    🚚
+
+                                    {% set target_vehicle_type_text =
+                                        ((target.vehicle_type or "") ~ " " ~ (target.body_type or ""))|lower
+                                    %}
+
+                                    {% if "トレーラ" in target_vehicle_type_text %}
+                                        {% set target_vehicle_icon = "trailer.png" %}
+                                    {% elif "トラクタ" in target_vehicle_type_text or "ヘッド" in target_vehicle_type_text %}
+                                        {% set target_vehicle_icon = "tractor.png" %}
+                                    {% elif "クレーン" in target_vehicle_type_text or "ユニック" in target_vehicle_type_text %}
+                                        {% set target_vehicle_icon = "crane.png" %}
+                                    {% elif "平ボディ" in target_vehicle_type_text or "平車" in target_vehicle_type_text %}
+                                        {% set target_vehicle_icon = "flatbed.png" %}
+                                    {% elif "乗用" in target_vehicle_type_text or "普通車" in target_vehicle_type_text %}
+                                        {% set target_vehicle_icon = "car.png" %}
+                                    {% else %}
+                                        {% set target_vehicle_icon = "truck.png" %}
+                                    {% endif %}
+
+                                    <img
+                                        src="{{ url_for('static', filename='icons/' ~ target_vehicle_icon) }}"
+                                        alt=""
+                                        style="
+                                            width:28px;
+                                            height:28px;
+                                            object-fit:contain;
+                                            flex:0 0 28px;
+                                        "
+                                    >
                                 {% elif target.target_type == "office" %}
-                                    🏢
+                                    <img
+                                        src="{{ url_for('static', filename='icons/office.png') }}"
+                                        alt=""
+                                        style="
+                                            width:26px;
+                                            height:26px;
+                                            object-fit:contain;
+                                            flex:0 0 26px;
+                                        "
+                                    >
                                 {% endif %}
 
-                                {{ target.target_label }}
+                                <span style="
+                                    overflow:hidden;
+                                    text-overflow:ellipsis;
+                                    white-space:nowrap;
+                                ">
+                                    {{ target.target_label }}
+                                </span>
                             </span>
 
                             <strong>
@@ -554,16 +932,50 @@
                         style="cursor:pointer;"
                     >
                         <td>
+                            {% set vehicle_type_text =
+                                ((vehicle.type or "") ~ " " ~ (vehicle.body_type or ""))|lower
+                            %}
+
+                            {% if "トレーラ" in vehicle_type_text %}
+                                {% set vehicle_icon = "trailer.png" %}
+                            {% elif "トラクタ" in vehicle_type_text or "ヘッド" in vehicle_type_text %}
+                                {% set vehicle_icon = "tractor.png" %}
+                            {% elif "クレーン" in vehicle_type_text or "ユニック" in vehicle_type_text %}
+                                {% set vehicle_icon = "crane.png" %}
+                            {% elif "平ボディ" in vehicle_type_text or "平車" in vehicle_type_text %}
+                                {% set vehicle_icon = "flatbed.png" %}
+                            {% elif "乗用" in vehicle_type_text or "普通車" in vehicle_type_text %}
+                                {% set vehicle_icon = "car.png" %}
+                            {% else %}
+                                {% set vehicle_icon = "truck.png" %}
+                            {% endif %}
+
                             <a
                                 href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
                                 onclick="event.stopPropagation();"
                                 style="
+                                    display:flex;
+                                    align-items:center;
+                                    gap:9px;
                                     color:inherit;
                                     text-decoration:none;
                                     font-weight:600;
                                 "
                             >
-                                {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                                <img
+                                    src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                                    alt=""
+                                    style="
+                                        width:34px;
+                                        height:34px;
+                                        object-fit:contain;
+                                        flex:0 0 34px;
+                                    "
+                                >
+
+                                <span>
+                                    {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                                </span>
                             </a>
                         </td>
                         <td>{{ vehicle.inspection_expiry }}</td>
@@ -637,5 +1049,121 @@
     </div>
 
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".dashboard-improvement-bar").forEach(function (bar) {
+        const rate = Number(bar.dataset.rate || 0);
+        bar.style.width = Math.max(0, Math.min(100, rate)) + "%";
+    });
+    const searchInput = document.getElementById("dashboardVehicleSearch");
+    const vehicleIdInput = document.getElementById("dashboardVehicleId");
+    const resultBox = document.getElementById("dashboardVehicleResults");
+    const form = document.getElementById("dashboardVehicleForm");
+
+    if (!searchInput || !vehicleIdInput || !resultBox || !form) {
+        return;
+    }
+
+    let searchTimer = null;
+
+    searchInput.addEventListener("input", function () {
+        clearTimeout(searchTimer);
+
+        vehicleIdInput.value = "";
+
+        const keyword = searchInput.value.trim();
+
+        if (!keyword) {
+            resultBox.innerHTML = "";
+            resultBox.style.display = "none";
+            return;
+        }
+
+        searchTimer = setTimeout(function () {
+            fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
+                .then(response => response.json())
+                .then(data => {
+                    resultBox.innerHTML = "";
+
+                    if (!data.results || data.results.length === 0) {
+                        resultBox.innerHTML =
+                            '<p class="help-text" style="padding:10px;">該当する車両がありません。</p>';
+
+                        resultBox.style.display = "block";
+                        return;
+                    }
+
+                    data.results.forEach(function (vehicle) {
+                        const row = document.createElement("div");
+
+                        row.style.cssText = `
+                            display:flex;
+                            align-items:center;
+                            justify-content:space-between;
+                            gap:12px;
+                            padding:10px 12px;
+                            border-bottom:1px solid #edf1f5;
+                            cursor:pointer;
+                        `;
+
+                        const labelParts = [
+                            vehicle.vehicle_id,
+                            vehicle.number,
+                            vehicle.manufacturer,
+                            vehicle.model_code
+                        ].filter(Boolean);
+
+                        const label = document.createElement("span");
+                        label.textContent = labelParts.join(" / ");
+
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "btn-small";
+                        button.textContent = "追加";
+
+                        button.addEventListener("click", function () {
+                            vehicleIdInput.value = vehicle.vehicle_id;
+                            form.submit();
+                        });
+
+                        row.addEventListener("click", function (event) {
+                            if (event.target === button) {
+                                return;
+                            }
+
+                            vehicleIdInput.value = vehicle.vehicle_id;
+                            form.submit();
+                        });
+
+                        row.appendChild(label);
+                        row.appendChild(button);
+
+                        resultBox.appendChild(row);
+                    });
+
+                    resultBox.style.display = "block";
+                });
+        }, 250);
+    });
+
+    document.addEventListener("click", function (event) {
+        if (
+            !searchInput.contains(event.target) &&
+            !resultBox.contains(event.target)
+        ) {
+            resultBox.style.display = "none";
+        }
+    });
+
+    form.addEventListener("submit", function (event) {
+        if (!vehicleIdInput.value) {
+            event.preventDefault();
+
+            alert("候補から車両を選択してください。");
+            searchInput.focus();
+        }
+    });
+});
+</script>
 
 {% endblock %}

@@ -125,6 +125,11 @@ class User(db.Model):
         default="[]"
     )
 
+    dashboard_settings_json = db.Column(
+        db.Text,
+        default="{}"
+    )
+
     timezone = db.Column(
         db.String(100),
         default="Asia/Tokyo",
@@ -205,6 +210,24 @@ class VehicleType(db.Model):
 
     company_code = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+
+class VehicleTypeImportMapping(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    excel_value = db.Column(
+        db.String(100),
+        nullable=False
+    )
+
+    vehicle_type_name = db.Column(
+        db.String(100),
+        nullable=False
+    )
 
 class LicenseType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2466,12 +2489,83 @@ def search_vehicles():
         "results": results
     }
 
+@app.route("/dashboard/settings", methods=["POST"])
+def save_dashboard_settings():
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not current_user:
+        return redirect("/logout")
+
+    office = request.form.get("office", "").strip()
+    period = request.form.get("period", "30d").strip()
+
+    if office:
+        valid_office = Office.query.filter_by(
+            company_code=session.get("company_code"),
+            name=office
+        ).first()
+
+        if not valid_office:
+            office = ""
+
+    if period not in ["7d", "30d", "90d", "365d"]:
+        period = "30d"
+
+    settings = json.loads(
+        current_user.dashboard_settings_json or "{}"
+    )
+
+    settings["office"] = office
+    settings["period"] = period
+
+    current_user.dashboard_settings_json = json.dumps(
+        settings,
+        ensure_ascii=False
+    )
+
+    db.session.commit()
+
+    return redirect("/")
+
 @app.route("/")
 def dashboard():
     today = datetime.now().date()
     user_name = session.get("name")
 
     company_code = session.get("company_code")
+
+    current_user = User.query.filter_by(
+        company_code=company_code,
+        username=session.get("username")
+    ).first()
+
+    dashboard_settings = {
+        "office": "",
+        "period": "30d",
+    }
+
+    if current_user:
+        saved_dashboard_settings = json.loads(
+            current_user.dashboard_settings_json or "{}"
+        )
+        dashboard_settings.update(saved_dashboard_settings)
+
+    period_days = {
+        "7d": 7,
+        "30d": 30,
+        "90d": 90,
+        "365d": 365,
+    }.get(
+        dashboard_settings.get("period"),
+        30
+    )
+
+    dashboard_start_date = (
+        today - timedelta(days=period_days - 1)
+    ).strftime("%Y-%m-%d")
 
     # 自分の無事故無違反日数
     my_driver = Driver.query.filter_by(
@@ -2490,13 +2584,23 @@ def dashboard():
         my_safe_days = (today - start_date).days
 
     # 社内ランキング
-    ranking_records = Driver.query.filter(
+    ranking_query = Driver.query.filter(
         Driver.company_code == company_code,
         Driver.safe_start_date.isnot(None),
         Driver.safe_start_date != ""
-    ).order_by(
-        Driver.safe_start_date.asc()
-    ).limit(10).all()
+    )
+
+    if dashboard_settings.get("office"):
+        ranking_query = ranking_query.filter(
+            Driver.office == dashboard_settings["office"]
+        )
+
+    ranking_records = (
+        ranking_query
+        .order_by(Driver.safe_start_date.asc())
+        .limit(10)
+        .all()
+    )
 
     ranking = []
 
@@ -2551,15 +2655,24 @@ def dashboard():
     ).strftime("%Y-%m-%d")
 
 
-    inspection_vehicle_records = Vehicle.query.filter(
-        Vehicle.company_code == session.get("company_code"),
+    inspection_vehicle_query = Vehicle.query.filter(
+        Vehicle.company_code == company_code,
         Vehicle.deleted == False,
         Vehicle.inspection_expiry.isnot(None),
         Vehicle.inspection_expiry != "",
         Vehicle.inspection_expiry <= inspection_limit_date
-    ).order_by(
-        Vehicle.inspection_expiry.asc()
-    ).all()
+    )
+
+    if dashboard_settings.get("office"):
+        inspection_vehicle_query = inspection_vehicle_query.filter(
+            Vehicle.office == dashboard_settings["office"]
+        )
+
+    inspection_vehicle_records = (
+        inspection_vehicle_query
+        .order_by(Vehicle.inspection_expiry.asc())
+        .all()
+    )
 
 
     for vehicle in inspection_vehicle_records:
@@ -2590,6 +2703,8 @@ def dashboard():
                 ]
                 if value
             ),
+            "type": vehicle.type or "",
+            "body_type": vehicle.body_type or "",
             "inspection_expiry": vehicle.inspection_expiry,
             "remaining_days": remaining_days,
         }
@@ -2679,6 +2794,13 @@ def dashboard():
         except (TypeError, ValueError):
             return None
 
+    favorite_vehicle_ids = []
+
+    if current_user:
+        favorite_vehicle_ids = json.loads(
+            current_user.favorite_vehicles_json or "[]"
+        )
+
     checklist_score_summaries = []
     my_checklist_summaries = []
 
@@ -2713,20 +2835,49 @@ def dashboard():
 
         if is_vehicle_checklist:
 
-            result_records = VehicleChecklistResult.query.filter_by(
+            vehicle_result_query = VehicleChecklistResult.query.filter_by(
                 company_code=company_code,
                 checklist_id=checklist_record.id
-            ).all()
+            ).filter(
+                VehicleChecklistResult.checked_date >= dashboard_start_date
+            )
 
-            # 車両チェックリストには「本人が対象」という概念はない
-            my_result_records = []
+            if dashboard_settings.get("office"):
+                office_vehicle_ids = [
+                    vehicle.vehicle_id
+                    for vehicle in Vehicle.query.filter_by(
+                        company_code=company_code,
+                        office=dashboard_settings["office"],
+                        deleted=False
+                    ).all()
+                ]
+
+                vehicle_result_query = vehicle_result_query.filter(
+                    VehicleChecklistResult.vehicle_id.in_(office_vehicle_ids)
+                )
+
+            result_records = vehicle_result_query.all()
+            my_result_records = [
+                result_record
+                for result_record in result_records
+                if result_record.vehicle_id in favorite_vehicle_ids
+            ]
 
         else:
 
-            result_records = ChecklistResult.query.filter_by(
+            safety_result_query = ChecklistResult.query.filter_by(
                 company_code=company_code,
                 checklist_id=checklist_record.id
-            ).all()
+            ).filter(
+                ChecklistResult.checked_date >= dashboard_start_date
+            )
+
+            if dashboard_settings.get("office"):
+                safety_result_query = safety_result_query.filter(
+                    ChecklistResult.target_office == dashboard_settings["office"]
+                )
+
+            result_records = safety_result_query.all()
 
             # ログイン中ユーザー本人が対象の結果
             my_result_records = [
@@ -2920,6 +3071,7 @@ def dashboard():
             my_checklist_summaries.append({
                 "id": checklist_record.id,
                 "name": checklist_record.name,
+                "target": checklist_record.target,
                 "target_user": user_name,
                 "average_score": my_average_score,
                 "overall_average_score": average_score,
@@ -3191,6 +3343,23 @@ def dashboard():
 
         target_analysis = target_analysis[:5]
 
+        for target in target_analysis:
+
+            target["vehicle_type"] = ""
+            target["body_type"] = ""
+
+            if target["target_type"] == "vehicle":
+
+                target_vehicle = Vehicle.query.filter_by(
+                    company_code=company_code,
+                    vehicle_id=target["target_label"],
+                    deleted=False
+                ).first()
+
+                if target_vehicle:
+                    target["vehicle_type"] = target_vehicle.type or ""
+                    target["body_type"] = target_vehicle.body_type or ""
+
         checklist_score_summaries.append({
             "id": checklist_record.id,
             "name": checklist_record.name,
@@ -3205,6 +3374,12 @@ def dashboard():
             "improvement_items": improvement_items,
         })
 
+    my_vehicles = Vehicle.query.filter(
+        Vehicle.company_code == company_code,
+        Vehicle.deleted == False,
+        Vehicle.vehicle_id.in_(favorite_vehicle_ids)
+    ).all() if favorite_vehicle_ids else []
+
     return render_template(
         "index.html",
         my_safe_days=my_safe_days,
@@ -3216,6 +3391,9 @@ def dashboard():
         checklist_score_summaries=checklist_score_summaries,
         my_checklist_summaries=my_checklist_summaries,
         my_user_name=user_name,
+        my_vehicles=my_vehicles,
+        dashboard_settings=dashboard_settings,
+        dashboard_offices=offices_for_current_company(),
         is_dashboard_admin=session.get("role") in ["admin", "itc"],
     )
 
@@ -3892,7 +4070,9 @@ def add_vehicle_favorite():
 
     session["vehicles"] = favorite_vehicles
 
-    return redirect("/vehicle-patrols")
+    return redirect(
+        request.form.get("next") or "/vehicle-patrols"
+    )
 
 @app.route("/vehicle-favorites/remove/<vehicle_id>", methods=["POST"])
 def remove_vehicle_favorite(vehicle_id):
@@ -3920,7 +4100,9 @@ def remove_vehicle_favorite(vehicle_id):
 
     session["vehicles"] = favorite_vehicles
 
-    return redirect("/vehicle-patrols")
+    return redirect(
+        request.form.get("next") or "/vehicle-patrols"
+    )
 
 @app.route("/vehicle-patrols")
 def vehicle_patrols():
@@ -5525,6 +5707,7 @@ def import_vehicles():
             if name is not None
         }
         required_headers = [
+            "車種コード",
             "車番・地域名",
             "車番・分類",
             "車番・ひらがな",
@@ -5580,6 +5763,10 @@ def import_vehicles():
 
             vehicle_data = {
                 "excel_row": data_row,
+
+                "vehicle_type_code": str(
+                    row_values[header_map["車種コード"]] or ""
+                ).strip(),
 
                 "plate_area": row_values[header_map["車番・地域名"]],
                 "plate_class": row_values[header_map["車番・分類"]],
@@ -5846,21 +6033,53 @@ def import_vehicles():
 
             processed_import_keys.add(import_key)
 
+        # この会社で過去に保存した
+        # Excel車種コード → 車種名 の対応を取得
+        vehicle_type_mappings = VehicleTypeImportMapping.query.filter_by(
+            company_code=session.get("company_code")
+        ).all()
+
+        vehicle_type_mapping_dict = {
+            mapping.excel_value: mapping.vehicle_type_name
+            for mapping in vehicle_type_mappings
+        }
+
+        # Excelの車種コードに対応する車種を
+        # プレビュー用データへ自動設定
+        for vehicle in vehicles_data:
+            vehicle["mapped_vehicle_type"] = (
+                vehicle_type_mapping_dict.get(
+                    vehicle.get("vehicle_type_code", ""),
+                    ""
+                )
+            )
+
         return render_template(
             "vehicle_import_preview.html",
             vehicles=vehicles_data,
             vehicle_types=vehicle_types_for_current_company(),
+            vehicle_type_mapping_dict=vehicle_type_mapping_dict,
         )
-
-    return render_template(
-        "vehicle_import.html"
-    )
 
 @app.route("/master/vehicles/import/confirm", methods=["POST"])
 def confirm_vehicle_import():
 
     company_code = session.get("company_code")
 
+    vehicle_type_codes = request.form.getlist(
+        "vehicle_type_code"
+    )
+
+    vehicle_types = request.form.getlist(
+        "vehicle_type"
+    )
+
+    valid_vehicle_type_names = {
+        vehicle_type.name
+        for vehicle_type in VehicleType.query.filter_by(
+            company_code=company_code
+        ).all()
+    }
     plate_areas = request.form.getlist("plate_area")
     plate_classes = request.form.getlist("plate_class")
     plate_kanas = request.form.getlist("plate_kana")
@@ -6118,6 +6337,33 @@ def confirm_vehicle_import():
             continue
 
         processed_import_keys.add(import_key)
+        vehicle_type_code = normalize_import_text(
+            vehicle_type_codes[i]
+        )
+
+        selected_vehicle_type = normalize_import_text(
+            vehicle_types[i]
+        )
+
+        if (
+            vehicle_type_code
+            and selected_vehicle_type
+            and selected_vehicle_type in valid_vehicle_type_names
+        ):
+            mapping = VehicleTypeImportMapping.query.filter_by(
+                company_code=company_code,
+                excel_value=vehicle_type_code
+            ).first()
+
+            if not mapping:
+                mapping = VehicleTypeImportMapping(
+                    company_code=company_code,
+                    excel_value=vehicle_type_code,
+                    vehicle_type_name=selected_vehicle_type
+                )
+                db.session.add(mapping)
+            else:
+                mapping.vehicle_type_name = selected_vehicle_type
 
         # 車台番号または車番が一致する既存車両を更新
         if existing_vehicle:
@@ -6126,6 +6372,7 @@ def confirm_vehicle_import():
                 "plate_class": clean_text(plate_classes[i]),
                 "plate_kana": clean_text(plate_kanas[i]),
                 "plate_number": clean_text(plate_numbers[i]),
+                "type": clean_text(vehicle_types[i]),
                 "gross_vehicle_weight": to_int(gross_weights[i]),
                 "model_code": clean_text(model_codes[i]),
                 "first_registration_date": clean_text(
@@ -6137,6 +6384,7 @@ def confirm_vehicle_import():
                 "manufacturer": clean_text(vehicle_names[i]),
                 "body_type": clean_text(body_types[i]),
                 "max_payload": to_int(max_payloads[i]),
+                "type": clean_text(vehicle_types[i]),
             }
 
             vehicle_changed = False
@@ -6198,7 +6446,7 @@ def confirm_vehicle_import():
             ),
 
             # 今回のExcel登録対象外
-            type="",
+            type=clean_text(vehicle_types[i]),
             office="",
 
             deleted=False,
@@ -6208,7 +6456,35 @@ def confirm_vehicle_import():
 
         registered_count += 1
 
+    # Excel車種コード → 選択した車種 の対応を保存
+    for excel_value, vehicle_type_name in zip(
+        vehicle_type_codes,
+        vehicle_types
+    ):
+        excel_value = str(excel_value or "").strip()
+        vehicle_type_name = str(
+            vehicle_type_name or ""
+        ).strip()
 
+        if not excel_value or not vehicle_type_name:
+            continue
+
+        mapping = VehicleTypeImportMapping.query.filter_by(
+            company_code=company_code,
+            excel_value=excel_value
+        ).first()
+
+        if mapping:
+            mapping.vehicle_type_name = vehicle_type_name
+        else:
+            db.session.add(
+                VehicleTypeImportMapping(
+                    company_code=company_code,
+                    excel_value=excel_value,
+                    vehicle_type_name=vehicle_type_name
+                )
+            )
+            
     db.session.commit()
 
     return render_template(
@@ -6223,8 +6499,6 @@ def confirm_vehicle_import():
 def new_vehicle():
     if request.method == "POST":
         company_code = session.get("company_code")
-
-
 
         vehicle_count = Vehicle.query.filter_by(
             company_code=company_code,
@@ -9597,6 +9871,15 @@ def save_vehicle_checklist_one(index):
     result_record.approved_date = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
+    notify_mentions(
+        value,
+        f"/vehicle/checklists/{checklist_record.id}"
+        f"?vehicle_id={vehicle_id}"
+        f"&year={year}"
+        f"&month={month}"
+        f"&active_day={active_day}"
+    )
+
     db.session.commit()
 
     return redirect(
@@ -10543,6 +10826,7 @@ with app.app_context():
             "microsoft_connected",
             "BOOLEAN NOT NULL DEFAULT FALSE"
         ),
+        ("dashboard_settings_json", "TEXT DEFAULT '{}'")
     ]
 
     existing_user_columns = [
