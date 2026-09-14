@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}メールアドレス変更確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>メールアドレス変更確認</h2>
+</div>
+
+<form method="post" class="card">
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token() }}"
+    >
+
+    <p>
+        変更先メールアドレスへ送信した
+        6桁の確認コードを入力してください。
+    </p>
+
+    {% if error %}
+        <div class="alert danger">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    <label>確認コード</label>
+
+    <input
+        type="text"
+        name="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        required
+    >
+
+    <button type="submit" class="btn">
+        確認する
+    </button>
+</form>
+
+{% endblock %}

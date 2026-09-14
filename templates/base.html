@@ -149,13 +149,26 @@
                 <span class="menu-text">設定</span>
             </a>
 
-            <a href="/logout" class="logout-link menu-item">
-                <span class="menu-icon">
-                    <img src="{{ url_for('static',
-                        filename='icons/logout.png') }}">
-                </span>
-                <span class="menu-text">ログアウト</span>
-            </a>
+            <form method="post" action="/logout">
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <button
+                    type="submit"
+                    class="logout-link menu-item"
+                >
+                    <span class="menu-icon">
+                        <img src="{{ url_for(
+                            'static',
+                            filename='icons/logout.png'
+                        ) }}">
+                    </span>
+                    <span class="menu-text">ログアウト</span>
+                </button>
+            </form>
         </div>
 
     </aside>

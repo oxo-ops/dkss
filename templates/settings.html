@@ -73,7 +73,17 @@
         value="{{ user.email_address or '' }}"
         placeholder="example@example.com"
     >
+    <label>メールアドレス変更時の現在のパスワード</label>
 
+    <input
+        type="password"
+        name="notification_current_password"
+        autocomplete="current-password"
+    >
+
+    <p class="help-text">
+        メールアドレスを変更する場合のみ入力してください。
+    </p>
     <label class="checkbox-row">
         <input
             type="checkbox"

@@ -12,6 +12,7 @@ from email.message import EmailMessage
 import msal
 import requests
 import secrets
+import zipfile
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -67,6 +68,21 @@ MICROSOFT_SCOPES = [
     "User.Read",
     "Mail.Send",
 ]
+
+def get_microsoft_app():
+    if (
+        not MICROSOFT_CLIENT_ID
+        or not MICROSOFT_CLIENT_SECRET
+        or not MICROSOFT_TENANT_ID
+    ):
+        return None
+
+    return msal.ConfidentialClientApplication(
+        MICROSOFT_CLIENT_ID,
+        authority=MICROSOFT_AUTHORITY,
+        client_credential=MICROSOFT_CLIENT_SECRET,
+    )
+
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL",
     "sqlite:///dkss.db"
@@ -74,14 +90,23 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 app.config.update(
+    SESSION_COOKIE_NAME=(
+        "__Host-dkss_session"
+        if os.environ.get("RENDER") == "true"
+        else "dkss_session"
+    ),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=(
         os.environ.get("RENDER") == "true"
     ),
+    SESSION_COOKIE_PATH="/",
+    SESSION_COOKIE_DOMAIN=None,
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
     SESSION_REFRESH_EACH_REQUEST=True,
 )
+
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 db = SQLAlchemy(app)
 class Company(db.Model):
@@ -230,6 +255,21 @@ class User(db.Model):
     )
 
     mfa_code_sent_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    pending_email_address = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    email_change_code_hash = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    email_change_code_expires_at = db.Column(
         db.String(20),
         nullable=True
     )
@@ -385,7 +425,44 @@ class AuditLog(db.Model):
         db.String(20),
         nullable=False
     )
-    
+
+def add_audit_log(
+    action,
+    target_type="",
+    target_id="",
+    detail="",
+    company_code=None,
+    username=None,
+):
+    audit_log = AuditLog(
+        company_code=(
+            company_code
+            or session.get("company_code")
+            or ""
+        ),
+        username=(
+            username
+            or session.get("username")
+            or ""
+        ),
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id or ""),
+        detail=detail,
+        ip_address=(
+            request.headers.get("X-Forwarded-For", "")
+            .split(",")[0]
+            .strip()
+            or request.remote_addr
+            or ""
+        ),
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+    )
+
+    db.session.add(audit_log)
+
 class Office(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -654,6 +731,79 @@ class PatrolResult(db.Model):
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+ALLOWED_UPLOAD_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".xlsx",
+    ".xls",
+    ".docx",
+    ".doc",
+}
+
+UPLOAD_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".xlsx": (
+        "application/vnd.openxmlformats-officedocument."
+        "spreadsheetml.sheet"
+    ),
+    ".xls": "application/vnd.ms-excel",
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument."
+        "wordprocessingml.document"
+    ),
+    ".doc": "application/msword",
+}
+
+def is_valid_uploaded_file(file, extension):
+    stream = file.stream
+    original_position = stream.tell()
+
+    try:
+        stream.seek(0)
+        header = stream.read(8)
+        stream.seek(0)
+
+        if extension == ".pdf":
+            return header.startswith(b"%PDF-")
+
+        if extension == ".png":
+            return header == b"\x89PNG\r\n\x1a\n"
+
+        if extension in {".jpg", ".jpeg"}:
+            return header.startswith(b"\xff\xd8\xff")
+
+        if extension in {".doc", ".xls"}:
+            return header == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+        if extension in {".docx", ".xlsx"}:
+            try:
+                with zipfile.ZipFile(stream) as archive:
+                    names = archive.namelist()
+
+                    if extension == ".docx":
+                        return any(
+                            name.startswith("word/")
+                            for name in names
+                        )
+
+                    return any(
+                        name.startswith("xl/")
+                        for name in names
+                    )
+
+            except zipfile.BadZipFile:
+                return False
+
+        return False
+
+    finally:
+        stream.seek(original_position)
+
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 
@@ -679,6 +829,20 @@ def save_uploaded_file(file, folder=None):
 
     original_filename = secure_filename(file.filename)
     extension = os.path.splitext(original_filename)[1].lower()
+
+    if extension not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise ValueError(
+            "許可されていないファイル形式です。"
+        )
+
+    if not is_valid_uploaded_file(
+        file,
+        extension
+    ):
+        raise ValueError(
+            "ファイルの内容と形式が一致しません。"
+        )
+
     filename = f"{uuid4().hex}{extension}"
 
     if folder == "static/manuals":
@@ -702,9 +866,7 @@ def save_uploaded_file(file, folder=None):
             S3_BUCKET_NAME,
             object_key,
             ExtraArgs={
-                "ContentType":
-                    file.mimetype
-                    or "application/octet-stream"
+                "ContentType": UPLOAD_CONTENT_TYPES[extension]
             }
         )
 
@@ -958,7 +1120,7 @@ def uploaded_file(folder, filename):
                     "Bucket": S3_BUCKET_NAME,
                     "Key": object_key
                 },
-                ExpiresIn=3600
+                ExpiresIn=300
             )
 
             return redirect(url)
@@ -1013,7 +1175,7 @@ def s3_uploads_file(filename):
                         f"{filename}"
                     )
                 },
-                ExpiresIn=3600
+                ExpiresIn=300
             )
 
             return redirect(url)
@@ -1054,7 +1216,7 @@ def s3_manual_file(filename):
                         f"{filename}"
                     )
                 },
-                ExpiresIn=3600
+                ExpiresIn=300
             )
 
             return redirect(url)
@@ -1066,6 +1228,39 @@ def s3_manual_file(filename):
     return app.send_static_file(
         f"manuals/{company_code}/{filename}"
     )
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    response.headers["Referrer-Policy"] = (
+        "strict-origin-when-cross-origin"
+    )
+
+    response.headers["X-Frame-Options"] = "DENY"
+
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+
+    response.headers["Content-Security-Policy"] = (
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+    if not request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = (
+            "no-store, no-cache, must-revalidate, max-age=0"
+        )
+        response.headers["Pragma"] = "no-cache"
+        
+    if os.environ.get("RENDER") == "true":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+
+    return response
 
 PATROL_VIEW_TYPES = {"user", "delivery_place"}
 
@@ -1081,14 +1276,13 @@ def require_login():
 
         parts = request.path.strip("/").split("/")
 
-        if len(parts) < 4:
+        if len(parts) < 3:
             return "File not found", 404
 
         folder = parts[1]
-        url_company_code = parts[2]
         filename = os.path.basename(parts[-1])
 
-        if url_company_code != session.get("company_code"):
+        if folder not in {"uploads", "manuals"}:
             return "File not found", 404
 
         if not file_belongs_to_current_company(
@@ -1096,7 +1290,6 @@ def require_login():
             folder
         ):
             return "File not found", 404
-
     if (
         request.endpoint in {"login", "mfa", "static"}
         or request.endpoint is None
@@ -1531,117 +1724,6 @@ def patrol_result_to_dict(result):
         "approval_status": result.approval_status,
         "reject_reason": result.reject_reason,
     }
-
-
-def patrol_results_for_current_company():
-    query = PatrolResult.query.filter_by(
-        company_code=session.get("company_code")
-    )
-
-    return [
-        patrol_result_to_dict(result)
-        for result in query.order_by(PatrolResult.id.desc()).all()
-    ]
-
-def send_microsoft_email_notification(
-    user,
-    title,
-    message,
-    link=""
-):
-    if not user:
-        return False
-
-    if not user.email_notify_enabled:
-        return False
-
-    if not user.email_address:
-        return False
-
-    access_token = session.get(
-        "microsoft_access_token"
-    )
-
-    if not access_token:
-        print(
-            "Microsoftメール未送信："
-            "アクセストークンがありません。"
-        )
-        return False
-
-    base_url = os.environ.get(
-        "APP_BASE_URL",
-        "https://dkss.onrender.com"
-    ).rstrip("/")
-
-    full_link = ""
-
-    if link:
-        if (
-            link.startswith("http://")
-            or link.startswith("https://")
-        ):
-            full_link = link
-        else:
-            full_link = base_url + link
-
-    body = message or ""
-
-    if full_link:
-        body += (
-            "\n\n"
-            "該当画面を開く：\n"
-            f"{full_link}"
-        )
-
-    payload = {
-        "message": {
-            "subject": title,
-            "body": {
-                "contentType": "Text",
-                "content": body,
-            },
-            "toRecipients": [
-                {
-                    "emailAddress": {
-                        "address": user.email_address
-                    }
-                }
-            ],
-        },
-        "saveToSentItems": True,
-    }
-
-    try:
-        response = requests.post(
-            "https://graph.microsoft.com/v1.0/me/sendMail",
-            headers={
-                "Authorization": (
-                    f"Bearer {access_token}"
-                ),
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=20,
-        )
-
-        if response.status_code == 202:
-            return True
-
-        print(
-            "Microsoftメール送信エラー:",
-            response.status_code,
-            response.text,
-        )
-
-        return False
-
-    except Exception as e:
-        print(
-            "Microsoftメール送信エラー:",
-            e
-        )
-        return False
 
 def send_system_email_notification(
     user,
@@ -2361,7 +2443,91 @@ def send_mfa_code_email(user, code):
     except Exception as e:
         print("MFAメール送信エラー:", e)
         return False
-    
+
+def send_email_change_code_email(
+    email_address,
+    code
+):
+    if not email_address:
+        return False
+
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_port = int(
+        os.environ.get("SMTP_PORT", "587")
+    )
+    smtp_username = os.environ.get(
+        "SMTP_USERNAME",
+        ""
+    )
+    smtp_password = os.environ.get(
+        "SMTP_PASSWORD",
+        ""
+    )
+    smtp_from = os.environ.get(
+        "SMTP_FROM",
+        smtp_username
+    )
+
+    if not smtp_host or not smtp_from:
+        return False
+
+    email = EmailMessage()
+
+    email["Subject"] = "メールアドレス変更確認コード"
+    email["From"] = smtp_from
+    email["To"] = email_address
+
+    email.set_content(
+        "メールアドレス変更確認コードは以下です。\n\n"
+        f"{code}\n\n"
+        "このコードの有効期限は10分です。"
+    )
+
+    try:
+        with smtplib.SMTP(
+            smtp_host,
+            smtp_port,
+            timeout=20
+        ) as server:
+            server.starttls()
+
+            if smtp_username:
+                server.login(
+                    smtp_username,
+                    smtp_password
+                )
+
+            server.send_message(email)
+
+        return True
+
+    except Exception as e:
+        print(
+            "メールアドレス変更確認メール送信エラー:",
+            e
+        )
+        return False
+
+def create_email_change_code(
+    user,
+    new_email_address
+):
+    code = f"{secrets.randbelow(1000000):06d}"
+
+    user.pending_email_address = new_email_address
+
+    user.email_change_code_hash = (
+        generate_password_hash(code)
+    )
+
+    user.email_change_code_expires_at = (
+        datetime.now() + timedelta(minutes=10)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    db.session.commit()
+
+    return code
+        
 def create_mfa_code(user):
     now = datetime.now()
 
@@ -2438,6 +2604,16 @@ def login():
                         >= timedelta(days=90)
                     ):
                         user.login_locked = True
+
+                        add_audit_log(
+                            action="account_locked",
+                            target_type="user",
+                            target_id=user.username,
+                            detail="90日以上未使用によるアカウントロック",
+                            company_code=user.company_code,
+                            username=user.username,
+                        )
+
                         db.session.commit()
 
                         return render_template(
@@ -2541,7 +2717,25 @@ def login():
                 if user.failed_login_count >= 10:
                     user.login_locked = True
 
-                db.session.commit()
+                    add_audit_log(
+                        action="account_locked",
+                        target_type="user",
+                        target_id=user.username,
+                        detail="パスワード認証10回失敗によるアカウントロック",
+                        company_code=user.company_code,
+                        username=user.username,
+                    )
+
+            add_audit_log(
+                action="login_failed",
+                target_type="user",
+                target_id=username,
+                detail="パスワード認証失敗",
+                company_code=company_code,
+                username=username,
+            )
+
+            db.session.commit()
 
             error = (
                 "会社コード、ユーザーID、"
@@ -2618,9 +2812,30 @@ def mfa():
                 )
                 session["mfa_attempts"] = attempts
 
+                add_audit_log(
+                    action="mfa_failed",
+                    target_type="user",
+                    target_id=user.username,
+                    detail=f"MFA認証失敗 {attempts}回目",
+                    company_code=user.company_code,
+                    username=user.username,
+                )
+
+                db.session.commit()
+
                 if attempts >= 5:
                     user.mfa_code_hash = None
                     user.mfa_code_expires_at = None
+
+                    add_audit_log(
+                        action="mfa_code_invalidated",
+                        target_type="user",
+                        target_id=user.username,
+                        detail="MFA認証5回失敗による認証コード無効化",
+                        company_code=user.company_code,
+                        username=user.username,
+                    )
+
                     db.session.commit()
 
                     session.clear()
@@ -2650,6 +2865,16 @@ def mfa():
                 user.last_login_at = datetime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
+
+                add_audit_log(
+                    action="login_success",
+                    target_type="user",
+                    target_id=user.username,
+                    detail="MFA認証成功",
+                    company_code=user.company_code,
+                    username=user.username,
+                )
+
                 db.session.commit()
 
                 session.clear()
@@ -2973,20 +3198,19 @@ def inject_notification_count():
 def register():
     return redirect("/login")
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
+    add_audit_log(
+        action="logout",
+        target_type="user",
+        target_id=session.get("username", ""),
+        detail="ユーザーがログアウト",
+    )
+
+    db.session.commit()
+
     session.clear()
     return redirect("/login")
-
-def get_microsoft_app():
-    if not MICROSOFT_CLIENT_ID:
-        return None
-
-    return msal.ConfidentialClientApplication(
-        client_id=MICROSOFT_CLIENT_ID,
-        client_credential=MICROSOFT_CLIENT_SECRET or None,
-        authority=MICROSOFT_AUTHORITY
-    )
 
 @app.route("/microsoft/connect")
 def microsoft_connect():
@@ -3061,11 +3285,6 @@ def microsoft_callback():
             400
         )
 
-    access_token = result.get("access_token")
-
-    if access_token:
-        session["microsoft_access_token"] = access_token
-
     claims = result.get(
         "id_token_claims",
         {}
@@ -3077,7 +3296,8 @@ def microsoft_callback():
     ).first()
 
     if not current_user:
-        return redirect("/logout")
+        session.clear()
+        return redirect("/login")
 
     current_user.microsoft_account_email = (
         claims.get("preferred_username")
@@ -3110,7 +3330,8 @@ def settings():
     ).first()
 
     if not current_user:
-        return redirect("/logout")
+        session.clear()
+        return redirect("/login")
 
     error = None
     notification_success = None
@@ -3120,26 +3341,75 @@ def settings():
         action = request.form.get("action", "password")
 
         if action == "notifications":
-            current_user.timezone = (
-                request.form.get("timezone")
-                or current_user.timezone
-                or "Asia/Tokyo"
-            )
-
-            current_user.email_address = (
+            new_email_address = (
                 request.form.get("email_address", "").strip()
             )
 
-            current_user.email_notify_enabled = (
-                request.form.get("email_notify_enabled") == "1"
+            notification_current_password = (
+                request.form.get(
+                    "notification_current_password",
+                    ""
+                )
             )
 
-            current_user.teams_notify_enabled = (
-                request.form.get("teams_notify_enabled") == "1"
+            old_email_address = (
+                current_user.email_address or ""
             )
 
-            db.session.commit()
-            notification_success = "通知設定を保存しました。"
+            if (
+                new_email_address != old_email_address
+                and not check_password_hash(
+                    current_user.password,
+                    notification_current_password
+                )
+            ):
+                error = (
+                    "メールアドレスを変更するには、"
+                    "現在のパスワードを入力してください。"
+                )
+
+            else:
+                current_user.timezone = (
+                    request.form.get("timezone")
+                    or current_user.timezone
+                    or "Asia/Tokyo"
+                )
+
+                current_user.email_notify_enabled = (
+                    request.form.get("email_notify_enabled") == "1"
+                )
+
+                current_user.teams_notify_enabled = (
+                    request.form.get("teams_notify_enabled") == "1"
+                )
+
+                if new_email_address != old_email_address:
+                    code = create_email_change_code(
+                        current_user,
+                        new_email_address
+                    )
+
+                    if not send_email_change_code_email(
+                        new_email_address,
+                        code
+                    ):
+                        current_user.pending_email_address = None
+                        current_user.email_change_code_hash = None
+                        current_user.email_change_code_expires_at = None
+                        db.session.commit()
+
+                        error = (
+                            "変更先メールアドレスへ"
+                            "確認コードを送信できませんでした。"
+                        )
+
+                    else:
+                        session["email_change_attempts"] = 0
+
+                        return redirect("/settings/email/verify")
+                else:
+                    db.session.commit()
+                    notification_success = "通知設定を保存しました。"
 
         else:
             current_password = request.form.get("current_password")
@@ -3220,6 +3490,14 @@ def settings():
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 )
                 session["password_expired"] = False
+                add_audit_log(
+                    action="password_changed",
+                    target_type="user",
+                    target_id=current_user.username,
+                    detail="本人によるパスワード変更",
+                    company_code=current_user.company_code,
+                    username=current_user.username,
+                )
 
                 db.session.commit()
                 password_success = "パスワードを変更しました。"
@@ -3230,6 +3508,130 @@ def settings():
         error=error,
         notification_success=notification_success,
         password_success=password_success,
+    )
+
+@app.route(
+    "/settings/email/verify",
+    methods=["GET", "POST"]
+)
+def verify_email_change():
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not current_user:
+        session.clear()
+        return redirect("/login")
+
+    if (
+        not current_user.pending_email_address
+        or not current_user.email_change_code_hash
+        or not current_user.email_change_code_expires_at
+    ):
+        return redirect("/settings")
+
+    error = None
+
+    if request.method == "POST":
+        code = request.form.get(
+            "code",
+            ""
+        ).strip()
+
+        try:
+            expires_at = datetime.strptime(
+                current_user.email_change_code_expires_at,
+                "%Y-%m-%d %H:%M:%S"
+            )
+        except ValueError:
+            expires_at = datetime.min
+
+        if datetime.now() > expires_at:
+            current_user.pending_email_address = None
+            current_user.email_change_code_hash = None
+            current_user.email_change_code_expires_at = None
+
+            db.session.commit()
+
+            session.pop(
+                "email_change_attempts",
+                None
+            )
+
+            error = (
+                "確認コードの有効期限が切れています。"
+                "もう一度メールアドレス変更を行ってください。"
+            )
+
+        elif not check_password_hash(
+            current_user.email_change_code_hash,
+            code
+        ):
+            attempts = (
+                session.get("email_change_attempts", 0) + 1
+            )
+
+            session["email_change_attempts"] = attempts
+
+            if attempts >= 5:
+                current_user.pending_email_address = None
+                current_user.email_change_code_hash = None
+                current_user.email_change_code_expires_at = None
+
+                add_audit_log(
+                    action="email_change_code_invalidated",
+                    target_type="user",
+                    target_id=current_user.username,
+                    detail="メール変更確認コード5回失敗による無効化",
+                    company_code=current_user.company_code,
+                    username=current_user.username,
+                )
+
+                db.session.commit()
+
+                session.pop(
+                    "email_change_attempts",
+                    None
+                )
+
+                return redirect("/settings")
+
+            error = (
+                "確認コードが違います。"
+                f"あと{5 - attempts}回入力できます。"
+            )
+
+        else:
+            current_user.email_address = (
+                current_user.pending_email_address
+            )
+
+            current_user.pending_email_address = None
+            current_user.email_change_code_hash = None
+            current_user.email_change_code_expires_at = None
+
+            session.pop(
+                "email_change_attempts",
+                None
+            )
+
+            add_audit_log(
+                action="email_changed",
+                target_type="user",
+                target_id=current_user.username,
+                detail="メール確認完了によるメールアドレス変更",
+                company_code=current_user.company_code,
+                username=current_user.username,
+            )
+
+            db.session.commit()
+
+            return redirect("/settings")
+
+    return render_template(
+        "email_change_verify.html",
+        error=error
     )
 
 @app.route("/api/news-targets")
@@ -3424,7 +3826,8 @@ def save_dashboard_settings():
     ).first()
 
     if not current_user:
-        return redirect("/logout")
+        session.clear()
+        return redirect("/login")
 
     office = request.form.get("office", "").strip()
     period = request.form.get("period", "30d").strip()
@@ -5465,7 +5868,8 @@ def add_vehicle_favorite():
     ).first()
 
     if not current_user:
-        return redirect("/logout")
+        session.clear()
+        return redirect("/login")
 
     favorite_vehicles = json.loads(
         current_user.favorite_vehicles_json or "[]"
@@ -5495,7 +5899,8 @@ def remove_vehicle_favorite(vehicle_id):
     ).first()
 
     if not current_user:
-        return redirect("/logout")
+        session.clear()
+        return redirect("/login")
 
     favorite_vehicles = json.loads(
         current_user.favorite_vehicles_json or "[]"
@@ -7150,6 +7555,14 @@ def edit_driver(index):
                 user.login_locked = False
                 user.last_login_at = datetime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
+                )
+
+                add_audit_log(
+                    action="admin_password_reset",
+                    target_type="user",
+                    target_id=user.username,
+                    detail="管理者によるパスワード変更・アカウントロック解除",
+                    company_code=user.company_code,
                 )
         # =========================
         # Driver更新
@@ -10731,7 +11144,7 @@ def test_email_notification():
             "message": "メールアドレスが未設定です。"
         }, 400
 
-    sent = send_microsoft_email_notification(
+    sent = send_email_notification(
         current_user,
         "メール通知テスト",
         "通知メールの送信テストです。",
@@ -13514,6 +13927,18 @@ with app.app_context():
         ),
         (
             "mfa_code_sent_at",
+            "VARCHAR(20)"
+        ),
+        (
+            "pending_email_address",
+            "VARCHAR(255)"
+        ),
+        (
+            "email_change_code_hash",
+            "VARCHAR(255)"
+        ),
+        (
+            "email_change_code_expires_at",
             "VARCHAR(20)"
         ),
         ("dashboard_settings_json", "TEXT DEFAULT '{}'")
