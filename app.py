@@ -1729,12 +1729,13 @@ def send_system_email_notification(
     user,
     title,
     message,
-    link=""
+    link="",
+    require_opt_in=True
 ):
     if not user:
         return False
 
-    if not user.email_notify_enabled:
+    if require_opt_in and not user.email_notify_enabled:
         return False
 
     if not user.email_address:
@@ -2390,59 +2391,16 @@ def send_mfa_code_email(user, code):
     if not user or not user.email_address:
         return False
 
-    smtp_host = os.environ.get("SMTP_HOST", "")
-    smtp_port = int(
-        os.environ.get("SMTP_PORT", "587")
+    return send_system_email_notification(
+        user=user,
+        title="ログイン認証コード",
+        message=(
+            "ログイン認証コードは以下です。\n\n"
+            f"{code}\n\n"
+            "このコードの有効期限は10分です。"
+        ),
+        require_opt_in=False,
     )
-    smtp_username = os.environ.get(
-        "SMTP_USERNAME",
-        ""
-    )
-    smtp_password = os.environ.get(
-        "SMTP_PASSWORD",
-        ""
-    )
-    smtp_from = os.environ.get(
-        "SMTP_FROM",
-        smtp_username
-    )
-
-    if not smtp_host or not smtp_from:
-        return False
-
-    email = EmailMessage()
-
-    email["Subject"] = "ログイン認証コード"
-    email["From"] = smtp_from
-    email["To"] = user.email_address
-
-    email.set_content(
-        "ログイン認証コードは以下です。\n\n"
-        f"{code}\n\n"
-        "このコードの有効期限は10分です。"
-    )
-
-    try:
-        with smtplib.SMTP(
-            smtp_host,
-            smtp_port,
-            timeout=20
-        ) as server:
-            server.starttls()
-
-            if smtp_username:
-                server.login(
-                    smtp_username,
-                    smtp_password
-                )
-
-            server.send_message(email)
-
-        return True
-
-    except Exception as e:
-        print("MFAメール送信エラー:", e)
-        return False
 
 def send_email_change_code_email(
     email_address,
