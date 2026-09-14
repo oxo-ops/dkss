@@ -151,20 +151,295 @@
             </label>
         </div>
 
-        <button
-            type="button"
-            id="dashboardCustomizeButton"
-            class="btn-small"
-            style="
-                display:flex;
-                align-items:center;
-                gap:6px;
-            "
-        >
-            ⚙ カスタマイズ
-        </button>
+        <style>
+            .dashboard-display-control {
+                position: relative;
+            }
+
+            .dashboard-display-trigger {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                height: 34px;
+                padding: 0 12px;
+                border: 1px solid #dbe3ea;
+                border-radius: 9px;
+                background: #ffffff;
+                color: #475569;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition:
+                    background .15s ease,
+                    border-color .15s ease,
+                    box-shadow .15s ease;
+            }
+
+            .dashboard-display-trigger:hover {
+                background: #f8fafc;
+                border-color: #cbd5e1;
+            }
+
+            .dashboard-display-trigger:focus-visible {
+                outline: none;
+                border-color: #3b82f6;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
+            }
+
+            .dashboard-display-popover {
+                display: none;
+                position: absolute;
+                top: calc(100% + 8px);
+                right: 0;
+                z-index: 50;
+                width: 300px;
+                padding: 8px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 14px;
+                box-shadow:
+                    0 18px 45px rgba(15, 23, 42, .12),
+                    0 3px 10px rgba(15, 23, 42, .06);
+            }
+
+            .dashboard-display-popover.is-open {
+                display: block;
+            }
+
+            .dashboard-display-header {
+                padding: 8px 10px 10px;
+            }
+
+            .dashboard-display-title {
+                margin: 0;
+                color: #1e293b;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            .dashboard-display-description {
+                margin-top: 3px;
+                color: #94a3b8;
+                font-size: 11px;
+            }
+
+            .dashboard-display-list {
+                display: grid;
+                gap: 2px;
+            }
+
+            .dashboard-display-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                min-height: 38px;
+                padding: 0 10px;
+                border-radius: 9px;
+                color: #475569;
+                font-size: 12px;
+                cursor: pointer;
+                transition: background .12s ease;
+            }
+
+            .dashboard-display-item:hover {
+                background: #f8fafc;
+            }
+
+            .dashboard-display-check {
+                position: relative;
+                flex: 0 0 18px;
+                width: 18px;
+                height: 18px;
+            }
+
+            .dashboard-display-check input {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .dashboard-display-checkmark {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 18px;
+                height: 18px;
+                box-sizing: border-box;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 5px;
+                background: #ffffff;
+                transition:
+                    background .12s ease,
+                    border-color .12s ease;
+            }
+
+            .dashboard-display-checkmark svg {
+                display: none;
+            }
+
+            .dashboard-display-check
+            input:checked
+            + .dashboard-display-checkmark {
+                background: #2563eb;
+                border-color: #2563eb;
+            }
+
+            .dashboard-display-check
+            input:checked
+            + .dashboard-display-checkmark svg {
+                display: block;
+            }
+
+            .dashboard-display-footer {
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 6px;
+                padding: 9px 8px 4px;
+                border-top: 1px solid #f1f5f9;
+            }
+
+            .dashboard-display-apply {
+                min-width: 72px;
+                height: 32px;
+                padding: 0 14px;
+                border: none;
+                border-radius: 8px;
+                background: #2563eb;
+                color: #ffffff;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+
+            .dashboard-display-apply:hover {
+                background: #1d4ed8;
+            }
+        </style>
+
+
+        <div class="dashboard-display-control">
+
+            <button
+                type="button"
+                id="dashboardCustomizeButton"
+                class="dashboard-display-trigger"
+                aria-expanded="false"
+                aria-controls="dashboardCustomizePanel"
+            >
+                <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                >
+                    <path d="M4 7h10"></path>
+                    <path d="M18 7h2"></path>
+                    <circle cx="16" cy="7" r="2"></circle>
+
+                    <path d="M4 17h2"></path>
+                    <path d="M10 17h10"></path>
+                    <circle cx="8" cy="17" r="2"></circle>
+                </svg>
+
+                表示項目
+            </button>
+
+
+            <div
+                id="dashboardCustomizePanel"
+                class="dashboard-display-popover"
+            >
+
+                <div class="dashboard-display-header">
+                    <div class="dashboard-display-title">
+                        ダッシュボード表示
+                    </div>
+
+                    <div class="dashboard-display-description">
+                        表示するカードを選択
+                    </div>
+                </div>
+
+
+                {% set customize_items = [
+                    ("show_summary", "サマリー"),
+                    ("show_vehicles", "使用車両"),
+                    ("show_my_checklists", "あなたのチェックリスト"),
+                    ("show_analysis", "チェックリスト分析"),
+                    ("show_ranking", "無事故無違反ランキング"),
+                    ("show_inspection", "車検期限"),
+                    ("show_pending", "未対応指摘")
+                ] %}
+
+
+                <div class="dashboard-display-list">
+
+                    {% for setting_name, setting_label in customize_items %}
+
+                        <label class="dashboard-display-item">
+
+                            <span>
+                                {{ setting_label }}
+                            </span>
+
+                            <span class="dashboard-display-check">
+
+                                <input
+                                    type="checkbox"
+                                    name="{{ setting_name }}"
+                                    value="1"
+                                    {% if dashboard_settings.get(setting_name, True) %}
+                                        checked
+                                    {% endif %}
+                                >
+
+                                <span class="dashboard-display-checkmark">
+
+                                    <svg
+                                        width="11"
+                                        height="11"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="white"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l4 4L19 6"></path>
+                                    </svg>
+
+                                </span>
+
+                            </span>
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
+
+
+                <div class="dashboard-display-footer">
+
+                    <button
+                        type="submit"
+                        class="dashboard-display-apply"
+                    >
+                        適用
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
     </form>
 
+    {% if dashboard_settings.get("show_summary", True) %}
     <div class="dashboard-summary">
 
             <a
@@ -227,137 +502,384 @@
             </a>
 
     </div>
-<div
-    class="dashboard-card"
-    style="
-        margin-bottom:24px;
-        padding:20px;
-    "
->
-    <div class="card-title-row">
-        <div>
-            <h3>使用車両</h3>
-            <span>普段使用する車両を登録できます</span>
-        </div>
-    </div>
+    {% endif %}
 
-    {% if my_vehicles %}
+<!-- 使用車両 -->
+{% if dashboard_settings.get("show_vehicles", True) %}
+<div style="
+    margin-bottom:18px;
+">
+
+    <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        margin-bottom:10px;
+    ">
         <div style="
             display:flex;
-            flex-wrap:wrap;
-            gap:10px;
-            margin-top:14px;
-            margin-bottom:16px;
+            align-items:baseline;
+            gap:8px;
         ">
+            <h3 style="
+                margin:0;
+                font-size:15px;
+            ">
+                使用車両
+            </h3>
+
+            <span style="
+                font-size:12px;
+                color:#94a3b8;
+            ">
+                {{ my_vehicles|length }}台
+            </span>
+        </div>
+
+        <button
+            type="button"
+            onclick="
+                const area =
+                    document.getElementById('dashboardVehicleAddArea');
+
+                area.style.display =
+                    area.style.display === 'none'
+                        ? 'block'
+                        : 'none';
+            "
+            style="
+                display:inline-flex;
+                align-items:center;
+                gap:5px;
+                padding:5px 8px;
+                border:none;
+                border-radius:7px;
+                background:transparent;
+                color:#64748b;
+                font-size:11px;
+                font-weight:600;
+                cursor:pointer;
+            "
+            onmouseover="
+                this.style.background='#f1f5f9';
+                this.style.color='#334155';
+            "
+            onmouseout="
+                this.style.background='transparent';
+                this.style.color='#64748b';
+            "
+        >
+            <span style="
+                font-size:14px;
+                line-height:1;
+                font-weight:400;
+            ">
+                ＋
+            </span>
+
+            車両を追加
+        </button>
+    </div>
+
+
+    {% if my_vehicles %}
+
+        <div style="
+            display:grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(300px, 360px));
+            gap:12px;
+        ">
+
             {% for vehicle in my_vehicles %}
+
+                {% set analysis =
+                    my_vehicle_analysis.get(
+                        vehicle.vehicle_id,
+                        {}
+                    )
+                %}
+
+                {% set vehicle_type_text =
+                    (
+                        (vehicle.type or "")
+                        ~ " "
+                        ~ (vehicle.body_type or "")
+                    )|lower
+                %}
+
+                {% if "トレーラ" in vehicle_type_text %}
+                    {% set vehicle_icon = "trailer.png" %}
+                {% elif
+                    "トラクタ" in vehicle_type_text
+                    or "ヘッド" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "tractor.png" %}
+                {% elif
+                    "クレーン" in vehicle_type_text
+                    or "ユニック" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "crane.png" %}
+                {% elif
+                    "平ボディ" in vehicle_type_text
+                    or "平車" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "flatbed.png" %}
+                {% elif
+                    "乗用" in vehicle_type_text
+                    or "普通車" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "car.png" %}
+                {% else %}
+                    {% set vehicle_icon = "truck.png" %}
+                {% endif %}
+
+
                 <div style="
+                    position:relative;
                     display:flex;
-                    align-items:center;
-                    gap:10px;
-                    padding:10px 12px;
+                    align-items:flex-start;
+                    gap:12px;
+                    min-width:0;
+                    padding:13px 14px;
+                    background:#ffffff;
                     border:1px solid #e2e8f0;
-                    border-radius:10px;
-                    background:#f8fafc;
-                ">
-
-                    {% set vehicle_type_text =
-                        ((vehicle.type or "") ~ " " ~ (vehicle.body_type or ""))|lower
-                    %}
-
-                    {% if "トレーラ" in vehicle_type_text %}
-                        {% set vehicle_icon = "trailer.png" %}
-                    {% elif "トラクタ" in vehicle_type_text or "ヘッド" in vehicle_type_text %}
-                        {% set vehicle_icon = "tractor.png" %}
-                    {% elif "クレーン" in vehicle_type_text or "ユニック" in vehicle_type_text %}
-                        {% set vehicle_icon = "crane.png" %}
-                    {% elif "平ボディ" in vehicle_type_text or "平車" in vehicle_type_text %}
-                        {% set vehicle_icon = "flatbed.png" %}
-                    {% elif "乗用" in vehicle_type_text or "普通車" in vehicle_type_text %}
-                        {% set vehicle_icon = "car.png" %}
-                    {% else %}
-                        {% set vehicle_icon = "truck.png" %}
-                    {% endif %}
+                    border-radius:14px;
+                    box-shadow:
+                        0 1px 2px rgba(15,23,42,.03),
+                        0 4px 12px rgba(15,23,42,.03);
+                    transition:
+                        border-color .15s ease,
+                        box-shadow .15s ease,
+                        transform .15s ease;
+                "
+                onmouseover="
+                    this.style.borderColor='#cbd5e1';
+                    this.style.boxShadow='0 6px 18px rgba(15,23,42,.07)';
+                    this.style.transform='translateY(-1px)';
+                "
+                onmouseout="
+                    this.style.borderColor='#e2e8f0';
+                    this.style.boxShadow='0 1px 2px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.03)';
+                    this.style.transform='translateY(0)';
+                "
+                >
 
                     <img
-                        src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                        src="{{ url_for(
+                            'static',
+                            filename='icons/' ~ vehicle_icon
+                        ) }}"
                         alt=""
                         style="
                             width:42px;
                             height:42px;
                             object-fit:contain;
                             flex:0 0 42px;
+                            margin-top:1px;
                         "
                     >
-                    <div>
-                        <strong>{{ vehicle.vehicle_id }}</strong>
 
-                        {% if vehicle.plate_number %}
-                            <span style="
-                                margin-left:6px;
-                                color:#64748b;
-                                font-size:13px;
+
+                    <div style="
+                        flex:1;
+                        min-width:0;
+                    ">
+
+                        <div style="
+                            display:flex;
+                            align-items:center;
+                            gap:7px;
+                            min-width:0;
+                        ">
+
+                            <strong style="
+                                font-size:14px;
+                                white-space:nowrap;
                             ">
+                                {{ vehicle.vehicle_id }}
+                            </strong>
+
+                            {% if analysis.get("score_rate") is not none %}
+
+                                <span style="
+                                    margin-left:auto;
+                                    padding:2px 7px;
+                                    border-radius:999px;
+                                    background:#eff6ff;
+                                    color:#2563eb;
+                                    font-size:11px;
+                                    font-weight:700;
+                                    white-space:nowrap;
+                                ">
+                                    {{ analysis.score_rate }}%
+                                </span>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        <div style="
+                            margin-top:2px;
+                            font-size:11px;
+                            color:#64748b;
+                            overflow:hidden;
+                            text-overflow:ellipsis;
+                            white-space:nowrap;
+                        ">
+
+                            {% if vehicle.plate_number %}
+
                                 {{ vehicle.plate_area or "" }}
                                 {{ vehicle.plate_class or "" }}
                                 {{ vehicle.plate_kana or "" }}
                                 {{ vehicle.plate_number or "" }}
-                            </span>
+
+                            {% else %}
+
+                                ナンバー未登録
+
+                            {% endif %}
+
+                        </div>
+
+
+                        {% if analysis.get("score_rate") is not none %}
+
+                            <div style="
+                                margin-top:3px;
+                                font-size:10px;
+                                color:#94a3b8;
+                                white-space:nowrap;
+                            ">
+                                {{ analysis.result_count }}件
+
+                                {% if analysis.latest_date %}
+                                    ・最終点検
+                                    {{ analysis.latest_date[:10] }}
+                                {% endif %}
+                            </div>
+                        {% if analysis.get("category_analysis") %}
+
+                            <div style="
+                                display:flex;
+                                align-items:center;
+                                gap:5px;
+                                margin-top:6px;
+                                flex-wrap:wrap;
+                            ">
+
+                                {% for category in analysis.category_analysis %}
+
+                                    <span style="
+                                        display:inline-flex;
+                                        align-items:center;
+                                        gap:4px;
+                                        padding:3px 7px;
+                                        border:1px solid #dbeafe;
+                                        border-radius:999px;
+                                        background:#f8fbff;
+                                        color:#475569;
+                                        font-size:10px;
+                                        line-height:1.2;
+                                        white-space:nowrap;
+                                    ">
+                                        <span>
+                                            {{ category.category }}
+                                        </span>
+
+                                        <strong style="
+                                            color:#2563eb;
+                                            font-weight:700;
+                                        ">
+                                            {{ category.improvement_rate }}%
+                                        </strong>
+                                    </span>
+
+                                {% endfor %}
+
+                            </div>
+
                         {% endif %}
+                        {% else %}
+
+                            <div style="
+                                margin-top:3px;
+                                font-size:10px;
+                                color:#94a3b8;
+                            ">
+                                分析データなし
+                            </div>
+
+                        {% endif %}
+
                     </div>
+
 
                     <form
                         method="post"
                         action="/vehicle-favorites/remove/{{ vehicle.vehicle_id }}"
                         style="margin:0;"
                     >
-                        <input type="hidden" name="next" value="/">
+                        <input
+                            type="hidden"
+                            name="next"
+                            value="/"
+                        >
 
                         <button
                             type="submit"
-                            class="btn-mini"
+                            title="使用車両から削除"
                             style="
                                 border:none;
                                 background:none;
-                                color:#64748b;
+                                color:#94a3b8;
                                 cursor:pointer;
-                                padding:2px 5px;
+                                padding:3px;
+                                font-size:14px;
                             "
-                            title="使用車両から削除"
                         >
                             ×
                         </button>
                     </form>
+
                 </div>
+
             {% endfor %}
+
         </div>
-    {% else %}
-        <p class="empty-text" style="margin-top:14px;">
-            使用車両はまだ登録されていません。
-        </p>
+
     {% endif %}
 
-    <button
-        type="button"
-        class="btn-small"
-        onclick="document.getElementById('dashboardVehicleAddArea').style.display='block'; this.style.display='none';"
-    >
-        ＋ 使用車両を追加
-    </button>
 
     <div
         id="dashboardVehicleAddArea"
         style="
             display:none;
-            margin-top:14px;
-            max-width:520px;
+            margin-top:10px;
+            max-width:420px;
+            padding:10px;
+            background:#fff;
+            border:1px solid #e2e8f0;
+            border-radius:10px;
+            box-shadow:0 8px 24px rgba(15,23,42,.08);
         "
     >
+
         <form
             method="post"
             action="/vehicle-favorites/add"
             id="dashboardVehicleForm"
         >
-            <input type="hidden" name="next" value="/">
+
+            <input
+                type="hidden"
+                name="next"
+                value="/"
+            >
+
             <input
                 type="hidden"
                 name="vehicle_id"
@@ -365,12 +887,16 @@
             >
 
             <div style="position:relative;">
+
                 <input
                     type="text"
                     id="dashboardVehicleSearch"
-                    placeholder="車両ID・ナンバーなどで検索"
+                    placeholder="車両ID・ナンバーで検索"
                     autocomplete="off"
-                    style="width:100%;"
+                    style="
+                        width:100%;
+                        box-sizing:border-box;
+                    "
                 >
 
                 <div
@@ -378,24 +904,33 @@
                     style="
                         display:none;
                         position:absolute;
-                        top:100%;
+                        top:calc(100% + 5px);
                         left:0;
                         right:0;
                         z-index:20;
                         background:#fff;
                         border:1px solid #dbe3ea;
                         border-radius:8px;
-                        box-shadow:0 6px 18px rgba(0,0,0,.08);
+                        box-shadow:0 8px 24px rgba(15,23,42,.10);
                         max-height:260px;
                         overflow:auto;
                     "
                 ></div>
+
             </div>
+
         </form>
+
     </div>
+
 </div>
 
-{% if my_checklist_summaries %}
+{% endif %}
+
+{% if
+    dashboard_settings.get("show_my_checklists", True)
+    and my_checklist_summaries
+%}
 
 <div style="margin-bottom:24px;">
 
@@ -417,13 +952,32 @@
         style="
             display:block;
             width:100%;
-            max-width:360px;
-            flex:0 1 360px;
+            max-width:380px;
+            flex:0 1 380px;
             margin:0;
-            padding:18px;
+            padding:18px 18px 16px;
             color:inherit;
             text-decoration:none;
             cursor:pointer;
+            border:1px solid #e2e8f0;
+            border-radius:14px;
+            box-shadow:
+                0 1px 2px rgba(15,23,42,.03),
+                0 4px 12px rgba(15,23,42,.03);
+            transition:
+                border-color .15s ease,
+                box-shadow .15s ease,
+                transform .15s ease;
+        "
+        onmouseover="
+            this.style.borderColor='#cbd5e1';
+            this.style.boxShadow='0 6px 18px rgba(15,23,42,.07)';
+            this.style.transform='translateY(-1px)';
+        "
+        onmouseout="
+            this.style.borderColor='#e2e8f0';
+            this.style.boxShadow='0 1px 2px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.03)';
+            this.style.transform='translateY(0)';
         "
     >
 
@@ -491,24 +1045,68 @@
             ">
 
                 <div style="
-                    font-size:12px;
+                    font-size:11px;
                     color:#64748b;
-                    margin-bottom:7px;
+                    margin-bottom:9px;
+                    font-weight:600;
                 ">
                     注意したい分野
                 </div>
 
                 {% for category in item.category_analysis %}
 
-                <div style="
-                    display:flex;
-                    justify-content:space-between;
-                    margin-bottom:5px;
-                    font-size:13px;
-                ">
-                    <span>{{ category.category }}</span>
-                    <strong>{{ category.improvement_rate }}%</strong>
-                </div>
+                    <div style="
+                        margin-bottom:9px;
+                    ">
+
+                        <div style="
+                            display:flex;
+                            align-items:center;
+                            justify-content:space-between;
+                            gap:12px;
+                            margin-bottom:4px;
+                            font-size:12px;
+                        ">
+
+                            <span style="
+                                color:#475569;
+                                overflow:hidden;
+                                text-overflow:ellipsis;
+                                white-space:nowrap;
+                            ">
+                                {{ category.category }}
+                            </span>
+
+                            <strong style="
+                                color:#2563eb;
+                                font-size:11px;
+                                white-space:nowrap;
+                            ">
+                                {{ category.improvement_rate }}%
+                            </strong>
+
+                        </div>
+
+                        <div style="
+                            width:100%;
+                            height:6px;
+                            background:#edf2f7;
+                            border-radius:999px;
+                            overflow:hidden;
+                        ">
+                            <div
+                                class="dashboard-improvement-bar"
+                                data-rate="{{ category.improvement_rate }}"
+                                style="
+                                    width:0;
+                                    height:100%;
+                                    background:#3b82f6;
+                                    border-radius:999px;
+                                "
+                            ></div>
+                        </div>
+
+                    </div>
 
                 {% endfor %}
 
@@ -526,7 +1124,10 @@
 
 {% endif %}
 
-    {% if checklist_score_summaries %}
+    {% if
+        dashboard_settings.get("show_analysis", True)
+        and checklist_score_summaries
+    %}
 
     <div style="margin-bottom:24px;">
 
@@ -676,30 +1277,33 @@
                 {% if item.improvement_items %}
 
                 <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:10px;
+                    padding:10px 12px;
                     background:#f8fafc;
-                    border-radius:10px;
-                    padding:11px 12px;
+                    border-left:3px solid #3b82f6;
+                    border-radius:0 9px 9px 0;
                 ">
 
                     <div style="
-                        font-size:11px;
-                        color:#64748b;
-                        margin-bottom:4px;
-                    ">
-                        最優先で確認
-                    </div>
-
-                    <div style="
-                        display:flex;
-                        gap:10px;
-                        align-items:center;
+                        flex:1;
+                        min-width:0;
                     ">
 
                         <div style="
-                            flex:1;
-                            min-width:0;
+                            font-size:10px;
                             font-weight:600;
-                            font-size:13px;
+                            color:#64748b;
+                            margin-bottom:3px;
+                        ">
+                            最優先
+                        </div>
+
+                        <div style="
+                            font-size:12px;
+                            font-weight:600;
+                            color:#334155;
                             white-space:nowrap;
                             overflow:hidden;
                             text-overflow:ellipsis;
@@ -707,26 +1311,28 @@
                             {{ item.improvement_items[0].content }}
                         </div>
 
-                        <strong style="
-                            white-space:nowrap;
-                            font-size:15px;
+                        <div style="
+                            margin-top:2px;
+                            font-size:10px;
+                            color:#94a3b8;
                         ">
-                            {{ item.improvement_items[0].improvement_rate }}%
-                        </strong>
+                            {{ item.improvement_items[0].category }}
+                        </div>
 
                     </div>
 
-                    <div style="
-                        font-size:11px;
-                        color:#64748b;
-                        margin-top:3px;
+                    <strong style="
+                        flex:0 0 auto;
+                        color:#2563eb;
+                        font-size:13px;
                     ">
-                        {{ item.improvement_items[0].category }}
-                    </div>
+                        {{ item.improvement_items[0].improvement_rate }}%
+                    </strong>
 
                 </div>
 
                 {% endif %}
+
                 {% if item.target_analysis %}
 
                 <div style="
@@ -855,8 +1461,21 @@
 
     {% endif %}
 
-    <div class="dashboard-two-column">
+    {% if
+        dashboard_settings.get("show_ranking", True)
+        or dashboard_settings.get("show_inspection", True)
+    %}
 
+    <div
+        class="dashboard-two-column"
+        {% if not (
+            dashboard_settings.get("show_ranking", True)
+            and dashboard_settings.get("show_inspection", True)
+        ) %}
+            style="grid-template-columns:minmax(0, 1fr);"
+        {% endif %}
+    >
+    {% if dashboard_settings.get("show_ranking", True) %}
         <div
             class="dashboard-card"
             onclick="window.location.href='/master/drivers'"
@@ -907,7 +1526,8 @@
                 <p class="empty-text">ランキング対象のドライバーがありません。</p>
             {% endif %}
         </div>
-
+        {% endif %}
+        {% if dashboard_settings.get("show_inspection", True) %}
         <div
             class="dashboard-card"
             onclick="window.location.href='/master/vehicles'"
@@ -995,9 +1615,12 @@
                 <p class="empty-text">車検期限が近い車両はありません。</p>
             {% endif %}
         </div>
-
+        {% endif %}
     </div>
 
+{% endif %}
+
+    {% if dashboard_settings.get("show_pending", True) %}
     <div
         class="dashboard-card"
         onclick="window.location.href='/pointouts?type=user&mine=1&pending=1'"
@@ -1047,10 +1670,71 @@
             <p class="empty-text">未対応の指摘はありません。</p>
         {% endif %}
     </div>
-
+{% endif %}
 </div>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    const customizeButton =
+        document.getElementById("dashboardCustomizeButton");
+
+    const customizePanel =
+        document.getElementById("dashboardCustomizePanel");
+
+    if (customizeButton && customizePanel) {
+
+        function closeCustomizePanel() {
+            customizePanel.classList.remove("is-open");
+            customizeButton.setAttribute(
+                "aria-expanded",
+                "false"
+            );
+        }
+
+        customizeButton.addEventListener(
+            "click",
+            function (event) {
+
+                event.stopPropagation();
+
+                const willOpen =
+                    !customizePanel.classList.contains(
+                        "is-open"
+                    );
+
+                customizePanel.classList.toggle(
+                    "is-open",
+                    willOpen
+                );
+
+                customizeButton.setAttribute(
+                    "aria-expanded",
+                    willOpen ? "true" : "false"
+                );
+            }
+        );
+
+        customizePanel.addEventListener(
+            "click",
+            function (event) {
+                event.stopPropagation();
+            }
+        );
+
+        document.addEventListener(
+            "click",
+            closeCustomizePanel
+        );
+
+        document.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (event.key === "Escape") {
+                    closeCustomizePanel();
+                }
+            }
+        );
+    }
     document.querySelectorAll(".dashboard-improvement-bar").forEach(function (bar) {
         const rate = Number(bar.dataset.rate || 0);
         bar.style.width = Math.max(0, Math.min(100, rate)) + "%";

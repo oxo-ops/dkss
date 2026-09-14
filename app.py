@@ -2520,6 +2520,33 @@ def save_dashboard_settings():
 
     settings["office"] = office
     settings["period"] = period
+    settings["show_summary"] = (
+        request.form.get("show_summary") == "1"
+    )
+
+    settings["show_vehicles"] = (
+        request.form.get("show_vehicles") == "1"
+    )
+
+    settings["show_my_checklists"] = (
+        request.form.get("show_my_checklists") == "1"
+    )
+
+    settings["show_analysis"] = (
+        request.form.get("show_analysis") == "1"
+    )
+
+    settings["show_ranking"] = (
+        request.form.get("show_ranking") == "1"
+    )
+
+    settings["show_inspection"] = (
+        request.form.get("show_inspection") == "1"
+    )
+
+    settings["show_pending"] = (
+        request.form.get("show_pending") == "1"
+    )
 
     current_user.dashboard_settings_json = json.dumps(
         settings,
@@ -2545,6 +2572,13 @@ def dashboard():
     dashboard_settings = {
         "office": "",
         "period": "30d",
+        "show_summary": True,
+        "show_vehicles": True,
+        "show_my_checklists": True,
+        "show_analysis": True,
+        "show_ranking": True,
+        "show_inspection": True,
+        "show_pending": True,
     }
 
     if current_user:
@@ -3380,6 +3414,165 @@ def dashboard():
         Vehicle.vehicle_id.in_(favorite_vehicle_ids)
     ).all() if favorite_vehicle_ids else []
 
+    my_vehicle_analysis = {}
+
+    for vehicle in my_vehicles:
+
+        vehicle_total_score = 0
+        vehicle_total_max_score = 0
+        vehicle_result_count = 0
+        vehicle_latest_date = ""
+        vehicle_category_stats = {}
+
+        for checklist_record in score_checklists:
+
+            if checklist_record.target != "車両管理":
+                continue
+
+            checklist = checklist_to_dict(
+                checklist_record
+            )
+
+            check_items = [
+                item
+                for item in checklist.get("items", [])
+                if item.get("item_type") == "check"
+            ]
+
+            vehicle_results = (
+                VehicleChecklistResult.query.filter_by(
+                    company_code=company_code,
+                    checklist_id=checklist_record.id,
+                    vehicle_id=vehicle.vehicle_id
+                )
+                .filter(
+                    VehicleChecklistResult.checked_date
+                    >= dashboard_start_date
+                )
+                .all()
+            )
+
+            for result_record in vehicle_results:
+
+                answers = json.loads(
+                    result_record.answers_json or "[]"
+                )
+
+                result_has_score = False
+
+                for item, answer in zip(
+                    check_items,
+                    answers
+                ):
+
+                    if item.get("input_type") != "select":
+                        continue
+
+                    numeric_choices = [
+                        dashboard_score_value(choice)
+                        for choice in item.get("choices", [])
+                    ]
+
+                    numeric_choices = [
+                        value
+                        for value in numeric_choices
+                        if value is not None
+                    ]
+
+                    if not numeric_choices:
+                        continue
+
+                    score = dashboard_score_value(
+                        answer.get("value")
+                    )
+
+                    if score is None:
+                        continue
+
+                    vehicle_total_score += score
+                    vehicle_total_max_score += max(
+                        numeric_choices
+                    )
+                    result_has_score = True
+                    category = (
+                        item.get("category")
+                        or "その他"
+                    )
+
+                    if category not in vehicle_category_stats:
+                        vehicle_category_stats[category] = {
+                            "score": 0,
+                            "max_score": 0,
+                        }
+
+                    vehicle_category_stats[category]["score"] += score
+                    vehicle_category_stats[category]["max_score"] += max(
+                        numeric_choices
+                    )
+
+                if result_has_score:
+                    vehicle_result_count += 1
+
+                if (
+                    result_record.checked_date
+                    and result_record.checked_date
+                    > vehicle_latest_date
+                ):
+                    vehicle_latest_date = (
+                        result_record.checked_date
+                    )
+
+        score_rate = None
+
+        if vehicle_total_max_score > 0:
+            score_rate = round(
+                vehicle_total_score
+                / vehicle_total_max_score
+                * 100,
+                1
+            )
+
+        vehicle_category_analysis = []
+
+        for category, stats in vehicle_category_stats.items():
+
+            if stats["max_score"] <= 0:
+                continue
+
+            category_score_rate = round(
+                stats["score"]
+                / stats["max_score"]
+                * 100,
+                1
+            )
+
+            vehicle_category_analysis.append({
+                "category": category,
+                "score_rate": category_score_rate,
+                "improvement_rate": round(
+                    100 - category_score_rate,
+                    1
+                ),
+            })
+
+        vehicle_category_analysis.sort(
+            key=lambda item: item["improvement_rate"],
+            reverse=True
+        )
+
+        vehicle_category_analysis = (
+            vehicle_category_analysis[:2]
+        )
+
+        my_vehicle_analysis[
+            vehicle.vehicle_id
+        ] = {
+            "score_rate": score_rate,
+            "result_count": vehicle_result_count,
+            "latest_date": vehicle_latest_date,
+            "category_analysis": vehicle_category_analysis,
+        }
+
     return render_template(
         "index.html",
         my_safe_days=my_safe_days,
@@ -3392,6 +3585,7 @@ def dashboard():
         my_checklist_summaries=my_checklist_summaries,
         my_user_name=user_name,
         my_vehicles=my_vehicles,
+        my_vehicle_analysis=my_vehicle_analysis,
         dashboard_settings=dashboard_settings,
         dashboard_offices=offices_for_current_company(),
         is_dashboard_admin=session.get("role") in ["admin", "itc"],
@@ -5911,155 +6105,207 @@ def import_vehicles():
                     existing_vehicle
                 )
 
-        processed_import_keys = set()
+    # この会社で過去に保存した
+    # Excel車種コード → 車種名 の対応を取得
+    vehicle_type_mappings = VehicleTypeImportMapping.query.filter_by(
+        company_code=session.get("company_code")
+    ).all()
 
-        for vehicle in vehicles_data:
-
-            chassis_number = clean_preview_text(
-                vehicle.get("chassis_number")
-            )
-
-            plate_key = preview_plate_key(vehicle)
-
-            if chassis_number:
-                import_key = (
-                    "chassis",
-                    chassis_number
-                )
-                existing_vehicle = (
-                    existing_preview_by_chassis.get(
-                        chassis_number
-                    )
-                )
-            else:
-                import_key = (
-                    "plate",
-                    *plate_key
-                )
-                existing_vehicle = (
-                    existing_preview_by_plate.get(
-                        plate_key
-                    )
-                )
-
-            if import_key in processed_import_keys:
-                vehicle["import_status"] = (
-                    "Excel内重複"
-                )
-
-            elif existing_vehicle:
-
-                update_values = {
-                    "plate_area": clean_preview_text(
-                        vehicle.get("plate_area")
-                    ),
-                    "plate_class": clean_preview_text(
-                        vehicle.get("plate_class")
-                    ),
-                    "plate_kana": clean_preview_text(
-                        vehicle.get("plate_kana")
-                    ),
-                    "plate_number": clean_preview_text(
-                        vehicle.get("plate_number")
-                    ),
-                    "gross_vehicle_weight": preview_int(
-                        vehicle.get(
-                            "gross_vehicle_weight"
-                        )
-                    ),
-                    "model_code": clean_preview_text(
-                        vehicle.get("model_code")
-                    ),
-                    "first_registration_date":
-                        clean_preview_text(
-                            vehicle.get(
-                                "first_registration_date"
-                            )
-                        ),
-                    "inspection_expiry":
-                        clean_preview_text(
-                            vehicle.get(
-                                "inspection_expiry"
-                            )
-                        ),
-                    "manufacturer": clean_preview_text(
-                        vehicle.get("vehicle_name")
-                    ),
-                    "body_type": clean_preview_text(
-                        vehicle.get("body_type")
-                    ),
-                    "max_payload": preview_int(
-                        vehicle.get("max_payload")
-                    ),
-                }
-
-                vehicle_changed = False
-
-                for field_name, new_value in (
-                    update_values.items()
-                ):
-                    # Excelが空欄なら既存値を維持
-                    if new_value in ("", None):
-                        continue
-
-                    old_value = getattr(
-                        existing_vehicle,
-                        field_name
-                    )
-
-                    if isinstance(new_value, int):
-                        try:
-                            old_value = int(old_value)
-                        except (TypeError, ValueError):
-                            old_value = None
-                    else:
-                        old_value = clean_preview_text(
-                            old_value
-                        )
-
-                    if old_value != new_value:
-                        vehicle_changed = True
-                        break
-
-                if vehicle_changed:
-                    vehicle["import_status"] = "更新"
-                else:
-                    vehicle["import_status"] = (
-                        "変更なし"
-                    )
-
-            else:
-                vehicle["import_status"] = "新規"
-
-            processed_import_keys.add(import_key)
-
-        # この会社で過去に保存した
-        # Excel車種コード → 車種名 の対応を取得
-        vehicle_type_mappings = VehicleTypeImportMapping.query.filter_by(
+    valid_vehicle_type_names = {
+        vehicle_type.name
+        for vehicle_type in VehicleType.query.filter_by(
             company_code=session.get("company_code")
         ).all()
+    }
 
-        vehicle_type_mapping_dict = {
-            mapping.excel_value: mapping.vehicle_type_name
-            for mapping in vehicle_type_mappings
-        }
+    vehicle_type_mapping_dict = {
+        mapping.excel_value: mapping.vehicle_type_name
+        for mapping in vehicle_type_mappings
+        if mapping.vehicle_type_name in valid_vehicle_type_names
+    }
 
-        # Excelの車種コードに対応する車種を
-        # プレビュー用データへ自動設定
-        for vehicle in vehicles_data:
-            vehicle["mapped_vehicle_type"] = (
-                vehicle_type_mapping_dict.get(
-                    vehicle.get("vehicle_type_code", ""),
-                    ""
+    for vehicle in vehicles_data:
+        vehicle["mapped_vehicle_type"] = (
+            vehicle_type_mapping_dict.get(
+                vehicle.get("vehicle_type_code", ""),
+                ""
+            )
+        )
+        
+    processed_import_keys = set()
+
+    for vehicle in vehicles_data:
+
+        chassis_number = clean_preview_text(
+            vehicle.get("chassis_number")
+        )
+
+        plate_key = preview_plate_key(vehicle)
+
+        if chassis_number:
+            import_key = (
+                "chassis",
+                chassis_number
+            )
+            existing_vehicle = (
+                existing_preview_by_chassis.get(
+                    chassis_number
+                )
+            )
+        else:
+            import_key = (
+                "plate",
+                *plate_key
+            )
+            existing_vehicle = (
+                existing_preview_by_plate.get(
+                    plate_key
                 )
             )
 
-        return render_template(
-            "vehicle_import_preview.html",
-            vehicles=vehicles_data,
-            vehicle_types=vehicle_types_for_current_company(),
-            vehicle_type_mapping_dict=vehicle_type_mapping_dict,
+        is_excel_duplicate = (
+            import_key in processed_import_keys
         )
+
+        if existing_vehicle:
+
+            if not clean_preview_text(
+                vehicle.get("mapped_vehicle_type")
+            ):
+                existing_vehicle_type = clean_preview_text(
+                    existing_vehicle.type
+                )
+
+                if (
+                    existing_vehicle_type
+                    in valid_vehicle_type_names
+                ):
+                    vehicle["mapped_vehicle_type"] = (
+                        existing_vehicle_type
+                    )
+
+            if existing_vehicle.deleted:
+                vehicle["reactivate"] = True
+            else:
+                vehicle["reactivate"] = False
+
+            update_values = {
+                "plate_area": clean_preview_text(
+                    vehicle.get("plate_area")
+                ),
+                "plate_class": clean_preview_text(
+                    vehicle.get("plate_class")
+                ),
+                "plate_kana": clean_preview_text(
+                    vehicle.get("plate_kana")
+                ),
+                "plate_number": clean_preview_text(
+                    vehicle.get("plate_number")
+                ),
+                "gross_vehicle_weight": preview_int(
+                    vehicle.get(
+                        "gross_vehicle_weight"
+                    )
+                ),
+                "model_code": clean_preview_text(
+                    vehicle.get("model_code")
+                ),
+                "first_registration_date":
+                    clean_preview_text(
+                        vehicle.get(
+                            "first_registration_date"
+                        )
+                    ),
+                "inspection_expiry":
+                    clean_preview_text(
+                        vehicle.get(
+                            "inspection_expiry"
+                        )
+                    ),
+                "manufacturer": clean_preview_text(
+                    vehicle.get("vehicle_name")
+                ),
+                "body_type": clean_preview_text(
+                    vehicle.get("body_type")
+                ),
+                "max_payload": preview_int(
+                    vehicle.get("max_payload")
+                ),
+            }
+
+            vehicle_changed = False
+            if vehicle.get("reactivate"):
+                vehicle_changed = True
+
+            for field_name, new_value in (
+                update_values.items()
+            ):
+                # Excelが空欄なら既存値を維持
+                if new_value in ("", None):
+                    continue
+
+                old_value = getattr(
+                    existing_vehicle,
+                    field_name
+                )
+
+                if isinstance(new_value, int):
+                    try:
+                        old_value = int(old_value)
+                    except (TypeError, ValueError):
+                        old_value = None
+                else:
+                    old_value = clean_preview_text(
+                        old_value
+                    )
+
+                if old_value != new_value:
+                    vehicle_changed = True
+                    break
+
+            mapped_vehicle_type = clean_preview_text(
+                vehicle.get("mapped_vehicle_type")
+            )
+
+            if (
+                mapped_vehicle_type
+                and clean_preview_text(existing_vehicle.type)
+                != mapped_vehicle_type
+            ):
+                vehicle_changed = True
+                    
+            if vehicle_changed:
+                vehicle["import_status"] = "更新"
+            else:
+                vehicle["import_status"] = (
+                    "変更なし"
+                )
+
+        else:
+            vehicle["import_status"] = "新規"
+
+        vehicle["base_import_status"] = (
+            vehicle["import_status"]
+        )
+
+        if is_excel_duplicate:
+            vehicle["import_status"] = (
+                "Excel内重複"
+            )
+        processed_import_keys.add(import_key)
+
+
+
+    return render_template(
+        "vehicle_import_preview.html",
+        vehicles=vehicles_data,
+        vehicle_types=vehicle_types_for_current_company(),
+        vehicle_type_mapping_dict=vehicle_type_mapping_dict,
+    )
+    
+    return render_template(
+        "vehicle_import.html"
+    )
 
 @app.route("/master/vehicles/import/confirm", methods=["POST"])
 def confirm_vehicle_import():
@@ -6080,6 +6326,14 @@ def confirm_vehicle_import():
             company_code=company_code
         ).all()
     }
+
+    vehicle_types = [
+        str(value or "").strip()
+        if str(value or "").strip() in valid_vehicle_type_names
+        else ""
+        for value in vehicle_types
+    ]
+    
     plate_areas = request.form.getlist("plate_area")
     plate_classes = request.form.getlist("plate_class")
     plate_kanas = request.form.getlist("plate_kana")
@@ -6101,9 +6355,42 @@ def confirm_vehicle_import():
     body_types = request.form.getlist("body_type")
     max_payloads = request.form.getlist("max_payload")
 
+    form_lists = [
+        vehicle_type_codes,
+        vehicle_types,
+        plate_areas,
+        plate_classes,
+        plate_kanas,
+        plate_numbers,
+        gross_weights,
+        chassis_numbers,
+        model_codes,
+        first_registration_dates,
+        inspection_expiries,
+        vehicle_names,
+        body_types,
+        max_payloads,
+    ]
+
+    form_list_lengths = {
+        len(values)
+        for values in form_lists
+    }
+
+    if len(form_list_lengths) != 1:
+        return (
+            "取込データの件数が一致しません。"
+            "Excel取込画面からやり直してください。",
+            400
+        )
 
     import_count = len(plate_numbers)
 
+    if import_count == 0:
+        return (
+            "取込対象の車両がありません。",
+            400
+        )
     company = Company.query.filter_by(
         company_code=company_code
     ).first()
@@ -6203,6 +6490,7 @@ def confirm_vehicle_import():
 
     counted_import_keys = set()
     new_vehicle_count = 0
+    reactivate_vehicle_count = 0
 
     for i in range(import_count):
 
@@ -6233,6 +6521,13 @@ def confirm_vehicle_import():
             )
 
         if existing_vehicle:
+            if (
+                existing_vehicle.deleted
+                and import_key not in counted_import_keys
+            ):
+                counted_import_keys.add(import_key)
+                reactivate_vehicle_count += 1
+
             continue
 
         if import_key in counted_import_keys:
@@ -6243,11 +6538,17 @@ def confirm_vehicle_import():
 
     # 新規登録予定台数で上限チェック
     if company:
-        if current_count + new_vehicle_count > company.vehicle_limit:
+        if (
+            current_count
+            + new_vehicle_count
+            + reactivate_vehicle_count
+            > company.vehicle_limit
+        ):
             return (
                 f"登録上限を超えます。"
                 f"現在 {current_count} 台、"
                 f"新規登録予定 {new_vehicle_count} 台、"
+                f"再有効化予定 {reactivate_vehicle_count} 台、"
                 f"上限 {company.vehicle_limit} 台です。"
             )
 
@@ -6263,11 +6564,10 @@ def confirm_vehicle_import():
         Vehicle.company_code == company_code,
         Vehicle.vehicle_id.like("V%")
     ).scalar() or 0
-
-
+            
     # 今回のExcel内ですでに処理した車両
     processed_import_keys = set()
-
+    processed_row_indexes = set()
     registered_count = 0
     updated_count = 0
     unchanged_count = 0
@@ -6337,33 +6637,7 @@ def confirm_vehicle_import():
             continue
 
         processed_import_keys.add(import_key)
-        vehicle_type_code = normalize_import_text(
-            vehicle_type_codes[i]
-        )
-
-        selected_vehicle_type = normalize_import_text(
-            vehicle_types[i]
-        )
-
-        if (
-            vehicle_type_code
-            and selected_vehicle_type
-            and selected_vehicle_type in valid_vehicle_type_names
-        ):
-            mapping = VehicleTypeImportMapping.query.filter_by(
-                company_code=company_code,
-                excel_value=vehicle_type_code
-            ).first()
-
-            if not mapping:
-                mapping = VehicleTypeImportMapping(
-                    company_code=company_code,
-                    excel_value=vehicle_type_code,
-                    vehicle_type_name=selected_vehicle_type
-                )
-                db.session.add(mapping)
-            else:
-                mapping.vehicle_type_name = selected_vehicle_type
+        processed_row_indexes.add(i)
 
         # 車台番号または車番が一致する既存車両を更新
         if existing_vehicle:
@@ -6372,7 +6646,6 @@ def confirm_vehicle_import():
                 "plate_class": clean_text(plate_classes[i]),
                 "plate_kana": clean_text(plate_kanas[i]),
                 "plate_number": clean_text(plate_numbers[i]),
-                "type": clean_text(vehicle_types[i]),
                 "gross_vehicle_weight": to_int(gross_weights[i]),
                 "model_code": clean_text(model_codes[i]),
                 "first_registration_date": clean_text(
@@ -6384,10 +6657,12 @@ def confirm_vehicle_import():
                 "manufacturer": clean_text(vehicle_names[i]),
                 "body_type": clean_text(body_types[i]),
                 "max_payload": to_int(max_payloads[i]),
-                "type": clean_text(vehicle_types[i]),
             }
 
             vehicle_changed = False
+            if existing_vehicle.deleted:
+                existing_vehicle.deleted = False
+                vehicle_changed = True
 
             for field_name, new_value in update_values.items():
                 # Excelが空欄なら既存値を残す
@@ -6401,6 +6676,13 @@ def confirm_vehicle_import():
                         new_value
                     )
                     vehicle_changed = True
+            selected_vehicle_type = clean_text(
+                vehicle_types[i]
+            )
+
+            if clean_text(existing_vehicle.type) != selected_vehicle_type:
+                existing_vehicle.type = selected_vehicle_type
+                vehicle_changed = True
 
             if vehicle_changed:
                 updated_count += 1
@@ -6456,34 +6738,65 @@ def confirm_vehicle_import():
 
         registered_count += 1
 
-    # Excel車種コード → 選択した車種 の対応を保存
-    for excel_value, vehicle_type_name in zip(
-        vehicle_type_codes,
-        vehicle_types
+    # Excel車種コードごとに今回選ばれた車種を整理
+    mapping_candidates = {}
+
+    for i, (
+        excel_value,
+        vehicle_type_name
+    ) in enumerate(
+        zip(
+            vehicle_type_codes,
+            vehicle_types
+        )
     ):
+
+        if i not in processed_row_indexes:
+            continue
+        
         excel_value = str(excel_value or "").strip()
         vehicle_type_name = str(
             vehicle_type_name or ""
         ).strip()
 
-        if not excel_value or not vehicle_type_name:
+        if not excel_value:
             continue
+
+        mapping_candidates.setdefault(
+            excel_value,
+            set()
+        ).add(vehicle_type_name)
+
+    # 同じコードの選択内容が一致している場合だけ学習
+    for excel_value, selected_types in mapping_candidates.items():
 
         mapping = VehicleTypeImportMapping.query.filter_by(
             company_code=company_code,
             excel_value=excel_value
         ).first()
 
-        if mapping:
-            mapping.vehicle_type_name = vehicle_type_name
-        else:
-            db.session.add(
-                VehicleTypeImportMapping(
-                    company_code=company_code,
-                    excel_value=excel_value,
-                    vehicle_type_name=vehicle_type_name
+        # 同じコードに複数の車種が指定されている
+        # → 自動判定できないので学習しない
+        if len(selected_types) > 1:
+            if mapping:
+                db.session.delete(mapping)
+            continue
+
+        vehicle_type_name = next(iter(selected_types))
+
+        if vehicle_type_name:
+            if mapping:
+                mapping.vehicle_type_name = vehicle_type_name
+            else:
+                db.session.add(
+                    VehicleTypeImportMapping(
+                        company_code=company_code,
+                        excel_value=excel_value,
+                        vehicle_type_name=vehicle_type_name
+                    )
                 )
-            )
+        elif mapping:
+            db.session.delete(mapping)
             
     db.session.commit()
 
