@@ -64,6 +64,10 @@ NOTIFICATION_SENDER_EMAIL = os.environ.get(
     ""
 )
 
+MFA_ENABLED = (
+    os.environ.get("MFA_ENABLED", "true").lower() == "true"
+)
+
 MICROSOFT_SCOPES = [
     "User.Read",
     "Mail.Send",
@@ -2627,6 +2631,43 @@ def login():
                         "ITCへお問い合わせください。"
                     )
                 )
+
+            if not MFA_ENABLED:
+                user.last_login_at = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+                add_audit_log(
+                    action="login_success",
+                    target_type="user",
+                    target_id=user.username,
+                    detail="パスワード認証成功（MFA一時無効）",
+                    company_code=user.company_code,
+                    username=user.username,
+                )
+
+                db.session.commit()
+
+                session.clear()
+                session.permanent = True
+                session["company_code"] = user.company_code
+                session["username"] = user.username
+                session["role"] = user.role
+                session["name"] = user.name
+                session["office"] = user.office
+                session["vehicles"] = json.loads(
+                    user.favorite_vehicles_json or "[]"
+                )
+                session["password_expired"] = password_expired
+
+                if password_expired:
+                    return redirect("/settings")
+
+                if user.role == "itc":
+                    return redirect("/itc")
+
+                return redirect("/")
+          
             code = create_mfa_code(user)
             if code is None:
                 return render_template(
