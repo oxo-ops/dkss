@@ -21,7 +21,15 @@ from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 from zoneinfo import ZoneInfo
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
+
+secret_key = os.environ.get("SECRET_KEY")
+
+if not secret_key:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is required"
+    )
+
+app.secret_key = secret_key
 MICROSOFT_CLIENT_ID = os.environ.get(
     "MICROSOFT_CLIENT_ID",
     ""
@@ -252,7 +260,15 @@ class Driver(db.Model):
 class News(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    title = db.Column(db.String(200), nullable=False)
+    company_code = db.Column(
+        db.String(50),
+        nullable=True
+    )
+
+    title = db.Column(
+        db.String(200),
+        nullable=False
+    )
     message = db.Column(db.Text)
     files_json = db.Column(db.Text, default="[]")
 
@@ -562,60 +578,250 @@ def save_uploaded_file(file, folder=None):
     if not file or not file.filename:
         return ""
 
+    company_code = session.get("company_code")
+
+    if not company_code:
+        raise ValueError("company_code is required for file upload.")
+
     original_filename = secure_filename(file.filename)
     extension = os.path.splitext(original_filename)[1].lower()
     filename = f"{uuid4().hex}{extension}"
 
-    # Renderなど、S3設定がある環境
-    if s3_client and S3_BUCKET_NAME:
-        if folder == "static/manuals":
-            s3_folder = "manuals"
-        else:
-            s3_folder = "uploads"
+    if folder == "static/manuals":
+        storage_folder = "manuals"
+    else:
+        storage_folder = "uploads"
 
-        object_key = f"{s3_folder}/{filename}"
+    # =========================
+    # S3
+    # uploads/会社コード/ファイル名
+    # =========================
+    if s3_client and S3_BUCKET_NAME:
+        object_key = (
+            f"{storage_folder}/"
+            f"{company_code}/"
+            f"{filename}"
+        )
 
         s3_client.upload_fileobj(
             file,
             S3_BUCKET_NAME,
             object_key,
             ExtraArgs={
-                "ContentType": file.mimetype or "application/octet-stream"
+                "ContentType":
+                    file.mimetype
+                    or "application/octet-stream"
             }
         )
 
         return filename
 
-    # ローカル開発環境では従来どおり保存
-    save_folder = folder or app.config["UPLOAD_FOLDER"]
-    os.makedirs(save_folder, exist_ok=True)
+    # =========================
+    # ローカル
+    # static/uploads/会社コード/
+    # =========================
+    if storage_folder == "manuals":
+        base_folder = "static/manuals"
+    else:
+        base_folder = app.config["UPLOAD_FOLDER"]
 
-    save_path = os.path.join(save_folder, filename)
+    save_folder = os.path.join(
+        base_folder,
+        company_code
+    )
+
+    os.makedirs(
+        save_folder,
+        exist_ok=True
+    )
+
+    save_path = os.path.join(
+        save_folder,
+        filename
+    )
+
     file.save(save_path)
 
     return filename
 
+def file_belongs_to_current_company(filename, folder="uploads"):
+    company_code = session.get("company_code")
+
+    if not company_code or not filename:
+        return False
+
+    filename = os.path.basename(filename)
+
+    # =========================
+    # マニュアル
+    # =========================
+    if folder == "manuals":
+        return Manual.query.filter_by(
+            company_code=company_code,
+            filename=filename
+        ).first() is not None
+
+    # =========================
+    # お知らせ
+    # =========================
+    news_records = News.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for news in news_records:
+        try:
+            files = json.loads(
+                news.files_json or "[]"
+            )
+        except (TypeError, ValueError):
+            files = []
+
+        if filename in files:
+            return True
+
+    # =========================
+    # 通知
+    # =========================
+    notification_records = Notification.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for notification in notification_records:
+        try:
+            files = json.loads(
+                notification.files_json or "[]"
+            )
+        except (TypeError, ValueError):
+            files = []
+
+        if filename in files:
+            return True
+
+    # =========================
+    # 安全パトロール
+    # =========================
+    patrol_records = PatrolResult.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for patrol in patrol_records:
+        try:
+            files = json.loads(
+                patrol.files_json or "[]"
+            )
+        except (TypeError, ValueError):
+            files = []
+
+        if filename in files:
+            return True
+
+    # =========================
+    # チェックリスト判定基準添付
+    # =========================
+    checklist_records = Checklist.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for checklist in checklist_records:
+        try:
+            items = json.loads(
+                checklist.items_json or "[]"
+            )
+        except (TypeError, ValueError):
+            items = []
+
+        for item in items:
+            if filename in item.get(
+                "criteria_files",
+                []
+            ):
+                return True
+
+    # =========================
+    # 安全チェックリスト結果添付
+    # =========================
+    checklist_result_records = ChecklistResult.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for result in checklist_result_records:
+        try:
+            answers = json.loads(
+                result.answers_json or "[]"
+            )
+        except (TypeError, ValueError):
+            answers = []
+
+        for answer in answers:
+            if filename in answer.get("files", []):
+                return True
+
+            if filename in answer.get(
+                "criteria_files",
+                []
+            ):
+                return True
+
+    # =========================
+    # 車両チェックリスト結果添付
+    # =========================
+    vehicle_result_records = VehicleChecklistResult.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for result in vehicle_result_records:
+        try:
+            answers = json.loads(
+                result.answers_json or "[]"
+            )
+        except (TypeError, ValueError):
+            answers = []
+
+        for answer in answers:
+            if filename in answer.get("files", []):
+                return True
+
+            if filename in answer.get(
+                "criteria_files",
+                []
+            ):
+                return True
+
+    return False
+
 def load_upload_bytes(filename):
-    # Render / S3
+    company_code = session.get("company_code")
+
+    if not company_code:
+        return None
+
     if s3_client and S3_BUCKET_NAME:
         buffer = BytesIO()
 
         try:
             s3_client.download_fileobj(
                 S3_BUCKET_NAME,
-                f"uploads/{filename}",
+                (
+                    f"uploads/"
+                    f"{company_code}/"
+                    f"{filename}"
+                ),
                 buffer
             )
+
         except ClientError as e:
-            print("S3添付ファイル取得エラー:", e)
+            print(
+                "S3添付ファイル取得エラー:",
+                e
+            )
             return None
 
         buffer.seek(0)
         return buffer
 
-    # ローカル
     file_path = os.path.join(
         app.config["UPLOAD_FOLDER"],
+        company_code,
         filename
     )
 
@@ -625,14 +831,31 @@ def load_upload_bytes(filename):
     with open(file_path, "rb") as file:
         return BytesIO(file.read())
 
+
 @app.route("/files/<folder>/<filename>")
 def uploaded_file(folder, filename):
     if folder not in {"uploads", "manuals"}:
         return "Not found", 404
 
-    # RenderなどS3利用環境
+    company_code = session.get("company_code")
+
+    if not company_code:
+        return "Not found", 404
+
+    filename = os.path.basename(filename)
+
+    if not file_belongs_to_current_company(
+        filename,
+        folder
+    ):
+        return "File not found", 404
+
     if s3_client and S3_BUCKET_NAME:
-        object_key = f"{folder}/{filename}"
+        object_key = (
+            f"{folder}/"
+            f"{company_code}/"
+            f"{filename}"
+        )
 
         try:
             url = s3_client.generate_presigned_url(
@@ -650,70 +873,157 @@ def uploaded_file(folder, filename):
             print("S3取得エラー:", e)
             return "File not found", 404
 
-    # ローカル環境
     if folder == "manuals":
-        local_path = f"/static/manuals/{filename}"
+        local_path = (
+            f"/static/manuals/"
+            f"{company_code}/"
+            f"{filename}"
+        )
     else:
-        local_path = f"/static/uploads/{filename}"
+        local_path = (
+            f"/static/uploads/"
+            f"{company_code}/"
+            f"{filename}"
+        )
 
     return redirect(local_path)
 
+
 @app.route("/static/uploads/<path:filename>")
 def s3_uploads_file(filename):
+    company_code = session.get("company_code")
+
+    if not company_code:
+        return "File not found", 404
+
+    # URL側に会社コードを入れさせない
+    filename = os.path.basename(filename)
+
+    filename = os.path.basename(filename)
+
+    if not file_belongs_to_current_company(
+        filename,
+        "uploads"
+    ):
+        return "File not found", 404
+
     if s3_client and S3_BUCKET_NAME:
         try:
             url = s3_client.generate_presigned_url(
                 "get_object",
                 Params={
                     "Bucket": S3_BUCKET_NAME,
-                    "Key": f"uploads/{filename}"
+                    "Key": (
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
                 },
                 ExpiresIn=3600
             )
+
             return redirect(url)
 
         except ClientError as e:
             print("S3取得エラー:", e)
             return "File not found", 404
 
-    return app.send_static_file(f"uploads/{filename}")
+    return app.send_static_file(
+        f"uploads/{company_code}/{filename}"
+    )
 
 
 @app.route("/static/manuals/<path:filename>")
 def s3_manual_file(filename):
+    company_code = session.get("company_code")
+
+    if not company_code:
+        return "File not found", 404
+
+    filename = os.path.basename(filename)
+
+    if not file_belongs_to_current_company(
+        filename,
+        "manuals"
+    ):
+        return "File not found", 404
+
     if s3_client and S3_BUCKET_NAME:
         try:
             url = s3_client.generate_presigned_url(
                 "get_object",
                 Params={
                     "Bucket": S3_BUCKET_NAME,
-                    "Key": f"manuals/{filename}"
+                    "Key": (
+                        f"manuals/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
                 },
                 ExpiresIn=3600
             )
+
             return redirect(url)
 
         except ClientError as e:
             print("S3取得エラー:", e)
             return "File not found", 404
 
-    return app.send_static_file(f"manuals/{filename}")
+    return app.send_static_file(
+        f"manuals/{company_code}/{filename}"
+    )
 
 PATROL_VIEW_TYPES = {"user", "delivery_place"}
 
 @app.before_request
 def require_login():
-    if request.endpoint in {"login", "register", "static"} or request.endpoint is None:
+    # 保護対象のstaticファイル
+    if (
+        request.path.startswith("/static/uploads/")
+        or request.path.startswith("/static/manuals/")
+    ):
+        if not session.get("username"):
+            return redirect("/login")
+
+        parts = request.path.strip("/").split("/")
+
+        if len(parts) < 4:
+            return "File not found", 404
+
+        folder = parts[1]
+        url_company_code = parts[2]
+        filename = os.path.basename(parts[-1])
+
+        if url_company_code != session.get("company_code"):
+            return "File not found", 404
+
+        if not file_belongs_to_current_company(
+            filename,
+            folder
+        ):
+            return "File not found", 404
+            
+    if request.endpoint in {"login", "static"} or request.endpoint is None:
         return None
 
     if not session.get("username"):
         return redirect("/login")
+
+    # =========================
+    # マスタ管理は管理者のみ
+    # =========================
+    if request.path == "/master" or request.path.startswith("/master/"):
+        if session.get("role") not in ["admin", "itc"]:
+            return redirect("/")
 
     return None
 
 
 def require_itc():
     return session.get("role") == "itc"
+
+def require_master_admin():
+    return session.get("role") in ["admin", "itc"]
 
 def get_company(company_code):
     return Company.query.filter_by(
@@ -1556,14 +1866,37 @@ def send_teams_notification(
 
     return False
 
-def add_news(title, message, files=None, target_type="", target_value=""):
+def add_news(
+    title,
+    message,
+    files=None,
+    target_type="",
+    target_value="",
+    company_code=None
+):
+    news_company_code = (
+        company_code
+        or session.get("company_code")
+    )
+
+    if not news_company_code:
+        raise ValueError(
+            "News company_code is required."
+        )
+
     news = News(
+        company_code=news_company_code,
         title=title,
         message=message,
-        files_json=json.dumps(files or [], ensure_ascii=False),
+        files_json=json.dumps(
+            files or [],
+            ensure_ascii=False
+        ),
         target_type=target_type,
         target_value=target_value,
-        created_at=datetime.now().strftime("%Y-%m-%d %H:%M")
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M"
+        )
     )
 
     db.session.add(news)
@@ -1622,12 +1955,50 @@ def can_view_patrol_result(result):
     )
 
 
-def can_manage_patrol_result(result):
-    return is_same_company_result(result)
+def can_edit_patrol_result(result):
+    if not is_same_company_result(result):
+        return False
+
+    if session.get("role") in ["admin", "itc"]:
+        return True
+
+    return (
+        result.get("created_by_username")
+        == session.get("username")
+    )
+
+
+def can_countermeasure_patrol_result(result):
+    if not is_same_company_result(result):
+        return False
+
+    if session.get("role") in ["admin", "itc"]:
+        return True
+
+    # 作成者
+    if (
+        result.get("created_by_username")
+        == session.get("username")
+    ):
+        return True
+
+    # 個人対象なら対象本人
+    return (
+        result.get("target_type") == "user"
+        and result.get("target_user")
+        == session.get("name")
+    )
+
+
+def can_delete_patrol_result(result):
+    return can_edit_patrol_result(result)
 
 
 def can_approve_patrol_result(result):
-    return session.get("role") in ["admin", "itc"] and can_manage_patrol_result(result)
+    if not is_same_company_result(result):
+        return False
+
+    return session.get("role") in ["admin", "itc"]
 
 
 def can_view_checklist_result(result):
@@ -1879,6 +2250,8 @@ def itc_new_news():
     if not require_itc():
         return redirect("/")
 
+    company_code = session.get("company_code")
+
     if request.method == "POST":
         title = request.form.get("title")
         message = request.form.get("message")
@@ -1895,19 +2268,15 @@ def itc_new_news():
             if filename:
                 file_names.append(filename)
 
-        add_news(
-            title,
-            message,
-            files=file_names,
-            target_type=target_type,
-            target_value=target_value
+        # =========================
+        # 通知対象を現在の会社内だけに限定
+        # =========================
+
+        user_query = User.query.filter_by(
+            company_code=company_code
         )
 
-
-
         target_users = []
-
-        user_query = User.query
 
         if target_type == "all":
             target_users = user_query.all()
@@ -1918,19 +2287,54 @@ def itc_new_news():
             ).all()
 
         elif target_type == "company":
-            target_users = user_query.filter_by(
-                company_code=target_value
-            ).all()
+            # 他社コードをPOSTされても無視する
+            if target_value != company_code:
+                return "対象会社が不正です。", 403
+
+            target_users = user_query.all()
 
         elif target_type == "office":
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=target_value
+            ).first()
+
+            if not valid_office:
+                return "対象営業所が不正です。", 403
+
             target_users = user_query.filter_by(
                 office=target_value
             ).all()
 
         elif target_type == "user":
-            target_users = user_query.filter_by(
+            target_user = User.query.filter_by(
+                company_code=company_code,
                 username=target_value
-            ).all()
+            ).first()
+
+            if not target_user:
+                return "対象ユーザーが不正です。", 403
+
+            target_users = [target_user]
+
+        else:
+            return "通知対象が不正です。", 400
+
+        # =========================
+        # News登録
+        # =========================
+
+        add_news(
+            title,
+            message,
+            files=file_names,
+            target_type=target_type,
+            target_value=target_value
+        )
+
+        # =========================
+        # 通知登録
+        # =========================
 
         for user in target_users:
             add_notification(
@@ -1939,17 +2343,36 @@ def itc_new_news():
                 message,
                 "",
                 files=file_names,
-                company_code=user.company_code
+                company_code=company_code
             )
-        notify_mentions(message, "/notifications")
+
+        notify_mentions(
+            message,
+            "/notifications"
+        )
 
         return redirect("/itc")
 
+    # =========================
+    # GET
+    # =========================
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).first()
+
+    companies = [company] if company else []
+
+    users = User.query.filter(
+        User.company_code == company_code,
+        User.role != "itc"
+    ).all()
+
     return render_template(
         "itc_news_form.html",
-        companies=Company.query.all(),
+        companies=companies,
         offices=offices_for_current_company(),
-        users=User.query.filter(User.role != "itc").all(),
+        users=users,
         news=None,
         mode="new"
     )
@@ -1959,20 +2382,67 @@ def itc_edit_news(index):
     if not require_itc():
         return redirect("/")
 
-    news = News.query.get(index)
+    company_code = session.get("company_code")
+
+    news = News.query.filter_by(
+        id=index,
+        company_code=company_code
+    ).first()
 
     if not news:
         return redirect("/itc")
 
     if request.method == "POST":
+        target_type = request.form.get("target_type")
+        target_value = request.form.get(
+            "target_value",
+            ""
+        ).strip()
+
+        # =========================
+        # 通知対象を現在の会社内だけに限定
+        # =========================
+
+        if target_type == "company":
+            if target_value != company_code:
+                return "対象会社が不正です。", 403
+
+        elif target_type == "office":
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=target_value
+            ).first()
+
+            if not valid_office:
+                return "対象営業所が不正です。", 403
+
+        elif target_type == "user":
+            valid_user = User.query.filter_by(
+                company_code=company_code,
+                username=target_value
+            ).first()
+
+            if not valid_user:
+                return "対象ユーザーが不正です。", 403
+
+        elif target_type not in [
+            "all",
+            "admins"
+        ]:
+            return "通知対象が不正です。", 400
+
         news.title = request.form.get("title")
         news.message = request.form.get("message")
-        news.target_type = request.form.get("target_type")
-        news.target_value = request.form.get("target_value", "").strip()
+        news.target_type = target_type
+        news.target_value = target_value
 
-        files = json.loads(news.files_json or "[]")
+        files = json.loads(
+            news.files_json or "[]"
+        )
 
-        uploaded_files = request.files.getlist("files")
+        uploaded_files = request.files.getlist(
+            "files"
+        )
 
         for file in uploaded_files:
             filename = save_uploaded_file(file)
@@ -1980,18 +2450,38 @@ def itc_edit_news(index):
             if filename:
                 files.append(filename)
 
-        news.files_json = json.dumps(files, ensure_ascii=False)
+        news.files_json = json.dumps(
+            files,
+            ensure_ascii=False
+        )
 
         db.session.commit()
 
         return redirect("/itc")
+
+    # =========================
+    # GET
+    # =========================
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).first()
+
+    companies = [company] if company else []
+
+    users = User.query.filter(
+        User.company_code == company_code,
+        User.role != "itc"
+    ).all()
 
     news_dict = {
         "id": news.id,
         "index": news.id,
         "title": news.title,
         "message": news.message,
-        "files": json.loads(news.files_json or "[]"),
+        "files": json.loads(
+            news.files_json or "[]"
+        ),
         "target_type": news.target_type,
         "target_value": news.target_value,
         "created_at": news.created_at,
@@ -2002,9 +2492,9 @@ def itc_edit_news(index):
         news=news_dict,
         index=news.id,
         mode="edit",
-        companies=Company.query.all(),
+        companies=companies,
         offices=offices_for_current_company(),
-        users=User.query.filter(User.role != "itc").all()
+        users=users
     )
 
 @app.route("/itc/news/<int:index>/delete", methods=["POST"])
@@ -2012,7 +2502,12 @@ def itc_delete_news(index):
     if not require_itc():
         return redirect("/")
 
-    news = News.query.get(index)
+    company_code = session.get("company_code")
+
+    news = News.query.filter_by(
+        id=index,
+        company_code=company_code
+    ).first()
 
     if not news:
         return redirect("/itc")
@@ -2042,74 +2537,7 @@ def inject_notification_count():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    error = None
-    company_code_from_url = request.args.get("company_code", "")
-
-    if request.method == "POST":
-        company_code = request.form.get("company_code", "").strip()
-        name = request.form.get("name", "").strip()
-        employee_id = request.form.get("employee_id", "").strip()
-        password = request.form.get("password", "").strip()
-        office = request.form.get("office", "").strip()
-        role = request.form.get("role", "user")
-
-        company = get_company(company_code)
-
-        if not company:
-            error = "会社コードが存在しません。"
-
-        elif not company.active:
-            error = "この会社は現在利用停止中です。ITCへお問い合わせください。"
-
-        elif role not in ["admin", "user"]:
-            error = "ユーザー種別が不正です。"
-
-        elif User.query.filter_by(
-            company_code=company_code,
-            username=employee_id
-        ).first():
-            error = "このログインIDはすでに使用されています。"
-
-        else:
-            user = User(
-                company_code=company_code,
-                username=employee_id,
-                password=generate_password_hash(password),
-                role=role,
-                name=name,
-                office=office,
-                favorite_vehicles_json="[]"
-            )
-
-            driver = Driver(
-                company_code=company_code,
-                employee_id=employee_id,
-                name=name,
-                role=role,
-                office=office,
-                safe_start_date=datetime.now().strftime("%Y-%m-%d"),
-                vehicles_json="[]",
-                licenses_json="[]"
-            )
-
-            db.session.add(user)
-            db.session.add(driver)
-            db.session.commit()
-
-            return redirect("/login")
-
-    company_code = company_code_from_url
-
-    offices = Office.query.filter_by(
-        company_code=company_code
-    ).all()
-
-    return render_template(
-        "register.html",
-        error=error,
-        company_code=company_code_from_url,
-        offices=offices
-    )
+    return redirect("/login")
 
 @app.route("/logout")
 def logout():
@@ -2318,10 +2746,19 @@ def news_targets():
     target_type = request.args.get("type", "")
     keyword = request.args.get("q", "").strip()
 
+    company_code = session.get("company_code")
+    role = session.get("role")
+
     results = []
 
+    # ITC専用機能
+    if role != "itc":
+        return {"results": []}, 403
+
     if target_type == "company":
-        query = Company.query
+        query = Company.query.filter_by(
+            company_code=company_code
+        )
 
         if keyword:
             keyword_like = f"%{keyword}%"
@@ -2342,15 +2779,14 @@ def news_targets():
             })
 
     elif target_type == "office":
-        query = Office.query
+        query = Office.query.filter_by(
+            company_code=company_code
+        )
 
         if keyword:
             keyword_like = f"%{keyword}%"
             query = query.filter(
-                db.or_(
-                    Office.name.ilike(keyword_like),
-                    Office.company_code.ilike(keyword_like)
-                )
+                Office.name.ilike(keyword_like)
             )
 
         for office in query.order_by(
@@ -2359,11 +2795,12 @@ def news_targets():
             results.append({
                 "id": office.name or "",
                 "name": office.name or "",
-                "sub": "営業所 / " + (office.company_code or "")
+                "sub": "営業所"
             })
 
     elif target_type == "user":
         query = User.query.filter(
+            User.company_code == company_code,
             User.role != "itc"
         )
 
@@ -2373,8 +2810,7 @@ def news_targets():
                 db.or_(
                     User.name.ilike(keyword_like),
                     User.username.ilike(keyword_like),
-                    User.office.ilike(keyword_like),
-                    User.company_code.ilike(keyword_like)
+                    User.office.ilike(keyword_like)
                 )
             )
 
@@ -2384,7 +2820,7 @@ def news_targets():
             results.append({
                 "id": user.username,
                 "name": user.name or "",
-                "sub": (user.office or "") + " / " + (user.company_code or "")
+                "sub": user.office or ""
             })
 
     return {"results": results}
@@ -3622,15 +4058,13 @@ def notifications():
 
 @app.route("/notifications/<int:index>")
 def notification_detail(index):
-    notification = Notification.query.get(index)
+    notification = Notification.query.filter_by(
+        id=index,
+        company_code=session.get("company_code"),
+        target_user=session.get("name")
+    ).first()
 
     if not notification:
-        return redirect("/notifications")
-
-    if (
-        notification.company_code != session.get("company_code")
-        or notification.target_user != session.get("name")
-    ):
         return redirect("/notifications")
 
     notification.read = True
@@ -3656,15 +4090,13 @@ def notification_detail(index):
 
 @app.route("/notifications/<int:index>/delete", methods=["POST"])
 def delete_notification(index):
-    notification = Notification.query.get(index)
+    notification = Notification.query.filter_by(
+        id=index,
+        company_code=session.get("company_code"),
+        target_user=session.get("name")
+    ).first()
 
     if not notification:
-        return redirect("/notifications")
-
-    if (
-        notification.company_code != session.get("company_code")
-        or notification.target_user != session.get("name")
-    ):
         return redirect("/notifications")
 
     db.session.delete(notification)
@@ -3677,39 +4109,79 @@ def itc_dashboard():
     if not require_itc():
         return redirect("/")
 
+    company_code = session.get("company_code")
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).first()
+
     company_summaries = []
 
-    companies = Company.query.all()
-
-    for company in companies:
-        company_code = company.company_code
-
+    if company:
         vehicle_count = Vehicle.query.filter_by(
             company_code=company_code,
             deleted=False
         ).count()
 
-        item = {
+        company_summaries.append({
             "id": company.id,
             "company_code": company.company_code,
             "company_name": company.company_name,
             "vehicle_limit": company.vehicle_limit,
             "active": company.active,
             "vehicle_count": vehicle_count,
-            "remaining_vehicles": company.vehicle_limit - vehicle_count,
-        }
-
-        company_summaries.append(item)
+            "remaining_vehicles": (
+                company.vehicle_limit - vehicle_count
+            ),
+        })
 
     news_items = []
 
-    for news in News.query.order_by(News.id.desc()).all():
+    news_records = News.query.filter_by(
+        company_code=company_code
+    ).order_by(
+        News.id.desc()
+    ).all()
+
+    for news in news_records:
+        visible = False
+
+        if news.target_type in ["all", "admins"]:
+            visible = True
+
+        elif (
+            news.target_type == "company"
+            and news.target_value == company_code
+        ):
+            visible = True
+
+        elif news.target_type == "office":
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=news.target_value
+            ).first()
+
+            visible = valid_office is not None
+
+        elif news.target_type == "user":
+            valid_user = User.query.filter_by(
+                company_code=company_code,
+                username=news.target_value
+            ).first()
+
+            visible = valid_user is not None
+
+        if not visible:
+            continue
+
         news_items.append({
             "id": news.id,
             "index": news.id,
             "title": news.title,
             "message": news.message,
-            "files": json.loads(news.files_json or "[]"),
+            "files": json.loads(
+                news.files_json or "[]"
+            ),
             "target_type": news.target_type,
             "target_value": news.target_value,
             "created_at": news.created_at,
@@ -3770,13 +4242,15 @@ def itc_edit_company(index):
     if not require_itc():
         return redirect("/")
 
-    company = Company.query.get(index)
+    company = Company.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not company:
         return redirect("/itc")
 
     if request.method == "POST":
-        company.company_code = request.form.get("company_code")
         company.company_name = request.form.get("company_name")
         company.vehicle_limit = int(request.form.get("vehicle_limit") or 0)
         company.active = request.form.get("active") == "1"
@@ -3861,7 +4335,7 @@ def pointouts():
         if not can_view_patrol_result(result):
             continue
 
-        result["can_manage"] = can_manage_patrol_result(result)
+        result["can_manage"] = can_edit_patrol_result(result)
         visible_results.append(result)
 
     driver_options = Driver.query.filter(
@@ -3885,6 +4359,106 @@ def pointouts():
 @app.route("/pointouts/new", methods=["GET", "POST"])
 def new_pointout():
     if request.method == "POST":
+        company_code = session.get("company_code")
+
+        target_type = request.form.get(
+            "target_type",
+            ""
+        ).strip()
+
+        target_user = request.form.get(
+            "target_user",
+            ""
+        ).strip()
+
+        delivery_place = request.form.get(
+            "delivery_place",
+            ""
+        ).strip()
+
+        content_type = request.form.get(
+            "content_type",
+            ""
+        ).strip()
+
+        category = request.form.get(
+            "category",
+            ""
+        ).strip()
+
+        content = request.form.get(
+            "content",
+            ""
+        ).strip()
+
+        date = request.form.get(
+            "date",
+            ""
+        ).strip()
+
+        # =========================
+        # 対象種別検証
+        # =========================
+
+        if target_type not in PATROL_VIEW_TYPES:
+            return "対象種別が不正です。", 400
+
+        target_office = session.get("office") or ""
+
+        # =========================
+        # 対象ユーザー検証
+        # =========================
+
+        if target_type == "user":
+            if not target_user:
+                return "対象ユーザーを選択してください。", 400
+
+            target_driver = Driver.query.filter_by(
+                company_code=company_code,
+                name=target_user
+            ).first()
+
+            if not target_driver:
+                return "対象ユーザーが不正です。", 400
+
+            target_office = target_driver.office or ""
+            delivery_place = ""
+
+        # =========================
+        # 納入先検証
+        # =========================
+
+        elif target_type == "delivery_place":
+            if not delivery_place:
+                return "納入先を選択してください。", 400
+
+            valid_delivery_place = DeliveryPlace.query.filter_by(
+                company_code=company_code,
+                name=delivery_place
+            ).first()
+
+            if not valid_delivery_place:
+                return "納入先が不正です。", 400
+
+            target_user = ""
+
+        # =========================
+        # 内容区分検証
+        # =========================
+
+        if content_type:
+            valid_content_type = PatrolContentType.query.filter_by(
+                company_code=company_code,
+                name=content_type
+            ).first()
+
+            if not valid_content_type:
+                return "内容区分が不正です。", 400
+
+        # =========================
+        # 添付ファイル
+        # =========================
+
         uploaded_files = request.files.getlist("files")
 
         file_names = []
@@ -3895,34 +4469,26 @@ def new_pointout():
             if filename:
                 file_names.append(filename)
 
-        target_type = request.form.get("target_type")
-        target_office = session.get("office")
-
-        if target_type == "user":
-            target_driver = Driver.query.filter_by(
-                company_code=session.get("company_code"),
-                name=request.form.get("target_user")
-            ).first()
-
-            if target_driver:
-                target_office = target_driver.office
-
-        if target_type not in PATROL_VIEW_TYPES:
-            target_type = "user"
+        # =========================
+        # 登録
+        # =========================
 
         result = PatrolResult(
-            company_code=session.get("company_code"),
+            company_code=company_code,
             created_by_username=session.get("username"),
             created_by_name=session.get("name"),
-            date=request.form.get("date"),
+            date=date,
             office=target_office,
-            category=request.form.get("category"),
-            content_type=request.form.get("content_type"),
+            category=category,
+            content_type=content_type,
             target_type=target_type,
-            target_user=request.form.get("target_user") if target_type == "user" else "",
-            delivery_place=request.form.get("delivery_place") if target_type == "delivery_place" else "",
-            content=request.form.get("content"),
-            files_json=json.dumps(file_names, ensure_ascii=False),
+            target_user=target_user,
+            delivery_place=delivery_place,
+            content=content,
+            files_json=json.dumps(
+                file_names,
+                ensure_ascii=False
+            ),
             countermeasure="",
             approval_status="未対応",
             reject_reason=""
@@ -3931,12 +4497,15 @@ def new_pointout():
         db.session.add(result)
         db.session.commit()
 
-        add_notification(
-            result.target_user,
-            "安全パトロール確認依頼",
-            "あなたに確認が必要な安全パトロールがあります。",
-            f"/pointouts/{result.id}"
-        )
+        # 個人対象のときだけ通知
+        if target_type == "user":
+            add_notification(
+                result.target_user,
+                "安全パトロール確認依頼",
+                "あなたに確認が必要な安全パトロールがあります。",
+                f"/pointouts/{result.id}",
+                company_code=company_code
+            )
 
         notify_mentions(
             result.content,
@@ -3944,10 +4513,13 @@ def new_pointout():
         )
 
         if target_type == "delivery_place":
-            return redirect("/pointouts?type=delivery_place")
+            return redirect(
+                "/pointouts?type=delivery_place"
+            )
 
-        return redirect("/pointouts?type=user")
-
+        return redirect(
+            "/pointouts?type=user"
+        )
     return render_template(
         "new_pointout.html",
         drivers=drivers_for_current_company(),
@@ -3958,7 +4530,10 @@ def new_pointout():
 
 @app.route("/pointouts/<int:index>")
 def pointout_detail(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
@@ -3973,65 +4548,186 @@ def pointout_detail(index):
         result=result,
         index=result_record.id,
         manuals=manuals_for_current_company(),
-        can_manage=can_manage_patrol_result(result),
+        can_manage=can_edit_patrol_result(result),
+        can_countermeasure=can_countermeasure_patrol_result(
+            result
+        ),
         can_approve=can_approve_patrol_result(result),
     )
-
+    
 @app.route("/pointouts/<int:index>/edit", methods=["GET", "POST"])
 def edit_pointout(index):
 
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
 
     result = patrol_result_to_dict(result_record)
 
-    if not can_manage_patrol_result(result):
+    if not can_edit_patrol_result(result):
         return redirect(f"/pointouts/{index}")
 
     if request.method == "POST":
+        company_code = session.get("company_code")
 
-        result_record.date = request.form.get("date")
-        result_record.category = request.form.get("category")
-        result_record.content_type = request.form.get("content_type")
-        result_record.content = request.form.get("content")
-        notify_mentions(
-            result_record.content,
-            f"/pointouts/{result_record.id}"
-        )
+        date = request.form.get(
+            "date",
+            ""
+        ).strip()
 
-        if result_record.target_type == "user":
-            result_record.target_user = request.form.get("target_user")
+        category = request.form.get(
+            "category",
+            ""
+        ).strip()
 
-            target_driver = Driver.query.filter_by(
-                company_code=session.get("company_code"),
-                name=result_record.target_user
+        content_type = request.form.get(
+            "content_type",
+            ""
+        ).strip()
+
+        content = request.form.get(
+            "content",
+            ""
+        ).strip()
+
+        # =========================
+        # 内容区分検証
+        # =========================
+
+        if content_type:
+            valid_content_type = PatrolContentType.query.filter_by(
+                company_code=company_code,
+                name=content_type
             ).first()
 
-            if target_driver:
-                result_record.office = target_driver.office
+            if not valid_content_type:
+                return "内容区分が不正です。", 400
 
-        if result_record.target_type == "delivery_place":
-            result_record.delivery_place = request.form.get("delivery_place")
+        # =========================
+        # 対象ユーザー検証
+        # =========================
 
-        files = json.loads(result_record.files_json or "[]")
+        if result_record.target_type == "user":
+            target_user = request.form.get(
+                "target_user",
+                ""
+            ).strip()
 
-        delete_files = request.form.getlist("delete_files")
+            if not target_user:
+                return "対象ユーザーを選択してください。", 400
+
+            target_driver = Driver.query.filter_by(
+                company_code=company_code,
+                name=target_user
+            ).first()
+
+            if not target_driver:
+                return "対象ユーザーが不正です。", 400
+
+            result_record.target_user = target_user
+            result_record.office = (
+                target_driver.office or ""
+            )
+
+            result_record.delivery_place = ""
+
+        # =========================
+        # 納入先検証
+        # =========================
+
+        elif result_record.target_type == "delivery_place":
+            delivery_place = request.form.get(
+                "delivery_place",
+                ""
+            ).strip()
+
+            if not delivery_place:
+                return "納入先を選択してください。", 400
+
+            valid_delivery_place = DeliveryPlace.query.filter_by(
+                company_code=company_code,
+                name=delivery_place
+            ).first()
+
+            if not valid_delivery_place:
+                return "納入先が不正です。", 400
+
+            result_record.delivery_place = delivery_place
+            result_record.target_user = ""
+
+        else:
+            return "対象種別が不正です。", 400
+
+        # =========================
+        # 基本情報更新
+        # =========================
+
+        result_record.date = date
+        result_record.category = category
+        result_record.content_type = content_type
+        result_record.content = content
+
+        # =========================
+        # 既存添付
+        # =========================
+
+        files = json.loads(
+            result_record.files_json or "[]"
+        )
+
+        delete_files = request.form.getlist(
+            "delete_files"
+        )
 
         for delete_file in delete_files:
-            if delete_file in files:
-                files.remove(delete_file)
+            delete_file = os.path.basename(
+                delete_file
+            )
 
+            if delete_file not in files:
+                continue
+
+            files.remove(delete_file)
+
+            # S3
+            if s3_client and S3_BUCKET_NAME:
+                try:
+                    s3_client.delete_object(
+                        Bucket=S3_BUCKET_NAME,
+                        Key=(
+                            f"uploads/"
+                            f"{company_code}/"
+                            f"{delete_file}"
+                        )
+                    )
+                except ClientError as e:
+                    print(
+                        "S3添付ファイル削除エラー:",
+                        e
+                    )
+
+            # ローカル
+            else:
                 file_path = os.path.join(
                     app.config["UPLOAD_FOLDER"],
+                    company_code,
                     delete_file
                 )
 
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
-        uploaded_files = request.files.getlist("files")
+        # =========================
+        # 新規添付
+        # =========================
+
+        uploaded_files = request.files.getlist(
+            "files"
+        )
 
         for file in uploaded_files:
             filename = save_uploaded_file(file)
@@ -4046,7 +4742,14 @@ def edit_pointout(index):
 
         db.session.commit()
 
-        return redirect(f"/pointouts/{result_record.id}")
+        notify_mentions(
+            result_record.content,
+            f"/pointouts/{result_record.id}"
+        )
+
+        return redirect(
+            f"/pointouts/{result_record.id}"
+        )
 
     return render_template(
         "edit_pointout.html",
@@ -4059,14 +4762,17 @@ def edit_pointout(index):
 
 @app.route("/pointouts/<int:index>/countermeasure/new")
 def new_countermeasure(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
 
     result = patrol_result_to_dict(result_record)
 
-    if not can_manage_patrol_result(result):
+    if not can_countermeasure_patrol_result(result):
         return redirect(f"/pointouts/{index}")
 
     return render_template(
@@ -4078,14 +4784,17 @@ def new_countermeasure(index):
 
 @app.route("/pointouts/<int:index>/countermeasure", methods=["POST"])
 def register_countermeasure(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
 
     result = patrol_result_to_dict(result_record)
 
-    if not can_manage_patrol_result(result):
+    if not can_countermeasure_patrol_result(result):
         return redirect(f"/pointouts/{index}")
 
     result_record.countermeasure = request.form.get("countermeasure")
@@ -4105,7 +4814,10 @@ def register_countermeasure(index):
 
 @app.route("/pointouts/<int:index>/approve", methods=["POST"])
 def approve_countermeasure(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
@@ -4125,7 +4837,10 @@ def approve_countermeasure(index):
 
 @app.route("/pointouts/<int:index>/reject", methods=["POST"])
 def reject_countermeasure(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
@@ -4171,14 +4886,16 @@ def reject_countermeasure(index):
 
 @app.route("/pointouts/<int:index>/delete", methods=["POST"])
 def delete_pointout(index):
-    result_record = PatrolResult.query.get(index)
+    result_record = PatrolResult.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/pointouts")
-
     result = patrol_result_to_dict(result_record)
 
-    if not can_manage_patrol_result(result):
+    if not can_delete_patrol_result(result):
         return redirect(f"/pointouts/{index}")
 
     view_type = result.get("target_type", "user")
@@ -4193,9 +4910,20 @@ def new_vehicle_patrol():
 
     if request.method == "POST":
 
+        vehicle_id = request.form.get("vehicle_id", "").strip()
+
+        vehicle = Vehicle.query.filter_by(
+            company_code=session.get("company_code"),
+            vehicle_id=vehicle_id,
+            deleted=False
+        ).first()
+
+        if not vehicle:
+            return "車両が不正です。", 403
+        
         patrol = VehiclePatrol(
             company_code=session.get("company_code"),
-            vehicle_id=request.form.get("vehicle_id"),
+            vehicle_id=vehicle_id,
             occurred_date=request.form.get("occurred_date"),
             category=request.form.get("category"),
             priority=request.form.get("priority"),
@@ -4357,7 +5085,10 @@ def vehicle_patrols():
 @app.route("/vehicle-patrols/<int:index>")
 def vehicle_patrol_detail(index):
 
-    patrol = VehiclePatrol.query.get(index)
+    patrol = VehiclePatrol.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not patrol:
         return redirect("/vehicle-patrols")
@@ -4374,17 +5105,27 @@ def vehicle_patrol_detail(index):
 @app.route("/vehicle-patrols/<int:index>/edit", methods=["GET", "POST"])
 def edit_vehicle_patrol(index):
 
-    patrol = VehiclePatrol.query.get(index)
+    patrol = VehiclePatrol.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not patrol:
         return redirect("/vehicle-patrols")
 
-    if patrol.company_code != session.get("company_code"):
-        return redirect("/vehicle-patrols")
-
     if request.method == "POST":
+        vehicle_id = request.form.get("vehicle_id", "").strip()
 
-        patrol.vehicle_id = request.form.get("vehicle_id")
+        vehicle = Vehicle.query.filter_by(
+            company_code=session.get("company_code"),
+            vehicle_id=vehicle_id,
+            deleted=False
+        ).first()
+
+        if not vehicle:
+            return "車両が不正です。", 403        
+
+        patrol.vehicle_id = vehicle_id
         patrol.occurred_date = request.form.get("occurred_date")
         patrol.category = request.form.get("category")
         patrol.priority = request.form.get("priority")
@@ -4444,12 +5185,12 @@ def edit_vehicle_patrol(index):
 @app.route("/vehicle-patrols/<int:index>/delete", methods=["POST"])
 def delete_vehicle_patrol(index):
 
-    patrol = VehiclePatrol.query.get(index)
+    patrol = VehiclePatrol.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not patrol:
-        return redirect("/vehicle-patrols")
-
-    if patrol.company_code != session.get("company_code"):
         return redirect("/vehicle-patrols")
 
     db.session.delete(patrol)
@@ -4502,12 +5243,12 @@ def new_license_type():
 
 @app.route("/master/license-types/<int:index>/edit", methods=["GET", "POST"])
 def edit_license_type(index):
-    license_type = LicenseType.query.get(index)
+    license_type = LicenseType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not license_type:
-        return redirect("/master/license-types")
-
-    if license_type.company_code != session.get("company_code"):
         return redirect("/master/license-types")
 
     if request.method == "POST":
@@ -4529,12 +5270,12 @@ def edit_license_type(index):
 
 @app.route("/master/license-types/<int:index>/delete", methods=["POST"])
 def delete_license_type(index):
-    license_type = LicenseType.query.get(index)
+    license_type = LicenseType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not license_type:
-        return redirect("/master/license-types")
-
-    if license_type.company_code != session.get("company_code"):
         return redirect("/master/license-types")
 
     for driver in Driver.query.filter_by(
@@ -4588,12 +5329,12 @@ def new_vehicle_type():
 
 @app.route("/master/vehicle-types/<int:index>/edit", methods=["GET", "POST"])
 def edit_vehicle_type(index):
-    vehicle_type = VehicleType.query.get(index)
+    vehicle_type = VehicleType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not vehicle_type:
-        return redirect("/master/vehicle-types")
-
-    if vehicle_type.company_code != session.get("company_code"):
         return redirect("/master/vehicle-types")
 
     if request.method == "POST":
@@ -4614,12 +5355,12 @@ def edit_vehicle_type(index):
 
 @app.route("/master/vehicle-types/<int:index>/delete", methods=["POST"])
 def delete_vehicle_type(index):
-    vehicle_type = VehicleType.query.get(index)
+    vehicle_type = VehicleType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not vehicle_type:
-        return redirect("/master/vehicle-types")
-
-    if vehicle_type.company_code != session.get("company_code"):
         return redirect("/master/vehicle-types")
 
     Vehicle.query.filter_by(
@@ -4693,12 +5434,12 @@ def new_office():
 
 @app.route("/master/offices/<int:index>/edit", methods=["GET", "POST"])
 def edit_office(index):
-    office = Office.query.get(index)
+    office = Office.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not office:
-        return redirect("/master/offices")
-
-    if office.company_code != session.get("company_code"):
         return redirect("/master/offices")
 
     if request.method == "POST":
@@ -4724,12 +5465,12 @@ def edit_office(index):
 
 @app.route("/master/offices/<int:index>/delete", methods=["POST"])
 def delete_office(index):
-    office = Office.query.get(index)
+    office = Office.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not office:
-        return redirect("/master/offices")
-
-    if office.company_code != session.get("company_code"):
         return redirect("/master/offices")
 
     Driver.query.filter_by(
@@ -5229,12 +5970,12 @@ def new_delivery_place():
 
 @app.route("/master/delivery-places/<int:index>/edit", methods=["GET", "POST"])
 def edit_delivery_place(index):
-    place = DeliveryPlace.query.get(index)
+    place = DeliveryPlace.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not place:
-        return redirect("/master/delivery-places")
-
-    if place.company_code != session.get("company_code"):
         return redirect("/master/delivery-places")
 
     if request.method == "POST":
@@ -5258,12 +5999,12 @@ def edit_delivery_place(index):
 
 @app.route("/master/delivery-places/<int:index>/delete", methods=["POST"])
 def delete_delivery_place(index):
-    place = DeliveryPlace.query.get(index)
+    place = DeliveryPlace.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not place:
-        return redirect("/master/delivery-places")
-
-    if place.company_code != session.get("company_code"):
         return redirect("/master/delivery-places")
 
     db.session.delete(place)
@@ -5309,12 +6050,12 @@ def new_patrol_content_type():
 
 @app.route("/master/patrol-content-types/<int:index>/edit", methods=["GET", "POST"])
 def edit_patrol_content_type(index):
-    item = PatrolContentType.query.get(index)
+    item = PatrolContentType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not item:
-        return redirect("/master/patrol-content-types")
-
-    if item.company_code != session.get("company_code"):
         return redirect("/master/patrol-content-types")
 
     if request.method == "POST":
@@ -5332,12 +6073,12 @@ def edit_patrol_content_type(index):
 
 @app.route("/master/patrol-content-types/<int:index>/delete", methods=["POST"])
 def delete_patrol_content_type(index):
-    item = PatrolContentType.query.get(index)
+    item = PatrolContentType.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not item:
-        return redirect("/master/patrol-content-types")
-
-    if item.company_code != session.get("company_code"):
         return redirect("/master/patrol-content-types")
 
     db.session.delete(item)
@@ -5430,35 +6171,159 @@ def driver_master():
 
 @app.route("/master/drivers/new", methods=["GET", "POST"])
 def new_driver():
+    company_code = session.get("company_code")
+
     if request.method == "POST":
-        employee_id = request.form.get("employee_id")
+        employee_id = request.form.get(
+            "employee_id",
+            ""
+        ).strip()
+
+        name = request.form.get(
+            "name",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
+
+        role = request.form.get(
+            "role",
+            "user"
+        ).strip()
+
+        office = request.form.get(
+            "office",
+            ""
+        ).strip()
+
+        safe_start_date = request.form.get(
+            "safe_start_date",
+            ""
+        ).strip()
+
+        selected_vehicles = request.form.getlist(
+            "vehicles"
+        )
+
+        # =========================
+        # 基本入力チェック
+        # =========================
+
+        if not employee_id:
+            return "ログインIDを入力してください。", 400
+
+        if not name:
+            return "氏名を入力してください。", 400
+
+        if not password:
+            return "パスワードを入力してください。", 400
+
+        # =========================
+        # ロール検証
+        # =========================
+
+        if role not in ["admin", "user"]:
+            return "ユーザー種別が不正です。", 400
+
+        # =========================
+        # ログインID重複確認
+        # =========================
 
         if User.query.filter_by(
-            company_code=session.get("company_code"),
+            company_code=company_code,
             username=employee_id
         ).first():
-            return "このログインIDはすでに使用されています。"
+            return "このログインIDはすでに使用されています。", 400
+
+        # =========================
+        # 営業所検証
+        # =========================
+
+        if office:
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=office
+            ).first()
+
+            if not valid_office:
+                return "営業所が不正です。", 400
+
+        # =========================
+        # 車両検証
+        # =========================
+
+        valid_vehicle_ids = {
+            vehicle.vehicle_id
+            for vehicle in Vehicle.query.filter_by(
+                company_code=company_code,
+                deleted=False
+            ).all()
+        }
+
+        for vehicle_id in selected_vehicles:
+            if vehicle_id not in valid_vehicle_ids:
+                return "選択された車両が不正です。", 400
+
+        # =========================
+        # 免許種別検証
+        # =========================
+
+        valid_license_types = {
+            item.name
+            for item in LicenseType.query.filter_by(
+                company_code=company_code
+            ).all()
+        }
+
         licenses = []
 
-        license_types = request.form.getlist("license_type")
-        license_expiries = request.form.getlist("license_expiry")
+        license_types = request.form.getlist(
+            "license_type"
+        )
 
-        for license_type, expiry in zip(license_types, license_expiries):
-            if license_type and expiry:
-                licenses.append({
-                    "type": license_type,
-                    "expiry": expiry
-                })
+        license_expiries = request.form.getlist(
+            "license_expiry"
+        )
+
+        for license_type, expiry in zip(
+            license_types,
+            license_expiries
+        ):
+            license_type = (
+                license_type or ""
+            ).strip()
+
+            expiry = (
+                expiry or ""
+            ).strip()
+
+            if not license_type:
+                continue
+
+            if license_type not in valid_license_types:
+                return "免許種別が不正です。", 400
+
+            licenses.append({
+                "type": license_type,
+                "expiry": expiry
+            })
+
+        # =========================
+        # Driver作成
+        # =========================
 
         driver = Driver(
-            company_code=session.get("company_code"),
-            employee_id=request.form.get("employee_id"),
-            name=request.form.get("name"),
-            role=request.form.get("role"),
-            office=request.form.get("office"),
-            safe_start_date=request.form.get("safe_start_date"),
+            company_code=company_code,
+            employee_id=employee_id,
+            name=name,
+            role=role,
+            office=office,
+            safe_start_date=safe_start_date,
             vehicles_json=json.dumps(
-                request.form.getlist("vehicles"),
+                selected_vehicles,
                 ensure_ascii=False
             ),
             licenses_json=json.dumps(
@@ -5466,21 +6331,27 @@ def new_driver():
                 ensure_ascii=False
             )
         )
+
+        # =========================
+        # User作成
+        # =========================
+
         user = User(
-            company_code=session.get("company_code"),
-            username=request.form.get("employee_id"),
-            password=generate_password_hash(request.form.get("password")),
-            role=request.form.get("role"),
-            name=request.form.get("name"),
-            office=request.form.get("office"),
+            company_code=company_code,
+            username=employee_id,
+            password=generate_password_hash(
+                password
+            ),
+            role=role,
+            name=name,
+            office=office,
             favorite_vehicles_json=json.dumps(
-                request.form.getlist("vehicles"),
+                selected_vehicles,
                 ensure_ascii=False
             )
         )
 
         db.session.add(user)
-
         db.session.add(driver)
         db.session.commit()
 
@@ -5497,81 +6368,228 @@ def new_driver():
 
 @app.route("/master/drivers/<int:index>/edit", methods=["GET", "POST"])
 def edit_driver(index):
-    driver = Driver.query.get(index)
+    driver = Driver.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not driver:
         return redirect("/master/drivers")
 
-    if driver.company_code != session.get("company_code"):
-        return redirect("/master/drivers")
-
     if request.method == "POST":
-        licenses = []
-
-        license_types = request.form.getlist("license_type")
-        license_expiries = request.form.getlist("license_expiry")
-
-        for license_type, expiry in zip(license_types, license_expiries):
-            if license_type:
-                licenses.append({
-                    "type": license_type,
-                    "expiry": expiry
-                })
+        company_code = driver.company_code
 
         old_employee_id = driver.employee_id
 
-        new_employee_id = request.form.get("employee_id")
+        new_employee_id = request.form.get(
+            "employee_id",
+            ""
+        ).strip()
+
+        name = request.form.get(
+            "name",
+            ""
+        ).strip()
+
+        role = request.form.get(
+            "role",
+            "user"
+        ).strip()
+
+        office = request.form.get(
+            "office",
+            ""
+        ).strip()
+
+        safe_start_date = request.form.get(
+            "safe_start_date",
+            ""
+        ).strip()
+
+        new_password = request.form.get(
+            "password",
+            ""
+        )
+
+        selected_vehicles = request.form.getlist(
+            "vehicles"
+        )
+
+        # =========================
+        # 基本入力チェック
+        # =========================
+
+        if not new_employee_id:
+            return "ログインIDを入力してください。", 400
+
+        if not name:
+            return "氏名を入力してください。", 400
+
+        # =========================
+        # ロール検証
+        # =========================
+
+        if role not in ["admin", "user"]:
+            return "ユーザー種別が不正です。", 400
+
+        # =========================
+        # ログインID重複確認
+        # =========================
 
         if new_employee_id != old_employee_id:
             existing_user = User.query.filter_by(
-                company_code=driver.company_code,
+                company_code=company_code,
                 username=new_employee_id
             ).first()
 
             if existing_user:
-                return "このログインIDはすでに使用されています。"
+                return (
+                    "このログインIDはすでに使用されています。",
+                    400
+                )
+
+        # =========================
+        # 営業所検証
+        # =========================
+
+        if office:
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=office
+            ).first()
+
+            if not valid_office:
+                return "営業所が不正です。", 400
+
+        # =========================
+        # 車両検証
+        # =========================
+
+        valid_vehicle_ids = {
+            vehicle.vehicle_id
+            for vehicle in Vehicle.query.filter_by(
+                company_code=company_code,
+                deleted=False
+            ).all()
+        }
+
+        for vehicle_id in selected_vehicles:
+            if vehicle_id not in valid_vehicle_ids:
+                return "選択された車両が不正です。", 400
+
+        # =========================
+        # 免許種別検証
+        # =========================
+
+        valid_license_types = {
+            item.name
+            for item in LicenseType.query.filter_by(
+                company_code=company_code
+            ).all()
+        }
+
+        licenses = []
+
+        license_types = request.form.getlist(
+            "license_type"
+        )
+
+        license_expiries = request.form.getlist(
+            "license_expiry"
+        )
+
+        for license_type, expiry in zip(
+            license_types,
+            license_expiries
+        ):
+            license_type = (
+                license_type or ""
+            ).strip()
+
+            expiry = (
+                expiry or ""
+            ).strip()
+
+            if not license_type:
+                continue
+
+            if license_type not in valid_license_types:
+                return "免許種別が不正です。", 400
+
+            licenses.append({
+                "type": license_type,
+                "expiry": expiry
+            })
+
+        # =========================
+        # User取得
+        # =========================
+
+        user = User.query.filter_by(
+            company_code=company_code,
+            username=old_employee_id
+        ).first()
+
+        # Userが消えている異常状態なら
+        # 固定パスワードを勝手に作らない
+        if not user:
+            if not new_password:
+                return (
+                    "ユーザー情報が見つかりません。"
+                    "再作成するためパスワードを入力してください。",
+                    400
+                )
+
+            user = User(
+                company_code=company_code,
+                username=new_employee_id,
+                password=generate_password_hash(
+                    new_password
+                ),
+                role=role,
+                name=name,
+                office=office,
+                favorite_vehicles_json=json.dumps(
+                    selected_vehicles,
+                    ensure_ascii=False
+                )
+            )
+
+            db.session.add(user)
+
+        else:
+            user.username = new_employee_id
+            user.role = role
+            user.name = name
+            user.office = office
+            user.favorite_vehicles_json = json.dumps(
+                selected_vehicles,
+                ensure_ascii=False
+            )
+
+            # パスワード欄が空なら現在のパスワードを維持
+            if new_password:
+                user.password = generate_password_hash(
+                    new_password
+                )
+
+        # =========================
+        # Driver更新
+        # =========================
 
         driver.employee_id = new_employee_id
-        driver.name = request.form.get("name")
-        driver.role = request.form.get("role")
-        driver.office = request.form.get("office")
-        driver.safe_start_date = request.form.get("safe_start_date")
+        driver.name = name
+        driver.role = role
+        driver.office = office
+        driver.safe_start_date = safe_start_date
         driver.vehicles_json = json.dumps(
-            request.form.getlist("vehicles"),
+            selected_vehicles,
             ensure_ascii=False
         )
         driver.licenses_json = json.dumps(
             licenses,
             ensure_ascii=False
         )
-        user = User.query.filter_by(
-            company_code=driver.company_code,
-            username=old_employee_id
-        ).first()
-
-        if not user:
-            user = User(
-                company_code=driver.company_code,
-                username=request.form.get("employee_id"),
-                password=generate_password_hash(request.form.get("password") or "password"),
-                role=request.form.get("role"),
-                name=request.form.get("name"),
-                office=request.form.get("office"),
-                favorite_vehicles_json="[]"
-            )
-            db.session.add(user)
-
-        user.username = request.form.get("employee_id")
-        user.role = request.form.get("role")
-        user.name = request.form.get("name")
-        user.office = request.form.get("office")
-        user.favorite_vehicles_json = json.dumps(
-            request.form.getlist("vehicles"),
-            ensure_ascii=False
-        )
-
-        if request.form.get("password"):
-            user.password = generate_password_hash(request.form.get("password"))
 
         db.session.commit()
 
@@ -5626,12 +6644,12 @@ def edit_driver(index):
 
 @app.route("/master/drivers/<int:index>/delete", methods=["POST"])
 def delete_driver(index):
-    driver = Driver.query.get(index)
+    driver = Driver.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not driver:
-        return redirect("/master/drivers")
-
-    if driver.company_code != session.get("company_code"):
         return redirect("/master/drivers")
 
     user = User.query.filter_by(
@@ -7462,12 +8480,12 @@ def safety_checklists():
 
 @app.route("/safety/checklists/<int:index>")
 def safety_checklist_results(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
-        return redirect("/safety/checklists")
-
-    if checklist_record.company_code != session.get("company_code"):
         return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
@@ -7523,7 +8541,10 @@ def safety_checklist_results(index):
 
 @app.route("/safety/checklist-results/<int:result_index>")
 def checklist_result_detail(result_index):
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -7533,7 +8554,10 @@ def checklist_result_detail(result_index):
     if not can_view_checklist_result(result):
         return redirect("/safety/checklists")
 
-    checklist_record = Checklist.query.get(result_record.checklist_id)
+    checklist_record = Checklist.query.filter_by(
+        id=result_record.checklist_id,
+        company_code=result_record.company_code
+    ).first()
 
     if not checklist_record:
         return redirect("/safety/checklists")
@@ -7619,7 +8643,10 @@ def checklist_result_detail(result_index):
 @app.route("/safety/checklist-results/<int:result_index>/excel")
 def export_checklist_result_excel(result_index):
 
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -7629,7 +8656,10 @@ def export_checklist_result_excel(result_index):
     if not can_view_checklist_result(result):
         return redirect("/safety/checklists")
 
-    checklist_record = Checklist.query.get(result_record.checklist_id)
+    checklist_record = Checklist.query.filter_by(
+        id=result_record.checklist_id,
+        company_code=result_record.company_code
+    ).first()
 
     if not checklist_record:
         return redirect("/safety/checklists")
@@ -8518,7 +9548,10 @@ def export_checklist_result_excel(result_index):
 
 @app.route("/safety/checklist-results/<int:result_index>/edit", methods=["GET", "POST"])
 def edit_checklist_result(result_index):
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -8528,7 +9561,10 @@ def edit_checklist_result(result_index):
     if not can_manage_checklist_result(result):
         return redirect(f"/safety/checklist-results/{result_index}")
 
-    checklist_record = Checklist.query.get(result_record.checklist_id)
+    checklist_record = Checklist.query.filter_by(
+        id=result_record.checklist_id,
+        company_code=result_record.company_code
+    ).first()
 
     if not checklist_record:
         return redirect("/safety/checklists")
@@ -8536,6 +9572,97 @@ def edit_checklist_result(result_index):
     checklist = checklist_to_dict(checklist_record)
 
     if request.method == "POST":
+        company_code = session.get("company_code")
+
+        target_type = request.form.get(
+            "target_type",
+            ""
+        ).strip()
+
+        target_user = request.form.get(
+            "target_user",
+            ""
+        ).strip()
+
+        target_vehicle = request.form.get(
+            "target_vehicle",
+            ""
+        ).strip()
+
+        target_office = request.form.get(
+            "target_office",
+            ""
+        ).strip()
+
+        # =========================
+        # 対象種別検証
+        # =========================
+
+        if target_type not in {
+            "user",
+            "vehicle",
+            "office"
+        }:
+            return "対象種別が不正です。", 400
+
+        # =========================
+        # 個人
+        # =========================
+
+        if target_type == "user":
+            if not target_user:
+                return "対象ユーザーを選択してください。", 400
+
+            target_driver = Driver.query.filter_by(
+                company_code=company_code,
+                name=target_user
+            ).first()
+
+            if not target_driver:
+                return "対象ユーザーが不正です。", 400
+
+            target_office = target_driver.office or ""
+            target_vehicle = ""
+
+        # =========================
+        # 車両
+        # =========================
+
+        elif target_type == "vehicle":
+            if not target_vehicle:
+                return "対象車両を選択してください。", 400
+
+            vehicle = Vehicle.query.filter_by(
+                company_code=company_code,
+                vehicle_id=target_vehicle,
+                deleted=False
+            ).first()
+
+            if not vehicle:
+                return "対象車両が不正です。", 400
+
+            target_office = vehicle.office or ""
+            target_user = ""
+
+        # =========================
+        # 営業所
+        # =========================
+
+        elif target_type == "office":
+            if not target_office:
+                return "対象営業所を選択してください。", 400
+
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=target_office
+            ).first()
+
+            if not valid_office:
+                return "対象営業所が不正です。", 400
+
+            target_user = ""
+            target_vehicle = ""
+
         answers = []
         answer_index = 0
 
@@ -8573,10 +9700,10 @@ def edit_checklist_result(result_index):
 
             answer_index += 1
 
-        result_record.target_type = request.form.get("target_type")
-        result_record.target_user = request.form.get("target_user")
-        result_record.target_vehicle = request.form.get("target_vehicle")
-        result_record.target_office = request.form.get("target_office")
+        result_record.target_type = target_type
+        result_record.target_user = target_user
+        result_record.target_vehicle = target_vehicle
+        result_record.target_office = target_office
         result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
         mention_text = "\n".join(
@@ -8647,7 +9774,10 @@ def edit_checklist_result(result_index):
 
 @app.route("/safety/checklist-results/<int:result_index>/delete", methods=["POST"])
 def delete_checklist_result(result_index):
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -8679,12 +9809,12 @@ def vehicle_checklists():
 
 @app.route("/vehicle/checklists/<int:index>")
 def vehicle_checklist_results(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
-        return redirect("/vehicle/checklists")
-
-    if checklist_record.company_code != session.get("company_code"):
         return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
@@ -8875,17 +10005,84 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         ""
     ).strip()
 
-    notify_users = request.form.getlist(
-        "reminder_notify_users"
-    )
+    notify_users = [
+        name.strip()
+        for name in request.form.getlist(
+            "reminder_notify_users"
+        )
+        if name.strip()
+    ]
+
+    # =========================
+    # チェックリスト検証
+    # =========================
 
     checklist_record = Checklist.query.filter_by(
         id=checklist_index,
         company_code=company_code
     ).first()
 
-    if not checklist_record or not vehicle_id:
-        return {"ok": False}, 404
+    if not checklist_record:
+        return {
+            "ok": False,
+            "message": "チェックリストが不正です。"
+        }, 404
+
+    if checklist_record.target != "車両管理":
+        return {
+            "ok": False,
+            "message": "チェックリスト種別が不正です。"
+        }, 400
+
+    # =========================
+    # 車両検証
+    # =========================
+
+    if not vehicle_id:
+        return {
+            "ok": False,
+            "message": "車両を選択してください。"
+        }, 400
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=company_code,
+        vehicle_id=vehicle_id,
+        deleted=False
+    ).first()
+
+    if not vehicle:
+        return {
+            "ok": False,
+            "message": "車両が不正です。"
+        }, 400
+
+    # =========================
+    # 通知先ユーザー検証
+    # =========================
+
+    valid_user_names = {
+        user.name
+        for user in User.query.filter_by(
+            company_code=company_code
+        ).all()
+        if user.name
+    }
+
+    for name in notify_users:
+        if name not in valid_user_names:
+            return {
+                "ok": False,
+                "message": "通知先ユーザーが不正です。"
+            }, 400
+
+    # 重複除去
+    notify_users = list(
+        dict.fromkeys(notify_users)
+    )
+
+    # =========================
+    # 設定保存
+    # =========================
 
     setting = VehicleChecklistNotifySetting.query.filter_by(
         company_code=company_code,
@@ -8979,21 +10176,22 @@ def test_email_notification():
     methods=["POST"]
 )
 def approve_vehicle_checklist_result(result_index, approval_index):
-    result_record = VehicleChecklistResult.query.get(result_index)
+    result_record = VehicleChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
-        return redirect("/vehicle/checklists")
-
-    if result_record.company_code != session.get("company_code"):
         return redirect("/vehicle/checklists")
 
     approvals = json.loads(
         result_record.approvals_json or "[]"
     )
     if not approvals:
-        checklist_record = Checklist.query.get(
-            result_record.checklist_id
-        )
+        checklist_record = Checklist.query.filter_by(
+            id=result_record.checklist_id,
+            company_code=result_record.company_code
+        ).first()
 
         if checklist_record:
             checklist = checklist_to_dict(checklist_record)
@@ -9017,9 +10215,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     # 旧データに allow_general が無い場合は
     # 現在のチェックリストマスタから補完
     if "allow_general" not in approval:
-        checklist_record = Checklist.query.get(
-            result_record.checklist_id
-        )
+        checklist_record = Checklist.query.filter_by(
+            id=result_record.checklist_id,
+            company_code=result_record.company_code
+        ).first()
 
         if checklist_record:
             checklist = checklist_to_dict(checklist_record)
@@ -9073,9 +10272,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     db.session.commit()
 
-    checklist_record = Checklist.query.get(
-        result_record.checklist_id
-    )
+    checklist_record = Checklist.query.filter_by(
+        id=result_record.checklist_id,
+        company_code=result_record.company_code
+    ).first()
 
     if checklist_record:
         checklist = checklist_to_dict(checklist_record)
@@ -9102,19 +10302,19 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
 @app.route("/vehicle/checklist-results/<int:result_index>/excel")
 def export_vehicle_checklist_result_excel(result_index):
-    result_record = VehicleChecklistResult.query.get(result_index)
+    result_record = VehicleChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/vehicle/checklists")
-
-    if result_record.company_code != session.get("company_code"):
-        return redirect("/vehicle/checklists")
-
     result = vehicle_checklist_result_to_dict(result_record)
 
-    checklist_record = Checklist.query.get(
-        result_record.checklist_id
-    )
+    checklist_record = Checklist.query.filter_by(
+        id=result_record.checklist_id,
+        company_code=result_record.company_code
+    ).first()
 
     if not checklist_record:
         return redirect("/vehicle/checklists")
@@ -10090,41 +11290,170 @@ def export_vehicle_checklist_result_excel(result_index):
 
 @app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])
 def save_vehicle_checklist_one(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if checklist_record.company_code != session.get("company_code"):
-        return redirect("/vehicle/checklists")
-
     checklist = checklist_to_dict(checklist_record)
 
-    vehicle_id = request.form.get("vehicle_id")
-    year = request.form.get("year", "")
-    month = request.form.get("month", "")
-    day = request.form.get("day", "")
+    if checklist.get("target") != "車両管理":
+        return redirect("/vehicle/checklists")
+
+    company_code = session.get("company_code")
+
+    vehicle_id = request.form.get(
+        "vehicle_id",
+        ""
+    ).strip()
+
+    year = request.form.get(
+        "year",
+        ""
+    ).strip()
+
+    month = request.form.get(
+        "month",
+        ""
+    ).strip()
+
+    day = request.form.get(
+        "day",
+        ""
+    ).strip()
+
+    # =========================
+    # 車両検証
+    # =========================
+
+    if not vehicle_id:
+        return "対象車両を選択してください。", 400
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=company_code,
+        vehicle_id=vehicle_id,
+        deleted=False
+    ).first()
+
+    if not vehicle:
+        return "対象車両が不正です。", 400
+
+    # =========================
+    # 日付検証
+    # =========================
+
+    try:
+        year_int = int(year)
+        month_int = int(month)
+        day_int = int(day)
+    except (TypeError, ValueError):
+        return "点検日が不正です。", 400
+
+    if year_int < 2000 or year_int > 2100:
+        return "点検年が不正です。", 400
 
     if checklist.get("frequency_unit") == "year":
-        month = "01"
-        day = "01"
+        month_int = 1
+        day_int = 1
+
     elif checklist.get("display_type") == "month":
-        month = str(month).zfill(2)
-        day = str(day).zfill(2)
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        try:
+            datetime(
+                year_int,
+                month_int,
+                day_int
+            )
+        except ValueError:
+            return "点検日が不正です。", 400
+
     else:
-        month = str(month).zfill(2)
-        day = "01"
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        day_int = 1
+
+    year = str(year_int)
+    month = str(month_int).zfill(2)
+    day = str(day_int).zfill(2)
 
     active_day = request.form.get("active_day")
 
-    item_no = request.form.get("item_no")
-    category = request.form.get("category")
-    content = request.form.get("content")
-    criteria = request.form.get("criteria")
-    value = request.form.get("value")
+    item_no_raw = request.form.get(
+        "item_no",
+        ""
+    ).strip()
 
+    value = request.form.get(
+        "value",
+        ""
+    )
+
+    # =========================
+    # チェック項目検証
+    # =========================
+
+    try:
+        item_no = int(item_no_raw)
+    except (TypeError, ValueError):
+        return "チェック項目が不正です。", 400
+
+    check_items = [
+        item
+        for item in checklist.get("items", [])
+        if item.get("item_type") == "check"
+    ]
+
+    if item_no < 0 or item_no >= len(check_items):
+        return "チェック項目が不正です。", 400
+
+    checklist_item = check_items[item_no]
+
+    # 項目情報はPOST値を信用せず
+    # チェックリストマスタから取得
+    category = checklist_item.get(
+        "category",
+        ""
+    )
+
+    content = checklist_item.get(
+        "content",
+        ""
+    )
+
+    criteria = checklist_item.get(
+        "criteria",
+        ""
+    )
+
+    # =========================
+    # 回答値検証
+    # =========================
+
+    input_type = checklist_item.get(
+        "input_type",
+        ""
+    )
+
+    if input_type == "select":
+        valid_choices = [
+            str(choice)
+            for choice in checklist_item.get(
+                "choices",
+                []
+            )
+        ]
+
+        if value not in valid_choices:
+            return "回答値が不正です。", 400
+        
     result_record = VehicleChecklistResult.query.filter_by(
-        company_code=checklist_record.company_code,
+        company_code=company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
@@ -10134,7 +11463,7 @@ def save_vehicle_checklist_one(index):
 
     if not result_record:
         result_record = VehicleChecklistResult(
-            company_code=checklist_record.company_code,
+            company_code=company_code,
             checklist_id=checklist_record.id,
             vehicle_id=vehicle_id,
             year=year,
@@ -10201,40 +11530,150 @@ def save_vehicle_checklist_one(index):
 
 @app.route("/vehicle/checklists/<int:index>/save-detail", methods=["POST"])
 def save_vehicle_checklist_detail(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if checklist_record.company_code != session.get("company_code"):
-        return redirect("/vehicle/checklists")
-
     checklist = checklist_to_dict(checklist_record)
 
-    vehicle_id = request.form.get("vehicle_id")
-    year = request.form.get("year", "")
-    month = request.form.get("month", "")
-    day = request.form.get("day", "")
+    if checklist.get("target") != "車両管理":
+        return redirect("/vehicle/checklists")
+
+    company_code = session.get("company_code")
+
+    vehicle_id = request.form.get(
+        "vehicle_id",
+        ""
+    ).strip()
+
+    year = request.form.get(
+        "year",
+        ""
+    ).strip()
+
+    month = request.form.get(
+        "month",
+        ""
+    ).strip()
+
+    day = request.form.get(
+        "day",
+        ""
+    ).strip()
+
+    # =========================
+    # 車両検証
+    # =========================
+
+    if not vehicle_id:
+        return "対象車両を選択してください。", 400
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=company_code,
+        vehicle_id=vehicle_id,
+        deleted=False
+    ).first()
+
+    if not vehicle:
+        return "対象車両が不正です。", 400
+
+    # =========================
+    # 日付検証
+    # =========================
+
+    try:
+        year_int = int(year)
+        month_int = int(month)
+        day_int = int(day)
+    except (TypeError, ValueError):
+        return "点検日が不正です。", 400
+
+    if year_int < 2000 or year_int > 2100:
+        return "点検年が不正です。", 400
 
     if checklist.get("frequency_unit") == "year":
-        month = "01"
-        day = "01"
-    elif checklist.get("display_type") == "month":
-        month = str(month).zfill(2)
-        day = str(day).zfill(2)
-    else:
-        month = str(month).zfill(2)
-        day = "01"
+        month_int = 1
+        day_int = 1
 
-    content = request.form.get("content")
-    item_no = request.form.get("item_no")
-    active_day = request.form.get("active_day")
-    category = request.form.get("category")
-    criteria = request.form.get("criteria")
-    comment = request.form.get("comment")
+    elif checklist.get("display_type") == "month":
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        try:
+            datetime(
+                year_int,
+                month_int,
+                day_int
+            )
+        except ValueError:
+            return "点検日が不正です。", 400
+
+    else:
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        day_int = 1
+
+    year = str(year_int)
+    month = str(month_int).zfill(2)
+    day = str(day_int).zfill(2)
+
+    item_no_raw = request.form.get(
+        "item_no",
+        ""
+    ).strip()
+
+    active_day = request.form.get(
+        "active_day",
+        ""
+    )
+
+    comment = request.form.get(
+        "comment",
+        ""
+    )
+
+    # =========================
+    # チェック項目検証
+    # =========================
+
+    try:
+        item_no = int(item_no_raw)
+    except (TypeError, ValueError):
+        return "チェック項目が不正です。", 400
+
+    check_items = [
+        item
+        for item in checklist.get("items", [])
+        if item.get("item_type") == "check"
+    ]
+
+    if item_no < 0 or item_no >= len(check_items):
+        return "チェック項目が不正です。", 400
+
+    checklist_item = check_items[item_no]
+
+    category = checklist_item.get(
+        "category",
+        ""
+    )
+
+    content = checklist_item.get(
+        "content",
+        ""
+    )
+
+    criteria = checklist_item.get(
+        "criteria",
+        ""
+    )
 
     result_record = VehicleChecklistResult.query.filter_by(
-        company_code=checklist_record.company_code,
+        company_code=company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
@@ -10244,7 +11683,7 @@ def save_vehicle_checklist_detail(index):
 
     if not result_record:
         result_record = VehicleChecklistResult(
-            company_code=session.get("company_code"),
+            company_code=company_code,
             checklist_id=checklist_record.id,
             vehicle_id=vehicle_id,
             year=year,
@@ -10334,34 +11773,109 @@ def save_vehicle_checklist_detail(index):
 
 @app.route("/vehicle/checklists/<int:index>/complete", methods=["POST"])
 def complete_vehicle_checklist(index):
-    checklist_record = Checklist.query.get(index)
+    company_code = session.get("company_code")
+
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=company_code
+    ).first()
 
     if not checklist_record:
         return redirect("/vehicle/checklists")
 
-    if checklist_record.company_code != session.get("company_code"):
-        return redirect("/vehicle/checklists")
-
-    vehicle_id = request.form.get("vehicle_id")
-    year = request.form.get("year", "")
-    month = request.form.get("month", "")
-    day = request.form.get("day", "")
-    active_day = request.form.get("active_day", "")
-
     checklist = checklist_to_dict(checklist_record)
 
+    if checklist.get("target") != "車両管理":
+        return redirect("/vehicle/checklists")
+
+    vehicle_id = request.form.get(
+        "vehicle_id",
+        ""
+    ).strip()
+
+    year = request.form.get(
+        "year",
+        ""
+    ).strip()
+
+    month = request.form.get(
+        "month",
+        ""
+    ).strip()
+
+    day = request.form.get(
+        "day",
+        ""
+    ).strip()
+
+    active_day = request.form.get(
+        "active_day",
+        ""
+    ).strip()
+
+    # =========================
+    # 車両検証
+    # =========================
+
+    if not vehicle_id:
+        return "対象車両を選択してください。", 400
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=company_code,
+        vehicle_id=vehicle_id,
+        deleted=False
+    ).first()
+
+    if not vehicle:
+        return "対象車両が不正です。", 400
+
+    # =========================
+    # 日付検証
+    # =========================
+
+    try:
+        year_int = int(year)
+        month_int = int(month)
+        day_int = int(day)
+    except (TypeError, ValueError):
+        return "点検日が不正です。", 400
+
+    if year_int < 2000 or year_int > 2100:
+        return "点検年が不正です。", 400
+
     if checklist.get("frequency_unit") == "year":
-        month = "01"
-        day = "01"
+        month_int = 1
+        day_int = 1
+
     elif checklist.get("display_type") == "month":
-        month = str(month).zfill(2)
-        day = str(day).zfill(2)
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        try:
+            datetime(
+                year_int,
+                month_int,
+                day_int
+            )
+        except ValueError:
+            return "点検日が不正です。", 400
+
     else:
-        month = str(month).zfill(2)
-        day = "01"
+        if month_int < 1 or month_int > 12:
+            return "点検月が不正です。", 400
+
+        day_int = 1
+
+    year = str(year_int)
+    month = str(month_int).zfill(2)
+    day = str(day_int).zfill(2)
+
+    # =========================
+    # 結果取得
+    # =========================
 
     result_record = VehicleChecklistResult.query.filter_by(
-        company_code=checklist_record.company_code,
+        company_code=company_code,
         checklist_id=checklist_record.id,
         vehicle_id=vehicle_id,
         year=year,
@@ -10378,17 +11892,46 @@ def complete_vehicle_checklist(index):
             f"&active_day={active_day}"
         )
 
+    # =========================
+    # 通知先ユーザー検証
+    # =========================
+
+    notify_users = [
+        name.strip()
+        for name in request.form.getlist(
+            "notify_users"
+        )
+        if name.strip()
+    ]
+
+    valid_user_names = {
+        user.name
+        for user in User.query.filter_by(
+            company_code=company_code
+        ).all()
+        if user.name
+    }
+
+    for name in notify_users:
+        if name not in valid_user_names:
+            return "通知先ユーザーが不正です。", 400
+
+    notify_users = list(
+        dict.fromkeys(notify_users)
+    )
+
+    # =========================
+    # 完了処理
+    # =========================
+
     result_record.status = "承認待ち"
     result_record.checked_by = session.get("name")
-    result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    result_record.checked_date = (
+        datetime.now().strftime("%Y-%m-%d %H:%M")
+    )
+
     result_record.approved_by = ""
     result_record.approved_date = ""
-
-    notify_users = list(dict.fromkeys(
-        name.strip()
-        for name in request.form.getlist("notify_users")
-        if name.strip()
-    ))
 
     result_record.notify_users_json = json.dumps(
         notify_users,
@@ -10396,6 +11939,10 @@ def complete_vehicle_checklist(index):
     )
 
     db.session.commit()
+
+    # =========================
+    # 通知
+    # =========================
 
     notification_link = (
         f"/vehicle/checklists/{checklist_record.id}"
@@ -10405,33 +11952,31 @@ def complete_vehicle_checklist(index):
         f"&active_day={active_day}"
     )
 
-    for target_user in set(notify_users):
+    for target_user in notify_users:
         add_notification(
             target_user,
             "車両点検完了のお知らせ",
             (
-                f"{vehicle_id} の「{checklist_record.name}」が"
+                f"{vehicle_id} の"
+                f"「{checklist_record.name}」が"
                 f"点検完了しました。"
             ),
-            notification_link
+            notification_link,
+            company_code=company_code
         )
 
     return redirect(
-        f"/vehicle/checklists/{checklist_record.id}"
-        f"?vehicle_id={vehicle_id}"
-        f"&year={year}"
-        f"&month={month}"
-        f"&active_day={active_day}"
+        notification_link
     )
 
 @app.route("/vehicle/checklists/<int:index>/new", methods=["GET", "POST"])
 def new_vehicle_checklist_result(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
-        return redirect("/vehicle/checklists")
-
-    if checklist_record.company_code != session.get("company_code"):
         return redirect("/vehicle/checklists")
 
     checklist = checklist_to_dict(checklist_record)
@@ -10440,10 +11985,87 @@ def new_vehicle_checklist_result(index):
         return redirect("/vehicle/checklists")
 
     if request.method == "POST":
-        vehicle_id = request.form.get("vehicle_id")
-        year = request.form.get("year")
-        month = request.form.get("month")
-        day = request.form.get("day")
+        company_code = session.get("company_code")
+
+        vehicle_id = request.form.get(
+            "vehicle_id",
+            ""
+        ).strip()
+
+        year = request.form.get(
+            "year",
+            ""
+        ).strip()
+
+        month = request.form.get(
+            "month",
+            ""
+        ).strip()
+
+        day = request.form.get(
+            "day",
+            ""
+        ).strip()
+
+        # =========================
+        # 車両検証
+        # =========================
+
+        if not vehicle_id:
+            return "対象車両を選択してください。", 400
+
+        vehicle = Vehicle.query.filter_by(
+            company_code=company_code,
+            vehicle_id=vehicle_id,
+            deleted=False
+        ).first()
+
+        if not vehicle:
+            return "対象車両が不正です。", 400
+
+        # =========================
+        # 日付検証
+        # =========================
+
+        try:
+            year_int = int(year)
+            month_int = int(month)
+            day_int = int(day)
+        except (TypeError, ValueError):
+            return "点検日が不正です。", 400
+
+        if year_int < 2000 or year_int > 2100:
+            return "点検年が不正です。", 400
+
+        # 年次チェックリスト
+        if checklist.get("frequency_unit") == "year":
+            month_int = 1
+            day_int = 1
+
+        # 日単位表示
+        elif checklist.get("display_type") == "month":
+            if month_int < 1 or month_int > 12:
+                return "点検月が不正です。", 400
+
+            try:
+                datetime(
+                    year_int,
+                    month_int,
+                    day_int
+                )
+            except ValueError:
+                return "点検日が不正です。", 400
+
+        # 月単位など
+        else:
+            if month_int < 1 or month_int > 12:
+                return "点検月が不正です。", 400
+
+            day_int = 1
+
+        year = str(year_int)
+        month = str(month_int).zfill(2)
+        day = str(day_int).zfill(2)
 
         answers = []
         answer_index = 0
@@ -10452,6 +12074,32 @@ def new_vehicle_checklist_result(index):
             if item.get("item_type") == "approval":
                 continue
 
+            value = request.form.get(
+                f"answer_{answer_index}",
+                ""
+            )
+
+            input_type = item.get(
+                "input_type",
+                ""
+            )
+
+            # =========================
+            # 回答値検証
+            # =========================
+
+            if input_type == "select":
+                valid_choices = [
+                    str(choice)
+                    for choice in item.get(
+                        "choices",
+                        []
+                    )
+                ]
+
+                if value not in valid_choices:
+                    return "回答値が不正です。", 400
+                
             file_names = []
 
             uploaded_files = request.files.getlist(f"files_{answer_index}")
@@ -10467,7 +12115,7 @@ def new_vehicle_checklist_result(index):
                 "category": item.get("category", ""),
                 "content": item.get("content", ""),
                 "criteria": item.get("criteria", ""),
-                "value": request.form.get(f"answer_{answer_index}"),
+                "value": value,
                 "comment": request.form.get(f"comment_{answer_index}"),
                 "files": file_names
             })
@@ -10487,12 +12135,12 @@ def new_vehicle_checklist_result(index):
             })
 
         result = VehicleChecklistResult(
-            company_code=checklist_record.company_code,
+            company_code=company_code,
             checklist_id=checklist_record.id,
             vehicle_id=vehicle_id,
             year=year,
-            month=str(month).zfill(2),
-            day=str(day).zfill(2),
+            month=month,
+            day=day,
             checked_by=session.get("name"),
             checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
             status="承認待ち",
@@ -10523,7 +12171,7 @@ def new_vehicle_checklist_result(index):
         )
 
         return redirect(
-            f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={str(month).zfill(2)}"
+            f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}"
         )
         
     return render_template(
@@ -10538,37 +12186,110 @@ def new_vehicle_checklist_result(index):
 
 @app.route("/safety/checklists/<int:index>/new", methods=["GET", "POST"])
 def new_safety_checklist_result(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
-        return redirect("/safety/checklists")
-
-    if checklist_record.company_code != session.get("company_code"):
         return redirect("/safety/checklists")
 
     checklist = checklist_to_dict(checklist_record)
 
     if request.method == "POST":
+        company_code = session.get("company_code")
+
         answers = []
         answer_index = 0
 
-        target_type = request.form.get("target_type")
+        target_type = request.form.get(
+            "target_type",
+            ""
+        ).strip()
 
-        target_user = request.form.get("target_user") or session.get("name")
+        target_user = request.form.get(
+            "target_user",
+            ""
+        ).strip()
 
-        target_driver = Driver.query.filter_by(
-            company_code=session.get("company_code"),
-            name=target_user
-        ).first()
+        target_vehicle = request.form.get(
+            "target_vehicle",
+            ""
+        ).strip()
 
-        if target_type == "office":
-            target_office = request.form.get("target_office")
-        else:
-            target_office = (
-                target_driver.office
-                if target_driver
-                else session.get("office")
-            )
+        target_office = request.form.get(
+            "target_office",
+            ""
+        ).strip()
+
+        # =========================
+        # 対象種別検証
+        # =========================
+
+        if target_type not in {
+            "user",
+            "vehicle",
+            "office"
+        }:
+            return "対象種別が不正です。", 400
+
+        # =========================
+        # 個人
+        # =========================
+
+        if target_type == "user":
+            if not target_user:
+                return "対象ユーザーを選択してください。", 400
+
+            target_driver = Driver.query.filter_by(
+                company_code=company_code,
+                name=target_user
+            ).first()
+
+            if not target_driver:
+                return "対象ユーザーが不正です。", 400
+
+            target_office = target_driver.office or ""
+            target_vehicle = ""
+
+        # =========================
+        # 車両
+        # =========================
+
+        elif target_type == "vehicle":
+            if not target_vehicle:
+                return "対象車両を選択してください。", 400
+
+            vehicle = Vehicle.query.filter_by(
+                company_code=company_code,
+                vehicle_id=target_vehicle,
+                deleted=False
+            ).first()
+
+            if not vehicle:
+                return "対象車両が不正です。", 400
+
+            target_office = vehicle.office or ""
+            target_user = ""
+
+        # =========================
+        # 営業所
+        # =========================
+
+        elif target_type == "office":
+            if not target_office:
+                return "対象営業所を選択してください。", 400
+
+            valid_office = Office.query.filter_by(
+                company_code=company_code,
+                name=target_office
+            ).first()
+
+            if not valid_office:
+                return "対象営業所が不正です。", 400
+
+            target_user = ""
+            target_vehicle = ""
 
         for item in checklist["items"]:
             if item.get("item_type") == "approval":
@@ -10599,7 +12320,7 @@ def new_safety_checklist_result(index):
                 "patrol_link": patrol_link == "1",
             })
 
-            if patrol_link == "1":
+            if patrol_link == "1" and target_type in PATROL_VIEW_TYPES:
                 db.session.add(PatrolResult(
                     company_code=session.get("company_code"),
                     created_by_username=session.get("username"),
@@ -10637,14 +12358,12 @@ def new_safety_checklist_result(index):
                 "approved_date": "",
             })
 
-        target_type = request.form.get("target_type")
-
         result = ChecklistResult(
-            company_code=session.get("company_code"),
+            company_code=company_code,
             checklist_id=checklist_record.id,
             target_type=target_type,
             target_user=target_user,
-            target_vehicle=request.form.get("target_vehicle"),
+            target_vehicle=target_vehicle,
             target_office=target_office,
             checked_by=session.get("name"),
             checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -10652,8 +12371,14 @@ def new_safety_checklist_result(index):
             approved_date="",
             reject_reason="",
             status="承認待ち",
-            approvals_json=json.dumps(approvals, ensure_ascii=False),
-            answers_json=json.dumps(answers, ensure_ascii=False)
+            approvals_json=json.dumps(
+                approvals,
+                ensure_ascii=False
+            ),
+            answers_json=json.dumps(
+                answers,
+                ensure_ascii=False
+            )
         )
 
         db.session.add(result)
@@ -10696,12 +12421,12 @@ def new_safety_checklist_result(index):
 
 @app.route("/master/checklists/<int:index>/edit", methods=["GET", "POST"])
 def edit_checklist(index):
-    checklist_record = Checklist.query.get(index)
+    checklist_record = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist_record:
-        return redirect("/master/checklists")
-
-    if checklist_record.company_code != session.get("company_code"):
         return redirect("/master/checklists")
 
     checklist = checklist_to_dict(checklist_record)
@@ -10831,12 +12556,12 @@ def edit_checklist(index):
 
 @app.route("/master/checklists/<int:index>/delete", methods=["POST"])
 def delete_checklist(index):
-    checklist = Checklist.query.get(index)
+    checklist = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not checklist:
-        return redirect("/master/checklists")
-
-    if checklist.company_code != session.get("company_code"):
         return redirect("/master/checklists")
 
     db.session.delete(checklist)
@@ -10850,7 +12575,10 @@ def delete_checklist(index):
     methods=["POST"]
 )
 def approve_checklist_result(result_index, approval_index):
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -10859,7 +12587,10 @@ def approve_checklist_result(result_index, approval_index):
 
     approvals = result.get("approvals", [])
     if not approvals:
-        checklist_record = Checklist.query.get(result_record.checklist_id)
+        checklist_record = Checklist.query.filter_by(
+            id=result_record.checklist_id,
+            company_code=result_record.company_code
+        ).first()
 
         if checklist_record:
             checklist = checklist_to_dict(checklist_record)
@@ -10911,7 +12642,10 @@ def approve_checklist_result(result_index, approval_index):
 
 @app.route("/safety/checklist-results/<int:result_index>/reject", methods=["POST"])
 def reject_checklist_result(result_index):
-    result_record = ChecklistResult.query.get(result_index)
+    result_record = ChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -11026,7 +12760,40 @@ with app.app_context():
             )
 
     db.session.commit()
+    # =========================
+    # News テナント分離
+    # =========================
 
+    inspector = inspect(db.engine)
+
+    news_columns = [
+        column["name"]
+        for column in inspector.get_columns("news")
+    ]
+
+    if "company_code" not in news_columns:
+        db.session.execute(
+            db.text(
+                "ALTER TABLE news "
+                "ADD COLUMN company_code VARCHAR(50)"
+            )
+        )
+
+        db.session.commit()
+
+    # 既存のお知らせには会社情報が存在しないため、
+    # 他社へ誤表示されないようITC所属として隔離する
+    db.session.execute(
+        db.text(
+            "UPDATE news "
+            "SET company_code = 'ITC' "
+            "WHERE company_code IS NULL "
+            "OR company_code = ''"
+        )
+    )
+
+    db.session.commit()
+    
     checklist_columns = [
         ("notify_users_json", "TEXT"),
         (
