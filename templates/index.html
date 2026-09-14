@@ -1243,7 +1243,7 @@
 
                             <div style="
                                 width:100%;
-                                height:10px;
+                                height:6px;
                                 background:#edf2f7;
                                 border-radius:999px;
                                 overflow:hidden;
@@ -1254,11 +1254,7 @@
                                     style="
                                         width:0;
                                         height:100%;
-                                        background:linear-gradient(
-                                            90deg,
-                                            #2563eb,
-                                            #38bdf8
-                                        );
+                                        background:#3b82f6;
                                         border-radius:999px;
                                     "
                                 ></div>
@@ -1342,40 +1338,73 @@
                 ">
 
                     <div style="
-                        font-size:12px;
-                        color:#64748b;
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
                         margin-bottom:8px;
                     ">
-                        要注意対象
+                        <span style="
+                            font-size:11px;
+                            font-weight:600;
+                            color:#64748b;
+                        ">
+                            要注意対象
+                        </span>
+
+                        <span style="
+                            font-size:10px;
+                            color:#94a3b8;
+                        ">
+                            改善余地が大きい順
+                        </span>
                     </div>
 
-                    {% for target in item.target_analysis %}
 
-                        {% if target.target_type != "user" or is_dashboard_admin %}
+                    <div style="
+                        display:grid;
+                        gap:4px;
+                    ">
 
-                    <a
-                        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_id={{ target.target_label|urlencode }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}{% endif %}"
-                        onclick="event.stopPropagation();"
-                        style="
-                            display:flex;
-                            justify-content:space-between;
-                            align-items:center;
-                            gap:12px;
-                            margin-bottom:6px;
-                            font-size:13px;
-                            color:inherit;
-                            text-decoration:none;
-                            cursor:pointer;
-                        "
-                    >
+                        {% for target in item.target_analysis %}
 
-                            <span style="
-                                display:flex;
-                                align-items:center;
-                                gap:8px;
-                                min-width:0;
-                            ">
+                            {% if target.target_type != "user" or is_dashboard_admin %}
+
+                            <a
+                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_id={{ target.target_label|urlencode }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}{% endif %}"
+                                onclick="event.stopPropagation();"
+                                style="
+                                    display:flex;
+                                    align-items:center;
+                                    gap:9px;
+                                    min-height:36px;
+                                    padding:5px 8px;
+                                    border-radius:8px;
+                                    color:inherit;
+                                    text-decoration:none;
+                                    transition:background .12s ease;
+                                "
+                                onmouseover="
+                                    this.style.background='#f8fafc';
+                                "
+                                onmouseout="
+                                    this.style.background='transparent';
+                                "
+                            >
+
+                                <span style="
+                                    width:18px;
+                                    flex:0 0 18px;
+                                    text-align:center;
+                                    font-size:10px;
+                                    font-weight:700;
+                                    color:#94a3b8;
+                                ">
+                                    {{ loop.index }}
+                                </span>
+
+
                                 {% if target.target_type == "user" %}
+
                                     <img
                                         src="{{ url_for('static', filename='icons/user.png') }}"
                                         alt=""
@@ -1386,21 +1415,27 @@
                                             flex:0 0 26px;
                                         "
                                     >
+
                                 {% elif target.target_type == "vehicle" %}
 
                                     {% set target_vehicle_type_text =
-                                        ((target.vehicle_type or "") ~ " " ~ (target.body_type or ""))|lower
+                                        ((target.vehicle_type or "") ~ " " ~
+                                        (target.body_type or ""))|lower
                                     %}
 
                                     {% if "トレーラ" in target_vehicle_type_text %}
                                         {% set target_vehicle_icon = "trailer.png" %}
-                                    {% elif "トラクタ" in target_vehicle_type_text or "ヘッド" in target_vehicle_type_text %}
+                                    {% elif "トラクタ" in target_vehicle_type_text
+                                        or "ヘッド" in target_vehicle_type_text %}
                                         {% set target_vehicle_icon = "tractor.png" %}
-                                    {% elif "クレーン" in target_vehicle_type_text or "ユニック" in target_vehicle_type_text %}
+                                    {% elif "クレーン" in target_vehicle_type_text
+                                        or "ユニック" in target_vehicle_type_text %}
                                         {% set target_vehicle_icon = "crane.png" %}
-                                    {% elif "平ボディ" in target_vehicle_type_text or "平車" in target_vehicle_type_text %}
+                                    {% elif "平ボディ" in target_vehicle_type_text
+                                        or "平車" in target_vehicle_type_text %}
                                         {% set target_vehicle_icon = "flatbed.png" %}
-                                    {% elif "乗用" in target_vehicle_type_text or "普通車" in target_vehicle_type_text %}
+                                    {% elif "乗用" in target_vehicle_type_text
+                                        or "普通車" in target_vehicle_type_text %}
                                         {% set target_vehicle_icon = "car.png" %}
                                     {% else %}
                                         {% set target_vehicle_icon = "truck.png" %}
@@ -1416,7 +1451,9 @@
                                             flex:0 0 28px;
                                         "
                                     >
+
                                 {% elif target.target_type == "office" %}
+
                                     <img
                                         src="{{ url_for('static', filename='icons/office.png') }}"
                                         alt=""
@@ -1427,30 +1464,43 @@
                                             flex:0 0 26px;
                                         "
                                     >
+
                                 {% endif %}
 
+
                                 <span style="
+                                    flex:1;
+                                    min-width:0;
                                     overflow:hidden;
                                     text-overflow:ellipsis;
                                     white-space:nowrap;
+                                    font-size:12px;
+                                    font-weight:600;
+                                    color:#475569;
                                 ">
                                     {{ target.target_label }}
                                 </span>
-                            </span>
 
-                            <strong>
-                                {{ target.improvement_rate }}%
-                            </strong>
 
-                        </a>
+                                <strong style="
+                                    flex:0 0 auto;
+                                    font-size:11px;
+                                    color:#2563eb;
+                                ">
+                                    {{ target.improvement_rate }}%
+                                </strong>
 
-                        {% endif %}
+                            </a>
 
-                    {% endfor %}
+                            {% endif %}
+
+                        {% endfor %}
+
+                    </div>
 
                 </div>
 
-            {% endif %}
+                {% endif %}
             </div>
 
             {% endfor %}

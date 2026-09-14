@@ -356,7 +356,7 @@ class Checklist(db.Model):
 
     reminder_time = db.Column(
         db.String(5),
-        default="17:00",
+        default="08:00",
         nullable=False
     )
 
@@ -830,7 +830,7 @@ def checklist_to_dict(checklist):
         "print_portrait": bool(checklist.print_portrait),
         "print_half_month": bool(checklist.print_half_month),
         "reminder_enabled": bool(checklist.reminder_enabled),
-        "reminder_time": checklist.reminder_time or "17:00",
+        "reminder_time": checklist.reminder_time or "08:00",
         "items": items,
         "score_enabled": any(
             item.get("score_enabled", False)
@@ -1018,7 +1018,7 @@ def send_vehicle_checklist_reminders(company_code):
 
         reminder_time = (
             checklist.reminder_time
-            or "17:00"
+            or "8:00"
         )
 
         vehicles = Vehicle.query.filter_by(
@@ -7348,7 +7348,7 @@ def new_checklist():
         )
 
         reminder_time = (
-            request.form.get("reminder_time") or "17:00"
+            request.form.get("reminder_time") or "8:00"
         )
 
         items = []
