@@ -41,6 +41,10 @@
                 <th>車両上限</th>
                 <th>登録済み</th>
                 <th>残り</th>
+                <th>ユーザー数</th>
+                <th>ログイン回数</th>
+                <th>チェックリスト実施数</th>
+                <th>最終利用</th>
                 <th>状態</th>
                 <th>操作</th>
             </tr>
@@ -58,9 +62,12 @@
                         開く
                     </a>
                 </td>
-                <td>{{ company.vehicle_limit }}台</td>
                 <td>{{ company.vehicle_count }}台</td>
                 <td>{{ company.remaining_vehicles }}台</td>
+                <td>{{ company.user_count }}人</td>
+                <td>{{ company.login_count }}回</td>
+                <td>{{ company.checklist_result_count }}件</td>
+                <td>{{ company.last_used_at or "未利用" }}</td>
                 <td>
                     {% if company.active %}
                         <span class="status-badge status-approved">有効</span>
@@ -109,6 +116,26 @@
                 <div class="mobile-card-row">
                     <span>残り</span>
                     <strong>{{ company.remaining_vehicles }}台</strong>
+                </div>
+                
+                <div class="mobile-card-row">
+                    <span>ユーザー数</span>
+                    <strong>{{ company.user_count }}人</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>ログイン回数</span>
+                    <strong>{{ company.login_count }}回</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>チェックリスト実施数</span>
+                    <strong>{{ company.checklist_result_count }}件</strong>
+                </div>
+
+                <div class="mobile-card-row">
+                    <span>最終利用</span>
+                    <strong>{{ company.last_used_at or "未利用" }}</strong>
                 </div>
 
                 <div class="mobile-card-actions">

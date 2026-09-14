@@ -137,6 +137,48 @@ class Company(db.Model):
         default=True
     )
 
+class CompanyUsageSummary(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        unique=True,
+        nullable=False
+    )
+
+    user_count = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
+    vehicle_count = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
+    login_count = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
+    checklist_result_count = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
+    last_used_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    updated_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -466,6 +508,55 @@ def add_audit_log(
     )
 
     db.session.add(audit_log)
+
+def update_company_usage_summary(
+    company_code,
+    increment_login=False
+):
+    if not company_code:
+        return
+
+    summary = CompanyUsageSummary.query.filter_by(
+        company_code=company_code
+    ).first()
+
+    if not summary:
+        summary = CompanyUsageSummary(
+            company_code=company_code
+        )
+        db.session.add(summary)
+
+    summary.user_count = User.query.filter_by(
+        company_code=company_code
+    ).count()
+
+    summary.vehicle_count = Vehicle.query.filter_by(
+        company_code=company_code,
+        deleted=False
+    ).count()
+
+    summary.checklist_result_count = (
+        ChecklistResult.query.filter_by(
+            company_code=company_code
+        ).count()
+        +
+        VehicleChecklistResult.query.filter_by(
+            company_code=company_code
+        ).count()
+    )
+
+    if increment_login:
+        summary.login_count = (
+            summary.login_count or 0
+        ) + 1
+
+    summary.last_used_at = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    summary.updated_at = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 class Office(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2646,6 +2737,11 @@ def login():
                     username=user.username,
                 )
 
+                update_company_usage_summary(
+                    user.company_code,
+                    increment_login=True
+                )
+                
                 db.session.commit()
 
                 session.clear()
@@ -2872,6 +2968,11 @@ def mfa():
                     detail="MFA認証成功",
                     company_code=user.company_code,
                     username=user.username,
+                )
+
+                update_company_usage_summary(
+                    user.company_code,
+                    increment_login=True
                 )
 
                 db.session.commit()
@@ -3892,6 +3993,9 @@ def dashboard():
     user_name = session.get("name")
 
     company_code = session.get("company_code")
+
+    update_company_usage_summary(company_code)
+    db.session.commit()
 
     current_user = User.query.filter_by(
         company_code=company_code,
@@ -5009,10 +5113,15 @@ def itc_dashboard():
     company_summaries = []
 
     for company in companies:
-        vehicle_count = Vehicle.query.filter_by(
-            company_code=company.company_code,
-            deleted=False
-        ).count()
+        usage = CompanyUsageSummary.query.filter_by(
+            company_code=company.company_code
+        ).first()
+
+        vehicle_count = (
+            usage.vehicle_count
+            if usage
+            else 0
+        )
 
         company_summaries.append({
             "id": company.id,
@@ -5024,6 +5133,12 @@ def itc_dashboard():
             "remaining_vehicles": (
                 company.vehicle_limit - vehicle_count
             ),
+            "user_count": usage.user_count if usage else 0,
+            "login_count": usage.login_count if usage else 0,
+            "checklist_result_count": (
+                usage.checklist_result_count if usage else 0
+            ),
+            "last_used_at": usage.last_used_at if usage else None,
         })
 
     company_code = session.get("company_code")
