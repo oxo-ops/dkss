@@ -6105,203 +6105,203 @@ def import_vehicles():
                     existing_vehicle
                 )
 
-    # この会社で過去に保存した
-    # Excel車種コード → 車種名 の対応を取得
-    vehicle_type_mappings = VehicleTypeImportMapping.query.filter_by(
-        company_code=session.get("company_code")
-    ).all()
-
-    valid_vehicle_type_names = {
-        vehicle_type.name
-        for vehicle_type in VehicleType.query.filter_by(
+        # この会社で過去に保存した
+        # Excel車種コード → 車種名 の対応を取得
+        vehicle_type_mappings = VehicleTypeImportMapping.query.filter_by(
             company_code=session.get("company_code")
         ).all()
-    }
 
-    vehicle_type_mapping_dict = {
-        mapping.excel_value: mapping.vehicle_type_name
-        for mapping in vehicle_type_mappings
-        if mapping.vehicle_type_name in valid_vehicle_type_names
-    }
+        valid_vehicle_type_names = {
+            vehicle_type.name
+            for vehicle_type in VehicleType.query.filter_by(
+                company_code=session.get("company_code")
+            ).all()
+        }
 
-    for vehicle in vehicles_data:
-        vehicle["mapped_vehicle_type"] = (
-            vehicle_type_mapping_dict.get(
-                vehicle.get("vehicle_type_code", ""),
-                ""
+        vehicle_type_mapping_dict = {
+            mapping.excel_value: mapping.vehicle_type_name
+            for mapping in vehicle_type_mappings
+            if mapping.vehicle_type_name in valid_vehicle_type_names
+        }
+
+        for vehicle in vehicles_data:
+            vehicle["mapped_vehicle_type"] = (
+                vehicle_type_mapping_dict.get(
+                    vehicle.get("vehicle_type_code", ""),
+                    ""
+                )
             )
-        )
-        
-    processed_import_keys = set()
+            
+        processed_import_keys = set()
 
-    for vehicle in vehicles_data:
+        for vehicle in vehicles_data:
 
-        chassis_number = clean_preview_text(
-            vehicle.get("chassis_number")
-        )
-
-        plate_key = preview_plate_key(vehicle)
-
-        if chassis_number:
-            import_key = (
-                "chassis",
-                chassis_number
+            chassis_number = clean_preview_text(
+                vehicle.get("chassis_number")
             )
-            existing_vehicle = (
-                existing_preview_by_chassis.get(
+
+            plate_key = preview_plate_key(vehicle)
+
+            if chassis_number:
+                import_key = (
+                    "chassis",
                     chassis_number
                 )
-            )
-        else:
-            import_key = (
-                "plate",
-                *plate_key
-            )
-            existing_vehicle = (
-                existing_preview_by_plate.get(
-                    plate_key
+                existing_vehicle = (
+                    existing_preview_by_chassis.get(
+                        chassis_number
+                    )
                 )
+            else:
+                import_key = (
+                    "plate",
+                    *plate_key
+                )
+                existing_vehicle = (
+                    existing_preview_by_plate.get(
+                        plate_key
+                    )
+                )
+
+            is_excel_duplicate = (
+                import_key in processed_import_keys
             )
 
-        is_excel_duplicate = (
-            import_key in processed_import_keys
-        )
+            if existing_vehicle:
 
-        if existing_vehicle:
+                if not clean_preview_text(
+                    vehicle.get("mapped_vehicle_type")
+                ):
+                    existing_vehicle_type = clean_preview_text(
+                        existing_vehicle.type
+                    )
 
-            if not clean_preview_text(
-                vehicle.get("mapped_vehicle_type")
-            ):
-                existing_vehicle_type = clean_preview_text(
-                    existing_vehicle.type
+                    if (
+                        existing_vehicle_type
+                        in valid_vehicle_type_names
+                    ):
+                        vehicle["mapped_vehicle_type"] = (
+                            existing_vehicle_type
+                        )
+
+                if existing_vehicle.deleted:
+                    vehicle["reactivate"] = True
+                else:
+                    vehicle["reactivate"] = False
+
+                update_values = {
+                    "plate_area": clean_preview_text(
+                        vehicle.get("plate_area")
+                    ),
+                    "plate_class": clean_preview_text(
+                        vehicle.get("plate_class")
+                    ),
+                    "plate_kana": clean_preview_text(
+                        vehicle.get("plate_kana")
+                    ),
+                    "plate_number": clean_preview_text(
+                        vehicle.get("plate_number")
+                    ),
+                    "gross_vehicle_weight": preview_int(
+                        vehicle.get(
+                            "gross_vehicle_weight"
+                        )
+                    ),
+                    "model_code": clean_preview_text(
+                        vehicle.get("model_code")
+                    ),
+                    "first_registration_date":
+                        clean_preview_text(
+                            vehicle.get(
+                                "first_registration_date"
+                            )
+                        ),
+                    "inspection_expiry":
+                        clean_preview_text(
+                            vehicle.get(
+                                "inspection_expiry"
+                            )
+                        ),
+                    "manufacturer": clean_preview_text(
+                        vehicle.get("vehicle_name")
+                    ),
+                    "body_type": clean_preview_text(
+                        vehicle.get("body_type")
+                    ),
+                    "max_payload": preview_int(
+                        vehicle.get("max_payload")
+                    ),
+                }
+
+                vehicle_changed = False
+                if vehicle.get("reactivate"):
+                    vehicle_changed = True
+
+                for field_name, new_value in (
+                    update_values.items()
+                ):
+                    # Excelが空欄なら既存値を維持
+                    if new_value in ("", None):
+                        continue
+
+                    old_value = getattr(
+                        existing_vehicle,
+                        field_name
+                    )
+
+                    if isinstance(new_value, int):
+                        try:
+                            old_value = int(old_value)
+                        except (TypeError, ValueError):
+                            old_value = None
+                    else:
+                        old_value = clean_preview_text(
+                            old_value
+                        )
+
+                    if old_value != new_value:
+                        vehicle_changed = True
+                        break
+
+                mapped_vehicle_type = clean_preview_text(
+                    vehicle.get("mapped_vehicle_type")
                 )
 
                 if (
-                    existing_vehicle_type
-                    in valid_vehicle_type_names
+                    mapped_vehicle_type
+                    and clean_preview_text(existing_vehicle.type)
+                    != mapped_vehicle_type
                 ):
-                    vehicle["mapped_vehicle_type"] = (
-                        existing_vehicle_type
-                    )
-
-            if existing_vehicle.deleted:
-                vehicle["reactivate"] = True
-            else:
-                vehicle["reactivate"] = False
-
-            update_values = {
-                "plate_area": clean_preview_text(
-                    vehicle.get("plate_area")
-                ),
-                "plate_class": clean_preview_text(
-                    vehicle.get("plate_class")
-                ),
-                "plate_kana": clean_preview_text(
-                    vehicle.get("plate_kana")
-                ),
-                "plate_number": clean_preview_text(
-                    vehicle.get("plate_number")
-                ),
-                "gross_vehicle_weight": preview_int(
-                    vehicle.get(
-                        "gross_vehicle_weight"
-                    )
-                ),
-                "model_code": clean_preview_text(
-                    vehicle.get("model_code")
-                ),
-                "first_registration_date":
-                    clean_preview_text(
-                        vehicle.get(
-                            "first_registration_date"
-                        )
-                    ),
-                "inspection_expiry":
-                    clean_preview_text(
-                        vehicle.get(
-                            "inspection_expiry"
-                        )
-                    ),
-                "manufacturer": clean_preview_text(
-                    vehicle.get("vehicle_name")
-                ),
-                "body_type": clean_preview_text(
-                    vehicle.get("body_type")
-                ),
-                "max_payload": preview_int(
-                    vehicle.get("max_payload")
-                ),
-            }
-
-            vehicle_changed = False
-            if vehicle.get("reactivate"):
-                vehicle_changed = True
-
-            for field_name, new_value in (
-                update_values.items()
-            ):
-                # Excelが空欄なら既存値を維持
-                if new_value in ("", None):
-                    continue
-
-                old_value = getattr(
-                    existing_vehicle,
-                    field_name
-                )
-
-                if isinstance(new_value, int):
-                    try:
-                        old_value = int(old_value)
-                    except (TypeError, ValueError):
-                        old_value = None
-                else:
-                    old_value = clean_preview_text(
-                        old_value
-                    )
-
-                if old_value != new_value:
                     vehicle_changed = True
-                    break
+                        
+                if vehicle_changed:
+                    vehicle["import_status"] = "更新"
+                else:
+                    vehicle["import_status"] = (
+                        "変更なし"
+                    )
 
-            mapped_vehicle_type = clean_preview_text(
-                vehicle.get("mapped_vehicle_type")
-            )
-
-            if (
-                mapped_vehicle_type
-                and clean_preview_text(existing_vehicle.type)
-                != mapped_vehicle_type
-            ):
-                vehicle_changed = True
-                    
-            if vehicle_changed:
-                vehicle["import_status"] = "更新"
             else:
-                vehicle["import_status"] = (
-                    "変更なし"
-                )
+                vehicle["import_status"] = "新規"
 
-        else:
-            vehicle["import_status"] = "新規"
-
-        vehicle["base_import_status"] = (
-            vehicle["import_status"]
-        )
-
-        if is_excel_duplicate:
-            vehicle["import_status"] = (
-                "Excel内重複"
+            vehicle["base_import_status"] = (
+                vehicle["import_status"]
             )
-        processed_import_keys.add(import_key)
+
+            if is_excel_duplicate:
+                vehicle["import_status"] = (
+                    "Excel内重複"
+                )
+            processed_import_keys.add(import_key)
 
 
 
-    return render_template(
-        "vehicle_import_preview.html",
-        vehicles=vehicles_data,
-        vehicle_types=vehicle_types_for_current_company(),
-        vehicle_type_mapping_dict=vehicle_type_mapping_dict,
-    )
+        return render_template(
+            "vehicle_import_preview.html",
+            vehicles=vehicles_data,
+            vehicle_types=vehicle_types_for_current_company(),
+            vehicle_type_mapping_dict=vehicle_type_mapping_dict,
+        )
     
     return render_template(
         "vehicle_import.html"
