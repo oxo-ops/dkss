@@ -1852,8 +1852,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         const button = document.createElement("button");
                         button.type = "button";
-                        button.className = "btn-small";
-                        button.textContent = "追加";
+                        button.title = "使用車両に追加";
+                        button.setAttribute("aria-label", "使用車両に追加");
+
+                        button.textContent = "＋";
+
+                        button.style.cssText = `
+                            flex:0 0 28px;
+                            width:28px;
+                            height:28px;
+                            padding:0;
+                            border:1px solid #dbeafe;
+                            border-radius:8px;
+                            background:#f8fbff;
+                            color:#2563eb;
+                            font-size:18px;
+                            font-weight:500;
+                            line-height:1;
+                            cursor:pointer;
+                        `;
 
                         button.addEventListener("click", function () {
                             vehicleIdInput.value = vehicle.vehicle_id;

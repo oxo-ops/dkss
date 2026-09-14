@@ -12,9 +12,9 @@
         <h2>安全パトロール結果一覧</h2>
         <p class="page-lead">
             {% if view_type == "user" %}
-                ユーザー事項を表示しています。
+                ユーザーに関する記録を表示しています。
             {% else %}
-                納入先事項を表示しています。
+                納入先に関する記録を表示しています。
             {% endif %}
         </p>
     </div>
@@ -24,10 +24,11 @@
 
 <div class="tabs">
     <a class="tab {% if view_type == 'user' %}active{% endif %}" href="/pointouts?type=user">
-        ユーザー事項
+        ユーザーに関する記録
     </a>
+
     <a class="tab {% if view_type == 'delivery_place' %}active{% endif %}" href="/pointouts?type=delivery_place">
-        納入先事項
+        納入先に関する記録
     </a>
 </div>
 

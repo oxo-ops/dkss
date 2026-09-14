@@ -253,22 +253,53 @@
                 <td>{{ item.content }}</td>
 
                 <td>
-                    {% if item.input_type == "select" %}
-                        <select
-                            name="answer_{{ ns.answer_index }}"
-                            {% if item.choices %}required{% endif %}
-                        >
-                            <option value="">選択</option>
+                {% if item.input_type == "select" %}
 
-                            {% for choice in item.choices %}
-                                <option
-                                    value="{{ choice }}"
-                                    {% if saved_answer and saved_answer.value == choice %}selected{% endif %}
-                                >
-                                    {{ choice }}
-                                </option>
-                            {% endfor %}
-                        </select>
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:6px;
+                    flex-wrap:wrap;
+                ">
+
+                    {% for choice in item.choices %}
+
+                        <label style="
+                            display:inline-flex;
+                            align-items:center;
+                            gap:5px;
+                            padding:6px 9px;
+                            border:1px solid #dbe3ea;
+                            border-radius:8px;
+                            background:#fff;
+                            cursor:pointer;
+                            font-size:12px;
+                            white-space:nowrap;
+                        ">
+
+                            <input
+                                type="radio"
+                                name="answer_{{ ns.answer_index }}"
+                                value="{{ choice }}"
+                                {% if saved_answer and saved_answer.value == choice %}
+                                    checked
+                                {% endif %}
+                                {% if item.choices %}required{% endif %}
+                                style="
+                                    width:15px;
+                                    height:15px;
+                                    margin:0;
+                                    cursor:pointer;
+                                "
+                            >
+
+                            <span>{{ choice }}</span>
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
                     {% else %}
                         <textarea
                             name="answer_{{ ns.answer_index }}"
