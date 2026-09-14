@@ -5002,17 +5002,15 @@ def itc_dashboard():
     if not require_itc():
         return redirect("/")
 
-    company_code = session.get("company_code")
-
-    company = Company.query.filter_by(
-        company_code=company_code
-    ).first()
+    companies = Company.query.order_by(
+        Company.company_name.asc()
+    ).all()
 
     company_summaries = []
 
-    if company:
+    for company in companies:
         vehicle_count = Vehicle.query.filter_by(
-            company_code=company_code,
+            company_code=company.company_code,
             deleted=False
         ).count()
 
@@ -5027,6 +5025,8 @@ def itc_dashboard():
                 company.vehicle_limit - vehicle_count
             ),
         })
+
+    company_code = session.get("company_code")
 
     news_items = []
 
@@ -5136,8 +5136,7 @@ def itc_edit_company(index):
         return redirect("/")
 
     company = Company.query.filter_by(
-        id=index,
-        company_code=session.get("company_code")
+        id=index
     ).first()
 
     if not company:
