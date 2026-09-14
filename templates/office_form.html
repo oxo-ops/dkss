@@ -30,6 +30,7 @@
 
 <div class="card">
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label>営業所名</label>
         <input

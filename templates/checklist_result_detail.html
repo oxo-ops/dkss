@@ -299,6 +299,7 @@
                         method="post"
                         action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
                     >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-approve">
                             承認
                         </button>
@@ -316,6 +317,7 @@
             action="/safety/checklist-results/{{ result_index }}/reject"
             class="approval-form"
         >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>差し戻し理由</label>
 
             <input
@@ -355,6 +357,7 @@
         action="/safety/checklist-results/{{ result_index }}/delete"
         onsubmit="return confirm('この結果を削除しますか？');"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger-light">
             削除
         </button>

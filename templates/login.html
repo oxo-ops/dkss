@@ -9,6 +9,12 @@
 <h2>ログイン</h2>
 
 <form method="post">
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token() }}"
+    >
+
     {% if error %}
         <p style="color:red;">{{ error }}</p>
     {% endif %}

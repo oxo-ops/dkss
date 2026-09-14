@@ -19,6 +19,8 @@
 </div>
 
 <form method="post" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
     <input
         type="hidden"
         name="action"
@@ -135,6 +137,8 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 <form method="post" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
     <h3>パスワード変更</h3>
 
     {% if error %}

@@ -32,6 +32,7 @@
         enctype="multipart/form-data"
         class="responsive-form"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label>チェックリスト名</label>
         <input

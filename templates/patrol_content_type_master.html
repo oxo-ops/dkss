@@ -39,6 +39,7 @@
                     action="/master/patrol-content-types/{{ content_type.id }}/delete"
                     onsubmit="return confirm('この内容区分を削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>

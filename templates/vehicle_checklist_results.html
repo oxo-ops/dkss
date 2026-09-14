@@ -32,6 +32,7 @@
 </div>
 
 <form method="get" class="vehicle-check-filter" id="vehicle_check_filter">
+    <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
 
     <div class="filter-item filter-vehicle">
 
@@ -191,6 +192,7 @@
         style="margin-bottom:16px;"
         onsubmit="return confirm('この日の点検を完了しますか？');"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
         <input type="hidden" name="active_day" value="{{ active_day }}">
 
@@ -452,6 +454,7 @@
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
                         style="display:inline;"
                     >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-mini">
                             承認
                         </button>
@@ -492,6 +495,7 @@
 
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
                         class="inline-check-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
                         {% if display_mode == "year_list" %}
                         <input type="hidden" name="year" value="{{ day_text }}">
@@ -600,6 +604,7 @@
 
         <form method="post" enctype="multipart/form-data"
             action="/vehicle/checklists/{{ checklist_index }}/save-detail">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
             <input type="hidden" name="year" id="detailYear">
             <input type="hidden" name="month" id="detailMonth">
@@ -1091,6 +1096,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function saveReminderNotifyUsers() {
         const formData = new FormData();
+        formData.append(
+            "csrf_token",
+            "{{ csrf_token() }}"
+        );
 
         formData.append(
             "vehicle_id",

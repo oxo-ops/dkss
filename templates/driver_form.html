@@ -28,6 +28,7 @@
 
 <div class="card form-card">
     <form method="post" class="responsive-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label>氏名</label>
         <input

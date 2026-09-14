@@ -11,9 +11,11 @@ import smtplib
 from email.message import EmailMessage
 import msal
 import requests
+import secrets
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import inspect
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -21,6 +23,7 @@ from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 from zoneinfo import ZoneInfo
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 
 secret_key = os.environ.get("SECRET_KEY")
 
@@ -70,6 +73,16 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=(
+        os.environ.get("RENDER") == "true"
+    ),
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+    SESSION_REFRESH_EACH_REQUEST=True,
+)
+
 db = SQLAlchemy(app)
 class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -111,6 +124,34 @@ class User(db.Model):
 
     password = db.Column(
         db.String(255),
+        nullable=False
+    )
+
+    password_history_json = db.Column(
+        db.Text,
+        default="[]",
+        nullable=False
+    )
+
+    password_changed_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    last_login_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    failed_login_count = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
+    login_locked = db.Column(
+        db.Boolean,
+        default=False,
         nullable=False
     )
 
@@ -177,7 +218,22 @@ class User(db.Model):
         default=False,
         nullable=False
     )
-    
+
+    mfa_code_hash = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    mfa_code_expires_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    mfa_code_sent_at = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
 class Vehicle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -292,6 +348,44 @@ class Notification(db.Model):
     read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.String(20))
 
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    username = db.Column(
+        db.String(100)
+    )
+
+    action = db.Column(
+        db.String(100),
+        nullable=False
+    )
+
+    target_type = db.Column(
+        db.String(100)
+    )
+
+    target_id = db.Column(
+        db.String(100)
+    )
+
+    detail = db.Column(
+        db.Text
+    )
+
+    ip_address = db.Column(
+        db.String(100)
+    )
+
+    created_at = db.Column(
+        db.String(20),
+        nullable=False
+    )
+    
 class Office(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -1002,12 +1096,24 @@ def require_login():
             folder
         ):
             return "File not found", 404
-            
-    if request.endpoint in {"login", "static"} or request.endpoint is None:
+
+    if (
+        request.endpoint in {"login", "mfa", "static"}
+        or request.endpoint is None
+    ):
         return None
 
     if not session.get("username"):
         return redirect("/login")
+
+    if (
+        session.get("password_expired")
+        and request.endpoint not in {
+            "settings",
+            "logout"
+        }
+    ):
+        return redirect("/settings")
 
     # =========================
     # マスタ管理は管理者のみ
@@ -2198,6 +2304,101 @@ def drivers_for_current_company():
         for driver in query.all()
     ]
 
+def send_mfa_code_email(user, code):
+    if not user or not user.email_address:
+        return False
+
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_port = int(
+        os.environ.get("SMTP_PORT", "587")
+    )
+    smtp_username = os.environ.get(
+        "SMTP_USERNAME",
+        ""
+    )
+    smtp_password = os.environ.get(
+        "SMTP_PASSWORD",
+        ""
+    )
+    smtp_from = os.environ.get(
+        "SMTP_FROM",
+        smtp_username
+    )
+
+    if not smtp_host or not smtp_from:
+        return False
+
+    email = EmailMessage()
+
+    email["Subject"] = "ログイン認証コード"
+    email["From"] = smtp_from
+    email["To"] = user.email_address
+
+    email.set_content(
+        "ログイン認証コードは以下です。\n\n"
+        f"{code}\n\n"
+        "このコードの有効期限は10分です。"
+    )
+
+    try:
+        with smtplib.SMTP(
+            smtp_host,
+            smtp_port,
+            timeout=20
+        ) as server:
+            server.starttls()
+
+            if smtp_username:
+                server.login(
+                    smtp_username,
+                    smtp_password
+                )
+
+            server.send_message(email)
+
+        return True
+
+    except Exception as e:
+        print("MFAメール送信エラー:", e)
+        return False
+    
+def create_mfa_code(user):
+    now = datetime.now()
+
+    if user.mfa_code_sent_at:
+        try:
+            last_sent_at = datetime.strptime(
+                user.mfa_code_sent_at,
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+            if (
+                now - last_sent_at
+                < timedelta(seconds=60)
+            ):
+                return None
+
+        except ValueError:
+            pass
+
+    code = f"{secrets.randbelow(1000000):06d}"
+
+    user.mfa_code_hash = generate_password_hash(
+        code
+    )
+
+    user.mfa_code_expires_at = (
+        now + timedelta(minutes=10)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    user.mfa_code_sent_at = now.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    db.session.commit()
+
+    return code
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -2212,38 +2413,271 @@ def login():
             username=username
         ).first()
 
-        if user and check_password_hash(user.password, password):
+        if user and user.login_locked:
+            error = (
+                "アカウントがロックされています。"
+                "管理者へお問い合わせください。"
+            )
+
+        elif user and check_password_hash(
+            user.password,
+            password
+        ):
+
+            now = datetime.now()
+
+            if user.last_login_at:
+                try:
+                    last_login_at = datetime.strptime(
+                        user.last_login_at,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                    if (
+                        now - last_login_at
+                        >= timedelta(days=90)
+                    ):
+                        user.login_locked = True
+                        db.session.commit()
+
+                        return render_template(
+                            "login.html",
+                            error=(
+                                "90日以上ログインがなかったため、"
+                                "アカウントがロックされました。"
+                                "管理者へお問い合わせください。"
+                            )
+                        )
+
+                except ValueError:
+                    pass
+
+            user.failed_login_count = 0
+
+            password_expired = False
+
+            if user.password_changed_at:
+                try:
+                    password_changed_at = datetime.strptime(
+                        user.password_changed_at,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                    password_expired = (
+                        datetime.now() - password_changed_at
+                        >= timedelta(days=90)
+                    )
+
+                except ValueError:
+                    password_expired = True
+            else:
+                # 既存ユーザーは導入時点から90日を数える
+                user.password_changed_at = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+            db.session.commit()
 
             company = get_company(user.company_code)
+            if (
+                user.role != "itc"
+                and (
+                    not company
+                    or not company.active
+                )
+            ):
+                return render_template(
+                    "login.html",
+                    error=(
+                        "この会社は現在利用停止中です。"
+                        "ITCへお問い合わせください。"
+                    )
+                )
+            code = create_mfa_code(user)
+            if code is None:
+                return render_template(
+                    "login.html",
+                    error=(
+                        "認証コードは60秒に1回まで送信できます。"
+                        "少し待ってからもう一度お試しください。"
+                    )
+                )
+            if not send_mfa_code_email(user, code):
+                user.mfa_code_hash = None
+                user.mfa_code_expires_at = None
+                user.mfa_code_sent_at = None
+                db.session.commit()
 
-            if user.role != "itc":
-                if not company or not company.active:
-                    error = "この会社は現在利用停止中です。ITCへお問い合わせください。"
-                else:
-                    session.clear()
-                    session["company_code"] = user.company_code
-                    session["username"] = user.username
-                    session["role"] = user.role
-                    session["name"] = user.name
-                    session["office"] = user.office
-                    session["vehicles"] = json.loads(user.favorite_vehicles_json or "[]")
+                return render_template(
+                    "login.html",
+                    error=(
+                        "認証コードを送信できませんでした。"
+                        "登録メールアドレスまたは"
+                        "メール設定を確認してください。"
+                    )
+                )
 
-                    return redirect("/")
-            else:
+            session.clear()
+            session.permanent = True
+            session["mfa_pending_company_code"] = (
+                user.company_code
+            )
+            session["mfa_pending_username"] = (
+                user.username
+            )
+            session["mfa_password_expired"] = (
+                password_expired
+            )
+            session["mfa_attempts"] = 0
+
+            return redirect("/mfa")
+            
+        else:
+            if user:
+                user.failed_login_count = (
+                    user.failed_login_count or 0
+                ) + 1
+
+                if user.failed_login_count >= 10:
+                    user.login_locked = True
+
+                db.session.commit()
+
+            error = (
+                "会社コード、ユーザーID、"
+                "またはパスワードが違います。"
+            )
+
+    return render_template("login.html", error=error)
+
+@app.route("/mfa", methods=["GET", "POST"])
+def mfa():
+    company_code = session.get(
+        "mfa_pending_company_code"
+    )
+    username = session.get(
+        "mfa_pending_username"
+    )
+
+    if not company_code or not username:
+        return redirect("/login")
+
+    user = User.query.filter_by(
+        company_code=company_code,
+        username=username
+    ).first()
+
+    if not user:
+        session.clear()
+        return redirect("/login")
+
+    error = None
+
+    if request.method == "POST":
+        code = request.form.get(
+            "code",
+            ""
+        ).strip()
+
+        if (
+            not user.mfa_code_hash
+            or not user.mfa_code_expires_at
+        ):
+            error = "認証コードが無効です。"
+
+        else:
+            try:
+                expires_at = datetime.strptime(
+                    user.mfa_code_expires_at,
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except ValueError:
+                expires_at = datetime.min
+
+            if datetime.now() > expires_at:
+                user.mfa_code_hash = None
+                user.mfa_code_expires_at = None
+                db.session.commit()
+
                 session.clear()
+
+                return render_template(
+                    "login.html",
+                    error=(
+                        "認証コードの有効期限が切れています。"
+                        "もう一度ログインしてください。"
+                    )
+                )
+
+            elif not check_password_hash(
+                user.mfa_code_hash,
+                code
+            ):
+                attempts = (
+                    session.get("mfa_attempts", 0) + 1
+                )
+                session["mfa_attempts"] = attempts
+
+                if attempts >= 5:
+                    user.mfa_code_hash = None
+                    user.mfa_code_expires_at = None
+                    db.session.commit()
+
+                    session.clear()
+
+                    return render_template(
+                        "login.html",
+                        error=(
+                            "認証コードを5回間違えたため、"
+                            "認証コードを無効化しました。"
+                            "もう一度ログインしてください。"
+                        )
+                    )
+
+                error = (
+                    "認証コードが違います。"
+                    f"あと{5 - attempts}回入力できます。"
+                )
+
+            else:
+                password_expired = session.get(
+                    "mfa_password_expired",
+                    False
+                )
+
+                user.mfa_code_hash = None
+                user.mfa_code_expires_at = None
+                user.last_login_at = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                db.session.commit()
+
+                session.clear()
+                session.permanent = True
                 session["company_code"] = user.company_code
                 session["username"] = user.username
                 session["role"] = user.role
                 session["name"] = user.name
                 session["office"] = user.office
-                session["vehicles"] = json.loads(user.favorite_vehicles_json or "[]")
+                session["vehicles"] = json.loads(
+                    user.favorite_vehicles_json or "[]"
+                )
+                session["password_expired"] = (
+                    password_expired
+                )
 
-                return redirect("/itc")
+                if password_expired:
+                    return redirect("/settings")
 
-        else:
-            error = "会社コード、ユーザーID、またはパスワードが違います。"
+                if user.role == "itc":
+                    return redirect("/itc")
 
-    return render_template("login.html", error=error)
+                return redirect("/")
+
+    return render_template(
+        "mfa.html",
+        error=error
+    )
 
 @app.route("/itc/news/new", methods=["GET", "POST"])
 def itc_new_news():
@@ -2714,6 +3148,34 @@ def settings():
                 "new_password_confirm"
             )
 
+            password_type_count = sum([
+                any(c.islower() for c in new_password or ""),
+                any(c.isupper() for c in new_password or ""),
+                any(c.isdigit() for c in new_password or ""),
+                any(
+                    not c.isalnum()
+                    for c in new_password or ""
+                ),
+            ])
+
+            password_history = json.loads(
+                current_user.password_history_json or "[]"
+            )
+
+            reused_password = (
+                check_password_hash(
+                    current_user.password,
+                    new_password or ""
+                )
+                or any(
+                    check_password_hash(
+                        old_password_hash,
+                        new_password or ""
+                    )
+                    for old_password_hash in password_history[-5:]
+                )
+            )
+
             if not check_password_hash(
                 current_user.password,
                 current_password
@@ -2723,13 +3185,42 @@ def settings():
             elif not new_password:
                 error = "新しいパスワードを入力してください。"
 
+            elif len(new_password) < 8:
+                error = "パスワードは8文字以上にしてください。"
+
+            elif password_type_count < 3:
+                error = (
+                    "パスワードは英大文字・英小文字・数字・記号の"
+                    "うち3種類以上を使用してください。"
+                )
+
             elif new_password != new_password_confirm:
                 error = "新しいパスワードが一致しません。"
 
+            elif reused_password:
+                error = (
+                    "現在または過去5回以内に使用した"
+                    "パスワードは使用できません。"
+                )
+
             else:
+                password_history.append(
+                    current_user.password
+                )
+
+                current_user.password_history_json = json.dumps(
+                    password_history[-5:]
+                )
+
                 current_user.password = generate_password_hash(
                     new_password
                 )
+
+                current_user.password_changed_at = (
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
+                session["password_expired"] = False
+
                 db.session.commit()
                 password_success = "パスワードを変更しました。"
 
@@ -2738,7 +3229,7 @@ def settings():
         user=current_user,
         error=error,
         notification_success=notification_success,
-        password_success=password_success
+        password_success=password_success,
     )
 
 @app.route("/api/news-targets")
@@ -6189,6 +6680,16 @@ def new_driver():
             ""
         )
 
+        password_type_count = sum([
+            any(c.islower() for c in password or ""),
+            any(c.isupper() for c in password or ""),
+            any(c.isdigit() for c in password or ""),
+            any(
+                not c.isalnum()
+                for c in password or ""
+            ),
+        ])
+
         role = request.form.get(
             "role",
             "user"
@@ -6220,6 +6721,16 @@ def new_driver():
 
         if not password:
             return "パスワードを入力してください。", 400
+
+        if len(password) < 8:
+            return "パスワードは8文字以上にしてください。", 400
+
+        if password_type_count < 3:
+            return (
+                "パスワードは英大文字・英小文字・数字・記号の"
+                "うち3種類以上を使用してください。",
+                400
+            )
 
         # =========================
         # ロール検証
@@ -6342,6 +6853,9 @@ def new_driver():
             password=generate_password_hash(
                 password
             ),
+            password_changed_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
             role=role,
             name=name,
             office=office,
@@ -6411,6 +6925,16 @@ def edit_driver(index):
             ""
         )
 
+        password_type_count = sum([
+            any(c.islower() for c in new_password or ""),
+            any(c.isupper() for c in new_password or ""),
+            any(c.isdigit() for c in new_password or ""),
+            any(
+                not c.isalnum()
+                for c in new_password or ""
+            ),
+        ])
+
         selected_vehicles = request.form.getlist(
             "vehicles"
         )
@@ -6425,6 +6949,16 @@ def edit_driver(index):
         if not name:
             return "氏名を入力してください。", 400
 
+        if new_password:
+            if len(new_password) < 8:
+                return "パスワードは8文字以上にしてください。", 400
+
+            if password_type_count < 3:
+                return (
+                    "パスワードは英大文字・英小文字・数字・記号の"
+                    "うち3種類以上を使用してください。",
+                    400
+                )
         # =========================
         # ロール検証
         # =========================
@@ -6546,6 +7080,9 @@ def edit_driver(index):
                 password=generate_password_hash(
                     new_password
                 ),
+                password_changed_at=datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
                 role=role,
                 name=name,
                 office=office,
@@ -6567,12 +7104,53 @@ def edit_driver(index):
                 ensure_ascii=False
             )
 
-            # パスワード欄が空なら現在のパスワードを維持
             if new_password:
+                password_history = json.loads(
+                    user.password_history_json or "[]"
+                )
+
+                reused_password = (
+                    check_password_hash(
+                        user.password,
+                        new_password
+                    )
+                    or any(
+                        check_password_hash(
+                            old_password_hash,
+                            new_password
+                        )
+                        for old_password_hash in password_history[-5:]
+                    )
+                )
+
+                if reused_password:
+                    return (
+                        "現在または過去5回以内に使用した"
+                        "パスワードは使用できません。",
+                        400
+                    )
+
+                password_history.append(
+                    user.password
+                )
+
+                user.password_history_json = json.dumps(
+                    password_history[-5:]
+                )
+
                 user.password = generate_password_hash(
                     new_password
                 )
 
+                user.password_changed_at = (
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
+
+                user.failed_login_count = 0
+                user.login_locked = False
+                user.last_login_at = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
         # =========================
         # Driver更新
         # =========================
@@ -7897,12 +8475,12 @@ def new_vehicle():
 
 @app.route("/master/vehicles/<int:index>/edit", methods=["GET", "POST"])
 def edit_vehicle(index):
-    vehicle = Vehicle.query.get(index)
+    vehicle = Vehicle.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not vehicle:
-        return redirect("/master/vehicles")
-
-    if vehicle.company_code != session.get("company_code"):
         return redirect("/master/vehicles")
 
     if request.method == "POST":
@@ -7969,12 +8547,12 @@ def edit_vehicle(index):
 @app.route("/master/vehicles/<int:index>/inactive", methods=["POST"])
 def toggle_vehicle_inactive(index):
 
-    vehicle = Vehicle.query.get(index)
+    vehicle = Vehicle.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not vehicle:
-        return redirect("/master/vehicles")
-
-    if vehicle.company_code != session.get("company_code"):
         return redirect("/master/vehicles")
 
     new_inactive = (
@@ -8193,12 +8771,12 @@ def bulk_active_vehicles():
 
 @app.route("/master/vehicles/<int:index>/delete", methods=["POST"])
 def delete_vehicle(index):
-    vehicle = Vehicle.query.get(index)
+    vehicle = Vehicle.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not vehicle:
-        return redirect("/master/vehicles")
-
-    if vehicle.company_code != session.get("company_code"):
         return redirect("/master/vehicles")
 
     vehicle_id = vehicle.vehicle_id
@@ -8276,12 +8854,12 @@ def new_manual():
 
 @app.route("/master/manuals/<int:index>/edit", methods=["GET", "POST"])
 def edit_manual(index):
-    manual = Manual.query.get(index)
+    manual = Manual.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not manual:
-        return redirect("/master/manuals")
-
-    if manual.company_code != session.get("company_code"):
         return redirect("/master/manuals")
 
     if request.method == "POST":
@@ -8319,12 +8897,12 @@ def edit_manual(index):
 
 @app.route("/master/manuals/<int:index>/delete", methods=["POST"])
 def delete_manual(index):
-    manual = Manual.query.get(index)
+    manual = Manual.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
 
     if not manual:
-        return redirect("/master/manuals")
-
-    if manual.company_code != session.get("company_code"):
         return redirect("/master/manuals")
 
     db.session.delete(manual)
@@ -12905,6 +13483,38 @@ with app.app_context():
         (
             "microsoft_connected",
             "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+                (
+            "failed_login_count",
+            "INTEGER NOT NULL DEFAULT 0"
+        ),
+        (
+            "login_locked",
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ),
+                (
+            "password_history_json",
+            "TEXT NOT NULL DEFAULT '[]'"
+        ),
+                (
+            "password_changed_at",
+            "VARCHAR(20)"
+        ),
+                (
+            "last_login_at",
+            "VARCHAR(20)"
+        ),
+                (
+            "mfa_code_hash",
+            "VARCHAR(255)"
+        ),
+        (
+            "mfa_code_expires_at",
+            "VARCHAR(20)"
+        ),
+        (
+            "mfa_code_sent_at",
+            "VARCHAR(20)"
         ),
         ("dashboard_settings_json", "TEXT DEFAULT '{}'")
     ]

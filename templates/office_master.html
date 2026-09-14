@@ -45,6 +45,7 @@
                     action="/master/offices/{{ office.id }}/delete"
                     onsubmit="return confirm('この営業所を削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button
                         type="submit"
                         class="btn-small btn-delete"

@@ -28,6 +28,7 @@
 
 <div class="card form-card">
     <form method="post" class="responsive-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="form-group">
             <label>内容区分名</label>

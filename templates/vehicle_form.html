@@ -28,6 +28,7 @@
 
 <div class="card form-card">
     <form method="post" class="responsive-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         {% if mode == "edit" %}
             <div class="form-group">

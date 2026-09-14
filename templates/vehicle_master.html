@@ -171,7 +171,9 @@
     id="bulk-delete-form"
     method="post"
     action="/master/vehicles/bulk-delete"
-></form>
+>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
 
 <div class="table-scroll">
 <table class="checklist-table responsive-table">
@@ -236,6 +238,7 @@
                 action="/master/vehicles/{{ vehicle.index }}/inactive"
                 style="display:flex; justify-content:center; align-items:center; margin:0;"
             >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input
                     type="checkbox"
                     name="inactive"
@@ -264,6 +267,7 @@
                     action="/master/vehicles/{{ vehicle.index }}/delete"
                     onsubmit="return confirm('この車両と関連データはすべて削除されます。\n本当に削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>
@@ -386,6 +390,7 @@
                     method="post"
                     action="/master/vehicles/{{ vehicle.index }}/inactive"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                     <input
                         type="checkbox"
@@ -412,6 +417,7 @@
                     action="/master/vehicles/{{ vehicle.index }}/delete"
                     onsubmit="return confirm('この車両と関連データはすべて削除されます。\n本当に削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>

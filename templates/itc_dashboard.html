@@ -161,6 +161,7 @@
                                 style="display:inline;"
                                 onsubmit="return confirm('このニュースを削除しますか？');"
                             >
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-mini btn-danger">
                                     削除
                                 </button>

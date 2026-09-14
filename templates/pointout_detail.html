@@ -201,6 +201,7 @@
 
     <div class="action-row">
         <form method="post" action="/pointouts/{{ index }}/approve">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn">
                 承認
             </button>
@@ -212,6 +213,7 @@
         action="/pointouts/{{ index }}/reject"
         class="approval-form"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>差し戻し理由</label>
 
         <textarea
@@ -238,6 +240,7 @@
         </a>
 
         <form method="post" action="/pointouts/{{ index }}/delete" onsubmit="return confirm('削除しますか？');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn danger">
                 削除
             </button>

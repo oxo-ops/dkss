@@ -70,6 +70,7 @@
     action="/master/delivery-places/import/confirm"
     onsubmit="return confirmDeliveryPlaceImport();"
 >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="table-scroll">
 

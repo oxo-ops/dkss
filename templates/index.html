@@ -54,6 +54,7 @@
             border-radius:14px;
         "
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="
             display:flex;
             align-items:center;
@@ -823,6 +824,8 @@
                         action="/vehicle-favorites/remove/{{ vehicle.vehicle_id }}"
                         style="margin:0;"
                     >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
                         <input
                             type="hidden"
                             name="next"
@@ -873,6 +876,7 @@
             action="/vehicle-favorites/add"
             id="dashboardVehicleForm"
         >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <input
                 type="hidden"

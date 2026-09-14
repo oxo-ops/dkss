@@ -59,6 +59,7 @@
         action="/vehicle-patrols/{{ index }}/delete"
         onsubmit="return confirm('削除しますか？');"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn danger">
             削除
         </button>

@@ -25,6 +25,7 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <label>投稿先</label>
     <select name="target_type" required>

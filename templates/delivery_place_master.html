@@ -46,6 +46,7 @@
                     action="/master/delivery-places/{{ place.id }}/delete"
                     onsubmit="return confirm('この納入先を削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>

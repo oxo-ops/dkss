@@ -16,6 +16,7 @@
 
 <div class="card">
     <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div>
             <label>発生日</label>

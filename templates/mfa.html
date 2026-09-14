@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}
+多要素認証
+{% endblock %}
+
+{% block content %}
+
+<h2>多要素認証</h2>
+
+<p>
+    6桁の認証コードを入力してください。
+</p>
+
+<form method="post">
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token() }}"
+    >
+
+    {% if error %}
+        <p style="color:red;">
+            {{ error }}
+        </p>
+    {% endif %}
+
+    <div>
+        <label>認証コード</label>
+
+        <input
+            type="text"
+            name="code"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            autocomplete="one-time-code"
+            required
+        >
+    </div>
+
+    <button type="submit">
+        認証する
+    </button>
+
+</form>
+
+{% endblock %}

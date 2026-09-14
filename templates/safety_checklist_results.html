@@ -93,6 +93,7 @@
                         action="/safety/checklist-results/{{ result.index }}/delete"
                         onsubmit="return confirm('この結果を削除しますか？');"
                     >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-small btn-delete">
                             削除
                         </button>

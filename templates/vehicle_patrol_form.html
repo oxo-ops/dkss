@@ -27,6 +27,7 @@
 </div>
 
 <form method="post" class="responsive-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="card form-card">
         <h3>基本情報</h3>

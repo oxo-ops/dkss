@@ -27,6 +27,7 @@
 </div>
 
 <form method="post" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <label>会社コード</label>
     <input

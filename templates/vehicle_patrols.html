@@ -27,6 +27,7 @@
                         method="post"
                         action="/vehicle-favorites/remove/{{ vehicle_id }}"
                     >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="tag-remove">×</button>
                     </form>
                 </span>
@@ -36,6 +37,7 @@
         </div>
 
         <form method="post" action="/vehicle-favorites/add" class="favorite-add-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="favorite-vehicle-search-wrap">
 
@@ -142,6 +144,7 @@
                 style="display:inline;"
                 onsubmit="return confirm('削除しますか？');"
             >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-small btn-delete">
                     削除
                 </button>
@@ -193,6 +196,7 @@
                     action="/vehicle-patrols/{{ patrol.index }}/delete"
                     onsubmit="return confirm('削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>
@@ -249,6 +253,7 @@
                 style="display:inline;"
                 onsubmit="return confirm('削除しますか？');"
             >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-small btn-delete">
                     削除
                 </button>
@@ -300,6 +305,7 @@
                     action="/vehicle-patrols/{{ patrol.index }}/delete"
                     onsubmit="return confirm('削除しますか？');"
                 >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>

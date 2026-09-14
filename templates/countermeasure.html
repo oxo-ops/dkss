@@ -27,6 +27,7 @@
         method="post"
         action="/pointouts/{{ index }}/countermeasure"
     >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label>対策内容</label>
 
