@@ -13,10 +13,13 @@ import msal
 import requests
 import secrets
 import zipfile
+from werkzeug.middleware.proxy_fix import ProxyFix
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy import inspect
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -24,7 +27,19 @@ from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 from zoneinfo import ZoneInfo
 app = Flask(__name__)
+
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,
+    x_proto=1,
+    x_host=1,
+)
+
 csrf = CSRFProtect(app)
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+)
 
 secret_key = os.environ.get("SECRET_KEY")
 
@@ -111,6 +126,16 @@ app.config.update(
 )
 
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+
+@app.errorhandler(413)
+def file_too_large(error):
+    return "ファイルサイズは20MB以下にしてください。", 413
+class UploadValidationError(ValueError):
+    pass
+
+@app.errorhandler(UploadValidationError)
+def handle_upload_validation_error(error):
+    return str(error), 400
 
 db = SQLAlchemy(app)
 class Company(db.Model):
@@ -495,13 +520,7 @@ def add_audit_log(
         target_type=target_type,
         target_id=str(target_id or ""),
         detail=detail,
-        ip_address=(
-            request.headers.get("X-Forwarded-For", "")
-            .split(",")[0]
-            .strip()
-            or request.remote_addr
-            or ""
-        ),
+        ip_address=request.remote_addr or "",
         created_at=datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         ),
@@ -878,17 +897,45 @@ def is_valid_uploaded_file(file, extension):
         if extension in {".docx", ".xlsx"}:
             try:
                 with zipfile.ZipFile(stream) as archive:
-                    names = archive.namelist()
+                    infos = archive.infolist()
+
+                    if len(infos) > 5000:
+                        return False
+                    if any(
+                        info.file_size > 50 * 1024 * 1024
+                        for info in infos
+                    ):
+                        return False
+
+                    total_uncompressed_size = sum(
+                        info.file_size
+                        for info in infos
+                    )
+
+                    if total_uncompressed_size > 100 * 1024 * 1024:
+                        return False
+
+                    if any(
+                        info.file_size > 1024 * 1024
+                        and info.compress_size > 0
+                        and info.file_size / info.compress_size > 100
+                        for info in infos
+                    ):
+                        return False
+                    
+                    names = [
+                        info.filename
+                        for info in infos
+                    ]
 
                     if extension == ".docx":
-                        return any(
-                            name.startswith("word/")
-                            for name in names
+                        return (
+                            "[Content_Types].xml" in names
+                            and "word/document.xml" in names
                         )
-
-                    return any(
-                        name.startswith("xl/")
-                        for name in names
+                    return (
+                        "[Content_Types].xml" in names
+                        and "xl/workbook.xml" in names
                     )
 
             except zipfile.BadZipFile:
@@ -920,13 +967,15 @@ def save_uploaded_file(file, folder=None):
     company_code = session.get("company_code")
 
     if not company_code:
-        raise ValueError("company_code is required for file upload.")
+        raise UploadValidationError(
+            "company_code is required for file upload."
+        )
 
     original_filename = secure_filename(file.filename)
     extension = os.path.splitext(original_filename)[1].lower()
 
     if extension not in ALLOWED_UPLOAD_EXTENSIONS:
-        raise ValueError(
+        raise UploadValidationError(
             "許可されていないファイル形式です。"
         )
 
@@ -934,7 +983,7 @@ def save_uploaded_file(file, folder=None):
         file,
         extension
     ):
-        raise ValueError(
+        raise UploadValidationError(
             "ファイルの内容と形式が一致しません。"
         )
 
@@ -965,6 +1014,16 @@ def save_uploaded_file(file, folder=None):
             }
         )
 
+        add_audit_log(
+            action="file_uploaded",
+            target_type="file",
+            target_id=filename,
+            detail=f"ファイルアップロード: {extension}",
+            company_code=company_code,
+        )
+
+        db.session.commit()
+
         return filename
 
     # =========================
@@ -992,6 +1051,16 @@ def save_uploaded_file(file, folder=None):
     )
 
     file.save(save_path)
+
+    add_audit_log(
+        action="file_uploaded",
+        target_type="file",
+        target_id=filename,
+        detail=f"ファイルアップロード: {extension}",
+        company_code=company_code,
+    )
+
+    db.session.commit()
 
     return filename
 
@@ -1339,6 +1408,16 @@ def add_security_headers(response):
     )
 
     response.headers["Content-Security-Policy"] = (
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+    response.headers["Content-Security-Policy-Report-Only"] = (
+        "default-src 'self'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' https:; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'"
@@ -2184,6 +2263,16 @@ def add_news(
     )
 
     db.session.add(news)
+    db.session.flush()
+
+    add_audit_log(
+        action="news_created",
+        target_type="news",
+        target_id=news.id,
+        detail=f"お知らせ作成: {news.title}",
+        company_code=news.company_code,
+    )
+
     db.session.commit()
 
 
@@ -2619,6 +2708,7 @@ def create_mfa_code(user):
     return code
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     error = None
 
@@ -2840,6 +2930,7 @@ def login():
     return render_template("login.html", error=error)
 
 @app.route("/mfa", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def mfa():
     company_code = session.get(
         "mfa_pending_company_code"
@@ -3214,6 +3305,14 @@ def itc_edit_news(index):
             ensure_ascii=False
         )
 
+        add_audit_log(
+            action="news_updated",
+            target_type="news",
+            target_id=news.id,
+            detail=f"お知らせ編集: {news.title}",
+            company_code=news.company_code,
+        )
+
         db.session.commit()
 
         return redirect("/itc")
@@ -3270,6 +3369,14 @@ def itc_delete_news(index):
 
     if not news:
         return redirect("/itc")
+
+    add_audit_log(
+        action="news_deleted",
+        target_type="news",
+        target_id=news.id,
+        detail=f"お知らせ削除: {news.title}",
+        company_code=news.company_code,
+    )
 
     db.session.delete(news)
     db.session.commit()
@@ -3614,6 +3721,7 @@ def settings():
     "/settings/email/verify",
     methods=["GET", "POST"]
 )
+@limiter.limit("5 per minute", methods=["POST"])
 def verify_email_change():
     current_user = User.query.filter_by(
         company_code=session.get("company_code"),
@@ -5096,6 +5204,14 @@ def delete_notification(index):
     if not notification:
         return redirect("/notifications")
 
+    add_audit_log(
+        action="notification_deleted",
+        target_type="notification",
+        target_id=notification.id,
+        detail=f"通知削除: {notification.title}",
+        company_code=notification.company_code,
+    )
+
     db.session.delete(notification)
     db.session.commit()
 
@@ -5234,6 +5350,13 @@ def itc_new_company():
                 )
             )
 
+        add_audit_log(
+            action="company_created",
+            target_type="company",
+            target_id=company.company_code,
+            detail=f"会社登録: {company.company_name}",
+            company_code=session.get("company_code"),
+        )
         db.session.commit()
 
         return redirect("/itc")
@@ -5261,6 +5384,14 @@ def itc_edit_company(index):
         company.company_name = request.form.get("company_name")
         company.vehicle_limit = int(request.form.get("vehicle_limit") or 0)
         company.active = request.form.get("active") == "1"
+
+        add_audit_log(
+            action="company_updated",
+            target_type="company",
+            target_id=company.company_code,
+            detail=f"会社情報変更: {company.company_name}",
+            company_code=session.get("company_code"),
+        )
 
         db.session.commit()
 
@@ -5728,6 +5859,14 @@ def edit_pointout(index):
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
+            add_audit_log(
+                action="file_deleted",
+                target_type="file",
+                target_id=delete_file,
+                detail="安全パトロール添付ファイル削除",
+                company_code=company_code,
+            )
+
         # =========================
         # 新規添付
         # =========================
@@ -5906,6 +6045,14 @@ def delete_pointout(index):
         return redirect(f"/pointouts/{index}")
 
     view_type = result.get("target_type", "user")
+
+    add_audit_log(
+        action="patrol_result_deleted",
+        target_type="patrol_result",
+        target_id=result_record.id,
+        detail=f"安全パトロール結果削除: target_type={view_type}",
+        company_code=result_record.company_code,
+    )
 
     db.session.delete(result_record)
     db.session.commit()
@@ -6202,6 +6349,14 @@ def delete_vehicle_patrol(index):
     if not patrol:
         return redirect("/vehicle-patrols")
 
+    add_audit_log(
+        action="vehicle_patrol_deleted",
+        target_type="vehicle_patrol",
+        target_id=patrol.id,
+        detail=f"車両パトロール・修理履歴削除: vehicle_id={patrol.vehicle_id}",
+        company_code=patrol.company_code,
+    )
+
     db.session.delete(patrol)
     db.session.commit()
 
@@ -6303,6 +6458,14 @@ def delete_license_type(index):
             ensure_ascii=False
         )
 
+    add_audit_log(
+        action="license_type_deleted",
+        target_type="license_type",
+        target_id=license_type.id,
+        detail=f"免許種別削除: {license_type.name}",
+        company_code=license_type.company_code,
+    )
+
     db.session.delete(license_type)
     db.session.commit()
 
@@ -6379,6 +6542,14 @@ def delete_vehicle_type(index):
     ).update(
         {"type": ""},
         synchronize_session=False
+    )
+
+    add_audit_log(
+        action="vehicle_type_deleted",
+        target_type="vehicle_type",
+        target_id=vehicle_type.id,
+        detail=f"車種削除: {vehicle_type.name}",
+        company_code=vehicle_type.company_code,
     )
 
     db.session.delete(vehicle_type)
@@ -6505,6 +6676,14 @@ def delete_office(index):
     ).update(
         {"office": ""},
         synchronize_session=False
+    )
+
+    add_audit_log(
+        action="office_deleted",
+        target_type="office",
+        target_id=office.id,
+        detail=f"営業所削除: {office.name}",
+        company_code=office.company_code,
     )
 
     db.session.delete(office)
@@ -7016,6 +7195,14 @@ def delete_delivery_place(index):
     if not place:
         return redirect("/master/delivery-places")
 
+    add_audit_log(
+        action="delivery_place_deleted",
+        target_type="delivery_place",
+        target_id=place.id,
+        detail=f"納入先削除: {place.name}",
+        company_code=place.company_code,
+    )
+
     db.session.delete(place)
     db.session.commit()
 
@@ -7090,9 +7277,16 @@ def delete_patrol_content_type(index):
     if not item:
         return redirect("/master/patrol-content-types")
 
+    add_audit_log(
+        action="patrol_content_type_deleted",
+        target_type="patrol_content_type",
+        target_id=item.id,
+        detail=f"安全パトロール内容区分削除: {item.name}",
+        company_code=item.company_code,
+    )
+
     db.session.delete(item)
     db.session.commit()
-
     return redirect("/master/patrol-content-types")
 
 @app.route("/master/drivers")
@@ -7764,9 +7958,16 @@ def delete_driver(index):
     if user:
         db.session.delete(user)
 
+    add_audit_log(
+        action="driver_deleted",
+        target_type="driver",
+        target_id=driver.employee_id,
+        detail=f"ドライバー削除: {driver.name}",
+        company_code=driver.company_code,
+    )
+
     db.session.delete(driver)
     db.session.commit()
-
     return redirect("/master/drivers")
 
 @app.route("/master/vehicles")
@@ -9218,6 +9419,14 @@ def bulk_delete_vehicles():
 
         delete_vehicle_related_data(vehicle)
 
+        add_audit_log(
+            action="vehicle_deleted",
+            target_type="vehicle",
+            target_id=vehicle.vehicle_id,
+            detail="車両一括削除による完全削除",
+            company_code=vehicle.company_code,
+        )
+
         db.session.delete(vehicle)
 
 
@@ -9235,6 +9444,12 @@ def bulk_inactive_vehicles():
     if not vehicle_indexes:
         return redirect("/master/vehicles")
 
+    vehicles_to_inactivate = Vehicle.query.filter(
+        Vehicle.id.in_(vehicle_indexes),
+        Vehicle.company_code == company_code,
+        Vehicle.deleted == False
+    ).all()
+
     Vehicle.query.filter(
         Vehicle.id.in_(vehicle_indexes),
         Vehicle.company_code == company_code
@@ -9242,6 +9457,15 @@ def bulk_inactive_vehicles():
         {"deleted": True},
         synchronize_session=False
     )
+
+    for vehicle in vehicles_to_inactivate:
+        add_audit_log(
+            action="vehicle_inactivated",
+            target_type="vehicle",
+            target_id=vehicle.vehicle_id,
+            detail="車両を一括無効化",
+            company_code=vehicle.company_code,
+        )
 
     db.session.commit()
 
@@ -9291,6 +9515,15 @@ def bulk_active_vehicles():
     for vehicle in vehicles_to_activate:
         vehicle.deleted = False
 
+    for vehicle in vehicles_to_activate:
+        add_audit_log(
+            action="vehicle_activated",
+            target_type="vehicle",
+            target_id=vehicle.vehicle_id,
+            detail="車両を一括有効化",
+            company_code=vehicle.company_code,
+        )
+        
     db.session.commit()
 
     return redirect("/master/vehicles")
@@ -9335,6 +9568,14 @@ def delete_vehicle(index):
 
     # 関連履歴も完全削除
     delete_vehicle_related_data(vehicle)
+
+    add_audit_log(
+        action="vehicle_deleted",
+        target_type="vehicle",
+        target_id=vehicle.vehicle_id,
+        detail="車両および関連履歴を完全削除",
+        company_code=vehicle.company_code,
+    )
 
     # 車両本体を完全削除
     db.session.delete(vehicle)
@@ -9430,6 +9671,14 @@ def delete_manual(index):
 
     if not manual:
         return redirect("/master/manuals")
+
+    add_audit_log(
+        action="manual_deleted",
+        target_type="manual",
+        target_id=manual.id,
+        detail=f"マニュアル削除: {manual.title}",
+        company_code=manual.company_code,
+    )
 
     db.session.delete(manual)
     db.session.commit()
@@ -10892,6 +11141,14 @@ def delete_checklist_result(result_index):
         return redirect(f"/safety/checklist-results/{result_index}")
 
     checklist_id = result_record.checklist_id
+
+    add_audit_log(
+        action="checklist_result_deleted",
+        target_type="checklist_result",
+        target_id=result_record.id,
+        detail=f"安全チェックリスト結果削除: checklist_id={checklist_id}",
+        company_code=result_record.company_code,
+    )
 
     db.session.delete(result_record)
     db.session.commit()
@@ -13668,9 +13925,16 @@ def delete_checklist(index):
     if not checklist:
         return redirect("/master/checklists")
 
+    add_audit_log(
+        action="checklist_deleted",
+        target_type="checklist",
+        target_id=checklist.id,
+        detail=f"チェックリスト削除: {checklist.name}",
+        company_code=checklist.company_code,
+    )
+
     db.session.delete(checklist)
     db.session.commit()
-
     return redirect("/master/checklists")
 
 
