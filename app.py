@@ -1412,12 +1412,6 @@ def add_security_headers(response):
     )
 
     response.headers["Content-Security-Policy"] = (
-        "object-src 'none'; "
-        "base-uri 'self'; "
-        "frame-ancestors 'none'"
-    )
-
-    response.headers["Content-Security-Policy-Report-Only"] = (
         "default-src 'self'; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
