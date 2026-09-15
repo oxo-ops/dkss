@@ -39,6 +39,10 @@ csrf = CSRFProtect(app)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
+    storage_uri=os.environ.get(
+        "RATELIMIT_STORAGE_URI",
+        "memory://",
+    ),
 )
 
 secret_key = os.environ.get("SECRET_KEY")
