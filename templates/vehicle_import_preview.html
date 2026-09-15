@@ -30,7 +30,7 @@
 
             <select
                 id="bulk-field"
-                onchange="toggleBulkVehicleTypeInputs()"
+                class="js-bulk-field"
             >
                 <option value="vehicle_type">車種</option>
                 <option value="plate_full">車番</option>
@@ -54,7 +54,7 @@
             >
             <select
                 id="bulk-old-vehicle-type"
-                style="display:none;"
+                class="is-hidden"
             >
                 <option value="">未設定</option>
 
@@ -75,7 +75,7 @@
             >
             <select
                 id="bulk-new-vehicle-type"
-                style="display:none;"
+                class="is-hidden"
             >
                 <option value="">未設定</option>
 
@@ -90,8 +90,7 @@
         <div class="form-actions">
             <button
                 type="button"
-                class="btn"
-                onclick="bulkReplace()"
+                class="btn js-bulk-replace"
             >
                 一括置換
             </button>
@@ -136,38 +135,21 @@
     登録前にすべての項目を修正できます。
 </p>
 
-<div
-    style="
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:16px;
-        margin:16px 0;
-        flex-wrap:wrap;
-        width:100%;
-    "
->
-    <div
-        style="
-            display:flex;
-            align-items:center;
-            gap:20px;
-            flex-wrap:wrap;
-        "
-    >
-        <strong style="color:green;">
+<div class="vehicle-import-summary-row">
+    <div class="vehicle-import-summary-counts">
+        <strong class="vehicle-import-status-new">
             新規：<span id="count-new">{{ import_counts.new }}</span>件
         </strong>
 
-        <strong style="color:#0066cc;">
+        <strong class="vehicle-import-status-update">
             更新：<span id="count-update">{{ import_counts.update }}</span>件
         </strong>
 
-        <strong style="color:#666;">
+        <strong class="vehicle-import-status-unchanged">
             変更なし：<span id="count-unchanged">{{ import_counts.unchanged }}</span>件
         </strong>
 
-        <strong style="color:red;">
+        <strong class="vehicle-import-status-duplicate">
             Excel内重複（取込対象外）：
             <span id="count-duplicate">{{ import_counts.duplicate }}</span>件
         </strong>
@@ -175,13 +157,7 @@
 
     <button
         type="button"
-        class="btn"
-        onclick="openImportConfirm()"
-        style="
-            margin-left:auto;
-            flex-shrink:0;
-            white-space:nowrap;
-        "
+        class="btn vehicle-import-confirm-button js-open-import-confirm"
     >
         登録・更新内容を確認
     </button>
@@ -237,22 +213,22 @@
 
                         <td class="import-status-cell">
                             {% if vehicle.import_status == "新規" %}
-                                <strong style="color:#008000;">
+                                <strong class="vehicle-import-status-new">
                                     新規
                                 </strong>
 
                             {% elif vehicle.import_status == "更新" %}
-                                <strong style="color:#0066cc;">
+                                <strong class="vehicle-import-status-update">
                                     更新
                                 </strong>
 
                             {% elif vehicle.import_status == "変更なし" %}
-                                <strong style="color:#666;">
+                                <strong class="vehicle-import-status-unchanged">
                                     変更なし
                                 </strong>
 
                             {% else %}
-                                <strong style="color:#cc0000;">
+                                <strong class="vehicle-import-status-duplicate">
                                     Excel内重複
                                 </strong>
                             {% endif %}
@@ -267,8 +243,7 @@
 
                             <select
                                 name="vehicle_type"
-                                class="bulk-vehicle_type"
-                                style="min-width:140px;"
+                                class="bulk-vehicle_type vehicle-import-type-select"
                             >
                                 <option value="">
                                     未設定
@@ -289,42 +264,38 @@
 
                         <td>
 
-                            <div style="display:flex; gap:4px; min-width:300px;">
+                            <div class="vehicle-import-plate-fields">
 
                                 <input
                                     type="text"
                                     name="plate_area"
-                                    class="bulk-plate_area"
+                                    class="bulk-plate_area vehicle-import-plate-area"
                                     value="{{ vehicle.plate_area or '' }}"
                                     placeholder="地域"
-                                    style="width:75px;"
                                 >
 
                                 <input
                                     type="text"
                                     name="plate_class"
-                                    class="bulk-plate_class"
+                                    class="bulk-plate_class vehicle-import-plate-class"
                                     value="{{ vehicle.plate_class or '' }}"
                                     placeholder="分類"
-                                    style="width:65px;"
                                 >
 
                                 <input
                                     type="text"
                                     name="plate_kana"
-                                    class="bulk-plate_kana"
+                                    class="bulk-plate_kana vehicle-import-plate-kana"
                                     value="{{ vehicle.plate_kana or '' }}"
                                     placeholder="かな"
-                                    style="width:50px;"
                                 >
 
                                 <input
                                     type="text"
                                     name="plate_number"
-                                    class="bulk-plate_number"
+                                    class="bulk-plate_number vehicle-import-plate-number"
                                     value="{{ vehicle.plate_number or '' }}"
                                     placeholder="番号"
-                                    style="width:80px;"
                                 >
 
                             </div>
@@ -426,12 +397,11 @@
         </div>
 
 
-        <div class="form-actions" style="margin-top:20px;">
+        <div class="form-actions vehicle-import-form-actions">
 
             <button
                 type="button"
-                class="btn"
-                onclick="openImportConfirm()"
+                class="btn js-open-import-confirm"
             >
                 登録・更新内容を確認
             </button>
@@ -441,55 +411,39 @@
     </form>
 <div
     id="import-confirm-modal"
-    style="
-        display:none;
-        position:fixed;
-        inset:0;
-        background:rgba(0, 0, 0, 0.45);
-        z-index:1000;
-        align-items:center;
-        justify-content:center;
-    "
+    class="vehicle-import-modal is-hidden"
 >
-    <div
-        style="
-            background:white;
-            border-radius:12px;
-            padding:28px;
-            width:min(460px, 90%);
-            box-shadow:0 10px 30px rgba(0, 0, 0, 0.25);
-        "
-    >
-        <h3 style="margin-top:0;">
+    <div class="vehicle-import-modal-box">
+        <h3 class="vehicle-import-modal-title">
             車両データを登録・更新しますか？
         </h3>
 
-        <div style="line-height:2; margin:20px 0;">
+        <div class="vehicle-import-modal-counts">
 
             <div>
                 新規登録：
-                <strong style="color:green;">
+                <strong class="vehicle-import-status-new">
                     <span id="modal-count-new">{{ import_counts.new }}</span>件
                 </strong>
             </div>
 
             <div>
                 既存車両の更新：
-                <strong style="color:#0066cc;">
+                <strong class="vehicle-import-status-update">
                     <span id="modal-count-update">{{ import_counts.update }}</span>件
                 </strong>
             </div>
 
             <div>
                 変更なし：
-                <strong style="color:#666;">
+                <strong class="vehicle-import-status-unchanged">
                     <span id="modal-count-unchanged">{{ import_counts.unchanged }}</span>件
                 </strong>
             </div>
 
             <div>
                 Excel内重複（取込対象外）：
-                <strong style="color:red;">
+                <strong class="vehicle-import-status-duplicate">
                     <span id="modal-count-duplicate">{{ import_counts.duplicate }}</span>件
                 </strong>
             </div>
@@ -500,18 +454,10 @@
             Excel内重複のデータは登録されません。
         </p>
 
-        <div
-            style="
-                display:flex;
-                justify-content:flex-end;
-                gap:12px;
-                margin-top:24px;
-            "
-        >
+        <div class="vehicle-import-modal-actions">
             <button
                 type="button"
-                class="btn btn-back"
-                onclick="closeImportConfirm()"
+                class="btn btn-back js-close-import-confirm"
             >
                 編集に戻る
             </button>
@@ -528,280 +474,6 @@
 </div>
 </div>
 
-
-<script>
-function toggleBulkVehicleTypeInputs() {
-
-    const field = document.getElementById("bulk-field").value;
-
-    const oldText = document.getElementById("bulk-old-value");
-    const newText = document.getElementById("bulk-new-value");
-
-    const oldVehicleType = document.getElementById(
-        "bulk-old-vehicle-type"
-    );
-
-    const newVehicleType = document.getElementById(
-        "bulk-new-vehicle-type"
-    );
-
-    const isVehicleType = field === "vehicle_type";
-
-    oldText.style.display = isVehicleType ? "none" : "";
-    newText.style.display = isVehicleType ? "none" : "";
-
-    oldVehicleType.style.display = isVehicleType ? "" : "none";
-    newVehicleType.style.display = isVehicleType ? "" : "none";
-}
-
-function bulkReplace() {
-
-    const field = document.getElementById("bulk-field").value;
-    const oldValue = field === "vehicle_type"
-        ? document.getElementById("bulk-old-vehicle-type").value
-        : document.getElementById("bulk-old-value").value;
-
-    const newValue = field === "vehicle_type"
-        ? document.getElementById("bulk-new-vehicle-type").value
-        : document.getElementById("bulk-new-value").value;
-
-
-    if (field !== "vehicle_type" && !oldValue) {
-        alert("現在の値を入力してください。");
-        return;
-    }
-
-
-    // 車番だけは4項目に分かれているため今回は対象外
-    if (field === "plate_full") {
-
-        alert(
-            "車番は地域名・分類番号・ひらがな・番号に分かれているため、" +
-            "個別編集してください。"
-        );
-
-        return;
-    }
-
-    const inputs = document.querySelectorAll(
-        ".bulk-" + field
-    );
-
-    let changedCount = 0;
-
-    inputs.forEach(function(input) {
-
-        if (
-            String(input.value).trim()
-            === String(oldValue).trim()
-        ) {
-            input.value = newValue;
-            changedCount += 1;
-        }
-
-    });
-
-    updateImportStatuses();
-    alert(
-        changedCount + "件変更しました。"
-    );
-
-}
-
-function getRowEditableValues(row) {
-
-    return Array.from(
-        row.querySelectorAll(
-            'input:not([type="hidden"]), select'
-        )
-    ).map(function(input) {
-        return String(input.value || "").trim();
-    });
-
-}
-
-function getImportKey(row) {
-
-    const chassisNumber = String(
-        row.querySelector(
-            '[name="chassis_number"]'
-        ).value || ""
-    ).trim();
-
-    if (chassisNumber) {
-        return "chassis:" + chassisNumber;
-    }
-
-    const plateArea = String(
-        row.querySelector(
-            '[name="plate_area"]'
-        ).value || ""
-    ).trim();
-
-    const plateClass = String(
-        row.querySelector(
-            '[name="plate_class"]'
-        ).value || ""
-    ).trim();
-
-    const plateKana = String(
-        row.querySelector(
-            '[name="plate_kana"]'
-        ).value || ""
-    ).trim();
-
-    const plateNumber = String(
-        row.querySelector(
-            '[name="plate_number"]'
-        ).value || ""
-    ).trim();
-
-    return [
-        "plate",
-        plateArea,
-        plateClass,
-        plateKana,
-        plateNumber
-    ].join(":");
-}
-
-function updateImportStatuses() {
-
-    let newCount = 0;
-    let updateCount = 0;
-    let unchangedCount = 0;
-    let duplicateCount = 0;
-    const seenImportKeys = new Set();
-
-    document.querySelectorAll(".import-row").forEach(
-        function(row) {
-
-            const initialStatus = row.dataset.initialStatus;
-            const baseStatus = row.dataset.baseStatus;
-            const statusCell = row.querySelector(
-                ".import-status-cell"
-            );
-
-            let currentStatus = baseStatus;
-            const importKey = getImportKey(row);
-
-            if (seenImportKeys.has(importKey)) {
-
-                currentStatus = "Excel内重複";
-
-            } else {
-
-                seenImportKeys.add(importKey);
-
-                if (baseStatus === "変更なし") {
-
-                    const currentValues = getRowEditableValues(row);
-                    const initialValues = JSON.parse(
-                        row.dataset.initialValues || "[]"
-                    );
-
-                    const changed = (
-                        JSON.stringify(currentValues)
-                        !== JSON.stringify(initialValues)
-                    );
-
-                    currentStatus = changed
-                        ? "更新"
-                        : "変更なし";
-                }
-            }
-
-            if (currentStatus === "新規") {
-                newCount += 1;
-                statusCell.innerHTML =
-                    '<strong style="color:#008000;">新規</strong>';
-            } else if (currentStatus === "更新") {
-                updateCount += 1;
-                statusCell.innerHTML =
-                    '<strong style="color:#0066cc;">更新</strong>';
-            } else if (currentStatus === "変更なし") {
-                unchangedCount += 1;
-                statusCell.innerHTML =
-                    '<strong style="color:#666;">変更なし</strong>';
-            } else {
-                duplicateCount += 1;
-                statusCell.innerHTML =
-                    '<strong style="color:#cc0000;">Excel内重複</strong>';
-            }
-
-        }
-    );
-
-    document.getElementById("count-new").textContent =
-        newCount;
-    document.getElementById("count-update").textContent =
-        updateCount;
-    document.getElementById("count-unchanged").textContent =
-        unchangedCount;
-    document.getElementById("count-duplicate").textContent =
-        duplicateCount;
-
-    document.getElementById("modal-count-new").textContent =
-        newCount;
-    document.getElementById("modal-count-update").textContent =
-        updateCount;
-    document.getElementById("modal-count-unchanged").textContent =
-        unchangedCount;
-    document.getElementById("modal-count-duplicate").textContent =
-        duplicateCount;
-}
-
-function openImportConfirm() {
-
-    document.getElementById(
-        "import-confirm-modal"
-    ).style.display = "flex";
-
-}
-
-
-function closeImportConfirm() {
-
-    document.getElementById(
-        "import-confirm-modal"
-    ).style.display = "none";
-
-}
-document.addEventListener(
-    "DOMContentLoaded",
-    function() {
-
-        toggleBulkVehicleTypeInputs();
-
-        document.querySelectorAll(".import-row").forEach(
-            function(row) {
-
-                row.dataset.initialValues = JSON.stringify(
-                    getRowEditableValues(row)
-                );
-
-                row.querySelectorAll(
-                    'input:not([type="hidden"]), select'
-                ).forEach(function(input) {
-
-                    input.addEventListener(
-                        "input",
-                        updateImportStatuses
-                    );
-
-                    input.addEventListener(
-                        "change",
-                        updateImportStatuses
-                    );
-
-                });
-            }
-        );
-
-        updateImportStatuses();
-    }
-);
-
-</script>
+<script src="{{ url_for('static', filename='js/vehicle_import_preview.js') }}"></script>
 
 {% endblock %}

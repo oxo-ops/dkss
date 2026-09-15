@@ -70,8 +70,7 @@
 
         <div
             id="vehicle_search_results"
-            class="vehicle-select-box"
-            style="display:none;"
+            class="vehicle-select-box is-hidden"
         ></div>
 
 
@@ -189,8 +188,7 @@
     <form
         method="post"
         action="/vehicle/checklists/{{ checklist_index }}/complete"
-        style="margin-bottom:16px;"
-        onsubmit="return confirm('この日の点検を完了しますか？');"
+        class="vehicle-check-complete-form js-vehicle-check-complete-form"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
@@ -216,7 +214,7 @@
 
         {% endif %}
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+        <div class="vehicle-check-notify-grid">
 
             <div class="notify-user-selector">
 
@@ -231,8 +229,7 @@
 
                 <div
                     id="notify_user_search_results"
-                    class="vehicle-select-box"
-                    style="display:none;"
+                    class="vehicle-select-box is-hidden"
                 ></div>
 
                 <div
@@ -256,8 +253,7 @@
 
                 <div
                     id="reminder_notify_user_search_results"
-                    class="vehicle-select-box"
-                    style="display:none;"
+                    class="vehicle-select-box is-hidden"
                 ></div>
 
                 <div
@@ -305,7 +301,7 @@
         <strong>評価基準</strong>
 
         {% if criteria_text %}
-        <div class="criteria-line" style="white-space: pre-line;">{{ criteria_text }}</div>
+       <div class="criteria-line criteria-line-pre"> {{ criteria_text }}</div>
         {% endif %}
 
         {% if item.get("criteria_files", []) %}
@@ -452,7 +448,7 @@
                     <form
                         method="post"
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
-                        style="display:inline;"
+                        class="inline-form"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-mini">
@@ -517,8 +513,10 @@
                         <input type="hidden" name="active_day" value="{{ active_day }}">
 
                         {% if item.input_type == "select" %}
-                        <select name="value" class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                            onpointerdown="rememberChecklistPosition()" onchange="saveInlineCheck(this)">
+                        <select
+                            name="value"
+                            class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %} js-inline-check-input"
+                        >
                             <option value="">-</option>
 
                             {% for choice in item.choices %}
@@ -529,17 +527,21 @@
                         </select>
                         {% else %}
                         <input type="text" name="value" value="{{ ns.answer_value }}" title="{{ ns.answer_value }}"
-                            maxlength="50" onchange="saveInlineCheck(this)">
+                            maxlength="50" class="js-inline-check-input">
                         {% endif %}
 
-                        <button type="button"
-                            class="btn-mini {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                            data-content="{{ item.content|e }}" data-category="{{ (item.category or '')|e }}"
-                            data-criteria="{{ (item.criteria or '')|e }}" data-day="{{ d }}"
-                            data-item-no="{{ item_no }}" data-comment="{{ ns.comment_text|e }}"
+                        <button
+                            type="button"
+                            class="btn-mini js-open-detail {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                            data-content="{{ item.content|e }}"
+                            data-category="{{ (item.category or '')|e }}"
+                            data-criteria="{{ (item.criteria or '')|e }}"
+                            data-day="{{ d }}"
+                            data-item-no="{{ item_no }}"
+                            data-comment="{{ ns.comment_text|e }}"
                             data-files="{{ ns.files_text|e }}"
                             data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
-                            onclick="openDetailFromButton(this)">
+                        >
                             詳細
                         </button>
                     </form>
@@ -548,19 +550,28 @@
 
                     {% if ns.answer_value or ns.has_comment or ns.has_files %}
                     {% if ns.has_comment or ns.has_files %}
-                    <button type="button" class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                        title="{{ ns.answer_value }}" data-content="{{ item.content|e }}"
-                        data-category="{{ (item.category or '')|e }}" data-criteria="{{ (item.criteria or '')|e }}"
-                        data-day="{{ d }}" data-item-no="{{ item_no }}" data-comment="{{ ns.comment_text|e }}"
+                    <button
+                        type="button"
+                        class="btn-mini js-open-detail {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                        title="{{ ns.answer_value }}"
+                        data-content="{{ item.content|e }}"
+                        data-category="{{ (item.category or '')|e }}"
+                        data-criteria="{{ (item.criteria or '')|e }}"
+                        data-day="{{ d }}"
+                        data-item-no="{{ item_no }}"
+                        data-comment="{{ ns.comment_text|e }}"
                         data-files="{{ ns.files_text|e }}"
                         data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
-                        onclick="openDetailFromButton(this)">
+                    >
                         {{ ns.answer_value }}
                     </button>
                     {% else %}
                     {% if item.input_type == "text" %}
-                    <button type="button" class="text-preview-button" data-title="{{ item.content|e }}"
-                        data-text="{{ ns.answer_value|e }}" onclick="openTextFromButton(this)"
+                    <button
+                        type="button"
+                        class="text-preview-button js-open-text"
+                        data-title="{{ item.content|e }}"
+                        data-text="{{ ns.answer_value|e }}"
                         title="{{ ns.answer_value }}">
                         {{ ns.answer_value[:2] if ns.answer_value else "詳" }}
                     </button>
@@ -592,7 +603,7 @@
 
 {% endif %}
 
-<div id="detailModal" class="modal-bg" style="display:none;">
+<div id="detailModal" class="modal-bg is-hidden">
     <div class="modal-box modal-small">
         <h3 id="detailTitle"></h3>
 
@@ -634,7 +645,7 @@
             </div>
 
             <label>写真・ファイル</label>
-            <input type="file" name="files" multiple accept="image/*,video/*,.pdf" onchange="previewDetailFiles(this)">
+            <input type="file" name="files" multiple accept="image/*,video/*,.pdf" class="js-detail-file-input">
 
             <div id="savedFilesArea"></div>
             <div id="detailPreview"></div>
@@ -646,857 +657,44 @@
 
             <div class="action-row">
                 <button type="submit" class="btn">保存</button>
-                <button type="button" class="btn btn-back" onclick="closeDetailModal()">閉じる</button>
+                <button
+                    type="button"
+                    class="btn btn-back js-close-detail-modal"
+                >
+                    閉じる
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="textModal" class="modal-bg" style="display:none;">
+<div id="textModal" class="modal-bg is-hidden">
     <div class="modal-box modal-small">
         <h3 id="textModalTitle"></h3>
         <div id="textModalBody" class="content-box"></div>
 
         <div class="action-row">
-            <button type="button" class="btn" onclick="closeTextModal()">閉じる</button>
+            <button
+                type="button"
+                class="btn js-close-text-modal"
+            >
+                閉じる
+            </button>
         </div>
     </div>
 </div>
 
-<script>
-    function openDetailFromButton(button) {
-        openDetailModal(
-            button.dataset.content,
-            button.dataset.category,
-            button.dataset.criteria,
-            button.dataset.day,
-            button.dataset.itemNo,
-            button.dataset.comment,
-            button.dataset.files,
-            button.dataset.criteriaFiles
-        );
-    }
-
-    function openTextFromButton(button) {
-        openTextModal(
-            button.dataset.title,
-            button.dataset.text
-        );
-    }
-
-    function renderFiles(areaId, filesText, titleText) {
-        const area = document.getElementById(areaId);
-        area.innerHTML = "";
-
-        if (!filesText) {
-            return;
-        }
-
-        const files = filesText.split(",").filter(function (filename) {
-            return filename.trim() !== "";
-        });
-
-        if (files.length === 0) {
-            return;
-        }
-
-        const title = document.createElement("p");
-        title.innerHTML = "<strong>" + titleText + "</strong>";
-        area.appendChild(title);
-
-        files.forEach(function (filename) {
-            const cleanName = filename.trim();
-            const ext = cleanName.split(".").pop().toLowerCase();
-            const path = "/static/uploads/" + cleanName;
-
-            if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-
-                const img = document.createElement("img");
-                img.src = path;
-                img.className = "preview-image";
-
-                img.onclick = function () {
-                    window.open(path, "_blank");
-                };
-
-                area.appendChild(img);
-
-            } else if (["mp4", "webm", "mov", "m4v"].includes(ext)) {
-
-                const video = document.createElement("video");
-                video.src = path;
-                video.controls = true;
-                video.preload = "metadata";
-                video.className = "preview-video";
-
-                area.appendChild(video);
-
-            } else if (
-                ["avi", "mkv", "mts", "m2ts", "mpg", "mpeg"].includes(ext)
-            ) {
-
-                const link = document.createElement("a");
-                link.href = path;
-                link.target = "_blank";
-                link.innerText = "▶ 動画を開く：" + cleanName;
-
-                area.appendChild(link);
-
-            } else {
-
-                const link = document.createElement("a");
-                link.href = path;
-                link.target = "_blank";
-                link.innerText = cleanName;
-
-                area.appendChild(link);
-            }
-        });
-    }
-
-    function openDetailModal(content, category, criteria, day, itemNo, comment, filesText, criteriaFilesText) {
-        document.getElementById("detailTitle").innerText = content;
-        document.getElementById("detailContent").value = content;
-        document.getElementById("detailCategory").value = category || "";
-        document.getElementById("detailCriteria").value = criteria || "";
-        document.getElementById("detailCriteriaText").innerText = criteria || "未設定";
-        if ("{{ display_mode }}" === "year_list") {
-            document.getElementById("detailYear").value = String(day);
-            document.getElementById("detailMonth").value = "01";
-            document.getElementById("detailDay").value = "01";
-        } else if ("{{ display_mode }}" === "month_list") {
-            document.getElementById("detailYear").value = "{{ year }}";
-            document.getElementById("detailMonth").value = String(day).padStart(2, "0");
-            document.getElementById("detailDay").value = "01";
-        } else {
-            document.getElementById("detailYear").value = "{{ year }}";
-            document.getElementById("detailMonth").value = "{{ month }}";
-            document.getElementById("detailDay").value = String(day).padStart(2, "0");
-        }
-        document.getElementById("detailItemNo").value = itemNo;
-
-        const commentEditor =
-            document.getElementById("detailCommentEditor");
-
-        const commentInput =
-            document.querySelector(
-                '#detailModal input[type="hidden"][name="comment"]'
-            );
-
-        if (commentEditor) {
-            renderMentionValue(
-                commentEditor,
-                comment || ""
-            );
-        }
-
-        if (commentInput) {
-            commentInput.value = comment || "";
-        }
-
-        renderFiles("criteriaFilesArea", criteriaFilesText, "評価基準ファイル：");
-        renderFiles("savedFilesArea", filesText, "登録済みファイル：");
-
-        document.getElementById("detailPreview").innerHTML = "";
-        document.getElementById("detailModal").style.display = "flex";
-    }
-
-    function closeDetailModal() {
-        document.getElementById("detailModal").style.display = "none";
-    }
-
-    function previewDetailFiles(input) {
-        const preview = document.getElementById("detailPreview");
-        preview.innerHTML = "";
-
-        Array.from(input.files).forEach(function (file) {
-            const ext = file.name.split(".").pop().toLowerCase();
-
-            if (file.type.startsWith("image/")) {
-
-                const img = document.createElement("img");
-                img.src = URL.createObjectURL(file);
-                img.className = "preview-image";
-
-                img.onclick = function () {
-                    window.open(img.src, "_blank");
-                };
-
-                preview.appendChild(img);
-
-            } else if (
-                file.type.startsWith("video/") &&
-                ["mp4", "webm", "mov", "m4v"].includes(ext)
-            ) {
-
-                const video = document.createElement("video");
-                video.src = URL.createObjectURL(file);
-                video.controls = true;
-                video.preload = "metadata";
-                video.className = "preview-video";
-
-                preview.appendChild(video);
-
-            } else if (
-                ["avi", "mkv", "mts", "m2ts", "mpg", "mpeg"].includes(ext)
-            ) {
-
-                const p = document.createElement("p");
-                p.innerText = "▶ 動画ファイル：" + file.name;
-                preview.appendChild(p);
-
-            } else {
-
-                const p = document.createElement("p");
-                p.innerText = file.name;
-                preview.appendChild(p);
-            }
-        });
-    }
-
-    function openTextModal(title, text) {
-        document.getElementById("textModalTitle").innerText = title;
-        document.getElementById("textModalBody").innerText = text || "";
-        document.getElementById("textModal").style.display = "flex";
-    }
-
-    function closeTextModal() {
-        document.getElementById("textModal").style.display = "none";
-    }
-
-    let checklistPageY = null;
-    let checklistPageX = null;
-    let checklistTableX = null;
-
-    function rememberChecklistPosition() {
-        const scrollArea = document.querySelector(".table-scroll");
-
-        checklistPageY = window.scrollY;
-        checklistPageX = window.scrollX;
-        checklistTableX = scrollArea ? scrollArea.scrollLeft : 0;
-    }
-
-    function restoreChecklistPosition() {
-        const scrollArea = document.querySelector(".table-scroll");
-
-        if (checklistPageY !== null) {
-            window.scrollTo(checklistPageX, checklistPageY);
-        }
-
-        if (scrollArea && checklistTableX !== null) {
-            scrollArea.scrollLeft = checklistTableX;
-        }
-    }
-
-    async function saveInlineCheck(input) {
-        const form = input.form;
-
-        // selectのフォーカスによる自動スクロールも解除
-        input.blur();
-
-        restoreChecklistPosition();
-
-        try {
-            const formData = new FormData(form);
-
-            await fetch(form.action, {
-                method: "POST",
-                body: formData
-            });
-
-        } catch (error) {
-            console.error("保存エラー:", error);
-        }
-
-        restoreChecklistPosition();
-
-        requestAnimationFrame(function () {
-            restoreChecklistPosition();
-        });
-
-        setTimeout(restoreChecklistPosition, 50);
-        setTimeout(restoreChecklistPosition, 200);
-    }
-
-
-</script>
-
-<script
-    type="application/json"
-    id="saved_notify_users_json"
->{{ selected_notify_users | tojson }}</script>
-
-<script
-    type="application/json"
-    id="saved_reminder_notify_users_json"
->{{ selected_reminder_notify_users | tojson }}</script>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const searchInput = document.getElementById("notify_user_search");
-    const searchResults = document.getElementById("notify_user_search_results");
-    const selectedContainer = document.getElementById("selected_notify_users");
-
-    if (!searchInput || !searchResults || !selectedContainer) {
-        return;
-    }
-
-    const selectedUsers = new Map();
-    const savedNotifyUsers = JSON.parse(
-        document.getElementById("saved_notify_users_json").textContent || "[]"
-    );
-
-    savedNotifyUsers.forEach(function (name) {
-        selectedUsers.set(name, name);
-    });
-
-    function renderSelectedUsers() {
-        selectedContainer.innerHTML = "";
-
-        selectedUsers.forEach((name, username) => {
-            const tag = document.createElement("span");
-            tag.className = "selected-vehicle-tag";
-
-            tag.innerHTML = `
-                ${name}
-                <button
-                    type="button"
-                    class="tag-remove-btn"
-                    data-username="${username}"
-                >
-                    ×
-                </button>
-
-                <input
-                    type="hidden"
-                    name="notify_users"
-                    value="${name}"
-                >
-            `;
-
-            selectedContainer.appendChild(tag);
-        });
-    }
-    renderSelectedUsers();
-
-    selectedContainer.addEventListener("click", function (event) {
-        const button = event.target.closest(".tag-remove-btn");
-
-        if (!button) {
-            return;
-        }
-
-        selectedUsers.delete(button.dataset.username);
-        renderSelectedUsers();
-    });
-
-    let searchTimer = null;
-
-    searchInput.addEventListener("input", function () {
-        clearTimeout(searchTimer);
-
-        const keyword = searchInput.value.trim();
-
-        if (!keyword) {
-            searchResults.innerHTML = "";
-            searchResults.style.display = "none";
-            return;
-        }
-
-        searchTimer = setTimeout(async function () {
-            const response = await fetch(
-                `/api/mention-users?q=${encodeURIComponent(keyword)}`
-            );
-
-            const data = await response.json();
-
-            searchResults.innerHTML = "";
-
-            if (!data.users || data.users.length === 0) {
-                searchResults.innerHTML =
-                    '<p class="help-text">該当するユーザーがいません。</p>';
-
-                searchResults.style.display = "block";
-                return;
-            }
-
-            data.users.forEach(user => {
-                const item = document.createElement("button");
-
-                item.type = "button";
-                item.className = "vehicle-select-item";
-
-                item.innerHTML = `
-                    <strong>${user.name}</strong>
-                    <span>
-                        ${user.office || ""}
-                        ${user.username ? " / " + user.username : ""}
-                    </span>
-                `;
-
-                item.addEventListener("click", function () {
-                    if (selectedUsers.has(user.name)) {
-                        // ここで「すでに追加されています」を表示
-                        return;
-                    }
-
-                    selectedUsers.set(
-                        user.name,
-                        user.name
-                    );
-
-                    renderSelectedUsers();
-
-                    searchInput.value = "";
-                    searchResults.innerHTML = "";
-                    searchResults.style.display = "none";
-                });
-
-                searchResults.appendChild(item);
-            });
-
-            searchResults.style.display = "block";
-        }, 250);
-    });
-});
-</script>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const searchInput =
-        document.getElementById("reminder_notify_user_search");
-
-    const searchResults =
-        document.getElementById("reminder_notify_user_search_results");
-
-    const selectedContainer =
-        document.getElementById("selected_reminder_notify_users");
-
-    const savedJson =
-        document.getElementById("saved_reminder_notify_users_json");
-
-    if (
-        !searchInput ||
-        !searchResults ||
-        !selectedContainer ||
-        !savedJson
-    ) {
-        return;
-    }
-
-    const selectedUsers = new Map();
-
-    const savedUsers = JSON.parse(
-        savedJson.textContent || "[]"
-    );
-
-    savedUsers.forEach(function (name) {
-        selectedUsers.set(name, name);
-    });
-
-    async function saveReminderNotifyUsers() {
-        const formData = new FormData();
-        formData.append(
-            "csrf_token",
-            "{{ csrf_token() }}"
-        );
-
-        formData.append(
-            "vehicle_id",
-            "{{ vehicle_id }}"
-        );
-
-        selectedUsers.forEach(function (name) {
-            formData.append(
-                "reminder_notify_users",
-                name
-            );
-        });
-
-        const response = await fetch(
-            "/vehicle/checklists/{{ checklist_index }}/reminder-notify-users",
-            {
-                method: "POST",
-                body: formData
-            }
-        );
-
-        if (!response.ok) {
-            console.error(
-                "点検忘れ通知先の保存に失敗しました。"
-            );
-        }
-    }
-
-    function renderSelectedUsers() {
-        selectedContainer.innerHTML = "";
-
-        selectedUsers.forEach((name, username) => {
-            const tag = document.createElement("span");
-
-            tag.className = "selected-vehicle-tag";
-
-            tag.innerHTML = `
-                ${name}
-
-                <button
-                    type="button"
-                    class="tag-remove-btn reminder-tag-remove-btn"
-                    data-username="${username}"
-                >
-                    ×
-                </button>
-            `;
-
-            selectedContainer.appendChild(tag);
-        });
-    }
-
-    renderSelectedUsers();
-
-    selectedContainer.addEventListener(
-        "click",
-        function (event) {
-
-            const button =
-                event.target.closest(
-                    ".reminder-tag-remove-btn"
-                );
-
-            if (!button) {
-                return;
-            }
-
-            selectedUsers.delete(
-                button.dataset.username
-            );
-
-            renderSelectedUsers();
-            saveReminderNotifyUsers();
-        }
-    );
-
-    let searchTimer = null;
-
-    searchInput.addEventListener(
-        "input",
-        function () {
-
-            clearTimeout(searchTimer);
-
-            const keyword =
-                searchInput.value.trim();
-
-            if (!keyword) {
-                searchResults.innerHTML = "";
-                searchResults.style.display = "none";
-                return;
-            }
-
-            searchTimer = setTimeout(
-                async function () {
-
-                    const response = await fetch(
-                        `/api/mention-users?q=${encodeURIComponent(keyword)}`
-                    );
-
-                    const data =
-                        await response.json();
-
-                    searchResults.innerHTML = "";
-
-                    if (
-                        !data.users ||
-                        data.users.length === 0
-                    ) {
-                        searchResults.innerHTML =
-                            '<p class="help-text">該当するユーザーがいません。</p>';
-
-                        searchResults.style.display =
-                            "block";
-
-                        return;
-                    }
-
-                    data.users.forEach(user => {
-
-                        const item =
-                            document.createElement(
-                                "button"
-                            );
-
-                        item.type = "button";
-
-                        item.className =
-                            "vehicle-select-item";
-
-                        item.innerHTML = `
-                            <strong>${user.name}</strong>
-
-                            <span>
-                                ${user.office || ""}
-                                ${
-                                    user.username
-                                        ? " / " + user.username
-                                        : ""
-                                }
-                            </span>
-                        `;
-
-                        item.addEventListener(
-                            "click",
-                            function () {
-
-                                if (
-                                    selectedUsers.has(
-                                        user.name
-                                    )
-                                ) {
-                                    return;
-                                }
-
-                                selectedUsers.set(
-                                    user.name,
-                                    user.name
-                                );
-
-                                renderSelectedUsers();
-                                saveReminderNotifyUsers();
-
-                                searchInput.value = "";
-
-                                searchResults.innerHTML =
-                                    "";
-
-                                searchResults.style.display =
-                                    "none";
-                            }
-                        );
-
-                        searchResults.appendChild(
-                            item
-                        );
-                    });
-
-                    searchResults.style.display =
-                        "block";
-                },
-                250
-            );
-        }
-    );
-});
-</script>
-
-<script>
-
-const vehicleSearch =
-    document.getElementById("vehicle_search");
-
-const vehicleSearchResults =
-    document.getElementById("vehicle_search_results");
-
-const vehicleId =
-    document.getElementById("vehicle_id");
-
-const selectedVehicleDisplay =
-    document.getElementById("selected_vehicle_display");
-
-let vehicleSearchTimer = null;
-
-document.querySelectorAll(".favorite-vehicle-shortcut")
-    .forEach(function (button) {
-
-        button.addEventListener("click", function () {
-
-            vehicleId.value =
-                button.dataset.vehicleId;
-
-            document.getElementById(
-                "vehicle_check_filter"
-            ).requestSubmit();
-
-        });
-
-    });
-
-vehicleSearch.addEventListener("input", function () {
-
-    clearTimeout(vehicleSearchTimer);
-
-    const keyword =
-        vehicleSearch.value.trim();
-
-
-    if (!keyword) {
-        vehicleSearchResults.innerHTML = "";
-        vehicleSearchResults.style.display = "block";
-        vehicleSearchResults.style.display = "none";
-        return;
-    }
-
-
-    vehicleSearchTimer = setTimeout(function () {
-
-        fetch(
-            "/api/vehicles?q=" +
-            encodeURIComponent(keyword) +
-            "&company_code=" +
-            encodeURIComponent("{{ checklist.company_code }}")
-        )
-        .then(response => response.json())
-        .then(data => {
-
-            vehicleSearchResults.innerHTML = "";
-            vehicleSearchResults.style.display = "block";
-
-            console.log("vehicle search:", data);
-
-
-            if (!data.results.length) {
-
-                vehicleSearchResults.innerHTML =
-                    '<p class="help-text">該当する車両がありません。</p>';
-
-                return;
-            }
-
-
-            data.results.forEach(vehicle => {
-
-                const row =
-                    document.createElement("div");
-
-                row.className =
-                    "vehicle-option";
-
-
-                const labelParts = [
-                    vehicle.vehicle_id,
-                    vehicle.number,
-                    vehicle.manufacturer,
-                    vehicle.model_code
-                ].filter(Boolean);
-
-
-                row.innerHTML = `
-                    <span class="vehicle-option-label">
-                        ${labelParts.join(" / ")}
-                    </span>
-
-                    <button
-                        type="button"
-                        class="btn-small vehicle-option-select"
-                    >
-                        選択
-                    </button>
-                `;
-
-                row.querySelector("button")
-                    .addEventListener(
-                        "click",
-                        function () {
-
-                            vehicleId.value =
-                                vehicle.vehicle_id;
-
-                            selectedVehicleDisplay.textContent =
-                                labelParts.join(" / ");
-                                document.getElementById(
-                                    "vehicle_check_filter"
-                                ).requestSubmit();
-                                vehicleSearch.value = "";
-                                vehicleSearchResults.innerHTML = "";
-                                vehicleSearchResults.style.display = "none";
-
-                        }
-                    );
-
-
-                vehicleSearchResults.appendChild(row);
-
-            });
-
-        });
-
-    }, 300);
-
-});
-
-function moveToActiveDay() {
-
-    const scrollArea =
-        document.querySelector(".table-scroll");
-
-    const activeCell =
-        document.querySelector("td.active-day-cell");
-
-    const categoryCell =
-        document.querySelector("td.fixed-category");
-
-    const itemCell =
-        document.querySelector("td.fixed-item");
-
-    if (
-        !scrollArea ||
-        !activeCell ||
-        !categoryCell ||
-        !itemCell
-    ) {
-        return;
-    }
-
-    const fixedWidth =
-        categoryCell.offsetWidth +
-        itemCell.offsetWidth;
-
-    const targetLeft =
-        activeCell.offsetLeft - fixedWidth;
-
-    scrollArea.scrollTo({
-        left: targetLeft,
-        behavior: "instant"
-    });
-}
-
-window.addEventListener("load", function () {
-    setTimeout(moveToActiveDay, 300);
-    setTimeout(moveToActiveDay, 700);
-});
-
-const vehicleFilterForm =
-    document.getElementById("vehicle_check_filter");
-
-const yearInput =
-    vehicleFilterForm.querySelector('input[name="year"]');
-
-const monthSelect =
-    vehicleFilterForm.querySelector('select[name="month"]');
-
-const activeDaySelect =
-    vehicleFilterForm.querySelector('select[name="active_day"]');
-
-
-function submitVehicleFilter() {
-    if (!vehicleId.value) {
-        return;
-    }
-
-    vehicleFilterForm.requestSubmit();
-}
-
-
-if (yearInput) {
-    yearInput.addEventListener("change", submitVehicleFilter);
-}
-
-if (monthSelect) {
-    monthSelect.addEventListener("change", submitVehicleFilter);
-}
-
-if (activeDaySelect) {
-    activeDaySelect.addEventListener("change", submitVehicleFilter);
-}
-</script>
+<div
+    id="vehicleChecklistConfig"
+    data-display-mode="{{ display_mode }}"
+    data-year="{{ year }}"
+    data-month="{{ month }}"
+    data-company-code="{{ checklist.company_code }}"
+    data-reminder-url="/vehicle/checklists/{{ checklist_index }}/reminder-notify-users"
+    data-saved-notify-users="{{ selected_notify_users | tojson | forceescape }}"
+    data-saved-reminder-notify-users="{{ selected_reminder_notify_users | tojson | forceescape }}"
+></div>
+
+<script src="{{ url_for('static', filename='js/vehicle_checklist_results.js') }}"></script>
 
 {% endblock %}

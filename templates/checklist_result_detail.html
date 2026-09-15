@@ -206,12 +206,7 @@
                                 >
                                     <img
                                         src="/static/uploads/{{ file }}"
-                                        style="
-                                            max-width: 160px;
-                                            max-height: 110px;
-                                            object-fit: contain;
-                                            border-radius: 6px;
-                                        "
+                                        class="checklist-result-attachment-image"
                                     >
                                 </a>
 
@@ -220,11 +215,7 @@
                                 <video
                                     controls
                                     preload="metadata"
-                                    style="
-                                        max-width: 180px;
-                                        max-height: 120px;
-                                        border-radius: 6px;
-                                    "
+                                    class="checklist-result-attachment-video"
                                 >
                                     <source src="/static/uploads/{{ file }}">
                                 </video>
@@ -355,7 +346,7 @@
     <form
         method="post"
         action="/safety/checklist-results/{{ result_index }}/delete"
-        onsubmit="return confirm('この結果を削除しますか？');"
+        class="js-checklist-result-delete-form"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger-light">
@@ -364,31 +355,6 @@
     </form>
 </div>
 {% endif %}
-<script>
-document.addEventListener("submit", function (event) {
-    const form = event.target;
-
-    if (
-        form.action.includes("/approve/") ||
-        form.action.includes("/reject")
-    ) {
-        sessionStorage.setItem(
-            "checklistResultScrollY",
-            window.scrollY
-        );
-    }
-});
-
-window.addEventListener("load", function () {
-    const savedScrollY = sessionStorage.getItem(
-        "checklistResultScrollY"
-    );
-
-    if (savedScrollY !== null) {
-        window.scrollTo(0, Number(savedScrollY));
-        sessionStorage.removeItem("checklistResultScrollY");
-    }
-});
-</script>
+<script src="{{ url_for('static', filename='js/checklist_result_detail.js') }}"></script>
 
 {% endblock %}
