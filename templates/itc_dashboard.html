@@ -117,7 +117,7 @@
                     <span>残り</span>
                     <strong>{{ company.remaining_vehicles }}台</strong>
                 </div>
-                
+
                 <div class="mobile-card-row">
                     <span>ユーザー数</span>
                     <strong>{{ company.user_count }}人</strong>
@@ -185,8 +185,7 @@
                             <form
                                 method="POST"
                                 action="/itc/news/{{ item.id }}/delete"
-                                style="display:inline;"
-                                onsubmit="return confirm('このニュースを削除しますか？');"
+                                class="inline-form confirm-delete-news"
                             >
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-mini btn-danger">

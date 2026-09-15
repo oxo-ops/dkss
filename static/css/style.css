@@ -3214,3 +3214,15 @@ textarea[name="item_content"]{
 .mention-rich-editor:focus:empty::before {
     color: #cbd5e1;
 }
+
+.mention-box {
+    display: none;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.mention-box.is-visible {
+    display: block;
+}
