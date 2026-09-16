@@ -98,7 +98,10 @@
         関連マニュアルを確認できます。
     </p>
 
-    <select id="manual_select" onchange="openManual()">
+    <select
+        id="manual_select"
+        class="js-manual-select"
+    >
         <option value="">マニュアルを選択してください</option>
 
         {% for manual in manuals %}
@@ -110,12 +113,11 @@
         {% endfor %}
     </select>
 
-    <div style="margin-top:12px;">
+    <div class="manual-link-area">
         <a
             id="manual_link"
-            class="btn"
+            class="btn is-hidden"
             target="_blank"
-            style="display:none;"
         >
             マニュアルを開く
         </a>
@@ -211,19 +213,6 @@
     </form>
 </div>
 
-<script>
-function openManual() {
-    const select = document.getElementById("manual_select");
-    const link = document.getElementById("manual_link");
-
-    if (select.value === "") {
-        link.style.display = "none";
-        return;
-    }
-
-    link.href = select.value;
-    link.style.display = "inline-block";
-}
-</script>
+<script src="{{ url_for('static', filename='js/edit_pointout.js') }}"></script>
 
 {% endblock %}

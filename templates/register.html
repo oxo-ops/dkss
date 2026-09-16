@@ -53,17 +53,13 @@
         required
     >
 
-    <label style="display:flex; align-items:center; gap:6px;">
+    <label class="password-toggle">
         <input
             type="checkbox"
-            onclick="
-                const password = document.getElementById('password');
-                password.type = this.checked ? 'text' : 'password';
-            "
+            class="js-password-toggle"
         >
         パスワードを表示
     </label>
-    >
 
     <label>営業所</label>
     <select name="office">
@@ -86,5 +82,7 @@
     </button>
 
 </form>
+
+<script src="{{ url_for('static', filename='js/register.js') }}"></script>
 
 {% endblock %}

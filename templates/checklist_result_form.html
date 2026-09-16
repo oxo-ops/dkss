@@ -10,78 +10,6 @@
 
 {% block content %}
 
-<style>
-.free-answer-input {
-    width: 100%;
-    min-height: 36px;
-    box-sizing: border-box;
-    resize: both;
-    transition: width 0.2s ease, height 0.2s ease;
-}
-
-.free-answer-input:focus {
-    position: relative;
-    z-index: 20;
-    width: 500px;
-    height: 160px;
-}
-
-.patrol-link-header {
-    width: 190px;
-    min-width: 190px;
-    text-align: center;
-    white-space: nowrap;
-}
-
-.patrol-link-cell {
-    width: 190px;
-    min-width: 190px;
-    text-align: center;
-}
-
-.patrol-link-checkbox {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    cursor: pointer;
-}
-
-.file-upload-cell {
-    width: 180px;
-    min-width: 180px;
-}
-
-.file-upload-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 7px 11px;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.file-upload-button:hover {
-    background: #dbeafe;
-}
-
-.file-upload-input {
-    display: none;
-}
-
-.selected-file-names {
-    margin-top: 6px;
-    font-size: 11px;
-    color: #64748b;
-    line-height: 1.4;
-    word-break: break-all;
-}
-</style>
 
 <div class="page-header">
     <h2>
@@ -126,7 +54,11 @@
         <h3>対象情報</h3>
 
         <label>対象区分</label>
-        <select name="target_type" id="target_type" onchange="switchChecklistTarget()">
+        <select
+            name="target_type"
+            id="target_type"
+            class="js-target-type"
+        >
             <option value="" {% if result and not result.target_type %}selected{% endif %}>
                 指定なし
             </option>
@@ -144,7 +76,7 @@
             </option>
         </select>
 
-        <div id="target_user_area" style="display:none;">
+        <div id="target_user_area" class="is-hidden">
             <label>対象者</label>
             <input
                 type="text"
@@ -161,7 +93,7 @@
             </datalist>
         </div>
 
-        <div id="target_vehicle_area" style="display:none;">
+        <div id="target_vehicle_area" class="is-hidden">
 
             <label>対象車両</label>
 
@@ -197,7 +129,7 @@
 
         </div>
 
-        <div id="target_office_area" style="display:none;">
+        <div id="target_office_area" class="is-hidden">
             <label>対象営業所</label>
             <select name="target_office">
                 <option value="">選択してください</option>
@@ -231,11 +163,11 @@
 
         <table class="checklist-table">
             <tr>
-                <th style="width:120px;">カテゴリ</th>
+                <th class="checklist-result-col-category">カテゴリ</th>
                 <th>チェック内容</th>
-                <th style="width:160px;">評価</th>
-                <th style="width:260px;">コメント</th>
-                <th style="width:180px;">写真・ファイル</th>
+                <th class="checklist-result-col-score">評価</th>
+                <th class="checklist-result-col-comment">コメント</th>
+                <th class="checklist-result-col-file">写真・ファイル</th>
                 <th class="patrol-link-header">
                     安全パトロールへ登録
                 </th>
@@ -256,27 +188,11 @@
                 <td>
                 {% if item.input_type == "select" %}
 
-                <div style="
-                    display:flex;
-                    align-items:center;
-                    gap:6px;
-                    flex-wrap:wrap;
-                ">
+                <div class="checklist-result-choice-group">
 
                     {% for choice in item.choices %}
 
-                        <label style="
-                            display:inline-flex;
-                            align-items:center;
-                            gap:5px;
-                            padding:6px 9px;
-                            border:1px solid #dbe3ea;
-                            border-radius:8px;
-                            background:#fff;
-                            cursor:pointer;
-                            font-size:12px;
-                            white-space:nowrap;
-                        ">
+                        <label class="checklist-result-choice">
 
                             <input
                                 type="radio"
@@ -286,12 +202,7 @@
                                     checked
                                 {% endif %}
                                 {% if item.choices %}required{% endif %}
-                                style="
-                                    width:15px;
-                                    height:15px;
-                                    margin:0;
-                                    cursor:pointer;
-                                "
+                                class="checklist-result-choice-radio"
                             >
 
                             <span>{{ choice }}</span>
@@ -336,8 +247,7 @@
                             name="files_{{ ns.answer_index }}"
                             multiple
                             accept="image/*,video/*,.pdf"
-                            class="file-upload-input"
-                            onchange="showSelectedFiles(this)"
+                            class="file-upload-input js-file-upload-input"
                         >
                     </label>
 
@@ -373,132 +283,6 @@
 
 </form>
 
-<script>
-let vehicleSearchTimer = null;
-function showSelectedFiles(input) {
-
-    const area =
-        input.closest(".file-upload-cell")
-            .querySelector(".selected-file-names");
-
-    area.innerHTML = "";
-
-    if (!input.files || input.files.length === 0) {
-        return;
-    }
-
-    Array.from(input.files).forEach(function(file) {
-        const item = document.createElement("div");
-        item.textContent = file.name;
-        area.appendChild(item);
-    });
-}
-
-function selectVehicle(vehicle) {
-
-    document.getElementById("target_vehicle").value = vehicle.vehicle_id;
-
-    document.getElementById("selected_vehicle_display").innerText =
-        vehicle.vehicle_id
-        + " / "
-        + (vehicle.number || "")
-        + " / "
-        + (vehicle.manufacturer || "")
-        + " / "
-        + (vehicle.model_code || "");
-
-    document.getElementById("vehicle_search_results").innerHTML = "";
-
-    document.getElementById("vehicle_search").value = "";
-}
-
-function searchVehicles() {
-
-    const keyword = document.getElementById("vehicle_search").value.trim();
-
-    if (!keyword) {
-        document.getElementById("vehicle_search_results").innerHTML = "";
-        return;
-    }
-
-    fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
-        .then(response => response.json())
-        .then(data => {
-
-            const resultArea =
-                document.getElementById("vehicle_search_results");
-
-            resultArea.innerHTML = "";
-
-            if (!data.results || data.results.length === 0) {
-                resultArea.innerHTML = "<div>該当する車両はありません。</div>";
-                return;
-            }
-
-            data.results.forEach(vehicle => {
-
-                const row = document.createElement("div");
-
-                row.innerHTML =
-                    vehicle.vehicle_id
-                    + " / "
-                    + (vehicle.number || "")
-                    + " / "
-                    + (vehicle.manufacturer || "")
-                    + " / "
-                    + (vehicle.model_code || "");
-
-                row.style.cursor = "pointer";
-
-                row.addEventListener("click", function () {
-                    selectVehicle(vehicle);
-                });
-
-                resultArea.appendChild(row);
-            });
-        });
-}
-
-function switchChecklistTarget() {
-    const type = document.getElementById("target_type").value;
-
-    document.getElementById("target_user_area").style.display = "none";
-    document.getElementById("target_vehicle_area").style.display = "none";
-    document.getElementById("target_office_area").style.display = "none";
-
-    if (type === "user") {
-        document.getElementById("target_user_area").style.display = "block";
-    }
-
-    if (type === "vehicle") {
-        document.getElementById("target_vehicle_area").style.display = "block";
-    }
-
-    if (type === "office") {
-        document.getElementById("target_office_area").style.display = "block";
-    }
-}
-
-window.addEventListener("DOMContentLoaded", function () {
-
-    switchChecklistTarget();
-
-    const vehicleSearchInput = document.getElementById("vehicle_search");
-
-    if (vehicleSearchInput) {
-
-        vehicleSearchInput.addEventListener("input", function () {
-
-            clearTimeout(vehicleSearchTimer);
-
-            vehicleSearchTimer = setTimeout(function () {
-                searchVehicles();
-            }, 300);
-
-        });
-    }
-
-});
-</script>
+<script src="{{ url_for('static', filename='js/checklist_result_form.js') }}"></script>
 
 {% endblock %}

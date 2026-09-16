@@ -21,7 +21,7 @@
 <table>
     <tr>
         <th>内容区分名</th>
-        <th style="width:180px;">操作</th>
+        <th class="col-actions">操作</th>
     </tr>
 
     {% for content_type in content_types %}
@@ -37,7 +37,7 @@
                 <form
                     method="post"
                     action="/master/patrol-content-types/{{ content_type.id }}/delete"
-                    onsubmit="return confirm('この内容区分を削除しますか？');"
+                    class="js-patrol-content-type-delete-form"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
@@ -53,5 +53,7 @@
     </tr>
     {% endfor %}
 </table>
+
+<script src="{{ url_for('static', filename='js/patrol_content_type_master.js') }}"></script>
 
 {% endblock %}
