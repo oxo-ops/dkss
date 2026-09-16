@@ -1412,20 +1412,18 @@ def add_security_headers(response):
     )
 
     response.headers["Content-Security-Policy"] = (
-        "object-src 'none'; "
-        "base-uri 'self'; "
-        "frame-ancestors 'none'"
-    )
-
-    response.headers["Content-Security-Policy-Report-Only"] = (
         "default-src 'self'; "
-        "img-src 'self' data: https:; "
+        "script-src 'self'; "
+        "style-src 'self'; "
+        "img-src 'self' data: https: blob:; "
+        "media-src 'self' blob:; "
         "font-src 'self' data:; "
         "connect-src 'self' https:; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'"
     )
+    
     if not request.path.startswith("/static/"):
         response.headers["Cache-Control"] = (
             "no-store, no-cache, must-revalidate, max-age=0"
