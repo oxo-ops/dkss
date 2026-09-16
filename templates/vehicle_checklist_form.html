@@ -109,12 +109,12 @@
         <div class="table-scroll">
             <table class="checklist-table responsive-table">
                 <tr>
-                    <th style="width:140px;">カテゴリ</th>
+                    <th class="vehicle-checklist-category-col">カテゴリ</th>
                     <th>チェック内容</th>
-                    <th style="width:160px;">評価</th>
-                    <th style="width:300px;">コメント</th>
-                    <th style="width:220px;">写真・ファイル</th>
-                    <th style="width:180px;">連携</th>
+                    <th class="vehicle-checklist-rating-col">評価</th>
+                    <th class="vehicle-checklist-comment-col">コメント</th>
+                    <th class="vehicle-checklist-file-col">写真・ファイル</th>
+                    <th class="vehicle-checklist-link-col">連携</th>
                 </tr>
 
                 {% set ns = namespace(answer_index=0) %}
@@ -235,117 +235,6 @@
 
 </form>
 
-<script>
-
-const vehicleSearch =
-    document.getElementById("vehicle_search");
-
-const vehicleSearchResults =
-    document.getElementById("vehicle_search_results");
-
-const vehicleId =
-    document.getElementById("vehicle_id");
-
-const selectedVehicleDisplay =
-    document.getElementById("selected_vehicle_display");
-
-let vehicleSearchTimer = null;
-
-
-vehicleSearch.addEventListener("input", function () {
-
-    clearTimeout(vehicleSearchTimer);
-
-    const keyword =
-        vehicleSearch.value.trim();
-
-
-    if (!keyword) {
-
-        vehicleSearchResults.innerHTML =
-            '<p class="help-text">車両を検索してください。</p>';
-
-        return;
-    }
-
-
-    vehicleSearchTimer = setTimeout(function () {
-
-        fetch(
-            "/api/vehicles?q=" +
-            encodeURIComponent(keyword)
-        )
-        .then(response => response.json())
-        .then(data => {
-
-            vehicleSearchResults.innerHTML = "";
-
-
-            if (!data.results.length) {
-
-                vehicleSearchResults.innerHTML =
-                    '<p class="help-text">該当する車両がありません。</p>';
-
-                return;
-            }
-
-
-            data.results.forEach(vehicle => {
-
-                const row =
-                    document.createElement("div");
-
-                row.className =
-                    "vehicle-option";
-
-
-                const labelParts = [
-                    vehicle.vehicle_id,
-                    vehicle.number,
-                    vehicle.manufacturer,
-                    vehicle.model_code
-                ].filter(Boolean);
-
-
-                row.innerHTML = `
-                    <button
-                        type="button"
-                        class="btn-small"
-                    >
-                        選択
-                    </button>
-
-                    <span>
-                        ${labelParts.join(" / ")}
-                    </span>
-                `;
-
-
-                row.querySelector("button")
-                    .addEventListener(
-                        "click",
-                        function () {
-
-                            vehicleId.value =
-                                vehicle.vehicle_id;
-
-                            selectedVehicleDisplay.textContent =
-                                labelParts.join(" / ");
-
-                        }
-                    );
-
-
-                vehicleSearchResults.appendChild(row);
-
-            });
-
-        });
-
-    }, 300);
-
-});
-
-</script>
+<script src="{{ url_for('static', filename='js/vehicle_checklist_form.js') }}"></script>
 
 {% endblock %}

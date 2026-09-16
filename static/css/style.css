@@ -4498,3 +4498,103 @@ input:checked
     align-items: center;
     gap: 6px;
 }
+
+.vehicle-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0;
+}
+
+.vehicle-select-header {
+    width: 70px;
+    text-align: center;
+}
+
+.vehicle-select-all-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.vehicle-checkbox {
+    margin: 0;
+}
+
+.vehicle-select-all-text {
+    font-size: 12px;
+}
+
+.vehicle-select-cell {
+    text-align: center;
+}
+
+.vehicle-inactive-form {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+}
+
+.vehicle-action-cell {
+    vertical-align: middle;
+}
+
+.vehicle-action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.vehicle-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.vehicle-checklist-category-col {
+    width: 140px;
+}
+
+.vehicle-checklist-rating-col {
+    width: 160px;
+}
+
+.vehicle-checklist-comment-col {
+    width: 300px;
+}
+
+.vehicle-checklist-file-col {
+    width: 220px;
+}
+
+.vehicle-checklist-link-col {
+    width: 180px;
+}
+
+.vehicle-checklists-actions-col {
+    width: 160px;
+}
+
+.vehicle-patrol-delete-form {
+    display: inline;
+}
+
+.vehicle-type-help-card {
+    margin-bottom: 15px;
+}
+
+.vehicle-import-complete-title {
+    margin-top: 0;
+}
+
+.vehicle-import-summary {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 24px 0;
+}

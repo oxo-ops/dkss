@@ -50,7 +50,7 @@
                         <form
                             method="post"
                             action="/notifications/{{ notification.index }}/delete"
-                            onsubmit="return confirm('この通知を削除しますか？');"
+                            class="js-notification-list-delete-form"
                         >
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-small btn-delete">
@@ -68,5 +68,7 @@
         <p class="empty-text">通知はありません。</p>
     {% endif %}
 </div>
+
+<script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
 
 {% endblock %}

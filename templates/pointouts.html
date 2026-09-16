@@ -147,7 +147,7 @@
                 <form
                     action="/pointouts/{{ item.index }}/delete"
                     method="post"
-                    onsubmit="return confirm('削除しますか？')"
+                    class="js-pointout-delete-form"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">削除</button>
@@ -248,7 +248,7 @@
                     <form
                         action="/pointouts/{{ item.index }}/delete"
                         method="post"
-                        onsubmit="return confirm('削除しますか？')"
+                        class="js-pointout-delete-form"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-small btn-delete">
@@ -265,5 +265,7 @@
         </div>
     {% endfor %}
 </div>
+
+<script src="{{ url_for('static', filename='js/pointouts.js') }}"></script>
 
 {% endblock %}
