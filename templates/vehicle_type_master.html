@@ -18,7 +18,7 @@
     </div>
 </div>
 
-<div class="card" style="margin-bottom:15px;">
+<div class="card vehicle-type-help-card">
     <p class="help-text">
         車両登録時に選択する車両の分類を登録します。<br>
         例：大型トラック、中型トラック、小型トラック、トレーラー、フォークリフト など
@@ -28,7 +28,7 @@
 <table>
     <tr>
         <th>車種名</th>
-        <th style="width:180px;">操作</th>
+        <th class="col-actions">操作</th>
     </tr>
 
     {% for vehicle_type in vehicle_types %}
@@ -47,7 +47,7 @@
                 <form
                     method="post"
                     action="/master/vehicle-types/{{ vehicle_type.id }}/delete"
-                    onsubmit="return confirm('この車種を削除しますか？');"
+                    class="js-vehicle-type-delete-form"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-small btn-delete">
@@ -63,5 +63,7 @@
     </tr>
     {% endfor %}
 </table>
+
+<script src="{{ url_for('static', filename='js/vehicle_type_master.js') }}"></script>
 
 {% endblock %}

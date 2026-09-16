@@ -43,20 +43,11 @@
             value="{{ start_row }}"
         >
 
-        <div style="margin-top: 20px;">
+        <div class="delivery-column-list">
 
             {% for column in columns %}
 
-            <label
-                style="
-                    display: block;
-                    border: 1px solid #ddd;
-                    border-radius: 6px;
-                    padding: 12px;
-                    margin-bottom: 10px;
-                    cursor: pointer;
-                "
-            >
+            <label class="delivery-column-option">
 
                 <input
                     type="radio"
@@ -71,7 +62,7 @@
 
                 {% if column.samples %}
 
-                <span style="margin-left: 15px;">
+                <span class="delivery-column-sample">
                     例：
                     {{ column.samples | join(" / ") }}
                 </span>
@@ -84,7 +75,7 @@
 
         </div>
 
-        <div style="margin-top: 20px;">
+        <div class="delivery-column-actions">
 
             <button
                 type="submit"

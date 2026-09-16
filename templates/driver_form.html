@@ -137,8 +137,8 @@
 
                         <button
                             type="button"
-                            class="btn-small btn-delete"
-                            onclick="removeSelectedVehicle('{{ vehicle.vehicle_id }}')"
+                            class="btn-small btn-delete js-remove-selected-vehicle"
+                            data-vehicle-id="{{ vehicle.vehicle_id }}"
                         >
                             削除
                         </button>
@@ -168,6 +168,38 @@
             例：大型免許、けん引、フォークリフトなど。
         </p>
 
+        <template id="licenseRowTemplate">
+            <div class="license-row">
+                <div>
+                    <label>免許種別</label>
+
+                    <select name="license_type">
+                        <option value="">免許種別を選択</option>
+
+                        {% for license_type in license_types %}
+                            <option value="{{ license_type.name }}">
+                                {{ license_type.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label>有効期限</label>
+                    <input
+                        type="date"
+                        name="license_expiry"
+                    >
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-small btn-delete js-remove-license-row"
+                >
+                    削除
+                </button>
+            </div>
+        </template>
         <div id="license_area">
             {% if driver and driver.licenses %}
                 {% for license in driver.licenses %}
@@ -198,8 +230,7 @@
 
                         <button
                             type="button"
-                            class="btn-small btn-delete"
-                            onclick="removeLicenseRow(this)"
+                            class="btn-small btn-delete js-remove-license-row"
                         >
                             削除
                         </button>
@@ -224,8 +255,7 @@
 
                     <button
                         type="button"
-                        class="btn-small btn-delete"
-                        onclick="removeLicenseRow(this)"
+                        class="btn-small btn-delete js-remove-license-row"
                     >
                         削除
                     </button>
@@ -237,8 +267,7 @@
 
             <button
                 type="button"
-                class="btn-small"
-                onclick="addLicenseRow()"
+                class="btn-small js-add-license-row"
             >
                 免許情報を追加
             </button>
@@ -259,277 +288,6 @@
     </form>
 </div>
 
-
-<script>
-function addLicenseRow() {
-    const area = document.getElementById("license_area");
-
-    const row = document.createElement("div");
-    row.className = "license-row";
-
-    row.innerHTML = `
-        <div>
-            <label>免許種別</label>
-            <select name="license_type">
-                <option value="">免許種別を選択</option>
-                {% for license_type in license_types %}
-                    <option value="{{ license_type.name }}">{{ license_type.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div>
-            <label>有効期限</label>
-            <input type="date" name="license_expiry">
-        </div>
-
-        <button
-            type="button"
-            class="btn-small btn-delete"
-            onclick="removeLicenseRow(this)"
-        >
-            削除
-        </button>
-    `;
-
-    area.appendChild(row);
-}
-
-function removeLicenseRow(button) {
-    button.parentElement.remove();
-}
-
-const vehicleSearch =
-    document.getElementById("vehicle_search");
-
-const vehicleSearchResults =
-    document.getElementById("vehicle_search_results");
-
-const selectedVehiclesArea =
-    document.getElementById("selected_vehicles");
-
-let vehicleSearchTimer = null;
-
-
-vehicleSearch.addEventListener("input", function () {
-
-    clearTimeout(vehicleSearchTimer);
-
-    const keyword = vehicleSearch.value.trim();
-
-
-    if (!keyword) {
-
-        vehicleSearchResults.innerHTML =
-            '<p class="help-text">車両を検索してください。</p>';
-
-        return;
-    }
-
-
-    vehicleSearchTimer = setTimeout(function () {
-
-        fetch(
-            "/api/vehicles?q=" +
-            encodeURIComponent(keyword)
-        )
-        .then(response => response.json())
-        .then(data => {
-
-            vehicleSearchResults.innerHTML = "";
-
-
-            if (!data.results.length) {
-
-                vehicleSearchResults.innerHTML =
-                    '<p class="help-text">該当する車両がありません。</p>';
-
-                return;
-            }
-
-
-            data.results.forEach(vehicle => {
-
-                const alreadySelected =
-                    document.querySelector(
-                        '.selected-vehicle[data-vehicle-id="' +
-                        CSS.escape(vehicle.vehicle_id) +
-                        '"]'
-                    );
-
-
-                const row =
-                    document.createElement("div");
-
-                row.className = "vehicle-option";
-
-
-                const labelParts = [
-                    vehicle.number,
-                    vehicle.manufacturer,
-                    vehicle.model_code
-                ].filter(Boolean);
-
-
-                row.innerHTML = `
-                    <button
-                        type="button"
-                        class="btn-small"
-                        ${alreadySelected ? "disabled" : ""}
-                    >
-                        ${alreadySelected ? "選択済み" : "選択"}
-                    </button>
-
-                    <span>
-                        ${labelParts.join(" / ")}
-                    </span>
-                `;
-
-
-                if (!alreadySelected) {
-
-                    row.querySelector("button")
-                        .addEventListener(
-                            "click",
-                            function () {
-
-                                addSelectedVehicle(vehicle);
-
-                            }
-                        );
-
-                }
-
-
-                vehicleSearchResults.appendChild(row);
-
-            });
-
-        });
-
-    }, 300);
-
-});
-
-
-function addSelectedVehicle(vehicle) {
-
-    const exists =
-        document.querySelector(
-            '.selected-vehicle[data-vehicle-id="' +
-            CSS.escape(vehicle.vehicle_id) +
-            '"]'
-        );
-
-
-    if (exists) {
-        return;
-    }
-
-
-    const noSelected =
-        document.getElementById(
-            "no_selected_vehicle"
-        );
-
-
-    if (noSelected) {
-        noSelected.remove();
-    }
-
-
-    const row =
-        document.createElement("div");
-
-    row.className =
-        "selected-vehicle";
-
-    row.dataset.vehicleId =
-        vehicle.vehicle_id;
-
-
-    const labelParts = [
-        vehicle.number,
-        vehicle.manufacturer,
-        vehicle.model_code
-    ].filter(Boolean);
-
-
-    row.innerHTML = `
-        <input
-            type="hidden"
-            name="vehicles"
-            value="${vehicle.vehicle_id}"
-        >
-
-        <span>
-            ${labelParts.join(" / ")}
-        </span>
-
-        <button
-            type="button"
-            class="btn-small btn-delete"
-        >
-            削除
-        </button>
-    `;
-
-
-    row.querySelector("button")
-        .addEventListener(
-            "click",
-            function () {
-
-                removeSelectedVehicle(
-                    vehicle.vehicle_id
-                );
-
-            }
-        );
-
-
-    selectedVehiclesArea.appendChild(row);
-
-
-    vehicleSearch.dispatchEvent(
-        new Event("input")
-    );
-
-}
-
-
-function removeSelectedVehicle(vehicleId) {
-
-    const row =
-        document.querySelector(
-            '.selected-vehicle[data-vehicle-id="' +
-            CSS.escape(vehicleId) +
-            '"]'
-        );
-
-
-    if (row) {
-        row.remove();
-    }
-
-
-    if (
-        document.querySelectorAll(
-            ".selected-vehicle"
-        ).length === 0
-    ) {
-
-        selectedVehiclesArea.innerHTML =
-            '<span id="no_selected_vehicle">未選択</span>';
-
-    }
-
-
-    vehicleSearch.dispatchEvent(
-        new Event("input")
-    );
-
-}
-</script>
+<script src="{{ url_for('static', filename='js/driver_form.js') }}"></script>
 
 {% endblock %}

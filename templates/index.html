@@ -41,53 +41,20 @@
         method="post"
         action="/dashboard/settings"
         id="dashboardFilterForm"
-        style="
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            gap:16px;
-            flex-wrap:wrap;
-            margin-bottom:20px;
-            padding:12px 16px;
-            background:#fff;
-            border:1px solid #e5e7eb;
-            border-radius:14px;
-        "
+        class="dashboard-filter-form"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="
-            display:flex;
-            align-items:center;
-            gap:10px;
-            flex-wrap:wrap;
-        ">
-            <span style="
-                font-size:13px;
-                font-weight:600;
-                color:#64748b;
-            ">
+        <div class="dashboard-filter-fields">
+            <span class="dashboard-filter-label">
                 表示条件
             </span>
 
-            <label style="
-                display:flex;
-                align-items:center;
-                gap:6px;
-                font-size:13px;
-                color:#475569;
-            ">
+            <label class="dashboard-filter-field">
                 営業所
 
                 <select
                     name="office"
-                    onchange="this.form.submit()"
-                    style="
-                        min-width:160px;
-                        padding:7px 30px 7px 10px;
-                        border:1px solid #dbe3ea;
-                        border-radius:8px;
-                        background:#fff;
-                    "
+                    class="dashboard-filter-select dashboard-filter-select-office dashboard-auto-submit"
                 >
                     <option value="">
                         全営業所
@@ -106,24 +73,12 @@
                 </select>
             </label>
 
-            <label style="
-                display:flex;
-                align-items:center;
-                gap:6px;
-                font-size:13px;
-                color:#475569;
-            ">
+            <label class="dashboard-filter-field">
                 期間
 
                 <select
                     name="period"
-                    onchange="this.form.submit()"
-                    style="
-                        padding:7px 30px 7px 10px;
-                        border:1px solid #dbe3ea;
-                        border-radius:8px;
-                        background:#fff;
-                    "
+                    class="dashboard-filter-select dashboard-auto-submit"
                 >
                     <option value="7d"
                         {% if dashboard_settings.period == "7d" %}selected{% endif %}
@@ -151,173 +106,6 @@
                 </select>
             </label>
         </div>
-
-        <style>
-            .dashboard-display-control {
-                position: relative;
-            }
-
-            .dashboard-display-trigger {
-                display: inline-flex;
-                align-items: center;
-                gap: 7px;
-                height: 34px;
-                padding: 0 12px;
-                border: 1px solid #dbe3ea;
-                border-radius: 9px;
-                background: #ffffff;
-                color: #475569;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                transition:
-                    background .15s ease,
-                    border-color .15s ease,
-                    box-shadow .15s ease;
-            }
-
-            .dashboard-display-trigger:hover {
-                background: #f8fafc;
-                border-color: #cbd5e1;
-            }
-
-            .dashboard-display-trigger:focus-visible {
-                outline: none;
-                border-color: #3b82f6;
-                box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
-            }
-
-            .dashboard-display-popover {
-                display: none;
-                position: absolute;
-                top: calc(100% + 8px);
-                right: 0;
-                z-index: 50;
-                width: 300px;
-                padding: 8px;
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 14px;
-                box-shadow:
-                    0 18px 45px rgba(15, 23, 42, .12),
-                    0 3px 10px rgba(15, 23, 42, .06);
-            }
-
-            .dashboard-display-popover.is-open {
-                display: block;
-            }
-
-            .dashboard-display-header {
-                padding: 8px 10px 10px;
-            }
-
-            .dashboard-display-title {
-                margin: 0;
-                color: #1e293b;
-                font-size: 13px;
-                font-weight: 700;
-            }
-
-            .dashboard-display-description {
-                margin-top: 3px;
-                color: #94a3b8;
-                font-size: 11px;
-            }
-
-            .dashboard-display-list {
-                display: grid;
-                gap: 2px;
-            }
-
-            .dashboard-display-item {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 16px;
-                min-height: 38px;
-                padding: 0 10px;
-                border-radius: 9px;
-                color: #475569;
-                font-size: 12px;
-                cursor: pointer;
-                transition: background .12s ease;
-            }
-
-            .dashboard-display-item:hover {
-                background: #f8fafc;
-            }
-
-            .dashboard-display-check {
-                position: relative;
-                flex: 0 0 18px;
-                width: 18px;
-                height: 18px;
-            }
-
-            .dashboard-display-check input {
-                position: absolute;
-                opacity: 0;
-                pointer-events: none;
-            }
-
-            .dashboard-display-checkmark {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 18px;
-                height: 18px;
-                box-sizing: border-box;
-                border: 1.5px solid #cbd5e1;
-                border-radius: 5px;
-                background: #ffffff;
-                transition:
-                    background .12s ease,
-                    border-color .12s ease;
-            }
-
-            .dashboard-display-checkmark svg {
-                display: none;
-            }
-
-            .dashboard-display-check
-            input:checked
-            + .dashboard-display-checkmark {
-                background: #2563eb;
-                border-color: #2563eb;
-            }
-
-            .dashboard-display-check
-            input:checked
-            + .dashboard-display-checkmark svg {
-                display: block;
-            }
-
-            .dashboard-display-footer {
-                display: flex;
-                justify-content: flex-end;
-                margin-top: 6px;
-                padding: 9px 8px 4px;
-                border-top: 1px solid #f1f5f9;
-            }
-
-            .dashboard-display-apply {
-                min-width: 72px;
-                height: 32px;
-                padding: 0 14px;
-                border: none;
-                border-radius: 8px;
-                background: #2563eb;
-                color: #ffffff;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-            }
-
-            .dashboard-display-apply:hover {
-                background: #1d4ed8;
-            }
-        </style>
-
 
         <div class="dashboard-display-control">
 
@@ -443,15 +231,9 @@
     {% if dashboard_settings.get("show_summary", True) %}
     <div class="dashboard-summary">
 
-            <a
+           <a
                 href="/master/drivers?keyword={{ my_user_name|urlencode }}"
-                class="summary-card main"
-                style="
-                    display:block;
-                    color:inherit;
-                    text-decoration:none;
-                    cursor:pointer;
-                "
+                class="summary-card main dashboard-link-card"
             >
                 <div class="summary-title">あなたの無事故無違反</div>
                 <div class="summary-value">{{ my_safe_days }}</div>
@@ -459,13 +241,7 @@
             </a>
             <a
                 href="/pointouts?type=user&category=Good&mine=1"
-                class="summary-card"
-                style="
-                    display:block;
-                    color:inherit;
-                    text-decoration:none;
-                    cursor:pointer;
-                "
+                class="summary-card dashboard-link-card"
             >
                 <div class="summary-title">あなたのGood件数</div>
                 <div class="summary-value good">{{ my_good_count }}</div>
@@ -474,13 +250,7 @@
      
             <a
                 href="/pointouts?type=user&mine=1&pending=1"
-                class="summary-card"
-                style="
-                    display:block;
-                    color:inherit;
-                    text-decoration:none;
-                    cursor:pointer;
-                "
+                class="summary-card dashboard-link-card"
             >
                 <div class="summary-title">あなたへの未対応指摘</div>
                 <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
@@ -489,13 +259,7 @@
 
             <a
                 href="/master/vehicles"
-                class="summary-card"
-                style="
-                    display:block;
-                    color:inherit;
-                    text-decoration:none;
-                    cursor:pointer;
-                "
+                class="summary-card dashboard-link-card"
             >
                 <div class="summary-title">車検期限90日以内</div>
                 <div class="summary-value warning">{{ inspection_alerts|length }}</div>
@@ -507,75 +271,24 @@
 
 <!-- 使用車両 -->
 {% if dashboard_settings.get("show_vehicles", True) %}
-<div style="
-    margin-bottom:18px;
-">
-
-    <div style="
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        margin-bottom:10px;
-    ">
-        <div style="
-            display:flex;
-            align-items:baseline;
-            gap:8px;
-        ">
-            <h3 style="
-                margin:0;
-                font-size:15px;
-            ">
+<div class="dashboard-vehicles-section">
+    <div class="dashboard-vehicles-header">
+        <div class="dashboard-vehicles-title">
+            <h3 class="dashboard-vehicles-heading">
                 使用車両
             </h3>
 
-            <span style="
-                font-size:12px;
-                color:#94a3b8;
-            ">
+            <span class="dashboard-vehicles-count">
                 {{ my_vehicles|length }}台
             </span>
         </div>
 
         <button
             type="button"
-            onclick="
-                const area =
-                    document.getElementById('dashboardVehicleAddArea');
-
-                area.style.display =
-                    area.style.display === 'none'
-                        ? 'block'
-                        : 'none';
-            "
-            style="
-                display:inline-flex;
-                align-items:center;
-                gap:5px;
-                padding:5px 8px;
-                border:none;
-                border-radius:7px;
-                background:transparent;
-                color:#64748b;
-                font-size:11px;
-                font-weight:600;
-                cursor:pointer;
-            "
-            onmouseover="
-                this.style.background='#f1f5f9';
-                this.style.color='#334155';
-            "
-            onmouseout="
-                this.style.background='transparent';
-                this.style.color='#64748b';
-            "
+            id="dashboardVehicleAddButton"
+            class="dashboard-vehicle-add-button"
         >
-            <span style="
-                font-size:14px;
-                line-height:1;
-                font-weight:400;
-            ">
+            <span class="dashboard-vehicle-add-icon">
                 ＋
             </span>
 
@@ -586,12 +299,7 @@
 
     {% if my_vehicles %}
 
-        <div style="
-            display:grid;
-            grid-template-columns:
-                repeat(auto-fit, minmax(300px, 360px));
-            gap:12px;
-        ">
+        <div class="dashboard-vehicle-grid">
 
             {% for vehicle in my_vehicles %}
 
@@ -637,35 +345,7 @@
                 {% endif %}
 
 
-                <div style="
-                    position:relative;
-                    display:flex;
-                    align-items:flex-start;
-                    gap:12px;
-                    min-width:0;
-                    padding:13px 14px;
-                    background:#ffffff;
-                    border:1px solid #e2e8f0;
-                    border-radius:14px;
-                    box-shadow:
-                        0 1px 2px rgba(15,23,42,.03),
-                        0 4px 12px rgba(15,23,42,.03);
-                    transition:
-                        border-color .15s ease,
-                        box-shadow .15s ease,
-                        transform .15s ease;
-                "
-                onmouseover="
-                    this.style.borderColor='#cbd5e1';
-                    this.style.boxShadow='0 6px 18px rgba(15,23,42,.07)';
-                    this.style.transform='translateY(-1px)';
-                "
-                onmouseout="
-                    this.style.borderColor='#e2e8f0';
-                    this.style.boxShadow='0 1px 2px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.03)';
-                    this.style.transform='translateY(0)';
-                "
-                >
+                <div class="dashboard-vehicle-card">
 
                     <img
                         src="{{ url_for(
@@ -673,47 +353,21 @@
                             filename='icons/' ~ vehicle_icon
                         ) }}"
                         alt=""
-                        style="
-                            width:42px;
-                            height:42px;
-                            object-fit:contain;
-                            flex:0 0 42px;
-                            margin-top:1px;
-                        "
+                        class="dashboard-vehicle-icon"
                     >
 
 
-                    <div style="
-                        flex:1;
-                        min-width:0;
-                    ">
+                    <div class="dashboard-vehicle-content">
 
-                        <div style="
-                            display:flex;
-                            align-items:center;
-                            gap:7px;
-                            min-width:0;
-                        ">
+                        <div class="dashboard-vehicle-main-row">
 
-                            <strong style="
-                                font-size:14px;
-                                white-space:nowrap;
-                            ">
+                            <strong class="dashboard-vehicle-id">
                                 {{ vehicle.vehicle_id }}
                             </strong>
 
                             {% if analysis.get("score_rate") is not none %}
 
-                                <span style="
-                                    margin-left:auto;
-                                    padding:2px 7px;
-                                    border-radius:999px;
-                                    background:#eff6ff;
-                                    color:#2563eb;
-                                    font-size:11px;
-                                    font-weight:700;
-                                    white-space:nowrap;
-                                ">
+                                <span class="dashboard-vehicle-score">
                                     {{ analysis.score_rate }}%
                                 </span>
 
@@ -722,14 +376,7 @@
                         </div>
 
 
-                        <div style="
-                            margin-top:2px;
-                            font-size:11px;
-                            color:#64748b;
-                            overflow:hidden;
-                            text-overflow:ellipsis;
-                            white-space:nowrap;
-                        ">
+                        <div class="dashboard-vehicle-plate">
 
                             {% if vehicle.plate_number %}
 
@@ -749,12 +396,7 @@
 
                         {% if analysis.get("score_rate") is not none %}
 
-                            <div style="
-                                margin-top:3px;
-                                font-size:10px;
-                                color:#94a3b8;
-                                white-space:nowrap;
-                            ">
+                            <div class="dashboard-vehicle-meta">
                                 {{ analysis.result_count }}件
 
                                 {% if analysis.latest_date %}
@@ -764,37 +406,16 @@
                             </div>
                         {% if analysis.get("category_analysis") %}
 
-                            <div style="
-                                display:flex;
-                                align-items:center;
-                                gap:5px;
-                                margin-top:6px;
-                                flex-wrap:wrap;
-                            ">
+                            <div class="dashboard-vehicle-categories">
 
                                 {% for category in analysis.category_analysis %}
 
-                                    <span style="
-                                        display:inline-flex;
-                                        align-items:center;
-                                        gap:4px;
-                                        padding:3px 7px;
-                                        border:1px solid #dbeafe;
-                                        border-radius:999px;
-                                        background:#f8fbff;
-                                        color:#475569;
-                                        font-size:10px;
-                                        line-height:1.2;
-                                        white-space:nowrap;
-                                    ">
+                                    <span class="dashboard-vehicle-category-chip">
                                         <span>
                                             {{ category.category }}
                                         </span>
 
-                                        <strong style="
-                                            color:#2563eb;
-                                            font-weight:700;
-                                        ">
+                                        <strong class="dashboard-vehicle-category-rate">
                                             {{ category.improvement_rate }}%
                                         </strong>
                                     </span>
@@ -806,11 +427,7 @@
                         {% endif %}
                         {% else %}
 
-                            <div style="
-                                margin-top:3px;
-                                font-size:10px;
-                                color:#94a3b8;
-                            ">
+                            <div class="dashboard-vehicle-no-data">
                                 分析データなし
                             </div>
 
@@ -822,7 +439,7 @@
                     <form
                         method="post"
                         action="/vehicle-favorites/remove/{{ vehicle.vehicle_id }}"
-                        style="margin:0;"
+                        class="dashboard-vehicle-remove-form"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -835,14 +452,7 @@
                         <button
                             type="submit"
                             title="使用車両から削除"
-                            style="
-                                border:none;
-                                background:none;
-                                color:#94a3b8;
-                                cursor:pointer;
-                                padding:3px;
-                                font-size:14px;
-                            "
+                            class="dashboard-vehicle-remove-button"
                         >
                             ×
                         </button>
@@ -859,16 +469,7 @@
 
     <div
         id="dashboardVehicleAddArea"
-        style="
-            display:none;
-            margin-top:10px;
-            max-width:420px;
-            padding:10px;
-            background:#fff;
-            border:1px solid #e2e8f0;
-            border-radius:10px;
-            box-shadow:0 8px 24px rgba(15,23,42,.08);
-        "
+        class="dashboard-vehicle-add-area"
     >
 
         <form
@@ -890,35 +491,19 @@
                 id="dashboardVehicleId"
             >
 
-            <div style="position:relative;">
+            <div class="dashboard-vehicle-search-wrapper">
 
                 <input
                     type="text"
                     id="dashboardVehicleSearch"
+                    class="dashboard-vehicle-search-input"
                     placeholder="車両ID・ナンバーで検索"
                     autocomplete="off"
-                    style="
-                        width:100%;
-                        box-sizing:border-box;
-                    "
                 >
 
                 <div
                     id="dashboardVehicleResults"
-                    style="
-                        display:none;
-                        position:absolute;
-                        top:calc(100% + 5px);
-                        left:0;
-                        right:0;
-                        z-index:20;
-                        background:#fff;
-                        border:1px solid #dbe3ea;
-                        border-radius:8px;
-                        box-shadow:0 8px 24px rgba(15,23,42,.10);
-                        max-height:260px;
-                        overflow:auto;
-                    "
+                    class="dashboard-vehicle-results"
                 ></div>
 
             </div>
@@ -936,83 +521,38 @@
     and my_checklist_summaries
 %}
 
-<div style="margin-bottom:24px;">
+<div class="dashboard-my-checklists-section">
 
-    <div class="card-title-row" style="margin-bottom:12px;">
+    <div class="card-title-row dashboard-my-checklists-title-row">
         <h3>あなたのチェックリスト</h3>
     </div>
 
-    <div style="
-        display:flex;
-        flex-wrap:wrap;
-        gap:16px;
-    ">
+    <div class="dashboard-my-checklists-grid">
 
         {% for item in my_checklist_summaries %}
 
     <a
         href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_user|urlencode }}{% endif %}"
-        class="dashboard-card"
-        style="
-            display:block;
-            width:100%;
-            max-width:380px;
-            flex:0 1 380px;
-            margin:0;
-            padding:18px 18px 16px;
-            color:inherit;
-            text-decoration:none;
-            cursor:pointer;
-            border:1px solid #e2e8f0;
-            border-radius:14px;
-            box-shadow:
-                0 1px 2px rgba(15,23,42,.03),
-                0 4px 12px rgba(15,23,42,.03);
-            transition:
-                border-color .15s ease,
-                box-shadow .15s ease,
-                transform .15s ease;
-        "
-        onmouseover="
-            this.style.borderColor='#cbd5e1';
-            this.style.boxShadow='0 6px 18px rgba(15,23,42,.07)';
-            this.style.transform='translateY(-1px)';
-        "
-        onmouseout="
-            this.style.borderColor='#e2e8f0';
-            this.style.boxShadow='0 1px 2px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.03)';
-            this.style.transform='translateY(0)';
-        "
+        class="dashboard-card dashboard-my-checklist-card"
     >
 
-            <strong style="font-size:15px;">
+            <strong class="dashboard-my-checklist-name">
                 {{ item.name }}
             </strong>
 
-            <div style="
-                display:flex;
-                align-items:end;
-                justify-content:space-between;
-                margin-top:12px;
-            ">
+            <div class="dashboard-my-checklist-score-row">
 
                 <div>
-                    <span style="
-                        font-size:26px;
-                        font-weight:700;
-                    ">
+                    <span class="dashboard-my-checklist-score">
                         {{ item.average_score }}
                     </span>
 
-                    <span style="color:#64748b;">
+                    <span class="dashboard-my-checklist-max-score">
                         / {{ item.max_score }}点
                     </span>
                 </div>
 
-                <span style="
-                    font-size:12px;
-                    color:#64748b;
-                ">
+                <span class="dashboard-my-checklist-count">
                     {{ item.result_count }}件
                 </span>
 
@@ -1021,11 +561,7 @@
 
             {% if item.average_difference is not none %}
 
-            <div style="
-                margin-top:4px;
-                font-size:12px;
-                color:#64748b;
-            ">
+            <div class="dashboard-my-checklist-average">
                 全体平均 {{ item.overall_average_score }}点
 
                 {% if item.average_difference > 0 %}
@@ -1042,73 +578,33 @@
 
             {% if item.category_analysis %}
 
-            <div style="
-                border-top:1px solid #edf1f5;
-                margin-top:14px;
-                padding-top:12px;
-            ">
+            <div class="dashboard-my-checklist-categories">
 
-                <div style="
-                    font-size:11px;
-                    color:#64748b;
-                    margin-bottom:9px;
-                    font-weight:600;
-                ">
+                <div class="dashboard-my-checklist-category-title">
                     注意したい分野
                 </div>
 
                 {% for category in item.category_analysis %}
 
-                    <div style="
-                        margin-bottom:9px;
-                    ">
+                    <div class="dashboard-my-checklist-category">
 
-                        <div style="
-                            display:flex;
-                            align-items:center;
-                            justify-content:space-between;
-                            gap:12px;
-                            margin-bottom:4px;
-                            font-size:12px;
-                        ">
+                        <div class="dashboard-my-checklist-category-row">
 
-                            <span style="
-                                color:#475569;
-                                overflow:hidden;
-                                text-overflow:ellipsis;
-                                white-space:nowrap;
-                            ">
+                            <span class="dashboard-my-checklist-category-label">
                                 {{ category.category }}
                             </span>
 
-                            <strong style="
-                                color:#2563eb;
-                                font-size:11px;
-                                white-space:nowrap;
-                            ">
+                            <strong class="dashboard-my-checklist-category-rate">
                                 {{ category.improvement_rate }}%
                             </strong>
 
                         </div>
 
-                        <div style="
-                            width:100%;
-                            height:6px;
-                            background:#edf2f7;
-                            border-radius:999px;
-                            overflow:hidden;
-                        ">
-                            <div
-                                class="dashboard-improvement-bar"
-                                data-rate="{{ category.improvement_rate }}"
-                                style="
-                                    width:0;
-                                    height:100%;
-                                    background:#3b82f6;
-                                    border-radius:999px;
-                                "
-                            ></div>
-                        </div>
+                        <progress
+                            class="dashboard-my-checklist-progress-bar"
+                            value="{{ category.improvement_rate }}"
+                            max="100"
+                        ></progress>
 
                     </div>
 
@@ -1133,51 +629,27 @@
         and checklist_score_summaries
     %}
 
-    <div style="margin-bottom:24px;">
+    <div class="dashboard-analysis-section">
 
-        <div class="card-title-row" style="margin-bottom:14px;">
+        <div class="card-title-row dashboard-analysis-title-row">
             <h3>チェックリスト分析</h3>
             <span>改善優先度が高い項目を表示</span>
         </div>
 
-        <div style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
-            gap:16px;
-        ">
+        <div class="dashboard-analysis-grid">
 
             {% for item in checklist_score_summaries %}
 
-        <div
-            class="dashboard-card"
-            data-url="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}"
-            onclick="window.location.href=this.dataset.url"
-            style="
-                display:block;
-                margin:0;
-                padding:20px;
-                min-width:0;
-                color:inherit;
-                cursor:pointer;
-            "
-        >
+            <div
+                class="dashboard-card dashboard-analysis-card"
+                data-url="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}"
+            >
 
                 <!-- チェックリスト名 -->
-                <div style="
-                    display:flex;
-                    justify-content:space-between;
-                    align-items:flex-start;
-                    gap:10px;
-                    margin-bottom:14px;
-                ">
+                <div class="dashboard-analysis-header">
 
-                    <div style="min-width:0;">
-                        <h4 style="
-                            margin:0 0 5px;
-                            white-space:nowrap;
-                            overflow:hidden;
-                            text-overflow:ellipsis;
-                        ">
+                    <div class="dashboard-analysis-name-wrap">
+                        <h4 class="dashboard-analysis-name">
                             {{ item.name }}
                         </h4>
 
@@ -1186,14 +658,11 @@
                         </span>
                     </div>
 
-                    <div style="
-                        text-align:right;
-                        white-space:nowrap;
-                    ">
-                        <strong style="font-size:20px;">
+                    <div class="dashboard-analysis-score-wrap">
+                        <strong class="dashboard-analysis-score">
                             {{ item.average_score }}
                         </strong>
-                        <span style="color:#64748b;">
+                        <span class="dashboard-analysis-max-score">
                             / {{ item.max_score }}点
                         </span>
                     </div>
@@ -1202,13 +671,9 @@
 
 
                 <!-- 改善優先分野 -->
-                <div style="margin-bottom:16px;">
+                <div class="dashboard-analysis-priority">
 
-                    <div style="
-                        font-size:12px;
-                        color:#64748b;
-                        margin-bottom:8px;
-                    ">
+                    <div class="dashboard-analysis-priority-title">
                         改善優先分野
                     </div>
 
@@ -1216,53 +681,25 @@
 
                         {% if loop.index <= 3 %}
 
-                        <div style="margin-bottom:12px;">
+                        <div class="dashboard-analysis-category">
 
-                            <div style="
-                                display:flex;
-                                justify-content:space-between;
-                                align-items:center;
-                                gap:12px;
-                                font-size:13px;
-                                margin-bottom:5px;
-                            ">
-                                <span style="
-                                    font-weight:600;
-                                    color:#334155;
-                                    overflow:hidden;
-                                    text-overflow:ellipsis;
-                                    white-space:nowrap;
-                                ">
+                            <div class="dashboard-analysis-category-row">
+
+                                <span class="dashboard-analysis-category-label">
                                     {{ category.category }}
                                 </span>
 
-                                <strong style="
-                                    font-size:12px;
-                                    color:#475569;
-                                    white-space:nowrap;
-                                ">
+                                <strong class="dashboard-analysis-category-rate">
                                     {{ category.improvement_rate }}%
                                 </strong>
+
                             </div>
 
-                            <div style="
-                                width:100%;
-                                height:6px;
-                                background:#edf2f7;
-                                border-radius:999px;
-                                overflow:hidden;
-                            ">
-                                <div
-                                    class="dashboard-improvement-bar"
-                                    data-rate="{{ category.improvement_rate }}"
-                                    style="
-                                        width:0;
-                                        height:100%;
-                                        background:#3b82f6;
-                                        border-radius:999px;
-                                    "
-                                ></div>
-                            </div>
+                            <progress
+                                class="dashboard-analysis-progress-bar"
+                                value="{{ category.improvement_rate }}"
+                                max="100"
+                            ></progress>
 
                         </div>
 
@@ -1276,56 +713,25 @@
                 <!-- 最重要項目 -->
                 {% if item.improvement_items %}
 
-                <div style="
-                    display:flex;
-                    align-items:center;
-                    gap:10px;
-                    padding:10px 12px;
-                    background:#f8fafc;
-                    border-left:3px solid #3b82f6;
-                    border-radius:0 9px 9px 0;
-                ">
+                <div class="dashboard-analysis-important">
 
-                    <div style="
-                        flex:1;
-                        min-width:0;
-                    ">
+                    <div class="dashboard-analysis-important-content">
 
-                        <div style="
-                            font-size:10px;
-                            font-weight:600;
-                            color:#64748b;
-                            margin-bottom:3px;
-                        ">
+                        <div class="dashboard-analysis-important-label">
                             最優先
                         </div>
 
-                        <div style="
-                            font-size:12px;
-                            font-weight:600;
-                            color:#334155;
-                            white-space:nowrap;
-                            overflow:hidden;
-                            text-overflow:ellipsis;
-                        ">
+                        <div class="dashboard-analysis-important-text">
                             {{ item.improvement_items[0].content }}
                         </div>
 
-                        <div style="
-                            margin-top:2px;
-                            font-size:10px;
-                            color:#94a3b8;
-                        ">
+                        <div class="dashboard-analysis-important-category">
                             {{ item.improvement_items[0].category }}
                         </div>
 
                     </div>
 
-                    <strong style="
-                        flex:0 0 auto;
-                        color:#2563eb;
-                        font-size:13px;
-                    ">
+                    <strong class="dashboard-analysis-important-rate">
                         {{ item.improvement_items[0].improvement_rate }}%
                     </strong>
 
@@ -1333,41 +739,24 @@
 
                 {% endif %}
 
+
                 {% if item.target_analysis %}
 
-                <div style="
-                    border-top:1px solid #edf1f5;
-                    margin-top:14px;
-                    padding-top:12px;
-                ">
+                <div class="dashboard-analysis-targets">
 
-                    <div style="
-                        display:flex;
-                        align-items:center;
-                        justify-content:space-between;
-                        margin-bottom:8px;
-                    ">
-                        <span style="
-                            font-size:11px;
-                            font-weight:600;
-                            color:#64748b;
-                        ">
+                    <div class="dashboard-analysis-targets-header">
+
+                        <span class="dashboard-analysis-targets-title">
                             要注意対象
                         </span>
 
-                        <span style="
-                            font-size:10px;
-                            color:#94a3b8;
-                        ">
+                        <span class="dashboard-analysis-targets-subtitle">
                             改善余地が大きい順
                         </span>
+
                     </div>
 
-
-                    <div style="
-                        display:grid;
-                        gap:4px;
-                    ">
+                    <div class="dashboard-analysis-targets-list">
 
                         {% for target in item.target_analysis %}
 
@@ -1375,50 +764,21 @@
 
                             <a
                                 href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_id={{ target.target_label|urlencode }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}{% endif %}"
-                                onclick="event.stopPropagation();"
-                                style="
-                                    display:flex;
-                                    align-items:center;
-                                    gap:9px;
-                                    min-height:36px;
-                                    padding:5px 8px;
-                                    border-radius:8px;
-                                    color:inherit;
-                                    text-decoration:none;
-                                    transition:background .12s ease;
-                                "
-                                onmouseover="
-                                    this.style.background='#f8fafc';
-                                "
-                                onmouseout="
-                                    this.style.background='transparent';
-                                "
+                                class="dashboard-analysis-target-link"
                             >
 
-                                <span style="
-                                    width:18px;
-                                    flex:0 0 18px;
-                                    text-align:center;
-                                    font-size:10px;
-                                    font-weight:700;
-                                    color:#94a3b8;
-                                ">
+                                <span class="dashboard-analysis-target-rank">
                                     {{ loop.index }}
                                 </span>
 
 
                                 {% if target.target_type == "user" %}
 
-                                    <img
-                                        src="{{ url_for('static', filename='icons/user.png') }}"
-                                        alt=""
-                                        style="
-                                            width:26px;
-                                            height:26px;
-                                            object-fit:contain;
-                                            flex:0 0 26px;
-                                        "
-                                    >
+                                <img
+                                    src="{{ url_for('static', filename='icons/user.png') }}"
+                                    alt=""
+                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-small"
+                                >
 
                                 {% elif target.target_type == "vehicle" %}
 
@@ -1445,52 +805,28 @@
                                         {% set target_vehicle_icon = "truck.png" %}
                                     {% endif %}
 
-                                    <img
-                                        src="{{ url_for('static', filename='icons/' ~ target_vehicle_icon) }}"
-                                        alt=""
-                                        style="
-                                            width:28px;
-                                            height:28px;
-                                            object-fit:contain;
-                                            flex:0 0 28px;
-                                        "
-                                    >
+                                <img
+                                    src="{{ url_for('static', filename='icons/' ~ target_vehicle_icon) }}"
+                                    alt=""
+                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-vehicle"
+                                >
 
                                 {% elif target.target_type == "office" %}
 
-                                    <img
-                                        src="{{ url_for('static', filename='icons/office.png') }}"
-                                        alt=""
-                                        style="
-                                            width:26px;
-                                            height:26px;
-                                            object-fit:contain;
-                                            flex:0 0 26px;
-                                        "
-                                    >
+                                <img
+                                    src="{{ url_for('static', filename='icons/office.png') }}"
+                                    alt=""
+                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-small"
+                                >
 
                                 {% endif %}
 
 
-                                <span style="
-                                    flex:1;
-                                    min-width:0;
-                                    overflow:hidden;
-                                    text-overflow:ellipsis;
-                                    white-space:nowrap;
-                                    font-size:12px;
-                                    font-weight:600;
-                                    color:#475569;
-                                ">
+                                <span class="dashboard-analysis-target-label">
                                     {{ target.target_label }}
                                 </span>
 
-
-                                <strong style="
-                                    flex:0 0 auto;
-                                    font-size:11px;
-                                    color:#2563eb;
-                                ">
+                                <strong class="dashboard-analysis-target-rate">
                                     {{ target.improvement_rate }}%
                                 </strong>
 
@@ -1521,404 +857,216 @@
     %}
 
     <div
-        class="dashboard-two-column"
-        {% if not (
-            dashboard_settings.get("show_ranking", True)
-            and dashboard_settings.get("show_inspection", True)
-        ) %}
-            style="grid-template-columns:minmax(0, 1fr);"
-        {% endif %}
+        class="dashboard-two-column {% if not (
+            dashboard_settings.get('show_ranking', True)
+            and dashboard_settings.get('show_inspection', True)
+        ) %}dashboard-two-column-single{% endif %}"
     >
-    {% if dashboard_settings.get("show_ranking", True) %}
-        <div
-            class="dashboard-card"
-            onclick="window.location.href='/master/drivers'"
-            style="cursor:pointer;"
-        >
-            <div class="card-title-row">
-                <h3>無事故無違反ランキング</h3>
-                <span>上位10名</span>
-            </div>
-
-            {% if ranking %}
-                <table class="dashboard-table">
-                    <tr>
-                        <th style="width:70px;">順位</th>
-                        <th>氏名</th>
-                        <th>営業所</th>
-                        <th style="width:120px;">継続日数</th>
-                    </tr>
-
-                    {% for driver in ranking %}
-                    <tr>
-                        <td>
-                            <span class="rank-badge rank-{{ loop.index }}">
-                                {{ loop.index }}
-                            </span>
-                        </td>
-                        <td>
-                            <a
-                                href="/master/drivers?keyword={{ driver.name|urlencode }}"
-                                onclick="event.stopPropagation();"
-                                style="
-                                    color:inherit;
-                                    text-decoration:none;
-                                    font-weight:600;
-                                "
-                            >
-                                {{ driver.name }}
-                            </a>
-                        </td>
-                        <td>{{ driver.office }}</td>
-                        <td>
-                            <strong>{{ driver.safe_days }}</strong> 日
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            {% else %}
-                <p class="empty-text">ランキング対象のドライバーがありません。</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% if dashboard_settings.get("show_inspection", True) %}
-        <div
-            class="dashboard-card"
-            onclick="window.location.href='/master/vehicles'"
-            style="cursor:pointer;"
-        >
-            <div class="card-title-row">
-                <h3>車検期限が近い車両</h3>
-                <span>90日以内</span>
-            </div>
-
-            {% if inspection_alerts %}
-                <table class="dashboard-table">
-                    <tr>
-                        <th>車両</th>
-                        <th>車検期限</th>
-                        <th style="width:100px;">残日数</th>
-                    </tr>
-
-                    {% for vehicle in inspection_alerts %}
-                    <tr
-                        onclick="window.location.href='/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}'"
-                        style="cursor:pointer;"
-                    >
-                        <td>
-                            {% set vehicle_type_text =
-                                ((vehicle.type or "") ~ " " ~ (vehicle.body_type or ""))|lower
-                            %}
-
-                            {% if "トレーラ" in vehicle_type_text %}
-                                {% set vehicle_icon = "trailer.png" %}
-                            {% elif "トラクタ" in vehicle_type_text or "ヘッド" in vehicle_type_text %}
-                                {% set vehicle_icon = "tractor.png" %}
-                            {% elif "クレーン" in vehicle_type_text or "ユニック" in vehicle_type_text %}
-                                {% set vehicle_icon = "crane.png" %}
-                            {% elif "平ボディ" in vehicle_type_text or "平車" in vehicle_type_text %}
-                                {% set vehicle_icon = "flatbed.png" %}
-                            {% elif "乗用" in vehicle_type_text or "普通車" in vehicle_type_text %}
-                                {% set vehicle_icon = "car.png" %}
-                            {% else %}
-                                {% set vehicle_icon = "truck.png" %}
-                            {% endif %}
-
-                            <a
-                                href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
-                                onclick="event.stopPropagation();"
-                                style="
-                                    display:flex;
-                                    align-items:center;
-                                    gap:9px;
-                                    color:inherit;
-                                    text-decoration:none;
-                                    font-weight:600;
-                                "
-                            >
-                                <img
-                                    src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
-                                    alt=""
-                                    style="
-                                        width:34px;
-                                        height:34px;
-                                        object-fit:contain;
-                                        flex:0 0 34px;
-                                    "
-                                >
-
-                                <span>
-                                    {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
-                                </span>
-                            </a>
-                        </td>
-                        <td>{{ vehicle.inspection_expiry }}</td>
-                        <td>
-                            {% if vehicle.remaining_days < 0 %}
-                                <span class="danger-text">期限切れ</span>
-                            {% elif vehicle.remaining_days <= 30 %}
-                                <span class="danger-text">{{ vehicle.remaining_days }}日</span>
-                            {% else %}
-                                <span class="warning-text">{{ vehicle.remaining_days }}日</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            {% else %}
-                <p class="empty-text">車検期限が近い車両はありません。</p>
-            {% endif %}
-        </div>
-        {% endif %}
+{% if dashboard_settings.get("show_ranking", True) %}
+<div
+    class="dashboard-card dashboard-click-card"
+    data-url="/master/drivers"
+>
+    <div class="card-title-row">
+        <h3>無事故無違反ランキング</h3>
+        <span>上位10名</span>
     </div>
+
+    {% if ranking %}
+    <table class="dashboard-table">
+        <tr>
+            <th class="dashboard-col-rank">順位</th>
+            <th>氏名</th>
+            <th>営業所</th>
+            <th class="dashboard-col-safe-days">継続日数</th>
+        </tr>
+
+        {% for driver in ranking %}
+        <tr>
+            <td>
+                <span class="rank-badge rank-{{ loop.index }}">
+                    {{ loop.index }}
+                </span>
+            </td>
+
+            <td>
+                <a
+                    href="/master/drivers?keyword={{ driver.name|urlencode }}"
+                    class="dashboard-table-link"
+                >
+                    {{ driver.name }}
+                </a>
+            </td>
+
+            <td>{{ driver.office }}</td>
+
+            <td>
+                <strong>{{ driver.safe_days }}</strong> 日
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+        <p class="empty-text">
+            ランキング対象のドライバーがありません。
+        </p>
+    {% endif %}
+</div>
+{% endif %}
+
+
+{% if dashboard_settings.get("show_inspection", True) %}
+<div
+    class="dashboard-card dashboard-click-card"
+    data-url="/master/vehicles"
+>
+    <div class="card-title-row">
+        <h3>車検期限が近い車両</h3>
+        <span>90日以内</span>
+    </div>
+
+    {% if inspection_alerts %}
+    <table class="dashboard-table">
+        <tr>
+            <th>車両</th>
+            <th>車検期限</th>
+            <th class="dashboard-col-remaining-days">残日数</th>
+        </tr>
+
+        {% for vehicle in inspection_alerts %}
+        <tr
+            class="dashboard-click-row"
+            data-url="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+        >
+            <td>
+                {% set vehicle_type_text =
+                    ((vehicle.type or "") ~ " " ~ (vehicle.body_type or ""))|lower
+                %}
+
+                {% if "トレーラ" in vehicle_type_text %}
+                    {% set vehicle_icon = "trailer.png" %}
+                {% elif "トラクタ" in vehicle_type_text or "ヘッド" in vehicle_type_text %}
+                    {% set vehicle_icon = "tractor.png" %}
+                {% elif "クレーン" in vehicle_type_text or "ユニック" in vehicle_type_text %}
+                    {% set vehicle_icon = "crane.png" %}
+                {% elif "平ボディ" in vehicle_type_text or "平車" in vehicle_type_text %}
+                    {% set vehicle_icon = "flatbed.png" %}
+                {% elif "乗用" in vehicle_type_text or "普通車" in vehicle_type_text %}
+                    {% set vehicle_icon = "car.png" %}
+                {% else %}
+                    {% set vehicle_icon = "truck.png" %}
+                {% endif %}
+
+                <a
+                    href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+                    class="dashboard-vehicle-table-link"
+                >
+                    <img
+                        src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                        alt=""
+                        class="dashboard-vehicle-table-icon"
+                    >
+
+                    <span>
+                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                    </span>
+                </a>
+            </td>
+
+            <td>{{ vehicle.inspection_expiry }}</td>
+
+            <td>
+                {% if vehicle.remaining_days < 0 %}
+                    <span class="danger-text">期限切れ</span>
+                {% elif vehicle.remaining_days <= 30 %}
+                    <span class="danger-text">
+                        {{ vehicle.remaining_days }}日
+                    </span>
+                {% else %}
+                    <span class="warning-text">
+                        {{ vehicle.remaining_days }}日
+                    </span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+        <p class="empty-text">
+            車検期限が近い車両はありません。
+        </p>
+    {% endif %}
+</div>
+{% endif %}
+
+</div>
 
 {% endif %}
 
-    {% if dashboard_settings.get("show_pending", True) %}
-    <div
-        class="dashboard-card"
-        onclick="window.location.href='/pointouts?type=user&mine=1&pending=1'"
-        style="cursor:pointer;"
-    >
-        <div class="card-title-row">
-            <h3>あなたへの未対応指摘</h3>
-            <span>{{ my_pending_pointouts|length }}件</span>
-        </div>
 
-        {% if my_pending_pointouts %}
-            <table class="dashboard-table">
-                <tr>
-                    <th style="width:120px;">日付</th>
-                    <th style="width:120px;">区分</th>
-                    <th>内容</th>
-                    <th style="width:130px;">状態</th>
-                    <th style="width:100px;">詳細</th>
-                </tr>
+{% if dashboard_settings.get("show_pending", True) %}
 
-                {% for item in my_pending_pointouts %}
-                <tr
-                    onclick="window.location.href='/pointouts/{{ item.index }}'"
-                    style="cursor:pointer;"
-                >
-                    <td>{{ item.date }}</td>
-                    <td>{{ item.category }}</td>
-                    <td>{{ item.content }}</td>
-                    <td>
-                        <span class="status-badge status-waiting">
-                            {{ item.approval_status }}
-                        </span>
-                    </td>
-                    <td>
-                        <a
-                            href="/pointouts/{{ item.index }}"
-                            class="btn-mini"
-                            onclick="event.stopPropagation();"
-                        >
-                            確認
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        {% else %}
-            <p class="empty-text">未対応の指摘はありません。</p>
-        {% endif %}
+<div
+    class="dashboard-card dashboard-click-card"
+    data-url="/pointouts?type=user&mine=1&pending=1"
+>
+    <div class="card-title-row">
+        <h3>あなたへの未対応指摘</h3>
+        <span>{{ my_pending_pointouts|length }}件</span>
     </div>
+
+    {% if my_pending_pointouts %}
+
+    <table class="dashboard-table">
+        <tr>
+            <th class="dashboard-col-date">日付</th>
+            <th class="dashboard-col-category">区分</th>
+            <th>内容</th>
+            <th class="dashboard-col-status">状態</th>
+            <th class="dashboard-col-detail">詳細</th>
+        </tr>
+
+        {% for item in my_pending_pointouts %}
+
+        <tr
+            class="dashboard-click-row"
+            data-url="/pointouts/{{ item.index }}"
+        >
+            <td>{{ item.date }}</td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.content }}</td>
+
+            <td>
+                <span class="status-badge status-waiting">
+                    {{ item.approval_status }}
+                </span>
+            </td>
+
+            <td>
+                <a
+                    href="/pointouts/{{ item.index }}"
+                    class="btn-mini"
+                >
+                    確認
+                </a>
+            </td>
+        </tr>
+
+        {% endfor %}
+    </table>
+
+    {% else %}
+
+        <p class="empty-text">
+            未対応の指摘はありません。
+        </p>
+
+    {% endif %}
+</div>
+
 {% endif %}
 </div>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const customizeButton =
-        document.getElementById("dashboardCustomizeButton");
 
-    const customizePanel =
-        document.getElementById("dashboardCustomizePanel");
-
-    if (customizeButton && customizePanel) {
-
-        function closeCustomizePanel() {
-            customizePanel.classList.remove("is-open");
-            customizeButton.setAttribute(
-                "aria-expanded",
-                "false"
-            );
-        }
-
-        customizeButton.addEventListener(
-            "click",
-            function (event) {
-
-                event.stopPropagation();
-
-                const willOpen =
-                    !customizePanel.classList.contains(
-                        "is-open"
-                    );
-
-                customizePanel.classList.toggle(
-                    "is-open",
-                    willOpen
-                );
-
-                customizeButton.setAttribute(
-                    "aria-expanded",
-                    willOpen ? "true" : "false"
-                );
-            }
-        );
-
-        customizePanel.addEventListener(
-            "click",
-            function (event) {
-                event.stopPropagation();
-            }
-        );
-
-        document.addEventListener(
-            "click",
-            closeCustomizePanel
-        );
-
-        document.addEventListener(
-            "keydown",
-            function (event) {
-
-                if (event.key === "Escape") {
-                    closeCustomizePanel();
-                }
-            }
-        );
-    }
-    document.querySelectorAll(".dashboard-improvement-bar").forEach(function (bar) {
-        const rate = Number(bar.dataset.rate || 0);
-        bar.style.width = Math.max(0, Math.min(100, rate)) + "%";
-    });
-    const searchInput = document.getElementById("dashboardVehicleSearch");
-    const vehicleIdInput = document.getElementById("dashboardVehicleId");
-    const resultBox = document.getElementById("dashboardVehicleResults");
-    const form = document.getElementById("dashboardVehicleForm");
-
-    if (!searchInput || !vehicleIdInput || !resultBox || !form) {
-        return;
-    }
-
-    let searchTimer = null;
-
-    searchInput.addEventListener("input", function () {
-        clearTimeout(searchTimer);
-
-        vehicleIdInput.value = "";
-
-        const keyword = searchInput.value.trim();
-
-        if (!keyword) {
-            resultBox.innerHTML = "";
-            resultBox.style.display = "none";
-            return;
-        }
-
-        searchTimer = setTimeout(function () {
-            fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
-                .then(response => response.json())
-                .then(data => {
-                    resultBox.innerHTML = "";
-
-                    if (!data.results || data.results.length === 0) {
-                        resultBox.innerHTML =
-                            '<p class="help-text" style="padding:10px;">該当する車両がありません。</p>';
-
-                        resultBox.style.display = "block";
-                        return;
-                    }
-
-                    data.results.forEach(function (vehicle) {
-                        const row = document.createElement("div");
-
-                        row.style.cssText = `
-                            display:flex;
-                            align-items:center;
-                            justify-content:space-between;
-                            gap:12px;
-                            padding:10px 12px;
-                            border-bottom:1px solid #edf1f5;
-                            cursor:pointer;
-                        `;
-
-                        const labelParts = [
-                            vehicle.vehicle_id,
-                            vehicle.number,
-                            vehicle.manufacturer,
-                            vehicle.model_code
-                        ].filter(Boolean);
-
-                        const label = document.createElement("span");
-                        label.textContent = labelParts.join(" / ");
-
-                        const button = document.createElement("button");
-                        button.type = "button";
-                        button.title = "使用車両に追加";
-                        button.setAttribute("aria-label", "使用車両に追加");
-
-                        button.textContent = "＋";
-
-                        button.style.cssText = `
-                            flex:0 0 28px;
-                            width:28px;
-                            height:28px;
-                            padding:0;
-                            border:1px solid #dbeafe;
-                            border-radius:8px;
-                            background:#f8fbff;
-                            color:#2563eb;
-                            font-size:18px;
-                            font-weight:500;
-                            line-height:1;
-                            cursor:pointer;
-                        `;
-
-                        button.addEventListener("click", function () {
-                            vehicleIdInput.value = vehicle.vehicle_id;
-                            form.submit();
-                        });
-
-                        row.addEventListener("click", function (event) {
-                            if (event.target === button) {
-                                return;
-                            }
-
-                            vehicleIdInput.value = vehicle.vehicle_id;
-                            form.submit();
-                        });
-
-                        row.appendChild(label);
-                        row.appendChild(button);
-
-                        resultBox.appendChild(row);
-                    });
-
-                    resultBox.style.display = "block";
-                });
-        }, 250);
-    });
-
-    document.addEventListener("click", function (event) {
-        if (
-            !searchInput.contains(event.target) &&
-            !resultBox.contains(event.target)
-        ) {
-            resultBox.style.display = "none";
-        }
-    });
-
-    form.addEventListener("submit", function (event) {
-        if (!vehicleIdInput.value) {
-            event.preventDefault();
-
-            alert("候補から車両を選択してください。");
-            searchInput.focus();
-        }
-    });
-});
-</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
 {% endblock %}

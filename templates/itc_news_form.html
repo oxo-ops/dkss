@@ -46,7 +46,7 @@
         </option>
     </select>
 
-    <div id="targetSearchArea">
+    <div id="targetSearchArea" class="js-news-target-search-area">
         <label>投稿先指定</label>
 
         <input
@@ -66,8 +66,7 @@
 
         <div
             id="newsTargetResults"
-            class="news-target-results"
-            style="display:none;"
+            class="news-target-results is-hidden"
         ></div>
 
         <p class="help-text">
@@ -119,90 +118,15 @@
 {% if mode == "edit" and news %}
     <button
         type="submit"
-        class="btn btn-danger"
+        class="btn btn-danger js-news-delete"
         formaction="/itc/news/{{ index }}/delete"
         formmethod="post"
-        onclick="return confirm('このニュースを削除しますか？');"
     >
         削除
     </button>
 {% endif %}
 </form>
-<script>
-const targetTypeSelect = document.querySelector('select[name="target_type"]');
-const targetSearchArea = document.getElementById("targetSearchArea");
-const targetSearchInput = document.getElementById("newsTargetSearch");
-const targetValueInput = document.getElementById("newsTargetValue");
-const targetResults = document.getElementById("newsTargetResults");
 
-function updateTargetSearchArea() {
-    const type = targetTypeSelect.value;
+<script src="{{ url_for('static', filename='js/itc_news_form.js') }}"></script>
 
-    if (type === "all" || type === "admins") {
-        targetSearchArea.style.display = "none";
-        targetSearchInput.value = "";
-        targetValueInput.value = "";
-        targetResults.style.display = "none";
-    } else {
-        targetSearchArea.style.display = "block";
-    }
-}
-
-targetTypeSelect.addEventListener("change", function () {
-    updateTargetSearchArea();
-});
-
-targetSearchInput.addEventListener("input", function () {
-    const keyword = targetSearchInput.value.trim();
-    const type = targetTypeSelect.value;
-
-    if (!keyword) {
-        targetResults.innerHTML = "";
-        targetResults.style.display = "none";
-        targetValueInput.value = "";
-        return;
-    }
-
-    fetch("/api/news-targets?type=" + encodeURIComponent(type) + "&q=" + encodeURIComponent(keyword))
-        .then(response => response.json())
-        .then(data => {
-            targetResults.innerHTML = "";
-
-            if (!data.results || data.results.length === 0) {
-                targetResults.style.display = "none";
-                return;
-            }
-
-            data.results.forEach(function (item) {
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "news-target-item";
-
-                button.innerHTML =
-                    "<strong>" + item.name + "</strong>" +
-                    "<span>" + item.sub + "</span>";
-
-                button.onclick = function () {
-                    targetSearchInput.value = item.name;
-                    targetValueInput.value = item.id;
-                    targetResults.style.display = "none";
-                };
-
-                targetResults.appendChild(button);
-            });
-
-            targetResults.style.display = "block";
-        });
-});
-
-document.addEventListener("click", function (e) {
-    if (!e.target.closest("#targetSearchArea")) {
-        targetResults.style.display = "none";
-    }
-});
-
-window.addEventListener("DOMContentLoaded", function () {
-    updateTargetSearchArea();
-});
-</script>
 {% endblock %}

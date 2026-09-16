@@ -57,7 +57,7 @@
     <form
         method="post"
         action="/vehicle-patrols/{{ index }}/delete"
-        onsubmit="return confirm('削除しますか？');"
+        class="js-vehicle-patrol-detail-delete-form"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn danger">
@@ -66,5 +66,7 @@
     </form>
 
 </div>
+
+<script src="{{ url_for('static', filename='js/vehicle_patrol_detail.js') }}"></script>
 
 {% endblock %}
