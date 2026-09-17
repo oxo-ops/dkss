@@ -43,6 +43,20 @@
 
                 <form
                     method="post"
+                    action="/master/checklists/{{ checklist.id }}/duplicate"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token() }}"
+                    >
+                    <button type="submit" class="btn-small btn-detail">
+                        複製
+                    </button>
+                </form>
+
+                <form
+                    method="post"
                     action="/master/checklists/{{ checklist.id }}/delete"
                     onsubmit="return confirm('このチェックリストを削除しますか？');"
                 >

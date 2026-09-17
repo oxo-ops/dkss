@@ -474,6 +474,17 @@ window.addEventListener("DOMContentLoaded", function () {
     toggleVehicleChecklistSetting();
     toggleReminderTime();
 
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("duplicated") === "1") {
+        const nameInput = document.querySelector('input[name="name"]');
+
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.select();
+        }
+    }
+
     document
         .querySelectorAll('select[name="item_type"]')
         .forEach(function(select) {

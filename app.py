@@ -17911,6 +17911,61 @@ def edit_checklist(index):
     )
 
 
+@app.route("/master/checklists/<int:index>/duplicate", methods=["POST"])
+@limiter.limit("10 per minute")
+def duplicate_checklist(index):
+    company_code = session.get("company_code")
+
+    source = Checklist.query.filter_by(
+        id=index,
+        company_code=company_code
+    ).first()
+
+    if not source:
+        return redirect("/master/checklists")
+
+    base_name = f"{source.name}（コピー）"
+    new_name = base_name
+    copy_no = 2
+
+    while Checklist.query.filter_by(
+        company_code=company_code,
+        name=new_name
+    ).first():
+        new_name = f"{source.name}（コピー{copy_no}）"
+        copy_no += 1
+
+    duplicated = Checklist(
+        company_code=company_code,
+        name=new_name,
+        target=source.target,
+        frequency_value=source.frequency_value,
+        frequency_unit=source.frequency_unit,
+        display_type=source.display_type,
+        print_portrait=source.print_portrait,
+        print_half_month=source.print_half_month,
+        reminder_enabled=source.reminder_enabled,
+        reminder_time=source.reminder_time,
+        items_json=source.items_json,
+        notify_users_json=source.notify_users_json,
+        version_history_json="[]"
+    )
+
+    db.session.add(duplicated)
+    db.session.commit()
+
+    add_audit_log(
+        action="duplicate_checklist",
+        target_type="checklist",
+        target_id=str(duplicated.id),
+        detail=f"{source.name} から {new_name} を複製"
+    )
+
+    return redirect(
+        f"/master/checklists/{duplicated.id}/edit?duplicated=1"
+    )
+
+
 @app.route("/master/checklists/<int:index>/delete", methods=["POST"])
 @limiter.limit("10 per minute")
 def delete_checklist(index):
