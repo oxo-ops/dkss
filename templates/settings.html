@@ -84,37 +84,10 @@
     <p class="help-text">
         メールアドレスを変更する場合のみ入力してください。
     </p>
-    <label class="checkbox-row">
-        <input
-            type="checkbox"
-            name="teams_notify_enabled"
-            value="1"
-            {% if user.teams_notify_enabled %}checked{% endif %}
-        >
-        <span>Microsoft Teamsでも通知を受け取る</span>
-    </label>
 
-<div class="microsoft-connect-section">
-    {% if user.microsoft_connected %}
-        <p>Microsoft連携済み</p>
-
-        <p class="help-text">
-            {{ user.microsoft_account_email or 'Microsoftアカウント' }}
-        </p>
-    {% else %}
-        <a
-            href="/microsoft/connect"
-            class="microsoft-connect-btn"
-        >
-            Microsoftと連携する
-        </a>
-
-        <p class="help-text microsoft-connect-help">
-            メール通知・Teams通知を利用するために、
-            Microsoftアカウントを連携します。
-        </p>
-    {% endif %}
-</div>
+<p class="help-text">
+    メール通知は登録済みのメールアドレス宛に送信されます。
+</p>
 
     <button type="submit" class="btn">
         通知設定を保存
