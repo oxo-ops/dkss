@@ -6,7 +6,18 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
-    passwordToggle.addEventListener("change", function () {
-        passwordInput.type = passwordToggle.checked ? "text" : "password";
+    passwordToggle.addEventListener("click", function () {
+        const isHidden = passwordInput.type === "password";
+
+        passwordInput.type = isHidden ? "text" : "password";
+        passwordToggle.classList.toggle("is-visible", isHidden);
+        passwordToggle.setAttribute(
+            "aria-label",
+            isHidden ? "パスワードを隠す" : "パスワードを表示"
+        );
+        passwordToggle.setAttribute(
+            "title",
+            isHidden ? "パスワードを隠す" : "パスワードを表示"
+        );
     });
 });
