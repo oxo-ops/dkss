@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, send_file, url_for
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from uuid import uuid4
 import os
@@ -7013,7 +7014,10 @@ def edit_pointout(index):
                         "S3添付ファイル削除エラー"
                     )
             else:
-                safe_file_name = os.path.basename(delete_file)
+                safe_file_name = secure_filename(delete_file)
+
+                if not safe_file_name:
+                    continue
 
                 file_path = os.path.join(
                     app.config["UPLOAD_FOLDER"],
