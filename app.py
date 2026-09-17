@@ -786,6 +786,12 @@ class Checklist(db.Model):
         default="[]"
     )
 
+    active = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
     notify_users_json = db.Column(
         db.Text,
         default="[]"
@@ -1841,6 +1847,7 @@ def checklist_to_dict(checklist):
         "frequency_value": checklist.frequency_value,
         "frequency_unit": checklist.frequency_unit,
         "display_type": checklist.display_type,
+        "active": bool(checklist.active),
         "print_portrait": bool(checklist.print_portrait),
         "print_half_month": bool(checklist.print_half_month),
         "reminder_enabled": bool(checklist.reminder_enabled),
@@ -2199,7 +2206,8 @@ def send_vehicle_checklist_reminders(company_code):
     checklists = Checklist.query.filter_by(
         company_code=company_code,
         target="車両管理",
-        reminder_enabled=True
+        reminder_enabled=True,
+        active=True
     ).all()
 
     for checklist in checklists:
@@ -5186,7 +5194,8 @@ def dashboard():
     my_checklist_summaries = []
 
     score_checklists = Checklist.query.filter_by(
-        company_code=company_code
+        company_code=company_code,
+        active=True
     ).filter(
         Checklist.target.in_(["安全管理", "車両管理"])
     ).all()
@@ -12379,9 +12388,29 @@ def delete_manual(index):
 
 @app.route("/master/checklists")
 def checklist_master():
+    checklists = checklists_for_current_company()
+    company_code = session.get("company_code")
+
+    for checklist in checklists:
+        checklist_id = checklist["id"]
+
+        has_safety_results = ChecklistResult.query.filter_by(
+            company_code=company_code,
+            checklist_id=checklist_id
+        ).first()
+
+        has_vehicle_results = VehicleChecklistResult.query.filter_by(
+            company_code=company_code,
+            checklist_id=checklist_id
+        ).first()
+
+        checklist["has_results"] = bool(
+            has_safety_results or has_vehicle_results
+        )
+
     return render_template(
         "checklist_master.html",
-        checklists=checklists_for_current_company()
+        checklists=checklists
     )
 
 @app.route("/master/checklists/new", methods=["GET", "POST"])
@@ -12675,7 +12704,10 @@ def safety_checklists():
     safety_lists = []
 
     for checklist in checklists_for_current_company():
-        if checklist["target"] == "安全管理":
+        if (
+            checklist["target"] == "安全管理"
+            and checklist.get("active", True)
+        ):
             safety_lists.append(checklist)
 
     return render_template(
@@ -14181,7 +14213,10 @@ def vehicle_checklists():
     vehicle_lists = []
 
     for checklist in checklists_for_current_company():
-        if checklist["target"] == "車両管理":
+        if (
+            checklist["target"] == "車両管理"
+            and checklist.get("active", True)
+        ):
             vehicle_lists.append(checklist)
 
     return render_template(
@@ -14283,7 +14318,6 @@ def vehicle_checklist_results(index):
 
         for day in range(1, last_day + 1):
             display_days.append(day)
-            input_days.append(day)
 
             weekday_index = datetime(int(year), int(month), day).weekday()
 
@@ -14292,7 +14326,8 @@ def vehicle_checklist_results(index):
                 "is_weekend": weekday_index in [5, 6]
             }
 
-        input_days.reverse()
+        input_days = list(range(1, last_day + 1))
+
 
     else:
         display_mode = "month_list"
@@ -14621,7 +14656,8 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
 
     checklist_record = Checklist.query.filter_by(
         id=checklist_index,
-        company_code=company_code
+        company_code=company_code,
+        active=True
     ).first()
 
     if not checklist_record:
@@ -16192,7 +16228,8 @@ def export_vehicle_checklist_result_excel(result_index):
 def save_vehicle_checklist_one(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        active=True
     ).first()
 
     if not checklist_record:
@@ -16485,7 +16522,8 @@ def save_vehicle_checklist_one(index):
 def save_vehicle_checklist_detail(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        active=True
     ).first()
 
     if not checklist_record:
@@ -16798,7 +16836,8 @@ def complete_vehicle_checklist(index):
 
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=company_code
+        company_code=company_code,
+        active=True
     ).first()
 
     if not checklist_record:
@@ -17035,7 +17074,8 @@ def complete_vehicle_checklist(index):
 def new_vehicle_checklist_result(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        active=True
     ).first()
 
     if not checklist_record:
@@ -17269,7 +17309,8 @@ def new_vehicle_checklist_result(index):
 def new_safety_checklist_result(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        active=True
     ).first()
 
     if not checklist_record:
@@ -17581,9 +17622,6 @@ def edit_checklist(index):
             checklist_id=checklist_record.id
         ).first()
 
-        if has_safety_results:
-            pass
-
         target = request.form.get("target", "").strip()
 
         if target not in {
@@ -17859,18 +17897,19 @@ def edit_checklist(index):
             checklist_record.version_history_json
         )
 
-        version_history.append({
-            "effective_until": datetime.now(
-                ZoneInfo("Asia/Tokyo")
-            ).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-            "snapshot": {
-                key: value
-                for key, value in checklist.items()
-                if key != "version_history"
-            }
-        })
+        if has_safety_results or has_vehicle_results:
+            version_history.append({
+                "effective_until": datetime.now(
+                    ZoneInfo("Asia/Tokyo")
+                ).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "snapshot": {
+                    key: value
+                    for key, value in checklist.items()
+                    if key != "version_history"
+                }
+            })
 
         checklist_record.version_history_json = json.dumps(
             version_history,
@@ -17946,13 +17985,14 @@ def duplicate_checklist(index):
         print_half_month=source.print_half_month,
         reminder_enabled=source.reminder_enabled,
         reminder_time=source.reminder_time,
+        active=True,
         items_json=source.items_json,
         notify_users_json=source.notify_users_json,
         version_history_json="[]"
     )
 
     db.session.add(duplicated)
-    db.session.commit()
+    db.session.flush()
 
     add_audit_log(
         action="duplicate_checklist",
@@ -17961,9 +18001,37 @@ def duplicate_checklist(index):
         detail=f"{source.name} から {new_name} を複製"
     )
 
+    db.session.commit()
+
     return redirect(
         f"/master/checklists/{duplicated.id}/edit?duplicated=1"
     )
+
+
+@app.route("/master/checklists/<int:index>/toggle-active", methods=["POST"])
+@limiter.limit("10 per minute")
+def toggle_checklist_active(index):
+    checklist = Checklist.query.filter_by(
+        id=index,
+        company_code=session.get("company_code")
+    ).first()
+
+    if not checklist:
+        return redirect("/master/checklists")
+
+    checklist.active = not checklist.active
+
+    add_audit_log(
+        action="checklist_activated" if checklist.active else "checklist_deactivated",
+        target_type="checklist",
+        target_id=str(checklist.id),
+        detail=f"{checklist.name} を"
+        f"{'有効化' if checklist.active else '無効化'}"
+    )
+
+    db.session.commit()
+
+    return redirect("/master/checklists")
 
 
 @app.route("/master/checklists/<int:index>/delete", methods=["POST"])
@@ -18383,6 +18451,10 @@ with app.app_context():
     checklist_columns = [
         ("notify_users_json", "TEXT"),
         ("version_history_json", "TEXT"),
+        (
+            "active",
+            "BOOLEAN NOT NULL DEFAULT TRUE"
+        ),
         (
             "print_portrait",
             "BOOLEAN NOT NULL DEFAULT FALSE"
