@@ -29,7 +29,15 @@
         <th class="col-actions-wide">操作</th>
     </tr>
 
-    {% for result in results %}
+    {% for period in checklist_periods %}
+    <tr>
+        <td colspan="7">
+            {{ period.start_date.strftime("%Y/%m/%d") }}
+            ～ 
+            {{ period.end_date.strftime("%Y/%m/%d") }}
+        </td>
+    </tr>
+    {% for result in period.results %}
     <tr>
         <td>{{ result.checked_by }}</td>
 
@@ -103,6 +111,8 @@
         </td>
     </tr>
     {% endfor %}
+    {% endfor %}
+
 </table>
 
 <script src="{{ url_for('static', filename='js/safety_checklist_results.js') }}"></script>

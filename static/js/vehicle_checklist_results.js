@@ -743,15 +743,93 @@ document.addEventListener("DOMContentLoaded", function () {
         new Map();
 
 
-    savedNotifyUsers.forEach(
-        function (name) {
-            notifyUsers.set(
-                name,
-                name
+async function loadSavedNotifyUsers() {
+    for (
+        const savedValue
+        of savedNotifyUsers
+    ) {
+        const value =
+            String(
+                savedValue || ""
+            ).trim();
+
+        if (!value) {
+            continue;
+        }
+
+        try {
+            const response =
+                await fetch(
+                    "/api/mention-users?q=" +
+                    encodeURIComponent(
+                        value
+                    )
+                );
+
+            if (!response.ok) {
+                console.warn(
+                    "保存済み通知先を復元できません:",
+                    value
+                );
+                continue;
+            }
+
+            const data =
+                await response.json();
+
+            const users =
+                data.users || [];
+
+            const usernameMatch =
+                users.find(
+                    function (user) {
+                        return (
+                            user.username ===
+                            value
+                        );
+                    }
+                );
+
+            if (usernameMatch) {
+                notifyUsers.set(
+                    usernameMatch.username,
+                    usernameMatch.name
+                );
+                continue;
+            }
+
+            const nameMatches =
+                users.filter(
+                    function (user) {
+                        return (
+                            user.name ===
+                            value
+                        );
+                    }
+                );
+
+            if (nameMatches.length === 1) {
+                notifyUsers.set(
+                    nameMatches[0].username,
+                    nameMatches[0].name
+                );
+            } else {
+                console.warn(
+                    "保存済み通知先を一意に復元できません:",
+                    value
+                );
+            }
+
+        } catch (error) {
+            console.error(
+                "通知先ユーザーの復元に失敗しました。",
+                error
             );
         }
-    );
+    }
 
+    renderNotifyUsers();
+}
 
     function renderNotifyUsers() {
         if (!notifySelected) {
@@ -798,7 +876,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 hidden.name =
                     "notify_users";
 
-                hidden.value = name;
+                hidden.value = username;
 
                 tag.appendChild(text);
                 tag.appendChild(remove);
@@ -812,7 +890,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    renderNotifyUsers();
+    loadSavedNotifyUsers();
 
 
     if (notifySelected) {
@@ -976,14 +1054,14 @@ document.addEventListener("DOMContentLoaded", function () {
                                         ) {
                                             if (
                                                 notifyUsers.has(
-                                                    selectedUser.name
+                                                    selectedUser.username
                                                 )
                                             ) {
                                                 return;
                                             }
 
                                             notifyUsers.set(
-                                                selectedUser.name,
+                                                selectedUser.username,
                                                 selectedUser.name
                                             );
 
@@ -1039,14 +1117,93 @@ document.addEventListener("DOMContentLoaded", function () {
         new Map();
 
 
-    savedReminderNotifyUsers.forEach(
-        function (name) {
-            reminderUsers.set(
-                name,
-                name
+async function loadSavedReminderNotifyUsers() {
+    for (
+        const savedValue
+        of savedReminderNotifyUsers
+    ) {
+        const value =
+            String(
+                savedValue || ""
+            ).trim();
+
+        if (!value) {
+            continue;
+        }
+
+        try {
+            const response =
+                await fetch(
+                    "/api/mention-users?q=" +
+                    encodeURIComponent(
+                        value
+                    )
+                );
+
+            if (!response.ok) {
+                console.warn(
+                    "保存済み点検未実施通知先を復元できません:",
+                    value
+                );
+                continue;
+            }
+
+            const data =
+                await response.json();
+
+            const users =
+                data.users || [];
+
+            const usernameMatch =
+                users.find(
+                    function (user) {
+                        return (
+                            user.username ===
+                            value
+                        );
+                    }
+                );
+
+            if (usernameMatch) {
+                reminderUsers.set(
+                    usernameMatch.username,
+                    usernameMatch.name
+                );
+                continue;
+            }
+
+            const nameMatches =
+                users.filter(
+                    function (user) {
+                        return (
+                            user.name ===
+                            value
+                        );
+                    }
+                );
+
+            if (nameMatches.length === 1) {
+                reminderUsers.set(
+                    nameMatches[0].username,
+                    nameMatches[0].name
+                );
+            } else {
+                console.warn(
+                    "保存済み点検未実施通知先を一意に復元できません:",
+                    value
+                );
+            }
+
+        } catch (error) {
+            console.error(
+                "点検未実施通知先の復元に失敗しました。",
+                error
             );
         }
-    );
+    }
+
+    renderReminderUsers();
+}
 
 
     async function saveReminderUsers() {
@@ -1075,10 +1232,10 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
         reminderUsers.forEach(
-            function (name) {
+            function (name, username) {
                 formData.append(
                     "reminder_notify_users",
-                    name
+                    username
                 );
             }
         );
@@ -1148,7 +1305,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    renderReminderUsers();
+    loadSavedReminderNotifyUsers();
 
 
     if (reminderSelected) {
@@ -1248,14 +1405,14 @@ document.addEventListener("DOMContentLoaded", function () {
                                             ) {
                                                 if (
                                                     reminderUsers.has(
-                                                        selectedUser.name
+                                                        selectedUser.username
                                                     )
                                                 ) {
                                                     return;
                                                 }
 
                                                 reminderUsers.set(
-                                                    selectedUser.name,
+                                                    selectedUser.username,
                                                     selectedUser.name
                                                 );
 

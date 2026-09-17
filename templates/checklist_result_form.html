@@ -82,13 +82,16 @@
                 type="text"
                 name="target_user"
                 list="driver_list"
-                value="{{ result.target_user if result else '' }}"
-                placeholder="対象者名を入力"
+                value="{{ result.target_username if result else '' }}"
+                placeholder="氏名または社員IDを入力"
             >
 
             <datalist id="driver_list">
                 {% for driver in drivers %}
-                    <option value="{{ driver.name }}">
+                    <option
+                        value="{{ driver.employee_id }}"
+                        label="{{ driver.name }}{% if driver.office %} / {{ driver.office }}{% endif %}"
+                    >
                 {% endfor %}
             </datalist>
         </div>
@@ -166,10 +169,8 @@
                 <th class="checklist-result-col-category">カテゴリ</th>
                 <th>チェック内容</th>
                 <th class="checklist-result-col-score">評価</th>
-                <th class="checklist-result-col-comment">コメント</th>
-                <th class="checklist-result-col-file">写真・ファイル</th>
-                <th class="patrol-link-header">
-                    安全パトロールへ登録
+                <th class="checklist-result-col-support">
+                    補足・対応
                 </th>
             </tr>
 
@@ -222,48 +223,46 @@
                     {% endif %}
                 </td>
 
-                <td>
+                <td class="checklist-result-support-cell">
                     <input
                         type="hidden"
                         name="comment_{{ ns.answer_index }}"
                         value="{{ saved_answer.comment if saved_answer else '' }}"
                     >
-
-                    <div
-                        class="mention-rich-editor"
-                        contenteditable="true"
-                        data-value="{{ saved_answer.comment if saved_answer else '' }}"
-                        data-required="{{ 'true' if item.comment_required else 'false' }}"
-                        data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
-                    ></div>
-                </td>
-                <td class="file-upload-cell">
-
-                    <label class="file-upload-button">
-                        ＋ ファイル追加
-
-                        <input
-                            type="file"
-                            name="files_{{ ns.answer_index }}"
-                            multiple
-                            accept="image/*,video/*,.pdf"
-                            class="file-upload-input js-file-upload-input"
-                        >
-                    </label>
-
-                    <div class="selected-file-names"></div>
-
-                </td>
-
-                <td class="center-cell patrol-link-cell">
-                    <input
-                        type="checkbox"
-                        name="patrol_link_{{ ns.answer_index }}"
-                        value="1"
-                        class="patrol-link-checkbox"
-                        title="安全パトロールへ登録"
-                        {% if saved_answer and saved_answer.patrol_link %}checked{% endif %}
-                    >
+                    <div class="checklist-result-support">
+                        <div
+                            class="mention-rich-editor"
+                            contenteditable="true"
+                            data-value="{{ saved_answer.comment if saved_answer else '' }}"
+                            data-required="{{ 'true' if item.comment_required else 'false' }}"
+                            data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメントを追加{% endif %}"
+                        ></div>
+                        <div class="checklist-result-support-actions">
+                            <div class="file-upload-cell">
+                                <label class="file-upload-button">
+                                    ＋ ファイル
+                                    <input
+                                        type="file"
+                                        name="files_{{ ns.answer_index }}"
+                                        multiple
+                                        accept="image/*,video/*,.pdf"
+                                        class="file-upload-input js-file-upload-input"
+                                    >
+                                </label>
+                                <div class="selected-file-names"></div>
+                            </div>
+                            <label class="checklist-result-patrol-option">
+                                <input
+                                    type="checkbox"
+                                    name="patrol_link_{{ ns.answer_index }}"
+                                    value="1"
+                                    class="patrol-link-checkbox"
+                                    {% if saved_answer and saved_answer.patrol_link %}checked{% endif %}
+                                >
+                                <span>要対応として登録</span>
+                            </label>
+                        </div>
+                    </div>
                 </td>
             </tr>
 
@@ -273,7 +272,7 @@
         </table>
     </div>
 
-    <button type="submit" class="btn">
+    <button type="submit" class="btn checklist-result-submit">
         {% if mode == "edit" %}
             チェック結果を更新
         {% else %}

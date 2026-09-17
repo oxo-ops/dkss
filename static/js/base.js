@@ -188,12 +188,24 @@ function showRichMentionBox(editor, users) {
         item.type = "button";
         item.className = "mention-item";
 
-        item.innerHTML =
-            "<strong>" + user.name + "</strong>" +
-            "<span>" + (user.office || "") + "</span>";
+        const name = document.createElement("strong");
+        const office = document.createElement("span");
+
+        name.textContent = user.name || "";
+        office.textContent = [
+            user.office || "",
+            user.username
+                ? "ID: " + user.username
+                : ""
+        ]
+            .filter(Boolean)
+            .join(" / ");
+
+        item.appendChild(name);
+        item.appendChild(office);
 
         item.addEventListener("click", function () {
-            insertRichMention(user.name);
+            insertRichMention(user);
         });
 
         box.appendChild(item);
@@ -202,7 +214,7 @@ function showRichMentionBox(editor, users) {
     box.classList.add("is-visible");
 }
 
-function insertRichMention(name) {
+function insertRichMention(user) {
     if (!activeRichMentionRange) {
         return;
     }
@@ -222,7 +234,10 @@ function insertRichMention(name) {
     const parent = node.parentNode;
 
     const beforeNode = document.createTextNode(before);
-    const chip = createMentionChip(name);
+    const chip = createMentionChip(
+        user.name,
+        user.username + "|" + user.name
+    );
     const spaceNode = document.createTextNode(" ");
     const afterNode = document.createTextNode(after);
 
@@ -273,12 +288,29 @@ function showMentionBox(input, users, mentionText) {
         item.type = "button";
         item.className = "mention-item";
 
-        item.innerHTML =
-            "<strong>" + user.name + "</strong>" +
-            "<span>" + (user.office || "") + "</span>";
+        const name = document.createElement("strong");
+        const office = document.createElement("span");
+
+        name.textContent = user.name || "";
+        office.textContent = [
+            user.office || "",
+            user.username
+                ? "ID: " + user.username
+                : ""
+        ]
+            .filter(Boolean)
+            .join(" / ");
+
+        item.appendChild(name);
+        item.appendChild(office);
 
         item.addEventListener("click", function () {
-            insertMention(input, mentionText, user.name);
+            insertMention(
+                input,
+                mentionText,
+                user.name,
+                user.username
+            );
         });
         box.appendChild(item);
     });
@@ -286,7 +318,12 @@ function showMentionBox(input, users, mentionText) {
     box.classList.add("is-visible");
 }
 
-function insertMention(input, mentionText, name) {
+function insertMention(
+    input,
+    mentionText,
+    name,
+    username
+) {
     const caret = input.selectionStart;
     const text = input.value;
 
@@ -295,20 +332,23 @@ function insertMention(input, mentionText, name) {
 
     const newBefore = before.replace(
         /@([^@\s]*)$/,
-        "[[" + name + "]] "
+        "[[" + username + "|" + name + "]] "
     );
 
     input.value = newBefore + after;
     input.focus();
-    input.selectionStart = input.selectionEnd = newBefore.length;
+    input.selectionStart =
+        input.selectionEnd =
+        newBefore.length;
 
     closeMentionBox();
 }
 
-function createMentionChip(name) {
+function createMentionChip(name, mentionValue) {
     const chip = document.createElement("span");
 
-    const currentUserName = document.body.dataset.currentUser || "";
+    const currentUserName =
+        document.body.dataset.currentUser || "";
 
     chip.className = "mention-chip";
 
@@ -318,7 +358,9 @@ function createMentionChip(name) {
         chip.classList.add("mention-chip-other");
     }
 
-    chip.dataset.mention = name;
+    chip.dataset.mention =
+        mentionValue || name;
+
     chip.contentEditable = "false";
     chip.textContent = name;
 
@@ -334,7 +376,8 @@ function renderMentionValue(editor, value) {
     let match;
 
     while ((match = regex.exec(value)) !== null) {
-        const beforeText = value.slice(lastIndex, match.index);
+        const beforeText =
+            value.slice(lastIndex, match.index);
 
         if (beforeText) {
             editor.appendChild(
@@ -342,8 +385,22 @@ function renderMentionValue(editor, value) {
             );
         }
 
+        const mentionValue = match[1];
+        const separatorIndex =
+            mentionValue.indexOf("|");
+
+        const displayName =
+            separatorIndex >= 0
+                ? mentionValue.slice(
+                    separatorIndex + 1
+                )
+                : mentionValue;
+
         editor.appendChild(
-            createMentionChip(match[1])
+            createMentionChip(
+                displayName,
+                mentionValue
+            )
         );
 
         lastIndex = regex.lastIndex;
