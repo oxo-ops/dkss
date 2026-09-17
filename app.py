@@ -18220,7 +18220,7 @@ def init_db():
             db.text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS "
                 "uq_user_company_username "
-                "ON user (company_code, username)"
+                'ON "user" (company_code, username)'
             )
         )
 
