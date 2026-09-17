@@ -689,7 +689,6 @@ textarea {
 .checklist-table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
 }
 
 .checklist-table td:nth-child(2) {
