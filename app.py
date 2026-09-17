@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, send_file, url_for
+﻿from flask import Flask, render_template, request, redirect, session, send_file, url_for
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -11,8 +11,6 @@ import calendar
 import smtplib
 from email.message import EmailMessage
 from email.utils import parseaddr
-import msal
-import requests
 import secrets
 import zipfile
 import re
@@ -67,57 +65,9 @@ if not secret_key:
     )
 
 app.secret_key = secret_key
-MICROSOFT_CLIENT_ID = os.environ.get(
-    "MICROSOFT_CLIENT_ID",
-    ""
-)
-
-MICROSOFT_CLIENT_SECRET = os.environ.get(
-    "MICROSOFT_CLIENT_SECRET",
-    ""
-)
-
-MICROSOFT_TENANT_ID = os.environ.get(
-    "MICROSOFT_TENANT_ID",
-    "common"
-)
-
-MICROSOFT_AUTHORITY = (
-    "https://login.microsoftonline.com/"
-    f"{MICROSOFT_TENANT_ID}"
-)
-
-MICROSOFT_REDIRECT_URI = os.environ.get(
-    "MICROSOFT_REDIRECT_URI",
-    "http://127.0.0.1:5000/microsoft/callback"
-)
-
-NOTIFICATION_SENDER_EMAIL = os.environ.get(
-    "NOTIFICATION_SENDER_EMAIL",
-    ""
-)
-
 MFA_ENABLED = (
     os.environ.get("MFA_ENABLED", "true").lower() == "true"
 )
-
-MICROSOFT_SCOPES = [
-    "User.Read",
-]
-
-def get_microsoft_app():
-    if (
-        not MICROSOFT_CLIENT_ID
-        or not MICROSOFT_CLIENT_SECRET
-        or not MICROSOFT_TENANT_ID
-    ):
-        return None
-
-    return msal.ConfidentialClientApplication(
-        MICROSOFT_CLIENT_ID,
-        authority=MICROSOFT_AUTHORITY,
-        client_credential=MICROSOFT_CLIENT_SECRET,
-    )
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -370,30 +320,6 @@ class User(db.Model):
     )
 
     email_notify_enabled = db.Column(
-        db.Boolean,
-        default=False,
-        nullable=False
-    )
-
-    teams_notify_enabled = db.Column(
-        db.Boolean,
-        default=False,
-        nullable=False
-    )
-    
-    microsoft_account_email = db.Column(
-        db.String(255)
-    )
-
-    microsoft_tenant_id = db.Column(
-        db.String(100)
-    )
-
-    microsoft_user_id = db.Column(
-        db.String(100)
-    )
-
-    microsoft_connected = db.Column(
         db.Boolean,
         default=False,
         nullable=False
@@ -1672,7 +1598,7 @@ def require_login():
         ):
             return "File not found", 404
     if (
-        request.endpoint in {"login", "mfa", "static"}
+        request.endpoint in {"login", "mfa", "register", "static"}
         or request.endpoint is None
     ):
         return None
@@ -2335,7 +2261,7 @@ def patrol_result_to_dict(result):
         "reject_reason": result.reject_reason,
     }
 
-def send_system_email_notification(
+def send_email_notification(
     user,
     title,
     message,
@@ -2346,135 +2272,6 @@ def send_system_email_notification(
         return False
 
     if require_opt_in and not user.email_notify_enabled:
-        return False
-
-    title = str(title or "").strip()
-
-    if (
-        not title
-        or len(title) > 200
-        or "\r" in title
-        or "\n" in title
-    ):
-        return False
-
-    message = str(message or "")
-
-    if len(message) > 10000:
-        return False
-
-    if not is_valid_email_address(
-        user.email_address
-    ):
-        return False
-
-    if not is_valid_email_address(
-        NOTIFICATION_SENDER_EMAIL
-    ):
-        print(
-            "Microsoft自動メール未送信："
-            "NOTIFICATION_SENDER_EMAIL が不正です。"
-        )
-        return False
-
-    microsoft_app = get_microsoft_app()
-
-    if not microsoft_app:
-        print(
-            "Microsoft自動メール未送信："
-            "Microsoftアプリ設定がありません。"
-        )
-        return False
-
-    token_result = microsoft_app.acquire_token_for_client(
-        scopes=[
-            "https://graph.microsoft.com/.default"
-        ]
-    )
-
-    if not isinstance(token_result, dict):
-        print(
-            "Microsoft自動メール用トークン取得結果が不正です。"
-        )
-        return False
-
-    access_token = token_result.get("access_token")
-
-    if not access_token:
-        print(
-            "Microsoft自動メール用トークン取得失敗"
-        )
-        return False
-
-    full_link = build_absolute_app_url(link)
-
-    body = message or ""
-
-    if full_link:
-        body += (
-            "\n\n"
-            "該当画面を開く：\n"
-            f"{full_link}"
-        )
-
-    payload = {
-        "message": {
-            "subject": title,
-            "body": {
-                "contentType": "Text",
-                "content": body,
-            },
-            "toRecipients": [
-                {
-                    "emailAddress": {
-                        "address": user.email_address
-                    }
-                }
-            ],
-        },
-        "saveToSentItems": True,
-    }
-
-    try:
-        response = requests.post(
-            (
-                "https://graph.microsoft.com/v1.0/"
-                f"users/{NOTIFICATION_SENDER_EMAIL}/sendMail"
-            ),
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=20,
-        )
-
-        if response.status_code == 202:
-            return True
-
-        print(
-            "Microsoft自動メール送信エラー:",
-            response.status_code,
-        )
-
-        return False
-
-    except Exception:
-        print(
-            "Microsoft自動メール送信エラー"
-        )
-        return False
-        
-def send_email_notification(
-    user,
-    title,
-    message,
-    link=""
-):
-    if not user:
-        return False
-
-    if not user.email_notify_enabled:
         return False
 
     title = str(title or "").strip()
@@ -2585,14 +2382,6 @@ def dispatch_external_notification(
 
     if user.email_notify_enabled:
         send_email_notification(
-            user,
-            title,
-            message,
-            link
-        )
-
-    if user.teams_notify_enabled:
-        send_teams_notification(
             user,
             title,
             message,
@@ -2717,35 +2506,6 @@ def build_absolute_app_url(link=""):
     ).rstrip("/")
 
     return base_url + link
-
-def send_teams_notification(
-    user,
-    title,
-    message,
-    link=""
-):
-    if not user:
-        return False
-
-    if not user.teams_notify_enabled:
-        return False
-
-    if not user.microsoft_connected:
-        print(
-            "Teams通知未送信："
-            "Microsoftアカウントが連携されていません。"
-        )
-        return False
-    full_link = build_absolute_app_url(link)
-
-    print(
-        "Teams通知準備済み：",
-        user.name,
-        title,
-        full_link
-    )
-
-    return False
 
 def add_news(
     title,
@@ -3147,7 +2907,7 @@ def send_mfa_code_email(user, code):
     if not user or not user.email_address:
         return False
 
-    return send_system_email_notification(
+    return send_email_notification(
         user=user,
         title="ログイン認証コード",
         message=(
@@ -4086,8 +3846,165 @@ def inject_notification_count():
     }
 
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def register():
-    return redirect("/login")
+    error = None
+
+    company_code_from_url = request.args.get(
+        "company_code",
+        ""
+    ).strip()
+
+    if request.method == "POST":
+        company_code = company_code_from_url
+
+        name = request.form.get(
+            "name",
+            ""
+        ).strip()
+
+        employee_id = request.form.get(
+            "employee_id",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
+
+        office = request.form.get(
+            "office",
+            ""
+        ).strip()
+
+        password_type_count = sum([
+            any(c.islower() for c in password),
+            any(c.isupper() for c in password),
+            any(c.isdigit() for c in password),
+            any(not c.isalnum() for c in password),
+        ])
+
+        company = Company.query.filter_by(
+            company_code=company_code
+        ).first()
+
+        if (
+            not company_code
+            or not name
+            or not employee_id
+            or not password
+        ):
+            error = "必須項目を入力してください。"
+
+        elif not company:
+            error = "会社コードが存在しません。"
+
+        elif not company.active:
+            error = "この会社は現在利用停止中です。"
+
+        elif len(employee_id) > 50:
+            error = "ログインIDは50文字以内で入力してください。"
+
+        elif len(name) > 100:
+            error = "氏名は100文字以内で入力してください。"
+
+        elif len(password) < 8:
+            error = "パスワードは8文字以上にしてください。"
+
+        elif len(password) > 128:
+            error = "パスワードは128文字以内にしてください。"
+
+        elif password_type_count < 3:
+            error = (
+                "パスワードは英大文字・英小文字・数字・記号の"
+                "うち3種類以上を使用してください。"
+            )
+
+        elif User.query.filter_by(
+            company_code=company_code,
+            username=employee_id
+        ).first():
+            error = "このログインIDはすでに使用されています。"
+
+        elif Driver.query.filter_by(
+            company_code=company_code,
+            employee_id=employee_id
+        ).first():
+            error = "このログインIDはすでに使用されています。"
+
+        elif office and not Office.query.filter_by(
+            company_code=company_code,
+            name=office
+        ).first():
+            error = "営業所が不正です。"
+
+        else:
+            user = User(
+                company_code=company_code,
+                username=employee_id,
+                password=generate_password_hash(password),
+                password_changed_at=datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                role="user",
+                name=name,
+                office=office,
+                favorite_vehicles_json="[]"
+            )
+
+            driver = Driver(
+                company_code=company_code,
+                employee_id=employee_id,
+                name=name,
+                role="user",
+                office=office,
+                safe_start_date=datetime.now().strftime(
+                    "%Y-%m-%d"
+                ),
+                vehicles_json="[]",
+                licenses_json="[]"
+            )
+
+            db.session.add(user)
+            db.session.add(driver)
+
+            add_audit_log(
+                action="user_registered",
+                target_type="user",
+                target_id=employee_id,
+                detail="招待URLからユーザー登録",
+                company_code=company_code,
+                username=employee_id,
+            )
+
+            db.session.commit()
+
+            return redirect("/login")
+
+    company = None
+
+    if company_code_from_url:
+        company = Company.query.filter_by(
+            company_code=company_code_from_url,
+            active=True
+        ).first()
+
+    offices = []
+
+    if company:
+        offices = Office.query.filter_by(
+            company_code=company.company_code
+        ).order_by(
+            Office.name.asc()
+        ).all()
+
+    return render_template(
+        "register.html",
+        error=error,
+        company_code=company_code_from_url,
+        offices=offices
+    )
 
 @app.route("/logout", methods=["POST"])
 def logout():
@@ -4102,179 +4019,6 @@ def logout():
 
     session.clear()
     return redirect("/login")
-
-@app.route("/microsoft/connect")
-@limiter.limit("10 per minute")
-def microsoft_connect():
-    microsoft_app = get_microsoft_app()
-
-    if not microsoft_app:
-        return (
-            "Microsoft連携設定がまだ登録されていません。"
-            " MICROSOFT_CLIENT_ID を設定してください。",
-            503
-        )
-
-    flow = microsoft_app.initiate_auth_code_flow(
-        scopes=MICROSOFT_SCOPES,
-        redirect_uri=MICROSOFT_REDIRECT_URI
-    )
-
-    session["microsoft_auth_flow"] = flow
-
-    return redirect(
-        flow["auth_uri"]
-    )
-
-
-@app.route("/microsoft/callback")
-@limiter.limit("10 per minute")
-def microsoft_callback():
-    flow = session.get(
-        "microsoft_auth_flow"
-    )
-
-    if not flow:
-        return (
-            "Microsoft連携情報が見つかりません。"
-            "もう一度連携を開始してください。",
-            400
-        )
-
-    microsoft_app = get_microsoft_app()
-
-    if not microsoft_app:
-        return (
-            "Microsoft連携設定がありません。",
-            503
-        )
-
-    try:
-        result = (
-            microsoft_app.acquire_token_by_auth_code_flow(
-                flow,
-                request.args
-            )
-        )
-      
-    except ValueError:
-        return (
-            "Microsoft認証の確認に失敗しました。",
-            400
-        )
-
-    session.pop(
-        "microsoft_auth_flow",
-        None
-    )
-
-    if not isinstance(result, dict):
-        app.logger.warning(
-            "Microsoft認証結果の形式が不正です。"
-        )
-        return (
-            "Microsoft認証の確認に失敗しました。",
-            400
-        )
-
-    if "error" in result:
-        app.logger.warning(
-            "Microsoft連携に失敗しました。"
-        )
-
-        return (
-            "Microsoft連携に失敗しました。"
-            "もう一度連携をお試しください。",
-            400
-        )
-
-    claims = result.get(
-        "id_token_claims",
-        {}
-    )
-
-    if not isinstance(claims, dict):
-        app.logger.warning(
-            "Microsoft連携のIDトークンclaims形式が不正です。"
-        )
-        return "Microsoftアカウント情報が不正です。", 400
-
-    current_user = User.query.filter_by(
-        company_code=session.get("company_code"),
-        username=session.get("username")
-    ).first()
-
-    if not current_user:
-        session.clear()
-        return redirect("/login")
-
-    microsoft_account_email = str(
-        claims.get("preferred_username")
-        or claims.get("email")
-        or claims.get("upn")
-        or ""
-    ).strip()
-
-    microsoft_tenant_id = str(
-        claims.get("tid")
-        or ""
-    ).strip()
-
-    microsoft_user_id = str(
-        claims.get("oid")
-        or ""
-    ).strip()
-
-    if (
-        not microsoft_tenant_id
-        or not microsoft_user_id
-    ):
-        return "Microsoftアカウント情報が不正です。", 400
-
-    if (
-        MICROSOFT_TENANT_ID.lower()
-        not in {
-            "common",
-            "organizations",
-            "consumers",
-        }
-        and microsoft_tenant_id.lower()
-        != MICROSOFT_TENANT_ID.lower()
-    ):
-        app.logger.warning(
-            "許可されていないMicrosoftテナントからの連携です。"
-        )
-        return "Microsoftアカウント情報が不正です。", 403
-
-    if (
-        microsoft_account_email
-        and not is_valid_email_address(
-            microsoft_account_email
-        )
-    ):
-        return "Microsoftアカウント情報が不正です。", 400
-
-    if len(microsoft_tenant_id) > 100:
-        return "Microsoftテナント情報が不正です。", 400
-
-    if len(microsoft_user_id) > 100:
-        return "Microsoftユーザー情報が不正です。", 400
-
-    current_user.microsoft_account_email = (
-        microsoft_account_email
-    )
-    current_user.microsoft_tenant_id = (
-        microsoft_tenant_id
-    )
-    current_user.microsoft_user_id = (
-        microsoft_user_id
-    )
-
-    current_user.microsoft_connected = True
-
-    db.session.commit()
-
-    return redirect("/settings")
     
 @app.route("/settings", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
@@ -4350,13 +4094,8 @@ def settings():
                         request.form.get("email_notify_enabled") == "1"
                     )
 
-                    teams_notify_enabled = (
-                        request.form.get("teams_notify_enabled") == "1"
-                    )
-
                     current_user.timezone = timezone_name
                     current_user.email_notify_enabled = email_notify_enabled
-                    current_user.teams_notify_enabled = teams_notify_enabled
 
                     if new_email_address != old_email_address:
                         code = create_email_change_code(
@@ -18853,26 +18592,6 @@ with app.app_context():
         ),
         (
             "email_notify_enabled",
-            "BOOLEAN NOT NULL DEFAULT FALSE"
-        ),
-        (
-            "teams_notify_enabled",
-            "BOOLEAN NOT NULL DEFAULT FALSE"
-        ),
-                (
-            "microsoft_account_email",
-            "VARCHAR(255)"
-        ),
-        (
-            "microsoft_tenant_id",
-            "VARCHAR(100)"
-        ),
-        (
-            "microsoft_user_id",
-            "VARCHAR(100)"
-        ),
-        (
-            "microsoft_connected",
             "BOOLEAN NOT NULL DEFAULT FALSE"
         ),
                 (

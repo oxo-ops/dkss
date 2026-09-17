@@ -26,9 +26,8 @@
     <label>会社コード</label>
     <input
         type="text"
-        name="company_code"
         value="{{ company_code }}"
-        required
+        readonly
     >
 
     <label>氏名</label>
@@ -69,12 +68,6 @@
                 {{ office.name }}
             </option>
         {% endfor %}
-    </select>
-
-    <label>ユーザー種別</label>
-    <select name="role" required>
-        <option value="user">一般ユーザー</option>
-        <option value="admin">管理者</option>
     </select>
 
     <button type="submit" class="btn">
