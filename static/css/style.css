@@ -4960,3 +4960,128 @@ input:checked
 .register-form > .btn {
     align-self: flex-start;
 }
+
+.password-field {
+    position: relative;
+    width: 100%;
+}
+
+.password-field input {
+    width: 100%;
+    padding-right: 46px;
+}
+
+.password-eye {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.password-eye:hover {
+    background: transparent !important;
+    color: #475569;
+}
+
+.password-eye.is-visible {
+    color: #2563eb;
+}
+
+.password-eye svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+}
+
+.register-form {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.register-form > label {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 6px;
+}
+
+/* ===== Register page final layout ===== */
+
+.register-form {
+    width: min(680px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    padding: 28px 32px;
+}
+
+.register-form > label {
+    width: 100%;
+    margin: 0 0 7px;
+    text-align: left;
+    font-weight: 600;
+    color: #334155;
+}
+
+.register-form > input,
+.register-form > select,
+.register-form .password-field {
+    width: 100%;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.register-form input,
+.register-form select {
+    height: 44px;
+}
+
+.register-form .password-field input {
+    margin: 0;
+    padding-right: 46px;
+}
+
+.password-eye {
+    top: calc(50% - 2px);
+    right: 11px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin: 0;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.password-eye:hover,
+.password-eye:focus {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.password-eye.is-visible {
+    color: #2563eb;
+}
+
+.register-form > .btn {
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
+.register-card .register-form {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
