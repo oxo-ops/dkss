@@ -165,6 +165,19 @@ function addChecklistItem() {
                         <span>コメント入力あり</span>
                     </label>
 
+                    <label class="checkbox-row">
+                        <input
+                            type="checkbox"
+                            name="shaded"
+                            value="${index}"
+                        >
+                        <span>毎日点検対象外</span>
+                    </label>
+
+                    <p class="help-text">
+                        毎日の点検が不要な項目は、識別しやすいようグレー表示されます。
+                    </p>
+
                 </div>
             </details>
 
@@ -334,10 +347,20 @@ function resetCommentIndexes() {
     const rows = document.querySelectorAll(".checklist-item-row");
 
     rows.forEach((row, index) => {
-        const checkbox = row.querySelector('input[name="comment_required"]');
+        const commentCheckbox = row.querySelector(
+            'input[name="comment_required"]'
+        );
 
-        if (checkbox) {
-            checkbox.value = index;
+        if (commentCheckbox) {
+            commentCheckbox.value = index;
+        }
+
+        const shadedCheckbox = row.querySelector(
+            'input[name="shaded"]'
+        );
+
+        if (shadedCheckbox) {
+            shadedCheckbox.value = index;
         }
     });
 }
@@ -368,7 +391,7 @@ function toggleChoices(select) {
         choicesInput.required = false;
     } else {
         choicesInput.classList.remove("is-hidden");
-        choicesInput.required = false;
+        choicesInput.required = true;
     }
 }
 

@@ -49,13 +49,17 @@
             <input
                 type="text"
                 name="target_user"
-                value="{{ result.target_user }}"
+                value="{{ result.target_username }}"
                 list="driver_list"
+                placeholder="氏名または社員IDを入力"
             >
 
             <datalist id="driver_list">
                 {% for driver in drivers %}
-                    <option value="{{ driver.name }}">
+                    <option
+                        value="{{ driver.employee_id }}"
+                        label="{{ driver.name }}{% if driver.office %} / {{ driver.office }}{% endif %}"
+                    >
                 {% endfor %}
             </datalist>
         </div>

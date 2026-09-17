@@ -332,6 +332,20 @@
                                         <span>コメント入力あり</span>
                                     </label>
 
+                                    <label class="checkbox-row">
+                                        <input
+                                            type="checkbox"
+                                            name="shaded"
+                                            value="{{ loop.index0 }}"
+                                            {% if item.shaded %}checked{% endif %}
+                                        >
+                                        <span>毎日点検対象外</span>
+                                    </label>
+
+                                    <p class="help-text">
+                                        毎日の点検が不要な項目は、識別しやすいようグレー表示されます。
+                                    </p>
+
                                 </div>
                             </details>
 
@@ -469,6 +483,19 @@
                                     >
                                     <span>コメント入力あり</span>
                                 </label>
+
+                                <label class="checkbox-row">
+                                    <input
+                                        type="checkbox"
+                                        name="shaded"
+                                        value="0"
+                                    >
+                                    <span>毎日点検対象外</span>
+                                </label>
+
+                                <p class="help-text">
+                                    毎日の点検が不要な項目は、識別しやすいようグレー表示されます。
+                                </p>
 
                             </div>
                         </details>

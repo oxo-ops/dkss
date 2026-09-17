@@ -32,7 +32,6 @@
 </div>
 
 <form method="get" class="vehicle-check-filter" id="vehicle_check_filter">
-    <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
 
     <div class="filter-item filter-vehicle">
 
@@ -53,7 +52,7 @@
                 使用車両
             </div>
 
-            {% for favorite_vehicle_id in session.get("vehicles", []) %}
+            {% for favorite_vehicle_id in favorite_vehicle_ids %}
                 <button
                     type="button"
                     class="favorite-vehicle-shortcut"
@@ -144,7 +143,7 @@
             {% endif %}
         </label>
         <select name="active_day">
-            {% for d in display_days %}
+            {% for d in input_days %}
             {% if display_mode == "year_list" %}
             <option value="{{ d }}" {% if active_day|string==d|string %}selected{% endif %}>
                 {% else %}
@@ -183,6 +182,10 @@
 
     <p class="help-text">
         入力日はプルダウンで変更できます。コメント・写真・要対応登録は「詳細」から入力します。
+    </p>
+
+    <p class="help-text">
+        グレー表示の項目は、毎日の点検が不要な項目です。
     </p>
 
     <form
@@ -286,39 +289,55 @@
         </button>
     </form>
 
-    {% set criteria_keys = [] %}
+    {% for section in table_sections %}
+        {% set table_checklist = section.checklist %}
+        {% set table_days = section.days %}
+        {% set table_results = section.results %}
 
-    {% for item in checklist["items"] %}
-    {% if item.item_type != "approval" %}
-    {% set criteria_text = item.criteria or "" %}
-    {% set criteria_files_text = item.get("criteria_files", [])|join(",") %}
-    {% set criteria_key = criteria_text ~ "|" ~ criteria_files_text %}
+        {% set criteria_keys = [] %}
 
-    {% if criteria_key != "|" and criteria_key not in criteria_keys %}
-    {% set _ = criteria_keys.append(criteria_key) %}
+        {% for item in table_checklist["items"] %}
+        {% if item.item_type != "approval" %}
+        {% set criteria_text = item.criteria or "" %}
+        {% set criteria_files_text = item.get("criteria_files", [])|join(",") %}
+        {% set criteria_key = criteria_text ~ "|" ~ criteria_files_text %}
 
-    <div class="criteria-box">
-        <strong>評価基準</strong>
+        {% if criteria_key != "|" and criteria_key not in criteria_keys %}
+        {% set _ = criteria_keys.append(criteria_key) %}
 
-        {% if criteria_text %}
-       <div class="criteria-line criteria-line-pre"> {{ criteria_text }}</div>
-        {% endif %}
+        <div class="criteria-box">
+            <strong>評価基準</strong>
 
-        {% if item.get("criteria_files", []) %}
-        <div class="criteria-file-list">
-            {% for file in item.get("criteria_files", []) %}
-            <a href="/static/uploads/{{ file }}" target="_blank">
-                {{ file }}
-            </a>
-            {% endfor %}
+            {% if criteria_text %}
+            <div class="criteria-line criteria-line-pre">{{ criteria_text }}</div>
+            {% endif %}
+
+            {% if item.get("criteria_files", []) %}
+            <div class="criteria-file-list">
+                {% for file in item.get("criteria_files", []) %}
+                <a href="/static/uploads/{{ file }}" target="_blank">
+                    {{ file }}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
-    </div>
-    {% endif %}
-    {% endif %}
-    {% endfor %}
+        {% endif %}
+        {% endfor %}
 
-    {% if checklist["items"] %}
+        {% if display_mode == "day_list" and table_sections|length > 1 %}
+        <h4 class="checklist-version-period">
+            {{ month|int }}月{{ section.start_day }}日
+            〜
+            {{ month|int }}月{{ section.end_day }}日
+            {% if not loop.first %}
+                <span class="help-text">（様式改訂後）</span>
+            {% endif %}
+        </h4>
+        {% endif %}
+
+    {% if table_checklist["items"] %}
     <div class="table-scroll">
         <table class="checklist-table monthly-check-table">
 
@@ -326,7 +345,7 @@
                 <th class="fixed-category"></th>
                 <th class="fixed-item"></th>
 
-                {% for d in display_days %}
+                {% for d in table_days %}
                 <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
                     {{ d }}
                 </th>
@@ -337,7 +356,7 @@
                 <th class="fixed-category">カテゴリ</th>
                 <th class="fixed-item">点検項目</th>
 
-                {% for d in display_days %}
+                {% for d in table_days %}
                 <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
                     {{ display_weekdays[d].name }}
                 </th>
@@ -346,14 +365,14 @@
 
             {% set approval_ns = namespace(index=-1) %}
 
-            {% for item in checklist["items"] %}
+            {% for item in table_checklist["items"] %}
             {% set item_no = loop.index0 %}
 
             {% if item.item_type == "approval" %}
             {% set approval_ns.index = approval_ns.index + 1 %}
             {% endif %}
 
-            <tr>
+            <tr{% if item.get("shaded") %} class="vehicle-check-shaded-row"{% endif %}>
                 <td class="fixed-category">
                     {% if item.item_type == "inspector" %}
                     -
@@ -374,7 +393,7 @@
                     {% endif %}
                 </td>
 
-                {% for d in display_days %}
+                {% for d in table_days %}
                 {% if display_mode == "year_list" %}
                 {% set day_text = d|string %}
                 {% else %}
@@ -392,7 +411,7 @@
                     files_text=""
                     ) %}
 
-                    {% for result in results %}
+                    {% for result in table_results %}
                     {% if result.vehicle_id == vehicle_id %}
                     {% if display_mode == "year_list" and result.year|int == d|int %}
                     {% set ns.target_result = result %}
@@ -599,6 +618,8 @@
     {% else %}
     <p>点検項目が登録されていません。</p>
     {% endif %}
+
+    {% endfor %}
 </div>
 
 {% endif %}
