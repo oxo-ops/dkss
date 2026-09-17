@@ -7013,10 +7013,12 @@ def edit_pointout(index):
                         "S3添付ファイル削除エラー"
                     )
             else:
+                safe_file_name = os.path.basename(delete_file)
+
                 file_path = os.path.join(
                     app.config["UPLOAD_FOLDER"],
                     company_code,
-                    delete_file
+                    safe_file_name
                 )
 
                 if os.path.exists(file_path):
