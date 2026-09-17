@@ -718,10 +718,42 @@ textarea {
     background: #f5f8fd;
 }
 
+.checklist-version-row td {
+    padding: 10px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #dbe3ef;
+    border-bottom: 1px solid #dbe3ef;
+}
+
+.checklist-version-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+}
+
+.checklist-version-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.checklist-version-period {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 html,
 body {
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 .app-layout {
@@ -742,6 +774,20 @@ body {
 .card {
     max-width: 100%;
     min-width: 0;
+}
+
+.checklist-master-form-card {
+    width: min(1180px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.checklist-master-form-card .responsive-form {
+    width: 100%;
+}
+
+.checklist-master-form-card .checklist-item-row {
+    width: 100%;
 }
 
 .checklist-table {
@@ -1522,6 +1568,11 @@ body.sidebar-collapsed .main-content {
     flex-direction: column;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
     transition: width 0.2s ease, min-width 0.2s ease;
+
+    position: sticky;
+    top: 28px;
+    height: calc(100vh - 56px);
+    align-self: flex-start;
 }
 
 .sidebar-head {

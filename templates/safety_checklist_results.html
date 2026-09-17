@@ -30,11 +30,29 @@
     </tr>
 
     {% for period in checklist_periods %}
-    <tr>
+    <tr class="checklist-version-row">
         <td colspan="7">
-            {{ period.start_date.strftime("%Y/%m/%d") }}
-            ～ 
-            {{ period.end_date.strftime("%Y/%m/%d") }}
+            <div class="checklist-version-header">
+                <span class="checklist-version-label">
+                    {% if loop.first %}
+                        現行版
+                    {% else %}
+                        旧版
+                    {% endif %}
+                </span>
+
+                <span class="checklist-version-period">
+                    {% if loop.first %}
+                        使用開始 {{ period.start_date.strftime("%Y/%m/%d") }}
+                    {% elif period.start_date == period.end_date %}
+                        使用日 {{ period.start_date.strftime("%Y/%m/%d") }}
+                    {% else %}
+                        使用期間
+                        {{ period.start_date.strftime("%Y/%m/%d") }}
+                        ～ {{ period.end_date.strftime("%Y/%m/%d") }}
+                    {% endif %}
+                </span>
+            </div>
         </td>
     </tr>
     {% for result in period.results %}

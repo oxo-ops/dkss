@@ -380,10 +380,14 @@ function resetFileIndexes() {
 function toggleChoices(select) {
     const row = select.closest(".checklist-item-row");
     const choicesInput = row.querySelector('input[name="choices"]');
+    const itemTypeSelect = row.querySelector('select[name="item_type"]');
 
     if (!choicesInput) {
         return;
     }
+
+    const isCheckItem =
+        !itemTypeSelect || itemTypeSelect.value === "check";
 
     if (select.value === "text") {
         choicesInput.classList.add("is-hidden");
@@ -391,7 +395,7 @@ function toggleChoices(select) {
         choicesInput.required = false;
     } else {
         choicesInput.classList.remove("is-hidden");
-        choicesInput.required = true;
+        choicesInput.required = isCheckItem;
     }
 }
 
