@@ -29,7 +29,7 @@
         <th class="col-actions-wide">操作</th>
     </tr>
 
-    {% for period in checklist_periods %}
+    {% for period in checklist_periods|reverse %}
     <tr class="checklist-version-row">
         <td colspan="7">
             <div class="checklist-version-header">

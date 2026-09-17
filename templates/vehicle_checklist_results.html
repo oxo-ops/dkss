@@ -289,7 +289,7 @@
         </button>
     </form>
 
-    {% for section in table_sections %}
+    {% for section in table_sections|reverse %}
         {% set table_checklist = section.checklist %}
         {% set table_days = section.days %}
         {% set table_results = section.results %}
