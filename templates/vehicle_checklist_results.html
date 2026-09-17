@@ -188,6 +188,7 @@
         グレー表示の項目は、毎日の点検が不要な項目です。
     </p>
 
+    {% if checklist.active %}
     <form
         method="post"
         action="/vehicle/checklists/{{ checklist_index }}/complete"
@@ -288,6 +289,7 @@
             点検完了
         </button>
     </form>
+    {% endif %}
 
     {% for section in table_sections|reverse %}
         {% set table_checklist = section.checklist %}
@@ -331,9 +333,9 @@
             {{ month|int }}月{{ section.start_day }}日
             〜
             {{ month|int }}月{{ section.end_day }}日
-            {% if not loop.first %}
-                <span class="help-text">（様式改訂後）</span>
-            {% endif %}
+                {% if loop.first %}
+                    <span class="help-text">（現行版）</span>
+                {% endif %}
         </h4>
         {% endif %}
 
@@ -506,7 +508,7 @@
                     {% endfor %}
                     {% endif %}
 
-                    {% if day_text == active_day %}
+                    {% if day_text == active_day and checklist.active %}
 
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
                         class="inline-check-form">

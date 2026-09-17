@@ -23,6 +23,7 @@
         <th>チェックリスト名</th>
         <th>用途</th>
         <th>項目数</th>
+        <th>状態</th>
         <th class="col-actions">操作</th>
     </tr>
 
@@ -31,6 +32,13 @@
         <td>{{ checklist["name"] }}</td>
         <td>{{ checklist["target"] }}</td>
         <td>{{ checklist["items"]|length }}件</td>
+        <td>
+            {% if checklist.active %}
+                有効
+            {% else %}
+                無効
+            {% endif %}
+        </td>
 
         <td class="action-cell">
             <div class="action-buttons">
@@ -57,6 +65,25 @@
 
                 <form
                     method="post"
+                    action="/master/checklists/{{ checklist.id }}/toggle-active"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token() }}"
+                    >
+                    <button type="submit" class="btn-small btn-detail">
+                        {% if checklist.active %}
+                            無効化
+                        {% else %}
+                            有効化
+                        {% endif %}
+                    </button>
+                </form>
+
+                {% if not checklist.has_results %}
+                <form
+                    method="post"
                     action="/master/checklists/{{ checklist.id }}/delete"
                     onsubmit="return confirm('このチェックリストを削除しますか？');"
                 >
@@ -69,6 +96,7 @@
                         削除
                     </button>
                 </form>
+                {% endif %}
             </div>
         </td>
     </tr>
