@@ -4928,3 +4928,35 @@ input:checked
 .monthly-check-table .vehicle-check-shaded-row > .fixed-item {
     background-color: #e9ecef;
 }
+
+.register-form {
+    display: flex;
+    flex-direction: column;
+    width: min(560px, 100%);
+}
+
+.register-form > label {
+    display: block;
+}
+
+.register-form > input,
+.register-form > select {
+    width: 100%;
+}
+
+.register-form .password-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    margin-bottom: 16px;
+}
+
+.register-form .password-toggle input {
+    width: auto;
+    margin: 0;
+}
+
+.register-form > .btn {
+    align-self: flex-start;
+}
