@@ -4,21 +4,28 @@
 
 {% block content %}
 
-<div class="page-header">
-    <h2>{{ checklist["name"] }} 結果一覧</h2>
+<div class="safety-results-page-head">
+    <a href="/safety/checklists" class="safety-results-back-link">
+        ← チェックリスト一覧へ
+    </a>
+    <div class="safety-results-title-row">
+        <div>
+            <h2>{{ checklist["name"] }}</h2>
 
-    <div class="header-actions">
-        <a href="/safety/checklists" class="btn btn-back">
-            ← チェックリスト一覧へ戻る
-        </a>
-
-        <a href="/safety/checklists/{{ checklist_index }}/new" class="btn">
-            新規登録
+            <p class="safety-results-count">
+                {{ checklist_periods | map(attribute='results') | map('length') | sum }}件の結果
+            </p>
+        </div>
+        <a
+            href="/safety/checklists/{{ checklist_index }}/new"
+            class="btn safety-results-new-button"
+        >
+            ＋ 新規登録
         </a>
     </div>
 </div>
 
-<table>
+<table class="safety-results-table">
     <tr>
         <th>点検者</th>
         <th>実施日</th>
@@ -132,6 +139,135 @@
     {% endfor %}
 
 </table>
+
+<div class="safety-results-mobile-list">
+    {% for period in checklist_periods|reverse %}
+        {% set period_is_current = loop.first %}
+        {% for result in period.results %}
+        <article class="safety-result-mobile-card">
+
+            <div class="safety-result-mobile-head">
+                <div class="safety-result-mobile-head-main">
+                    <strong class="safety-result-mobile-head-title">点検者</strong>
+                    <span class="checklist-version-label">
+                        {% if period_is_current %}
+                            現行版
+                        {% else %}
+                            旧版
+                        {% endif %}
+                    </span>
+                </div>
+                <span class="checklist-version-period">
+                    {% if period_is_current %}
+                        使用開始 {{ period.start_date.strftime("%Y/%m/%d") }}
+                    {% elif period.start_date == period.end_date %}
+                        使用日 {{ period.start_date.strftime("%Y/%m/%d") }}
+                    {% else %}
+                        使用期間
+                        {{ period.start_date.strftime("%Y/%m/%d") }}
+                        ～ {{ period.end_date.strftime("%Y/%m/%d") }}
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="safety-result-mobile-grid">
+
+                <div>
+                    <span class="safety-result-mobile-label">点検者</span>
+                    <strong>{{ result.checked_by }}</strong>
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">実施日</span>
+                    <strong>{{ result.checked_date or "-" }}</strong>
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">対象区分</span>
+                    <strong>
+                        {% if result.target_type == "user" %}
+                            ユーザー
+                        {% elif result.target_type == "vehicle" %}
+                            車両
+                        {% elif result.target_type == "office" %}
+                            営業所
+                        {% else %}
+                            指定なし
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">対象</span>
+                    <strong>
+                        {% if result.target_type == "user" %}
+                            {{ result.target_user }}
+                        {% elif result.target_type == "vehicle" %}
+                            {{ result.target_vehicle }}
+                        {% elif result.target_type == "office" %}
+                            {{ result.target_office }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">状態</span>
+
+                    {% if result.status == "承認済み" %}
+                        <span class="status-badge status-approved">承認済み</span>
+                    {% elif result.status == "差し戻し" %}
+                        <span class="status-badge status-rejected">差し戻し</span>
+                    {% else %}
+                        <span class="status-badge status-waiting">承認待ち</span>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">承認日</span>
+                    <strong>{{ result.approved_date or "-" }}</strong>
+                </div>
+
+            </div>
+
+            <a
+                href="/safety/checklist-results/{{ result.index }}"
+                class="btn safety-result-mobile-detail"
+            >
+                <span>詳細を見る</span>
+                <span class="safety-result-mobile-detail-arrow">›</span>
+            </a>
+
+            {% if result.can_manage %}
+            <div class="safety-result-mobile-actions">
+
+                <a
+                    href="/safety/checklist-results/{{ result.index }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
+                </a>
+
+                <form
+                    method="post"
+                    action="/safety/checklist-results/{{ result.index }}/delete"
+                    class="js-checklist-result-delete-form"
+                >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <button type="submit" class="btn-small btn-delete">
+                        <span>削除</span>
+                    </button>
+                </form>
+
+            </div>
+            {% endif %}
+
+        </article>
+        {% endfor %}
+    {% endfor %}
+</div>
 
 <script src="{{ url_for('static', filename='js/safety_checklist_results.js') }}"></script>
 

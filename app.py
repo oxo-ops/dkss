@@ -22,6 +22,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import inspect
+from sqlalchemy.exc import IntegrityError
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
@@ -103,11 +104,12 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=True,
 )
 
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 @app.errorhandler(413)
 def file_too_large(error):
-    return "ファイルサイズは20MB以下にしてください。", 413
+    return "1回に送信できるファイルの合計は200MB以下です。", 413
+
 class UploadValidationError(ValueError):
     pass
 
@@ -929,6 +931,15 @@ ALLOWED_UPLOAD_EXTENSIONS = {
     ".png",
     ".jpg",
     ".jpeg",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".webm",
+    ".mts",
+    ".m2ts",
+    ".mpg",
+    ".mpeg",
     ".xlsx",
     ".docx",
 }
@@ -938,6 +949,15 @@ UPLOAD_CONTENT_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+    ".mts": "video/mp2t",
+    ".m2ts": "video/mp2t",
+    ".mpg": "video/mpeg",
+    ".mpeg": "video/mpeg",
     ".xlsx": (
         "application/vnd.openxmlformats-officedocument."
         "spreadsheetml.sheet"
@@ -954,7 +974,7 @@ def is_valid_uploaded_file(file, extension):
 
     try:
         stream.seek(0)
-        header = stream.read(8)
+        header = stream.read(16)
         stream.seek(0)
 
         if extension == ".pdf":
@@ -965,6 +985,38 @@ def is_valid_uploaded_file(file, extension):
 
         if extension in {".jpg", ".jpeg"}:
             return header.startswith(b"\xff\xd8\xff")
+
+        if extension in {".mp4", ".mov"}:
+            return (
+                len(header) >= 8
+                and header[4:8] == b"ftyp"
+            )
+
+        if extension == ".avi":
+            return (
+                len(header) >= 12
+                and header[:4] == b"RIFF"
+                and header[8:12] == b"AVI "
+            )
+
+        if extension in {".mkv", ".webm"}:
+            return header.startswith(
+                b"\x1a\x45\xdf\xa3"
+            )
+
+        if extension in {".mts", ".m2ts"}:
+            return (
+                header.startswith(b"\x47")
+                or (
+                    len(header) >= 5
+                    and header[4:5] == b"\x47"
+                )
+            )
+
+        if extension in {".mpg", ".mpeg"}:
+            return header.startswith(
+                (b"\x00\x00\x01\xba", b"\x00\x00\x01\xb3")
+            )
 
         if extension in {".docx", ".xlsx"}:
             try:
@@ -1065,8 +1117,13 @@ def save_uploaded_file(file, folder=None):
             "company_code is required for file upload."
         )
 
-    original_filename = secure_filename(file.filename)
-    extension = os.path.splitext(original_filename)[1].lower()
+    original_filename = os.path.basename(
+        str(file.filename or "")
+    )
+
+    extension = os.path.splitext(
+        original_filename
+    )[1].lower()
 
     if extension not in ALLOWED_UPLOAD_EXTENSIONS:
         raise UploadValidationError(
@@ -1369,28 +1426,41 @@ def uploaded_file(folder, filename):
         return "File not found", 404
 
     if s3_client and S3_BUCKET_NAME:
-        object_key = (
-            f"{folder}/"
-            f"{company_code}/"
-            f"{filename}"
-        )
+        object_keys = [
+            (
+                f"{folder}/"
+                f"{company_code}/"
+                f"{filename}"
+            ),
+            (
+                f"{folder}/"
+                f"{filename}"
+            ),
+        ]
 
-        try:
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": S3_BUCKET_NAME,
-                    "Key": object_key,
-                    "ResponseCacheControl": "no-store"
-                },
-                ExpiresIn=300
-            )
+        for object_key in object_keys:
+            try:
+                s3_client.head_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=object_key
+                )
 
-            return redirect(url)
+                url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={
+                        "Bucket": S3_BUCKET_NAME,
+                        "Key": object_key,
+                        "ResponseCacheControl": "no-store"
+                    },
+                    ExpiresIn=300
+                )
 
-        except ClientError:
-            print("S3取得エラー")
-            return "File not found", 404
+                return redirect(url)
+
+            except ClientError:
+                continue
+
+        return "File not found", 404
 
     if folder == "manuals":
         local_path = (
@@ -1425,30 +1495,66 @@ def s3_uploads_file(filename):
         return "File not found", 404
 
     if s3_client and S3_BUCKET_NAME:
-        try:
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": S3_BUCKET_NAME,
-                    "Key": (
-                        f"uploads/"
-                        f"{company_code}/"
-                        f"{filename}"
-                    ),
-                    "ResponseCacheControl": "no-store"
-                },
-                ExpiresIn=300
-            )
+        object_keys = [
+            (
+                f"uploads/"
+                f"{company_code}/"
+                f"{filename}"
+            ),
+            (
+                f"uploads/"
+                f"{filename}"
+            ),
+        ]
 
-            return redirect(url)
+        for object_key in object_keys:
+            try:
+                s3_client.head_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=object_key
+                )
 
-        except ClientError:
-            print("S3取得エラー")
-            return "File not found", 404
+                url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={
+                        "Bucket": S3_BUCKET_NAME,
+                        "Key": object_key,
+                        "ResponseCacheControl": "no-store"
+                    },
+                    ExpiresIn=300
+                )
 
-    return app.send_static_file(
-        f"uploads/{company_code}/{filename}"
+                return redirect(url)
+
+            except ClientError:
+                continue
+
+        return "File not found", 404
+
+    company_file_path = os.path.join(
+        app.static_folder,
+        "uploads",
+        company_code,
+        filename
     )
+
+    if os.path.exists(company_file_path):
+        return app.send_static_file(
+            f"uploads/{company_code}/{filename}"
+        )
+
+    legacy_file_path = os.path.join(
+        app.static_folder,
+        "uploads",
+        filename
+    )
+
+    if os.path.exists(legacy_file_path):
+        return app.send_static_file(
+            f"uploads/{filename}"
+        )
+
+    return "File not found", 404
 
 
 @app.route("/static/manuals/<path:filename>")
@@ -2203,10 +2309,19 @@ def send_vehicle_checklist_reminders(company_code):
 
                 title = "車両点検が未実施です"
 
+                if checklist.frequency_unit == "year":
+                    active_day = str(local_date.year)
+                elif checklist.display_type == "month":
+                    active_day = str(local_date.day).zfill(2)
+                else:
+                    active_day = str(local_date.month).zfill(2)
+
                 link = (
                     f"/vehicle/checklists/{checklist.id}"
                     f"?vehicle_id={vehicle.vehicle_id}"
-                    f"&reminder_date={reminder_date}"
+                    f"&year={local_date.year}"
+                    f"&month={str(local_date.month).zfill(2)}"
+                    f"&active_day={active_day}"
                 )
 
                 # 同じ人・車両・現地日付では1回だけ
@@ -3868,6 +3983,11 @@ def register():
             ""
         ).strip()
 
+        email_address = request.form.get(
+            "email_address",
+            ""
+        ).strip().lower()
+
         password = request.form.get(
             "password",
             ""
@@ -3927,12 +4047,6 @@ def register():
         ).first():
             error = "このログインIDはすでに使用されています。"
 
-        elif Driver.query.filter_by(
-            company_code=company_code,
-            employee_id=employee_id
-        ).first():
-            error = "このログインIDはすでに使用されています。"
-
         elif office and not Office.query.filter_by(
             company_code=company_code,
             name=office
@@ -3953,21 +4067,27 @@ def register():
                 favorite_vehicles_json="[]"
             )
 
-            driver = Driver(
+            driver = Driver.query.filter_by(
                 company_code=company_code,
-                employee_id=employee_id,
-                name=name,
-                role="user",
-                office=office,
-                safe_start_date=datetime.now().strftime(
-                    "%Y-%m-%d"
-                ),
-                vehicles_json="[]",
-                licenses_json="[]"
-            )
+                employee_id=employee_id
+            ).first()
 
             db.session.add(user)
-            db.session.add(driver)
+
+            if not driver:
+                driver = Driver(
+                    company_code=company_code,
+                    employee_id=employee_id,
+                    name=name,
+                    role="user",
+                    office=office,
+                    safe_start_date=datetime.now().strftime(
+                        "%Y-%m-%d"
+                    ),
+                    vehicles_json="[]",
+                    licenses_json="[]"
+                )
+                db.session.add(driver)
 
             add_audit_log(
                 action="user_registered",
@@ -3978,9 +4098,16 @@ def register():
                 username=employee_id,
             )
 
-            db.session.commit()
-
-            return redirect("/login")
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                error = (
+                    "このログインIDはすでに使用されています。"
+                    "画面を再読み込みして確認してください。"
+                )
+            else:
+                return redirect("/login")
 
     company = None
 
@@ -4752,8 +4879,9 @@ def dashboard():
     # 自分のGood件数
     my_good_count = PatrolResult.query.filter_by(
         company_code=session.get("company_code"),
-        category="Good",
-        target_user=user_name
+        target_type="user",
+        target_username=session.get("username"),
+        category="Good"
     ).count()
 
     # 自分に対する未対応指摘
@@ -4762,7 +4890,7 @@ def dashboard():
     pending_records = PatrolResult.query.filter_by(
         company_code=session.get("company_code"),
         target_type="user",
-        target_user=user_name
+        target_username=session.get("username")
     ).filter(
         PatrolResult.category != "Good",
         PatrolResult.approval_status != "承認済み"
@@ -5298,6 +5426,7 @@ def dashboard():
                 "name": checklist_record.name,
                 "target": checklist_record.target,
                 "target_user": user_name,
+                "target_username": session.get("username"),
                 "average_score": my_average_score,
                 "overall_average_score": average_score,
                 "average_difference": average_difference,
@@ -6901,7 +7030,35 @@ def approve_countermeasure(index):
     result_record.approval_status = "承認済み"
     result_record.reject_reason = ""
 
+    notify_usernames = {
+        username
+        for username in [
+            result_record.created_by_username,
+            result_record.target_username,
+            result_record.countermeasure_by_username
+        ]
+        if username
+    }
+
     db.session.commit()
+
+    for target_username in notify_usernames:
+        target_user = User.query.filter_by(
+            company_code=result_record.company_code,
+            username=target_username
+        ).first()
+
+        if not target_user:
+            continue
+
+        add_notification(
+            target_user.name,
+            "安全パトロールが承認されました",
+            "安全パトロールの対応が承認されました。",
+            f"/pointouts/{result_record.id}",
+            company_code=result_record.company_code,
+            target_username=target_user.username
+        )
 
     return redirect(f"/pointouts/{result_record.id}")
 
@@ -14739,6 +14896,47 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     else:
         active_value = result_record.day
 
+    notification_link = (
+        f"/vehicle/checklists/{result_record.checklist_id}"
+        f"?vehicle_id={result_record.vehicle_id}"
+        f"&year={result_record.year}"
+        f"&month={result_record.month}"
+        f"&active_day={active_value}"
+    )
+
+    if result_record.status == "承認済み":
+        notify_usernames = set(
+            safe_json_str_list(
+                result_record.notify_users_json
+            )
+        )
+
+        if result_record.checked_by_username:
+            notify_usernames.add(
+                result_record.checked_by_username
+            )
+
+        for target_username in notify_usernames:
+            target_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=target_username
+            ).first()
+
+            if not target_user:
+                continue
+
+            add_notification(
+                target_user.name,
+                "車両チェックリストが承認されました",
+                (
+                    f"車両 {result_record.vehicle_id} の"
+                    "チェックリストの承認が完了しました。"
+                ),
+                notification_link,
+                company_code=result_record.company_code,
+                target_username=target_user.username
+            )
+
     return redirect(
         f"/vehicle/checklists/{result_record.checklist_id}"
         f"?vehicle_id={result_record.vehicle_id}"
@@ -16735,6 +16933,21 @@ def complete_vehicle_checklist(index):
         dict.fromkeys(notify_usernames)
     )
 
+    if not notify_usernames:
+        notify_usernames = (
+            get_vehicle_checklist_notify_users(
+                company_code,
+                checklist_record.id,
+                vehicle_id
+            )
+        )
+
+    notify_usernames = [
+        username
+        for username in notify_usernames
+        if username in valid_users
+    ]
+
     # =========================
     # 完了処理
     # =========================
@@ -17301,6 +17514,19 @@ def new_safety_checklist_result(index):
 
         db.session.add(result)
         db.session.commit()
+
+        if target_type == "user" and target_username:
+            add_notification(
+                target_user,
+                "安全チェックリスト完了のお知らせ",
+                (
+                    f"「{checklist_record.name}」の"
+                    f"チェックが完了しました。"
+                ),
+                f"/safety/checklist-results/{result.id}",
+                company_code=company_code,
+                target_username=target_username
+            )
 
         mention_text = "\n".join(
             "\n".join([
@@ -17929,6 +18155,34 @@ def approve_checklist_result(result_index, approval_index):
         result_record.approved_date = ""
 
     db.session.commit()
+
+    if result_record.status == "承認済み":
+        notify_usernames = {
+            username
+            for username in [
+                result_record.checked_by_username,
+                result_record.target_username
+            ]
+            if username
+        }
+
+        for target_username in notify_usernames:
+            target_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=target_username
+            ).first()
+
+            if not target_user:
+                continue
+
+            add_notification(
+                target_user.name,
+                "チェックリストが承認されました",
+                "チェックリストの承認が完了しました。",
+                f"/safety/checklist-results/{result_record.id}",
+                company_code=result_record.company_code,
+                target_username=target_user.username
+            )
 
     return redirect(f"/safety/checklist-results/{result_record.id}")
 

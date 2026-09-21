@@ -151,6 +151,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     encodeURIComponent(keyword)
                 )
                     .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error(
+                                "HTTP " + response.status
+                            );
+                        }
+
                         return response.json();
                     })
                     .then(function (data) {
@@ -218,6 +224,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
                             vehicleSearchResults.appendChild(row);
                         });
+                    })
+                    .catch(function () {
+                        vehicleSearchResults.innerHTML = "";
+
+                        const message =
+                            document.createElement("p");
+
+                        message.className = "help-text";
+                        message.textContent =
+                            "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。";
+
+                        vehicleSearchResults.appendChild(
+                            message
+                        );
                     });
             }, 300);
         });

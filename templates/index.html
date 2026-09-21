@@ -231,14 +231,22 @@
     {% if dashboard_settings.get("show_summary", True) %}
     <div class="dashboard-summary">
 
-           <a
+            {% if is_dashboard_admin %}
+            <a
                 href="/master/drivers?keyword={{ my_user_name|urlencode }}"
                 class="summary-card main dashboard-link-card"
             >
+            {% else %}
+            <div class="summary-card main">
+            {% endif %}
                 <div class="summary-title">あなたの無事故無違反</div>
                 <div class="summary-value">{{ my_safe_days }}</div>
                 <div class="summary-unit">日継続中</div>
+            {% if is_dashboard_admin %}
             </a>
+            {% else %}
+            </div>
+            {% endif %}
             <a
                 href="/pointouts?type=user&category=Good&mine=1"
                 class="summary-card dashboard-link-card"
@@ -257,14 +265,22 @@
                 <div class="summary-unit">件</div>
             </a>
 
+            {% if is_dashboard_admin %}
             <a
                 href="/master/vehicles"
                 class="summary-card dashboard-link-card"
             >
+            {% else %}
+            <div class="summary-card">
+            {% endif %}
                 <div class="summary-title">車検期限90日以内</div>
                 <div class="summary-value warning">{{ inspection_alerts|length }}</div>
                 <div class="summary-unit">台</div>
+            {% if is_dashboard_admin %}
             </a>
+            {% else %}
+            </div>
+            {% endif %}
 
     </div>
     {% endif %}
@@ -532,7 +548,7 @@
         {% for item in my_checklist_summaries %}
 
     <a
-        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_user|urlencode }}{% endif %}"
+        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_username|urlencode }}{% endif %}"
         class="dashboard-card dashboard-my-checklist-card"
     >
 
@@ -864,8 +880,8 @@
     >
 {% if dashboard_settings.get("show_ranking", True) %}
 <div
-    class="dashboard-card dashboard-click-card"
-    data-url="/master/drivers"
+    class="dashboard-card{% if is_dashboard_admin %} dashboard-click-card{% endif %}"
+    {% if is_dashboard_admin %}data-url="/master/drivers"{% endif %}
 >
     <div class="card-title-row">
         <h3>無事故無違反ランキング</h3>
@@ -890,12 +906,16 @@
             </td>
 
             <td>
+                {% if is_dashboard_admin %}
                 <a
                     href="/master/drivers?keyword={{ driver.name|urlencode }}"
                     class="dashboard-table-link"
                 >
                     {{ driver.name }}
                 </a>
+                {% else %}
+                <span>{{ driver.name }}</span>
+                {% endif %}
             </td>
 
             <td>{{ driver.office }}</td>
@@ -917,8 +937,8 @@
 
 {% if dashboard_settings.get("show_inspection", True) %}
 <div
-    class="dashboard-card dashboard-click-card"
-    data-url="/master/vehicles"
+    class="dashboard-card{% if is_dashboard_admin %} dashboard-click-card{% endif %}"
+    {% if is_dashboard_admin %}data-url="/master/vehicles"{% endif %}
 >
     <div class="card-title-row">
         <h3>車検期限が近い車両</h3>
@@ -935,8 +955,10 @@
 
         {% for vehicle in inspection_alerts %}
         <tr
+            {% if is_dashboard_admin %}
             class="dashboard-click-row"
             data-url="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+            {% endif %}
         >
             <td>
                 {% set vehicle_type_text =
@@ -957,10 +979,14 @@
                     {% set vehicle_icon = "truck.png" %}
                 {% endif %}
 
+                {% if is_dashboard_admin %}
                 <a
                     href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
                     class="dashboard-vehicle-table-link"
                 >
+                {% else %}
+                <div class="dashboard-vehicle-table-link">
+                {% endif %}
                     <img
                         src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
                         alt=""
@@ -970,7 +996,11 @@
                     <span>
                         {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
                     </span>
+                {% if is_dashboard_admin %}
                 </a>
+                {% else %}
+                </div>
+                {% endif %}
             </td>
 
             <td>{{ vehicle.inspection_expiry }}</td>

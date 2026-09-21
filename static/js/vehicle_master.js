@@ -101,6 +101,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (selectedCount === 0) {
                 event.preventDefault();
+
+                window.alert(
+                    "操作する車両を1台以上選択してください。"
+                );
+
+                const firstCheckbox =
+                    document.querySelector(".vehicle-select");
+
+                if (firstCheckbox) {
+                    firstCheckbox.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                    window.setTimeout(function () {
+                        firstCheckbox.focus();
+                    }, 300);
+                }
+
                 return;
             }
 

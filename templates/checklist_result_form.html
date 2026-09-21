@@ -164,7 +164,7 @@
     </div>
 {% endif %}
 
-        <table class="checklist-table">
+        <table class="checklist-table checklist-result-table">
             <tr>
                 <th class="checklist-result-col-category">カテゴリ</th>
                 <th>チェック内容</th>
@@ -239,8 +239,20 @@
                         ></div>
                         <div class="checklist-result-support-actions">
                             <div class="file-upload-cell">
-                                <label class="file-upload-button">
-                                    ＋ ファイル
+
+                                <label class="file-upload-button file-upload-button-camera">
+                                    写真
+                                    <input
+                                        type="file"
+                                        name="files_{{ ns.answer_index }}"
+                                        accept="image/*"
+                                        capture="environment"
+                                        class="file-upload-input js-file-upload-input"
+                                    >
+                                </label>
+
+                                <label class="file-upload-button file-upload-button-secondary">
+                                    ファイル
                                     <input
                                         type="file"
                                         name="files_{{ ns.answer_index }}"
@@ -249,19 +261,67 @@
                                         class="file-upload-input js-file-upload-input"
                                     >
                                 </label>
+
+                                {% if saved_answer and saved_answer.files %}
+                                    <div class="saved-file-names">
+                                        {% for file in saved_answer.files %}
+                                            {% set ext = file.rsplit('.', 1)[-1]|lower %}
+
+                                            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                                                <a
+                                                    {% if loop.index > 2 %}
+                                                        data-saved-extra="true"
+                                                    {% endif %}
+                                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                    target="_blank"
+                                                    class="saved-file-preview"
+                                                >
+                                                    <img
+                                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                        alt=""
+                                                        class="saved-file-preview-image"
+                                                    >
+                                                </a>
+                                            {% else %}
+                                                <a
+                                                    {% if loop.index > 2 %}
+                                                        data-saved-extra="true"
+                                                    {% endif %}
+                                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                    target="_blank"
+                                                    class="saved-file-preview-link"
+                                                >
+                                                    {{ file }}
+                                                </a>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {% if saved_answer.files|length > 2 %}
+                                            <button
+                                                type="button"
+                                                class="saved-file-more"
+                                                data-answer-index="{{ ns.answer_index }}"
+                                            >
+                                                ＋{{ saved_answer.files|length - 2 }}件
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+
                                 <div class="selected-file-names"></div>
                             </div>
-                            <label class="checklist-result-patrol-option">
-                                <input
-                                    type="checkbox"
-                                    name="patrol_link_{{ ns.answer_index }}"
-                                    value="1"
-                                    class="patrol-link-checkbox"
-                                    {% if saved_answer and saved_answer.patrol_link %}checked{% endif %}
-                                >
-                                <span>要対応として登録</span>
-                            </label>
                         </div>
+
+                        <label class="checklist-result-patrol-option checklist-result-patrol-option-bottom">
+                            <input
+                                type="checkbox"
+                                name="patrol_link_{{ ns.answer_index }}"
+                                value="1"
+                                class="patrol-link-checkbox"
+                                {% if saved_answer and saved_answer.patrol_link %}checked{% endif %}
+                            >
+                            <span>要対応として登録</span>
+                        </label>
                     </div>
                 </td>
             </tr>

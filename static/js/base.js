@@ -111,9 +111,29 @@ document.addEventListener("input", function(e) {
     const keyword = match[1];
 
     fetch("/api/mention-users?q=" + encodeURIComponent(keyword))
-        .then(res => res.json())
-        .then(data => {
-            showMentionBox(input, data.users, match[0]);
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error(
+                    "HTTP " + response.status
+                );
+            }
+
+            return response.json();
+        })
+        .then(function (data) {
+            showMentionBox(
+                input,
+                data.users,
+                match[0]
+            );
+        })
+        .catch(function (error) {
+            console.error(
+                "メンション候補の取得に失敗しました。",
+                error
+            );
+
+            closeMentionBox();
         });
 });
 
@@ -163,12 +183,28 @@ function handleRichMentionInput(editor) {
     };
 
     fetch("/api/mention-users?q=" + encodeURIComponent(keyword))
-        .then(res => res.json())
-        .then(data => {
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error(
+                    "HTTP " + response.status
+                );
+            }
+
+            return response.json();
+        })
+        .then(function (data) {
             showRichMentionBox(
                 editor,
                 data.users
             );
+        })
+        .catch(function (error) {
+            console.error(
+                "メンション候補の取得に失敗しました。",
+                error
+            );
+
+            closeMentionBox();
         });
 }
 
@@ -485,26 +521,69 @@ window.addEventListener("DOMContentLoaded", function() {
 
             const form = editor.closest("form");
 
-            if (form) {
-                form.addEventListener("submit", function(event) {
+            if (
+                form &&
+                form.dataset.mentionValidationReady !== "true"
+            ) {
+                form.dataset.mentionValidationReady = "true";
 
-                    const value =
-                        getMentionEditorValue(editor).trim();
+                form.addEventListener("submit", function (event) {
+                    const editors = form.querySelectorAll(
+                        ".mention-rich-editor"
+                    );
 
-                    if (hiddenInput) {
-                        hiddenInput.value = value;
+                    let firstInvalidEditor = null;
+
+                    editors.forEach(function (formEditor) {
+                        const formHiddenInput =
+                            formEditor.parentElement.querySelector(
+                                'input[type="hidden"][name]'
+                            );
+
+                        const value =
+                            getMentionEditorValue(
+                                formEditor
+                            ).trim();
+
+                        if (formHiddenInput) {
+                            formHiddenInput.value = value;
+                        }
+
+                        formEditor.classList.remove(
+                            "checklist-validation-invalid"
+                        );
+
+                        if (
+                            !firstInvalidEditor &&
+                            formEditor.dataset.required === "true" &&
+                            !value
+                        ) {
+                            firstInvalidEditor = formEditor;
+                        }
+                    });
+
+                    if (!firstInvalidEditor) {
+                        return;
                     }
 
-                    if (
-                        editor.dataset.required === "true" &&
-                        !value
-                    ) {
-                        event.preventDefault();
+                    event.preventDefault();
 
-                        alert("必須項目を入力してください。");
+                    firstInvalidEditor.classList.add(
+                        "checklist-validation-invalid"
+                    );
 
-                        editor.focus();
-                    }
+                    window.alert(
+                        "必須コメントを入力してください。"
+                    );
+
+                    firstInvalidEditor.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                    window.setTimeout(function () {
+                        firstInvalidEditor.focus();
+                    }, 300);
                 });
             }
         });
@@ -548,4 +627,86 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     });
+});
+
+document.addEventListener("submit", function (event) {
+    const form = event.target;
+
+    if (!(form instanceof HTMLFormElement)) {
+        return;
+    }
+
+    window.setTimeout(function () {
+        if (event.defaultPrevented) {
+            return;
+        }
+
+        const submitButton =
+            event.submitter ||
+            form.querySelector(
+                'button[type="submit"], input[type="submit"]'
+            );
+
+        if (!submitButton || submitButton.disabled) {
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.setAttribute(
+            "aria-busy",
+            "true"
+        );
+
+        if (submitButton.tagName === "BUTTON") {
+            submitButton.dataset.originalText =
+                submitButton.textContent;
+
+            submitButton.textContent =
+                form.enctype === "multipart/form-data"
+                    ? "送信中..."
+                    : "処理中...";
+        }
+    }, 0);
+});
+
+document.addEventListener("change", function (event) {
+    const input = event.target;
+
+    if (
+        !(input instanceof HTMLInputElement) ||
+        input.type !== "file"
+    ) {
+        return;
+    }
+
+    const form = input.closest("form");
+
+    if (!form) {
+        return;
+    }
+
+    const maxTotalSize =
+        200 * 1024 * 1024;
+
+    let totalSize = 0;
+
+    form.querySelectorAll(
+        'input[type="file"]'
+    ).forEach(function (fileInput) {
+        Array.from(
+            fileInput.files || []
+        ).forEach(function (file) {
+            totalSize += file.size;
+        });
+    });
+
+    if (totalSize <= maxTotalSize) {
+        return;
+    }
+
+    input.value = "";
+
+    window.alert(
+        "1回に送信できるファイルの合計は200MB以下です。動画を短くするか、ファイルを分けて登録してください。"
+    );
 });

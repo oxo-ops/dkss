@@ -84,6 +84,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     encodeURIComponent(keyword)
                 )
                     .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error(
+                                "HTTP " + response.status
+                            );
+                        }
+
                         return response.json();
                     })
                     .then(function (data) {
@@ -150,6 +156,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
                             resultBox.appendChild(row);
                         });
+
+                        showResults();
+                    })
+                    .catch(function () {
+                        showMessage(
+                            "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                        );
 
                         showResults();
                     });
