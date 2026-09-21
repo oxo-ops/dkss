@@ -55,17 +55,30 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (Notification.permission === "denied") {
-        pushButton.disabled = true;
+        pushButton.disabled = false;
 
         if (pushStatus) {
             pushStatus.textContent =
-                "ブラウザ側で通知が拒否されています。";
+                "端末通知がブラウザ側でブロックされています。";
         }
     }
 
     pushButton.addEventListener(
         "click",
         async function () {
+            if (Notification.permission === "denied") {
+                window.alert(
+                    "端末通知がブラウザでブロックされています。\n\n"
+                    + "アドレスバー左の鍵アイコンを押してください。\n"
+                    + "↓\n"
+                    + "「通知」をONにしてください。\n"
+                    + "↓\n"
+                    + "その後、このページを再読み込みしてください。"
+                );
+
+                return;
+            }
+
             pushButton.disabled = true;
 
             if (pushStatus) {
