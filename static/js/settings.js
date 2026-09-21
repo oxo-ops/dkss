@@ -62,6 +62,68 @@ document.addEventListener("DOMContentLoaded", function () {
                 "端末通知がブラウザ側でブロックされています。";
         }
     }
+    const testPushButton =
+        document.getElementById(
+            "testPushNotification"
+        );
+
+    const testPushStatus =
+        document.getElementById(
+            "testPushNotificationStatus"
+        );
+
+    if (testPushButton) {
+        testPushButton.addEventListener(
+            "click",
+            async function () {
+                testPushButton.disabled = true;
+
+                if (testPushStatus) {
+                    testPushStatus.textContent =
+                        "テスト通知を送信しています...";
+                }
+
+                try {
+                    const csrfToken = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+
+                    const response = await fetch(
+                        "/api/push/test",
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRFToken": csrfToken || ""
+                            }
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
+                    if (testPushStatus) {
+                        testPushStatus.textContent =
+                            "テスト通知を送信しました。";
+                    }
+                } catch (error) {
+                    console.error(
+                        "テスト通知送信エラー:",
+                        error
+                    );
+
+                    if (testPushStatus) {
+                        testPushStatus.textContent =
+                            "テスト通知の送信に失敗しました。";
+                    }
+                } finally {
+                    testPushButton.disabled = false;
+                }
+            }
+        );
+    }
 
     pushButton.addEventListener(
         "click",

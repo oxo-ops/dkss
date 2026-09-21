@@ -41,6 +41,16 @@
         Windows・スマートフォンの端末通知を設定します。
     </p>
 
+    <button
+        type="button"
+        class="btn"
+        id="testPushNotification"
+    >
+        テスト通知を送る
+    </button>
+
+    <p class="help-text" id="testPushNotificationStatus"></p>
+
     {% if notification_success %}
         <div class="alert success">
             {{ notification_success }}

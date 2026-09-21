@@ -2602,6 +2602,37 @@ def send_web_push_notification(
 
     return sent
 
+@app.route("/api/push/test", methods=["POST"])
+def push_test():
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    user = User.query.filter_by(
+        company_code=company_code,
+        username=username
+    ).first()
+
+    if not user:
+        return {"success": False, "error": "User not found"}, 404
+
+    sent = send_web_push_notification(
+        user,
+        "DKSS テスト通知",
+        "端末通知のテストです。",
+        "/notifications"
+    )
+
+    if not sent:
+        return {
+            "success": False,
+            "error": "Push notification was not sent."
+        }, 400
+
+    return {"success": True}
+
 def send_email_notification(
     user,
     title,
