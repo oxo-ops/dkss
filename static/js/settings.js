@@ -48,9 +48,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (Notification.permission === "granted") {
+        pushButton.textContent =
+            "端末通知は有効です";
+        pushButton.disabled = true;    
+
         if (pushStatus) {
             pushStatus.textContent =
-                "端末通知は有効です。";
+                "この端末で通知を受け取れます。";
         }
     }
 
