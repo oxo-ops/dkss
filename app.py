@@ -2471,9 +2471,10 @@ def send_email_notification(
 
         return True
 
-    except Exception:
+    except Exception as e:
         print(
-            "メール通知送信エラー"
+            "メール通知送信エラー:",
+            repr(e)
         )
         return False
 def dispatch_external_notification(
@@ -3119,12 +3120,12 @@ def send_email_change_code_email(
 
         return True
 
-    except Exception:
+    except Exception as e:
         print(
-            "メールアドレス変更確認メール送信エラー"
+            "メールアドレス変更確認メール送信エラー:",
+            repr(e)
         )
         return False
-
 def create_email_change_code(
     user,
     new_email_address
