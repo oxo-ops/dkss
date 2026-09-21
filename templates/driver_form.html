@@ -46,10 +46,24 @@
             required
         >
 
+        <label>メールアドレス</label>
+        <input
+            type="email"
+            name="email_address"
+            value="{{ driver.email_address if driver and driver.email_address else '' }}"
+            maxlength="255"
+            autocomplete="email"
+            placeholder="example@isz.co.jp"
+        >
+
         <label>パスワード</label>
         <input
-            type="text"
+            type="password"
             name="password"
+            minlength="8"
+            maxlength="128"
+            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
+            title="8文字以上で、英大文字・英小文字・数字・記号のうち3種類以上を使用してください。"
             placeholder="{% if mode == 'edit' %}変更する場合だけ入力{% else %}初期パスワード{% endif %}"
             {% if mode == "new" %}required{% endif %}
         >
@@ -81,7 +95,6 @@
             type="date"
             name="safe_start_date"
             value="{{ driver.safe_start_date if driver else '' }}"
-            required
         >
 
         <p class="help-text">

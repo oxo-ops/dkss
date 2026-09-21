@@ -78,22 +78,44 @@
 
         <div id="target_user_area" class="is-hidden">
             <label>対象者</label>
+
+            {% set ns = namespace(selected_name='') %}
+            {% if result and result.target_username %}
+                {% for driver in drivers %}
+                    {% if driver.employee_id == result.target_username %}
+                        {% set ns.selected_name = driver.name %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
             <input
                 type="text"
-                name="target_user"
-                list="driver_list"
-                value="{{ result.target_username if result else '' }}"
-                placeholder="氏名または社員IDを入力"
+                id="target_user_search"
+                value="{{ ns.selected_name }}"
+                placeholder="氏名を入力"
+                autocomplete="off"
             >
 
-            <datalist id="driver_list">
+            <input
+                type="hidden"
+                name="target_user"
+                id="target_user"
+                value="{{ result.target_username if result else '' }}"
+            >
+
+            <div
+                id="driver_search_results"
+                class="vehicle-select-box is-hidden"
+            ></div>
+
+            <div id="driver_search_data" class="is-hidden">
                 {% for driver in drivers %}
-                    <option
-                        value="{{ driver.employee_id }}"
-                        label="{{ driver.name }}{% if driver.office %} / {{ driver.office }}{% endif %}"
-                    >
+                    <span
+                        data-name="{{ driver.name }}"
+                        data-employee-id="{{ driver.employee_id }}"
+                    ></span>
                 {% endfor %}
-            </datalist>
+            </div>
         </div>
 
         <div id="target_vehicle_area" class="is-hidden">

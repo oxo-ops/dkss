@@ -394,6 +394,60 @@ textarea {
     margin-bottom: 12px;
 }
 
+@media (max-width: 768px) {
+    .form-card,
+    .responsive-form {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .responsive-form input[type="date"] {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        inline-size: 100%;
+        min-inline-size: 0;
+        box-sizing: border-box;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    .license-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .license-row > div {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .license-row select,
+    .license-row input {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .license-row .btn-delete {
+        width: 100%;
+        max-width: 100%;
+        margin-top: 0;
+        box-sizing: border-box;
+    }
+}
+
 .help-text {
     font-size: 13px;
     color: #64748b;
@@ -593,7 +647,7 @@ textarea {
         box-shadow: none;
     }
 
-    .checklist-table {
+    .checklist-table:not(.monthly-check-table) {
         display: block;
         width: 100%;
         min-width: 0;
@@ -602,17 +656,17 @@ textarea {
         box-shadow: none;
     }
 
-    .checklist-table thead {
+    .checklist-table:not(.monthly-check-table) thead {
         display: none;
     }
 
-    .checklist-table tbody {
+    .checklist-table:not(.monthly-check-table) tbody {
         display: flex;
         flex-direction: column;
         gap: 10px;
     }
 
-    .checklist-table tr {
+    .checklist-table:not(.monthly-check-table) tr {
         display: block;
         overflow: hidden;
         border: 1px solid #e2e8f0;
@@ -620,7 +674,7 @@ textarea {
         background: #ffffff;
     }
 
-    .checklist-table td {
+    .checklist-table:not(.monthly-check-table) td {
         display: grid;
         grid-template-columns: 96px minmax(0, 1fr);
         gap: 12px;
@@ -634,32 +688,29 @@ textarea {
         overflow-wrap: anywhere;
     }
 
-    .checklist-table td:last-child {
+    .checklist-table:not(.monthly-check-table) td:last-child {
         border-bottom: 0;
     }
 
-    .checklist-table td::before {
+    .checklist-table:not(.monthly-check-table) td::before {
         content: attr(data-label);
         color: #64748b;
         font-size: 11px;
         font-weight: 700;
     }
 
-    .checklist-table td[data-label="評価"] {
+    .checklist-table:not(.monthly-check-table) td[data-label="評価"] {
         align-items: center;
-    }
-
-    .checklist-table td[data-label="評価"] {
         font-size: 15px;
         font-weight: 700;
     }
 
-    .checklist-table td[data-label="添付"] {
+    .checklist-table:not(.monthly-check-table) td[data-label="添付"] {
         grid-template-columns: 1fr;
         gap: 6px;
     }
 
-    .checklist-table td[data-label="添付"]::before {
+    .checklist-table:not(.monthly-check-table) td[data-label="添付"]::before {
         display: block;
     }
 }
@@ -4811,8 +4862,10 @@ input:checked
         margin-top: 4px;
     }
 
-    .vehicle-check-notify-help {
-        margin: 6px 0 10px;
+    .vehicle-check-complete-form .vehicle-check-notify-help {
+        width: 100%;
+        margin: 10px 0 14px;
+        text-align: center !important;
         font-size: 11px;
         line-height: 1.4;
     }
@@ -7334,6 +7387,143 @@ input:checked
     }
 }
 
+
+
+@media (max-width: 768px) {
+    .tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 14px 0 10px;
+    }
+
+    .tab {
+        min-width: 0;
+        margin: 0 !important;
+        padding: 12px 8px;
+        border: 1px solid #d8e0ec;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 1.3;
+        text-align: center;
+    }
+
+    .tab::after {
+        display: none;
+    }
+
+    .tab.active {
+        background: #ffffff;
+        color: #111827;
+        box-shadow: none;
+    }
+
+    .tab:not(.active) {
+        background: #e9eff8;
+        color: #64748b;
+    }
+
+    .search-card {
+        margin-bottom: 12px;
+        padding: 14px;
+        border-radius: 16px;
+    }
+
+    .search-form label {
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .search-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .search-row input {
+        width: 100%;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    .search-row button {
+        width: 100%;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 768px) {
+    .safety-result-mobile-card .mobile-card-content {
+        margin: 0 16px;
+        padding: 10px 0;
+        border-top: 1px solid #eef2f7;
+        border-bottom: 1px solid #eef2f7;
+        color: #334155;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .safety-result-mobile-card .mobile-card-content + .safety-result-mobile-detail {
+        margin-top: 12px;
+    }
+}
+
+@media (max-width: 768px) {
+    .safety-result-mobile-card .safety-result-mobile-head {
+        min-height: 44px;
+        padding: 10px 16px;
+        box-sizing: border-box;
+    }
+
+    .safety-result-mobile-card
+    .safety-result-mobile-head-main strong {
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .safety-result-mobile-card
+    .safety-result-mobile-head > .status-badge {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        min-height: 22px;
+        padding: 3px 8px;
+        margin: 0;
+        border-radius: 999px;
+        font-size: 10px;
+        line-height: 1;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 768px) {
+    .safety-result-mobile-grid-wide {
+        grid-column: 1 / -1;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border-left: 0 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .safety-result-mobile-card
+    .safety-result-mobile-grid > div:nth-last-child(3) {
+        border-bottom: 0;
+    }
+
+    .safety-result-mobile-card
+    .safety-result-mobile-grid-wide {
+        grid-column: 1 / -1;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border-left: 0 !important;
+        border-top: 1px solid #eef2f7 !important;
+    }
+}
+
 @media (max-width: 768px) {
 
     .mobile-no-visible-period {
@@ -7590,5 +7780,15 @@ input:checked
     .vehicle-check-table-scroll .inline-check-form .btn-mini {
         margin: 0;
         font-size: 12px;
+    }
+}
+
+@media (max-width: 768px) {
+    .vehicle-check-notify-help {
+        width: 100%;
+        margin: 10px 0 14px;
+        text-align: center !important;
+        font-size: 11px;
+        line-height: 1.4;
     }
 }

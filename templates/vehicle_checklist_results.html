@@ -188,6 +188,8 @@
         グレー表示の項目は、毎日の点検が不要な項目です。
     </p>
 
+
+
     {% for section in table_sections|reverse %}
         {% set table_checklist = section.checklist %}
         {% set table_days = section.days %}
@@ -491,20 +493,23 @@
                         <input type="hidden" name="active_day" value="{{ active_day }}">
 
                         {% if item.input_type == "select" %}
-                        <select
-                            name="value"
-                            class="js-inline-check-input js-mobile-choice-select"
-                        >
-                            <option value="">-</option>
+                        <div class="check-choice-buttons">
                             {% for choice in item.choices %}
-                            <option
-                                value="{{ choice }}"
-                                {% if ns.answer_value == choice %}selected{% endif %}
+                            <label
+                                class="check-choice-button
+                                {% if ns.answer_value == choice %}is-selected{% endif %}"
                             >
-                                {{ choice }}
-                            </option>
+                                <input
+                                    type="radio"
+                                    name="value"
+                                    value="{{ choice }}"
+                                    class="js-inline-check-input"
+                                    {% if ns.answer_value == choice %}checked{% endif %}
+                                >
+                                <span>{{ choice }}</span>
+                            </label>
                             {% endfor %}
-                        </select>
+                        </div>
                         {% else %}
                         <input type="text" name="value" value="{{ ns.answer_value }}" title="{{ ns.answer_value }}"
                             maxlength="50" class="js-inline-check-input">
@@ -615,17 +620,17 @@
         <input type="hidden" name="active_day" value="{{ active_day }}">
 
         {% if display_mode == "year_list" %}
-        <input type="hidden" name="year" value="{{ active_day }}">
-        <input type="hidden" name="month" value="01">
-        <input type="hidden" name="day" value="01">
+            <input type="hidden" name="year" value="{{ active_day }}">
+            <input type="hidden" name="month" value="01">
+            <input type="hidden" name="day" value="01">
         {% elif display_mode == "month_list" %}
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ active_day }}">
-        <input type="hidden" name="day" value="01">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ active_day }}">
+            <input type="hidden" name="day" value="01">
         {% else %}
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ month }}">
-        <input type="hidden" name="day" value="{{ active_day }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <input type="hidden" name="day" value="{{ active_day }}">
         {% endif %}
 
         <div class="vehicle-check-notify-grid">
@@ -691,7 +696,7 @@
         </div>
 
         <p class="help-text vehicle-check-notify-help">
-            点検完了通知先が未選択の場合は、点検未実施通知先へ通知します。
+            未選択の場合は「点検未実施通知先」へ通知されます。
         </p>
 
         <button type="submit" class="btn">
@@ -699,7 +704,6 @@
         </button>
     </form>
     {% endif %}
-
 </div>
 
 {% endif %}
