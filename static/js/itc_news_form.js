@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const targetValueInput = document.getElementById("newsTargetValue");
     const targetResults = document.getElementById("newsTargetResults");
     const deleteButton = document.querySelector(".js-news-delete");
+    const newsForm = targetTypeSelect.closest("form");
 
     function hideTargetResults() {
         targetResults.classList.add("is-hidden");
@@ -36,6 +37,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const keyword = targetSearchInput.value.trim();
         const type = targetTypeSelect.value;
 
+        targetValueInput.value = "";
+
         if (!keyword) {
             targetResults.innerHTML = "";
             targetValueInput.value = "";
@@ -50,6 +53,12 @@ document.addEventListener("DOMContentLoaded", function () {
             encodeURIComponent(keyword)
         )
             .then(function (response) {
+                if (!response.ok) {
+                    throw new Error(
+                        "HTTP " + response.status
+                    );
+                }
+
                 return response.json();
             })
             .then(function (data) {
@@ -84,6 +93,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
 
                 showTargetResults();
+            })
+            .catch(function () {
+                targetResults.innerHTML = "";
+
+                const message =
+                    document.createElement("div");
+
+                message.className = "help-text";
+                message.textContent =
+                    "配信対象を取得できませんでした。通信状態を確認して、もう一度検索してください。";
+
+                targetResults.appendChild(message);
+                showTargetResults();
             });
     });
 
@@ -92,6 +114,47 @@ document.addEventListener("DOMContentLoaded", function () {
             hideTargetResults();
         }
     });
+
+    if (newsForm) {
+        newsForm.addEventListener("submit", function (event) {
+            if (
+                event.submitter &&
+                event.submitter.classList.contains(
+                    "js-news-delete"
+                )
+            ) {
+                return;
+            }
+
+            const type = targetTypeSelect.value;
+
+            const needsTarget =
+                type === "company" ||
+                type === "office" ||
+                type === "user";
+
+            if (!needsTarget || targetValueInput.value) {
+                return;
+            }
+
+            event.preventDefault();
+
+            window.alert(
+                "検索結果から配信対象を選択してください。"
+            );
+
+            targetSearchArea.classList.remove("is-hidden");
+
+            targetSearchInput.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+
+            window.setTimeout(function () {
+                targetSearchInput.focus();
+            }, 300);
+        });
+    }
 
     if (deleteButton) {
         deleteButton.addEventListener("click", function (event) {

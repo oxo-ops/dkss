@@ -15,11 +15,113 @@ document.addEventListener("DOMContentLoaded", function () {
     const currentMonth =
         config.dataset.month || "";
 
+    const activeDay =
+        config.dataset.activeDay || "";
+
     const companyCode =
         config.dataset.companyCode || "";
 
     const reminderUrl =
         config.dataset.reminderUrl || "";
+
+    function setupMobileChoiceButtons() {
+        if (
+            !window.matchMedia(
+                "(max-width: 768px)"
+            ).matches
+        ) {
+            return;
+        }
+
+        document.querySelectorAll(
+            ".js-mobile-choice-select"
+        ).forEach(function (select) {
+            const wrapper =
+                document.createElement("div");
+
+            wrapper.className =
+                "check-choice-buttons";
+
+            Array.from(
+                select.options
+            ).forEach(function (option) {
+                if (!option.value) {
+                    return;
+                }
+
+                const button =
+                    document.createElement("button");
+
+                button.type = "button";
+                button.className =
+                    "check-choice-button";
+
+                button.textContent =
+                    option.textContent;
+
+                if (
+                    option.value ===
+                    select.value
+                ) {
+                    button.classList.add(
+                        "is-selected"
+                    );
+                }
+
+                button.addEventListener(
+                    "click",
+                    function () {
+                        select.value =
+                            option.value;
+
+                        wrapper
+                            .querySelectorAll(
+                                ".check-choice-button"
+                            )
+                            .forEach(
+                                function (
+                                    currentButton
+                                ) {
+                                    currentButton
+                                        .classList
+                                        .remove(
+                                            "is-selected"
+                                        );
+                                }
+                            );
+
+                        button.classList.add(
+                            "is-selected"
+                        );
+
+                        select.dispatchEvent(
+                            new Event(
+                                "change",
+                                {
+                                    bubbles: true
+                                }
+                            )
+                        );
+                    }
+                );
+
+                wrapper.appendChild(
+                    button
+                );
+            });
+
+            select.insertAdjacentElement(
+                "afterend",
+                wrapper
+            );
+
+            select.classList.add(
+                "mobile-choice-source"
+            );
+        });
+    }
+
+    setupMobileChoiceButtons();
 
     function parseJson(value) {
         try {
@@ -128,7 +230,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 filename.split(".").pop().toLowerCase();
 
             const path =
-                "/static/uploads/" + filename;
+                "/files/uploads/" +
+                encodeURIComponent(filename);
 
             if (
                 ["jpg", "jpeg", "png", "gif", "webp"]
@@ -341,6 +444,18 @@ document.addEventListener("DOMContentLoaded", function () {
             preview.replaceChildren();
         }
 
+        document.querySelectorAll(
+            "#detailModal .is-stored-detail-file-input"
+        ).forEach(function (input) {
+            input.remove();
+        });
+
+        document.querySelectorAll(
+            "#detailModal .js-detail-file-input"
+        ).forEach(function (input) {
+            input.value = "";
+        });
+
         if (detailModal) {
             detailModal.classList.remove(
                 "is-hidden"
@@ -458,119 +573,246 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     );
 
+    function prepareNextDetailFileInput(input) {
+        if (!input.files || input.files.length === 0) {
+            return;
+        }
 
+        const label = input.closest(".file-upload-button");
+
+        if (!label) {
+            return;
+        }
+
+        const nextInput = input.cloneNode(true);
+        nextInput.value = "";
+
+        input.classList.add("is-stored-detail-file-input");
+        label.parentNode.insertBefore(input, label);
+        label.appendChild(nextInput);
+    }
     /* =========================
        詳細ファイルプレビュー
     ========================= */
 
-    function previewDetailFiles(input) {
+    function previewDetailFiles(
+        input,
+        showAll = false
+    ) {
         const preview =
             document.getElementById(
                 "detailPreview"
             );
 
-        if (!preview) {
+        const uploadArea = input.closest(
+            ".vehicle-detail-file-upload"
+        );
+
+        if (!preview || !uploadArea) {
             return;
         }
 
+        const selectedFiles = [];
+
+        uploadArea.querySelectorAll(
+            ".js-detail-file-input"
+        ).forEach(function (fileInput) {
+            Array.from(
+                fileInput.files || []
+            ).forEach(function (file, fileIndex) {
+                selectedFiles.push({
+                    file: file,
+                    fileInput: fileInput,
+                    fileIndex: fileIndex
+                });
+            });
+        });
+
         preview.replaceChildren();
 
-        Array.from(
-            input.files || []
-        ).forEach(function (file) {
-            const ext =
-                file.name
-                    .split(".")
-                    .pop()
-                    .toLowerCase();
+        preview.classList.toggle(
+            "is-expanded",
+            showAll
+        );
 
-            if (
-                file.type.startsWith(
-                    "image/"
-                )
-            ) {
-                const img =
-                    document.createElement(
-                        "img"
-                    );
+        const visibleFiles = showAll
+            ? selectedFiles
+            : selectedFiles.slice(0, 2);
 
-                img.src =
-                    URL.createObjectURL(
-                        file
-                    );
+        visibleFiles.forEach(function (entry) {
+            const file = entry.file;
+            const item =
+                document.createElement("div");
 
-                img.className =
-                    "preview-image";
+            item.className =
+                "selected-file-preview";
 
-                img.addEventListener(
+            if (file.type.startsWith("image/")) {
+                const image =
+                    document.createElement("img");
+
+                image.src =
+                    URL.createObjectURL(file);
+
+                image.alt = file.name;
+                image.className =
+                    "selected-file-preview-image";
+
+                image.addEventListener(
                     "click",
                     function () {
                         window.open(
-                            img.src,
+                            image.src,
                             "_blank"
                         );
                     }
                 );
 
-                preview.appendChild(img);
+                item.appendChild(image);
 
             } else if (
-                file.type.startsWith(
-                    "video/"
-                ) &&
-                [
-                    "mp4",
-                    "webm",
-                    "mov",
-                    "m4v"
-                ].includes(ext)
+                file.type.startsWith("video/")
             ) {
                 const video =
-                    document.createElement(
-                        "video"
-                    );
+                    document.createElement("video");
 
                 video.src =
-                    URL.createObjectURL(
-                        file
-                    );
+                    URL.createObjectURL(file);
 
                 video.controls = true;
                 video.preload = "metadata";
                 video.className =
                     "preview-video";
 
-                preview.appendChild(video);
+                item.appendChild(video);
 
             } else {
-                const p =
-                    document.createElement(
-                        "p"
-                    );
+                const name =
+                    document.createElement("div");
 
-                if (
-                    [
-                        "avi",
-                        "mkv",
-                        "mts",
-                        "m2ts",
-                        "mpg",
-                        "mpeg"
-                    ].includes(ext)
-                ) {
-                    p.textContent =
-                        "▶ 動画ファイル：" +
-                        file.name;
-                } else {
-                    p.textContent =
-                        file.name;
-                }
+                name.className =
+                    "selected-file-preview-name";
 
-                preview.appendChild(p);
+                name.textContent = file.name;
+                item.appendChild(name);
             }
-        });
-    }
 
+            const removeButton =
+                document.createElement("button");
+
+            removeButton.type = "button";
+            removeButton.className =
+                "selected-file-preview-remove";
+
+            removeButton.textContent = "×";
+            removeButton.setAttribute(
+                "aria-label",
+                file.name + " を削除"
+            );
+
+            removeButton.addEventListener(
+                "click",
+                function () {
+                    const transfer =
+                        new DataTransfer();
+
+                    Array.from(
+                        entry.fileInput.files || []
+                    ).forEach(function (
+                        currentFile,
+                        currentIndex
+                    ) {
+                        if (
+                            currentIndex !==
+                            entry.fileIndex
+                        ) {
+                            transfer.items.add(
+                                currentFile
+                            );
+                        }
+                    });
+
+                    entry.fileInput.files =
+                        transfer.files;
+
+                    if (
+                        entry.fileInput.files.length === 0
+                        && entry.fileInput.classList.contains(
+                            "is-stored-detail-file-input"
+                        )
+                    ) {
+                        entry.fileInput.remove();
+                    }
+
+                    const remainingInput =
+                        uploadArea.querySelector(
+                            ".js-detail-file-input"
+                        );
+
+                    if (remainingInput) {
+                        previewDetailFiles(
+                            remainingInput,
+                            showAll
+                        );
+                    } else {
+                        preview.replaceChildren();
+                    }
+                }
+            );
+
+            item.appendChild(removeButton);
+            preview.appendChild(item);
+        });
+
+        if (!showAll && selectedFiles.length > 2) {
+            const more =
+                document.createElement("button");
+
+            more.type = "button";
+            more.className =
+                "selected-file-more";
+
+            more.textContent =
+                "＋" +
+                (selectedFiles.length - 2) +
+                "件";
+
+            more.addEventListener(
+                "click",
+                function () {
+                    previewDetailFiles(
+                        input,
+                        true
+                    );
+                }
+            );
+
+            preview.appendChild(more);
+        }
+
+        if (showAll && selectedFiles.length > 2) {
+            const collapse =
+                document.createElement("button");
+
+            collapse.type = "button";
+            collapse.className =
+                "selected-file-collapse";
+
+            collapse.textContent = "閉じる";
+
+            collapse.addEventListener(
+                "click",
+                function () {
+                    previewDetailFiles(
+                        input,
+                        false
+                    );
+                }
+            );
+
+            preview.appendChild(collapse);
+        }
+    }
 
     document.addEventListener(
         "change",
@@ -583,11 +825,67 @@ document.addEventListener("DOMContentLoaded", function () {
                 previewDetailFiles(
                     event.target
                 );
+
+                prepareNextDetailFileInput(
+                    event.target
+                );
             }
         }
     );
 
+    const detailFileForm =
+        document.querySelector(
+            "#detailModal form"
+        );
 
+    if (detailFileForm) {
+        detailFileForm.addEventListener(
+            "submit",
+            function (event) {
+                const tableScrollPositions =
+                    Array.from(
+                        document.querySelectorAll(
+                            ".vehicle-check-table-scroll"
+                        )
+                    ).map(function (area) {
+                        return area.scrollLeft;
+                    });
+
+                sessionStorage.setItem(
+                    "vehicleChecklistReturnPosition",
+                    JSON.stringify({
+                        pageX: window.scrollX,
+                        pageY: window.scrollY,
+                        tables: tableScrollPositions
+                    })
+                );
+
+                let totalSize = 0;
+
+                detailFileForm.querySelectorAll(
+                    ".js-detail-file-input"
+                ).forEach(function (input) {
+                    Array.from(
+                        input.files || []
+                    ).forEach(function (file) {
+                        totalSize += file.size;
+                    });
+                });
+
+                const maxSize =
+                    200 * 1024 * 1024;
+
+                if (totalSize > maxSize) {
+                    event.preventDefault();
+
+                    alert(
+                        "写真・動画・ファイルの合計を" +
+                        "200MB以下にしてください。"
+                    );
+                }
+            }
+        );
+    }
     /* =========================
        インライン保存
     ========================= */
@@ -658,18 +956,30 @@ document.addEventListener("DOMContentLoaded", function () {
             const formData =
                 new FormData(form);
 
-            await fetch(
+            const response = await fetch(
                 form.action,
                 {
                     method: "POST",
                     body: formData
                 }
             );
+
+            if (!response.ok) {
+                throw new Error(
+                    "HTTP " + response.status
+                );
+            }
         } catch (error) {
             console.error(
                 "保存エラー:",
                 error
             );
+
+            window.alert(
+                "点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。"
+            );
+
+            input.focus();
         }
 
         restoreChecklistPosition();
@@ -1016,13 +1326,48 @@ async function loadSavedNotifyUsers() {
                 notifyTimer =
                     setTimeout(
                         async function () {
-                            const response =
-                                await fetch(
-                                    "/api/mention-users?q=" +
-                                    encodeURIComponent(
-                                        keyword
-                                    )
+                            let response;
+
+                            try {
+                                response =
+                                    await fetch(
+                                        "/api/mention-users?q=" +
+                                        encodeURIComponent(
+                                            keyword
+                                        )
+                                    );
+
+                                if (!response.ok) {
+                                    throw new Error(
+                                        "HTTP " +
+                                        response.status
+                                    );
+                                }
+                            } catch (error) {
+                                console.error(
+                                    "通知先の取得に失敗しました。",
+                                    error
                                 );
+
+                                notifyResults.replaceChildren();
+
+                                const message =
+                                    document.createElement("p");
+
+                                message.className = "help-text";
+                                message.textContent =
+                                    "通知先を取得できませんでした。通信状態を確認してください。";
+
+                                notifyResults.appendChild(
+                                    message
+                                );
+
+                                notifyResults.classList.remove(
+                                    "is-hidden"
+                                );
+
+                                return;
+                            }
 
                             const data =
                                 await response.json();
@@ -1240,18 +1585,29 @@ async function loadSavedReminderNotifyUsers() {
             }
         );
 
-        const response =
-            await fetch(
-                reminderUrl,
-                {
-                    method: "POST",
-                    body: formData
-                }
+        try {
+            const response =
+                await fetch(
+                    reminderUrl,
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+            if (!response.ok) {
+                throw new Error(
+                    "HTTP " + response.status
+                );
+            }
+        } catch (error) {
+            console.error(
+                "点検忘れ通知先の保存に失敗しました。",
+                error
             );
 
-        if (!response.ok) {
-            console.error(
-                "点検忘れ通知先の保存に失敗しました。"
+            window.alert(
+                "点検忘れ通知先を保存できませんでした。通信状態を確認して、もう一度操作してください。"
             );
         }
     }
@@ -1366,13 +1722,48 @@ async function loadSavedReminderNotifyUsers() {
                     reminderTimer =
                         setTimeout(
                             async function () {
-                                const response =
-                                    await fetch(
-                                        "/api/mention-users?q=" +
-                                        encodeURIComponent(
-                                            keyword
-                                        )
+                                let response;
+
+                                try {
+                                    response =
+                                        await fetch(
+                                            "/api/mention-users?q=" +
+                                            encodeURIComponent(
+                                                keyword
+                                            )
+                                        );
+
+                                    if (!response.ok) {
+                                        throw new Error(
+                                            "HTTP " +
+                                            response.status
+                                        );
+                                    }
+                                } catch (error) {
+                                    console.error(
+                                        "点検忘れ通知先の取得に失敗しました。",
+                                        error
                                     );
+
+                                    reminderResults.replaceChildren();
+
+                                    const message =
+                                        document.createElement("p");
+
+                                    message.className = "help-text";
+                                    message.textContent =
+                                        "通知先を取得できませんでした。通信状態を確認してください。";
+
+                                    reminderResults.appendChild(
+                                        message
+                                    );
+
+                                    reminderResults.classList.remove(
+                                        "is-hidden"
+                                    );
+
+                                    return;
+                                }
 
                                 const data =
                                     await response.json();
@@ -1491,11 +1882,32 @@ async function loadSavedReminderNotifyUsers() {
                     return;
                 }
 
+                button.disabled = true;
+                button.textContent =
+                    "読み込み中…";
+
                 vehicleId.value =
                     button.dataset.vehicleId;
 
-                vehicleFilterForm
-                    .requestSubmit();
+                const params =
+                    new URLSearchParams(
+                        new FormData(
+                            vehicleFilterForm
+                        )
+                    );
+
+                const targetUrl =
+                    new URL(
+                        window.location.pathname,
+                        window.location.origin
+                    );
+
+                targetUrl.search =
+                    params.toString();
+
+                window.location.assign(
+                    targetUrl.toString()
+                );
             }
         );
     });
@@ -1548,11 +1960,47 @@ async function loadSavedReminderNotifyUsers() {
                                 );
                             }
 
-                            const response =
-                                await fetch(
-                                    "/api/vehicles?" +
-                                    params.toString()
+                            let response;
+
+                            try {
+                                response =
+                                    await fetch(
+                                        "/api/vehicles?" +
+                                        params.toString()
+                                    );
+
+                                if (!response.ok) {
+                                    throw new Error(
+                                        "HTTP " +
+                                        response.status
+                                    );
+                                }
+                            } catch (error) {
+                                console.error(
+                                    "車両の取得に失敗しました。",
+                                    error
                                 );
+
+                                vehicleSearchResults
+                                    .replaceChildren();
+
+                                const message =
+                                    document.createElement("p");
+
+                                message.className = "help-text";
+                                message.textContent =
+                                    "車両を取得できませんでした。通信状態を確認してください。";
+
+                                vehicleSearchResults
+                                    .appendChild(message);
+
+                                vehicleSearchResults
+                                    .classList.remove(
+                                        "is-hidden"
+                                    );
+
+                                return;
+                            }
 
                             const data =
                                 await response.json();
@@ -1636,45 +2084,75 @@ async function loadSavedReminderNotifyUsers() {
                                     button.textContent =
                                         "選択";
 
+                                    function selectVehicle() {
+                                        if (
+                                            row.classList.contains(
+                                                "is-selecting"
+                                            )
+                                        ) {
+                                            return;
+                                        }
+
+                                        row.classList.add(
+                                            "is-selecting"
+                                        );
+
+                                        button.disabled = true;
+                                        button.textContent =
+                                            "読み込み中…";
+
+                                        vehicleId.value =
+                                            vehicle.vehicle_id;
+
+                                        if (
+                                            selectedVehicleDisplay
+                                        ) {
+                                            selectedVehicleDisplay
+                                                .textContent =
+                                                labelParts.join(
+                                                    " / "
+                                                );
+                                        }
+
+                                        vehicleSearch.value = "";
+
+                                        vehicleSearchResults
+                                            .replaceChildren();
+
+                                        vehicleSearchResults
+                                            .classList.add(
+                                                "is-hidden"
+                                            );
+
+                                        const params =
+                                            new URLSearchParams(
+                                                new FormData(
+                                                    vehicleFilterForm
+                                                )
+                                            );
+
+                                        window.location.assign(
+                                            window.location.pathname +
+                                                "?" +
+                                                params.toString()
+                                        );
+                                    }
+
                                     button.addEventListener(
                                         "click",
-                                        function () {
-                                            vehicleId.value =
-                                                vehicle.vehicle_id;
-
-                                            if (
-                                                selectedVehicleDisplay
-                                            ) {
-                                                selectedVehicleDisplay
-                                                    .textContent =
-                                                    labelParts.join(
-                                                        " / "
-                                                    );
-                                            }
-
-                                            vehicleSearch.value =
-                                                "";
-
-                                            vehicleSearchResults
-                                                .replaceChildren();
-
-                                            vehicleSearchResults
-                                                .classList.add(
-                                                    "is-hidden"
-                                                );
-
-                                            vehicleFilterForm
-                                                .requestSubmit();
+                                        function (event) {
+                                            event.stopPropagation();
+                                            selectVehicle();
                                         }
                                     );
 
-                                    row.appendChild(
-                                        label
+                                    row.addEventListener(
+                                        "click",
+                                        selectVehicle
                                     );
 
-                                    row.appendChild(
-                                        button
-                                    );
+                                    row.appendChild(label);
+                                    row.appendChild(button);
 
                                     vehicleSearchResults
                                         .appendChild(
@@ -1695,6 +2173,14 @@ async function loadSavedReminderNotifyUsers() {
     ========================= */
 
     function moveToActiveDay() {
+        if (
+            window.matchMedia(
+                "(max-width: 768px)"
+            ).matches
+        ) {
+            return;
+        }
+
         const scrollArea =
             document.querySelector(
                 ".table-scroll"
@@ -1737,15 +2223,159 @@ async function loadSavedReminderNotifyUsers() {
     }
 
 
-    setTimeout(
-        moveToActiveDay,
-        300
-    );
+    function markMobilePreviousDate() {
+        const allDays =
+            Array.from(
+                document.querySelectorAll(
+                    ".vehicle-check-table-scroll tr:first-child th.date-cell[data-day]"
+                )
+            )
+                .map(function (header) {
+                    return header.dataset.day;
+                })
+                .filter(function (
+                    day,
+                    index,
+                    array
+                ) {
+                    return (
+                        day &&
+                        array.indexOf(day) === index
+                    );
+                })
+                .sort(function (a, b) {
+                    return Number(a) - Number(b);
+                });
 
-    setTimeout(
-        moveToActiveDay,
-        700
-    );
+        const currentIndex =
+            allDays.indexOf(activeDay);
+
+        if (currentIndex <= 0) {
+            return;
+        }
+
+        const previousDay =
+            allDays[currentIndex - 1];
+
+        document.querySelectorAll(
+            ".vehicle-check-table-scroll th.date-cell[data-day], " +
+            ".vehicle-check-table-scroll td.center-cell[data-day]"
+        ).forEach(function (cell) {
+            if (
+                cell.dataset.day ===
+                previousDay
+            ) {
+                cell.classList.add(
+                    "mobile-previous-date"
+                );
+            }
+        });
+    }
+
+    markMobilePreviousDate();
+
+    document.querySelectorAll(
+        ".vehicle-check-table-scroll"
+    ).forEach(function (scrollArea) {
+        const hasVisiblePeriod =
+            scrollArea.querySelector(
+                ".mobile-previous-date, .mobile-current-date"
+            );
+
+        scrollArea.classList.toggle(
+            "mobile-no-visible-period",
+            !hasVisiblePeriod
+        );
+
+        const periodHeading =
+            scrollArea.previousElementSibling;
+
+        if (
+            periodHeading &&
+            periodHeading.classList.contains(
+                "checklist-version-period"
+            )
+        ) {
+            periodHeading.classList.toggle(
+                "mobile-no-visible-period",
+                !hasVisiblePeriod
+            );
+        }
+    });
+
+
+    function restoreDetailReturnPosition() {
+        const saved =
+            sessionStorage.getItem(
+                "vehicleChecklistReturnPosition"
+            );
+
+        if (!saved) {
+            return false;
+        }
+
+        try {
+            const position =
+                JSON.parse(saved);
+
+            sessionStorage.removeItem(
+                "vehicleChecklistReturnPosition"
+            );
+
+            window.scrollTo(
+                position.pageX || 0,
+                position.pageY || 0
+            );
+
+            document.querySelectorAll(
+                ".vehicle-check-table-scroll"
+            ).forEach(function (area, index) {
+                if (
+                    position.tables &&
+                    position.tables[index] !== undefined
+                ) {
+                    area.scrollLeft =
+                        position.tables[index];
+                }
+            });
+
+            requestAnimationFrame(function () {
+                window.scrollTo(
+                    position.pageX || 0,
+                    position.pageY || 0
+                );
+            });
+
+            return true;
+
+        } catch (error) {
+            console.error(
+                "詳細保存後の位置復元に失敗しました。",
+                error
+            );
+
+            sessionStorage.removeItem(
+                "vehicleChecklistReturnPosition"
+            );
+
+            return false;
+        }
+    }
+
+    const restoredDetailPosition =
+        restoreDetailReturnPosition();
+
+    if (!restoredDetailPosition) {
+        setTimeout(
+            moveToActiveDay,
+            300
+        );
+
+        setTimeout(
+            moveToActiveDay,
+            700
+        );
+    }
 
 
     /* =========================
@@ -1776,11 +2406,26 @@ async function loadSavedReminderNotifyUsers() {
                 !vehicleId ||
                 !vehicleId.value
             ) {
+                alert(
+                    "先に対象車両を選択してください。"
+                );
+
+                vehicleSearch?.focus();
                 return;
             }
 
-            vehicleFilterForm
-                .requestSubmit();
+            const params =
+                new URLSearchParams(
+                    new FormData(
+                        vehicleFilterForm
+                    )
+                );
+
+            window.location.assign(
+                window.location.pathname +
+                    "?" +
+                    params.toString()
+            );
         }
 
         yearInput?.addEventListener(

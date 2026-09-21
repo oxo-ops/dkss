@@ -121,7 +121,15 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
 
         searchTimer = setTimeout(function () {
             fetch("/api/vehicles?q=" + encodeURIComponent(keyword))
-                .then(response => response.json())
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
+                    return response.json();
+                })
                 .then(data => {
                     resultBox.innerHTML = "";
 
@@ -177,7 +185,16 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                     });
 
                     resultBox.classList.add("is-open");
+                })
+                .catch(function () {
+                    resultBox.innerHTML =
+                        '<p class="help-text dashboard-vehicle-empty-result">' +
+                        '車両を取得できませんでした。通信状態を確認して、もう一度検索してください。' +
+                        '</p>';
+
+                    resultBox.classList.add("is-open");
                 });
+
         }, 250);
     });
 

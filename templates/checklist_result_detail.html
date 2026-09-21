@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<div class="page-header">
+<div class="page-header checklist-result-detail-header">
     <h2>{{ result.checklist_name }} 結果詳細</h2>
 
     <div class="header-actions">
@@ -125,7 +125,7 @@
     {% endif %}
 {% endfor %}
 
-<div class="card">
+<div class="card checklist-result-detail-card">
     <h3 class="check-result-title">チェック結果</h3>
 
     {% if criteria_list %}
@@ -179,10 +179,10 @@
         <tbody>
             {% for answer in result.answers %}
             <tr>
-                <td>{{ answer.category }}</td>
-                <td>{{ answer.content }}</td>
-                <td>{{ answer.value }}</td>
-                <td>
+                <td data-label="カテゴリ">{{ answer.category }}</td>
+                <td data-label="チェック内容">{{ answer.content }}</td>
+                <td data-label="評価">{{ answer.value }}</td>
+                <td data-label="コメント">
                     {% if answer.comment %}
                         <div
                             class="mention-display"
@@ -192,7 +192,7 @@
                         -
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="添付">
                     {% if answer.files %}
                         {% for file in answer.files %}
 
@@ -201,11 +201,11 @@
                             {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
 
                                 <a
-                                    href="/static/uploads/{{ file }}"
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                     target="_blank"
                                 >
                                     <img
-                                        src="/static/uploads/{{ file }}"
+                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                         class="checklist-result-attachment-image"
                                     >
                                 </a>
@@ -217,13 +217,13 @@
                                     preload="metadata"
                                     class="checklist-result-attachment-video"
                                 >
-                                    <source src="/static/uploads/{{ file }}">
+                                    <source src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
                                 </video>
 
                             {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
 
                                 <a
-                                    href="/static/uploads/{{ file }}"
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                     target="_blank"
                                 >
                                     ▶ 動画を開く
@@ -232,7 +232,7 @@
                             {% else %}
 
                                 <a
-                                    href="/static/uploads/{{ file }}"
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                     target="_blank"
                                 >
                                     {{ file }}

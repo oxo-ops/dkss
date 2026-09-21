@@ -34,8 +34,25 @@ document.addEventListener("DOMContentLoaded", function () {
         vehicleSearchResults.appendChild(paragraph);
     }
 
+    vehicleSearch.addEventListener(
+        "keydown",
+        function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+            }
+        }
+    );
+
     vehicleSearch.addEventListener("input", function () {
         clearTimeout(vehicleSearchTimer);
+
+        vehicleId.value = "";
+        selectedVehicleDisplay.textContent =
+            "未選択";
+
+        vehicleSearchResults.classList.remove(
+            "is-selected"
+        );
 
         const keyword =
             vehicleSearch.value.trim();
@@ -51,6 +68,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 encodeURIComponent(keyword)
             )
                 .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
                     return response.json();
                 })
                 .then(function (data) {
@@ -93,15 +116,47 @@ document.addEventListener("DOMContentLoaded", function () {
                         label.textContent =
                             labelParts.join(" / ");
 
+                        function selectVehicle() {
+                            vehicleId.value =
+                                vehicle.vehicle_id;
+
+                            const selectedLabel =
+                                labelParts.join(" / ");
+
+                            selectedVehicleDisplay.textContent =
+                                selectedLabel;
+
+                            vehicleSearch.value =
+                                selectedLabel;
+
+                            vehicleSearchResults.innerHTML = "";
+
+                            showMessage(
+                                "対象車両を選択しました。"
+                            );
+
+                            vehicleSearchResults.classList.add(
+                                "is-selected"
+                            );
+
+                            vehicleSearch.dispatchEvent(
+                                new Event("change", {
+                                    bubbles: true
+                                })
+                            );
+                        }
+
                         button.addEventListener(
                             "click",
-                            function () {
-                                vehicleId.value =
-                                    vehicle.vehicle_id;
-
-                                selectedVehicleDisplay.textContent =
-                                    labelParts.join(" / ");
+                            function (event) {
+                                event.stopPropagation();
+                                selectVehicle();
                             }
+                        );
+
+                        row.addEventListener(
+                            "click",
+                            selectVehicle
                         );
 
                         row.appendChild(button);
@@ -109,7 +164,89 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         vehicleSearchResults.appendChild(row);
                     });
+                })
+                .catch(function () {
+                    showMessage(
+                        "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                    );
                 });
         }, 300);
     });
+
+    const form = vehicleSearch.closest("form");
+
+    const submitButton = form
+        ? form.querySelector('button[type="submit"]')
+        : null;
+
+    let validationMessageShown = false;
+
+    if (submitButton) {
+        submitButton.addEventListener("click", function () {
+            validationMessageShown = false;
+        });
+    }
+
+    if (form) {
+        form.addEventListener(
+            "invalid",
+            function (event) {
+                event.preventDefault();
+
+                if (validationMessageShown) {
+                    return;
+                }
+
+                validationMessageShown = true;
+
+                const field = event.target;
+                let message = "必須項目を入力してください。";
+
+                if (
+                    field.name &&
+                    field.name.startsWith("answer_")
+                ) {
+                    message = "評価を選択してください。";
+                }
+
+                window.alert(message);
+
+                const target =
+                    field.closest("tr") ||
+                    field.closest(".form-group") ||
+                    field;
+
+                target.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+
+                window.setTimeout(function () {
+                    field.focus();
+                }, 300);
+            },
+            true
+        );
+
+        form.addEventListener("submit", function (event) {
+            if (vehicleId.value) {
+                return;
+            }
+
+            event.preventDefault();
+
+            window.alert(
+                "候補から対象車両を選択してください。"
+            );
+
+            vehicleSearch.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+
+            window.setTimeout(function () {
+                vehicleSearch.focus();
+            }, 300);
+        });
+    }
 });

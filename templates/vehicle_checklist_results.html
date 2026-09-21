@@ -188,109 +188,6 @@
         グレー表示の項目は、毎日の点検が不要な項目です。
     </p>
 
-    {% if checklist.active %}
-    <form
-        method="post"
-        action="/vehicle/checklists/{{ checklist_index }}/complete"
-        class="vehicle-check-complete-form js-vehicle-check-complete-form"
-    >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
-        <input type="hidden" name="active_day" value="{{ active_day }}">
-
-        {% if display_mode == "year_list" %}
-
-            <input type="hidden" name="year" value="{{ active_day }}">
-            <input type="hidden" name="month" value="01">
-            <input type="hidden" name="day" value="01">
-
-        {% elif display_mode == "month_list" %}
-
-            <input type="hidden" name="year" value="{{ year }}">
-            <input type="hidden" name="month" value="{{ active_day }}">
-            <input type="hidden" name="day" value="01">
-
-        {% else %}
-
-            <input type="hidden" name="year" value="{{ year }}">
-            <input type="hidden" name="month" value="{{ month }}">
-            <input type="hidden" name="day" value="{{ active_day }}">
-
-        {% endif %}
-
-        <div class="vehicle-check-notify-grid">
-
-            <div class="notify-user-selector">
-
-                <label>点検完了通知先</label>
-
-                <input
-                    type="text"
-                    id="notify_user_search"
-                    placeholder="名前で検索"
-                    autocomplete="off"
-                >
-
-                <div
-                    id="notify_user_search_results"
-                    class="vehicle-select-box is-hidden"
-                ></div>
-
-                <div
-                    id="selected_notify_users"
-                    class="selected-vehicle-tags"
-                ></div>
-
-            </div>
-
-
-            <div class="notify-user-selector">
-
-                <label>点検未実施通知先</label>
-
-                <input
-                    type="text"
-                    id="reminder_notify_user_search"
-                    placeholder="名前で検索"
-                    autocomplete="off"
-                >
-
-                <div
-                    id="reminder_notify_user_search_results"
-                    class="vehicle-select-box is-hidden"
-                ></div>
-
-                <div
-                    id="selected_reminder_notify_users"
-                    class="selected-vehicle-tags"
-                >
-                    {% for user_name in selected_reminder_notify_users %}
-                        <span
-                            class="selected-vehicle-tag"
-                            data-user-name="{{ user_name }}"
-                        >
-                            {{ user_name }}
-                            <button
-                                type="button"
-                                class="remove-reminder-notify-user"
-                                data-user-name="{{ user_name }}"
-                            >
-                                ×
-                            </button>
-                        </span>
-                    {% endfor %}
-                </div>
-
-            </div>
-
-        </div>
-
-        <button type="submit" class="btn">
-            点検完了
-        </button>
-    </form>
-    {% endif %}
-
     {% for section in table_sections|reverse %}
         {% set table_checklist = section.checklist %}
         {% set table_days = section.days %}
@@ -340,29 +237,71 @@
         {% endif %}
 
     {% if table_checklist["items"] %}
-    <div class="table-scroll">
+    <div class="table-scroll vehicle-check-table-scroll">
         <table class="checklist-table monthly-check-table">
 
             <tr>
-                <th class="fixed-category"></th>
-                <th class="fixed-item"></th>
+                <th class="fixed-category">
+                    <span class="mobile-table-header-label">カテゴリ</span>
+                </th>
+                <th class="fixed-item">
+                    <span class="mobile-table-header-label">点検項目</span>
+                </th>
 
                 {% for d in table_days %}
-                <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
-                    {{ d }}
+                {% if display_mode == "year_list" %}
+                    {% set day_text = d|string %}
+                {% else %}
+                    {% set day_text = '%02d'|format(d|int) %}
+                {% endif %}
+
+                <th
+                    class="date-cell
+                    {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}
+                    {% if day_text == active_day %}mobile-current-date{% endif %}"
+                    data-day="{{ day_text }}"
+                >
+                    <span class="desktop-date-label">{{ d }}</span>
+
+                    <span class="mobile-date-label">
+                        {% if display_mode == "day_list" %}
+                            {{ month|int }}/{{ d }}
+                        {% elif display_mode == "month_list" %}
+                            {{ d }}月
+                        {% else %}
+                            {{ d }}年
+                        {% endif %}
+                    </span>
                 </th>
                 {% endfor %}
+
+                <th class="mobile-detail-header"></th>
             </tr>
 
-            <tr>
+            <tr class="mobile-secondary-header-row">
                 <th class="fixed-category">カテゴリ</th>
                 <th class="fixed-item">点検項目</th>
 
                 {% for d in table_days %}
-                <th class="date-cell {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}">
+                {% if display_mode == "year_list" %}
+                    {% set day_text = d|string %}
+                {% else %}
+                    {% set day_text = '%02d'|format(d|int) %}
+                {% endif %}
+
+                <th
+                    class="date-cell
+                    {% if display_weekdays[d].is_weekend %}weekend-cell{% endif %}
+                    {% if day_text == active_day %}mobile-current-date{% endif %}"
+                    data-day="{{ day_text }}"
+                >
                     {{ display_weekdays[d].name }}
                 </th>
                 {% endfor %}
+
+                <th class="mobile-detail-header">
+                    詳細
+                </th>
             </tr>
 
             {% set approval_ns = namespace(index=-1) %}
@@ -395,6 +334,13 @@
                     {% endif %}
                 </td>
 
+                {% set detail_ns = namespace(
+                    comment_text="",
+                    has_comment=false,
+                    has_files=false,
+                    files_text=""
+                ) %}
+
                 {% for d in table_days %}
                 {% if display_mode == "year_list" %}
                 {% set day_text = d|string %}
@@ -402,7 +348,11 @@
                 {% set day_text = '%02d'|format(d|int) %}
                 {% endif %}
 
-                <td class="center-cell {% if day_text == active_day %}active-day-cell{% endif %}">
+                <td
+                    class="center-cell
+                    {% if day_text == active_day %}active-day-cell mobile-current-date{% endif %}"
+                    data-day="{{ day_text }}"
+                >
 
                     {% set ns = namespace(
                     target_result=None,
@@ -508,6 +458,13 @@
                     {% endfor %}
                     {% endif %}
 
+                    {% if day_text == active_day %}
+                    {% set detail_ns.comment_text = ns.comment_text %}
+                    {% set detail_ns.has_comment = ns.has_comment %}
+                    {% set detail_ns.has_files = ns.has_files %}
+                    {% set detail_ns.files_text = ns.files_text %}
+                    {% endif %}
+
                     {% if day_text == active_day and checklist.active %}
 
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
@@ -536,12 +493,14 @@
                         {% if item.input_type == "select" %}
                         <select
                             name="value"
-                            class="{% if ns.has_comment or ns.has_files %}comment-cell{% endif %} js-inline-check-input"
+                            class="js-inline-check-input js-mobile-choice-select"
                         >
                             <option value="">-</option>
-
                             {% for choice in item.choices %}
-                            <option value="{{ choice }}" {% if ns.answer_value==choice %}selected{% endif %}>
+                            <option
+                                value="{{ choice }}"
+                                {% if ns.answer_value == choice %}selected{% endif %}
+                            >
                                 {{ choice }}
                             </option>
                             {% endfor %}
@@ -553,7 +512,7 @@
 
                         <button
                             type="button"
-                            class="btn-mini js-open-detail {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
+                            class="btn-mini js-open-detail desktop-detail-button {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
                             data-content="{{ item.content|e }}"
                             data-category="{{ (item.category or '')|e }}"
                             data-criteria="{{ (item.criteria or '')|e }}"
@@ -565,6 +524,7 @@
                         >
                             詳細
                         </button>
+
                     </form>
 
                     {% else %}
@@ -612,6 +572,27 @@
 
                 </td>
                 {% endfor %}
+
+                <td class="mobile-detail-cell">
+                    {% if item.item_type not in ["inspector", "approval"] %}
+                    <button
+                        type="button"
+                        class="btn-mini js-open-detail {% if detail_ns.has_comment or detail_ns.has_files %}comment-cell{% endif %}"
+                        data-content="{{ item.content|e }}"
+                        data-category="{{ (item.category or '')|e }}"
+                        data-criteria="{{ (item.criteria or '')|e }}"
+                        data-day="{{ active_day }}"
+                        data-item-no="{{ item_no }}"
+                        data-comment="{{ detail_ns.comment_text|e }}"
+                        data-files="{{ detail_ns.files_text|e }}"
+                        data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
+                    >
+                        詳細
+                    </button>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
 
@@ -622,6 +603,103 @@
     {% endif %}
 
     {% endfor %}
+
+    {% if checklist.active %}
+    <form
+        method="post"
+        action="/vehicle/checklists/{{ checklist_index }}/complete"
+        class="vehicle-check-complete-form js-vehicle-check-complete-form"
+    >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+        <input type="hidden" name="active_day" value="{{ active_day }}">
+
+        {% if display_mode == "year_list" %}
+        <input type="hidden" name="year" value="{{ active_day }}">
+        <input type="hidden" name="month" value="01">
+        <input type="hidden" name="day" value="01">
+        {% elif display_mode == "month_list" %}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ active_day }}">
+        <input type="hidden" name="day" value="01">
+        {% else %}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="day" value="{{ active_day }}">
+        {% endif %}
+
+        <div class="vehicle-check-notify-grid">
+
+            <div class="notify-user-selector">
+                <label>点検完了通知先</label>
+
+                <input
+                    type="text"
+                    id="notify_user_search"
+                    placeholder="名前で検索"
+                    autocomplete="off"
+                >
+
+                <div
+                    id="notify_user_search_results"
+                    class="vehicle-select-box is-hidden"
+                ></div>
+
+                <div
+                    id="selected_notify_users"
+                    class="selected-vehicle-tags"
+                ></div>
+            </div>
+
+            <div class="notify-user-selector">
+                <label>点検未実施通知先</label>
+
+                <input
+                    type="text"
+                    id="reminder_notify_user_search"
+                    placeholder="名前で検索"
+                    autocomplete="off"
+                >
+
+                <div
+                    id="reminder_notify_user_search_results"
+                    class="vehicle-select-box is-hidden"
+                ></div>
+
+                <div
+                    id="selected_reminder_notify_users"
+                    class="selected-vehicle-tags"
+                >
+                    {% for user_name in selected_reminder_notify_users %}
+                    <span
+                        class="selected-vehicle-tag"
+                        data-user-name="{{ user_name }}"
+                    >
+                        {{ user_name }}
+                        <button
+                            type="button"
+                            class="remove-reminder-notify-user"
+                            data-user-name="{{ user_name }}"
+                        >
+                            ×
+                        </button>
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <p class="help-text vehicle-check-notify-help">
+            点検完了通知先が未選択の場合は、点検未実施通知先へ通知します。
+        </p>
+
+        <button type="submit" class="btn">
+            点検完了
+        </button>
+    </form>
+    {% endif %}
+
 </div>
 
 {% endif %}
@@ -668,10 +746,33 @@
             </div>
 
             <label>写真・ファイル</label>
-            <input type="file" name="files" multiple accept="image/*,video/*,.pdf" class="js-detail-file-input">
 
-            <div id="savedFilesArea"></div>
-            <div id="detailPreview"></div>
+            <div class="file-upload-cell vehicle-detail-file-upload">
+                <label class="file-upload-button file-upload-button-camera">
+                    写真
+                    <input
+                        type="file"
+                        name="files"
+                        accept="image/*"
+                        capture="environment"
+                        class="file-upload-input js-detail-file-input"
+                    >
+                </label>
+
+                <label class="file-upload-button file-upload-button-secondary">
+                    ファイル
+                    <input
+                        type="file"
+                        name="files"
+                        multiple
+                        accept="image/*,video/*,.pdf"
+                        class="file-upload-input js-detail-file-input"
+                    >
+                </label>
+
+                <div id="savedFilesArea" class="saved-file-names"></div>
+                <div id="detailPreview" class="selected-file-names"></div>
+            </div>
 
             <label class="checkbox-row">
                 <input type="checkbox" name="patrol_link" value="1">
@@ -712,12 +813,19 @@
     data-display-mode="{{ display_mode }}"
     data-year="{{ year }}"
     data-month="{{ month }}"
+    data-active-day="{{ active_day }}"
     data-company-code="{{ checklist.company_code }}"
     data-reminder-url="/vehicle/checklists/{{ checklist_index }}/reminder-notify-users"
     data-saved-notify-users="{{ selected_notify_users | tojson | forceescape }}"
     data-saved-reminder-notify-users="{{ selected_reminder_notify_users | tojson | forceescape }}"
 ></div>
 
-<script src="{{ url_for('static', filename='js/vehicle_checklist_results.js') }}"></script>
+<script
+    src="{{ url_for(
+        'static',
+        filename='js/vehicle_checklist_results.js',
+        v='20260921-3'
+    ) }}"
+></script>
 
 {% endblock %}

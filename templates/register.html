@@ -15,7 +15,11 @@
 </div>
 
 <div class="card form-card register-card">
-    <form method="post" class="responsive-form register-form">
+    <form
+        method="post"
+        action="{{ url_for('register', company_code=company_code) }}"
+        class="responsive-form register-form"
+    >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     {% if error %}
@@ -35,13 +39,29 @@
     <input
         type="text"
         name="name"
+        value="{{ request.form.get('name', '') }}"
+        maxlength="100"
+        autocomplete="name"
         required
+    >
+
+    <label>メールアドレス（任意）</label>
+    <input
+        type="email"
+        name="email_address"
+        value="{{ request.form.get('email_address', '') }}"
+        maxlength="255"
+        autocomplete="email"
+        placeholder="example@isz.co.jp"
     >
 
     <label>ログインID</label>
     <input
         type="text"
         name="employee_id"
+        value="{{ request.form.get('employee_id', '') }}"
+        maxlength="50"
+        autocomplete="username"
         required
     >
 
@@ -51,6 +71,10 @@
             type="password"
             name="password"
             id="password"
+            minlength="8"
+            maxlength="128"
+            autocomplete="new-password"
+            aria-describedby="passwordHelp"
             required
         >
 
@@ -82,11 +106,21 @@
         </button>
     </div>
 
+    <p id="passwordHelp" class="help-text">
+        8文字以上で、英大文字・英小文字・数字・記号のうち
+        3種類以上を使用してください。
+    </p>
+
     <label>営業所</label>
     <select name="office">
         <option value="">未設定</option>
         {% for office in offices %}
-            <option value="{{ office.name }}">
+            <option
+                value="{{ office.name }}"
+                {% if request.form.get('office', '') == office.name %}
+                    selected
+                {% endif %}
+            >
                 {{ office.name }}
             </option>
         {% endfor %}
