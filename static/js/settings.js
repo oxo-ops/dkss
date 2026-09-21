@@ -32,6 +32,39 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
+    const isIOS =
+        /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+    const isStandalone =
+        window.matchMedia(
+            "(display-mode: standalone)"
+        ).matches
+        || window.navigator.standalone === true;
+
+    if (isIOS && !isStandalone) {
+        pushButton.disabled = false;
+
+        if (pushStatus) {
+            pushStatus.textContent =
+                "iPhoneではホーム画面に追加してから端末通知を有効にします。";
+        }
+
+        pushButton.addEventListener(
+            "click",
+            function () {
+                window.alert(
+                    "iPhoneで端末通知を利用するには、DKSSをホーム画面に追加してください。\n\n"
+                    + "1. Safari下部の共有ボタンを押す\n"
+                    + "2. 「ホーム画面に追加」を選ぶ\n"
+                    + "3. 追加したDKSSをホーム画面から開く\n"
+                    + "4. 設定画面で「端末通知を有効にする」を押す"
+                );
+            }
+        );
+
+        return;
+    }
+
     if (
         !("Notification" in window)
         || !("serviceWorker" in navigator)
@@ -48,9 +81,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (Notification.permission === "granted") {
+        pushButton.textContent =
+            "端末通知は有効です";
+        pushButton.disabled = true;    
+
         if (pushStatus) {
             pushStatus.textContent =
-                "端末通知は有効です。";
+                "この端末で通知を受け取れます。";
         }
     }
 

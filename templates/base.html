@@ -8,6 +8,14 @@
         content="{{ csrf_token() }}"
     >
     <title>{% block title %}DKSS{% endblock %}</title>
+
+    <link
+        rel="manifest"
+        href="{{ url_for('static', filename='manifest.webmanifest') }}"
+    >
+
+    <meta name="theme-color" content="#2f73f6">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260921-3') }}">
 </head>
 <body data-current-user="{{ session.get('name', '') }}">
