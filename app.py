@@ -15,6 +15,7 @@ import secrets
 import zipfile
 import re
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import NotFound
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -1531,30 +1532,19 @@ def s3_uploads_file(filename):
 
         return "File not found", 404
 
-    company_file_path = os.path.join(
-        app.static_folder,
-        "uploads",
-        company_code,
-        filename
-    )
-
-    if os.path.exists(company_file_path):
+    try:
         return app.send_static_file(
             f"uploads/{company_code}/{filename}"
         )
+    except NotFound:
+        pass
 
-    legacy_file_path = os.path.join(
-        app.static_folder,
-        "uploads",
-        filename
-    )
-
-    if os.path.exists(legacy_file_path):
+    try:
         return app.send_static_file(
             f"uploads/{filename}"
         )
-
-    return "File not found", 404
+    except NotFound:
+        return "File not found", 404
 
 
 @app.route("/static/manuals/<path:filename>")
@@ -4029,6 +4019,11 @@ def register():
         elif len(name) > 100:
             error = "氏名は100文字以内で入力してください。"
 
+        elif email_address and not is_valid_email_address(
+            email_address
+        ):
+            error = "メールアドレスの形式が不正です。"
+
         elif len(password) < 8:
             error = "パスワードは8文字以上にしてください。"
 
@@ -4064,7 +4059,9 @@ def register():
                 role="user",
                 name=name,
                 office=office,
-                favorite_vehicles_json="[]"
+                favorite_vehicles_json="[]",
+                email_address=email_address or None,
+                email_notify_enabled=bool(email_address)
             )
 
             driver = Driver.query.filter_by(
