@@ -7,19 +7,25 @@
 {% set has_target_column = view_type == "delivery_place" or show_target_user %}
 {% set column_count = 9 if has_target_column else 8 %}
 
-<div class="page-header">
-    <div>
-        <h2>安全パトロール結果一覧</h2>
-        <p class="page-lead">
-            {% if view_type == "user" %}
-                ユーザーに関する記録を表示しています。
-            {% else %}
-                納入先に関する記録を表示しています。
-            {% endif %}
-        </p>
-    </div>
+<div class="safety-results-page-head">
+    <div class="safety-results-title-row">
 
-    <a class="btn" href="/pointouts/new">新規登録</a>
+        <div>
+            <h2>安全パトロール結果一覧</h2>
+
+            <p class="safety-results-count">
+                {{ patrol_results|length }}件の結果
+            </p>
+        </div>
+
+        <a
+            class="btn safety-results-new-button"
+            href="/pointouts/new"
+        >
+            ＋ 新規登録
+        </a>
+
+    </div>
 </div>
 
 <div class="tabs">
@@ -165,100 +171,148 @@
 </table>
 </div>
 
-<div class="mobile-card-list">
+<div class="safety-results-mobile-list">
     {% for item in patrol_results %}
-        <div class="mobile-list-card">
+        <article class="safety-result-mobile-card">
 
-            <div class="mobile-card-head">
-                <strong>
-                    {{ item.date }}
-                </strong>
+            <div class="safety-result-mobile-head">
+                <div class="safety-result-mobile-head-main">
+                    <strong>{{ item.date }}</strong>
+                </div>
 
                 {% if item.category == "Good" %}
-                    <span class="status-badge status-none">対象外</span>
+                    <span class="status-badge status-none">
+                        対象外
+                    </span>
                 {% elif not item.countermeasure %}
-                    <span class="status-badge status-not-started">対策未登録</span>
+                    <span class="status-badge status-not-started">
+                        対策未登録
+                    </span>
                 {% elif item.approval_status == "承認待ち" %}
-                    <span class="status-badge status-waiting">未承認</span>
+                    <span class="status-badge status-waiting">
+                        未承認
+                    </span>
                 {% elif item.approval_status == "差し戻し" %}
-                    <span class="status-badge status-rejected">差し戻し中</span>
+                    <span class="status-badge status-rejected">
+                        差し戻し中
+                    </span>
                 {% elif item.approval_status == "承認済み" %}
-                    <span class="status-badge status-approved">承認済み</span>
+                    <span class="status-badge status-approved">
+                        承認済み
+                    </span>
                 {% else %}
-                    <span class="status-badge status-not-started">対策未登録</span>
+                    <span class="status-badge status-not-started">
+                        対策未登録
+                    </span>
                 {% endif %}
             </div>
 
-            <div class="mobile-card-row">
-                <span>営業所</span>
-                <strong>{{ item.office }}</strong>
-            </div>
+            <div class="safety-result-mobile-grid">
 
-            {% if view_type == "delivery_place" %}
-                <div class="mobile-card-row">
-                    <span>納入先</span>
-                    <strong>{{ item.delivery_place }}</strong>
+                <div>
+                    <span class="safety-result-mobile-label">
+                        営業所
+                    </span>
+                    <strong>
+                        {{ item.office or "-" }}
+                    </strong>
                 </div>
-            {% elif show_target_user %}
-                <div class="mobile-card-row">
-                    <span>対象者</span>
-                    <strong>{{ item.target_user }}</strong>
+
+                <div>
+                    <span class="safety-result-mobile-label">
+                        対象
+                    </span>
+                    <strong>
+                        {% if view_type == "delivery_place" %}
+                            {{ item.delivery_place or "-" }}
+                        {% else %}
+                            {{ item.target_user or "-" }}
+                        {% endif %}
+                    </strong>
                 </div>
-            {% endif %}
 
-            <div class="mobile-card-row">
-                <span>分類</span>
-                <strong>{{ item.category }}</strong>
+                <div>
+                    <span class="safety-result-mobile-label">
+                        分類
+                    </span>
+                    <strong>
+                        {{ item.category or "-" }}
+                    </strong>
+                </div>
+
+                <div>
+                    <span class="safety-result-mobile-label">
+                        内容区分
+                    </span>
+                    <strong>
+                        {{ item.content_type or "-" }}
+                    </strong>
+                </div>
+
+                <div class="safety-result-mobile-grid-wide">
+                    <span class="safety-result-mobile-label">
+                        添付
+                    </span>
+                    <strong>
+                        {% if item.files %}
+                            {{ item.files|length }}件
+                        {% else %}
+                            なし
+                        {% endif %}
+                    </strong>
+                </div>
+
             </div>
 
-            <div class="mobile-card-row">
-                <span>内容区分</span>
-                <strong>{{ item.content_type }}</strong>
-            </div>
-
+            {% if item.content %}
             <div class="mobile-card-content">
                 {{ item.content }}
             </div>
-
-            {% if item.files %}
-                <div class="mobile-card-file">
-                    <img
-                        src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
-                        class="thumb"
-                    >
-
-                    {% if item.files|length > 1 %}
-                        <span class="subtle-text">
-                            他{{ item.files|length - 1 }}件
-                        </span>
-                    {% endif %}
-                </div>
             {% endif %}
 
-            <div class="mobile-card-actions">
-                <a href="/pointouts/{{ item.index }}" class="btn-small">
-                    詳細
+            <a
+                href="/pointouts/{{ item.index }}"
+                class="btn safety-result-mobile-detail"
+            >
+                <span>詳細を見る</span>
+                <span class="safety-result-mobile-detail-arrow">
+                    ›
+                </span>
+            </a>
+
+            {% if item.can_manage %}
+            <div class="safety-result-mobile-actions">
+
+                <a
+                    href="/pointouts/{{ item.index }}/edit"
+                    class="btn-small btn-edit"
+                >
+                    編集
                 </a>
 
-                {% if item.can_manage %}
-                    <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">
-                        編集
-                    </a>
-
-                    <form
-                        action="/pointouts/{{ item.index }}/delete"
-                        method="post"
-                        class="js-pointout-delete-form"
+                <form
+                    action="/pointouts/{{ item.index }}/delete"
+                    method="post"
+                    class="js-pointout-delete-form"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token() }}"
                     >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn-small btn-delete">
-                            削除
-                        </button>
-                    </form>
-                {% endif %}
-            </div>
 
-        </div>
+                    <button
+                        type="submit"
+                        class="btn-small btn-delete"
+                    >
+                        削除
+                    </button>
+                </form>
+
+            </div>
+            {% endif %}
+
+        </article>
     {% else %}
         <div class="mobile-list-card">
             表示できる安全パトロール結果がありません。

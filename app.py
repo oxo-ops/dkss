@@ -2985,6 +2985,7 @@ def driver_to_dict(driver):
         "company_code": driver.company_code,
         "employee_id": driver.employee_id,
         "username": user.username if user else "",
+        "email_address": user.email_address if user else "",
         "name": driver.name,
         "role": driver.role,
         "office": driver.office,
@@ -9192,6 +9193,11 @@ def new_driver():
             ""
         ).strip()
 
+        email_address = request.form.get(
+            "email_address",
+            ""
+        ).strip().lower()
+
         password = request.form.get(
             "password",
             ""
@@ -9244,6 +9250,11 @@ def new_driver():
 
         if len(name) > 100:
             return "氏名は100文字以内で入力してください。", 400
+
+        if email_address and not is_valid_email_address(
+            email_address
+        ):
+            return "メールアドレスの形式が不正です。", 400
 
         if not password:
             return "パスワードを入力してください。", 400
@@ -9414,7 +9425,9 @@ def new_driver():
             favorite_vehicles_json=json.dumps(
                 selected_vehicles,
                 ensure_ascii=False
-            )
+            ),
+            email_address=email_address or None,
+            email_notify_enabled=bool(email_address)
         )
 
         db.session.add(user)
@@ -9457,6 +9470,11 @@ def edit_driver(index):
             "name",
             ""
         ).strip()
+
+        email_address = request.form.get(
+            "email_address",
+            ""
+        ).strip().lower()
 
         role = request.form.get(
             "role",
@@ -9513,6 +9531,11 @@ def edit_driver(index):
 
         if len(name) > 100:
             return "氏名は100文字以内で入力してください。", 400
+
+        if email_address and not is_valid_email_address(
+            email_address
+        ):
+            return "メールアドレスの形式が不正です。", 400
 
         if new_password:
             if len(new_password) < 8:
@@ -9677,6 +9700,8 @@ def edit_driver(index):
                 role=role,
                 name=name,
                 office=office,
+                email_address=email_address or None,
+                email_notify_enabled=bool(email_address),
                 favorite_vehicles_json=json.dumps(
                     selected_vehicles,
                     ensure_ascii=False
@@ -9690,6 +9715,8 @@ def edit_driver(index):
             user.role = role
             user.name = name
             user.office = office
+            user.email_address = email_address or None
+            user.email_notify_enabled = bool(email_address)
             user.favorite_vehicles_json = json.dumps(
                 selected_vehicles,
                 ensure_ascii=False

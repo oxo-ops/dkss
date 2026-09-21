@@ -46,22 +46,35 @@
         {% if result.target_type == "user" %}
         <div>
             <label>対象者</label>
+
             <input
                 type="text"
-                name="target_user"
-                value="{{ result.target_username }}"
-                list="driver_list"
-                placeholder="氏名または社員IDを入力"
+                id="target_user_search"
+                value="{{ result.target_user }}"
+                placeholder="氏名を入力"
+                autocomplete="off"
             >
 
-            <datalist id="driver_list">
+            <input
+                type="hidden"
+                name="target_user"
+                id="target_user"
+                value="{{ result.target_username }}"
+            >
+
+            <div
+                id="driver_search_results"
+                class="vehicle-select-box is-hidden"
+            ></div>
+
+            <div id="driver_search_data" class="is-hidden">
                 {% for driver in drivers %}
-                    <option
-                        value="{{ driver.employee_id }}"
-                        label="{{ driver.name }}{% if driver.office %} / {{ driver.office }}{% endif %}"
-                    >
+                    <span
+                        data-name="{{ driver.name }}"
+                        data-employee-id="{{ driver.employee_id }}"
+                    ></span>
                 {% endfor %}
-            </datalist>
+            </div>
         </div>
         {% endif %}
 
