@@ -55,17 +55,92 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (Notification.permission === "denied") {
-        pushButton.disabled = true;
+        pushButton.disabled = false;
 
         if (pushStatus) {
             pushStatus.textContent =
-                "ブラウザ側で通知が拒否されています。";
+                "端末通知がブラウザ側でブロックされています。";
         }
+    }
+    const testPushButton =
+        document.getElementById(
+            "testPushNotification"
+        );
+
+    const testPushStatus =
+        document.getElementById(
+            "testPushNotificationStatus"
+        );
+
+    if (testPushButton) {
+        testPushButton.addEventListener(
+            "click",
+            async function () {
+                testPushButton.disabled = true;
+
+                if (testPushStatus) {
+                    testPushStatus.textContent =
+                        "テスト通知を送信しています...";
+                }
+
+                try {
+                    const csrfToken = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+
+                    const response = await fetch(
+                        "/api/push/test",
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRFToken": csrfToken || ""
+                            }
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
+                    if (testPushStatus) {
+                        testPushStatus.textContent =
+                            "テスト通知を送信しました。";
+                    }
+                } catch (error) {
+                    console.error(
+                        "テスト通知送信エラー:",
+                        error
+                    );
+
+                    if (testPushStatus) {
+                        testPushStatus.textContent =
+                            "テスト通知の送信に失敗しました。";
+                    }
+                } finally {
+                    testPushButton.disabled = false;
+                }
+            }
+        );
     }
 
     pushButton.addEventListener(
         "click",
         async function () {
+            if (Notification.permission === "denied") {
+                window.alert(
+                    "端末通知がブラウザでブロックされています。\n\n"
+                    + "アドレスバー左の鍵アイコンを押してください。\n"
+                    + "↓\n"
+                    + "「通知」をONにしてください。\n"
+                    + "↓\n"
+                    + "その後、このページを再読み込みしてください。"
+                );
+
+                return;
+            }
+
             pushButton.disabled = true;
 
             if (pushStatus) {
