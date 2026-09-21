@@ -2419,7 +2419,7 @@ def patrol_result_to_dict(result):
 @app.route("/service-worker.js")
 def service_worker():
     response = app.send_static_file(
-        "service-worker.js"
+        "js/service-worker.js"
     )
     response.headers[
         "Service-Worker-Allowed"
