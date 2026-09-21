@@ -74,6 +74,20 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             try {
+                const permission =
+                    await Notification.requestPermission();
+
+                if (permission !== "granted") {
+                    pushButton.disabled = false;
+
+                    if (pushStatus) {
+                        pushStatus.textContent =
+                            "通知の許可が必要です。";
+                    }
+
+                    return;
+                }
+
                 await registerPushNotifications();
 
                 if (

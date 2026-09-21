@@ -7792,3 +7792,8 @@ input:checked
         line-height: 1.4;
     }
 }
+
+#pushNotificationStatus {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
