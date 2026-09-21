@@ -802,13 +802,18 @@ async function registerPushNotifications() {
 window.addEventListener(
     "load",
     () => {
-        registerPushNotifications().catch(
-            (error) => {
-                console.error(
-                    "Push通知登録エラー:",
-                    error
-                );
-            }
-        );
+        if (
+            "Notification" in window
+            && Notification.permission === "granted"
+        ) {
+            registerPushNotifications().catch(
+                (error) => {
+                    console.error(
+                        "Push通知登録エラー:",
+                        error
+                    );
+                }
+            );
+        }
     }
 );
