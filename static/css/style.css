@@ -7793,7 +7793,84 @@ input:checked
     }
 }
 
+#enablePushNotifications {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
 #pushNotificationStatus {
-    margin-top: 10px;
-    margin-bottom: 20px;
+    margin-top: 0;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-ranking-table,
+    .dashboard-inspection-table,
+    .dashboard-pending-table {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        table-layout: fixed;
+    }
+
+    .dashboard-ranking-table th,
+    .dashboard-ranking-table td,
+    .dashboard-inspection-table th,
+    .dashboard-inspection-table td,
+    .dashboard-pending-table th,
+    .dashboard-pending-table td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 768px) {
+    /* ランキング：営業所を非表示 */
+    .dashboard-ranking-table th:nth-child(3),
+    .dashboard-ranking-table td:nth-child(3) {
+        display: none;
+    }
+
+    .dashboard-ranking-table th:nth-child(1),
+    .dashboard-ranking-table td:nth-child(1) {
+        width: 54px;
+    }
+
+    .dashboard-ranking-table th:nth-child(4),
+    .dashboard-ranking-table td:nth-child(4) {
+        width: 90px;
+        text-align: right;
+    }
+
+    /* 車検期限：期限日を非表示 */
+    .dashboard-inspection-table th:nth-child(2),
+    .dashboard-inspection-table td:nth-child(2) {
+        display: none;
+    }
+
+    .dashboard-inspection-table th:nth-child(3),
+    .dashboard-inspection-table td:nth-child(3) {
+        width: 82px;
+        text-align: right;
+    }
+
+    /* 未対応指摘：区分・詳細を非表示 */
+    .dashboard-pending-table th:nth-child(2),
+    .dashboard-pending-table td:nth-child(2),
+    .dashboard-pending-table th:nth-child(5),
+    .dashboard-pending-table td:nth-child(5) {
+        display: none;
+    }
+
+    .dashboard-pending-table th:nth-child(1),
+    .dashboard-pending-table td:nth-child(1) {
+        width: 88px;
+    }
+
+    .dashboard-pending-table th:nth-child(4),
+    .dashboard-pending-table td:nth-child(4) {
+        width: 78px;
+    }
 }
