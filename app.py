@@ -11,6 +11,7 @@ import calendar
 import smtplib
 from email.message import EmailMessage
 from email.utils import parseaddr
+from pywebpush import webpush, WebPushException
 import secrets
 import zipfile
 import re
@@ -69,6 +70,21 @@ if not secret_key:
 app.secret_key = secret_key
 MFA_ENABLED = (
     os.environ.get("MFA_ENABLED", "true").lower() == "true"
+)
+
+VAPID_PRIVATE_KEY = os.environ.get(
+    "VAPID_PRIVATE_KEY",
+    ""
+)
+
+VAPID_PUBLIC_KEY = os.environ.get(
+    "VAPID_PUBLIC_KEY",
+    ""
+)
+
+VAPID_SUBJECT = os.environ.get(
+    "VAPID_SUBJECT",
+    "mailto:maho_shiokawa@isz.co.jp"
 )
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -472,6 +488,40 @@ class Notification(db.Model):
 
     read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.String(20))
+
+class PushSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    username = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    endpoint = db.Column(
+        db.Text,
+        nullable=False,
+        unique=True
+    )
+
+    p256dh = db.Column(
+        db.Text,
+        nullable=False
+    )
+
+    auth = db.Column(
+        db.Text,
+        nullable=False
+    )
+
+    created_at = db.Column(
+        db.String(20),
+        nullable=False
+    )
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2366,6 +2416,186 @@ def patrol_result_to_dict(result):
         "reject_reason": result.reject_reason,
     }
 
+@app.route("/service-worker.js")
+def service_worker():
+    response = app.send_static_file(
+        "service-worker.js"
+    )
+    response.headers[
+        "Service-Worker-Allowed"
+    ] = "/"
+    response.headers[
+        "Cache-Control"
+    ] = "no-cache"
+    return response
+
+
+@app.route("/api/push/vapid-public-key")
+def push_vapid_public_key():
+    if not VAPID_PUBLIC_KEY:
+        return {
+            "publicKey": "",
+            "error": "VAPID public key is not configured."
+        }, 503
+
+    return {
+        "publicKey": VAPID_PUBLIC_KEY
+    }
+
+@app.route("/api/push/subscribe", methods=["POST"])
+def push_subscribe():
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return {"error": "Unauthorized"}, 401
+
+    data = request.get_json(silent=True) or {}
+
+    endpoint = str(
+        data.get("endpoint") or ""
+    ).strip()
+
+    keys = data.get("keys") or {}
+
+    p256dh = str(
+        keys.get("p256dh") or ""
+    ).strip()
+
+    auth = str(
+        keys.get("auth") or ""
+    ).strip()
+
+    if not endpoint or not p256dh or not auth:
+        return {
+            "error": "Invalid push subscription."
+        }, 400
+
+    if (
+        len(endpoint) > 4000
+        or len(p256dh) > 1000
+        or len(auth) > 1000
+    ):
+        return {
+            "error": "Push subscription is too large."
+        }, 400
+
+    subscription = PushSubscription.query.filter_by(
+        endpoint=endpoint
+    ).first()
+
+    if subscription:
+        subscription.company_code = company_code
+        subscription.username = username
+        subscription.p256dh = p256dh
+        subscription.auth = auth
+
+    else:
+        subscription = PushSubscription(
+            company_code=company_code,
+            username=username,
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+            created_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+
+        db.session.add(subscription)
+
+    db.session.commit()
+
+    return {
+        "success": True
+    }
+
+def send_web_push_notification(
+    user,
+    title,
+    message,
+    link=""
+):
+    if not user:
+        return False
+
+    if (
+        not VAPID_PRIVATE_KEY
+        or not VAPID_PUBLIC_KEY
+        or not VAPID_SUBJECT
+    ):
+        print(
+            "Web Push未送信：VAPID設定がありません。"
+        )
+        return False
+
+    subscriptions = PushSubscription.query.filter_by(
+        company_code=user.company_code,
+        username=user.username
+    ).all()
+
+    if not subscriptions:
+        return False
+
+    payload = json.dumps(
+        {
+            "title": str(title or "")[:200],
+            "message": str(message or "")[:10000],
+            "link": build_absolute_app_url(link),
+        },
+        ensure_ascii=False
+    )
+
+    sent = False
+
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription.endpoint,
+                    "keys": {
+                        "p256dh": subscription.p256dh,
+                        "auth": subscription.auth,
+                    },
+                },
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={
+                    "sub": VAPID_SUBJECT
+                },
+                ttl=300,
+                timeout=20,
+            )
+
+            sent = True
+
+        except WebPushException as e:
+            print(
+                "Web Push送信エラー:",
+                repr(e)
+            )
+
+            response = getattr(
+                e,
+                "response",
+                None
+            )
+
+            if (
+                response is not None
+                and response.status_code in (404, 410)
+            ):
+                db.session.delete(subscription)
+                db.session.commit()
+
+        except Exception as e:
+            print(
+                "Web Push送信エラー:",
+                repr(e)
+            )
+
+    return sent
+
 def send_email_notification(
     user,
     title,
@@ -2485,6 +2715,13 @@ def dispatch_external_notification(
 ):
     if not user:
         return
+
+    send_web_push_notification(
+        user,
+        title,
+        message,
+        link
+    )
 
     if user.email_notify_enabled:
         send_email_notification(
