@@ -1744,7 +1744,13 @@ def require_login():
         ):
             return "File not found", 404
     if (
-        request.endpoint in {"login", "mfa", "register", "static"}
+        request.endpoint in {
+            "login",
+            "mfa",
+            "register",
+            "static",
+            "service_worker"
+        }
         or request.endpoint is None
     ):
         return None
