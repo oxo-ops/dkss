@@ -29,6 +29,18 @@
 
     <h3>通知設定</h3>
 
+    <button
+        type="button"
+        class="btn"
+        id="enablePushNotifications"
+    >
+        端末通知を有効にする
+    </button>
+
+    <p class="help-text" id="pushNotificationStatus">
+        Windows・スマートフォンの端末通知を設定します。
+    </p>
+
     {% if notification_success %}
         <div class="alert success">
             {{ notification_success }}
