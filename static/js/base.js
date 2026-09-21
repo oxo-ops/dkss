@@ -710,3 +710,105 @@ document.addEventListener("change", function (event) {
         "1回に送信できるファイルの合計は200MB以下です。動画を短くするか、ファイルを分けて登録してください。"
     );
 });
+
+async function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat(
+        (4 - base64String.length % 4) % 4
+    );
+
+    const base64 = (
+        base64String
+            .replace(/-/g, "+")
+            .replace(/_/g, "/")
+        + padding
+    );
+
+    const rawData = atob(base64);
+
+    return Uint8Array.from(
+        [...rawData].map(
+            char => char.charCodeAt(0)
+        )
+    );
+}
+
+async function registerPushNotifications() {
+    if (
+        !("serviceWorker" in navigator)
+        || !("PushManager" in window)
+    ) {
+        return;
+    }
+
+    const registration =
+        await navigator.serviceWorker.register(
+            "/service-worker.js"
+        );
+
+    let subscription =
+        await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+        const permission =
+            await Notification.requestPermission();
+
+        if (permission !== "granted") {
+            return;
+        }
+
+        const response = await fetch(
+            "/api/push/vapid-public-key"
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+
+        if (!data.publicKey) {
+            return;
+        }
+
+        subscription =
+            await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey:
+                    await urlBase64ToUint8Array(
+                        data.publicKey
+                    )
+            });
+    }
+
+    const csrfToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute("content");
+
+    await fetch(
+        "/api/push/subscribe",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken || ""
+            },
+            body: JSON.stringify(
+                subscription.toJSON()
+            )
+        }
+    );
+}
+
+window.addEventListener(
+    "load",
+    () => {
+        registerPushNotifications().catch(
+            (error) => {
+                console.error(
+                    "Push通知登録エラー:",
+                    error
+                );
+            }
+        );
+    }
+);

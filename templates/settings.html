@@ -73,6 +73,16 @@
         value="{{ user.email_address or '' }}"
         placeholder="example@example.com"
     >
+    {% if error %}
+        <div class="settings-field-error" role="alert">
+            <span class="settings-field-error-icon">!</span>
+
+            <div>
+                <strong>メールを送信できませんでした</strong>
+                <p>{{ error }}</p>
+            </div>
+        </div>
+    {% endif %}
     <label>メールアドレス変更時の現在のパスワード</label>
 
     <input
@@ -100,10 +110,6 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <h3>パスワード変更</h3>
-
-    {% if error %}
-        <div class="alert danger">{{ error }}</div>
-    {% endif %}
 
     {% if password_success %}
         <div class="alert success">
