@@ -625,6 +625,19 @@ def add_audit_log(
 
     db.session.add(audit_log)
 
+
+def cleanup_old_audit_logs(retention_days=365):
+    cutoff = (
+        datetime.now() - timedelta(days=retention_days)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    AuditLog.query.filter(
+        AuditLog.created_at < cutoff
+    ).delete(synchronize_session=False)
+
+    db.session.commit()
+
+
 def update_company_usage_summary(
     company_code,
     increment_login=False
@@ -1648,6 +1661,10 @@ def add_security_headers(response):
 
     response.headers["X-Frame-Options"] = "DENY"
 
+    response.headers["Cross-Origin-Embedder-Policy"] = (
+        "require-corp"
+    )
+
     response.headers["Permissions-Policy"] = (
         "camera=(), microphone=(), geolocation=()"
     )
@@ -1662,13 +1679,22 @@ def add_security_headers(response):
         "connect-src 'self' https:; "
         "object-src 'none'; "
         "base-uri 'self'; "
-        "frame-ancestors 'none'"
+        "frame-ancestors 'none'; "
+        "form-action 'self'; "
+        "frame-src 'none'; "
+        "worker-src 'self' blob:; "
+        "manifest-src 'self'"
     )
     
     protected_static_file = (
         request.path.startswith("/static/uploads/")
         or request.path.startswith("/static/manuals/")
     )
+
+    if request.path == "/static/manifest.webmanifest":
+        response.headers["Cache-Control"] = (
+            "no-cache, must-revalidate"
+        )
 
     if (
         protected_static_file
@@ -18571,6 +18597,8 @@ def reject_checklist_result(result_index):
 def init_db():
     with app.app_context():
         db.create_all()
+
+        cleanup_old_audit_logs()
 
         if not Company.query.filter_by(company_code="ITC").first():
             db.session.add(Company(
