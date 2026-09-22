@@ -7874,3 +7874,134 @@ input:checked
         width: 78px;
     }
 }
+
+.choice-btn {
+    background: #eef2f7;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+
+.choice-btn:hover {
+    background: #e2e8f0;
+}
+
+.choice-btn.active {
+    background: #2f73f6;
+    color: #ffffff;
+    border-color: #2f73f6;
+}
+
+.choice-btn.active:hover {
+    background: #195ee0;
+}
+
+@media (max-width: 768px) {
+    #user_target_area {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    #target_user_search {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    #driver_search_results {
+        width: 100%;
+        max-width: 100%;
+        max-height: 220px;
+        margin-top: -8px;
+        padding: 6px;
+        box-sizing: border-box;
+        overflow-y: auto;
+    }
+}
+
+.page-header + .safety-pointout-form-card {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.safety-pointout-form-card > .responsive-form {
+    width: 100%;
+    max-width: none;
+}
+
+#driver_search_results .target-user-option {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    margin: 0;
+    border: none;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+}
+
+#driver_search_results .target-user-option:hover,
+#driver_search_results .target-user-option:active {
+    background: #eef3fb;
+    color: #0f172a;
+}
+
+@media (max-width: 768px) {
+    #driver_search_results .target-user-option {
+        min-height: 44px;
+    }
+}
+
+.page-header + .safety-pointout-form-card {
+    display: block;
+    align-items: stretch;
+    padding: 22px;
+}
+
+.safety-pointout-form-card > .responsive-form {
+    width: 100%;
+    max-width: 560px;
+}
+
+.safety-pointout-form-card > .responsive-form {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.safety-pointout-form-card .form-group,
+.safety-pointout-form-card .manual-card {
+    width: 100%;
+    max-width: 100%;
+}
+
+#pointout_target_results {
+    width: 100%;
+    max-height: 220px;
+    margin-top: 8px;
+    padding: 6px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+#pointout_target_results .pointout-target-option {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    margin: 0;
+    border: none;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+}
+
+#pointout_target_results .pointout-target-option:hover,
+#pointout_target_results .pointout-target-option:active {
+    background: #eef3fb;
+    color: #0f172a;
+}

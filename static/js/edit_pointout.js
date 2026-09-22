@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.createElement("button");
 
             button.type = "button";
-            button.className = "vehicle-option";
+            button.className = "target-user-option";
             button.textContent =
                 driver.dataset.name || "";
 
@@ -127,6 +127,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     targetUserSearch?.addEventListener(
         "input",
+        updateDriverSearchResults
+    );
+
+    targetUserSearch?.addEventListener(
+        "compositionend",
         updateDriverSearchResults
     );
 
