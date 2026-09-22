@@ -686,7 +686,7 @@ document.addEventListener("change", function (event) {
     }
 
     const maxTotalSize =
-        200 * 1024 * 1024;
+        1024 * 1024 * 1024;
 
     let totalSize = 0;
 
@@ -707,7 +707,7 @@ document.addEventListener("change", function (event) {
     input.value = "";
 
     window.alert(
-        "1回に送信できるファイルの合計は200MB以下です。動画を短くするか、ファイルを分けて登録してください。"
+        "1回に送信できるファイルの合計は1GB以下です。動画を短くするか、ファイルを分けて登録してください。"
     );
 });
 

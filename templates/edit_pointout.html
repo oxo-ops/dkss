@@ -173,12 +173,20 @@
                             src="{{ url_for('static', filename='uploads/' + file) }}"
                             class="thumb"
                         >
-                    {% elif ext in ['mp4','mov','avi','webm'] %}
+                    {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
                         <video
                             src="{{ url_for('static', filename='uploads/' + file) }}"
                             class="thumb"
                             controls
+                            preload="metadata"
                         ></video>
+                    {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+                        <a
+                            href="{{ url_for('static', filename='uploads/' + file) }}"
+                            target="_blank"
+                        >
+                            動画ファイルを開く
+                        </a>
                     {% elif ext == 'pdf' %}
                         <a
                             href="{{ url_for('static', filename='uploads/' + file) }}"
