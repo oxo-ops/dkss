@@ -121,11 +121,11 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=True,
 )
 
-app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 @app.errorhandler(413)
 def file_too_large(error):
-    return "1回に送信できるファイルの合計は200MB以下です。", 413
+    return "1回に送信できるファイルの合計は1GB以下です。", 413
 
 class UploadValidationError(ValueError):
     pass

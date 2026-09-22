@@ -873,14 +873,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
 
                 const maxSize =
-                    200 * 1024 * 1024;
+                    1024 * 1024 * 1024;
 
                 if (totalSize > maxSize) {
                     event.preventDefault();
 
                     alert(
                         "写真・動画・ファイルの合計を" +
-                        "200MB以下にしてください。"
+                        "1GB以下にしてください。"
                     );
                 }
             }
