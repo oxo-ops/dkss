@@ -48,18 +48,25 @@
                 <input
                     type="text"
                     name="keyword"
+                    id="pointout_target_search"
                     value="{{ keyword }}"
-                    list="driver_list"
                     placeholder="対象者名を入力"
+                    autocomplete="off"
                 >
+
                 <button type="submit">検索</button>
             </div>
 
-            <datalist id="driver_list">
+            <div
+                id="pointout_target_results"
+                class="vehicle-select-box is-hidden"
+            ></div>
+
+            <div id="pointout_target_data" class="is-hidden">
                 {% for driver in drivers %}
-                    <option value="{{ driver.name }}">
+                    <span data-name="{{ driver.name }}"></span>
                 {% endfor %}
-            </datalist>
+            </div>
         {% else %}
             <label>納入先検索</label>
             <div class="search-row">

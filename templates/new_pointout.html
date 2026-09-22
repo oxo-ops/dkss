@@ -8,7 +8,7 @@
     <h2>安全パトロール結果登録</h2>
 </div>
 
-<div class="card form-card">
+<div class="card form-card safety-pointout-form-card">
 
     <form method="post" enctype="multipart/form-data" class="responsive-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -194,6 +194,6 @@
     </a>
 </div>
 
-<script src="{{ url_for('static', filename='js/new_pointout.js') }}"></script>
+<script src="{{ url_for('static', filename='js/new_pointout.js') }}?v=20260921-1"></script>
 
 {% endblock %}
