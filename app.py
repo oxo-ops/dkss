@@ -1665,18 +1665,28 @@ def add_security_headers(response):
         "require-corp"
     )
 
+    response.headers["Cross-Origin-Opener-Policy"] = (
+        "same-origin"
+    )
+
     response.headers["Permissions-Policy"] = (
         "camera=(), microphone=(), geolocation=()"
     )
+
+    s3_csp_source = ""
+    if S3_BUCKET_NAME:
+        s3_csp_source = (
+            f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com "
+        )
 
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self'; "
         "style-src 'self'; "
-        "img-src 'self' data: https: blob:; "
+        f"img-src 'self' data: blob: {s3_csp_source}; "
         "media-src 'self' blob:; "
         "font-src 'self' data:; "
-        "connect-src 'self' https:; "
+        "connect-src 'self'; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "
