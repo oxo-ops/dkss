@@ -200,9 +200,52 @@
             </a>
         </div>
 
+                        {% set flash_messages = get_flashed_messages(with_categories=true) %}
+        {% set form_errors = {} %}
+
+        {% for category, message in flash_messages %}
+            {% if category.startswith("error:") %}
+                {% set field_id = category[6:] %}
+                {% set _ = form_errors.update({
+                    field_id: message
+                }) %}
+            {% endif %}
+        {% endfor %}
+
+        {% if form_errors %}
+            <div
+                id="error-summary"
+                class="error-summary"
+                role="alert"
+                tabindex="-1"
+                aria-labelledby="error-summary-title"
+            >
+                <h2 id="error-summary-title">
+                    入力内容を確認してください
+                </h2>
+
+                <ul>
+                    {% for field_id, message in form_errors.items() %}
+                        <li>
+                            {% if field_id %}
+                                <a
+                                    href="#{{ field_id }}"
+                                    data-form-error-target="{{ field_id }}"
+                                    data-form-error-message="{{ message }}"
+                                >
+                                    {{ message }}
+                                </a>
+                            {% else %}
+                                {{ message }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
         {% block content %}
         {% endblock %}
-
     </main>
 
 </div>

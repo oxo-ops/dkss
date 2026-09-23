@@ -7,33 +7,47 @@
 {% set has_target_column = view_type == "delivery_place" or show_target_user %}
 {% set column_count = 9 if has_target_column else 8 %}
 
+<nav class="page-breadcrumb safety-list-breadcrumb" aria-label="パンくずリスト">
+    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <span class="breadcrumb-separator">›</span>
+    <span>安全管理</span>
+    <span class="breadcrumb-separator">›</span>
+    <span class="breadcrumb-current">安全パトロール</span>
+</nav>
 <div class="safety-results-page-head">
     <div class="safety-results-title-row">
-
         <div>
             <h2>安全パトロール結果一覧</h2>
-
-            <p class="safety-results-count">
-                {{ patrol_results|length }}件の結果
-            </p>
         </div>
-
         <a
             class="btn safety-results-new-button"
             href="/pointouts/new"
         >
             ＋ 新規登録
         </a>
-
     </div>
 </div>
 
 <div class="tabs">
-    <a class="tab {% if view_type == 'user' %}active{% endif %}" href="/pointouts?type=user">
+    <a
+        class="tab {% if view_type == 'user' %}active{% endif %}"
+        href="{{ url_for(
+            'pointouts',
+            type='user',
+            page_size=page_size
+        ) }}"
+    >
         ユーザーに関する記録
     </a>
 
-    <a class="tab {% if view_type == 'delivery_place' %}active{% endif %}" href="/pointouts?type=delivery_place">
+    <a
+        class="tab {% if view_type == 'delivery_place' %}active{% endif %}"
+        href="{{ url_for(
+            'pointouts',
+            type='delivery_place',
+            page_size=page_size
+        ) }}"
+    >
         納入先に関する記録
     </a>
 </div>
@@ -41,6 +55,7 @@
 <div class="card tab-content search-card">
     <form method="get" class="search-form">
         <input type="hidden" name="type" value="{{ view_type }}">
+        <input type="hidden" name="page_size" value="{{ page_size }}">
 
         {% if view_type == "user" %}
             <label>対象者検索</label>
@@ -88,42 +103,146 @@
         {% endif %}
     </form>
 </div>
+<div
+    id="pointouts-list"
+    class="pointouts-list-toolbar"
+>
 
-<div class="table-scroll">
-<table class="checklist-table responsive-table">
-    <tr>
-        <th>発生日</th>
-        <th>営業所</th>
+    <div class="pointouts-total">
+        全{{ total_results }}件
+    </div>
 
-        {% if view_type == "delivery_place" %}
-            <th>納入先</th>
-        {% elif show_target_user %}
-            <th>対象者</th>
+    {% if total_pages > 1 %}
+    <nav class="pointouts-pagination" aria-label="ページ移動">
+
+        {% if page > 1 %}
+        <a
+            class="pointouts-page-button"
+            aria-label="前のページ"
+            title="前のページ"
+            href="{{ url_for(
+                'pointouts',
+                type=view_type,
+                keyword=keyword,
+                category=request.args.get('category'),
+                mine=request.args.get('mine'),
+                pending=request.args.get('pending'),
+                page_size=page_size,
+                page=page - 1
+            ) }}#pointouts-list"
+        >
+            ‹
+        </a>
         {% endif %}
 
-        <th>分類</th>
-        <th>内容区分</th>
-        <th>内容</th>
-        <th>対策ステータス</th>
-        <th>添付</th>
-        <th>操作</th>
+        {% for page_number in range(1, total_pages + 1) %}
+
+            {% if
+                page_number == 1
+                or page_number == total_pages
+                or (page_number >= page - 2 and page_number <= page + 2)
+            %}
+
+                <a
+                    class="
+                        pointouts-page-number
+                        {% if page_number == page %}active{% endif %}
+                        {% if
+                            page_number != 1
+                            and page_number != total_pages
+                            and (page_number < page - 1 or page_number > page + 1)
+                        %}pointouts-page-mobile-extra{% endif %}
+                    "
+                    {% if page_number == page %}
+                    aria-current="page"
+                    {% endif %}
+                    href="{{ url_for(
+                        'pointouts',
+                        type=view_type,
+                        keyword=keyword,
+                        category=request.args.get('category'),
+                        mine=request.args.get('mine'),
+                        pending=request.args.get('pending'),
+                        page_size=page_size,
+                        page=page_number
+                    ) }}#pointouts-list"
+                >
+                    {{ page_number }}
+                </a>
+
+            {% elif
+                page_number == page - 3
+                or page_number == page + 3
+            %}
+
+                <span class="pointouts-page-ellipsis">
+                    …
+                </span>
+
+            {% endif %}
+
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a
+            class="pointouts-page-button"
+            aria-label="次のページ"
+            title="次のページ"
+            href="{{ url_for(
+                'pointouts',
+                type=view_type,
+                keyword=keyword,
+                category=request.args.get('category'),
+                mine=request.args.get('mine'),
+                pending=request.args.get('pending'),
+                page_size=page_size,
+                page=page + 1
+            ) }}#pointouts-list"
+        >
+            ›
+        </a>
+        {% endif %}
+
+    </nav>
+    {% endif %}
+
+</div>
+
+<div class="table-scroll">
+<table class="checklist-table responsive-table pointouts-table">
+    <tr>
+        <th class="pointouts-col-date">発生日</th>
+        <th class="pointouts-col-office">営業所</th>
+
+        {% if view_type == "delivery_place" %}
+            <th class="pointouts-col-target">納入先</th>
+        {% elif show_target_user %}
+            <th class="pointouts-col-target">対象者</th>
+        {% endif %}
+
+        <th class="pointouts-col-category">分類</th>
+        <th class="pointouts-col-content-type">内容区分</th>
+        <th class="pointouts-col-content">内容</th>
+        <th class="pointouts-col-status">対策ステータス</th>
+        <th class="pointouts-col-files">添付</th>
+        <th class="pointouts-col-actions">操作</th>
     </tr>
 
     {% for item in patrol_results %}
     <tr>
-        <td>{{ item.date }}</td>
-        <td>{{ item.office }}</td>
+        <td class="pointouts-col-date">{{ item.date }}</td>
+        <td class="pointouts-col-office">{{ item.office }}</td>
 
         {% if view_type == "delivery_place" %}
-            <td>{{ item.delivery_place }}</td>
+            <td class="pointouts-col-target">{{ item.delivery_place }}</td>
         {% elif show_target_user %}
-            <td>{{ item.target_user }}</td>
+            <td class="pointouts-col-target">{{ item.target_user }}</td>
         {% endif %}
 
-        <td>{{ item.category }}</td>
-        <td>{{ item.content_type }}</td>
-        <td class="content-summary">{{ item.content }}</td>
-        <td>
+        <td class="pointouts-col-category">{{ item.category }}</td>
+        <td class="pointouts-col-content-type">{{ item.content_type }}</td>
+        <td class="content-summary pointouts-col-content">{{ item.content }}</td>
+        <td class="pointouts-col-status">
             {% if item.category == "Good" %}
                 <span class="status-badge status-none">対象外</span>
             {% elif not item.countermeasure %}
@@ -139,7 +258,7 @@
             {% endif %}
         </td>
 
-        <td>
+        <td class="pointouts-col-files">
             {% if item.files %}
                 <img src="{{ url_for('static', filename='uploads/' + item.files[0]) }}" class="thumb">
 
@@ -151,21 +270,23 @@
             {% endif %}
         </td>
 
-        <td class="action-buttons">
-            <a href="/pointouts/{{ item.index }}" class="btn-small">詳細</a>
+        <td class="action-cell pointouts-col-actions">
+            <div class="action-buttons">
+                <a href="/pointouts/{{ item.index }}" class="btn-small">詳細</a>
 
-            {% if item.can_manage %}
-                <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">編集</a>
+                {% if item.can_manage %}
+                    <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">編集</a>
 
-                <form
-                    action="/pointouts/{{ item.index }}/delete"
-                    method="post"
-                    class="js-pointout-delete-form"
-                >
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn-small btn-delete">削除</button>
-                </form>
-            {% endif %}
+                    <form
+                        action="/pointouts/{{ item.index }}/delete"
+                        method="post"
+                        class="js-pointout-delete-form"
+                    >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-small btn-delete">削除</button>
+                    </form>
+                {% endif %}
+            </div>
         </td>
     </tr>
     {% else %}
@@ -326,6 +447,168 @@
         </div>
     {% endfor %}
 </div>
+
+{% if total_pages > 1 %}
+<nav
+    class="pointouts-pagination pointouts-pagination-bottom"
+    aria-label="ページ移動"
+>
+    {% if page > 1 %}
+    <a
+        class="pointouts-page-button"
+        aria-label="前のページ"
+        title="前のページ"
+        href="{{ url_for(
+            'pointouts',
+            type=view_type,
+            keyword=keyword,
+            category=request.args.get('category'),
+            mine=request.args.get('mine'),
+            pending=request.args.get('pending'),
+            page_size=page_size,
+            page=page - 1
+        ) }}#pointouts-list"
+    >
+        ‹
+    </a>
+    {% endif %}
+
+    {% for page_number in range(1, total_pages + 1) %}
+        {% if
+            page_number == 1
+            or page_number == total_pages
+            or (page_number >= page - 2 and page_number <= page + 2)
+        %}
+            <a
+                class="
+                    pointouts-page-number
+                    {% if page_number == page %}active{% endif %}
+                    {% if
+                        page_number != 1
+                        and page_number != total_pages
+                        and (page_number < page - 1 or page_number > page + 1)
+                    %}pointouts-page-mobile-extra{% endif %}
+                "
+                {% if page_number == page %}
+                aria-current="page"
+                {% endif %}
+                href="{{ url_for(
+                    'pointouts',
+                    type=view_type,
+                    keyword=keyword,
+                    category=request.args.get('category'),
+                    mine=request.args.get('mine'),
+                    pending=request.args.get('pending'),
+                    page_size=page_size,
+                    page=page_number
+                ) }}#pointouts-list"
+            >
+                {{ page_number }}
+            </a>
+        {% elif
+            page_number == page - 3
+            or page_number == page + 3
+        %}
+            <span class="pointouts-page-ellipsis">
+                …
+            </span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a
+        class="pointouts-page-button"
+        aria-label="次のページ"
+        title="次のページ"
+        href="{{ url_for(
+            'pointouts',
+            type=view_type,
+            keyword=keyword,
+            category=request.args.get('category'),
+            mine=request.args.get('mine'),
+            pending=request.args.get('pending'),
+            page_size=page_size,
+            page=page + 1
+        ) }}#pointouts-list"
+    >
+        ›
+    </a>
+    {% endif %}
+</nav>
+{% endif %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        function getDesiredPageSize() {
+            if (window.innerWidth <= 768) {
+                return 5;
+            }
+
+            if (window.innerWidth <= 1024) {
+                return 8;
+            }
+
+            return 10;
+        }
+
+        function updatePageSize() {
+            const url = new URL(
+                window.location.href
+            );
+
+            const desiredPageSize =
+                getDesiredPageSize();
+
+            const currentPageSize =
+                parseInt(
+                    url.searchParams.get(
+                        "page_size"
+                    ) || "10",
+                    10
+                );
+
+            if (
+                currentPageSize ===
+                desiredPageSize
+            ) {
+                return;
+            }
+
+            url.searchParams.set(
+                "page_size",
+                String(desiredPageSize)
+            );
+
+            url.searchParams.set(
+                "page",
+                "1"
+            );
+
+            window.location.replace(
+                url.toString()
+            );
+        }
+
+        updatePageSize();
+
+        let resizeTimer = null;
+
+        window.addEventListener(
+            "resize",
+            function () {
+                window.clearTimeout(
+                    resizeTimer
+                );
+
+                resizeTimer =
+                    window.setTimeout(
+                        updatePageSize,
+                        250
+                    );
+            }
+        );
+    });
+</script>
 
 <script src="{{ url_for('static', filename='js/pointouts.js') }}"></script>
 
