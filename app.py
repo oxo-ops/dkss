@@ -8,9 +8,8 @@
     url_for,
     flash,
 )
-from werkzeug.utils import secure_filename
+from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from uuid import uuid4
 import os
@@ -1318,7 +1317,28 @@ def save_uploaded_file(file, folder=None):
             "ファイルの内容と形式が一致しません。"
         )
 
-    filename = f"{uuid4().hex}{extension}"
+    extension_suffixes = {
+        ".pdf": ".pdf",
+        ".png": ".png",
+        ".jpg": ".jpg",
+        ".jpeg": ".jpeg",
+        ".mp4": ".mp4",
+        ".mov": ".mov",
+        ".avi": ".avi",
+        ".mkv": ".mkv",
+        ".webm": ".webm",
+        ".mts": ".mts",
+        ".m2ts": ".m2ts",
+        ".mpg": ".mpg",
+        ".mpeg": ".mpeg",
+        ".xlsx": ".xlsx",
+        ".docx": ".docx",
+    }
+
+    filename = (
+        f"{uuid4().hex}"
+        f"{extension_suffixes[extension]}"
+    )
 
     if folder == "static/manuals":
         storage_folder = "manuals"
@@ -1378,10 +1398,15 @@ def save_uploaded_file(file, folder=None):
             "Invalid company code."
         )
 
-    save_folder = os.path.join(
+    save_folder = safe_join(
         base_folder,
         safe_company_code
     )
+
+    if not save_folder:
+        raise UploadValidationError(
+            "Invalid company code."
+        )
 
     os.makedirs(
         save_folder,
@@ -7958,27 +7983,7 @@ def add_vehicle_favorite():
 
 
 
-    next_url = request.form.get("next", "")
-
-    parsed_next_url = urlparse(next_url)
-
-    if (
-        parsed_next_url.scheme
-        or parsed_next_url.netloc
-        or parsed_next_url.path != "/vehicle-patrols"
-    ):
-        next_url = "/vehicle-patrols"
-    else:
-        next_url = (
-            parsed_next_url.path
-            + (
-                "?" + parsed_next_url.query
-                if parsed_next_url.query
-                else ""
-            )
-        )
-
-    return redirect(next_url)
+    return redirect("/vehicle-patrols")
 
 @app.route("/vehicle-favorites/remove/<vehicle_id>", methods=["POST"])
 @limiter.limit("30 per minute")
@@ -8006,27 +8011,7 @@ def remove_vehicle_favorite(vehicle_id):
 
     db.session.commit()
 
-    next_url = request.form.get("next", "")
-
-    parsed_next_url = urlparse(next_url)
-
-    if (
-        parsed_next_url.scheme
-        or parsed_next_url.netloc
-        or parsed_next_url.path != "/vehicle-patrols"
-    ):
-        next_url = "/vehicle-patrols"
-    else:
-        next_url = (
-            parsed_next_url.path
-            + (
-                "?" + parsed_next_url.query
-                if parsed_next_url.query
-                else ""
-            )
-        )
-
-    return redirect(next_url)
+    return redirect("/vehicle-patrols")
 
 @app.route("/vehicle-patrols")
 def vehicle_patrols():
@@ -17088,7 +17073,14 @@ def save_vehicle_checklist_one(index):
     )
 
     return redirect(
-        f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
+        url_for(
+            "vehicle_checklist_results",
+            index=checklist_record.id,
+            vehicle_id=vehicle_id,
+            year=year,
+            month=month,
+            active_day=active_day,
+        )
     )
 
 @app.route("/vehicle/checklists/<int:index>/save-detail", methods=["POST"])
@@ -17530,11 +17522,14 @@ def complete_vehicle_checklist(index):
 
     if not result_record:
         return redirect(
-            f"/vehicle/checklists/{checklist_record.id}"
-            f"?vehicle_id={vehicle_id}"
-            f"&year={year}"
-            f"&month={month}"
-            f"&active_day={active_day}"
+            url_for(
+                "vehicle_checklist_results",
+                index=checklist_record.id,
+                vehicle_id=vehicle_id,
+                year=year,
+                month=month,
+                active_day=active_day,
+            )
         )
 
     if result_record.status == "承認済み":
@@ -17669,12 +17664,13 @@ def complete_vehicle_checklist(index):
     # 通知
     # =========================
 
-    notification_link = (
-        f"/vehicle/checklists/{checklist_record.id}"
-        f"?vehicle_id={vehicle_id}"
-        f"&year={year}"
-        f"&month={month}"
-        f"&active_day={active_day}"
+    notification_link = url_for(
+        "vehicle_checklist_results",
+        index=checklist_record.id,
+        vehicle_id=vehicle_id,
+        year=year,
+        month=month,
+        active_day=active_day,
     )
 
     for target_username in notify_usernames:
