@@ -267,11 +267,22 @@ def handle_upload_validation_error(error):
     if not referrer:
         return message, 400
 
-    parsed_referrer = urlparse(referrer)
+    normalized_referrer = referrer.replace("\\", "/")
+    parsed_referrer = urlparse(normalized_referrer)
+
+    if parsed_referrer.scheme:
+        return message, 400
 
     if (
         parsed_referrer.netloc
         and parsed_referrer.netloc != request.host
+    ):
+        return message, 400
+
+    if (
+        not parsed_referrer.path
+        or not parsed_referrer.path.startswith("/")
+        or parsed_referrer.path.startswith("//")
     ):
         return message, 400
 
