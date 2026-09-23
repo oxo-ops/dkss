@@ -1,7 +1,15 @@
-﻿from flask import Flask, render_template, request, redirect, session, send_file, url_for
-from werkzeug.utils import secure_filename
+﻿from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    session,
+    send_file,
+    url_for,
+    flash,
+)
+from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from uuid import uuid4
 import os
@@ -30,6 +38,7 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 from zoneinfo import ZoneInfo
+from urllib.parse import urlparse
 app = Flask(__name__)
 
 app.wsgi_app = ProxyFix(
@@ -126,9 +135,119 @@ app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 @app.errorhandler(413)
 def file_too_large(error):
     return "1回に送信できるファイルの合計は1GB以下です。", 413
+def return_form_errors(errors, status_code=400):
+    for message in errors:
+        error_field = get_form_error_field(message)
+        flash(
+            message,
+            f"error:{error_field or ''}"
+        )
+
+    return "", status_code
+
+
+def get_form_error_field(message):
+    field_map = {
+        "発生日を入力してください。": "event_date",
+        "発生日が不正です。": "event_date",
+        "対象ユーザーを選択してください。": "target_user_search",
+        "対象ユーザーが不正です。": "target_user_search",
+        "対象ユーザー情報が不正です。": "target_user_search",
+        "納入先を選択してください。": "delivery_place",
+        "納入先が不正です。": "delivery_place",
+        "内容は5000文字以内で入力してください。": "content_editor",
+    }
+
+    return field_map.get(message)
+
+
+def build_safe_redirect_url(referrer, fallback="/"):
+    if not referrer:
+        return fallback
+
+    normalized_referrer = referrer.replace("\\", "/")
+    parsed_referrer = urlparse(normalized_referrer)
+
+    if parsed_referrer.scheme or parsed_referrer.netloc:
+        return fallback
+
+    redirect_path = parsed_referrer.path or "/"
+
+    if not redirect_path.startswith("/"):
+        return fallback
+
+    if parsed_referrer.query:
+        return redirect_path + "?" + parsed_referrer.query
+
+    return redirect_path
+
+
+@app.after_request
+def redirect_form_errors(response):
+    if request.method != "POST":
+        return response
+
+    if request.path.startswith("/api/"):
+        return response
+
+    if response.status_code not in {
+        400,
+        403,
+        409,
+        413,
+        429,
+    }:
+        return response
+
+    if not request.accept_mimetypes.accept_html:
+        return response
+
+    if request.path != "/pointouts/new":
+        return response
+
+    message = response.get_data(
+        as_text=True
+    ).strip()
+
+    if not message:
+        if request.path != "/pointouts/new":
+            message = "入力内容を確認してください。"
+
+    error_field = get_form_error_field(message)
+
+    if request.path == "/pointouts/new":
+        target_type = request.form.get(
+            "target_type",
+            "user"
+        ).strip()
+
+        if target_type in {"user", "delivery_place"}:
+            session["pointout_form_target_type"] = target_type
+
+        session["pointout_form_data"] = {
+            "date": request.form.get("date", ""),
+            "category": request.form.get("category", ""),
+            "target_user": request.form.get("target_user", ""),
+            "target_user_search": request.form.get("target_user_search", ""),
+            "delivery_place": request.form.get("delivery_place", ""),
+            "content_type": request.form.get("content_type", ""),
+            "content": request.form.get("content", ""),
+        }
+
+    flash(
+        message,
+        f"error:{error_field or ''}"
+    )
+
+    return redirect("/pointouts/new")
 
 class UploadValidationError(ValueError):
     pass
+
+
+@app.errorhandler(UploadValidationError)
+def handle_upload_validation_error(error):
+    return str(error), 400
 
 def parse_nonnegative_int(value, field_name):
     value = str(value or "").strip()
@@ -185,10 +304,6 @@ def sanitize_excel_formulas(workbook):
                     ("=", "+", "-", "@")
                 ):
                     cell.value = "'" + value
-
-@app.errorhandler(UploadValidationError)
-def handle_upload_validation_error(error):
-    return str(error), 400
 
 db = SQLAlchemy(app)
 class Company(db.Model):
@@ -1202,7 +1317,28 @@ def save_uploaded_file(file, folder=None):
             "ファイルの内容と形式が一致しません。"
         )
 
-    filename = f"{uuid4().hex}{extension}"
+    extension_suffixes = {
+        ".pdf": ".pdf",
+        ".png": ".png",
+        ".jpg": ".jpg",
+        ".jpeg": ".jpeg",
+        ".mp4": ".mp4",
+        ".mov": ".mov",
+        ".avi": ".avi",
+        ".mkv": ".mkv",
+        ".webm": ".webm",
+        ".mts": ".mts",
+        ".m2ts": ".m2ts",
+        ".mpg": ".mpg",
+        ".mpeg": ".mpeg",
+        ".xlsx": ".xlsx",
+        ".docx": ".docx",
+    }
+
+    filename = (
+        f"{uuid4().hex}"
+        f"{extension_suffixes[extension]}"
+    )
 
     if folder == "static/manuals":
         storage_folder = "manuals"
@@ -1250,10 +1386,27 @@ def save_uploaded_file(file, folder=None):
     else:
         base_folder = app.config["UPLOAD_FOLDER"]
 
-    save_folder = os.path.join(
-        base_folder,
-        company_code
+    safe_company_code = secure_filename(
+        str(company_code)
     )
+
+    if (
+        not safe_company_code
+        or safe_company_code != company_code
+    ):
+        raise UploadValidationError(
+            "Invalid company code."
+        )
+
+    save_folder = safe_join(
+        base_folder,
+        safe_company_code
+    )
+
+    if not save_folder:
+        raise UploadValidationError(
+            "Invalid company code."
+        )
 
     os.makedirs(
         save_folder,
@@ -2552,6 +2705,36 @@ def push_subscribe():
         "success": True
     }
 
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+def push_unsubscribe():
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return {"error": "Unauthorized"}, 401
+
+    data = request.get_json(silent=True) or {}
+    endpoint = str(
+        data.get("endpoint") or ""
+    ).strip()
+
+    if not endpoint:
+        return {"error": "Invalid push subscription."}, 400
+
+    subscription = PushSubscription.query.filter_by(
+        endpoint=endpoint,
+        company_code=company_code,
+        username=username
+    ).first()
+
+    if subscription:
+        db.session.delete(subscription)
+        db.session.commit()
+
+    return {"success": True}
+
+
 def send_web_push_notification(
     user,
     title,
@@ -3648,9 +3831,7 @@ def login():
                 session["role"] = user.role
                 session["name"] = user.name
                 session["office"] = user.office
-                session["vehicles"] = safe_json_str_list(
-                    user.favorite_vehicles_json
-                )
+
                 session["password_changed_at"] = (
                     user.password_changed_at
                 )
@@ -3908,9 +4089,6 @@ def mfa():
                 session["role"] = user.role
                 session["name"] = user.name
                 session["office"] = user.office
-                session["vehicles"] = safe_json_str_list(
-                    user.favorite_vehicles_json
-                )
                 session["password_changed_at"] = (
                     user.password_changed_at
                 )
@@ -6643,7 +6821,7 @@ def itc_edit_company(index):
 
 @app.route("/safety")
 def safety():
-    return render_template("safety.html")
+    return redirect("/pointouts")
 
 @app.route("/pointouts")
 def pointouts():
@@ -6709,6 +6887,60 @@ def pointouts():
 
         result["can_manage"] = can_edit_patrol_result(result)
         visible_results.append(result)
+    allowed_page_sizes = {5, 8, 10}
+
+    try:
+        page_size = int(
+            request.args.get(
+                "page_size",
+                "10"
+            )
+        )
+    except ValueError:
+        page_size = 10
+
+    if page_size not in allowed_page_sizes:
+        page_size = 10
+
+    try:
+        page = max(
+            int(
+                request.args.get(
+                    "page",
+                    "1"
+                )
+            ),
+            1
+        )
+    except ValueError:
+        page = 1
+
+    total_results = len(
+        visible_results
+    )
+
+    total_pages = max(
+        1,
+        (
+            total_results
+            + page_size
+            - 1
+        ) // page_size
+    )
+
+    if page > total_pages:
+        page = total_pages
+
+    start_index = (
+        page - 1
+    ) * page_size
+
+    paginated_results = (
+        visible_results[
+            start_index:
+            start_index + page_size
+        ]
+    )
 
     driver_options = Driver.query.filter(
         Driver.company_code == session.get("company_code")
@@ -6718,7 +6950,11 @@ def pointouts():
 
     return render_template(
         "pointouts.html",
-        patrol_results=visible_results,
+        patrol_results=paginated_results,
+        total_results=total_results,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
         view_type=view_type,
         keyword=keyword,
         role=role,
@@ -6733,6 +6969,7 @@ def pointouts():
 def new_pointout():
     if request.method == "POST":
         company_code = session.get("company_code")
+        form_errors = []
 
         target_type = request.form.get(
             "target_type",
@@ -6765,9 +7002,6 @@ def new_pointout():
             ""
         ).strip()
 
-        if len(content) > 5000:
-            return "内容は5000文字以内で入力してください。", 400
-
         date = request.form.get(
             "date",
             ""
@@ -6780,15 +7014,19 @@ def new_pointout():
             return "分類が不正です。", 400
 
         if not date:
-            return "発生日を入力してください。", 400
-
-        try:
-            datetime.strptime(
-                date,
-                "%Y-%m-%d"
+            form_errors.append(
+                "発生日を入力してください。"
             )
-        except ValueError:
-            return "発生日が不正です。", 400        
+        else:
+            try:
+                datetime.strptime(
+                    date,
+                    "%Y-%m-%d"
+                )
+            except ValueError:
+                form_errors.append(
+                    "発生日が不正です。"
+                )        
 
         # =========================
         # 対象種別検証
@@ -6805,33 +7043,33 @@ def new_pointout():
 
         if target_type == "user":
             if not target_user:
-                return "対象ユーザーを選択してください。", 400
+                form_errors.append(
+                    "対象ユーザーを選択してください。"
+                )
+            else:
+                target_driver = Driver.query.filter_by(
+                    company_code=company_code,
+                    employee_id=target_user
+                ).first()
 
-            target_driver = Driver.query.filter_by(
-                company_code=company_code,
-                employee_id=target_user
-            ).first()
+                if not target_driver:
+                    form_errors.append(
+                        "対象ユーザーが不正です。"
+                    )
+                else:
+                    target_user_record = User.query.filter_by(
+                        company_code=company_code,
+                        username=target_driver.employee_id
+                    ).first()
 
-            if not target_driver:
-                return "対象ユーザーが不正です。", 400
-
-            target_user_record = User.query.filter_by(
-                company_code=company_code,
-                username=target_driver.employee_id
-            ).first()
-
-            if not target_user_record:
-                return "対象ユーザー情報が不正です。", 400
-
-            target_username = target_user_record.username
-
-            target_user = (
-                target_driver.name
-            )
-
-            target_office = (
-                target_driver.office or ""
-            )
+                    if not target_user_record:
+                        form_errors.append(
+                            "対象ユーザー情報が不正です。"
+                        )
+                    else:
+                        target_username = target_user_record.username
+                        target_user = target_driver.name
+                        target_office = target_driver.office or ""
 
             delivery_place = ""
 
@@ -6841,15 +7079,20 @@ def new_pointout():
 
         elif target_type == "delivery_place":
             if not delivery_place:
-                return "納入先を選択してください。", 400
+                form_errors.append(
+                    "納入先を選択してください。"
+                )
 
-            valid_delivery_place = DeliveryPlace.query.filter_by(
-                company_code=company_code,
-                name=delivery_place
-            ).first()
+            if delivery_place:
+                valid_delivery_place = DeliveryPlace.query.filter_by(
+                    company_code=company_code,
+                    name=delivery_place
+                ).first()
 
-            if not valid_delivery_place:
-                return "納入先が不正です。", 400
+                if not valid_delivery_place:
+                    form_errors.append(
+                        "納入先が不正です。"
+                    )
 
             target_user = ""
 
@@ -6865,6 +7108,14 @@ def new_pointout():
 
             if not valid_content_type:
                 return "内容区分が不正です。", 400
+
+        if len(content) > 5000:
+            form_errors.append(
+                "内容は5000文字以内で入力してください。"
+            )
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         # =========================
         # 添付ファイル
@@ -6937,8 +7188,20 @@ def new_pointout():
         return redirect(
             "/pointouts?type=user"
         )
+    form_target_type = session.pop(
+        "pointout_form_target_type",
+        "user"
+    )
+
+    form_data = session.pop(
+        "pointout_form_data",
+        {}
+    )
+
     return render_template(
         "new_pointout.html",
+        form_target_type=form_target_type,
+        form_data=form_data,
         drivers=drivers_for_current_company(),
         delivery_places=delivery_places_for_current_company(),
         manuals=manuals_for_current_company(),
@@ -7168,11 +7431,29 @@ def edit_pointout(index):
             "files"
         )
 
-        for file in uploaded_files:
-            filename = save_uploaded_file(file)
+        try:
+            for file in uploaded_files:
+                filename = save_uploaded_file(file)
 
-            if filename:
-                files.append(filename)
+                if filename:
+                    files.append(filename)
+
+        except UploadValidationError as error:
+            db.session.rollback()
+
+            result = patrol_result_to_dict(
+                result_record
+            )
+
+            return render_template(
+                "edit_pointout.html",
+                result=result,
+                index=result_record.id,
+                drivers=drivers_for_current_company(),
+                delivery_places=delivery_places_for_current_company(),
+                manuals=manuals_for_current_company(),
+                error=str(error),
+            ), 400
 
         result_record.files_json = json.dumps(
             files,
@@ -7700,20 +7981,9 @@ def add_vehicle_favorite():
 
     db.session.commit()
 
-    session["vehicles"] = favorite_vehicles
 
-    next_url = request.form.get("next", "")
 
-    if (
-        not next_url.startswith("/")
-        or next_url.startswith("//")
-        or "\\" in next_url
-        or "\r" in next_url
-        or "\n" in next_url
-    ):
-        next_url = "/vehicle-patrols"
-
-    return redirect(next_url)
+    return redirect("/vehicle-patrols")
 
 @app.route("/vehicle-favorites/remove/<vehicle_id>", methods=["POST"])
 @limiter.limit("30 per minute")
@@ -7741,20 +8011,7 @@ def remove_vehicle_favorite(vehicle_id):
 
     db.session.commit()
 
-    session["vehicles"] = favorite_vehicles
-
-    next_url = request.form.get("next", "")
-
-    if (
-        not next_url.startswith("/")
-        or next_url.startswith("//")
-        or "\\" in next_url
-        or "\r" in next_url
-        or "\n" in next_url
-    ):
-        next_url = "/vehicle-patrols"
-
-    return redirect(next_url)
+    return redirect("/vehicle-patrols")
 
 @app.route("/vehicle-patrols")
 def vehicle_patrols():
@@ -7765,7 +8022,16 @@ def vehicle_patrols():
     if len(keyword) > 100:
         return "検索条件が長すぎます。", 400
 
-    favorite_vehicles = session.get("vehicles", [])
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    favorite_vehicles = (
+        safe_json_str_list(current_user.favorite_vehicles_json)
+        if current_user
+        else []
+    )
 
     favorite_patrols = []
     other_patrols = []
@@ -14257,16 +14523,23 @@ def edit_checklist_result(result_index):
 
             choices = item.get("choices", [])
 
-            if (
-                item.get("input_type") == "select"
-                and value not in choices
-            ):
-                return "評価値が不正です。", 400
+            if item.get("input_type") == "select":
+                if value not in choices:
+                    return "評価値が不正です。", 400
+
+            elif not value.strip():
+                return "必須項目を入力してください。", 400
 
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
             ).strip()
+
+            if (
+                item.get("comment_required")
+                and not comment
+            ):
+                return "必須コメントを入力してください。", 400
 
             if len(comment) > 5000:
                 return "コメントは5000文字以内で入力してください。", 400
@@ -14796,9 +15069,18 @@ def vehicle_checklist_results(index):
         ).all()
     }
 
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
     favorite_vehicle_ids = [
         favorite_vehicle_id
-        for favorite_vehicle_id in session.get("vehicles", [])
+        for favorite_vehicle_id in (
+            safe_json_str_list(current_user.favorite_vehicles_json)
+            if current_user
+            else []
+        )
         if favorite_vehicle_id in valid_vehicle_ids
     ]
 
@@ -16591,7 +16873,12 @@ def save_vehicle_checklist_one(index):
     month = str(month_int).zfill(2)
     day = str(day_int).zfill(2)
 
-    active_day = request.form.get("active_day")
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     item_no_raw = request.form.get(
         "item_no",
@@ -16786,7 +17073,14 @@ def save_vehicle_checklist_one(index):
     )
 
     return redirect(
-        f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
+        url_for(
+            "vehicle_checklist_results",
+            index=checklist_record.id,
+            vehicle_id=vehicle_id,
+            year=year,
+            month=month,
+            active_day=active_day,
+        )
     )
 
 @app.route("/vehicle/checklists/<int:index>/save-detail", methods=["POST"])
@@ -16890,10 +17184,12 @@ def save_vehicle_checklist_detail(index):
         ""
     ).strip()
 
-    active_day = request.form.get(
-        "active_day",
-        ""
-    )
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     comment = request.form.get(
         "comment",
@@ -17098,7 +17394,14 @@ def save_vehicle_checklist_detail(index):
     )
 
     return redirect(
-        f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
+        url_for(
+            "vehicle_checklist_results",
+            index=checklist_record.id,
+            vehicle_id=vehicle_id,
+            year=year,
+            month=month,
+            active_day=active_day,
+        )
     )
 
 @app.route("/vehicle/checklists/<int:index>/complete", methods=["POST"])
@@ -17140,10 +17443,12 @@ def complete_vehicle_checklist(index):
         ""
     ).strip()
 
-    active_day = request.form.get(
-        "active_day",
-        ""
-    ).strip()
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     # =========================
     # 車両検証
@@ -17217,11 +17522,14 @@ def complete_vehicle_checklist(index):
 
     if not result_record:
         return redirect(
-            f"/vehicle/checklists/{checklist_record.id}"
-            f"?vehicle_id={vehicle_id}"
-            f"&year={year}"
-            f"&month={month}"
-            f"&active_day={active_day}"
+            url_for(
+                "vehicle_checklist_results",
+                index=checklist_record.id,
+                vehicle_id=vehicle_id,
+                year=year,
+                month=month,
+                active_day=active_day,
+            )
         )
 
     if result_record.status == "承認済み":
@@ -17236,6 +17544,34 @@ def complete_vehicle_checklist(index):
 
         if snapshot:
             result_checklist = snapshot
+
+    answers = safe_json_dict_list(
+        result_record.answers_json
+    )
+
+    check_items = [
+        item
+        for item in result_checklist.get("items", [])
+        if item.get("item_type") == "check"
+    ]
+
+    answered_item_numbers = {
+        str(answer.get("item_no", ""))
+        for answer in answers
+    }
+
+    missing_item_numbers = [
+        index
+        for index in range(len(check_items))
+        if str(index) not in answered_item_numbers
+    ]
+
+    if missing_item_numbers:
+        return (
+            "未入力のチェック項目があります。"
+            "すべての項目を入力してから完了してください。",
+            400
+        )
 
     # =========================
     # 通知先ユーザー検証
@@ -17328,12 +17664,13 @@ def complete_vehicle_checklist(index):
     # 通知
     # =========================
 
-    notification_link = (
-        f"/vehicle/checklists/{checklist_record.id}"
-        f"?vehicle_id={vehicle_id}"
-        f"&year={year}"
-        f"&month={month}"
-        f"&active_day={active_day}"
+    notification_link = url_for(
+        "vehicle_checklist_results",
+        index=checklist_record.id,
+        vehicle_id=vehicle_id,
+        year=year,
+        month=month,
+        active_day=active_day,
     )
 
     for target_username in notify_usernames:
@@ -17558,7 +17895,11 @@ def new_vehicle_checklist_result(index):
                 approvals,
                 ensure_ascii=False
             ),
-            answers_json=json.dumps(answers, ensure_ascii=False)
+            answers_json=json.dumps(answers, ensure_ascii=False),
+            checklist_snapshot_json=json.dumps(
+                checklist,
+                ensure_ascii=False
+            )
         )
 
         db.session.add(result)
@@ -17578,7 +17919,13 @@ def new_vehicle_checklist_result(index):
         )
 
         return redirect(
-            f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}"
+            url_for(
+                "vehicle_checklist_results",
+                index=checklist_record.id,
+                vehicle_id=vehicle_id,
+                year=year,
+                month=month,
+            )
         )
         
     return render_template(
@@ -17651,9 +17998,12 @@ def new_safety_checklist_result(index):
 
         if target_type == "user":
             if not target_user:
-                return "対象ユーザーを選択してください。", 400
+                form_errors.append(
+                    "対象ユーザーを選択してください。"
+                )
 
-            target_driver = Driver.query.filter_by(
+            if target_user:
+                target_driver = Driver.query.filter_by(
                 company_code=company_code,
                 employee_id=target_user
             ).first()
@@ -17726,16 +18076,23 @@ def new_safety_checklist_result(index):
 
             choices = item.get("choices", [])
 
-            if (
-                item.get("input_type") == "select"
-                and value not in choices
-            ):
-                return "評価値が不正です。", 400
+            if item.get("input_type") == "select":
+                if value not in choices:
+                    return "評価値が不正です。", 400
+
+            elif not value.strip():
+                return "必須項目を入力してください。", 400
 
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
             ).strip()
+
+            if (
+                item.get("comment_required")
+                and not comment
+            ):
+                return "必須コメントを入力してください。", 400
 
             if len(comment) > 5000:
                 return "コメントは5000文字以内で入力してください。", 400
