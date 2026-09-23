@@ -203,17 +203,7 @@ def redirect_form_errors(response):
     if not request.accept_mimetypes.accept_html:
         return response
 
-    referrer = request.referrer
-
-    if not referrer:
-        return response
-
-    parsed_referrer = urlparse(referrer)
-
-    if (
-        parsed_referrer.netloc
-        and parsed_referrer.netloc != request.host
-    ):
+    if request.path != "/pointouts/new":
         return response
 
     message = response.get_data(
@@ -250,9 +240,7 @@ def redirect_form_errors(response):
         f"error:{error_field or ''}"
     )
 
-    redirect_url = build_safe_redirect_url(referrer, fallback="/")
-
-    return redirect(redirect_url)
+    return redirect("/pointouts/new")
 
 class UploadValidationError(ValueError):
     pass
@@ -260,42 +248,7 @@ class UploadValidationError(ValueError):
 
 @app.errorhandler(UploadValidationError)
 def handle_upload_validation_error(error):
-    message = str(error)
-
-    referrer = request.referrer
-
-    if not referrer:
-        return message, 400
-
-    normalized_referrer = referrer.replace("\\", "/")
-    parsed_referrer = urlparse(normalized_referrer)
-
-    if parsed_referrer.scheme:
-        return message, 400
-
-    if (
-        parsed_referrer.netloc
-        and parsed_referrer.netloc != request.host
-    ):
-        return message, 400
-
-    if (
-        not parsed_referrer.path
-        or not parsed_referrer.path.startswith("/")
-        or parsed_referrer.path.startswith("//")
-    ):
-        return message, 400
-
-    error_field = get_form_error_field(message)
-
-    flash(
-        message,
-        f"error:{error_field or ''}"
-    )
-
-    redirect_url = build_safe_redirect_url(referrer, fallback="/")
-
-    return redirect(redirect_url)
+    return str(error), 400
 
 def parse_nonnegative_int(value, field_name):
     value = str(value or "").strip()
@@ -1413,9 +1366,21 @@ def save_uploaded_file(file, folder=None):
     else:
         base_folder = app.config["UPLOAD_FOLDER"]
 
+    safe_company_code = secure_filename(
+        str(company_code)
+    )
+
+    if (
+        not safe_company_code
+        or safe_company_code != company_code
+    ):
+        raise UploadValidationError(
+            "Invalid company code."
+        )
+
     save_folder = os.path.join(
         base_folder,
-        company_code
+        safe_company_code
     )
 
     os.makedirs(
@@ -7995,14 +7960,23 @@ def add_vehicle_favorite():
 
     next_url = request.form.get("next", "")
 
+    parsed_next_url = urlparse(next_url)
+
     if (
-        not next_url.startswith("/")
-        or next_url.startswith("//")
-        or "\\" in next_url
-        or "\r" in next_url
-        or "\n" in next_url
+        parsed_next_url.scheme
+        or parsed_next_url.netloc
+        or parsed_next_url.path != "/vehicle-patrols"
     ):
         next_url = "/vehicle-patrols"
+    else:
+        next_url = (
+            parsed_next_url.path
+            + (
+                "?" + parsed_next_url.query
+                if parsed_next_url.query
+                else ""
+            )
+        )
 
     return redirect(next_url)
 
@@ -8034,14 +8008,23 @@ def remove_vehicle_favorite(vehicle_id):
 
     next_url = request.form.get("next", "")
 
+    parsed_next_url = urlparse(next_url)
+
     if (
-        not next_url.startswith("/")
-        or next_url.startswith("//")
-        or "\\" in next_url
-        or "\r" in next_url
-        or "\n" in next_url
+        parsed_next_url.scheme
+        or parsed_next_url.netloc
+        or parsed_next_url.path != "/vehicle-patrols"
     ):
         next_url = "/vehicle-patrols"
+    else:
+        next_url = (
+            parsed_next_url.path
+            + (
+                "?" + parsed_next_url.query
+                if parsed_next_url.query
+                else ""
+            )
+        )
 
     return redirect(next_url)
 
@@ -16905,7 +16888,12 @@ def save_vehicle_checklist_one(index):
     month = str(month_int).zfill(2)
     day = str(day_int).zfill(2)
 
-    active_day = request.form.get("active_day")
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     item_no_raw = request.form.get(
         "item_no",
@@ -17204,10 +17192,12 @@ def save_vehicle_checklist_detail(index):
         ""
     ).strip()
 
-    active_day = request.form.get(
-        "active_day",
-        ""
-    )
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     comment = request.form.get(
         "comment",
@@ -17412,7 +17402,14 @@ def save_vehicle_checklist_detail(index):
     )
 
     return redirect(
-        f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
+        url_for(
+            "vehicle_checklist_results",
+            index=checklist_record.id,
+            vehicle_id=vehicle_id,
+            year=year,
+            month=month,
+            active_day=active_day,
+        )
     )
 
 @app.route("/vehicle/checklists/<int:index>/complete", methods=["POST"])
@@ -17454,10 +17451,12 @@ def complete_vehicle_checklist(index):
         ""
     ).strip()
 
-    active_day = request.form.get(
-        "active_day",
-        ""
-    ).strip()
+    if checklist.get("frequency_unit") == "year":
+        active_day = year
+    elif checklist.get("display_type") == "month":
+        active_day = day
+    else:
+        active_day = month
 
     # =========================
     # 車両検証
@@ -17924,7 +17923,13 @@ def new_vehicle_checklist_result(index):
         )
 
         return redirect(
-            f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}"
+            url_for(
+                "vehicle_checklist_results",
+                index=checklist_record.id,
+                vehicle_id=vehicle_id,
+                year=year,
+                month=month,
+            )
         )
         
     return render_template(
