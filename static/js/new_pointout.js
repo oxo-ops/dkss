@@ -38,6 +38,15 @@ document.addEventListener("DOMContentLoaded", function () {
     const driverSearchData =
         document.getElementById("driver_search_data");
 
+    const deliveryPlaceInput =
+        document.getElementById("delivery_place");
+
+    const deliveryPlaceSearchResults =
+        document.getElementById("delivery_place_search_results");
+
+    const deliveryPlaceSearchData =
+        document.getElementById("delivery_place_search_data");
+
     function selectTargetType(type, button) {
         if (
             !targetTypeInput ||
@@ -70,6 +79,23 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    function formatFileSize(bytes) {
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        }
+
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+
+        if (bytes < 1024 * 1024 * 1024) {
+            return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        }
+
+        return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    }
+
+
     function previewFiles() {
         if (!filesInput || !previewArea) {
             return;
@@ -85,6 +111,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 fileBox.className =
                     "preview-item";
 
+                const mediaArea =
+                    document.createElement("div");
+
+                mediaArea.className =
+                    "preview-media";
 
                 if (
                     file.type.startsWith("image/")
@@ -98,7 +129,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     img.className =
                         "preview-image";
 
-                    fileBox.appendChild(img);
+                    img.alt =
+                        "選択した画像";
+
+                    mediaArea.appendChild(img);
 
                 } else if (
                     file.type.startsWith("video/")
@@ -113,18 +147,52 @@ document.addEventListener("DOMContentLoaded", function () {
                         "preview-video";
 
                     video.controls = true;
+                    video.preload = "metadata";
 
-                    fileBox.appendChild(video);
+                    mediaArea.appendChild(video);
 
                 } else {
-                    const text =
-                        document.createElement("p");
+                    const pdf =
+                        document.createElement("div");
 
-                    text.textContent =
-                        "PDF：" + file.name;
+                    pdf.className =
+                        "preview-file-icon";
 
-                    fileBox.appendChild(text);
+                    pdf.textContent =
+                        "PDF";
+
+                    mediaArea.appendChild(pdf);
                 }
+
+                const info =
+                    document.createElement("div");
+
+                info.className =
+                    "preview-info";
+
+                const name =
+                    document.createElement("p");
+
+                name.className =
+                    "preview-file-name";
+
+                name.textContent =
+                    file.name;
+
+                const size =
+                    document.createElement("p");
+
+                size.className =
+                    "preview-file-size";
+
+                size.textContent =
+                    formatFileSize(file.size);
+
+                info.appendChild(name);
+                info.appendChild(size);
+
+                fileBox.appendChild(mediaArea);
+                fileBox.appendChild(info);
 
                 previewArea.appendChild(
                     fileBox
@@ -269,8 +337,99 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    function updateDeliveryPlaceSearchResults() {
+        if (
+            !deliveryPlaceInput ||
+            !deliveryPlaceSearchResults ||
+            !deliveryPlaceSearchData
+        ) {
+            return;
+        }
+
+        const keyword =
+            deliveryPlaceInput.value
+                .trim()
+                .toLowerCase();
+
+        deliveryPlaceSearchResults.replaceChildren();
+
+        if (!keyword) {
+            deliveryPlaceSearchResults.classList.add(
+                "is-hidden"
+            );
+            return;
+        }
+
+        const places =
+            Array.from(
+                deliveryPlaceSearchData.querySelectorAll(
+                    "[data-name]"
+                )
+            );
+
+        const matchedPlaces =
+            places.filter(function (place) {
+                const name =
+                    String(
+                        place.dataset.name || ""
+                    ).toLowerCase();
+
+                return name.includes(keyword);
+            });
+
+        matchedPlaces.forEach(function (place) {
+            const button =
+                document.createElement("button");
+
+            button.type = "button";
+            button.className = "target-user-option";
+            button.textContent =
+                place.dataset.name || "";
+
+            button.addEventListener(
+                "click",
+                function () {
+                    deliveryPlaceInput.value =
+                        place.dataset.name || "";
+
+                    deliveryPlaceSearchResults.replaceChildren();
+                    deliveryPlaceSearchResults.classList.add(
+                        "is-hidden"
+                    );
+                }
+            );
+
+            deliveryPlaceSearchResults.appendChild(button);
+        });
+
+        deliveryPlaceSearchResults.classList.toggle(
+            "is-hidden",
+            matchedPlaces.length === 0
+        );
+    }
+
+    deliveryPlaceInput?.addEventListener(
+        "input",
+        updateDeliveryPlaceSearchResults
+    );
+
+    deliveryPlaceInput?.addEventListener(
+        "focus",
+        updateDeliveryPlaceSearchResults
+    );
+
+    deliveryPlaceInput?.addEventListener(
+        "compositionend",
+        updateDeliveryPlaceSearchResults
+    );
+
     targetUserSearch?.addEventListener(
         "input",
+        updateDriverSearchResults
+    );
+
+    targetUserSearch?.addEventListener(
+        "focus",
         updateDriverSearchResults
     );
 
@@ -278,6 +437,30 @@ document.addEventListener("DOMContentLoaded", function () {
         "compositionend",
         updateDriverSearchResults
     );
+
+    if (
+        targetUserSearch &&
+        targetUserInput &&
+        driverSearchData &&
+        targetUserInput.value
+    ) {
+        const selectedDriver =
+            Array.from(
+                driverSearchData.querySelectorAll(
+                    "[data-name][data-employee-id]"
+                )
+            ).find(function (driver) {
+                return (
+                    driver.dataset.employeeId ===
+                    targetUserInput.value
+                );
+            });
+
+        if (selectedDriver) {
+            targetUserSearch.value =
+                selectedDriver.dataset.name || "";
+        }
+    }
 
     if (
         dateInput &&
@@ -291,6 +474,22 @@ document.addEventListener("DOMContentLoaded", function () {
         dateInput.value = today;
     }
 
+
+    document.addEventListener("click", function (event) {
+        if (
+            !event.target.closest("#target_user_search") &&
+            !event.target.closest("#driver_search_results")
+        ) {
+            driverSearchResults?.classList.add("is-hidden");
+        }
+
+        if (
+            !event.target.closest("#delivery_place") &&
+            !event.target.closest("#delivery_place_search_results")
+        ) {
+            deliveryPlaceSearchResults?.classList.add("is-hidden");
+        }
+    });
 
     updateManualLink();
 });

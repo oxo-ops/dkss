@@ -4,13 +4,29 @@
 
 {% block content %}
 
-<div class="page-header">
+<nav class="page-breadcrumb form-page-header" aria-label="パンくずリスト">
+    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <span class="breadcrumb-separator">›</span>
+    <span>安全管理</span>
+    <span class="breadcrumb-separator">›</span>
+    <a href="/pointouts">安全パトロール</a>
+    <span class="breadcrumb-separator">›</span>
+    <span class="breadcrumb-current">新規登録</span>
+</nav>
+
+<div class="page-header form-page-header">
     <h2>安全パトロール結果登録</h2>
 </div>
 
-<div class="card form-card safety-pointout-form-card">
+<div class="card form-card safety-pointout-form-card form-page-card">
 
     <form method="post" enctype="multipart/form-data" class="responsive-form">
+
+        {% if error %}
+            <div class="alert danger">
+                {{ error }}
+            </div>
+        {% endif %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="form-group">
@@ -19,15 +35,28 @@
                 type="date"
                 name="date"
                 id="event_date"
+                value="{{ form_data.get('date', '') }}"
+                aria-describedby="event_date_error"
+                {% if error_field == "event_date" %}aria-invalid="true"{% endif %}
             >
+
+            {% if error_field == "event_date" and error %}
+                <p
+                    id="event_date_error"
+                    class="field-error"
+                    role="alert"
+                >
+                    {{ error }}
+                </p>
+            {% endif %}
         </div>
 
         <div class="form-group">
             <label>分類</label>
             <select name="category">
-                <option value="安全">安全</option>
-                <option value="品質">品質</option>
-                <option value="Good">Good</option>
+                <option value="安全"{% if form_data.get('category', '安全') == '安全' %} selected{% endif %}>安全</option>
+                <option value="品質"{% if form_data.get('category') == '品質' %} selected{% endif %}>品質</option>
+                <option value="Good"{% if form_data.get('category') == 'Good' %} selected{% endif %}>Good</option>
             </select>
         </div>
 
@@ -37,7 +66,7 @@
             <div class="button-group">
                 <button
                     type="button"
-                    class="choice-btn active js-target-type-button"
+                    class="choice-btn{% if form_target_type == 'user' %} active{% endif %} js-target-type-button"
                     data-target-type="user"
                 >
                     個人
@@ -45,30 +74,34 @@
 
                 <button
                     type="button"
-                    class="choice-btn js-target-type-button"
+                    class="choice-btn{% if form_target_type == 'delivery_place' %} active{% endif %} js-target-type-button"
                     data-target-type="delivery_place"
                 >
                     納入先
                 </button>
             </div>
 
-            <input type="hidden" name="target_type" id="target_type" value="user">
+            <input type="hidden" name="target_type" id="target_type" value="{{ form_target_type }}">
         </div>
 
-        <div id="user_target_area" class="form-group">
+        <div id="user_target_area" class="form-group{% if form_target_type != 'user' %} is-hidden{% endif %}">
             <label>対象者</label>
 
             <input
                 type="text"
                 id="target_user_search"
+                name="target_user_search"
+                value="{{ form_data.get('target_user_search', '') }}"
                 placeholder="氏名を入力"
                 autocomplete="off"
+                data-selected-employee-id="{{ form_data.get('target_user', '') }}"
             >
 
             <input
                 type="hidden"
                 name="target_user"
                 id="target_user"
+                value="{{ form_data.get('target_user', '') }}"
             >
 
             <div
@@ -86,28 +119,41 @@
             </div>
         </div>
 
-        <div id="delivery_place_area" class="form-group is-hidden">
+        <div id="delivery_place_area" class="form-group{% if form_target_type != 'delivery_place' %} is-hidden{% endif %}">
             <label>納入先</label>
 
             <input
                 type="text"
                 name="delivery_place"
-                list="delivery_place_list"
+                id="delivery_place"
+                value="{{ form_data.get('delivery_place', '') }}"
                 placeholder="納入先名を入力"
+                autocomplete="off"
             >
 
-            <datalist id="delivery_place_list">
+            <div
+                id="delivery_place_search_results"
+                class="vehicle-select-box is-hidden"
+            ></div>
+
+            <div
+                id="delivery_place_search_data"
+                class="is-hidden"
+            >
                 {% for place in delivery_places %}
-                    <option value="{{ place.name }}">
+                    <span data-name="{{ place.name }}"></span>
                 {% endfor %}
-            </datalist>
+            </div>
         </div>
 
         <div class="form-group">
             <label>内容区分</label>
             <select name="content_type" required>
                 {% for content_type in content_types %}
-                    <option value="{{ content_type.name }}">
+                    <option
+                        value="{{ content_type.name }}"
+                        {% if form_data.get('content_type') == content_type.name %}selected{% endif %}
+                    >
                         {{ content_type.name }}
                     </option>
                 {% endfor %}
@@ -153,14 +199,20 @@
             <label>内容</label>
             <textarea
                 name="content"
+                id="content_editor"
                 class="mention-input"
                 rows="5"
                 placeholder="内容を入力してください"
-            ></textarea>
+            >{{ form_data.get('content', '') }}</textarea>
         </div>
 
         <div class="form-group">
-            <label>添付ファイル</label>
+            <label for="files">添付ファイル</label>
+
+            <p class="help-text">
+                写真・動画・PDFを追加できます。
+                必要に応じて、現場の状況が分かる写真や動画を添付してください。
+            </p>
 
             <input
                 type="file"
@@ -169,13 +221,21 @@
                 class="js-pointout-files"
                 multiple
                 accept="image/*,video/*,.pdf"
+                aria-describedby="files-help"
             >
 
-            <div id="preview_area" class="preview-area"></div>
+            <div
+                id="files-help"
+                class="help-text"
+            >
+                複数ファイルを選択できます。
+            </div>
 
-            <p class="help-text">
-                Ctrlキーを押しながら選択すると複数選択できます。
-            </p>
+            <div
+                id="preview_area"
+                class="preview-area"
+                aria-live="polite"
+            ></div>
         </div>
 
         <div class="form-actions">

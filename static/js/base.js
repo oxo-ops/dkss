@@ -208,6 +208,15 @@ function handleRichMentionInput(editor) {
         });
 }
 
+function positionMentionBox(target, box) {
+    const rect = target.getBoundingClientRect();
+
+    box.style.position = "fixed";
+    box.style.left = rect.left + "px";
+    box.style.top = (rect.bottom + 6) + "px";
+    box.style.width = rect.width + "px";
+}
+
 function showRichMentionBox(editor, users) {
     const box = document.getElementById("mentionBox");
 
@@ -240,6 +249,10 @@ function showRichMentionBox(editor, users) {
         item.appendChild(name);
         item.appendChild(office);
 
+        item.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+        });
+
         item.addEventListener("click", function () {
             insertRichMention(user);
         });
@@ -247,6 +260,7 @@ function showRichMentionBox(editor, users) {
         box.appendChild(item);
     });
 
+    positionMentionBox(editor, box);
     box.classList.add("is-visible");
 }
 
@@ -294,9 +308,7 @@ function insertRichMention(user) {
     selection.addRange(range);
 
     const hiddenInput =
-        editor.parentElement.querySelector(
-            'input[type="hidden"][name]'
-        );
+        getMentionHiddenInput(editor);
 
     if (hiddenInput) {
         hiddenInput.value =
@@ -340,6 +352,10 @@ function showMentionBox(input, users, mentionText) {
         item.appendChild(name);
         item.appendChild(office);
 
+        item.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+        });
+
         item.addEventListener("click", function () {
             insertMention(
                 input,
@@ -351,6 +367,7 @@ function showMentionBox(input, users, mentionText) {
         box.appendChild(item);
     });
 
+    positionMentionBox(input, box);
     box.classList.add("is-visible");
 }
 
@@ -451,6 +468,31 @@ function renderMentionValue(editor, value) {
     }
 }
 
+function getMentionHiddenInput(editor) {
+    const tableCell = editor.closest("td");
+
+    if (tableCell) {
+        const commentInput =
+            tableCell.querySelector(
+                'input[type="hidden"][name^="comment_"]'
+            );
+
+        if (commentInput) {
+            return commentInput;
+        }
+    }
+
+    const parent = editor.parentElement;
+
+    if (!parent) {
+        return null;
+    }
+
+    return parent.querySelector(
+        'input[type="hidden"][name]:not([name="csrf_token"])'
+    );
+}
+
 function getMentionEditorValue(editor) {
     let value = "";
 
@@ -498,10 +540,8 @@ window.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll(".mention-rich-editor")
         .forEach(function(editor) {
 
-            const hiddenInput =
-                editor.parentElement.querySelector(
-                    'input[type="hidden"][name]'
-                );
+    const hiddenInput =
+        getMentionHiddenInput(editor);
 
             const initialValue =
                 editor.dataset.value
@@ -536,9 +576,7 @@ window.addEventListener("DOMContentLoaded", function() {
 
                     editors.forEach(function (formEditor) {
                         const formHiddenInput =
-                            formEditor.parentElement.querySelector(
-                                'input[type="hidden"][name]'
-                            );
+                            getMentionHiddenInput(formEditor);
 
                         const value =
                             getMentionEditorValue(
@@ -784,7 +822,7 @@ async function registerPushNotifications() {
         .querySelector('meta[name="csrf-token"]')
         ?.getAttribute("content");
 
-    await fetch(
+    const subscribeResponse = await fetch(
         "/api/push/subscribe",
         {
             method: "POST",
@@ -797,6 +835,13 @@ async function registerPushNotifications() {
             )
         }
     );
+
+    if (!subscribeResponse.ok) {
+        throw new Error(
+            "Push subscription save failed: HTTP "
+            + subscribeResponse.status
+        );
+    }
 }
 
 window.addEventListener(
@@ -817,3 +862,74 @@ window.addEventListener(
         }
     }
 );
+
+// フォームエラーを該当項目へ反映
+document.querySelectorAll(".error-summary a[data-form-error-target]").forEach((link) => {
+    const targetId = link.dataset.formErrorTarget;
+    const message = link.dataset.formErrorMessage;
+    const target = document.getElementById(targetId);
+
+    if (!target) return;
+
+    target.classList.add("form-control-error");
+    target.setAttribute("aria-invalid", "true");
+
+    if (!document.getElementById(`${targetId}_error`)) {
+        const errorText = document.createElement("div");
+        errorText.id = `${targetId}_error`;
+        errorText.className = "field-error-message";
+        errorText.textContent = message;
+
+        const errorAnchor =
+    target.id === "delivery_place"
+        ? document.getElementById("delivery_place_search_results")
+        : target;
+
+errorAnchor.insertAdjacentElement("afterend", errorText);
+        target.setAttribute("aria-describedby", errorText.id);
+    }
+});
+
+// エラーがある場合は最初の修正箇所へ自動移動
+const firstErrorLink = document.querySelector(
+    ".error-summary a[data-form-error-target]"
+);
+
+if (firstErrorLink) {
+    const firstErrorTarget = document.getElementById(
+        firstErrorLink.dataset.formErrorTarget
+    );
+
+    if (firstErrorTarget && firstErrorTarget.type !== "hidden") {
+        window.requestAnimationFrame(() => {
+            firstErrorTarget.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+
+            window.setTimeout(() => {
+                firstErrorTarget.focus({ preventScroll: true });
+            }, 300);
+        });
+    }
+}
+
+// エラー概要から該当入力項目へ移動
+document.addEventListener("click", function (event) {
+    const link = event.target.closest(".error-summary a[data-form-error-target]");
+    if (!link) return;
+
+    event.preventDefault();
+
+    const target = document.getElementById(link.dataset.formErrorTarget);
+    if (!target) return;
+
+    target.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+    });
+
+    window.setTimeout(() => {
+        target.focus({ preventScroll: true });
+    }, 300);
+});
