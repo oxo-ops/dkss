@@ -5,6 +5,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const manualLink =
         document.getElementById("manual_link");
 
+    const filesInput =
+        document.getElementById("files");
+
+    const previewArea =
+        document.getElementById("preview_area");
+
     const targetUserSearch =
         document.getElementById("target_user_search");
 
@@ -16,10 +22,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const driverSearchData =
         document.getElementById("driver_search_data");
-
-    if (!manualSelect || !manualLink) {
-        return;
-    }
 
     function updateManualLink() {
         const url =
@@ -33,6 +35,124 @@ document.addEventListener("DOMContentLoaded", function () {
 
         manualLink.href = url;
         manualLink.classList.remove("is-hidden");
+    }
+    function formatFileSize(bytes) {
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        }
+
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+
+        if (bytes < 1024 * 1024 * 1024) {
+            return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        }
+
+        return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    }
+
+
+    function previewFiles() {
+        if (!filesInput || !previewArea) {
+            return;
+        }
+
+        previewArea.replaceChildren();
+
+        Array.from(filesInput.files || [])
+            .forEach(function (file) {
+                const fileBox =
+                    document.createElement("div");
+
+                fileBox.className =
+                    "preview-item";
+
+                const mediaArea =
+                    document.createElement("div");
+
+                mediaArea.className =
+                    "preview-media";
+
+                if (
+                    file.type.startsWith("image/")
+                ) {
+                    const img =
+                        document.createElement("img");
+
+                    img.src =
+                        URL.createObjectURL(file);
+
+                    img.className =
+                        "preview-image";
+
+                    img.alt =
+                        "選択した画像";
+
+                    mediaArea.appendChild(img);
+
+                } else if (
+                    file.type.startsWith("video/")
+                ) {
+                    const video =
+                        document.createElement("video");
+
+                    video.src =
+                        URL.createObjectURL(file);
+
+                    video.className =
+                        "preview-video";
+
+                    video.controls = true;
+                    video.preload = "metadata";
+
+                    mediaArea.appendChild(video);
+
+                } else {
+                    const pdf =
+                        document.createElement("div");
+
+                    pdf.className =
+                        "preview-file-icon";
+
+                    pdf.textContent =
+                        "PDF";
+
+                    mediaArea.appendChild(pdf);
+                }
+
+                const info =
+                    document.createElement("div");
+
+                info.className =
+                    "preview-info";
+
+                const name =
+                    document.createElement("p");
+
+                name.className =
+                    "preview-file-name";
+
+                name.textContent =
+                    file.name;
+
+                const size =
+                    document.createElement("p");
+
+                size.className =
+                    "preview-file-size";
+
+                size.textContent =
+                    formatFileSize(file.size);
+
+                info.appendChild(name);
+                info.appendChild(size);
+
+                fileBox.appendChild(mediaArea);
+                fileBox.appendChild(info);
+
+                previewArea.appendChild(fileBox);
+            });
     }
 
     manualSelect.addEventListener(
@@ -135,5 +255,21 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDriverSearchResults
     );
 
+    filesInput?.addEventListener(
+        "change",
+        previewFiles
+    );
+
+    const contentEditor = document.getElementById("content_editor");
+    const contentValue = document.getElementById("content_value");
+    const editForm = contentEditor?.closest("form");
+
+    if (contentEditor && contentValue && editForm) {
+        editForm.addEventListener("submit", function () {
+            contentValue.value = contentEditor.innerText.trim();
+        });
+    }
+
     updateManualLink();
+    previewFiles();
 });

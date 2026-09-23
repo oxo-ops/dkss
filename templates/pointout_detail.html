@@ -4,17 +4,22 @@
 
 {% block content %}
 
-<div class="page-header">
+<nav class="page-breadcrumb form-page-header" aria-label="パンくずリスト">
+    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <span class="breadcrumb-separator">›</span>
+    <span>安全管理</span>
+    <span class="breadcrumb-separator">›</span>
+    <a href="/pointouts?type={{ result.target_type }}">
+        安全パトロール
+    </a>
+    <span class="breadcrumb-separator">›</span>
+    <span class="breadcrumb-current">詳細</span>
+</nav>
+<div class="page-header form-page-header">
     <h2>安全パトロール詳細</h2>
-
-    <div class="header-actions">
-        <a href="/pointouts?type={{ result.target_type }}" class="btn btn-back">
-            ← 一覧へ戻る
-        </a>
-    </div>
 </div>
 
-<div class="card">
+<div class="card pointout-detail-card">
 
     <p>
         <strong>発生日：</strong>

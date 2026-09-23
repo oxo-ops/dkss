@@ -4,23 +4,32 @@
 
 {% block content %}
 
-<div class="page-header">
+<nav class="page-breadcrumb form-page-header" aria-label="パンくずリスト">
+    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <span class="breadcrumb-separator">›</span>
+    <span>安全管理</span>
+    <span class="breadcrumb-separator">›</span>
+    <a href="/pointouts">安全パトロール</a>
+    <span class="breadcrumb-separator">›</span>
+    <span class="breadcrumb-current">編集</span>
+</nav>
+<div class="page-header form-page-header">
     <h2>安全パトロール編集</h2>
-
-    <div class="header-actions">
-        <a href="/pointouts" class="btn btn-back">
-            ← 一覧へ戻る
-        </a>
-    </div>
 </div>
 
-<div class="card">
+<div class="card form-page-card">
     <form method="post" enctype="multipart/form-data">
+
+    {% if error %}
+        <div class="alert danger">
+            {{ error }}
+        </div>
+    {% endif %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div>
             <label>発生日</label>
-            <input type="date" name="date" value="{{ result.date }}" required>
+            <input type="date" name="date" id="event_date" value="{{ result.date }}" required>
         </div>
 
         <div>
@@ -32,19 +41,20 @@
             </select>
         </div>
 
-        <div>
+        <div class="form-group">
             <label>対象区分</label>
-            <p>
+
+            <div class="readonly-field">
                 {% if result.target_type == "user" %}
                     個人
                 {% else %}
                     納入先
                 {% endif %}
-            </p>
+            </div>
         </div>
 
         {% if result.target_type == "user" %}
-        <div>
+        <div class="form-group">
             <label>対象者</label>
 
             <input
@@ -84,6 +94,7 @@
             <input
                 type="text"
                 name="delivery_place"
+                id="delivery_place"
                 value="{{ result.delivery_place }}"
                 list="delivery_place_list"
             >
@@ -141,7 +152,7 @@
     </div>
 </div>
 
-        <div>
+        <div class="form-group">
             <label>内容</label>
             <input
                 type="hidden"
@@ -158,83 +169,109 @@
             ></div>
         </div>
 
-        <div>
-    <label>現在の添付ファイル</label>
-
-    {% if result.files %}
-        <div class="current-files">
-            {% for file in result.files %}
-                {% set ext = file.split('.')[-1].lower() %}
-
-                <div class="current-file-item">
-
-                    {% if ext in ['png','jpg','jpeg','gif','webp'] %}
-                        <img
-                            src="{{ url_for('static', filename='uploads/' + file) }}"
-                            class="thumb"
-                        >
-                    {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
-                        <video
-                            src="{{ url_for('static', filename='uploads/' + file) }}"
-                            class="thumb"
-                            controls
-                            preload="metadata"
-                        ></video>
-                    {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
-                        <a
-                            href="{{ url_for('static', filename='uploads/' + file) }}"
-                            target="_blank"
-                        >
-                            動画ファイルを開く
-                        </a>
-                    {% elif ext == 'pdf' %}
-                        <a
-                            href="{{ url_for('static', filename='uploads/' + file) }}"
-                            target="_blank"
-                        >
-                            PDFを開く
-                        </a>
-                    {% endif %}
-
-                    <p>{{ file }}</p>
-
-                    <label class="delete-check">
-                        <input
-                            type="checkbox"
-                            name="delete_files"
-                            value="{{ file }}"
-                        >
-                        削除する
-                    </label>
-
+        <section class="pointout-attachment-section">
+            <div class="pointout-attachment-header">
+                <div>
+                    <h3>添付ファイル</h3>
+                    <p class="help-text">
+                        写真・動画・PDFを追加できます。
+                        必要に応じて、現場の状況が分かる写真や動画を添付してください。
+                    </p>
                 </div>
-            {% endfor %}
+            </div>
+
+            <div class="pointout-current-files">
+                <label>現在の添付ファイル</label>
+
+                {% if result.files %}
+                    <div class="current-files">
+                        {% for file in result.files %}
+                            {% set ext = file.split('.')[-1].lower() %}
+
+                            <div class="current-file-item">
+                                {% if ext in ['png','jpg','jpeg','gif','webp'] %}
+                                    <img
+                                        src="{{ url_for('static', filename='uploads/' + file) }}"
+                                        class="thumb"
+                                    >
+                                {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                                    <video
+                                        src="{{ url_for('static', filename='uploads/' + file) }}"
+                                        class="thumb"
+                                        controls
+                                        preload="metadata"
+                                    ></video>
+                                {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+                                    <a
+                                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                                        target="_blank"
+                                    >
+                                        動画ファイルを開く
+                                    </a>
+                                {% elif ext == 'pdf' %}
+                                    <a
+                                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                                        target="_blank"
+                                    >
+                                        PDFを開く
+                                    </a>
+                                {% endif %}
+
+                                <p>{{ file }}</p>
+
+                                <label class="delete-check">
+                                    <input
+                                        type="checkbox"
+                                        name="delete_files"
+                                        value="{{ file }}"
+                                    >
+                                    削除する
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p>添付なし</p>
+                {% endif %}
+            </div>
+
+            <div class="pointout-file-add">
+                <label for="files">添付ファイルを追加</label>
+
+                <p class="help-text">
+                    写真・動画・PDFを追加できます。
+                    現在の添付ファイルは保持され、新しいファイルが追加されます。
+                </p>
+
+                <input
+                    type="file"
+                    name="files"
+                    id="files"
+                    class="js-pointout-files"
+                    multiple
+                    accept="image/*,video/*,.pdf"
+                    aria-describedby="files-help"
+                >
+
+                <div
+                    id="files-help"
+                    class="help-text"
+                >
+                    複数ファイルを選択できます。
+                </div>
+
+                <div
+                    id="preview_area"
+                    class="preview-area"
+                    aria-live="polite"
+                ></div>
+            </div>
+        </section>
+        <div class="form-actions pointout-edit-actions">
+            <button type="submit" class="btn">
+                更新
+            </button>
         </div>
-    {% else %}
-        <p>添付なし</p>
-    {% endif %}
-</div>
-
-        <div>
-    <label>添付ファイル追加</label>
-    <input
-        type="file"
-        name="files"
-        multiple
-        accept="image/*,video/*,.pdf"
-    >
-
-    <p class="help-text">
-        現在の添付ファイルは保持されます。
-        削除したいファイルは「削除する」にチェックを入れてください。
-        新しいファイルを選択すると追加登録されます。
-    </p>
-</div>
-
-        <button type="submit" class="btn">
-            更新
-        </button>
-
     </form>
 </div>
 
