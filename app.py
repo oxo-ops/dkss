@@ -162,6 +162,27 @@ def get_form_error_field(message):
     return field_map.get(message)
 
 
+def build_safe_redirect_url(referrer, fallback="/"):
+    if not referrer:
+        return fallback
+
+    normalized_referrer = referrer.replace("\\", "/")
+    parsed_referrer = urlparse(normalized_referrer)
+
+    if parsed_referrer.scheme or parsed_referrer.netloc:
+        return fallback
+
+    redirect_path = parsed_referrer.path or "/"
+
+    if not redirect_path.startswith("/"):
+        return fallback
+
+    if parsed_referrer.query:
+        return redirect_path + "?" + parsed_referrer.query
+
+    return redirect_path
+
+
 @app.after_request
 def redirect_form_errors(response):
     if request.method != "POST":
@@ -229,12 +250,7 @@ def redirect_form_errors(response):
         f"error:{error_field or ''}"
     )
 
-    redirect_url = parsed_referrer.path or "/"
-
-    if parsed_referrer.query:
-        redirect_url += (
-            "?" + parsed_referrer.query
-        )
+    redirect_url = build_safe_redirect_url(referrer, fallback="/")
 
     return redirect(redirect_url)
 
@@ -266,12 +282,7 @@ def handle_upload_validation_error(error):
         f"error:{error_field or ''}"
     )
 
-    redirect_url = parsed_referrer.path or "/"
-
-    if parsed_referrer.query:
-        redirect_url += (
-            "?" + parsed_referrer.query
-        )
+    redirect_url = build_safe_redirect_url(referrer, fallback="/")
 
     return redirect(redirect_url)
 
