@@ -493,7 +493,12 @@
                         <input type="hidden" name="active_day" value="{{ active_day }}">
 
                         {% if item.input_type == "select" %}
-                        <div class="check-choice-buttons">
+                        <div
+                            class="check-choice-buttons
+                            {% if item.choices|length == 1 %}choice-cols-1
+                            {% elif item.choices|length in [2, 4] %}choice-cols-2
+                            {% else %}choice-cols-3{% endif %}"
+                        >
                             {% for choice in item.choices %}
                             <label
                                 class="check-choice-button
