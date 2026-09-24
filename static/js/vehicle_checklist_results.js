@@ -1022,6 +1022,33 @@ document.addEventListener("DOMContentLoaded", function () {
                     ".js-inline-check-input"
                 )
             ) {
+                if (event.target.type === "radio") {
+                    const choiceButtons =
+                        event.target.closest(
+                            ".check-choice-buttons"
+                        );
+
+                    if (choiceButtons) {
+                        choiceButtons
+                            .querySelectorAll(
+                                ".check-choice-button"
+                            )
+                            .forEach(function (button) {
+                                button.classList.remove(
+                                    "is-selected"
+                                );
+                            });
+
+                        event.target
+                            .closest(
+                                ".check-choice-button"
+                            )
+                            ?.classList.add(
+                                "is-selected"
+                            );
+                    }
+                }
+
                 saveInlineCheck(
                     event.target
                 );
