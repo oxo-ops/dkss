@@ -211,29 +211,65 @@
                 <td>
                 {% if item.input_type == "select" %}
 
-                <div class="checklist-result-choice-group">
+                {% set choice_count = item.choices|length %}
 
-                    {% for choice in item.choices %}
+                {% if choice_count <= 4 %}
+                    {% set choice_row_count = 1 %}
+                {% elif choice_count <= 12 %}
+                    {% set choice_row_count = 2 %}
+                {% else %}
+                    {% set choice_row_count = (choice_count + 5) // 6 %}
+                {% endif %}
 
-                        <label class="checklist-result-choice">
+                {% set choice_base_count = choice_count // choice_row_count %}
+                {% set choice_extra_count = choice_count % choice_row_count %}
+                {% set choice_max_columns = choice_base_count + (1 if choice_extra_count > 0 else 0) %}
+                {% set choice_layout = namespace(start=0) %}
 
-                            <input
-                                type="radio"
-                                name="answer_{{ ns.answer_index }}"
-                                value="{{ choice }}"
-                                {% if saved_answer and saved_answer.value == choice %}
-                                    checked
-                                {% endif %}
-                                {% if item.choices %}required{% endif %}
-                                class="checklist-result-choice-radio"
-                            >
+                <div
+                    class="checklist-result-choice-group
+                    choice-columns-{{ choice_max_columns }}"
+                >
+                    {% for row_index in range(choice_row_count) %}
 
-                            <span>{{ choice }}</span>
+                        {% set choice_row_size =
+                            choice_base_count + (1 if row_index < choice_extra_count else 0)
+                        %}
 
-                        </label>
+                        <div
+                            class="checklist-result-choice-row
+                            choice-row-items-{{ choice_row_size }}"
+                        >
+                            {% for choice in item.choices[
+                                choice_layout.start:
+                                choice_layout.start + choice_row_size
+                            ] %}
+
+                                <label class="checklist-result-choice">
+
+                                    <input
+                                        type="radio"
+                                        name="answer_{{ ns.answer_index }}"
+                                        value="{{ choice }}"
+                                        {% if saved_answer and saved_answer.value == choice %}
+                                            checked
+                                        {% endif %}
+                                        {% if item.choices %}required{% endif %}
+                                        class="checklist-result-choice-radio"
+                                    >
+
+                                    <span>{{ choice }}</span>
+
+                                </label>
+
+                            {% endfor %}
+                        </div>
+
+                        {% set choice_layout.start =
+                            choice_layout.start + choice_row_size
+                        %}
 
                     {% endfor %}
-
                 </div>
                     {% else %}
                         <textarea
