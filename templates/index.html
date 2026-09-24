@@ -729,7 +729,12 @@
                 <!-- 最重要項目 -->
                 {% if item.improvement_items %}
 
-                <div class="dashboard-analysis-important">
+                <div
+                    class="dashboard-analysis-important"
+                    {% if item.improvement_items[0].result_url %}
+                    data-url="{{ item.improvement_items[0].result_url }}"
+                    {% endif %}
+                >
 
                     <div class="dashboard-analysis-important-content">
 

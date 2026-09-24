@@ -6088,11 +6088,17 @@ def dashboard():
                         "score": 0,
                         "max_score": 0,
                         "count": 0,
+                        "result": result_record,
+                        "lowest_score": score,
                     }
 
                 item_stats[key]["score"] += score
                 item_stats[key]["max_score"] += item_max_score
                 item_stats[key]["count"] += 1
+
+                if score < item_stats[key]["lowest_score"]:
+                    item_stats[key]["lowest_score"] = score
+                    item_stats[key]["result"] = result_record
 
         improvement_items = []
 
@@ -6105,6 +6111,32 @@ def dashboard():
                 1
             )
 
+            result_record = stats.get("result")
+            result_url = ""
+
+            if result_record:
+                if is_vehicle_checklist:
+                    if checklist.get("frequency_unit") == "year":
+                        active_day = result_record.year
+                    elif checklist.get("display_type") == "month":
+                        active_day = result_record.day
+                    else:
+                        active_day = result_record.month
+
+                    result_url = url_for(
+                        "vehicle_checklist_results",
+                        index=checklist_record.id,
+                        vehicle_id=result_record.vehicle_id,
+                        year=result_record.year,
+                        month=result_record.month,
+                        active_day=active_day,
+                    )
+                else:
+                    result_url = url_for(
+                        "checklist_result_detail",
+                        result_index=result_record.id,
+                    )
+
             improvement_items.append({
                 "category": category,
                 "content": content,
@@ -6114,6 +6146,7 @@ def dashboard():
                     1
                 ),
                 "count": stats["count"],
+                "result_url": result_url,
             })
 
         improvement_items.sort(
@@ -16991,7 +17024,9 @@ def save_vehicle_checklist_one(index):
             day=day,
             checked_by=session.get("name"),
             checked_by_username=session.get("username"),
-            checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            checked_date=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).strftime("%Y-%m-%d %H:%M"),
             status="入力中",
             approved_by="",
             approved_by_username="",
@@ -17277,7 +17312,9 @@ def save_vehicle_checklist_detail(index):
             day=day,
             checked_by=session.get("name"),
             checked_by_username=session.get("username"),
-            checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            checked_date=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).strftime("%Y-%m-%d %H:%M"),
             status="入力中",
             approved_by="",
             approved_by_username="",
@@ -17885,7 +17922,9 @@ def new_vehicle_checklist_result(index):
             day=day,
             checked_by=session.get("name"),
             checked_by_username=session.get("username"),
-            checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            checked_date=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).strftime("%Y-%m-%d %H:%M"),
             status="承認待ち",
             approved_by="",
             approved_by_username="",
@@ -18181,7 +18220,9 @@ def new_safety_checklist_result(index):
             target_office=target_office,
             checked_by=session.get("name"),
             checked_by_username=session.get("username"),
-            checked_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            checked_date=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).strftime("%Y-%m-%d %H:%M"),
             approved_by="",
             approved_by_username="",
             approved_date="",

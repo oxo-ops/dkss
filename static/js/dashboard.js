@@ -6,6 +6,18 @@ document.querySelectorAll(".dashboard-auto-submit").forEach(function (select) {
 });
 document.querySelectorAll(".dashboard-analysis-card").forEach(function (card) {
     card.addEventListener("click", function (event) {
+        const important =
+            event.target.closest(
+                ".dashboard-analysis-important[data-url]"
+            );
+
+        if (important) {
+            event.stopPropagation();
+            window.location.href =
+                important.dataset.url;
+            return;
+        }
+
         if (event.target.closest("a")) {
             return;
         }
