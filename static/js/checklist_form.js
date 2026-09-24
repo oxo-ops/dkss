@@ -362,6 +362,14 @@ function resetCommentIndexes() {
         if (shadedCheckbox) {
             shadedCheckbox.value = index;
         }
+
+        const approvalCheckbox = row.querySelector(
+            'input[name="approval_allow_general"]'
+        );
+
+        if (approvalCheckbox) {
+            approvalCheckbox.value = index;
+        }
     });
 }
 

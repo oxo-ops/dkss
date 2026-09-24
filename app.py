@@ -2326,7 +2326,7 @@ def vehicle_checklist_result_to_dict(result):
         ),
         "answers": safe_json_dict_list(result.answers_json),
         "checklist_snapshot": (
-            json.loads(result.checklist_snapshot_json)
+            safe_json_dict(result.checklist_snapshot_json)
             if result.checklist_snapshot_json
             else {}
         ),
@@ -17998,12 +17998,9 @@ def new_safety_checklist_result(index):
 
         if target_type == "user":
             if not target_user:
-                form_errors.append(
-                    "対象ユーザーを選択してください。"
-                )
+                return "対象ユーザーを選択してください。", 400
 
-            if target_user:
-                target_driver = Driver.query.filter_by(
+            target_driver = Driver.query.filter_by(
                 company_code=company_code,
                 employee_id=target_user
             ).first()
