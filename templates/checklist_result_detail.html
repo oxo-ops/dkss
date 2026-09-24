@@ -4,22 +4,22 @@
 
 {% block content %}
 
+<nav class="page-breadcrumb checklist-result-detail-breadcrumb" aria-label="パンくずリスト">
+    <a href="/safety/checklists/{{ checklist.id }}">
+        結果一覧
+    </a>
+</nav>
+
 <div class="page-header checklist-result-detail-header">
     <h2>{{ result.checklist_name }} 結果詳細</h2>
 
     <div class="header-actions">
-
         <a
             href="/safety/checklist-results/{{ result_index }}/excel"
             class="btn"
         >
             Excel出力
         </a>
-
-        <a href="/safety/checklists/{{ checklist.id }}" class="btn btn-back">
-            ← 結果一覧へ戻る
-        </a>
-
     </div>
 </div>
 
