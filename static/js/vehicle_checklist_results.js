@@ -1897,7 +1897,7 @@ async function loadSavedReminderNotifyUsers() {
 
 
     document.querySelectorAll(
-        ".favorite-vehicle-shortcut"
+        ".usage-vehicle-shortcut"
     ).forEach(function (button) {
         button.addEventListener(
             "click",

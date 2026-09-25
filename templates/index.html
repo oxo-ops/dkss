@@ -454,7 +454,7 @@
 
                     <form
                         method="post"
-                        action="/vehicle-favorites/remove/{{ vehicle.id }}"
+                        action="/usage-vehicles/remove/{{ vehicle.id }}"
                         class="dashboard-vehicle-remove-form"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -490,7 +490,7 @@
 
         <form
             method="post"
-            action="/vehicle-favorites/add"
+            action="/usage-vehicles/add"
             id="dashboardVehicleForm"
         >
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -566,12 +566,18 @@
 
                 <div>
                     <span class="dashboard-my-checklist-score">
-                        {{ item.average_score }}
+                        {% if item.average_score is not none %}
+                            {{ item.average_score }}
+                        {% else %}
+                            未実施
+                        {% endif %}
                     </span>
 
+                    {% if item.average_score is not none %}
                     <span class="dashboard-my-checklist-max-score">
                         / {{ item.max_score }}点
                     </span>
+                    {% endif %}
                 </div>
 
                 <span class="dashboard-my-checklist-count">

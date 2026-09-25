@@ -45,17 +45,17 @@
         >
 
         <div
-            id="favorite_vehicle_shortcuts"
-            class="favorite-vehicle-shortcuts"
+            id="usage_vehicle_shortcuts"
+            class="usage-vehicle-shortcuts"
         >
-            <div class="favorite-vehicle-title">
+            <div class="usage-vehicle-title">
                 使用車両
             </div>
 
-            {% for vehicle in favorite_vehicles %}
+            {% for vehicle in usage_vehicles %}
                 <button
                     type="button"
-                    class="favorite-vehicle-shortcut"
+                    class="usage-vehicle-shortcut"
                     data-vehicle-id="{{ vehicle.id }}"
                 >
                     {{ vehicle.chassis_number }}
