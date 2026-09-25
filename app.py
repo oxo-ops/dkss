@@ -461,11 +461,6 @@ class User(db.Model):
         db.String(100)
     )
 
-    favorite_vehicles_json = db.Column(
-        db.Text,
-        default="[]"
-    )
-
     dashboard_settings_json = db.Column(
         db.Text,
         default="{}"
@@ -4607,7 +4602,6 @@ def register():
                 role="user",
                 name=name,
                 office=office,
-                favorite_vehicles_json="[]",
                 email_address=email_address or None,
                 email_notify_enabled=bool(email_address)
             )
@@ -10367,7 +10361,6 @@ def new_driver():
             role=role,
             name=name,
             office=office,
-            favorite_vehicles_json="[]",
             email_address=email_address or None,
             email_notify_enabled=bool(email_address)
         )
@@ -10644,7 +10637,7 @@ def edit_driver(index):
                 office=office,
                 email_address=email_address or None,
                 email_notify_enabled=bool(email_address),
-                favorite_vehicles_json="[]"
+
             )
 
             db.session.add(user)
@@ -10656,7 +10649,6 @@ def edit_driver(index):
             user.office = office
             user.email_address = email_address or None
             user.email_notify_enabled = bool(email_address)
-            user.favorite_vehicles_json = "[]"
 
             if new_password:
                 password_history = parse_password_history(
@@ -19226,7 +19218,6 @@ def init_db():
                 role="itc",
                 name="ITC管理者",
                 office="ITC",
-                favorite_vehicles_json="[]"
             ))
             
         default_content_types = [
@@ -19342,82 +19333,6 @@ with app.app_context():
             )
         )
         db.session.commit()
-
-    if "vehicle_id" in existing_columns:
-        for user in User.query.all():
-            favorite_vehicle_ids = safe_json_str_list(
-                user.favorite_vehicles_json
-            )
-
-            converted_favorites = []
-
-            for favorite_vehicle_id in favorite_vehicle_ids:
-                if str(favorite_vehicle_id).isdigit():
-                    converted_favorites.append(
-                        str(favorite_vehicle_id)
-                    )
-                    continue
-
-                vehicle_row = db.session.execute(
-                    db.text(
-                        """
-                        SELECT id
-                        FROM vehicle
-                        WHERE company_code = :company_code
-                          AND vehicle_id = :vehicle_id
-                        LIMIT 1
-                        """
-                    ),
-                    {
-                        "company_code": user.company_code,
-                        "vehicle_id": favorite_vehicle_id,
-                    }
-                ).first()
-
-                if vehicle_row:
-                    converted_favorites.append(
-                        str(vehicle_row.id)
-                    )
-
-            user.favorite_vehicles_json = json.dumps(
-                converted_favorites,
-                ensure_ascii=False
-            )
-
-        db.session.commit()
-
-    for user in User.query.all():
-        driver = Driver.query.filter_by(
-            company_code=user.company_code,
-            employee_id=user.username
-        ).first()
-
-        if not driver:
-            continue
-
-        usage_vehicle_ids = safe_json_str_list(
-            driver.vehicles_json
-        )
-
-        for vehicle_record_id in safe_json_str_list(
-            user.favorite_vehicles_json
-        ):
-            if (
-                vehicle_record_id.isdigit()
-                and vehicle_record_id not in usage_vehicle_ids
-            ):
-                usage_vehicle_ids.append(
-                    vehicle_record_id
-                )
-
-        driver.vehicles_json = json.dumps(
-            usage_vehicle_ids,
-            ensure_ascii=False
-        )
-
-        user.favorite_vehicles_json = "[]"
-
-    db.session.commit()
 
     if "vehicle_id" in existing_columns:
         for driver in Driver.query.all():
