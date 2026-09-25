@@ -38,7 +38,7 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
 from io import BytesIO
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 app = Flask(__name__)
 
 app.wsgi_app = ProxyFix(
@@ -170,20 +170,26 @@ def build_safe_redirect_url(referrer, fallback="/"):
     normalized_referrer = referrer.replace("\\", "/")
     parsed_referrer = urlparse(normalized_referrer)
 
-    if parsed_referrer.scheme or parsed_referrer.netloc:
-        if (
-            parsed_referrer.scheme not in {"http", "https"}
-            or parsed_referrer.netloc != request.host
-        ):
-            return fallback
+    if parsed_referrer.scheme and parsed_referrer.scheme not in {"http", "https"}:
+        return fallback
 
-    redirect_path = parsed_referrer.path or "/"
+    resolved_target = urlparse(urljoin(request.host_url, normalized_referrer))
 
+    current_host = request.host.lower()
+    resolved_host = resolved_target.hostname or ""
+    if resolved_target.port:
+        resolved_host = f"{resolved_host}:{resolved_target.port}"
+    resolved_host = resolved_host.lower()
+
+    if resolved_host != current_host:
+        return fallback
+
+    redirect_path = resolved_target.path or "/"
     if not redirect_path.startswith("/"):
         return fallback
 
-    if parsed_referrer.query:
-        return redirect_path + "?" + parsed_referrer.query
+    if resolved_target.query:
+        return redirect_path + "?" + resolved_target.query
 
     return redirect_path
 
