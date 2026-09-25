@@ -1585,7 +1585,7 @@ async function loadSavedReminderNotifyUsers() {
 
         const currentVehicleId =
             document.getElementById(
-                "vehicle_id"
+                "vehicle_record_id"
             );
 
         const formData =
@@ -1597,7 +1597,7 @@ async function loadSavedReminderNotifyUsers() {
         );
 
         formData.append(
-            "vehicle_id",
+            "vehicle_record_id",
             currentVehicleId
                 ? currentVehicleId.value
                 : ""
@@ -1880,7 +1880,7 @@ async function loadSavedReminderNotifyUsers() {
 
     const vehicleId =
         document.getElementById(
-            "vehicle_id"
+            "vehicle_record_id"
         );
 
     const selectedVehicleDisplay =
@@ -2076,8 +2076,7 @@ async function loadSavedReminderNotifyUsers() {
 
                                     const labelParts =
                                         [
-                                            vehicle.vehicle_id,
-                                            vehicle.number,
+                                            vehicle.chassis_number,
                                             vehicle.manufacturer,
                                             vehicle.model_code
                                         ].filter(
@@ -2129,7 +2128,7 @@ async function loadSavedReminderNotifyUsers() {
                                             "読み込み中…";
 
                                         vehicleId.value =
-                                            vehicle.vehicle_id;
+                                            vehicle.vehicle_record_id;
 
                                         if (
                                             selectedVehicleDisplay

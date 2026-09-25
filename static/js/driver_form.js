@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const exists = document.querySelector(
             '.selected-vehicle[data-vehicle-id="' +
-            CSS.escape(vehicle.vehicle_id) +
+            CSS.escape(String(vehicle.vehicle_record_id)) +
             '"]'
         );
 
@@ -93,15 +93,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const row = document.createElement("div");
         row.className = "selected-vehicle";
-        row.dataset.vehicleId = vehicle.vehicle_id;
+        row.dataset.vehicleId = vehicle.vehicle_record_id;
 
         const hiddenInput = document.createElement("input");
         hiddenInput.type = "hidden";
         hiddenInput.name = "vehicles";
-        hiddenInput.value = vehicle.vehicle_id;
+        hiddenInput.value = vehicle.vehicle_record_id;
 
         const labelParts = [
-            vehicle.number,
+            vehicle.chassis_number,
             vehicle.manufacturer,
             vehicle.model_code
         ].filter(Boolean);
@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", function () {
         removeButton.type = "button";
         removeButton.className =
             "btn-small btn-delete js-remove-selected-vehicle";
-        removeButton.dataset.vehicleId = vehicle.vehicle_id;
+        removeButton.dataset.vehicleId = vehicle.vehicle_record_id;
         removeButton.textContent = "削除";
 
         row.appendChild(hiddenInput);
@@ -178,7 +178,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             const alreadySelected =
                                 document.querySelector(
                                     '.selected-vehicle[data-vehicle-id="' +
-                                    CSS.escape(vehicle.vehicle_id) +
+                                    CSS.escape(String(vehicle.vehicle_record_id)) +
                                     '"]'
                                 );
 
@@ -199,7 +199,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                     : "選択";
 
                             const labelParts = [
-                                vehicle.number,
+                                vehicle.chassis_number,
                                 vehicle.manufacturer,
                                 vehicle.model_code
                             ].filter(Boolean);

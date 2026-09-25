@@ -327,11 +327,10 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        targetVehicle.value = vehicle.vehicle_id;
+        targetVehicle.value = vehicle.vehicle_record_id;
 
         selectedVehicleDisplay.textContent = [
-            vehicle.vehicle_id,
-            vehicle.number || "",
+            vehicle.chassis_number || "",
             vehicle.manufacturer || "",
             vehicle.model_code || ""
         ].join(" / ");
@@ -386,8 +385,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         "vehicle-search-result-row";
 
                     row.textContent = [
-                        vehicle.vehicle_id,
-                        vehicle.number || "",
+                        vehicle.chassis_number || "",
                         vehicle.manufacturer || "",
                         vehicle.model_code || ""
                     ].join(" / ");

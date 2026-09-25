@@ -55,9 +55,9 @@
 
             <input
                 type="hidden"
-                name="vehicle_id"
-                id="vehicle_id"
-                value="{{ selected_vehicle.vehicle_id if selected_vehicle else '' }}"
+                name="vehicle_record_id"
+                id="vehicle_record_id"
+                value="{{ selected_vehicle.vehicle_record_id if selected_vehicle else '' }}"
                 required
             >
 
@@ -70,7 +70,7 @@
 
                     {% if selected_vehicle %}
 
-                        {{ selected_vehicle.number }}
+                        {{ selected_vehicle.chassis_number }}
 
                         {% if selected_vehicle.manufacturer %}
                             / {{ selected_vehicle.manufacturer }}

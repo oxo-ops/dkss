@@ -116,8 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 document.createElement("span");
 
                             const labelParts = [
-                                vehicle.vehicle_id,
-                                vehicle.number,
+                                vehicle.chassis_number,
                                 vehicle.manufacturer,
                                 vehicle.model_code
                             ].filter(Boolean);
@@ -141,7 +140,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 "click",
                                 function () {
                                     vehicleIdInput.value =
-                                        vehicle.vehicle_id;
+                                        vehicle.vehicle_record_id;
 
                                     searchInput.value =
                                         labelParts.join(" / ");

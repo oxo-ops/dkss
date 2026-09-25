@@ -132,17 +132,17 @@
 
                     <div
                         class="selected-vehicle"
-                        data-vehicle-id="{{ vehicle.vehicle_id }}"
+                        data-vehicle-id="{{ vehicle.vehicle_record_id }}"
                     >
 
                         <input
                             type="hidden"
                             name="vehicles"
-                            value="{{ vehicle.vehicle_id }}"
+                            value="{{ vehicle.vehicle_record_id }}"
                         >
 
                         <span>
-                            {{ vehicle.number }}
+                            {{ vehicle.chassis_number }}
                             {% if vehicle.type %}
                                 （{{ vehicle.type }}）
                             {% endif %}
@@ -151,7 +151,7 @@
                         <button
                             type="button"
                             class="btn-small btn-delete js-remove-selected-vehicle"
-                            data-vehicle-id="{{ vehicle.vehicle_id }}"
+                            data-vehicle-id="{{ vehicle.vehicle_record_id }}"
                         >
                             削除
                         </button>

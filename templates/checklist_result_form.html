@@ -125,22 +125,20 @@
             <input
                 type="text"
                 id="vehicle_search"
-                placeholder="車両ID・ナンバー・車台番号・型式・メーカーで検索"
+                placeholder="車台番号・ナンバー・型式・メーカーで検索"
                 autocomplete="off"
             >
 
             <input
                 type="hidden"
-                name="target_vehicle"
+                name="target_vehicle_record_id"
                 id="target_vehicle"
-                value="{{ result.target_vehicle if result else '' }}"
+                value="{{ result.target_vehicle_record_id if result else '' }}"
             >
 
             <div id="selected_vehicle_display">
                 {% if selected_vehicle %}
-                    {{ selected_vehicle.vehicle_id }}
-                    /
-                    {{ selected_vehicle.number }}
+                    {{ selected_vehicle.chassis_number }}
                     /
                     {{ selected_vehicle.manufacturer }}
                     /
