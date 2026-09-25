@@ -19381,6 +19381,207 @@ with app.app_context():
             )
 
     db.session.commit()
+
+    if (
+        db.engine.dialect.name == "postgresql"
+        and "vehicle_id" in existing_columns
+    ):
+        db.session.execute(
+            db.text(
+                "ALTER TABLE vehicle "
+                "ALTER COLUMN vehicle_id DROP NOT NULL"
+            )
+        )
+        db.session.commit()
+
+    if "vehicle_id" in existing_columns:
+        for user in User.query.all():
+            favorite_vehicle_ids = safe_json_str_list(
+                user.favorite_vehicles_json
+            )
+
+            converted_favorites = []
+
+            for favorite_vehicle_id in favorite_vehicle_ids:
+                if str(favorite_vehicle_id).isdigit():
+                    converted_favorites.append(
+                        str(favorite_vehicle_id)
+                    )
+                    continue
+
+                vehicle_row = db.session.execute(
+                    db.text(
+                        """
+                        SELECT id
+                        FROM vehicle
+                        WHERE company_code = :company_code
+                          AND vehicle_id = :vehicle_id
+                        LIMIT 1
+                        """
+                    ),
+                    {
+                        "company_code": user.company_code,
+                        "vehicle_id": favorite_vehicle_id,
+                    }
+                ).first()
+
+                if vehicle_row:
+                    converted_favorites.append(
+                        str(vehicle_row.id)
+                    )
+
+            user.favorite_vehicles_json = json.dumps(
+                converted_favorites,
+                ensure_ascii=False
+            )
+
+        db.session.commit()
+
+    if "vehicle_id" in existing_columns:
+        for driver in Driver.query.all():
+            vehicle_ids = safe_json_str_list(
+                driver.vehicles_json
+            )
+
+            converted_vehicle_ids = []
+
+            for vehicle_id in vehicle_ids:
+                if str(vehicle_id).isdigit():
+                    converted_vehicle_ids.append(
+                        str(vehicle_id)
+                    )
+                    continue
+
+                vehicle_row = db.session.execute(
+                    db.text(
+                        """
+                        SELECT id
+                        FROM vehicle
+                        WHERE company_code = :company_code
+                          AND vehicle_id = :vehicle_id
+                        LIMIT 1
+                        """
+                    ),
+                    {
+                        "company_code": driver.company_code,
+                        "vehicle_id": vehicle_id,
+                    }
+                ).first()
+
+                if vehicle_row:
+                    converted_vehicle_ids.append(
+                        str(vehicle_row.id)
+                    )
+
+            driver.vehicles_json = json.dumps(
+                converted_vehicle_ids,
+                ensure_ascii=False
+            )
+
+        db.session.commit()
+
+    vehicle_patrol_columns = [
+        ("vehicle_record_id", "INTEGER"),
+    ]
+
+    existing_vehicle_patrol_columns = [
+        column["name"]
+        for column in inspector.get_columns(
+            "vehicle_patrol"
+        )
+    ]
+
+    for column_name, column_type in vehicle_patrol_columns:
+        if column_name not in existing_vehicle_patrol_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE vehicle_patrol "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+
+    if (
+        "vehicle_id" in existing_vehicle_patrol_columns
+        and "vehicle_id" in existing_columns
+    ):
+        db.session.execute(
+            db.text(
+                """
+                UPDATE vehicle_patrol
+                SET vehicle_record_id = (
+                    SELECT vehicle.id
+                    FROM vehicle
+                    WHERE vehicle.company_code = vehicle_patrol.company_code
+                      AND vehicle.vehicle_id = vehicle_patrol.vehicle_id
+                )
+                WHERE vehicle_record_id IS NULL
+                  AND vehicle_id IS NOT NULL
+                  AND vehicle_id != ''
+                """
+            )
+        )
+
+        db.session.commit()
+
+    vehicle_checklist_notify_setting_columns = [
+        ("vehicle_record_id", "INTEGER"),
+    ]
+
+    existing_vehicle_checklist_notify_setting_columns = [
+        column["name"]
+        for column in inspector.get_columns(
+            "vehicle_checklist_notify_setting"
+        )
+    ]
+
+    if (
+        db.engine.dialect.name == "postgresql"
+        and "vehicle_id" in existing_vehicle_checklist_notify_setting_columns
+    ):
+        db.session.execute(
+            db.text(
+                "ALTER TABLE vehicle_checklist_notify_setting "
+                "ALTER COLUMN vehicle_id DROP NOT NULL"
+            )
+        )
+        db.session.commit()
+
+    for column_name, column_type in vehicle_checklist_notify_setting_columns:
+        if column_name not in existing_vehicle_checklist_notify_setting_columns:
+            db.session.execute(
+                db.text(
+                    f"ALTER TABLE vehicle_checklist_notify_setting "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
+
+    db.session.commit()
+
+    if (
+        "vehicle_id" in existing_vehicle_checklist_notify_setting_columns
+        and "vehicle_id" in existing_columns
+    ):
+        db.session.execute(
+            db.text(
+                """
+                UPDATE vehicle_checklist_notify_setting
+                SET vehicle_record_id = (
+                    SELECT vehicle.id
+                    FROM vehicle
+                    WHERE vehicle.company_code = vehicle_checklist_notify_setting.company_code
+                      AND vehicle.vehicle_id = vehicle_checklist_notify_setting.vehicle_id
+                )
+                WHERE vehicle_record_id IS NULL
+                  AND vehicle_id IS NOT NULL
+                  AND vehicle_id != ''
+                """
+            )
+        )
+
+        db.session.commit()
+
     # =========================
     # News テナント分離
     # =========================
@@ -19457,6 +19658,7 @@ with app.app_context():
     checklist_result_columns = [
         ("approvals_json", "TEXT"),
         ("target_username", "VARCHAR(50)"),
+        ("target_vehicle_record_id", "INTEGER"),
         ("checked_by_username", "VARCHAR(50)"),
         ("approved_by_username", "VARCHAR(50)"),
         ("checklist_snapshot_json", "TEXT"),
@@ -19479,6 +19681,44 @@ with app.app_context():
             )
 
     db.session.commit()
+
+    checklist_result_column_names = {
+        column["name"]
+        for column in inspector.get_columns(
+            "checklist_result"
+        )
+    }
+
+    vehicle_column_names = {
+        column["name"]
+        for column in inspector.get_columns(
+            "vehicle"
+        )
+    }
+
+    if (
+        "target_vehicle" in checklist_result_column_names
+        and "vehicle_id" in vehicle_column_names
+    ):
+        db.session.execute(
+            db.text(
+                """
+                UPDATE checklist_result
+                SET target_vehicle_record_id = (
+                    SELECT vehicle.id
+                    FROM vehicle
+                    WHERE vehicle.company_code = checklist_result.company_code
+                      AND vehicle.vehicle_id = checklist_result.target_vehicle
+                )
+                WHERE target_type = 'vehicle'
+                  AND target_vehicle_record_id IS NULL
+                  AND target_vehicle IS NOT NULL
+                  AND target_vehicle != ''
+                """
+            )
+        )
+
+        db.session.commit()
 
     legacy_snapshot_results = (
         ChecklistResult.query.filter(
@@ -19650,6 +19890,7 @@ with app.app_context():
     vehicle_checklist_result_columns = [
         ("notify_users_json", "TEXT"),
         ("approvals_json", "TEXT"),
+        ("vehicle_record_id", "INTEGER"),
         ("checked_by_username", "VARCHAR(50)"),
         ("approved_by_username", "VARCHAR(50)"),
         ("checklist_snapshot_json", "TEXT"),
@@ -19672,6 +19913,36 @@ with app.app_context():
             )
 
     db.session.commit()
+
+    vehicle_checklist_result_column_names = {
+        column["name"]
+        for column in inspector.get_columns(
+            "vehicle_checklist_result"
+        )
+    }
+
+    if (
+        "vehicle_id" in vehicle_checklist_result_column_names
+        and "vehicle_id" in vehicle_column_names
+    ):
+        db.session.execute(
+            db.text(
+                """
+                UPDATE vehicle_checklist_result
+                SET vehicle_record_id = (
+                    SELECT vehicle.id
+                    FROM vehicle
+                    WHERE vehicle.company_code = vehicle_checklist_result.company_code
+                      AND vehicle.vehicle_id = vehicle_checklist_result.vehicle_id
+                )
+                WHERE vehicle_record_id IS NULL
+                  AND vehicle_id IS NOT NULL
+                  AND vehicle_id != ''
+                """
+            )
+        )
+
+        db.session.commit()
 
     legacy_vehicle_snapshot_results = (
         VehicleChecklistResult.query.filter(
