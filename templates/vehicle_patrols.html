@@ -14,18 +14,18 @@
     </div>
 </div>
 
-<div class="favorite-setting-box">
+<div class="usage-setting-box">
     <h3>使用車両設定</h3>
 
-    <div class="favorite-setting-row">
-        <div class="favorite-list">
-            {% for vehicle in favorite_vehicle_records %}
-                <span class="favorite-tag">
+    <div class="usage-setting-row">
+        <div class="usage-list">
+            {% for vehicle in usage_vehicle_records %}
+                <span class="usage-tag">
                     {{ vehicle.chassis_number }}
 
                     <form
                         method="post"
-                        action="/vehicle-favorites/remove/{{ vehicle.id }}"
+                        action="/usage-vehicles/remove/{{ vehicle.id }}"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="tag-remove">×</button>
@@ -36,14 +36,14 @@
             {% endfor %}
         </div>
 
-        <form method="post" action="/vehicle-favorites/add" class="favorite-add-form">
+        <form method="post" action="/usage-vehicles/add" class="usage-add-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-            <div class="favorite-vehicle-search-wrap">
+            <div class="usage-vehicle-search-wrap">
 
                 <input
                     type="text"
-                    id="favorite_vehicle_search"
+                    id="usage_vehicle_search"
                     placeholder="車台番号・ナンバーで検索"
                     autocomplete="off"
                 >
@@ -51,12 +51,12 @@
                 <input
                     type="hidden"
                     name="vehicle_record_id"
-                    id="favorite_vehicle_id"
+                    id="usage_vehicle_id"
                 >
 
                 <div
-                    id="favorite_vehicle_results"
-                    class="vehicle-select-box favorite-vehicle-results is-hidden"
+                    id="usage_vehicle_results"
+                    class="vehicle-select-box usage-vehicle-results is-hidden"
                 ></div>
 
             </div>
@@ -112,7 +112,7 @@
         <th class="col-actions-wide">操作</th>
     </tr>
 
-    {% for patrol in favorite_patrols %}
+    {% for patrol in usage_patrols %}
     <tr>
         <td>{{ patrol.occurred_date or "-" }}</td>
         <td>★ {{ patrol.chassis_number or "-" }}</td>
@@ -157,7 +157,7 @@
 </table>
 </div>
 <div class="mobile-card-list">
-    {% for patrol in favorite_patrols %}
+    {% for patrol in usage_patrols %}
         <div class="mobile-list-card">
             <div class="mobile-card-head">
                 <strong>★ {{ patrol.chassis_number or "-" }}</strong>

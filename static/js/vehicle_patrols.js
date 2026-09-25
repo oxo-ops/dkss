@@ -1,12 +1,12 @@
 document.addEventListener("DOMContentLoaded", function () {
     const searchInput =
-        document.getElementById("favorite_vehicle_search");
+        document.getElementById("usage_vehicle_search");
 
     const vehicleIdInput =
-        document.getElementById("favorite_vehicle_id");
+        document.getElementById("usage_vehicle_id");
 
     const resultBox =
-        document.getElementById("favorite_vehicle_results");
+        document.getElementById("usage_vehicle_results");
 
     const form =
         searchInput ? searchInput.closest("form") : null;

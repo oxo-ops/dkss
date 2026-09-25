@@ -996,7 +996,7 @@ body {
     margin-bottom: 8px;
 }
 
-.favorite-setting-box {
+.usage-setting-box {
     background: #f4f8ff;
     border: 1px solid #e1eaf7;
     border-radius: 16px;
@@ -1005,19 +1005,19 @@ body {
     box-shadow: none;
 }
 
-.favorite-setting-box h3 {
+.usage-setting-box h3 {
     margin: 0 0 10px;
     font-size: 15px;
     color: #334155;
 }
 
-.favorite-setting-row {
+.usage-setting-row {
     display: flex;
     align-items: center;
     gap: 14px;
 }
 
-.favorite-list {
+.usage-list {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1025,7 +1025,7 @@ body {
     margin: 12px 0;
 }
 
-.favorite-tag {
+.usage-tag {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1037,7 +1037,7 @@ body {
     font-weight: 600;
 }
 
-.favorite-tag form {
+.usage-tag form {
     margin: 0;
 }
 
@@ -1051,14 +1051,14 @@ body {
     padding: 0 2px;
 }
 
-.favorite-add-form {
+.usage-add-form {
     display: flex;
     align-items: center;
     gap: 8px;
     flex: 1;
 }
 
-.favorite-add-form input {
+.usage-add-form input {
     flex: 1;
     height: 34px;
     padding: 0 12px;
@@ -2787,19 +2787,19 @@ textarea[name="item_content"]{
     background: #f5f8fd;
 }
 
-.favorite-add-form .btn-outline {
+.usage-add-form .btn-outline {
     background: #ffffff;
     border: 1px solid #2f78f6;
     color: #2f78f6;
 }
 
-.favorite-add-form .btn-outline:hover {
+.usage-add-form .btn-outline:hover {
     background: #2f78f6;
     border-color: #2f78f6;
     color: #ffffff !important;
 }
 
-.favorite-vehicle-shortcuts {
+.usage-vehicle-shortcuts {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -2821,31 +2821,31 @@ textarea[name="item_content"]{
         padding: 9px 10px;
     }
 
-    .vehicle-check-filter .favorite-vehicle-shortcuts {
+    .vehicle-check-filter .usage-vehicle-shortcuts {
         margin-top: 0;
         padding: 6px 8px;
         gap: 4px;
         border-radius: 8px;
     }
 
-    .vehicle-check-filter .favorite-vehicle-title {
+    .vehicle-check-filter .usage-vehicle-title {
         display: none;
     }
 
-    .vehicle-check-filter .favorite-vehicle-shortcut {
+    .vehicle-check-filter .usage-vehicle-shortcut {
         padding: 5px 8px;
         font-size: 12px;
     }
 }
 
-.favorite-vehicle-title {
+.usage-vehicle-title {
     width: 100%;
     font-size: 12px;
     font-weight: 600;
     color: #64748b;
 }
 
-.favorite-vehicle-shortcut {
+.usage-vehicle-shortcut {
     border: 1px solid #d7e1ef;
     background: #f8fafc;
     border-radius: 7px;
@@ -2854,7 +2854,7 @@ textarea[name="item_content"]{
     color: #1e293b;
 }
 
-.favorite-vehicle-shortcut:hover {
+.usage-vehicle-shortcut:hover {
     background: #eff6ff;
     border-color: #93c5fd;
 }
@@ -6275,7 +6275,7 @@ input:checked
 
     .form-card,
     .manual-card,
-    .favorite-setting-box {
+    .usage-setting-box {
         padding: 18px;
     }
 
@@ -6293,17 +6293,17 @@ input:checked
         justify-self: start;
     }
 
-    .favorite-setting-row {
+    .usage-setting-row {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
     }
 
-    .favorite-add-form {
+    .usage-add-form {
         width: 100%;
     }
 
-    .favorite-add-form input {
+    .usage-add-form input {
         min-width: 0;
     }
 
@@ -6896,7 +6896,7 @@ input:checked
         min-height: 44px;
     }
 
-    .favorite-vehicle-shortcut,
+    .usage-vehicle-shortcut,
     .news-target-item,
     .dashboard-display-item {
         min-height: 44px;

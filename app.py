@@ -5362,6 +5362,17 @@ def dashboard():
 
     my_safe_days = 0
 
+    my_vehicle_record_ids = []
+
+    if my_driver:
+        my_vehicle_record_ids = [
+            int(vehicle_record_id)
+            for vehicle_record_id in safe_json_str_list(
+                my_driver.vehicles_json
+            )
+            if vehicle_record_id.isdigit()
+        ]
+
     if my_driver and my_driver.safe_start_date:
         try:
             start_date = datetime.strptime(
@@ -5589,17 +5600,6 @@ def dashboard():
         except (TypeError, ValueError):
             return None
 
-    favorite_vehicle_ids = []
-
-    if current_user:
-        favorite_vehicle_ids = [
-            int(vehicle_record_id)
-            for vehicle_record_id in safe_json_str_list(
-                current_user.favorite_vehicles_json
-            )
-            if vehicle_record_id.isdigit()
-        ]
-
     checklist_score_summaries = []
     my_checklist_summaries = []
 
@@ -5621,17 +5621,21 @@ def dashboard():
             for choice in item.get("choices", [])
         )
 
-        if not has_dashboard_score:
+        is_vehicle_checklist = (
+            checklist_record.target == "車両管理"
+        )
+
+        if (
+            not has_dashboard_score
+            and not is_vehicle_checklist
+        ):
             continue
+
         check_items = [
             item
             for item in checklist.get("items", [])
             if item.get("item_type") == "check"
         ]
-
-        is_vehicle_checklist = (
-            checklist_record.target == "車両管理"
-        )
 
         if is_vehicle_checklist:
 
@@ -5662,7 +5666,7 @@ def dashboard():
             my_result_records = [
                 result_record
                 for result_record in result_records
-                if result_record.vehicle_record_id in favorite_vehicle_ids
+                if result_record.vehicle_record_id in my_vehicle_record_ids
             ]
 
         else:
@@ -5787,15 +5791,12 @@ def dashboard():
         )
 
         if is_vehicle_checklist:
-            for favorite_vehicle_id in favorite_vehicle_ids:
+            for usage_vehicle_id in my_vehicle_record_ids:
                 vehicle_result_records = [
                     result_record
                     for result_record in my_result_records
-                    if result_record.vehicle_record_id == favorite_vehicle_id
+                    if result_record.vehicle_record_id == usage_vehicle_id
                 ]
-
-                if not vehicle_result_records:
-                    continue
 
                 vehicle_result_scores = []
                 vehicle_category_stats = {}
@@ -5892,13 +5893,14 @@ def dashboard():
                             )
                         )
 
-                if not vehicle_result_scores:
-                    continue
-
-                vehicle_average_score = round(
-                    sum(vehicle_result_scores)
-                    / len(vehicle_result_scores),
-                    1
+                vehicle_average_score = (
+                    round(
+                        sum(vehicle_result_scores)
+                        / len(vehicle_result_scores),
+                        1
+                    )
+                    if vehicle_result_scores
+                    else None
                 )
 
                 vehicle_category_analysis = []
@@ -5940,24 +5942,30 @@ def dashboard():
                         - average_score,
                         1
                     )
-                    if average_score is not None
+                    if (
+                        vehicle_average_score is not None
+                        and average_score is not None
+                    )
                     else None
                 )
 
-                favorite_vehicle = Vehicle.query.filter_by(
+                usage_vehicle = Vehicle.query.filter_by(
                     company_code=company_code,
-                    id=favorite_vehicle_id,
+                    id=usage_vehicle_id,
                     deleted=False
                 ).first()
+
+                if not usage_vehicle:
+                    continue
 
                 my_checklist_summaries.append({
                     "id": checklist_record.id,
                     "name": checklist_record.name,
                     "target": checklist_record.target,
-                    "vehicle_record_id": favorite_vehicle_id,
+                    "vehicle_record_id": usage_vehicle_id,
                     "chassis_number": (
-                        favorite_vehicle.chassis_number
-                        if favorite_vehicle
+                        usage_vehicle.chassis_number
+                        if usage_vehicle
                         else ""
                     ),
                     "target_user": user_name,
@@ -6579,6 +6587,9 @@ def dashboard():
                     target["vehicle_type"] = target_vehicle.type or ""
                     target["body_type"] = target_vehicle.body_type or ""
 
+        if not has_dashboard_score:
+            continue
+
         checklist_score_summaries.append({
             "id": checklist_record.id,
             "name": checklist_record.name,
@@ -6596,8 +6607,8 @@ def dashboard():
     my_vehicles = Vehicle.query.filter(
         Vehicle.company_code == company_code,
         Vehicle.deleted == False,
-        Vehicle.id.in_(favorite_vehicle_ids)
-    ).all() if favorite_vehicle_ids else []
+        Vehicle.id.in_(my_vehicle_record_ids)
+    ).all() if my_vehicle_record_ids else []
 
     my_vehicle_analysis = {}
 
@@ -8253,9 +8264,9 @@ def new_vehicle_patrol():
     )
 
 
-@app.route("/vehicle-favorites/add", methods=["POST"])
+@app.route("/usage-vehicles/add", methods=["POST"])
 @limiter.limit("30 per minute")
-def add_vehicle_favorite():
+def add_usage_vehicle():
     vehicle_record_id = request.form.get(
         "vehicle_record_id",
         type=int
@@ -8273,26 +8284,30 @@ def add_vehicle_favorite():
     if not vehicle:
         return redirect("/vehicle-patrols")
 
-    current_user = User.query.filter_by(
+    current_driver = Driver.query.filter_by(
         company_code=session.get("company_code"),
-        username=session.get("username")
+        employee_id=session.get("username")
     ).first()
 
-    if not current_user:
-        session.clear()
-        return redirect("/login")
+    if not current_driver:
+        return redirect(
+            build_safe_redirect_url(
+                request.form.get("next"),
+                "/vehicle-patrols"
+            )
+        )
 
-    favorite_vehicles = safe_json_str_list(
-        current_user.favorite_vehicles_json
+    usage_vehicles = safe_json_str_list(
+        current_driver.vehicles_json
     )
 
     vehicle_record_id_str = str(vehicle.id)
 
-    if vehicle_record_id_str not in favorite_vehicles:
-        favorite_vehicles.append(vehicle_record_id_str)
+    if vehicle_record_id_str not in usage_vehicles:
+        usage_vehicles.append(vehicle_record_id_str)
 
-    current_user.favorite_vehicles_json = json.dumps(
-        favorite_vehicles,
+    current_driver.vehicles_json = json.dumps(
+        usage_vehicles,
         ensure_ascii=False
     )
 
@@ -8306,31 +8321,35 @@ def add_vehicle_favorite():
     )
 
 @app.route(
-    "/vehicle-favorites/remove/<int:vehicle_record_id>",
+    "/usage-vehicles/remove/<int:vehicle_record_id>",
     methods=["POST"]
 )
 @limiter.limit("30 per minute")
-def remove_vehicle_favorite(vehicle_record_id):
-    current_user = User.query.filter_by(
+def remove_usage_vehicle(vehicle_record_id):
+    current_driver = Driver.query.filter_by(
         company_code=session.get("company_code"),
-        username=session.get("username")
+        employee_id=session.get("username")
     ).first()
 
-    if not current_user:
-        session.clear()
-        return redirect("/login")
+    if not current_driver:
+        return redirect(
+            build_safe_redirect_url(
+                request.form.get("next"),
+                "/vehicle-patrols"
+            )
+        )
 
-    favorite_vehicles = safe_json_str_list(
-        current_user.favorite_vehicles_json
+    usage_vehicles = safe_json_str_list(
+        current_driver.vehicles_json
     )
 
     vehicle_record_id_str = str(vehicle_record_id)
 
-    if vehicle_record_id_str in favorite_vehicles:
-        favorite_vehicles.remove(vehicle_record_id_str)
+    if vehicle_record_id_str in usage_vehicles:
+        usage_vehicles.remove(vehicle_record_id_str)
 
-    current_user.favorite_vehicles_json = json.dumps(
-        favorite_vehicles,
+    current_driver.vehicles_json = json.dumps(
+        usage_vehicles,
         ensure_ascii=False
     )
 
@@ -8352,28 +8371,28 @@ def vehicle_patrols():
     if len(keyword) > 100:
         return "検索条件が長すぎます。", 400
 
-    current_user = User.query.filter_by(
+    current_driver = Driver.query.filter_by(
         company_code=session.get("company_code"),
-        username=session.get("username")
+        employee_id=session.get("username")
     ).first()
 
-    favorite_vehicles = (
-        safe_json_str_list(current_user.favorite_vehicles_json)
-        if current_user
+    usage_vehicles = (
+        safe_json_str_list(current_driver.vehicles_json)
+        if current_driver
         else []
     )
 
-    favorite_vehicle_records = Vehicle.query.filter(
+    usage_vehicle_records = Vehicle.query.filter(
         Vehicle.company_code == session.get("company_code"),
         Vehicle.deleted == False,
         Vehicle.id.in_([
             int(vehicle_record_id)
-            for vehicle_record_id in favorite_vehicles
+            for vehicle_record_id in usage_vehicles
             if vehicle_record_id.isdigit()
         ])
-    ).all() if favorite_vehicles else []
+    ).all() if usage_vehicles else []
 
-    favorite_patrols = []
+    usage_patrols = []
     other_patrols = []
 
     query = VehiclePatrol.query.join(
@@ -8411,17 +8430,17 @@ def vehicle_patrols():
     for patrol_record in patrol_records:
         patrol = vehicle_patrol_to_dict(patrol_record)
 
-        if str(patrol.get("vehicle_record_id")) in favorite_vehicles:
-            favorite_patrols.append(patrol)
+        if str(patrol.get("vehicle_record_id")) in usage_vehicles:
+            usage_patrols.append(patrol)
         else:
             other_patrols.append(patrol)
 
     return render_template(
         "vehicle_patrols.html",
-        favorite_patrols=favorite_patrols,
+        usage_patrols=usage_patrols,
         other_patrols=other_patrols,
-        favorite_vehicles=favorite_vehicles,
-        favorite_vehicle_records=favorite_vehicle_records,
+        usage_vehicles=usage_vehicles,
+        usage_vehicle_records=usage_vehicle_records,
         keyword=keyword,
         status_filter=status_filter
     )
@@ -10354,10 +10373,7 @@ def new_driver():
             role=role,
             name=name,
             office=office,
-            favorite_vehicles_json=json.dumps(
-                selected_vehicles,
-                ensure_ascii=False
-            ),
+            favorite_vehicles_json="[]",
             email_address=email_address or None,
             email_notify_enabled=bool(email_address)
         )
@@ -10634,10 +10650,7 @@ def edit_driver(index):
                 office=office,
                 email_address=email_address or None,
                 email_notify_enabled=bool(email_address),
-                favorite_vehicles_json=json.dumps(
-                    selected_vehicles,
-                    ensure_ascii=False
-                )
+                favorite_vehicles_json="[]"
             )
 
             db.session.add(user)
@@ -10649,10 +10662,7 @@ def edit_driver(index):
             user.office = office
             user.email_address = email_address or None
             user.email_notify_enabled = bool(email_address)
-            user.favorite_vehicles_json = json.dumps(
-                selected_vehicles,
-                ensure_ascii=False
-            )
+            user.favorite_vehicles_json = "[]"
 
             if new_password:
                 password_history = parse_password_history(
@@ -12744,46 +12754,6 @@ def bulk_delete_vehicles():
                 new_driver_vehicles,
                 ensure_ascii=False
             )
-
-
-    # ユーザーのお気に入り車両から削除
-    user_query = User.query.filter(
-        User.company_code == company_code
-    )
-
-    if delete_vehicle_patterns:
-        user_query = user_query.filter(
-            db.or_(
-                *[
-                    User.favorite_vehicles_json.contains(pattern)
-                    for pattern in delete_vehicle_patterns
-                ]
-            )
-        )
-
-    for user in user_query.all():
-
-        favorite_vehicles = safe_json_str_list(
-            user.favorite_vehicles_json
-        )
-
-        new_favorite_vehicles = [
-            vehicle_record_id
-            for vehicle_record_id in favorite_vehicles
-            if vehicle_record_id not in {
-                str(record_id)
-                for record_id in vehicle_record_ids_to_delete
-            }
-        ]
-
-        if new_favorite_vehicles != favorite_vehicles:
-
-            user.favorite_vehicles_json = json.dumps(
-                new_favorite_vehicles,
-                ensure_ascii=False
-            )
-
-
     # 車両に紐づく通知設定を削除してから車両本体を完全削除
     for vehicle in vehicles_to_delete:
 
@@ -12961,22 +12931,6 @@ def delete_vehicle(index):
                 vehicles,
                 ensure_ascii=False
             )
-
-    for user in User.query.filter(
-        User.company_code == vehicle.company_code,
-        User.favorite_vehicles_json.contains(f'"{vehicle_record_id_str}"')
-    ).all():
-        favorite_vehicles = safe_json_str_list(
-            user.favorite_vehicles_json
-        )
-
-        if vehicle_record_id_str in favorite_vehicles:
-            favorite_vehicles.remove(vehicle_record_id_str)
-            user.favorite_vehicles_json = json.dumps(
-                favorite_vehicles,
-                ensure_ascii=False
-            )
-
     # 車両に紐づく通知設定を削除
     delete_vehicle_related_data(vehicle)
 
@@ -15030,7 +14984,8 @@ def vehicle_checklist_results(index):
     if vehicle_record_id:
         valid_vehicle = Vehicle.query.filter_by(
             company_code=checklist_record.company_code,
-            id=vehicle_record_id
+            id=vehicle_record_id,
+            deleted=False
         ).first()
 
         if not valid_vehicle:
@@ -15322,27 +15277,27 @@ def vehicle_checklist_results(index):
         ).all()
     }
 
-    current_user = User.query.filter_by(
+    current_driver = Driver.query.filter_by(
         company_code=session.get("company_code"),
-        username=session.get("username")
+        employee_id=session.get("username")
     ).first()
 
-    favorite_vehicle_ids = [
-        int(favorite_vehicle_id)
-        for favorite_vehicle_id in (
-            safe_json_str_list(current_user.favorite_vehicles_json)
-            if current_user
+    usage_vehicle_ids = [
+        int(vehicle_record_id)
+        for vehicle_record_id in (
+            safe_json_str_list(current_driver.vehicles_json)
+            if current_driver
             else []
         )
-        if favorite_vehicle_id.isdigit()
-        and int(favorite_vehicle_id) in valid_vehicle_ids
+        if vehicle_record_id.isdigit()
+        and int(vehicle_record_id) in valid_vehicle_ids
     ]
 
-    favorite_vehicles = Vehicle.query.filter(
+    usage_vehicles = Vehicle.query.filter(
         Vehicle.company_code == checklist_record.company_code,
         Vehicle.deleted == False,
-        Vehicle.id.in_(favorite_vehicle_ids)
-    ).all() if favorite_vehicle_ids else []
+        Vehicle.id.in_(usage_vehicle_ids)
+    ).all() if usage_vehicle_ids else []
 
     selected_vehicle = None
 
@@ -15379,8 +15334,8 @@ def vehicle_checklist_results(index):
         selected_notify_users=selected_notify_users,
         selected_reminder_notify_users=selected_reminder_notify_users,
         selected_vehicle=selected_vehicle,
-        favorite_vehicle_ids=favorite_vehicle_ids,
-        favorite_vehicles=favorite_vehicles,
+        usage_vehicle_ids=usage_vehicle_ids,
+        usage_vehicles=usage_vehicles,
         year=year,
         month=month,
         vehicle_record_id=vehicle_record_id,
@@ -19437,6 +19392,39 @@ with app.app_context():
 
         db.session.commit()
 
+    for user in User.query.all():
+        driver = Driver.query.filter_by(
+            company_code=user.company_code,
+            employee_id=user.username
+        ).first()
+
+        if not driver:
+            continue
+
+        usage_vehicle_ids = safe_json_str_list(
+            driver.vehicles_json
+        )
+
+        for vehicle_record_id in safe_json_str_list(
+            user.favorite_vehicles_json
+        ):
+            if (
+                vehicle_record_id.isdigit()
+                and vehicle_record_id not in usage_vehicle_ids
+            ):
+                usage_vehicle_ids.append(
+                    vehicle_record_id
+                )
+
+        driver.vehicles_json = json.dumps(
+            usage_vehicle_ids,
+            ensure_ascii=False
+        )
+
+        user.favorite_vehicles_json = "[]"
+
+    db.session.commit()
+
     if "vehicle_id" in existing_columns:
         for driver in Driver.query.all():
             vehicle_ids = safe_json_str_list(
@@ -19474,7 +19462,7 @@ with app.app_context():
                     )
 
             driver.vehicles_json = json.dumps(
-                converted_vehicle_ids,
+                list(dict.fromkeys(converted_vehicle_ids)),
                 ensure_ascii=False
             )
 
