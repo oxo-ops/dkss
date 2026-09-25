@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("vehicle_search_results");
 
     const vehicleId =
-        document.getElementById("vehicle_id");
+        document.getElementById("vehicle_record_id");
 
     const selectedVehicleDisplay =
         document.getElementById("selected_vehicle_display");
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             document.createElement("span");
 
                         const labelParts = [
-                            vehicle.vehicle_id,
+                            vehicle.chassis_number,
                             vehicle.number,
                             vehicle.manufacturer,
                             vehicle.model_code
@@ -118,7 +118,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         function selectVehicle() {
                             vehicleId.value =
-                                vehicle.vehicle_id;
+                                vehicle.vehicle_record_id;
 
                             const selectedLabel =
                                 labelParts.join(" / ");

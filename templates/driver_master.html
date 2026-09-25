@@ -238,9 +238,10 @@ driverVehicleFilter.addEventListener("input", function () {
                     document.createElement("option");
 
                 option.value =
-                    vehicle.vehicle_id;
+                    vehicle.vehicle_record_id;
 
                 const details = [
+                    vehicle.chassis_number,
                     vehicle.number,
                     vehicle.manufacturer,
                     vehicle.model_code

@@ -19,13 +19,13 @@
 
     <div class="favorite-setting-row">
         <div class="favorite-list">
-            {% for vehicle_id in favorite_vehicles %}
+            {% for vehicle in favorite_vehicle_records %}
                 <span class="favorite-tag">
-                    {{ vehicle_id }}
+                    {{ vehicle.chassis_number }}
 
                     <form
                         method="post"
-                        action="/vehicle-favorites/remove/{{ vehicle_id }}"
+                        action="/vehicle-favorites/remove/{{ vehicle.id }}"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="tag-remove">×</button>
@@ -44,13 +44,13 @@
                 <input
                     type="text"
                     id="favorite_vehicle_search"
-                    placeholder="車両ID・ナンバー・車台番号で検索"
+                    placeholder="車台番号・ナンバーで検索"
                     autocomplete="off"
                 >
 
                 <input
                     type="hidden"
-                    name="vehicle_id"
+                    name="vehicle_record_id"
                     id="favorite_vehicle_id"
                 >
 
@@ -74,7 +74,7 @@
         type="text"
         name="keyword"
         value="{{ keyword }}"
-        placeholder="車両ID・故障内容・修理実施者で検索"
+        placeholder="車台番号・ナンバー・故障内容・修理実施者で検索"
     >
 
     <select name="status">
@@ -115,7 +115,7 @@
     {% for patrol in favorite_patrols %}
     <tr>
         <td>{{ patrol.occurred_date or "-" }}</td>
-        <td>★ {{ patrol.vehicle_id or "-" }}</td>
+        <td>★ {{ patrol.chassis_number or "-" }}</td>
         <td>{{ patrol.content or "-" }}</td>
 
         <td>
@@ -160,7 +160,7 @@
     {% for patrol in favorite_patrols %}
         <div class="mobile-list-card">
             <div class="mobile-card-head">
-                <strong>★ {{ patrol.vehicle_id or "-" }}</strong>
+                <strong>★ {{ patrol.chassis_number or "-" }}</strong>
 
                 {% if patrol.status == "修理完了" %}
                     <span class="status-badge status-approved">修理完了</span>
@@ -223,7 +223,7 @@
     {% for patrol in other_patrols %}
     <tr>
         <td>{{ patrol.occurred_date or "-" }}</td>
-        <td>{{ patrol.vehicle_id or "-" }}</td>
+        <td>{{ patrol.chassis_number or "-" }}</td>
         <td>{{ patrol.content or "-" }}</td>
 
         <td>
@@ -268,7 +268,7 @@
     {% for patrol in other_patrols %}
         <div class="mobile-list-card">
             <div class="mobile-card-head">
-                <strong>{{ patrol.vehicle_id or "-" }}</strong>
+                <strong>{{ patrol.chassis_number or "-" }}</strong>
 
                 {% if patrol.status == "修理完了" %}
                     <span class="status-badge status-approved">修理完了</span>

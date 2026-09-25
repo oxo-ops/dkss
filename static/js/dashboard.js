@@ -159,7 +159,7 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                         row.className = "dashboard-vehicle-result-row";
 
                         const labelParts = [
-                            vehicle.vehicle_id,
+                            vehicle.chassis_number,
                             vehicle.number,
                             vehicle.manufacturer,
                             vehicle.model_code
@@ -177,7 +177,7 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                         button.textContent = "＋";
 
                         button.addEventListener("click", function () {
-                            vehicleIdInput.value = vehicle.vehicle_id;
+                            vehicleIdInput.value = vehicle.vehicle_record_id;
                             form.submit();
                         });
 
@@ -186,7 +186,7 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                                 return;
                             }
 
-                            vehicleIdInput.value = vehicle.vehicle_id;
+                            vehicleIdInput.value = vehicle.vehicle_record_id;
                             form.submit();
                         });
 

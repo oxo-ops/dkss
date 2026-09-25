@@ -321,7 +321,7 @@
 
                 {% set analysis =
                     my_vehicle_analysis.get(
-                        vehicle.vehicle_id,
+                        vehicle.id,
                         {}
                     )
                 %}
@@ -378,7 +378,7 @@
                         <div class="dashboard-vehicle-main-row">
 
                             <strong class="dashboard-vehicle-id">
-                                {{ vehicle.vehicle_id }}
+                                {{ vehicle.chassis_number }}
                             </strong>
 
                             {% if analysis.get("score_rate") is not none %}
@@ -454,7 +454,7 @@
 
                     <form
                         method="post"
-                        action="/vehicle-favorites/remove/{{ vehicle.vehicle_id }}"
+                        action="/vehicle-favorites/remove/{{ vehicle.id }}"
                         class="dashboard-vehicle-remove-form"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -503,7 +503,7 @@
 
             <input
                 type="hidden"
-                name="vehicle_id"
+                name="vehicle_record_id"
                 id="dashboardVehicleId"
             >
 
@@ -513,7 +513,7 @@
                     type="text"
                     id="dashboardVehicleSearch"
                     class="dashboard-vehicle-search-input"
-                    placeholder="車両ID・ナンバーで検索"
+                    placeholder="車台番号・ナンバーで検索"
                     autocomplete="off"
                 >
 
@@ -548,13 +548,19 @@
         {% for item in my_checklist_summaries %}
 
     <a
-        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_username|urlencode }}{% endif %}"
+        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ item.vehicle_record_id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_username|urlencode }}{% endif %}"
         class="dashboard-card dashboard-my-checklist-card"
     >
 
             <strong class="dashboard-my-checklist-name">
                 {{ item.name }}
             </strong>
+
+            {% if item.target == '車両管理' and item.vehicle_record_id %}
+            <span class="help-text">
+                対象車両 {{ item.chassis_number }}
+            </span>
+            {% endif %}
 
             <div class="dashboard-my-checklist-score-row">
 
@@ -784,7 +790,7 @@
                             {% if target.target_type != "user" or is_dashboard_admin %}
 
                             <a
-                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_id={{ target.target_label|urlencode }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_label|urlencode }}{% endif %}"
+                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={% if target.target_type == 'vehicle' %}{{ target.vehicle_record_id }}{% else %}{{ target.target_label|urlencode }}{% endif %}{% endif %}"
                                 class="dashboard-analysis-target-link"
                             >
 
@@ -962,7 +968,7 @@
         <tr
             {% if is_dashboard_admin %}
             class="dashboard-click-row"
-            data-url="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+            data-url="/master/vehicles?keyword={{ vehicle.chassis_number|urlencode }}"
             {% endif %}
         >
             <td>
@@ -986,7 +992,7 @@
 
                 {% if is_dashboard_admin %}
                 <a
-                    href="/master/vehicles?keyword={{ vehicle.vehicle_id|urlencode }}"
+                    href="/master/vehicles?keyword={{ vehicle.chassis_number|urlencode }}"
                     class="dashboard-vehicle-table-link"
                 >
                 {% else %}
@@ -999,7 +1005,7 @@
                     >
 
                     <span>
-                        {{ vehicle.vehicle_id }}｜{{ vehicle.number }}
+                        {{ vehicle.chassis_number }}｜{{ vehicle.number }}
                     </span>
                 {% if is_dashboard_admin %}
                 </a>

@@ -33,8 +33,8 @@
         {% if mode == "edit" %}
             <div class="form-group">
                 <p>
-                    <strong>車両ID：</strong>
-                    {{ vehicle.vehicle_id }}
+                    <strong>車台番号：</strong>
+                    {{ vehicle.chassis_number }}
                 </p>
             </div>
         {% endif %}
@@ -103,6 +103,7 @@
             <label>車台番号</label>
             <input
                 type="text"
+                id="chassis_number"
                 name="chassis_number"
                 value="{{ vehicle.chassis_number if vehicle else '' }}"
                 placeholder="例：FQ1ARB-10122"

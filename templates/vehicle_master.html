@@ -187,7 +187,6 @@
             </label>
         </th>
 
-        <th>車両ID</th>
         <th>ナンバープレート</th>
         <th>車台番号</th>
         <th>型式</th>
@@ -213,7 +212,6 @@
             >
         </td>
 
-        <td>{{ vehicle.vehicle_id }}</td>
         <td>
             {{ vehicle.plate_area }}
             {{ vehicle.plate_class }}
@@ -327,7 +325,7 @@
         <div class="mobile-list-card">
 
             <div class="mobile-card-head">
-                <strong>{{ vehicle.vehicle_id }}</strong>
+                <strong>{{ vehicle.chassis_number }}</strong>
                 <span class="status-badge status-approved">
                     {{ vehicle.type }}
                 </span>

@@ -156,6 +156,8 @@ def get_form_error_field(message):
         "納入先を選択してください。": "delivery_place",
         "納入先が不正です。": "delivery_place",
         "内容は5000文字以内で入力してください。": "content_editor",
+        "車台番号を入力してください。": "chassis_number",
+        "同じ車台番号の車両が既に登録されています。": "chassis_number",
     }
 
     return field_map.get(message)
@@ -169,7 +171,11 @@ def build_safe_redirect_url(referrer, fallback="/"):
     parsed_referrer = urlparse(normalized_referrer)
 
     if parsed_referrer.scheme or parsed_referrer.netloc:
-        return fallback
+        if (
+            parsed_referrer.scheme not in {"http", "https"}
+            or parsed_referrer.netloc != request.host
+        ):
+            return fallback
 
     redirect_path = parsed_referrer.path or "/"
 
@@ -202,7 +208,10 @@ def redirect_form_errors(response):
     if not request.accept_mimetypes.accept_html:
         return response
 
-    if request.path != "/pointouts/new":
+    if (
+        request.path != "/pointouts/new"
+        and not request.path.startswith("/master/")
+    ):
         return response
 
     message = response.get_data(
@@ -234,12 +243,25 @@ def redirect_form_errors(response):
             "content": request.form.get("content", ""),
         }
 
+    elif request.path == "/master/vehicles/new":
+        session["vehicle_form_data"] = request.form.to_dict(
+            flat=True
+        )
+
     flash(
         message,
         f"error:{error_field or ''}"
     )
 
-    return redirect("/pointouts/new")
+    if request.path == "/pointouts/new":
+        return redirect("/pointouts/new")
+
+    return redirect(
+        build_safe_redirect_url(
+            request.referrer,
+            request.path
+        )
+    )
 
 class UploadValidationError(ValueError):
     pass
@@ -490,12 +512,17 @@ class User(db.Model):
     )
 
 class Vehicle(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_code",
+            "chassis_number",
+            name="uq_vehicle_company_chassis_number"
+        ),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
-
-    # システム内で使用する車両ID
-    vehicle_id = db.Column(db.String(50), nullable=False)
 
     # 車番・ナンバー
     plate_area = db.Column(db.String(50))
@@ -504,7 +531,10 @@ class Vehicle(db.Model):
     plate_number = db.Column(db.String(50))
 
     # 車両台帳情報
-    chassis_number = db.Column(db.String(100))
+    chassis_number = db.Column(
+        db.String(100),
+        nullable=False
+    )
     model_code = db.Column(db.String(100))
     first_registration_date = db.Column(db.String(20))
     manufacturer = db.Column(db.String(100))
@@ -833,7 +863,11 @@ class VehiclePatrol(db.Model):
 
     company_code = db.Column(db.String(50), nullable=False)
 
-    vehicle_id = db.Column(db.String(50))
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False
+    )
     occurred_date = db.Column(db.String(20))
     category = db.Column(db.String(100))
     priority = db.Column(db.String(50))
@@ -920,7 +954,10 @@ class ChecklistResult(db.Model):
     target_type = db.Column(db.String(50))
     target_user = db.Column(db.String(100))
     target_username = db.Column(db.String(50))
-    target_vehicle = db.Column(db.String(100))
+    target_vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id")
+    )
     target_office = db.Column(db.String(100))
 
     checked_by = db.Column(db.String(100))
@@ -962,8 +999,10 @@ class VehicleChecklistResult(db.Model):
         nullable=False
     )
 
-    vehicle_id = db.Column(
-        db.String(50)
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False
     )
 
     year = db.Column(db.String(10))
@@ -1015,8 +1054,9 @@ class VehicleChecklistNotifySetting(db.Model):
         nullable=False
     )
 
-    vehicle_id = db.Column(
-        db.String(50),
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
         nullable=False
     )
 
@@ -1155,7 +1195,6 @@ def is_valid_uploaded_file(file, extension):
         stream.seek(0)
         header = stream.read(16)
         stream.seek(0)
-
         if extension == ".pdf":
             return header.startswith(b"%PDF-")
 
@@ -2069,11 +2108,21 @@ def manuals_for_current_company():
     ]
 
 def vehicle_patrol_to_dict(patrol):
+    vehicle = Vehicle.query.filter_by(
+        company_code=patrol.company_code,
+        id=patrol.vehicle_record_id
+    ).first()
+
     return {
+        "chassis_number": (
+            vehicle.chassis_number
+            if vehicle
+            else ""
+        ),
         "id": patrol.id,
         "index": patrol.id,
         "company_code": patrol.company_code,
-        "vehicle_id": patrol.vehicle_id,
+        "vehicle_record_id": patrol.vehicle_record_id,
         "occurred_date": patrol.occurred_date,
         "category": patrol.category,
         "priority": patrol.priority,
@@ -2283,7 +2332,7 @@ def checklist_result_to_dict(result):
         "target_type": result.target_type,
         "target_user": result.target_user,
         "target_username": result.target_username,
-        "target_vehicle": result.target_vehicle,
+        "target_vehicle_record_id": result.target_vehicle_record_id,
         "target_office": result.target_office,
         "checked_by": result.checked_by,
         "checked_by_username": result.checked_by_username,
@@ -2308,7 +2357,7 @@ def vehicle_checklist_result_to_dict(result):
         "index": result.id,
         "company_code": result.company_code,
         "checklist_id": result.checklist_id,
-        "vehicle_id": result.vehicle_id,
+        "vehicle_record_id": result.vehicle_record_id,
         "year": result.year,
         "month": result.month,
         "day": result.day,
@@ -2335,16 +2384,15 @@ def vehicle_checklist_result_to_dict(result):
 def get_vehicle_checklist_notify_users(
     company_code,
     checklist_id,
-    vehicle_id
+    vehicle_record_id
 ):
-    if not vehicle_id:
+    if not vehicle_record_id:
         return []
 
-    # すでに通知先設定がある場合は、その設定を優先
     setting = VehicleChecklistNotifySetting.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_id,
-        vehicle_id=vehicle_id
+        vehicle_record_id=vehicle_record_id
     ).first()
 
     if setting:
@@ -2403,7 +2451,7 @@ def get_vehicle_checklist_notify_users(
     past_results = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_id,
-        vehicle_id=vehicle_id
+        vehicle_record_id=vehicle_record_id
     ).all()
 
     for result in past_results:
@@ -2455,13 +2503,13 @@ def get_user_local_now(company_code, target_username):
 def is_vehicle_checklist_completed_on_date(
     company_code,
     checklist_id,
-    vehicle_id,
+    vehicle_record_id,
     target_date
 ):
     result = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_id,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         year=str(target_date.year),
         month=str(target_date.month).zfill(2),
         day=str(target_date.day).zfill(2)
@@ -2502,7 +2550,7 @@ def send_vehicle_checklist_reminders(company_code):
                 get_vehicle_checklist_notify_users(
                     company_code,
                     checklist.id,
-                    vehicle.vehicle_id
+                    vehicle.id
                 )
             )
 
@@ -2533,7 +2581,7 @@ def send_vehicle_checklist_reminders(company_code):
                 if is_vehicle_checklist_completed_on_date(
                     company_code,
                     checklist.id,
-                    vehicle.vehicle_id,
+                    vehicle.id,
                     local_date
                 ):
                     continue
@@ -2553,7 +2601,7 @@ def send_vehicle_checklist_reminders(company_code):
 
                 link = (
                     f"/vehicle/checklists/{checklist.id}"
-                    f"?vehicle_id={vehicle.vehicle_id}"
+                    f"?vehicle_record_id={vehicle.id}"
                     f"&year={local_date.year}"
                     f"&month={str(local_date.month).zfill(2)}"
                     f"&active_day={active_day}"
@@ -2575,7 +2623,7 @@ def send_vehicle_checklist_reminders(company_code):
                     title,
                     (
                         f"{checklist.name}："
-                        f"車両 {vehicle.vehicle_id} の"
+                        f"車両 {vehicle.chassis_number} の"
                         f"本日の点検が完了していません。"
                     ),
                     link,
@@ -3370,19 +3418,23 @@ def can_reject_checklist_result(result):
     return session.get("role") in ["admin", "itc"]
 
 def vehicle_number(vehicle):
-    return vehicle.get("number") or (
-        f"{vehicle.get('plate_area', '')} "
-        f"{vehicle.get('plate_class', '')} "
-        f"{vehicle.get('plate_kana', '')} "
-        f"{vehicle.get('plate_number', '')}"
-    ).strip()
+    return (
+        vehicle.get("chassis_number")
+        or vehicle.get("number")
+        or (
+            f"{vehicle.get('plate_area', '')} "
+            f"{vehicle.get('plate_class', '')} "
+            f"{vehicle.get('plate_kana', '')} "
+            f"{vehicle.get('plate_number', '')}"
+        ).strip()
+    )
 
 
 def delete_vehicle_related_data(vehicle):
 
     VehicleChecklistNotifySetting.query.filter_by(
         company_code=vehicle.company_code,
-        vehicle_id=vehicle.vehicle_id
+        vehicle_record_id=vehicle.id
     ).delete(synchronize_session=False)
 
 
@@ -3405,7 +3457,7 @@ def vehicles_with_numbers(include_inactive=False):
             "index": vehicle.id,
             "id": vehicle.id,
             "company_code": vehicle.company_code,
-            "vehicle_id": vehicle.vehicle_id,
+            "vehicle_record_id": vehicle.id,
             "deleted": vehicle.deleted,
 
             "plate_area": vehicle.plate_area,
@@ -5141,7 +5193,6 @@ def search_vehicles():
 
         query = query.filter(
             db.or_(
-                Vehicle.vehicle_id.ilike(keyword_like),
                 Vehicle.plate_area.ilike(keyword_like),
                 Vehicle.plate_class.ilike(keyword_like),
                 Vehicle.plate_kana.ilike(keyword_like),
@@ -5175,8 +5226,8 @@ def search_vehicles():
         )
 
         results.append({
-            "id": vehicle.vehicle_id,
-            "vehicle_id": vehicle.vehicle_id,
+            "id": vehicle.id,
+            "vehicle_record_id": vehicle.id,
             "number": number,
             "chassis_number": vehicle.chassis_number or "",
             "manufacturer": vehicle.manufacturer or "",
@@ -5435,7 +5486,8 @@ def dashboard():
 
 
         item = {
-            "vehicle_id": vehicle.vehicle_id,
+            "vehicle_record_id": vehicle.id,
+            "chassis_number": vehicle.chassis_number,
             "number": " ".join(
                 value
                 for value in [
@@ -5540,9 +5592,13 @@ def dashboard():
     favorite_vehicle_ids = []
 
     if current_user:
-        favorite_vehicle_ids = safe_json_str_list(
-            current_user.favorite_vehicles_json
-        )
+        favorite_vehicle_ids = [
+            int(vehicle_record_id)
+            for vehicle_record_id in safe_json_str_list(
+                current_user.favorite_vehicles_json
+            )
+            if vehicle_record_id.isdigit()
+        ]
 
     checklist_score_summaries = []
     my_checklist_summaries = []
@@ -5587,8 +5643,8 @@ def dashboard():
             )
 
             if dashboard_settings.get("office"):
-                office_vehicle_ids = [
-                    vehicle.vehicle_id
+                office_vehicle_record_ids = [
+                    vehicle.id
                     for vehicle in Vehicle.query.filter_by(
                         company_code=company_code,
                         office=dashboard_settings["office"],
@@ -5597,14 +5653,16 @@ def dashboard():
                 ]
 
                 vehicle_result_query = vehicle_result_query.filter(
-                    VehicleChecklistResult.vehicle_id.in_(office_vehicle_ids)
+                    VehicleChecklistResult.vehicle_record_id.in_(
+                        office_vehicle_record_ids
+                    )
                 )
 
             result_records = vehicle_result_query.all()
             my_result_records = [
                 result_record
                 for result_record in result_records
-                if result_record.vehicle_id in favorite_vehicle_ids
+                if result_record.vehicle_record_id in favorite_vehicle_ids
             ]
 
         else:
@@ -5728,199 +5786,392 @@ def dashboard():
             else None
         )
 
-        my_result_scores = []
+        if is_vehicle_checklist:
+            for favorite_vehicle_id in favorite_vehicle_ids:
+                vehicle_result_records = [
+                    result_record
+                    for result_record in my_result_records
+                    if result_record.vehicle_record_id == favorite_vehicle_id
+                ]
 
-        for result_record in my_result_records:
-            answers = safe_json_dict_list(
-                result_record.answers_json
-            )
+                if not vehicle_result_records:
+                    continue
 
-            result_check_items = check_items
+                vehicle_result_scores = []
+                vehicle_category_stats = {}
 
-            if (
-                is_vehicle_checklist
-                and result_record.checklist_snapshot_json
-            ):
-                result_snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
-                )
+                for result_record in vehicle_result_records:
+                    answers = safe_json_dict_list(
+                        result_record.answers_json
+                    )
 
-                if result_snapshot:
-                    result_check_items = [
-                        item
-                        for item in result_snapshot.get(
-                            "items",
-                            []
+                    result_check_items = check_items
+
+                    if result_record.checklist_snapshot_json:
+                        result_snapshot = safe_json_dict(
+                            result_record.checklist_snapshot_json
                         )
-                        if item.get("item_type") == "check"
-                    ]
 
-            total_score = 0
-            total_max_score = 0
+                        if result_snapshot:
+                            result_check_items = [
+                                item
+                                for item in result_snapshot.get(
+                                    "items",
+                                    []
+                                )
+                                if item.get("item_type") == "check"
+                            ]
 
-            for item, answer in zip(
-                result_check_items,
-                answers
-            ):
-                if item.get("input_type") != "select":
+                    total_score = 0
+                    total_max_score = 0
+
+                    for item, answer in zip(
+                        result_check_items,
+                        answers
+                    ):
+                        if item.get("input_type") != "select":
+                            continue
+
+                        numeric_choices = [
+                            dashboard_score_value(choice)
+                            for choice in item.get(
+                                "choices",
+                                []
+                            )
+                        ]
+
+                        numeric_choices = [
+                            value
+                            for value in numeric_choices
+                            if value is not None
+                        ]
+
+                        if not numeric_choices:
+                            continue
+
+                        score_value = dashboard_score_value(
+                            answer.get("value")
+                        )
+
+                        if score_value is None:
+                            continue
+
+                        item_max_score = max(
+                            numeric_choices
+                        )
+
+                        total_score += score_value
+                        total_max_score += item_max_score
+
+                        category = (
+                            item.get("category")
+                            or "その他"
+                        ).strip()
+
+                        if category not in vehicle_category_stats:
+                            vehicle_category_stats[category] = {
+                                "score": 0,
+                                "max_score": 0,
+                            }
+
+                        vehicle_category_stats[
+                            category
+                        ]["score"] += score_value
+
+                        vehicle_category_stats[
+                            category
+                        ]["max_score"] += item_max_score
+
+                    if total_max_score > 0:
+                        vehicle_result_scores.append(
+                            round(
+                                total_score
+                                / total_max_score
+                                * 100,
+                                1
+                            )
+                        )
+
+                if not vehicle_result_scores:
                     continue
 
-                numeric_choices = [
-                    dashboard_score_value(choice)
-                    for choice in item.get("choices", [])
-                ]
-
-                numeric_choices = [
-                    value
-                    for value in numeric_choices
-                    if value is not None
-                ]
-
-                if not numeric_choices:
-                    continue
-
-                score_value = dashboard_score_value(
-                    answer.get("value")
+                vehicle_average_score = round(
+                    sum(vehicle_result_scores)
+                    / len(vehicle_result_scores),
+                    1
                 )
 
-                if score_value is None:
-                    continue
+                vehicle_category_analysis = []
 
-                total_score += score_value
-                total_max_score += max(numeric_choices)
+                for (
+                    category,
+                    stats
+                ) in vehicle_category_stats.items():
+                    if stats["max_score"] <= 0:
+                        continue
 
-            if total_max_score > 0:
-                my_result_scores.append(
-                    round(
-                        total_score / total_max_score * 100,
+                    score_rate = round(
+                        stats["score"]
+                        / stats["max_score"]
+                        * 100,
                         1
                     )
+
+                    vehicle_category_analysis.append({
+                        "category": category,
+                        "score_rate": score_rate,
+                        "improvement_rate": round(
+                            100 - score_rate,
+                            1
+                        ),
+                    })
+
+                vehicle_category_analysis.sort(
+                    key=lambda item: item["score_rate"]
                 )
 
-        my_average_score = (
-            round(
-                sum(my_result_scores) / len(my_result_scores),
-                1
-            )
-            if my_result_scores
-            else None
-        )
-
-        my_category_stats = {}
-
-        for result_record in my_result_records:
-            answers = safe_json_dict_list(
-                result_record.answers_json
-            )
-
-            result_check_items = check_items
-
-            if (
-                is_vehicle_checklist
-                and result_record.checklist_snapshot_json
-            ):
-                result_snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
+                vehicle_category_analysis = (
+                    vehicle_category_analysis[:2]
                 )
 
-                if result_snapshot:
-                    result_check_items = [
-                        item
-                        for item in result_snapshot.get(
-                            "items",
+                average_difference = (
+                    round(
+                        vehicle_average_score
+                        - average_score,
+                        1
+                    )
+                    if average_score is not None
+                    else None
+                )
+
+                favorite_vehicle = Vehicle.query.filter_by(
+                    company_code=company_code,
+                    id=favorite_vehicle_id,
+                    deleted=False
+                ).first()
+
+                my_checklist_summaries.append({
+                    "id": checklist_record.id,
+                    "name": checklist_record.name,
+                    "target": checklist_record.target,
+                    "vehicle_record_id": favorite_vehicle_id,
+                    "chassis_number": (
+                        favorite_vehicle.chassis_number
+                        if favorite_vehicle
+                        else ""
+                    ),
+                    "target_user": user_name,
+                    "target_username": session.get(
+                        "username"
+                    ),
+                    "average_score": vehicle_average_score,
+                    "overall_average_score": average_score,
+                    "average_difference": average_difference,
+                    "result_count": len(
+                        vehicle_result_scores
+                    ),
+                    "max_score": max_score,
+                    "category_analysis": (
+                        vehicle_category_analysis
+                    ),
+                })
+
+        else:
+            my_result_scores = []
+
+            for result_record in my_result_records:
+                answers = safe_json_dict_list(
+                    result_record.answers_json
+                )
+
+                result_check_items = check_items
+
+                total_score = 0
+                total_max_score = 0
+
+                for item, answer in zip(
+                    result_check_items,
+                    answers
+                ):
+                    if item.get("input_type") != "select":
+                        continue
+
+                    numeric_choices = [
+                        dashboard_score_value(choice)
+                        for choice in item.get(
+                            "choices",
                             []
                         )
-                        if item.get("item_type") == "check"
                     ]
 
-            for item, answer in zip(
-                result_check_items,
-                answers
-            ):
-                if item.get("input_type") != "select":
-                    continue
+                    numeric_choices = [
+                        value
+                        for value in numeric_choices
+                        if value is not None
+                    ]
 
-                category = (
-                    item.get("category") or "その他"
-                ).strip()
+                    if not numeric_choices:
+                        continue
 
-                numeric_choices = []
+                    score_value = dashboard_score_value(
+                        answer.get("value")
+                    )
 
-                for choice in item.get("choices", []):
-                    score_value = dashboard_score_value(choice)
+                    if score_value is None:
+                        continue
 
-                    if score_value is not None:
-                        numeric_choices.append(score_value)
+                    total_score += score_value
+                    total_max_score += max(
+                        numeric_choices
+                    )
 
-                if not numeric_choices:
-                    continue
+                if total_max_score > 0:
+                    my_result_scores.append(
+                        round(
+                            total_score
+                            / total_max_score
+                            * 100,
+                            1
+                        )
+                    )
 
-                score = dashboard_score_value(
-                    answer.get("value")
-                )
-
-                if score is None:
-                    continue
-
-                item_max_score = max(numeric_choices)
-
-                if category not in my_category_stats:
-                    my_category_stats[category] = {
-                        "score": 0,
-                        "max_score": 0,
-                    }
-
-                my_category_stats[category]["score"] += score
-                my_category_stats[category]["max_score"] += item_max_score
-
-
-        my_category_analysis = []
-
-        for category, stats in my_category_stats.items():
-            if stats["max_score"] <= 0:
-                continue
-
-            score_rate = round(
-                stats["score"] / stats["max_score"] * 100,
-                1
-            )
-
-            my_category_analysis.append({
-                "category": category,
-                "score_rate": score_rate,
-                "improvement_rate": round(
-                    100 - score_rate,
+            my_average_score = (
+                round(
+                    sum(my_result_scores)
+                    / len(my_result_scores),
                     1
-                ),
-            })
-
-        my_category_analysis.sort(
-            key=lambda item: item["score_rate"]
-        )
-
-        my_category_analysis = my_category_analysis[:2]
-
-
-        if my_average_score is not None:
-            average_difference = (
-                round(my_average_score - average_score, 1)
-                if average_score is not None
+                )
+                if my_result_scores
                 else None
             )
 
-            my_checklist_summaries.append({
-                "id": checklist_record.id,
-                "name": checklist_record.name,
-                "target": checklist_record.target,
-                "target_user": user_name,
-                "target_username": session.get("username"),
-                "average_score": my_average_score,
-                "overall_average_score": average_score,
-                "average_difference": average_difference,
-                "result_count": len(my_result_scores),
-                "max_score": max_score,
-                "category_analysis": my_category_analysis,
-            })
+            my_category_stats = {}
+
+            for result_record in my_result_records:
+                answers = safe_json_dict_list(
+                    result_record.answers_json
+                )
+
+                for item, answer in zip(
+                    check_items,
+                    answers
+                ):
+                    if item.get("input_type") != "select":
+                        continue
+
+                    category = (
+                        item.get("category")
+                        or "その他"
+                    ).strip()
+
+                    numeric_choices = []
+
+                    for choice in item.get(
+                        "choices",
+                        []
+                    ):
+                        score_value = (
+                            dashboard_score_value(
+                                choice
+                            )
+                        )
+
+                        if score_value is not None:
+                            numeric_choices.append(
+                                score_value
+                            )
+
+                    if not numeric_choices:
+                        continue
+
+                    score = dashboard_score_value(
+                        answer.get("value")
+                    )
+
+                    if score is None:
+                        continue
+
+                    item_max_score = max(
+                        numeric_choices
+                    )
+
+                    if category not in my_category_stats:
+                        my_category_stats[category] = {
+                            "score": 0,
+                            "max_score": 0,
+                        }
+
+                    my_category_stats[
+                        category
+                    ]["score"] += score
+
+                    my_category_stats[
+                        category
+                    ]["max_score"] += item_max_score
+
+            my_category_analysis = []
+
+            for (
+                category,
+                stats
+            ) in my_category_stats.items():
+                if stats["max_score"] <= 0:
+                    continue
+
+                score_rate = round(
+                    stats["score"]
+                    / stats["max_score"]
+                    * 100,
+                    1
+                )
+
+                my_category_analysis.append({
+                    "category": category,
+                    "score_rate": score_rate,
+                    "improvement_rate": round(
+                        100 - score_rate,
+                        1
+                    ),
+                })
+
+            my_category_analysis.sort(
+                key=lambda item: item["score_rate"]
+            )
+
+            my_category_analysis = (
+                my_category_analysis[:2]
+            )
+
+            if my_average_score is not None:
+                average_difference = (
+                    round(
+                        my_average_score
+                        - average_score,
+                        1
+                    )
+                    if average_score is not None
+                    else None
+                )
+
+                my_checklist_summaries.append({
+                    "id": checklist_record.id,
+                    "name": checklist_record.name,
+                    "target": checklist_record.target,
+                    "target_user": user_name,
+                    "target_username": session.get(
+                        "username"
+                    ),
+                    "average_score": my_average_score,
+                    "overall_average_score": average_score,
+                    "average_difference": average_difference,
+                    "result_count": len(
+                        my_result_scores
+                    ),
+                    "max_score": max_score,
+                    "category_analysis": (
+                        my_category_analysis
+                    ),
+                })
 
         # カテゴリ別の評価を集計
         category_stats = {}
@@ -6126,7 +6377,7 @@ def dashboard():
                     result_url = url_for(
                         "vehicle_checklist_results",
                         index=checklist_record.id,
-                        vehicle_id=result_record.vehicle_id,
+                        vehicle_record_id=result_record.vehicle_record_id,
                         year=result_record.year,
                         month=result_record.month,
                         active_day=active_day,
@@ -6161,7 +6412,16 @@ def dashboard():
 
             if is_vehicle_checklist:
                 target_type = "vehicle"
-                target_label = result_record.vehicle_id
+
+                target_vehicle_record = Vehicle.query.filter_by(
+                    company_code=company_code,
+                    id=result_record.vehicle_record_id
+                ).first()
+
+                if not target_vehicle_record:
+                    continue
+
+                target_label = target_vehicle_record.chassis_number
 
             else:
                 target_type = result_record.target_type
@@ -6174,7 +6434,15 @@ def dashboard():
                     target_label = result_record.target_user
 
                 elif target_type == "vehicle":
-                    target_label = result_record.target_vehicle
+                    target_vehicle_record = Vehicle.query.filter_by(
+                        company_code=company_code,
+                        id=result_record.target_vehicle_record_id
+                    ).first()
+
+                    if not target_vehicle_record:
+                        continue
+
+                    target_label = target_vehicle_record.chassis_number
 
                 elif target_type == "office":
                     target_label = result_record.target_office
@@ -6250,6 +6518,13 @@ def dashboard():
                     "score": 0,
                     "max_score": 0,
                     "count": 0,
+                    "vehicle_record_id": (
+                        result_record.vehicle_record_id
+                        if is_vehicle_checklist
+                        else result_record.target_vehicle_record_id
+                        if target_type == "vehicle"
+                        else None
+                    ),
                 }
 
             target_stats[key]["score"] += target_score
@@ -6271,6 +6546,7 @@ def dashboard():
             target_analysis.append({
                 "target_type": target_type,
                 "target_label": target_label,
+                "vehicle_record_id": stats.get("vehicle_record_id"),
                 "score_rate": score_rate,
                 "improvement_rate": round(
                     100 - score_rate,
@@ -6295,11 +6571,11 @@ def dashboard():
 
                 target_vehicle = Vehicle.query.filter_by(
                     company_code=company_code,
-                    vehicle_id=target["target_label"],
-                    deleted=False
+                    id=target.get("vehicle_record_id")
                 ).first()
 
                 if target_vehicle:
+                    target["vehicle_record_id"] = target_vehicle.id
                     target["vehicle_type"] = target_vehicle.type or ""
                     target["body_type"] = target_vehicle.body_type or ""
 
@@ -6320,7 +6596,7 @@ def dashboard():
     my_vehicles = Vehicle.query.filter(
         Vehicle.company_code == company_code,
         Vehicle.deleted == False,
-        Vehicle.vehicle_id.in_(favorite_vehicle_ids)
+        Vehicle.id.in_(favorite_vehicle_ids)
     ).all() if favorite_vehicle_ids else []
 
     my_vehicle_analysis = {}
@@ -6345,7 +6621,7 @@ def dashboard():
                 VehicleChecklistResult.query.filter_by(
                     company_code=company_code,
                     checklist_id=checklist_record.id,
-                    vehicle_id=vehicle.vehicle_id
+                    vehicle_record_id=vehicle.id
                 )
                 .filter(
                     VehicleChecklistResult.checked_date
@@ -6490,7 +6766,7 @@ def dashboard():
         )
 
         my_vehicle_analysis[
-            vehicle.vehicle_id
+            vehicle.id
         ] = {
             "score_rate": score_rate,
             "result_count": vehicle_result_count,
@@ -7802,11 +8078,14 @@ def new_vehicle_patrol():
 
     if request.method == "POST":
 
-        vehicle_id = request.form.get("vehicle_id", "").strip()
+        vehicle_record_id = request.form.get(
+            "vehicle_record_id",
+            type=int
+        )
 
         vehicle = Vehicle.query.filter_by(
             company_code=session.get("company_code"),
-            vehicle_id=vehicle_id,
+            id=vehicle_record_id,
             deleted=False
         ).first()
 
@@ -7945,7 +8224,7 @@ def new_vehicle_patrol():
             
         patrol = VehiclePatrol(
             company_code=session.get("company_code"),
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle.id,
             occurred_date=occurred_date,
             category=category,
             priority=priority,
@@ -7977,14 +8256,17 @@ def new_vehicle_patrol():
 @app.route("/vehicle-favorites/add", methods=["POST"])
 @limiter.limit("30 per minute")
 def add_vehicle_favorite():
-    vehicle_id = request.form.get("vehicle_id", "").strip()
+    vehicle_record_id = request.form.get(
+        "vehicle_record_id",
+        type=int
+    )
 
-    if not vehicle_id:
+    if not vehicle_record_id:
         return redirect("/vehicle-patrols")
 
     vehicle = Vehicle.query.filter_by(
         company_code=session.get("company_code"),
-        vehicle_id=vehicle_id,
+        id=vehicle_record_id,
         deleted=False
     ).first()
 
@@ -8004,8 +8286,10 @@ def add_vehicle_favorite():
         current_user.favorite_vehicles_json
     )
 
-    if vehicle_id not in favorite_vehicles:
-        favorite_vehicles.append(vehicle_id)
+    vehicle_record_id_str = str(vehicle.id)
+
+    if vehicle_record_id_str not in favorite_vehicles:
+        favorite_vehicles.append(vehicle_record_id_str)
 
     current_user.favorite_vehicles_json = json.dumps(
         favorite_vehicles,
@@ -8014,13 +8298,19 @@ def add_vehicle_favorite():
 
     db.session.commit()
 
+    return redirect(
+        build_safe_redirect_url(
+            request.form.get("next"),
+            "/vehicle-patrols"
+        )
+    )
 
-
-    return redirect("/vehicle-patrols")
-
-@app.route("/vehicle-favorites/remove/<vehicle_id>", methods=["POST"])
+@app.route(
+    "/vehicle-favorites/remove/<int:vehicle_record_id>",
+    methods=["POST"]
+)
 @limiter.limit("30 per minute")
-def remove_vehicle_favorite(vehicle_id):
+def remove_vehicle_favorite(vehicle_record_id):
     current_user = User.query.filter_by(
         company_code=session.get("company_code"),
         username=session.get("username")
@@ -8034,8 +8324,10 @@ def remove_vehicle_favorite(vehicle_id):
         current_user.favorite_vehicles_json
     )
 
-    if vehicle_id in favorite_vehicles:
-        favorite_vehicles.remove(vehicle_id)
+    vehicle_record_id_str = str(vehicle_record_id)
+
+    if vehicle_record_id_str in favorite_vehicles:
+        favorite_vehicles.remove(vehicle_record_id_str)
 
     current_user.favorite_vehicles_json = json.dumps(
         favorite_vehicles,
@@ -8044,7 +8336,12 @@ def remove_vehicle_favorite(vehicle_id):
 
     db.session.commit()
 
-    return redirect("/vehicle-patrols")
+    return redirect(
+        build_safe_redirect_url(
+            request.form.get("next"),
+            "/vehicle-patrols"
+        )
+    )
 
 @app.route("/vehicle-patrols")
 def vehicle_patrols():
@@ -8066,10 +8363,23 @@ def vehicle_patrols():
         else []
     )
 
+    favorite_vehicle_records = Vehicle.query.filter(
+        Vehicle.company_code == session.get("company_code"),
+        Vehicle.deleted == False,
+        Vehicle.id.in_([
+            int(vehicle_record_id)
+            for vehicle_record_id in favorite_vehicles
+            if vehicle_record_id.isdigit()
+        ])
+    ).all() if favorite_vehicles else []
+
     favorite_patrols = []
     other_patrols = []
 
-    query = VehiclePatrol.query.filter(
+    query = VehiclePatrol.query.join(
+        Vehicle,
+        Vehicle.id == VehiclePatrol.vehicle_record_id
+    ).filter(
         VehiclePatrol.company_code == session.get("company_code")
     )
 
@@ -8087,7 +8397,8 @@ def vehicle_patrols():
 
         query = query.filter(
             db.or_(
-                VehiclePatrol.vehicle_id.ilike(keyword_like),
+                Vehicle.chassis_number.ilike(keyword_like),
+                Vehicle.plate_number.ilike(keyword_like),
                 VehiclePatrol.content.ilike(keyword_like),
                 VehiclePatrol.repair_person.ilike(keyword_like)
             )
@@ -8100,7 +8411,7 @@ def vehicle_patrols():
     for patrol_record in patrol_records:
         patrol = vehicle_patrol_to_dict(patrol_record)
 
-        if patrol.get("vehicle_id") in favorite_vehicles:
+        if str(patrol.get("vehicle_record_id")) in favorite_vehicles:
             favorite_patrols.append(patrol)
         else:
             other_patrols.append(patrol)
@@ -8110,6 +8421,7 @@ def vehicle_patrols():
         favorite_patrols=favorite_patrols,
         other_patrols=other_patrols,
         favorite_vehicles=favorite_vehicles,
+        favorite_vehicle_records=favorite_vehicle_records,
         keyword=keyword,
         status_filter=status_filter
     )
@@ -8150,11 +8462,14 @@ def edit_vehicle_patrol(index):
         return redirect("/vehicle-patrols")
 
     if request.method == "POST":
-        vehicle_id = request.form.get("vehicle_id", "").strip()
+        vehicle_record_id = request.form.get(
+            "vehicle_record_id",
+            type=int
+        )
 
         vehicle = Vehicle.query.filter_by(
             company_code=session.get("company_code"),
-            vehicle_id=vehicle_id,
+            id=vehicle_record_id,
             deleted=False
         ).first()
 
@@ -8291,7 +8606,7 @@ def edit_vehicle_patrol(index):
                     400
                 )
             
-        patrol.vehicle_id = vehicle_id
+        patrol.vehicle_record_id = vehicle.id
         patrol.occurred_date = occurred_date
         patrol.category = category
         patrol.priority = priority
@@ -8316,7 +8631,7 @@ def edit_vehicle_patrol(index):
 
     vehicle = Vehicle.query.filter_by(
         company_code=patrol.company_code,
-        vehicle_id=patrol.vehicle_id
+        id=patrol.vehicle_record_id
     ).first()
 
     if vehicle:
@@ -8333,7 +8648,8 @@ def edit_vehicle_patrol(index):
         )
 
         selected_vehicle = {
-            "vehicle_id": vehicle.vehicle_id,
+            "vehicle_record_id": vehicle.id,
+            "chassis_number": vehicle.chassis_number,
             "number": number,
             "manufacturer": vehicle.manufacturer or "",
             "model_code": vehicle.model_code or "",
@@ -8367,7 +8683,10 @@ def delete_vehicle_patrol(index):
         action="vehicle_patrol_deleted",
         target_type="vehicle_patrol",
         target_id=patrol.id,
-        detail=f"車両パトロール・修理履歴削除: vehicle_id={patrol.vehicle_id}",
+        detail=(
+            "車両パトロール・修理履歴削除: "
+            f"vehicle_record_id={patrol.vehicle_record_id}"
+        ),
         company_code=patrol.company_code,
     )
 
@@ -9693,9 +10012,12 @@ def driver_master():
             return "営業所が不正です。", 400
 
     if vehicle:
+        if not vehicle.isdigit():
+            return "車両が不正です。", 400
+
         valid_vehicle = Vehicle.query.filter_by(
             company_code=session.get("company_code"),
-            vehicle_id=vehicle,
+            id=int(vehicle),
             deleted=False
         ).first()
 
@@ -9924,16 +10246,16 @@ def new_driver():
         # 車両検証
         # =========================
 
-        valid_vehicle_ids = {
-            vehicle.vehicle_id
+        valid_vehicle_record_ids = {
+            str(vehicle.id)
             for vehicle in Vehicle.query.filter_by(
                 company_code=company_code,
                 deleted=False
             ).all()
         }
 
-        for vehicle_id in selected_vehicles:
-            if vehicle_id not in valid_vehicle_ids:
+        for vehicle_record_id in selected_vehicles:
+            if vehicle_record_id not in valid_vehicle_record_ids:
                 return "選択された車両が不正です。", 400
 
         # =========================
@@ -10208,16 +10530,16 @@ def edit_driver(index):
         # 車両検証
         # =========================
 
-        valid_vehicle_ids = {
-            vehicle.vehicle_id
+        valid_vehicle_record_ids = {
+            str(vehicle.id)
             for vehicle in Vehicle.query.filter_by(
                 company_code=company_code,
                 deleted=False
             ).all()
         }
 
-        for vehicle_id in selected_vehicles:
-            if vehicle_id not in valid_vehicle_ids:
+        for vehicle_record_id in selected_vehicles:
+            if vehicle_record_id not in valid_vehicle_record_ids:
                 return "選択された車両が不正です。", 400
 
         # =========================
@@ -10419,9 +10741,15 @@ def edit_driver(index):
 
     if driver_dict["vehicles"]:
 
+        selected_vehicle_record_ids = [
+            int(vehicle_record_id)
+            for vehicle_record_id in driver_dict["vehicles"]
+            if str(vehicle_record_id).isdigit()
+        ]
+
         selected_vehicle_records = Vehicle.query.filter(
             Vehicle.company_code == driver.company_code,
-            Vehicle.vehicle_id.in_(driver_dict["vehicles"]),
+            Vehicle.id.in_(selected_vehicle_record_ids),
             Vehicle.deleted == False
         ).all()
 
@@ -10442,7 +10770,8 @@ def edit_driver(index):
         )
 
         selected_vehicles.append({
-            "vehicle_id": vehicle.vehicle_id,
+            "vehicle_record_id": vehicle.id,
+            "chassis_number": vehicle.chassis_number,
             "number": number,
             "type": vehicle.type or "",
         })
@@ -10698,7 +11027,6 @@ def vehicle_master():
 
         query = query.filter(
             db.or_(
-                Vehicle.vehicle_id.ilike(keyword_like),
                 Vehicle.plate_area.ilike(keyword_like),
                 Vehicle.plate_class.ilike(keyword_like),
                 Vehicle.plate_kana.ilike(keyword_like),
@@ -10816,7 +11144,7 @@ def vehicle_master():
             "index": vehicle.id,
             "id": vehicle.id,
             "company_code": vehicle.company_code,
-            "vehicle_id": vehicle.vehicle_id,
+            "vehicle_record_id": vehicle.id,
             "deleted": vehicle.deleted,
 
             "plate_area": vehicle.plate_area,
@@ -11001,12 +11329,10 @@ def import_vehicles():
             if not any(value is not None for value in row_values):
                 continue
 
-            # 車番も車体番号も無い行は車両データではないとして読み飛ばす
             plate_number = row_values[header_map["車番"]]
             chassis_number = row_values[header_map["車体番号"]]
 
-            if not plate_number and not chassis_number:
-                continue
+
 
             vehicle_data = {
                 "excel_row": data_row,
@@ -11058,22 +11384,6 @@ def import_vehicles():
             except (TypeError, ValueError):
                 return None
 
-        def preview_plate_key(vehicle):
-            return (
-                clean_preview_text(
-                    vehicle.get("plate_area")
-                ),
-                clean_preview_text(
-                    vehicle.get("plate_class")
-                ),
-                clean_preview_text(
-                    vehicle.get("plate_kana")
-                ),
-                clean_preview_text(
-                    vehicle.get("plate_number")
-                ),
-            )
-
         incoming_chassis_numbers = {
             clean_preview_text(
                 vehicle.get("chassis_number")
@@ -11084,20 +11394,6 @@ def import_vehicles():
             )
         }
 
-        incoming_plate_numbers = {
-            clean_preview_text(
-                vehicle.get("plate_number")
-            )
-            for vehicle in vehicles_data
-            if (
-                not clean_preview_text(
-                    vehicle.get("chassis_number")
-                )
-                and clean_preview_text(
-                    vehicle.get("plate_number")
-                )
-            )
-        }
 
         existing_preview_records = []
 
@@ -11112,19 +11408,7 @@ def import_vehicles():
                 ).all()
             )
 
-        if incoming_plate_numbers:
-            existing_preview_records.extend(
-                Vehicle.query.filter(
-                    Vehicle.company_code
-                    == session.get("company_code"),
-                    db.func.trim(
-                        Vehicle.plate_number
-                    ).in_(incoming_plate_numbers)
-                ).all()
-            )
-
         existing_preview_by_chassis = {}
-        existing_preview_by_plate = {}
 
         for existing_vehicle in existing_preview_records:
 
@@ -11136,27 +11420,6 @@ def import_vehicles():
                 existing_preview_by_chassis[
                     existing_chassis
                 ] = existing_vehicle
-
-            existing_plate_key = (
-                clean_preview_text(
-                    existing_vehicle.plate_area
-                ),
-                clean_preview_text(
-                    existing_vehicle.plate_class
-                ),
-                clean_preview_text(
-                    existing_vehicle.plate_kana
-                ),
-                clean_preview_text(
-                    existing_vehicle.plate_number
-                ),
-            )
-
-            if existing_plate_key[3]:
-                existing_preview_by_plate.setdefault(
-                    existing_plate_key,
-                    existing_vehicle
-                )
 
         # この会社で過去に保存した
         # Excel車種コード → 車種名 の対応を取得
@@ -11193,28 +11456,22 @@ def import_vehicles():
                 vehicle.get("chassis_number")
             )
 
-            plate_key = preview_plate_key(vehicle)
+            if not chassis_number:
+                return (
+                    f"{vehicle.get('excel_row')}行目の車台番号を入力してください。",
+                    400
+                )
 
-            if chassis_number:
-                import_key = (
-                    "chassis",
+            import_key = (
+                "chassis",
+                chassis_number
+            )
+
+            existing_vehicle = (
+                existing_preview_by_chassis.get(
                     chassis_number
                 )
-                existing_vehicle = (
-                    existing_preview_by_chassis.get(
-                        chassis_number
-                    )
-                )
-            else:
-                import_key = (
-                    "plate",
-                    *plate_key
-                )
-                existing_vehicle = (
-                    existing_preview_by_plate.get(
-                        plate_key
-                    )
-                )
+            )
 
             is_excel_duplicate = (
                 import_key in processed_import_keys
@@ -11438,7 +11695,7 @@ def confirm_vehicle_import():
             400
         )
 
-    import_count = len(plate_numbers)
+    import_count = len(chassis_numbers)
 
     if import_count > 5000:
         return (
@@ -11464,31 +11721,10 @@ def confirm_vehicle_import():
     def normalize_import_text(value):
         return str(value or "").strip()
 
-    def import_plate_key(index):
-        return (
-            normalize_import_text(plate_areas[index]),
-            normalize_import_text(plate_classes[index]),
-            normalize_import_text(plate_kanas[index]),
-            normalize_import_text(plate_numbers[index]),
-        )
-
     import_chassis_numbers = {
         normalize_import_text(value)
         for value in chassis_numbers
         if normalize_import_text(value)
-    }
-
-    import_plate_numbers = {
-        normalize_import_text(plate_numbers[i])
-        for i in range(import_count)
-        if (
-            not normalize_import_text(
-                chassis_numbers[i]
-            )
-            and normalize_import_text(
-                plate_numbers[i]
-            )
-        )
     }
 
     existing_vehicle_records = []
@@ -11503,18 +11739,7 @@ def confirm_vehicle_import():
             ).all()
         )
 
-    if import_plate_numbers:
-        existing_vehicle_records.extend(
-            Vehicle.query.filter(
-                Vehicle.company_code == company_code,
-                db.func.trim(
-                    Vehicle.plate_number
-                ).in_(import_plate_numbers)
-            ).all()
-        )
-
     existing_vehicles_by_chassis = {}
-    existing_vehicles_by_plate = {}
 
     for existing_vehicle in existing_vehicle_records:
 
@@ -11527,27 +11752,6 @@ def confirm_vehicle_import():
                 existing_chassis
             ] = existing_vehicle
 
-        existing_plate_key = (
-            normalize_import_text(
-                existing_vehicle.plate_area
-            ),
-            normalize_import_text(
-                existing_vehicle.plate_class
-            ),
-            normalize_import_text(
-                existing_vehicle.plate_kana
-            ),
-            normalize_import_text(
-                existing_vehicle.plate_number
-            ),
-        )
-
-        if existing_plate_key[3]:
-            existing_vehicles_by_plate.setdefault(
-                existing_plate_key,
-                existing_vehicle
-            )
-
     counted_import_keys = set()
     new_vehicle_count = 0
     reactivate_vehicle_count = 0
@@ -11557,28 +11761,23 @@ def confirm_vehicle_import():
         chassis_number = normalize_import_text(
             chassis_numbers[i]
         )
-        plate_key = import_plate_key(i)
 
-        if chassis_number:
-            import_key = (
-                "chassis",
+        if not chassis_number:
+            return (
+                f"{i + 1}行目の車台番号を入力してください。",
+                400
+            )
+
+        import_key = (
+            "chassis",
+            chassis_number
+        )
+
+        existing_vehicle = (
+            existing_vehicles_by_chassis.get(
                 chassis_number
             )
-            existing_vehicle = (
-                existing_vehicles_by_chassis.get(
-                    chassis_number
-                )
-            )
-        else:
-            import_key = (
-                "plate",
-                *plate_key
-            )
-            existing_vehicle = (
-                existing_vehicles_by_plate.get(
-                    plate_key
-                )
-            )
+        )
 
         if existing_vehicle:
             if (
@@ -11611,20 +11810,6 @@ def confirm_vehicle_import():
                 f"再有効化予定 {reactivate_vehicle_count} 台、"
                 f"上限 {company.vehicle_limit} 台です。"
             )
-
-
-    max_number = db.session.query(
-        db.func.max(
-            db.cast(
-                db.func.substr(Vehicle.vehicle_id, 2),
-                db.Integer
-            )
-        )
-    ).filter(
-        Vehicle.company_code == company_code,
-        Vehicle.vehicle_id.like("V%")
-    ).scalar() or 0
-            
     # 今回のExcel内ですでに処理した車両
     processed_import_keys = set()
     processed_row_indexes = set()
@@ -11762,33 +11947,22 @@ def confirm_vehicle_import():
         if error:
             return error, 400
 
-        plate_key = (
-            plate_area,
-            plate_class,
-            plate_kana,
-            plate_number,
+        if not chassis_number:
+            return (
+                f"{i + 1}行目の車台番号を入力してください。",
+                400
+            )
+
+        import_key = (
+            "chassis",
+            chassis_number
         )
 
-        if chassis_number:
-            import_key = (
-                "chassis",
+        existing_vehicle = (
+            existing_vehicles_by_chassis.get(
                 chassis_number
             )
-            existing_vehicle = (
-                existing_vehicles_by_chassis.get(
-                    chassis_number
-                )
-            )
-        else:
-            import_key = (
-                "plate",
-                *plate_key
-            )
-            existing_vehicle = (
-                existing_vehicles_by_plate.get(
-                    plate_key
-                )
-            )
+        )
 
         # Excel内で同じ車両が重複している場合
         if import_key in processed_import_keys:
@@ -11873,7 +12047,7 @@ def confirm_vehicle_import():
         if error:
             return error, 400
         
-        # 車台番号または車番が一致する既存車両を更新
+        # 車台番号が一致する既存車両を更新
         if existing_vehicle:
             update_values = {
                 "plate_area": clean_text(plate_areas[i]),
@@ -11919,13 +12093,8 @@ def confirm_vehicle_import():
 
             continue
 
-        max_number += 1
-
-        new_id = f"V{max_number:03}"
-
         vehicle = Vehicle(
             company_code=company_code,
-            vehicle_id=new_id,
 
             plate_area=plate_area,
             plate_class=plate_class,
@@ -12060,19 +12229,6 @@ def new_vehicle():
             if vehicle_count >= company.vehicle_limit:
                 return "登録可能台数の上限に達しています。", 409
 
-        max_number = db.session.query(
-            db.func.max(
-                db.cast(
-                    db.func.substr(Vehicle.vehicle_id, 2),
-                    db.Integer
-                )
-            )
-        ).filter(
-            Vehicle.company_code == company_code,
-            Vehicle.vehicle_id.like("V%")
-        ).scalar() or 0
-
-        new_id = f"V{max_number + 1:03}"
         first_registration_date = (
             request.form.get(
                 "first_registration_date",
@@ -12112,7 +12268,23 @@ def new_vehicle():
         office = (
             request.form.get("office", "").strip()
         )
+        chassis_number = (
+            request.form.get("chassis_number", "").strip()
+        )
 
+        if not chassis_number:
+            return "車台番号を入力してください。", 400
+
+        duplicate_vehicle = Vehicle.query.filter_by(
+            company_code=company_code,
+            chassis_number=chassis_number
+        ).first()
+
+        if duplicate_vehicle:
+            if not duplicate_vehicle.deleted:
+                return "同じ車台番号の車両が既に登録されています。", 409
+
+            duplicate_vehicle.deleted = False
         text_fields = [
             (
                 request.form.get("plate_area", "").strip(),
@@ -12181,43 +12353,48 @@ def new_vehicle():
 
             if not valid_office:
                 return "営業所が不正です。", 400
-        vehicle = Vehicle(
+        vehicle = duplicate_vehicle or Vehicle(
             company_code=company_code,
-            vehicle_id=new_id,
-
-            plate_area=request.form.get("plate_area"),
-            plate_class=request.form.get("plate_class"),
-            plate_kana=request.form.get("plate_kana"),
-            plate_number=request.form.get("plate_number"),
-
-            chassis_number=request.form.get("chassis_number"),
-            model_code=request.form.get("model_code"),
-            first_registration_date=first_registration_date,
-            manufacturer=request.form.get("manufacturer"),
-            body_type=request.form.get("body_type"),
-
-            gross_vehicle_weight=parse_nonnegative_int(
-                request.form.get("gross_vehicle_weight"),
-                "車両総重量"
-            ),
-            max_payload=parse_nonnegative_int(
-                request.form.get("max_payload"),
-                "最大積載量"
-            ),
-
-            type=vehicle_type,
-            office=office,
-            inspection_expiry=inspection_expiry,
+            chassis_number=chassis_number
         )
 
-        db.session.add(vehicle)
+        vehicle.deleted = False
+        vehicle.plate_area = request.form.get("plate_area")
+        vehicle.plate_class = request.form.get("plate_class")
+        vehicle.plate_kana = request.form.get("plate_kana")
+        vehicle.plate_number = request.form.get("plate_number")
+
+        vehicle.chassis_number = chassis_number
+        vehicle.model_code = request.form.get("model_code")
+        vehicle.first_registration_date = first_registration_date
+        vehicle.manufacturer = request.form.get("manufacturer")
+        vehicle.body_type = request.form.get("body_type")
+
+        vehicle.gross_vehicle_weight = parse_nonnegative_int(
+            request.form.get("gross_vehicle_weight"),
+            "車両総重量"
+        )
+        vehicle.max_payload = parse_nonnegative_int(
+            request.form.get("max_payload"),
+            "最大積載量"
+        )
+
+        vehicle.type = vehicle_type
+        vehicle.office = office
+        vehicle.inspection_expiry = inspection_expiry
+
+        if not duplicate_vehicle:
+            db.session.add(vehicle)
         db.session.commit()
 
         return redirect("/master/vehicles")
 
     return render_template(
         "vehicle_form.html",
-        vehicle=None,
+        vehicle=session.pop(
+            "vehicle_form_data",
+            None
+        ),
         offices=offices_for_current_company(),
         vehicle_types=vehicle_types_for_current_company(),
         mode="new"
@@ -12236,6 +12413,22 @@ def edit_vehicle(index):
         return redirect("/master/vehicles")
 
     if request.method == "POST":
+        chassis_number = (
+            request.form.get("chassis_number", "").strip()
+        )
+
+        if not chassis_number:
+            return "車台番号を入力してください。", 400
+
+        duplicate_vehicle = Vehicle.query.filter(
+            Vehicle.company_code == vehicle.company_code,
+            Vehicle.chassis_number == chassis_number,
+            Vehicle.id != vehicle.id
+        ).first()
+
+        if duplicate_vehicle:
+            return "同じ車台番号の車両が既に登録されています。", 409
+
         first_registration_date = (
             request.form.get(
                 "first_registration_date",
@@ -12349,7 +12542,7 @@ def edit_vehicle(index):
         vehicle.plate_kana = request.form.get("plate_kana")
         vehicle.plate_number = request.form.get("plate_number")
 
-        vehicle.chassis_number = request.form.get("chassis_number")
+        vehicle.chassis_number = chassis_number
         vehicle.model_code = request.form.get("model_code")
         vehicle.first_registration_date = first_registration_date
         vehicle.manufacturer = request.form.get("manufacturer")
@@ -12374,7 +12567,7 @@ def edit_vehicle(index):
         return redirect("/master/vehicles")
 
     vehicle_dict = {
-        "vehicle_id": vehicle.vehicle_id,
+        "vehicle_record_id": vehicle.id,
         "plate_area": vehicle.plate_area,
         "plate_class": vehicle.plate_class,
         "plate_kana": vehicle.plate_kana,
@@ -12387,6 +12580,7 @@ def edit_vehicle(index):
         "gross_vehicle_weight": vehicle.gross_vehicle_weight,
         "max_payload": vehicle.max_payload,
         "number": vehicle_number({
+            "chassis_number": vehicle.chassis_number,
             "plate_area": vehicle.plate_area,
             "plate_class": vehicle.plate_class,
             "plate_kana": vehicle.plate_kana,
@@ -12471,25 +12665,30 @@ def bulk_delete_vehicles():
     if not vehicles_to_delete:
         return redirect("/master/vehicles")
 
-    vehicle_ids_to_delete = {
-        vehicle.vehicle_id
+    vehicle_record_ids_to_delete = {
+        vehicle.id
         for vehicle in vehicles_to_delete
-        if vehicle.vehicle_id
     }
 
     vehicle_patrol_in_use = VehiclePatrol.query.filter(
         VehiclePatrol.company_code == company_code,
-        VehiclePatrol.vehicle_id.in_(vehicle_ids_to_delete)
+        VehiclePatrol.vehicle_record_id.in_(
+            vehicle_record_ids_to_delete
+        )
     ).first()
 
     vehicle_checklist_in_use = VehicleChecklistResult.query.filter(
         VehicleChecklistResult.company_code == company_code,
-        VehicleChecklistResult.vehicle_id.in_(vehicle_ids_to_delete)
+        VehicleChecklistResult.vehicle_record_id.in_(
+            vehicle_record_ids_to_delete
+        )
     ).first()
 
     checklist_in_use = ChecklistResult.query.filter(
         ChecklistResult.company_code == company_code,
-        ChecklistResult.target_vehicle.in_(vehicle_ids_to_delete)
+        ChecklistResult.target_vehicle_record_id.in_(
+            vehicle_record_ids_to_delete
+        )
     ).first()
 
     if (
@@ -12504,8 +12703,8 @@ def bulk_delete_vehicles():
         )
 
     delete_vehicle_patterns = [
-        f'"{vehicle_id}"'
-        for vehicle_id in vehicle_ids_to_delete
+        f'"{vehicle_record_id}"'
+        for vehicle_record_id in vehicle_record_ids_to_delete
     ]
 
 
@@ -12531,9 +12730,12 @@ def bulk_delete_vehicles():
         )
 
         new_driver_vehicles = [
-            vehicle_id
-            for vehicle_id in driver_vehicles
-            if vehicle_id not in vehicle_ids_to_delete
+            vehicle_record_id
+            for vehicle_record_id in driver_vehicles
+            if vehicle_record_id not in {
+                str(record_id)
+                for record_id in vehicle_record_ids_to_delete
+            }
         ]
 
         if new_driver_vehicles != driver_vehicles:
@@ -12566,9 +12768,12 @@ def bulk_delete_vehicles():
         )
 
         new_favorite_vehicles = [
-            vehicle_id
-            for vehicle_id in favorite_vehicles
-            if vehicle_id not in vehicle_ids_to_delete
+            vehicle_record_id
+            for vehicle_record_id in favorite_vehicles
+            if vehicle_record_id not in {
+                str(record_id)
+                for record_id in vehicle_record_ids_to_delete
+            }
         ]
 
         if new_favorite_vehicles != favorite_vehicles:
@@ -12587,7 +12792,7 @@ def bulk_delete_vehicles():
         add_audit_log(
             action="vehicle_deleted",
             target_type="vehicle",
-            target_id=vehicle.vehicle_id,
+            target_id=vehicle.id,
             detail="車両一括削除による完全削除",
             company_code=vehicle.company_code,
         )
@@ -12631,7 +12836,7 @@ def bulk_inactive_vehicles():
         add_audit_log(
             action="vehicle_inactivated",
             target_type="vehicle",
-            target_id=vehicle.vehicle_id,
+            target_id=vehicle.id,
             detail="車両を一括無効化",
             company_code=vehicle.company_code,
         )
@@ -12692,7 +12897,7 @@ def bulk_active_vehicles():
         add_audit_log(
             action="vehicle_activated",
             target_type="vehicle",
-            target_id=vehicle.vehicle_id,
+            target_id=vehicle.id,
             detail="車両を一括有効化",
             company_code=vehicle.company_code,
         )
@@ -12712,21 +12917,21 @@ def delete_vehicle(index):
     if not vehicle:
         return redirect("/master/vehicles")
 
-    vehicle_id = vehicle.vehicle_id
+    vehicle_record_id = vehicle.id
 
     vehicle_patrol_in_use = VehiclePatrol.query.filter_by(
         company_code=vehicle.company_code,
-        vehicle_id=vehicle_id
+        vehicle_record_id=vehicle_record_id
     ).first()
 
     vehicle_checklist_in_use = VehicleChecklistResult.query.filter_by(
         company_code=vehicle.company_code,
-        vehicle_id=vehicle_id
+        vehicle_record_id=vehicle_record_id
     ).first()
 
     checklist_in_use = ChecklistResult.query.filter_by(
         company_code=vehicle.company_code,
-        target_vehicle=vehicle_id
+        target_vehicle_record_id=vehicle_record_id
     ).first()
 
     if (
@@ -12740,16 +12945,18 @@ def delete_vehicle(index):
             409
         )
 
+    vehicle_record_id_str = str(vehicle_record_id)
+
     for driver in Driver.query.filter(
         Driver.company_code == vehicle.company_code,
-        Driver.vehicles_json.contains(f'"{vehicle_id}"')
+        Driver.vehicles_json.contains(f'"{vehicle_record_id_str}"')
     ).all():
         vehicles = safe_json_str_list(
             driver.vehicles_json
         )
 
-        if vehicle_id in vehicles:
-            vehicles.remove(vehicle_id)
+        if vehicle_record_id_str in vehicles:
+            vehicles.remove(vehicle_record_id_str)
             driver.vehicles_json = json.dumps(
                 vehicles,
                 ensure_ascii=False
@@ -12757,14 +12964,14 @@ def delete_vehicle(index):
 
     for user in User.query.filter(
         User.company_code == vehicle.company_code,
-        User.favorite_vehicles_json.contains(f'"{vehicle_id}"')
+        User.favorite_vehicles_json.contains(f'"{vehicle_record_id_str}"')
     ).all():
         favorite_vehicles = safe_json_str_list(
             user.favorite_vehicles_json
         )
 
-        if vehicle_id in favorite_vehicles:
-            favorite_vehicles.remove(vehicle_id)
+        if vehicle_record_id_str in favorite_vehicles:
+            favorite_vehicles.remove(vehicle_record_id_str)
             user.favorite_vehicles_json = json.dumps(
                 favorite_vehicles,
                 ensure_ascii=False
@@ -12776,7 +12983,7 @@ def delete_vehicle(index):
     add_audit_log(
         action="vehicle_deleted",
         target_type="vehicle",
-        target_id=vehicle.vehicle_id,
+        target_id=vehicle.id,
         detail="車両を完全削除",
         company_code=vehicle.company_code,
     )
@@ -13294,9 +13501,12 @@ def safety_checklist_results(index):
         )
 
     elif target_type == "vehicle" and target_value:
+        if not target_value.isdigit():
+            return "対象車両が不正です。", 400
+
         query = query.filter(
             ChecklistResult.target_type == "vehicle",
-            ChecklistResult.target_vehicle == target_value
+            ChecklistResult.target_vehicle_record_id == int(target_value)
         )
 
     elif target_type == "office" and target_value:
@@ -13599,7 +13809,17 @@ def export_checklist_result_excel(result_index):
         target_value = result["target_user"] or "-"
     elif result["target_type"] == "vehicle":
         target_type_label = "車両"
-        target_value = result["target_vehicle"] or "-"
+
+        target_vehicle_record = Vehicle.query.filter_by(
+            company_code=result["company_code"],
+            id=result["target_vehicle_record_id"]
+        ).first()
+
+        target_value = (
+            target_vehicle_record.chassis_number
+            if target_vehicle_record
+            else "-"
+        )
     elif result["target_type"] == "office":
         target_type_label = "営業所"
         target_value = result["target_office"] or "-"
@@ -14448,10 +14668,10 @@ def edit_checklist_result(result_index):
         ).strip()
         target_username = ""
 
-        target_vehicle = request.form.get(
-            "target_vehicle",
-            ""
-        ).strip()
+        target_vehicle_record_id = request.form.get(
+            "target_vehicle_record_id",
+            type=int
+        )
 
         target_office = request.form.get(
             "target_office",
@@ -14498,19 +14718,19 @@ def edit_checklist_result(result_index):
             target_user = target_driver.name
 
             target_office = target_driver.office or ""
-            target_vehicle = ""
+            target_vehicle_record_id = None
 
         # =========================
         # 車両
         # =========================
 
         elif target_type == "vehicle":
-            if not target_vehicle:
+            if not target_vehicle_record_id:
                 return "対象車両を選択してください。", 400
 
             vehicle = Vehicle.query.filter_by(
                 company_code=company_code,
-                vehicle_id=target_vehicle,
+                id=target_vehicle_record_id,
                 deleted=False
             ).first()
 
@@ -14539,7 +14759,7 @@ def edit_checklist_result(result_index):
 
             target_user = ""
             target_username = ""
-            target_vehicle = ""
+            target_vehicle_record_id = None
 
         answers = []
         answer_index = 0
@@ -14615,7 +14835,7 @@ def edit_checklist_result(result_index):
         result_record.target_type = target_type
         result_record.target_user = target_user
         result_record.target_username = target_username
-        result_record.target_vehicle = target_vehicle
+        result_record.target_vehicle_record_id = target_vehicle_record_id
         result_record.target_office = target_office
         result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
@@ -14670,11 +14890,11 @@ def edit_checklist_result(result_index):
 
     selected_vehicle = None
 
-    if result.get("target_vehicle"):
+    if result.get("target_vehicle_record_id"):
 
         vehicle_record = Vehicle.query.filter_by(
             company_code=session.get("company_code"),
-            vehicle_id=result.get("target_vehicle")
+            id=result.get("target_vehicle_record_id")
         ).first()
 
         if vehicle_record:
@@ -14691,7 +14911,8 @@ def edit_checklist_result(result_index):
             )
 
             selected_vehicle = {
-                "vehicle_id": vehicle_record.vehicle_id,
+                "vehicle_record_id": vehicle_record.id,
+                "chassis_number": vehicle_record.chassis_number,
                 "number": number,
                 "manufacturer": vehicle_record.manufacturer or "",
                 "model_code": vehicle_record.model_code or "",
@@ -14786,10 +15007,10 @@ def vehicle_checklist_results(index):
         str(datetime.now().month).zfill(2)
     ).strip()
 
-    vehicle_id = request.args.get(
-        "vehicle_id",
-        ""
-    ).strip()
+    vehicle_record_id = request.args.get(
+        "vehicle_record_id",
+        type=int
+    )
 
     try:
         year_int = int(year)
@@ -14806,11 +15027,10 @@ def vehicle_checklist_results(index):
     year = str(year_int)
     month = str(month_int).zfill(2)
 
-    if vehicle_id:
+    if vehicle_record_id:
         valid_vehicle = Vehicle.query.filter_by(
             company_code=checklist_record.company_code,
-            vehicle_id=vehicle_id,
-            deleted=False
+            id=vehicle_record_id
         ).first()
 
         if not valid_vehicle:
@@ -14946,9 +15166,9 @@ def vehicle_checklist_results(index):
         checklist_id=checklist_record.id
     )
 
-    if vehicle_id:
+    if vehicle_record_id:
         query = query.filter_by(
-            vehicle_id=vehicle_id
+            vehicle_record_id=vehicle_record_id
         )
 
     for result_record in query.all():
@@ -15088,14 +15308,14 @@ def vehicle_checklist_results(index):
         get_vehicle_checklist_notify_users(
             checklist_record.company_code,
             checklist_record.id,
-            vehicle_id
+            vehicle_record_id
         )
-        if vehicle_id
+        if vehicle_record_id
         else []
     )
 
     valid_vehicle_ids = {
-        vehicle.vehicle_id
+        vehicle.id
         for vehicle in Vehicle.query.filter_by(
             company_code=checklist_record.company_code,
             deleted=False
@@ -15108,18 +15328,25 @@ def vehicle_checklist_results(index):
     ).first()
 
     favorite_vehicle_ids = [
-        favorite_vehicle_id
+        int(favorite_vehicle_id)
         for favorite_vehicle_id in (
             safe_json_str_list(current_user.favorite_vehicles_json)
             if current_user
             else []
         )
-        if favorite_vehicle_id in valid_vehicle_ids
+        if favorite_vehicle_id.isdigit()
+        and int(favorite_vehicle_id) in valid_vehicle_ids
     ]
+
+    favorite_vehicles = Vehicle.query.filter(
+        Vehicle.company_code == checklist_record.company_code,
+        Vehicle.deleted == False,
+        Vehicle.id.in_(favorite_vehicle_ids)
+    ).all() if favorite_vehicle_ids else []
 
     selected_vehicle = None
 
-    if vehicle_id:
+    if vehicle_record_id:
 
         vehicle_record = valid_vehicle
 
@@ -15137,7 +15364,8 @@ def vehicle_checklist_results(index):
             )
 
             selected_vehicle = {
-                "vehicle_id": vehicle_record.vehicle_id,
+                "vehicle_record_id": vehicle_record.id,
+                "chassis_number": vehicle_record.chassis_number,
                 "number": number,
                 "manufacturer": vehicle_record.manufacturer or "",
                 "model_code": vehicle_record.model_code or "",
@@ -15152,9 +15380,10 @@ def vehicle_checklist_results(index):
         selected_reminder_notify_users=selected_reminder_notify_users,
         selected_vehicle=selected_vehicle,
         favorite_vehicle_ids=favorite_vehicle_ids,
+        favorite_vehicles=favorite_vehicles,
         year=year,
         month=month,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         active_day=active_day,
         display_days=display_days,
         input_days=input_days,
@@ -15177,10 +15406,10 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
             "message": "通知先設定を変更する権限がありません。"
         }, 403    
 
-    vehicle_id = request.form.get(
-        "vehicle_id",
-        ""
-    ).strip()
+    vehicle_record_id = request.form.get(
+        "vehicle_record_id",
+        type=int
+    )
 
     notify_usernames = [
         username.strip()
@@ -15222,7 +15451,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     # 車両検証
     # =========================
 
-    if not vehicle_id:
+    if not vehicle_record_id:
         return {
             "ok": False,
             "message": "車両を選択してください。"
@@ -15230,7 +15459,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
-        vehicle_id=vehicle_id,
+        id=vehicle_record_id,
         deleted=False
     ).first()
 
@@ -15271,14 +15500,14 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     setting = VehicleChecklistNotifySetting.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_record.id,
-        vehicle_id=vehicle_id
+        vehicle_record_id=vehicle_record_id
     ).first()
 
     if not setting:
         setting = VehicleChecklistNotifySetting(
             company_code=company_code,
             checklist_id=checklist_record.id,
-            vehicle_id=vehicle_id
+            vehicle_record_id=vehicle_record_id
         )
 
         db.session.add(setting)
@@ -15526,6 +15755,12 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     db.session.commit()
 
+    vehicle_record = Vehicle.query.filter_by(
+        company_code=result_record.company_code,
+        id=result_record.vehicle_record_id,
+        deleted=False
+    ).first()
+
     checklist_record = Checklist.query.filter_by(
         id=result_record.checklist_id,
         company_code=result_record.company_code
@@ -15548,7 +15783,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     notification_link = (
         f"/vehicle/checklists/{result_record.checklist_id}"
-        f"?vehicle_id={result_record.vehicle_id}"
+        f"?vehicle_record_id={result_record.vehicle_record_id}"
         f"&year={result_record.year}"
         f"&month={result_record.month}"
         f"&active_day={active_value}"
@@ -15579,7 +15814,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                 target_user.name,
                 "車両チェックリストが承認されました",
                 (
-                    f"車両 {result_record.vehicle_id} の"
+                    f"車両 {vehicle_record.chassis_number if vehicle_record else '-'} の"
                     "チェックリストの承認が完了しました。"
                 ),
                 notification_link,
@@ -15589,7 +15824,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     return redirect(
         f"/vehicle/checklists/{result_record.checklist_id}"
-        f"?vehicle_id={result_record.vehicle_id}"
+        f"?vehicle_record_id={result_record.vehicle_record_id}"
         f"&year={result_record.year}"
         f"&month={result_record.month}"
         f"&active_day={active_value}"
@@ -15649,11 +15884,16 @@ def export_vehicle_checklist_result_excel(result_index):
 
     vehicle_record = Vehicle.query.filter_by(
         company_code=result_record.company_code,
-        vehicle_id=result_record.vehicle_id
+        id=result_record.vehicle_record_id
     ).first()
 
     vehicle_info = {
-        "vehicle_id": result_record.vehicle_id or "",
+        "vehicle_record_id": result_record.vehicle_record_id,
+        "chassis_number": (
+            vehicle_record.chassis_number
+            if vehicle_record
+            else ""
+        ),
         "number": "",
         "manufacturer": "",
         "model_code": "",
@@ -15683,7 +15923,7 @@ def export_vehicle_checklist_result_excel(result_index):
     result_query = VehicleChecklistResult.query.filter_by(
         company_code=result_record.company_code,
         checklist_id=result_record.checklist_id,
-        vehicle_id=result_record.vehicle_id
+        vehicle_record_id=result_record.vehicle_record_id
     )
 
     if frequency_unit == "year":
@@ -15985,8 +16225,8 @@ def export_vehicle_checklist_result_excel(result_index):
 
         # 月間帳票の車両情報
         vehicle_number = (
-            vehicle_info["number"]
-            or vehicle_info["vehicle_id"]
+            vehicle_info["chassis_number"]
+            or vehicle_info["number"]
         )
 
         sheet.merge_cells(
@@ -15996,7 +16236,7 @@ def export_vehicle_checklist_result_excel(result_index):
             end_column=end_column
         )
 
-        sheet["A4"] = f"車番　{vehicle_number}"
+        sheet["A4"] = f"車台番号　{vehicle_number}"
         sheet["A4"].font = Font(bold=True)
         sheet["A4"].alignment = Alignment(
             horizontal="left",
@@ -16829,10 +17069,10 @@ def save_vehicle_checklist_one(index):
 
     company_code = session.get("company_code")
 
-    vehicle_id = request.form.get(
-        "vehicle_id",
-        ""
-    ).strip()
+    vehicle_record_id = request.form.get(
+        "vehicle_record_id",
+        type=int
+    )
 
     year = request.form.get(
         "year",
@@ -16853,12 +17093,12 @@ def save_vehicle_checklist_one(index):
     # 車両検証
     # =========================
 
-    if not vehicle_id:
+    if not vehicle_record_id:
         return "対象車両を選択してください。", 400
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
-        vehicle_id=vehicle_id,
+        id=vehicle_record_id,
         deleted=False
     ).first()
 
@@ -16926,7 +17166,7 @@ def save_vehicle_checklist_one(index):
     result_record = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_record.id,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         year=year,
         month=month,
         day=day
@@ -17018,7 +17258,7 @@ def save_vehicle_checklist_one(index):
         result_record = VehicleChecklistResult(
             company_code=company_code,
             checklist_id=checklist_record.id,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             year=year,
             month=month,
             day=day,
@@ -17101,7 +17341,7 @@ def save_vehicle_checklist_one(index):
     notify_mentions(
         value,
         f"/vehicle/checklists/{checklist_record.id}"
-        f"?vehicle_id={vehicle_id}"
+        f"?vehicle_record_id={vehicle_record_id}"
         f"&year={year}"
         f"&month={month}"
         f"&active_day={active_day}"
@@ -17111,7 +17351,7 @@ def save_vehicle_checklist_one(index):
         url_for(
             "vehicle_checklist_results",
             index=checklist_record.id,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             year=year,
             month=month,
             active_day=active_day,
@@ -17137,10 +17377,10 @@ def save_vehicle_checklist_detail(index):
 
     company_code = session.get("company_code")
 
-    vehicle_id = request.form.get(
-        "vehicle_id",
-        ""
-    ).strip()
+    vehicle_record_id = request.form.get(
+        "vehicle_record_id",
+        type=int
+    )
 
     year = request.form.get(
         "year",
@@ -17161,12 +17401,12 @@ def save_vehicle_checklist_detail(index):
     # 車両検証
     # =========================
 
-    if not vehicle_id:
+    if not vehicle_record_id:
         return "対象車両を選択してください。", 400
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
-        vehicle_id=vehicle_id,
+        id=vehicle_record_id,
         deleted=False
     ).first()
 
@@ -17237,7 +17477,7 @@ def save_vehicle_checklist_detail(index):
     result_record = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_record.id,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         year=year,
         month=month,
         day=day
@@ -17306,7 +17546,7 @@ def save_vehicle_checklist_detail(index):
         result_record = VehicleChecklistResult(
             company_code=company_code,
             checklist_id=checklist_record.id,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             year=year,
             month=month,
             day=day,
@@ -17396,7 +17636,7 @@ def save_vehicle_checklist_detail(index):
     if request.form.get("patrol_link") == "1":
         existing_patrol = VehiclePatrol.query.filter_by(
             company_code=checklist_record.company_code,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             occurred_date=f"{year}-{month}-{day}",
             category="点検指摘",
             content=content
@@ -17407,7 +17647,7 @@ def save_vehicle_checklist_detail(index):
         else:
             db.session.add(VehiclePatrol(
                 company_code=checklist_record.company_code,
-                vehicle_id=vehicle_id,
+                vehicle_record_id=vehicle_record_id,
                 occurred_date=f"{year}-{month}-{day}",
                 category="点検指摘",
                 priority="中",
@@ -17427,14 +17667,14 @@ def save_vehicle_checklist_detail(index):
 
     notify_mentions(
         comment,
-        f"/vehicle/checklists/{checklist_record.id}?vehicle_id={vehicle_id}&year={year}&month={month}&active_day={active_day}"
+        f"/vehicle/checklists/{checklist_record.id}?vehicle_record_id={vehicle_record_id}&year={year}&month={month}&active_day={active_day}"
     )
 
     return redirect(
         url_for(
             "vehicle_checklist_results",
             index=checklist_record.id,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             year=year,
             month=month,
             active_day=active_day,
@@ -17460,10 +17700,10 @@ def complete_vehicle_checklist(index):
     if checklist.get("target") != "車両管理":
         return redirect("/vehicle/checklists")
 
-    vehicle_id = request.form.get(
-        "vehicle_id",
-        ""
-    ).strip()
+    vehicle_record_id = request.form.get(
+        "vehicle_record_id",
+        type=int
+    )
 
     year = request.form.get(
         "year",
@@ -17491,12 +17731,12 @@ def complete_vehicle_checklist(index):
     # 車両検証
     # =========================
 
-    if not vehicle_id:
+    if not vehicle_record_id:
         return "対象車両を選択してください。", 400
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
-        vehicle_id=vehicle_id,
+        id=vehicle_record_id,
         deleted=False
     ).first()
 
@@ -17551,7 +17791,7 @@ def complete_vehicle_checklist(index):
     result_record = VehicleChecklistResult.query.filter_by(
         company_code=company_code,
         checklist_id=checklist_record.id,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         year=year,
         month=month,
         day=day
@@ -17562,7 +17802,7 @@ def complete_vehicle_checklist(index):
             url_for(
                 "vehicle_checklist_results",
                 index=checklist_record.id,
-                vehicle_id=vehicle_id,
+                vehicle_record_id=vehicle_record_id,
                 year=year,
                 month=month,
                 active_day=active_day,
@@ -17646,7 +17886,7 @@ def complete_vehicle_checklist(index):
             get_vehicle_checklist_notify_users(
                 company_code,
                 checklist_record.id,
-                vehicle_id
+                vehicle_record_id
             )
         )
 
@@ -17704,7 +17944,7 @@ def complete_vehicle_checklist(index):
     notification_link = url_for(
         "vehicle_checklist_results",
         index=checklist_record.id,
-        vehicle_id=vehicle_id,
+        vehicle_record_id=vehicle_record_id,
         year=year,
         month=month,
         active_day=active_day,
@@ -17717,7 +17957,7 @@ def complete_vehicle_checklist(index):
             target_user.name,
             "車両点検完了のお知らせ",
             (
-                f"{vehicle_id} の"
+                f"{vehicle.chassis_number} の"
                 f"「{checklist_record.name}」が"
                 f"点検完了しました。"
             ),
@@ -17750,10 +17990,10 @@ def new_vehicle_checklist_result(index):
     if request.method == "POST":
         company_code = session.get("company_code")
 
-        vehicle_id = request.form.get(
-            "vehicle_id",
-            ""
-        ).strip()
+        vehicle_record_id = request.form.get(
+            "vehicle_record_id",
+            type=int
+        )
 
         year = request.form.get(
             "year",
@@ -17774,12 +18014,12 @@ def new_vehicle_checklist_result(index):
         # 車両検証
         # =========================
 
-        if not vehicle_id:
+        if not vehicle_record_id:
             return "対象車両を選択してください。", 400
 
         vehicle = Vehicle.query.filter_by(
             company_code=company_code,
-            vehicle_id=vehicle_id,
+            id=vehicle_record_id,
             deleted=False
         ).first()
 
@@ -17916,7 +18156,7 @@ def new_vehicle_checklist_result(index):
         result = VehicleChecklistResult(
             company_code=company_code,
             checklist_id=checklist_record.id,
-            vehicle_id=vehicle_id,
+            vehicle_record_id=vehicle_record_id,
             year=year,
             month=month,
             day=day,
@@ -17961,7 +18201,7 @@ def new_vehicle_checklist_result(index):
             url_for(
                 "vehicle_checklist_results",
                 index=checklist_record.id,
-                vehicle_id=vehicle_id,
+                vehicle_record_id=vehicle_record_id,
                 year=year,
                 month=month,
             )
@@ -18009,10 +18249,10 @@ def new_safety_checklist_result(index):
 
         target_username = ""
 
-        target_vehicle = request.form.get(
-            "target_vehicle",
-            ""
-        ).strip()
+        target_vehicle_record_id = request.form.get(
+            "target_vehicle_record_id",
+            type=int
+        )
 
         target_office = request.form.get(
             "target_office",
@@ -18058,19 +18298,19 @@ def new_safety_checklist_result(index):
             target_username = target_user_record.username
             target_user = target_driver.name
             target_office = target_driver.office or ""
-            target_vehicle = ""
+            target_vehicle_record_id = None
 
         # =========================
         # 車両
         # =========================
 
         elif target_type == "vehicle":
-            if not target_vehicle:
+            if not target_vehicle_record_id:
                 return "対象車両を選択してください。", 400
 
             vehicle = Vehicle.query.filter_by(
                 company_code=company_code,
-                vehicle_id=target_vehicle,
+                id=target_vehicle_record_id,
                 deleted=False
             ).first()
 
@@ -18097,7 +18337,7 @@ def new_safety_checklist_result(index):
                 return "対象営業所が不正です。", 400
 
             target_user = ""
-            target_vehicle = ""
+            target_vehicle_record_id = None
 
         pending_answer_files = []
 
@@ -18216,7 +18456,7 @@ def new_safety_checklist_result(index):
             target_type=target_type,
             target_user=target_user,
             target_username=target_username,
-            target_vehicle=target_vehicle,
+            target_vehicle_record_id=target_vehicle_record_id,
             target_office=target_office,
             checked_by=session.get("name"),
             checked_by_username=session.get("username"),
@@ -19111,6 +19351,8 @@ def init_db():
         db.session.commit()
 
 with app.app_context():
+
+    db.create_all()
 
     columns = [
         ("chassis_number", "VARCHAR(100)"),

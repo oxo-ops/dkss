@@ -15,7 +15,7 @@
 {% endfor %}
     <div class="header-actions">
 
-        {% if vehicle_id and export_ns.result %}
+        {% if vehicle_record_id and export_ns.result %}
         <a
             href="/vehicle/checklist-results/{{ export_ns.result.index }}/excel"
             class="btn"
@@ -52,13 +52,13 @@
                 使用車両
             </div>
 
-            {% for favorite_vehicle_id in favorite_vehicle_ids %}
+            {% for vehicle in favorite_vehicles %}
                 <button
                     type="button"
                     class="favorite-vehicle-shortcut"
-                    data-vehicle-id="{{ favorite_vehicle_id }}"
+                    data-vehicle-id="{{ vehicle.id }}"
                 >
-                    {{ favorite_vehicle_id }}
+                    {{ vehicle.chassis_number }}
                 </button>
             {% else %}
                 <span class="help-text">
@@ -75,9 +75,9 @@
 
         <input
             type="hidden"
-            name="vehicle_id"
-            id="vehicle_id"
-            value="{{ vehicle_id }}"
+            name="vehicle_record_id"
+            id="vehicle_record_id"
+            value="{{ vehicle_record_id }}"
             required
         >
 
@@ -90,9 +90,7 @@
 
                 {% if selected_vehicle %}
 
-                    {{ selected_vehicle.vehicle_id }}
-                    /
-                    {{ selected_vehicle.number }}
+                    {{ selected_vehicle.chassis_number }}
 
                     {% if selected_vehicle.manufacturer %}
                         / {{ selected_vehicle.manufacturer }}
@@ -163,7 +161,7 @@
 
 </form>
 
-{% if not vehicle_id %}
+{% if not vehicle_record_id %}
 
 <div class="card">
     <p>車両を選択してください。</p>
@@ -366,7 +364,7 @@
                     ) %}
 
                     {% for result in table_results %}
-                    {% if result.vehicle_id == vehicle_id %}
+                    {% if result.vehicle_record_id == vehicle_record_id %}
                     {% if display_mode == "year_list" and result.year|int == d|int %}
                     {% set ns.target_result = result %}
                     {% elif display_mode == "month_list" and result.month|int == d|int %}
@@ -472,7 +470,7 @@
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
                         class="inline-check-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+                        <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
                         {% if display_mode == "year_list" %}
                         <input type="hidden" name="year" value="{{ day_text }}">
                         <input type="hidden" name="month" value="01">
@@ -621,7 +619,7 @@
         class="vehicle-check-complete-form js-vehicle-check-complete-form"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+        <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
         <input type="hidden" name="active_day" value="{{ active_day }}">
 
         {% if display_mode == "year_list" %}
@@ -726,7 +724,7 @@
         <form method="post" enctype="multipart/form-data"
             action="/vehicle/checklists/{{ checklist_index }}/save-detail">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+            <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
             <input type="hidden" name="year" id="detailYear">
             <input type="hidden" name="month" id="detailMonth">
             <input type="hidden" name="day" id="detailDay">
