@@ -17773,24 +17773,6 @@ def complete_vehicle_checklist(index):
         if item.get("item_type") == "check"
     ]
 
-    answered_item_numbers = {
-        str(answer.get("item_no", ""))
-        for answer in answers
-    }
-
-    missing_item_numbers = [
-        index
-        for index in range(len(check_items))
-        if str(index) not in answered_item_numbers
-    ]
-
-    if missing_item_numbers:
-        return (
-            "未入力のチェック項目があります。"
-            "すべての項目を入力してから完了してください。",
-            400
-        )
-
     # =========================
     # 通知先ユーザー検証
     # =========================
