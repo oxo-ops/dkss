@@ -8297,10 +8297,7 @@ def add_usage_vehicle():
 
     if not current_driver:
         return redirect(
-            build_safe_redirect_url(
-                request.form.get("next"),
-                "/vehicle-patrols"
-            )
+            "/" if request.form.get("next") == "/" else "/vehicle-patrols"
         )
 
     usage_vehicles = safe_json_str_list(
@@ -8320,10 +8317,7 @@ def add_usage_vehicle():
     db.session.commit()
 
     return redirect(
-        build_safe_redirect_url(
-            request.form.get("next"),
-            "/vehicle-patrols"
-        )
+        "/" if request.form.get("next") == "/" else "/vehicle-patrols"
     )
 
 @app.route(
@@ -8339,10 +8333,7 @@ def remove_usage_vehicle(vehicle_record_id):
 
     if not current_driver:
         return redirect(
-            build_safe_redirect_url(
-                request.form.get("next"),
-                "/vehicle-patrols"
-            )
+            "/" if request.form.get("next") == "/" else "/vehicle-patrols"
         )
 
     usage_vehicles = safe_json_str_list(
@@ -8362,10 +8353,7 @@ def remove_usage_vehicle(vehicle_record_id):
     db.session.commit()
 
     return redirect(
-        build_safe_redirect_url(
-            request.form.get("next"),
-            "/vehicle-patrols"
-        )
+        "/" if request.form.get("next") == "/" else "/vehicle-patrols"
     )
 
 @app.route("/vehicle-patrols")
