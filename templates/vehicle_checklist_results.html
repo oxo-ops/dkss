@@ -55,7 +55,7 @@
             {% for vehicle in usage_vehicles %}
                 <button
                     type="button"
-                    class="usage-vehicle-shortcut"
+                    class="usage-vehicle-shortcut{% if vehicle_record_id == vehicle.id %} is-selected{% endif %}"
                     data-vehicle-id="{{ vehicle.id }}"
                 >
                     {{ vehicle.chassis_number }}

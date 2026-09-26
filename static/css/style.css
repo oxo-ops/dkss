@@ -492,6 +492,10 @@ textarea {
     line-height: 1.6;
 }
 
+#testEmailNotification {
+    margin-top: 16px;
+}
+
 .vehicle-select-box {
     max-height: 180px;
     overflow-y: auto;
@@ -2857,6 +2861,13 @@ textarea[name="item_content"]{
 .usage-vehicle-shortcut:hover {
     background: #eff6ff;
     border-color: #93c5fd;
+}
+
+.usage-vehicle-shortcut.is-selected {
+    background: #2f78f6;
+    border-color: #2f78f6;
+    color: #ffffff;
+    font-weight: 700;
 }
 
 .vehicle-option {

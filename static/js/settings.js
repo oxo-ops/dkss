@@ -99,25 +99,25 @@ document.addEventListener("DOMContentLoaded", function () {
                 "端末通知がブラウザ側でブロックされています。";
         }
     }
-    const testPushButton =
+    const testEmailButton =
         document.getElementById(
-            "testPushNotification"
+            "testEmailNotification"
         );
 
-    const testPushStatus =
+    const testEmailStatus =
         document.getElementById(
-            "testPushNotificationStatus"
+            "testEmailNotificationStatus"
         );
 
-    if (testPushButton) {
-        testPushButton.addEventListener(
+    if (testEmailButton) {
+        testEmailButton.addEventListener(
             "click",
             async function () {
-                testPushButton.disabled = true;
+                testEmailButton.disabled = true;
 
-                if (testPushStatus) {
-                    testPushStatus.textContent =
-                        "テスト通知を送信しています...";
+                if (testEmailStatus) {
+                    testEmailStatus.textContent =
+                        "メール通知を送信しています...";
                 }
 
                 try {
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         ?.getAttribute("content");
 
                     const response = await fetch(
-                        "/api/push/test",
+                        "/notifications/email-test",
                         {
                             method: "POST",
                             headers: {
@@ -135,28 +135,30 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                     );
 
+                    const data = await response.json();
+
                     if (!response.ok) {
                         throw new Error(
-                            "HTTP " + response.status
+                            data.message || "メール送信に失敗しました。"
                         );
                     }
 
-                    if (testPushStatus) {
-                        testPushStatus.textContent =
-                            "テスト通知を送信しました。";
+                    if (testEmailStatus) {
+                        testEmailStatus.textContent =
+                            data.message || "メールを送信しました。";
                     }
                 } catch (error) {
                     console.error(
-                        "テスト通知送信エラー:",
+                        "メール通知送信エラー:",
                         error
                     );
 
-                    if (testPushStatus) {
-                        testPushStatus.textContent =
-                            "テスト通知の送信に失敗しました。";
+                    if (testEmailStatus) {
+                        testEmailStatus.textContent =
+                            error.message || "メール通知の送信に失敗しました。";
                     }
                 } finally {
-                    testPushButton.disabled = false;
+                    testEmailButton.disabled = false;
                 }
             }
         );
