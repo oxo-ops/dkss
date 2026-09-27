@@ -7001,7 +7001,7 @@ input:checked
 }
 
 /* スマホ・タブレットではカメラボタンを表示 */
-@media (max-width: 1180px) {
+@media (max-width: 1180px), (pointer: coarse) {
     .file-upload-button-camera {
         display: inline-flex;
     }
@@ -7409,9 +7409,14 @@ input:checked
    Checklist result - tablet
 ========================= */
 @media (min-width: 769px) and (max-width: 1180px) {
+    .checklist-result-table-card {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .checklist-result-table {
         width: 100%;
-        min-width: 0;
+        min-width: 760px;
         table-layout: fixed;
     }
 
@@ -7474,6 +7479,10 @@ input:checked
         display: flex;
         gap: 14px;
         padding: 14px;
+    }
+
+    .sidebar-toggle {
+        display: none;
     }
 
     .sidebar {
@@ -8385,7 +8394,7 @@ input:checked
 /* =========================
    Touch controls - tablet / smartphone
 ========================= */
-@media (max-width: 1180px) {
+@media (max-width: 1180px), (pointer: coarse) {
     input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
     select {
         min-height: 44px;
@@ -8639,6 +8648,14 @@ input:checked
    Narrow tablet forms
 ========================= */
 @media (min-width: 769px) and (max-width: 900px) {
+    .checklist-result-table
+    .checklist-result-col-support,
+    .checklist-result-table
+    .checklist-result-support-cell {
+        width: 260px;
+        min-width: 260px;
+    }
+
     .patrol-search-box {
         grid-template-columns: 1fr;
     }
