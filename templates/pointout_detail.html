@@ -208,7 +208,7 @@
                     <div class="attachment-box">
                         {% if ext in ['png','jpg','jpeg','gif','webp'] %}
                             <img
-                                src="{{ url_for('static', filename='uploads/' + file) }}"
+                                src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                 class="detail-image"
                             >
 
@@ -219,13 +219,13 @@
                                 preload="metadata"
                             >
                                 <source
-                                    src="{{ url_for('static', filename='uploads/' + file) }}"
+                                    src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                 >
                             </video>
 
                         {% elif ext == 'pdf' %}
                             <a
-                                href="{{ url_for('static', filename='uploads/' + file) }}"
+                                href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                 target="_blank"
                                 class="btn btn-back"
                             >
@@ -233,7 +233,7 @@
                             </a>
                         {% else %}
                             <a
-                                href="{{ url_for('static', filename='uploads/' + file) }}"
+                                href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                 target="_blank"
                                 class="btn btn-back"
                             >
@@ -317,6 +317,43 @@
                                     class="selected-file-names"
                                     aria-live="polite"
                                 ></div>
+
+                                {% if result.countermeasure_files %}
+                                    <div class="countermeasure-attachments">
+                                        <strong>登録済み添付ファイル</strong>
+
+                                        {% for file in result.countermeasure_files %}
+                                            {% set ext = file.split('.')[-1].lower() %}
+
+                                            <div class="attachment-box">
+                                                {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                                                    <img
+                                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                        class="detail-image"
+                                                    >
+                                                {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                                                    <video
+                                                        class="detail-video"
+                                                        controls
+                                                        preload="metadata"
+                                                    >
+                                                        <source
+                                                            src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                        >
+                                                    </video>
+                                                {% else %}
+                                                    <a
+                                                        href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                                        target="_blank"
+                                                        class="btn btn-back"
+                                                    >
+                                                        ファイルを開く
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
 
