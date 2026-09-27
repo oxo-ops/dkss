@@ -1719,22 +1719,24 @@ def uploaded_file(folder, filename):
 
         for object_key in object_keys:
             try:
-                s3_client.head_object(
+                s3_object = s3_client.get_object(
                     Bucket=S3_BUCKET_NAME,
                     Key=object_key
                 )
 
-                url = s3_client.generate_presigned_url(
-                    "get_object",
-                    Params={
-                        "Bucket": S3_BUCKET_NAME,
-                        "Key": object_key,
-                        "ResponseCacheControl": "no-store"
-                    },
-                    ExpiresIn=300
+                file_buffer = BytesIO(
+                    s3_object["Body"].read()
                 )
 
-                return redirect(url)
+                return send_file(
+                    file_buffer,
+                    mimetype=s3_object.get(
+                        "ContentType",
+                        "application/octet-stream"
+                    ),
+                    download_name=filename,
+                    max_age=0
+                )
 
             except ClientError:
                 continue
