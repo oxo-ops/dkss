@@ -1877,7 +1877,7 @@ def add_security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
 
     response.headers["Cross-Origin-Embedder-Policy"] = (
-        "require-corp"
+        "unsafe-none"
     )
 
     response.headers["Cross-Origin-Opener-Policy"] = (
