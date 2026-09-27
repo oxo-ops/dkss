@@ -8135,8 +8135,8 @@ def register_countermeasure(index):
 
         try:
             saved_file = save_uploaded_file(file)
-        except UploadValidationError as error:
-            return str(error), 400
+        except UploadValidationError as _error:
+            return "添付ファイルの検証に失敗しました。", 400
 
         if saved_file:
             countermeasure_files.append(saved_file)
