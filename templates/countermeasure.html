@@ -6,30 +6,44 @@
 
 <h2>対策登録</h2>
 
-<div class="card">
+<div class="card countermeasure-page-card">
 
-    <p><strong>発生日：</strong>{{ result.date }}</p>
+    <h3>指摘内容</h3>
 
-    <p><strong>分類：</strong>{{ result.category }}</p>
+    <div class="countermeasure-source-grid">
+        <div class="countermeasure-source-item">
+            <span>発生日</span>
+            <strong>{{ result.date }}</strong>
+        </div>
 
-    <p><strong>内容区分：</strong>{{ result.content_type }}</p>
+        <div class="countermeasure-source-item">
+            <span>分類</span>
+            <strong>{{ result.category }}</strong>
+        </div>
 
-    <p><strong>内容：</strong></p>
+        <div class="countermeasure-source-item">
+            <span>内容区分</span>
+            <strong>{{ result.content_type }}</strong>
+        </div>
+    </div>
+
+    <p class="countermeasure-content-label">内容</p>
 
     <div
         class="content-box mention-display"
         data-value="{{ result.content }}"
     ></div>
 
-    <hr>
+    <div class="countermeasure-form-section">
 
     <form
         method="post"
         action="/pointouts/{{ index }}/countermeasure"
+        enctype="multipart/form-data"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <label>対策内容</label>
+        <label class="countermeasure-form-label">対策内容</label>
 
         <input
             type="hidden"
@@ -45,21 +59,113 @@
             data-placeholder="対策内容を入力"
         ></div>
 
-        <button
-            type="submit"
-            class="btn"
-        >
-            登録
-        </button>
+        <div class="form-group countermeasure-file-group">
+            <label>添付ファイル</label>
+
+            <p class="help-text">
+                写真・動画・PDFを追加できます。
+            </p>
+
+            {% if result.countermeasure_files %}
+                <div class="countermeasure-current-files">
+                    {% for file in result.countermeasure_files %}
+                        {% set ext = file.split('.')[-1].lower() %}
+
+                        <div class="countermeasure-current-file">
+                            {% if ext in ['png', 'jpg', 'jpeg'] %}
+                                <img
+                                    src="{{ url_for('static', filename='uploads/' + file) }}"
+                                    alt=""
+                                >
+                            {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                                <video
+                                    controls
+                                    preload="metadata"
+                                >
+                                    <source
+                                        src="{{ url_for('static', filename='uploads/' + file) }}"
+                                    >
+                                </video>
+                            {% elif ext == 'pdf' %}
+                                <a
+                                    href="{{ url_for('static', filename='uploads/' + file) }}"
+                                    target="_blank"
+                                >
+                                    PDFを開く
+                                </a>
+                            {% else %}
+                                <a
+                                    href="{{ url_for('static', filename='uploads/' + file) }}"
+                                    target="_blank"
+                                >
+                                    ファイルを開く
+                                </a>
+                            {% endif %}
+                            <label class="delete-check">
+                                <input
+                                    type="checkbox"
+                                    name="delete_countermeasure_files"
+                                    value="{{ file }}"
+                                >
+                                削除
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="file-upload-cell pointout-file-upload-cell">
+
+                <label class="file-upload-button file-upload-button-camera">
+                    写真
+                    <input
+                        type="file"
+                        name="countermeasure_files"
+                        accept="image/*"
+                        capture="environment"
+                        class="file-upload-input js-file-upload-input"
+                    >
+                </label>
+
+                <label class="file-upload-button file-upload-button-secondary">
+                    ファイル
+                    <input
+                        type="file"
+                        name="countermeasure_files"
+                        multiple
+                        accept="image/*,video/*,.pdf"
+                        class="file-upload-input js-file-upload-input"
+                    >
+                </label>
+
+                <div
+                    class="selected-file-names"
+                    aria-live="polite"
+                ></div>
+            </div>
+        </div>
+
+        <div class="countermeasure-form-actions">
+            <a
+                href="/pointouts/{{ index }}"
+                class="btn btn-back"
+            >
+                キャンセル
+            </a>
+
+            <button
+                type="submit"
+                class="btn"
+            >
+                登録
+            </button>
+        </div>
 
     </form>
 
+    </div>
 </div>
 
-<p>
-    <a href="/pointouts/{{ index }}">
-        詳細へ戻る
-    </a>
-</p>
+<script src="{{ url_for('static', filename='js/new_pointout.js') }}?v=20260927-1"></script>
 
 {% endblock %}

@@ -150,12 +150,22 @@ def get_form_error_field(message):
     field_map = {
         "発生日を入力してください。": "event_date",
         "発生日が不正です。": "event_date",
+        "分類が不正です。": "category",
+        "内容区分が不正です。": "content_type",
         "対象ユーザーを選択してください。": "target_user_search",
         "対象ユーザーが不正です。": "target_user_search",
         "対象ユーザー情報が不正です。": "target_user_search",
         "納入先を選択してください。": "delivery_place",
         "納入先が不正です。": "delivery_place",
         "内容は5000文字以内で入力してください。": "content_editor",
+        "対策内容を入力してください。": "countermeasure",
+        "対策内容は5000文字以内で入力してください。": "countermeasure",
+        "対応者を選択してください。": "countermeasure_by_search",
+        "対応者が不正です。": "countermeasure_by_search",
+        "対応者情報が不正です。": "countermeasure_by_search",
+        "対応期限が不正です。": "countermeasure_due_date",
+        "差し戻し理由を入力してください。": "reject_reason",
+        "差し戻し理由は5000文字以内で入力してください。": "reject_reason",
         "車台番号を入力してください。": "chassis_number",
         "同じ車台番号の車両が既に登録されています。": "chassis_number",
     }
@@ -215,7 +225,7 @@ def redirect_form_errors(response):
         return response
 
     if (
-        request.path != "/pointouts/new"
+        not request.path.startswith("/pointouts")
         and request.path != "/settings"
         and not request.path.startswith("/master/")
     ):
@@ -248,6 +258,61 @@ def redirect_form_errors(response):
             "delivery_place": request.form.get("delivery_place", ""),
             "content_type": request.form.get("content_type", ""),
             "content": request.form.get("content", ""),
+        }
+
+    elif request.path.endswith("/countermeasure"):
+        session["countermeasure_form_data"] = {
+            "countermeasure": request.form.get(
+                "countermeasure",
+                ""
+            ),
+            "countermeasure_by": request.form.get(
+                "countermeasure_by",
+                ""
+            ),
+            "countermeasure_by_search": request.form.get(
+                "countermeasure_by_search",
+                ""
+            ),
+            "countermeasure_by_username": request.form.get(
+                "countermeasure_by_username",
+                ""
+            ),
+            "countermeasure_due_date": request.form.get(
+                "countermeasure_due_date",
+                ""
+            ),
+        }
+
+    elif (
+        request.path.startswith("/pointouts/")
+        and request.path.endswith("/edit")
+    ):
+        session["pointout_edit_form_data"] = {
+            "date": request.form.get("date", ""),
+            "category": request.form.get("category", ""),
+            "target_user": request.form.get("target_user", ""),
+            "target_user_search": request.form.get(
+                "target_user_search",
+                ""
+            ),
+            "delivery_place": request.form.get(
+                "delivery_place",
+                ""
+            ),
+            "content_type": request.form.get(
+                "content_type",
+                ""
+            ),
+            "content": request.form.get("content", ""),
+        }
+
+    elif request.path.endswith("/reject"):
+        session["pointout_reject_form_data"] = {
+            "reject_reason": request.form.get(
+                "reject_reason",
+                ""
+            ),
         }
 
     elif request.path == "/master/vehicles/new":
@@ -1133,12 +1198,21 @@ class PatrolResult(db.Model):
         db.Text
     )
 
+    countermeasure_files_json = db.Column(
+        db.Text,
+        default="[]"
+    )
+
     countermeasure_by = db.Column(
         db.String(100)
     )
 
     countermeasure_by_username = db.Column(
         db.String(50)
+    )
+
+    countermeasure_due_date = db.Column(
+        db.String(20)
     )
 
     approval_status = db.Column(
@@ -2678,10 +2752,16 @@ def patrol_result_to_dict(result):
             result.files_json
         ),
         "countermeasure": result.countermeasure,
+        "countermeasure_files": safe_json_str_list(
+            result.countermeasure_files_json
+        ),
         "countermeasure_by": result.countermeasure_by,
         "countermeasure_by_username": (
             result.countermeasure_by_username
-        ),        
+        ),
+        "countermeasure_due_date": (
+            result.countermeasure_due_date
+        ),
         "approval_status": result.approval_status,
         "reject_reason": result.reject_reason,
     }
@@ -7672,11 +7752,24 @@ def pointout_detail(index):
     if not can_view_patrol_result(result):
         return redirect("/pointouts")
 
+    countermeasure_form_data = session.pop(
+        "countermeasure_form_data",
+        {}
+    )
+
+    pointout_reject_form_data = session.pop(
+        "pointout_reject_form_data",
+        {}
+    )
+
     return render_template(
         "pointout_detail.html",
         result=result,
         index=result_record.id,
         manuals=manuals_for_current_company(),
+        drivers=drivers_for_current_company(),
+        countermeasure_form_data=countermeasure_form_data,
+        pointout_reject_form_data=pointout_reject_form_data,
         can_manage=can_edit_patrol_result(result),
         can_countermeasure=can_countermeasure_patrol_result(
             result
@@ -7703,6 +7796,11 @@ def edit_pointout(index):
 
     if not can_edit_patrol_result(result):
         return redirect(f"/pointouts/{index}")
+
+    pointout_edit_form_data = session.pop(
+        "pointout_edit_form_data",
+        {}
+    )
 
     if request.method == "POST":
         company_code = session.get("company_code")
@@ -7889,20 +7987,11 @@ def edit_pointout(index):
 
         except UploadValidationError as error:
             db.session.rollback()
-
-            result = patrol_result_to_dict(
-                result_record
+            app.logger.warning(
+                "Upload validation failed while updating patrol attachments.",
+                exc_info=True
             )
-
-            return render_template(
-                "edit_pointout.html",
-                result=result,
-                index=result_record.id,
-                drivers=drivers_for_current_company(),
-                delivery_places=delivery_places_for_current_company(),
-                manuals=manuals_for_current_company(),
-                error=str(error),
-            ), 400
+            return "添付ファイルの検証に失敗しました。入力内容を確認してください。", 400
 
         result_record.files_json = json.dumps(
             files,
@@ -7973,29 +8062,8 @@ def edit_pointout(index):
         drivers=drivers_for_current_company(),
         delivery_places=delivery_places_for_current_company(),
         manuals=manuals_for_current_company(),
+        pointout_edit_form_data=pointout_edit_form_data,
     )
-
-@app.route("/pointouts/<int:index>/countermeasure/new")
-def new_countermeasure(index):
-    result_record = PatrolResult.query.filter_by(
-        id=index,
-        company_code=session.get("company_code")
-    ).first()
-
-    if not result_record:
-        return redirect("/pointouts")
-
-    result = patrol_result_to_dict(result_record)
-
-    if not can_countermeasure_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
-
-    return render_template(
-        "countermeasure.html",
-        result=result,
-        index=result_record.id
-    )
-
 
 @app.route("/pointouts/<int:index>/countermeasure", methods=["POST"])
 @limiter.limit("20 per minute")
@@ -8021,23 +8089,153 @@ def register_countermeasure(index):
         ""
     ).strip()
 
+    if not countermeasure:
+        return "対策内容を入力してください。", 400
+
     if len(countermeasure) > 5000:
-        return "是正内容は5000文字以内で入力してください。", 400
+        return "対策内容は5000文字以内で入力してください。", 400
 
     result_record.countermeasure = countermeasure
 
+    countermeasure_files = safe_json_str_list(
+        result_record.countermeasure_files_json
+    )
+
+    delete_countermeasure_files = request.form.getlist(
+        "delete_countermeasure_files"
+    )
+
+    if len(delete_countermeasure_files) > 50:
+        return (
+            "一度に削除できる添付ファイルは50件までです。",
+            400
+        )
+
+    pending_delete_countermeasure_files = []
+
+    for delete_file in delete_countermeasure_files:
+        delete_file = os.path.basename(
+            delete_file
+        )
+
+        if delete_file not in countermeasure_files:
+            continue
+
+        countermeasure_files.remove(delete_file)
+
+        pending_delete_countermeasure_files.append(
+            delete_file
+        )
+
+    for file in request.files.getlist(
+        "countermeasure_files"
+    ):
+        if not file or not file.filename:
+            continue
+
+        try:
+            saved_file = save_uploaded_file(file)
+        except UploadValidationError as _error:
+            return "添付ファイルの検証に失敗しました。", 400
+
+        if saved_file:
+            countermeasure_files.append(saved_file)
+
+    result_record.countermeasure_files_json = json.dumps(
+        countermeasure_files,
+        ensure_ascii=False
+    )
+
+    countermeasure_by_employee_id = request.form.get(
+        "countermeasure_by",
+        ""
+    ).strip()
+
+    if not countermeasure_by_employee_id:
+        return "対応者を選択してください。", 400
+
+    countermeasure_driver = Driver.query.filter_by(
+        company_code=result_record.company_code,
+        employee_id=countermeasure_by_employee_id
+    ).first()
+
+    if not countermeasure_driver:
+        return "対応者が不正です。", 400
+
+    countermeasure_user = User.query.filter_by(
+        company_code=result_record.company_code,
+        username=countermeasure_driver.employee_id
+    ).first()
+
+    if not countermeasure_user:
+        return "対応者情報が不正です。", 400
+
     result_record.countermeasure_by = (
-        session.get("name")
+        countermeasure_driver.name
     )
 
     result_record.countermeasure_by_username = (
-        session.get("username")
+        countermeasure_user.username
+    )
+
+    countermeasure_due_date = request.form.get(
+        "countermeasure_due_date",
+        ""
+    ).strip()
+
+    if countermeasure_due_date:
+        try:
+            datetime.strptime(
+                countermeasure_due_date,
+                "%Y-%m-%d"
+            )
+        except ValueError:
+            return "対応期限が不正です。", 400
+
+    result_record.countermeasure_due_date = (
+        countermeasure_due_date
     )
 
     result_record.approval_status = "承認待ち"
     result_record.reject_reason = ""
 
     db.session.commit()
+
+    for delete_file in pending_delete_countermeasure_files:
+        deleted = False
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{result_record.company_code}/"
+                        f"{delete_file}"
+                    )
+                )
+                deleted = True
+            except ClientError:
+                print(
+                    "S3対策添付ファイル削除エラー"
+                )
+        else:
+            safe_file_name = secure_filename(
+                delete_file
+            )
+
+            if not safe_file_name:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                result_record.company_code,
+                safe_file_name
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                deleted = True
 
     notify_mentions(
         result_record.countermeasure,
@@ -8125,6 +8323,9 @@ def reject_countermeasure(index):
         "reject_reason",
         ""
     ).strip()
+
+    if not reject_reason:
+        return "差し戻し理由を入力してください。", 400
 
     if len(reject_reason) > 5000:
         return "差し戻し理由は5000文字以内で入力してください。", 400
@@ -13241,6 +13442,10 @@ def checklist_master():
     checklists = checklists_for_current_company()
     company_code = session.get("company_code")
 
+    keyword = request.args.get("keyword", "").strip()
+    target = request.args.get("target", "").strip()
+    status = request.args.get("status", "").strip()
+
     for checklist in checklists:
         checklist_id = checklist["id"]
 
@@ -13258,9 +13463,40 @@ def checklist_master():
             has_safety_results or has_vehicle_results
         )
 
+    if keyword:
+        keyword_lower = keyword.lower()
+        checklists = [
+            checklist
+            for checklist in checklists
+            if keyword_lower in checklist["name"].lower()
+        ]
+
+    if target:
+        checklists = [
+            checklist
+            for checklist in checklists
+            if checklist["target"] == target
+        ]
+
+    if status == "active":
+        checklists = [
+            checklist
+            for checklist in checklists
+            if checklist.active
+        ]
+    elif status == "inactive":
+        checklists = [
+            checklist
+            for checklist in checklists
+            if not checklist.active
+        ]
+
     return render_template(
         "checklist_master.html",
-        checklists=checklists
+        checklists=checklists,
+        keyword=keyword,
+        target=target,
+        status=status
     )
 
 @app.route("/master/checklists/new", methods=["GET", "POST"])
@@ -20246,6 +20482,32 @@ with app.app_context():
             db.text(
                 "ALTER TABLE patrol_result "
                 "ADD COLUMN countermeasure_by_username VARCHAR(50)"
+            )
+        )
+
+        db.session.commit()
+
+    if (
+        "countermeasure_files_json"
+        not in existing_patrol_result_columns
+    ):
+        db.session.execute(
+            db.text(
+                "ALTER TABLE patrol_result "
+                "ADD COLUMN countermeasure_files_json TEXT"
+            )
+        )
+
+        db.session.commit()
+
+    if (
+        "countermeasure_due_date"
+        not in existing_patrol_result_columns
+    ):
+        db.session.execute(
+            db.text(
+                "ALTER TABLE patrol_result "
+                "ADD COLUMN countermeasure_due_date VARCHAR(20)"
             )
         )
 

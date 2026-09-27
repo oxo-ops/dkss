@@ -19,25 +19,29 @@
 
 <div class="card form-page-card">
     <form method="post" enctype="multipart/form-data">
-
-    {% if error %}
-        <div class="alert danger">
-            {{ error }}
-        </div>
-    {% endif %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div>
             <label>発生日</label>
-            <input type="date" name="date" id="event_date" value="{{ result.date }}" required>
+            <input
+                type="date"
+                name="date"
+                id="event_date"
+                value="{{ pointout_edit_form_data.get('date', result.date) }}"
+            >
         </div>
 
         <div>
             <label>分類</label>
-            <select name="category">
-                <option value="安全" {% if result.category == "安全" %}selected{% endif %}>安全</option>
-                <option value="品質" {% if result.category == "品質" %}selected{% endif %}>品質</option>
-                <option value="Good" {% if result.category == "Good" %}selected{% endif %}>Good</option>
+            {% set selected_category = pointout_edit_form_data.get('category', result.category) %}
+
+            <select
+                name="category"
+                id="category"
+            >
+                <option value="安全" {% if selected_category == "安全" %}selected{% endif %}>安全</option>
+                <option value="品質" {% if selected_category == "品質" %}selected{% endif %}>品質</option>
+                <option value="Good" {% if selected_category == "Good" %}selected{% endif %}>Good</option>
             </select>
         </div>
 
@@ -60,16 +64,19 @@
             <input
                 type="text"
                 id="target_user_search"
-                value="{{ result.target_user }}"
+                name="target_user_search"
+                value="{{ pointout_edit_form_data.get('target_user_search', result.target_user) }}"
                 placeholder="氏名を入力"
                 autocomplete="off"
+                data-selected-employee-id="{{ pointout_edit_form_data.get('target_user', result.target_username) }}"
+                data-selected-name="{{ pointout_edit_form_data.get('target_user_search', result.target_user) }}"
             >
 
             <input
                 type="hidden"
                 name="target_user"
                 id="target_user"
-                value="{{ result.target_username }}"
+                value="{{ pointout_edit_form_data.get('target_user', result.target_username) }}"
             >
 
             <div
@@ -95,7 +102,7 @@
                 type="text"
                 name="delivery_place"
                 id="delivery_place"
-                value="{{ result.delivery_place }}"
+                value="{{ pointout_edit_form_data.get('delivery_place', result.delivery_place) }}"
                 list="delivery_place_list"
             >
 
@@ -109,13 +116,18 @@
 
         <div>
             <label>内容区分</label>
-            <select name="content_type">
-                <option value="落下" {% if result.content_type == "落下" %}selected{% endif %}>落下</option>
-                <option value="車両" {% if result.content_type == "車両" %}selected{% endif %}>車両</option>
-                <option value="環境" {% if result.content_type == "環境" %}selected{% endif %}>環境</option>
-                <option value="荷扱い" {% if result.content_type == "荷扱い" %}selected{% endif %}>荷扱い</option>
-                <option value="ルール違反" {% if result.content_type == "ルール違反" %}selected{% endif %}>ルール違反</option>
-                <option value="その他" {% if result.content_type == "その他" %}selected{% endif %}>その他</option>
+            {% set selected_content_type = pointout_edit_form_data.get('content_type', result.content_type) %}
+
+            <select
+                name="content_type"
+                id="content_type"
+            >
+                <option value="落下" {% if selected_content_type == "落下" %}selected{% endif %}>落下</option>
+                <option value="車両" {% if selected_content_type == "車両" %}selected{% endif %}>車両</option>
+                <option value="環境" {% if selected_content_type == "環境" %}selected{% endif %}>環境</option>
+                <option value="荷扱い" {% if selected_content_type == "荷扱い" %}selected{% endif %}>荷扱い</option>
+                <option value="ルール違反" {% if selected_content_type == "ルール違反" %}selected{% endif %}>ルール違反</option>
+                <option value="その他" {% if selected_content_type == "その他" %}selected{% endif %}>その他</option>
             </select>
         </div>
 
@@ -158,14 +170,14 @@
                 type="hidden"
                 name="content"
                 id="content_value"
-                value="{{ result.content }}"
+                value="{{ pointout_edit_form_data.get('content', result.content) }}"
             >
 
             <div
                 id="content_editor"
                 class="mention-rich-editor"
                 contenteditable="true"
-                data-value="{{ result.content }}"
+                data-value="{{ pointout_edit_form_data.get('content', result.content) }}"
             ></div>
         </div>
 
