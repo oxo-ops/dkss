@@ -4,56 +4,58 @@
 
 {% block content %}
 
-<div class="page-header">
+<div class="page-header driver-master-page-header">
     <h2>ドライバーマスタ</h2>
 
     <div class="header-actions">
-        <a href="/master" class="btn btn-back">
-            ← マスタ管理へ戻る
-        </a>
-
         <a href="/master/drivers/new" class="btn">
             新規登録
         </a>
     </div>
 </div>
 
-<div class="card">
-    <form method="get">
-        <label>ユーザーID・氏名検索</label>
-        <input
-            type="text"
-            name="keyword"
-            value="{{ keyword }}"
-            placeholder="ユーザーIDまたは氏名を入力"
-        >
+<div class="card driver-master-filter-card">
+    <form method="get" class="driver-master-filter-form">
+        <div class="driver-filter-keyword">
+            <label>ユーザーID・氏名検索</label>
+            <input
+                type="text"
+                name="keyword"
+                value="{{ keyword }}"
+                placeholder="ユーザーIDまたは氏名を入力"
+            >
+        </div>
 
-        <label>営業所</label>
-        <select name="office">
-            <option value="">すべて</option>
-            {% for office_item in offices %}
-                <option value="{{ office_item.name }}" {% if office == office_item.name %}selected{% endif %}>
-                    {{ office_item.name }}
-                </option>
-            {% endfor %}
-        </select>
+        <div class="driver-filter-office">
+            <label>営業所</label>
+            <select name="office">
+                <option value="">すべて</option>
+                {% for office_item in offices %}
+                    <option value="{{ office_item.name }}" {% if office == office_item.name %}selected{% endif %}>
+                        {{ office_item.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <label>使用車両</label>
+        <div class="driver-filter-vehicle">
+            <label>使用車両</label>
+            <input
+                type="text"
+                name="vehicle"
+                id="driver_vehicle_filter"
+                list="driver_vehicle_options"
+                value="{{ vehicle }}"
+                placeholder="車番・車台番号・型式などで検索"
+                autocomplete="off"
+            >
+            <datalist id="driver_vehicle_options"></datalist>
+        </div>
 
-        <input
-            type="text"
-            name="vehicle"
-            id="driver_vehicle_filter"
-            list="driver_vehicle_options"
-            value="{{ vehicle }}"
-            placeholder="車番・車台番号・型式・メーカーなどで検索"
-            autocomplete="off"
-        >
-
-        <datalist id="driver_vehicle_options"></datalist>
-
-        <button type="submit" class="btn">検索</button>
-        <a href="/master/drivers" class="btn btn-back">クリア</a>
+        <div class="driver-filter-actions">
+            <button type="submit" class="btn">検索</button>
+            <a href="/master/drivers" class="btn btn-back">クリア</a>
+        </div>
     </form>
 </div>
 
@@ -148,13 +150,15 @@
                 <strong>{{ driver.safe_start_date }}</strong>
             </div>
 
-            <div class="mobile-card-row">
+            <div class="mobile-card-row mobile-driver-license-row">
                 <span>所有免許</span>
                 <strong>
                     {% if driver.licenses %}
                         {{ driver.licenses[0].type }}
                         {% if driver.licenses|length > 1 %}
-                            他{{ driver.licenses|length - 1 }}件
+                            <small>
+                                他{{ driver.licenses|length - 1 }}件
+                            </small>
                         {% endif %}
                     {% else %}
                         なし
@@ -162,15 +166,24 @@
                 </strong>
             </div>
 
-            <div class="mobile-card-content">
-                <strong>使用車両</strong><br>
-                {% if driver.vehicles %}
-                    {% for vehicle in driver.vehicles %}
-                        {{ vehicle }}<br>
-                    {% endfor %}
-                {% else %}
-                    なし
-                {% endif %}
+            <div class="mobile-driver-vehicles">
+                <span class="mobile-driver-vehicles-label">
+                    使用車両
+                </span>
+
+                <div class="mobile-driver-vehicle-tags">
+                    {% if driver.vehicles %}
+                        {% for vehicle in driver.vehicles %}
+                            <span class="mobile-driver-vehicle-tag">
+                                {{ vehicle }}
+                            </span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="subtle-text">
+                            なし
+                        </span>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="mobile-card-actions">

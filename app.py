@@ -9145,7 +9145,7 @@ def manuals():
 
 @app.route("/master")
 def master():
-    return render_template("master_menu.html")
+    return redirect("/master/drivers")
 
 @app.route("/master/offices")
 def office_master():
@@ -10191,6 +10191,52 @@ def driver_master():
     filtered_drivers = []
 
     for driver in driver_records:
+        vehicle_record_ids = safe_json_str_list(
+            driver.vehicles_json
+        )
+
+        vehicle_records = Vehicle.query.filter(
+            Vehicle.company_code == driver.company_code,
+            Vehicle.id.in_([
+                int(vehicle_id)
+                for vehicle_id in vehicle_record_ids
+                if str(vehicle_id).isdigit()
+            ])
+        ).all()
+
+        vehicle_map = {
+            str(vehicle.id): vehicle
+            for vehicle in vehicle_records
+        }
+
+        vehicle_labels = []
+
+        for vehicle_id in vehicle_record_ids:
+            vehicle_record = vehicle_map.get(
+                str(vehicle_id)
+            )
+
+            if not vehicle_record:
+                continue
+
+            plate = " ".join(
+                filter(
+                    None,
+                    [
+                        vehicle_record.plate_area,
+                        vehicle_record.plate_class,
+                        vehicle_record.plate_kana,
+                        vehicle_record.plate_number,
+                    ]
+                )
+            )
+
+            vehicle_labels.append(
+                plate
+                or vehicle_record.chassis_number
+                or f"車両ID {vehicle_record.id}"
+            )
+
         driver_item = {
             "index": driver.id,
             "id": driver.id,
@@ -10201,9 +10247,7 @@ def driver_master():
             "role": driver.role,
             "office": driver.office,
             "safe_start_date": driver.safe_start_date,
-            "vehicles": safe_json_str_list(
-                driver.vehicles_json
-            ),
+            "vehicles": vehicle_labels,
             "licenses": safe_json_dict_list(
                 driver.licenses_json
             ),
