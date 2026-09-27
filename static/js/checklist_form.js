@@ -80,6 +80,12 @@ function addChecklistItem() {
                         <option value="inspector">点検者</option>
                         <option value="approval">承認項目</option>
                     </select>
+
+                    <input
+                        type="hidden"
+                        name="original_item_index"
+                        value=""
+                    >
                 </div>
 
                 <div class="approval-user-setting is-hidden">

@@ -4353,7 +4353,29 @@ def itc_new_news():
 
         file_names = []
 
-        uploaded_files = request.files.getlist("files")
+        uploaded_files = [
+            file
+            for file in request.files.getlist("files")
+            if file and file.filename
+        ]
+
+        for file in uploaded_files:
+            original_filename = os.path.basename(
+                str(file.filename or "")
+            )
+
+            extension = os.path.splitext(
+                original_filename
+            )[1].lower()
+
+            if (
+                extension not in ALLOWED_UPLOAD_EXTENSIONS
+                or not is_valid_uploaded_file(
+                    file,
+                    extension
+                )
+            ):
+                return "添付ファイルの検証に失敗しました。", 400
 
         for file in uploaded_files:
             filename = save_uploaded_file(file)
@@ -4495,9 +4517,31 @@ def itc_edit_news(index):
             news.files_json
         )
 
-        uploaded_files = request.files.getlist(
-            "files"
-        )
+        uploaded_files = [
+            file
+            for file in request.files.getlist(
+                "files"
+            )
+            if file and file.filename
+        ]
+
+        for file in uploaded_files:
+            original_filename = os.path.basename(
+                str(file.filename or "")
+            )
+
+            extension = os.path.splitext(
+                original_filename
+            )[1].lower()
+
+            if (
+                extension not in ALLOWED_UPLOAD_EXTENSIONS
+                or not is_valid_uploaded_file(
+                    file,
+                    extension
+                )
+            ):
+                return "添付ファイルの検証に失敗しました。", 400
 
         for file in uploaded_files:
             filename = save_uploaded_file(file)
@@ -4584,8 +4628,70 @@ def itc_delete_news(index):
         company_code=news.company_code,
     )
 
+    files_to_delete = safe_json_str_list(
+        news.files_json
+    )
+
     db.session.delete(news)
     db.session.commit()
+
+    for filename in files_to_delete:
+        filename = os.path.basename(
+            str(filename or "")
+        )
+
+        if not filename:
+            continue
+
+        still_referenced = False
+
+        notification_records = Notification.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        for notification in notification_records:
+            notification_files = safe_json_str_list(
+                notification.files_json
+            )
+
+            if filename in notification_files:
+                still_referenced = True
+                break
+
+        if still_referenced:
+            continue
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "お知らせ添付ファイルのS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if not safe_filename:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                company_code,
+                safe_filename
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     return redirect("/itc")
 
@@ -4824,6 +4930,13 @@ def settings():
             )
 
             if profile_image and profile_image.filename:
+                old_profile_image = os.path.basename(
+                    str(
+                        current_user.profile_image
+                        or ""
+                    )
+                )
+
                 saved_filename = save_uploaded_file(
                     profile_image
                 )
@@ -4838,6 +4951,40 @@ def settings():
                     session["profile_image"] = (
                         saved_filename
                     )
+
+                    if (
+                        old_profile_image
+                        and old_profile_image != saved_filename
+                    ):
+                        if s3_client and S3_BUCKET_NAME:
+                            try:
+                                s3_client.delete_object(
+                                    Bucket=S3_BUCKET_NAME,
+                                    Key=(
+                                        f"uploads/"
+                                        f"{current_user.company_code}/"
+                                        f"{old_profile_image}"
+                                    )
+                                )
+                            except ClientError:
+                                app.logger.warning(
+                                    "旧プロフィール画像のS3削除に失敗しました。",
+                                    exc_info=True
+                                )
+                        else:
+                            safe_filename = secure_filename(
+                                old_profile_image
+                            )
+
+                            if safe_filename:
+                                file_path = os.path.join(
+                                    app.config["UPLOAD_FOLDER"],
+                                    current_user.company_code,
+                                    safe_filename
+                                )
+
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
 
             return redirect("/settings")
 
@@ -7024,8 +7171,82 @@ def delete_notification(index):
         company_code=notification.company_code,
     )
 
+    files_to_delete = safe_json_str_list(
+        notification.files_json
+    )
+
+    company_code = notification.company_code
+
     db.session.delete(notification)
     db.session.commit()
+
+    for filename in files_to_delete:
+        filename = os.path.basename(
+            str(filename or "")
+        )
+
+        if not filename:
+            continue
+
+        still_referenced = False
+
+        other_notifications = Notification.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        for other_notification in other_notifications:
+            if filename in safe_json_str_list(
+                other_notification.files_json
+            ):
+                still_referenced = True
+                break
+
+        if not still_referenced:
+            news_records = News.query.filter_by(
+                company_code=company_code
+            ).all()
+
+            for news in news_records:
+                if filename in safe_json_str_list(
+                    news.files_json
+                ):
+                    still_referenced = True
+                    break
+
+        if still_referenced:
+            continue
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "通知添付ファイルのS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if not safe_filename:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                company_code,
+                safe_filename
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     return redirect("/notifications")
 
@@ -7657,9 +7878,31 @@ def new_pointout():
         # 添付ファイル
         # =========================
 
-        uploaded_files = request.files.getlist("files")
+        uploaded_files = [
+            file
+            for file in request.files.getlist("files")
+            if file and file.filename
+        ]
 
         file_names = []
+
+        for file in uploaded_files:
+            original_filename = os.path.basename(
+                str(file.filename or "")
+            )
+
+            extension = os.path.splitext(
+                original_filename
+            )[1].lower()
+
+            if (
+                extension not in ALLOWED_UPLOAD_EXTENSIONS
+                or not is_valid_uploaded_file(
+                    file,
+                    extension
+                )
+            ):
+                return "添付ファイルの検証に失敗しました。", 400
 
         for file in uploaded_files:
             filename = save_uploaded_file(file)
@@ -7981,24 +8224,37 @@ def edit_pointout(index):
         # 新規添付
         # =========================
 
-        uploaded_files = request.files.getlist(
-            "files"
-        )
-
-        try:
-            for file in uploaded_files:
-                filename = save_uploaded_file(file)
-
-                if filename:
-                    files.append(filename)
-
-        except UploadValidationError as error:
-            db.session.rollback()
-            app.logger.warning(
-                "Upload validation failed while updating patrol attachments.",
-                exc_info=True
+        uploaded_files = [
+            file
+            for file in request.files.getlist(
+                "files"
             )
-            return "添付ファイルの検証に失敗しました。入力内容を確認してください。", 400
+            if file and file.filename
+        ]
+
+        for file in uploaded_files:
+            original_filename = os.path.basename(
+                str(file.filename or "")
+            )
+
+            extension = os.path.splitext(
+                original_filename
+            )[1].lower()
+
+            if (
+                extension not in ALLOWED_UPLOAD_EXTENSIONS
+                or not is_valid_uploaded_file(
+                    file,
+                    extension
+                )
+            ):
+                return "添付ファイルの検証に失敗しました。入力内容を確認してください。", 400
+
+        for file in uploaded_files:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                files.append(filename)
 
         result_record.files_json = json.dumps(
             files,
@@ -8102,7 +8358,43 @@ def register_countermeasure(index):
     if len(countermeasure) > 5000:
         return "対策内容は5000文字以内で入力してください。", 400
 
-    result_record.countermeasure = countermeasure
+    countermeasure_by_employee_id = request.form.get(
+        "countermeasure_by",
+        ""
+    ).strip()
+
+    if not countermeasure_by_employee_id:
+        return "対応者を選択してください。", 400
+
+    countermeasure_driver = Driver.query.filter_by(
+        company_code=result_record.company_code,
+        employee_id=countermeasure_by_employee_id
+    ).first()
+
+    if not countermeasure_driver:
+        return "対応者が不正です。", 400
+
+    countermeasure_user = User.query.filter_by(
+        company_code=result_record.company_code,
+        username=countermeasure_driver.employee_id
+    ).first()
+
+    if not countermeasure_user:
+        return "対応者情報が不正です。", 400
+
+    countermeasure_due_date = request.form.get(
+        "countermeasure_due_date",
+        ""
+    ).strip()
+
+    if countermeasure_due_date:
+        try:
+            datetime.strptime(
+                countermeasure_due_date,
+                "%Y-%m-%d"
+            )
+        except ValueError:
+            return "対応期限が不正です。", 400
 
     countermeasure_files = safe_json_str_list(
         result_record.countermeasure_files_json
@@ -8134,48 +8426,47 @@ def register_countermeasure(index):
             delete_file
         )
 
-    for file in request.files.getlist(
-        "countermeasure_files"
-    ):
-        if not file or not file.filename:
-            continue
+    uploaded_countermeasure_files = [
+        file
+        for file in request.files.getlist(
+            "countermeasure_files"
+        )
+        if file and file.filename
+    ]
 
+    for file in uploaded_countermeasure_files:
+        original_filename = os.path.basename(
+            str(file.filename or "")
+        )
+
+        extension = os.path.splitext(
+            original_filename
+        )[1].lower()
+
+        if (
+            extension not in ALLOWED_UPLOAD_EXTENSIONS
+            or not is_valid_uploaded_file(
+                file,
+                extension
+            )
+        ):
+            return "添付ファイルの検証に失敗しました。", 400
+
+    for file in uploaded_countermeasure_files:
         try:
             saved_file = save_uploaded_file(file)
-        except UploadValidationError as _error:
+        except UploadValidationError:
             return "添付ファイルの検証に失敗しました。", 400
 
         if saved_file:
             countermeasure_files.append(saved_file)
 
+    result_record.countermeasure = countermeasure
+
     result_record.countermeasure_files_json = json.dumps(
         countermeasure_files,
         ensure_ascii=False
     )
-
-    countermeasure_by_employee_id = request.form.get(
-        "countermeasure_by",
-        ""
-    ).strip()
-
-    if not countermeasure_by_employee_id:
-        return "対応者を選択してください。", 400
-
-    countermeasure_driver = Driver.query.filter_by(
-        company_code=result_record.company_code,
-        employee_id=countermeasure_by_employee_id
-    ).first()
-
-    if not countermeasure_driver:
-        return "対応者が不正です。", 400
-
-    countermeasure_user = User.query.filter_by(
-        company_code=result_record.company_code,
-        username=countermeasure_driver.employee_id
-    ).first()
-
-    if not countermeasure_user:
-        return "対応者情報が不正です。", 400
 
     result_record.countermeasure_by = (
         countermeasure_driver.name
@@ -8185,25 +8476,9 @@ def register_countermeasure(index):
         countermeasure_user.username
     )
 
-    countermeasure_due_date = request.form.get(
-        "countermeasure_due_date",
-        ""
-    ).strip()
-
-    if countermeasure_due_date:
-        try:
-            datetime.strptime(
-                countermeasure_due_date,
-                "%Y-%m-%d"
-            )
-        except ValueError:
-            return "対応期限が不正です。", 400
-
     result_record.countermeasure_due_date = (
         countermeasure_due_date
     )
-
-    result_record.countermeasure = countermeasure
 
     result_record.approval_status = "承認待ち"
     result_record.reject_reason = ""
@@ -8409,6 +8684,15 @@ def delete_pointout(index):
 
     view_type = result.get("target_type", "user")
 
+    files_to_delete = (
+        safe_json_str_list(
+            result_record.files_json
+        )
+        + safe_json_str_list(
+            result_record.countermeasure_files_json
+        )
+    )
+
     add_audit_log(
         action="patrol_result_deleted",
         target_type="patrol_result",
@@ -8417,8 +8701,71 @@ def delete_pointout(index):
         company_code=result_record.company_code,
     )
 
+    company_code = result_record.company_code
+
     db.session.delete(result_record)
     db.session.commit()
+
+    for filename in files_to_delete:
+        filename = os.path.basename(
+            str(filename or "")
+        )
+
+        if not filename:
+            continue
+
+        still_referenced = False
+
+        checklist_results = ChecklistResult.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        for checklist_result in checklist_results:
+            answers = safe_json_dict_list(
+                checklist_result.answers_json
+            )
+
+            if any(
+                filename in answer.get("files", [])
+                for answer in answers
+            ):
+                still_referenced = True
+                break
+
+        if still_referenced:
+            continue
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "安全パトロール添付ファイルのS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if not safe_filename:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                company_code,
+                safe_filename
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     return redirect(f"/pointouts?type={view_type}")
 
@@ -13378,6 +13725,10 @@ def edit_manual(index):
         manual.title = title
         manual.category = category
 
+        old_filename = os.path.basename(
+            str(manual.filename or "")
+        )
+
         file = request.files.get("file")
         filename = save_uploaded_file(
             file,
@@ -13388,6 +13739,41 @@ def edit_manual(index):
             manual.filename = filename
 
         db.session.commit()
+
+        if (
+            filename
+            and old_filename
+            and old_filename != filename
+        ):
+            if s3_client and S3_BUCKET_NAME:
+                try:
+                    s3_client.delete_object(
+                        Bucket=S3_BUCKET_NAME,
+                        Key=(
+                            f"manuals/"
+                            f"{manual.company_code}/"
+                            f"{old_filename}"
+                        )
+                    )
+                except ClientError:
+                    app.logger.warning(
+                        "旧マニュアルファイルのS3削除に失敗しました。",
+                        exc_info=True
+                    )
+            else:
+                safe_filename = secure_filename(
+                    old_filename
+                )
+
+                if safe_filename:
+                    file_path = os.path.join(
+                        "static/manuals",
+                        manual.company_code,
+                        safe_filename
+                    )
+
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
 
         return redirect("/master/manuals")
 
@@ -13426,8 +13812,45 @@ def delete_manual(index):
         company_code=manual.company_code,
     )
 
+    filename = os.path.basename(
+        str(manual.filename or "")
+    )
+
+    company_code = manual.company_code
+
     db.session.delete(manual)
     db.session.commit()
+
+    if filename:
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"manuals/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "マニュアルファイルのS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if safe_filename:
+                file_path = os.path.join(
+                    "static/manuals",
+                    company_code,
+                    safe_filename
+                )
+
+                if os.path.exists(file_path):
+                    os.remove(file_path)
 
     return redirect("/master/manuals")
 
@@ -13744,14 +14167,41 @@ def new_checklist():
         ).first():
             return "このチェックリストはすでに登録されています。", 409
 
+        pending_uploads = []
+
         for item_index, form_index in pending_criteria_files:
             for file in request.files.getlist(
                 f"criteria_files_{form_index}"
             ):
-                filename = save_uploaded_file(file)
+                if not file or not file.filename:
+                    continue
 
-                if filename:
-                    items[item_index]["criteria_files"].append(filename)
+                original_filename = os.path.basename(
+                    str(file.filename or "")
+                )
+
+                extension = os.path.splitext(
+                    original_filename
+                )[1].lower()
+
+                if (
+                    extension not in ALLOWED_UPLOAD_EXTENSIONS
+                    or not is_valid_uploaded_file(
+                        file,
+                        extension
+                    )
+                ):
+                    return "添付ファイルの検証に失敗しました。", 400
+
+                pending_uploads.append(
+                    (item_index, file)
+                )
+
+        for item_index, file in pending_uploads:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                items[item_index]["criteria_files"].append(filename)
 
         checklist = Checklist(
             company_code=session.get("company_code"),
@@ -15166,14 +15616,41 @@ def edit_checklist_result(result_index):
 
             answer_index += 1
 
+        pending_uploads = []
+
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
                 f"files_{form_index}"
             ):
-                filename = save_uploaded_file(file)
+                if not file or not file.filename:
+                    continue
 
-                if filename:
-                    answers[item_index]["files"].append(filename)
+                original_filename = os.path.basename(
+                    str(file.filename or "")
+                )
+
+                extension = os.path.splitext(
+                    original_filename
+                )[1].lower()
+
+                if (
+                    extension not in ALLOWED_UPLOAD_EXTENSIONS
+                    or not is_valid_uploaded_file(
+                        file,
+                        extension
+                    )
+                ):
+                    return "添付ファイルの検証に失敗しました。", 400
+
+                pending_uploads.append(
+                    (item_index, file)
+                )
+
+        for item_index, file in pending_uploads:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                answers[item_index]["files"].append(filename)
 
         result_record.target_type = target_type
         result_record.target_user = target_user
@@ -15304,8 +15781,77 @@ def delete_checklist_result(result_index):
         company_code=result_record.company_code,
     )
 
+    files_to_delete = []
+
+    for answer in safe_json_dict_list(
+        result_record.answers_json
+    ):
+        files_to_delete.extend(
+            answer.get("files", [])
+        )
+
+    company_code = result_record.company_code
+
     db.session.delete(result_record)
     db.session.commit()
+
+    for filename in files_to_delete:
+        filename = os.path.basename(
+            str(filename or "")
+        )
+
+        if not filename:
+            continue
+
+        still_referenced = False
+
+        patrol_records = PatrolResult.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        for patrol in patrol_records:
+            patrol_files = safe_json_str_list(
+                patrol.files_json
+            )
+
+            if filename in patrol_files:
+                still_referenced = True
+                break
+
+        if still_referenced:
+            continue
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "安全チェックリスト添付ファイルのS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if not safe_filename:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                company_code,
+                safe_filename
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     return redirect(f"/safety/checklists/{checklist_id}")
 
@@ -15951,25 +16497,38 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         result_record.approvals_json
     )
     if not approvals:
-        checklist_record = Checklist.query.filter_by(
-            id=result_record.checklist_id,
-            company_code=result_record.company_code
-        ).first()
+        approval_checklist = {}
 
-        if checklist_record:
-            checklist = checklist_to_dict(checklist_record)
+        if result_record.checklist_snapshot_json:
+            approval_checklist = safe_json_dict(
+                result_record.checklist_snapshot_json
+            )
 
-            for item in checklist.get("items", []):
-                if item.get("item_type") != "approval":
-                    continue
+        if not approval_checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
 
-                approvals.append({
-                    "label": item.get("approval_label", ""),
-                    "allow_general": item.get("approval_allow_general", False),
-                    "approved_by": "",
-                    "approved_by_username": "",
-                    "approved_date": "",
-                })
+            if checklist_record:
+                approval_checklist = checklist_to_dict(
+                    checklist_record
+                )
+
+        for item in approval_checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get(
+                    "approval_allow_general",
+                    False
+                ),
+                "approved_by": "",
+                "approved_by_username": "",
+                "approved_date": "",
+            })
 
     if approval_index < 0 or approval_index >= len(approvals):
         return redirect("/vehicle/checklists")
@@ -16026,41 +16585,6 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     ):
         return redirect("/vehicle/checklists")
 
-    # 旧データに allow_general が無い場合は
-    # 記録時点のチェックリストから補完
-    if "allow_general" not in approval:
-        approval_checklist = {}
-
-        if result_record.checklist_snapshot_json:
-            approval_checklist = safe_json_dict(
-                result_record.checklist_snapshot_json
-            )
-
-        if not approval_checklist:
-            checklist_record = Checklist.query.filter_by(
-                id=result_record.checklist_id,
-                company_code=result_record.company_code
-            ).first()
-
-            if checklist_record:
-                approval_checklist = checklist_to_dict(
-                    checklist_record
-                )
-
-        approval_items = [
-            item
-            for item in approval_checklist.get("items", [])
-            if item.get("item_type") == "approval"
-        ]
-
-        if approval_index < len(approval_items):
-            approval["allow_general"] = approval_items[
-                approval_index
-            ].get(
-                "approval_allow_general",
-                False
-            )
-
     result = vehicle_checklist_result_to_dict(result_record)
 
     if not can_approve_checklist_result(result, approval):
@@ -16105,25 +16629,32 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         deleted=False
     ).first()
 
-    checklist_record = Checklist.query.filter_by(
-        id=result_record.checklist_id,
-        company_code=result_record.company_code
-    ).first()
+    result_checklist = {}
 
-    if checklist_record:
-        checklist = checklist_to_dict(checklist_record)
+    if result_record.checklist_snapshot_json:
+        result_checklist = safe_json_dict(
+            result_record.checklist_snapshot_json
+        )
 
-        if checklist.get("frequency_unit") == "year":
-            active_value = result_record.year
+    if not result_checklist:
+        checklist_record = Checklist.query.filter_by(
+            id=result_record.checklist_id,
+            company_code=result_record.company_code
+        ).first()
 
-        elif checklist.get("display_type") == "month":
-            active_value = result_record.day
+        if checklist_record:
+            result_checklist = checklist_to_dict(
+                checklist_record
+            )
 
-        else:
-            active_value = result_record.month
+    if result_checklist.get("frequency_unit") == "year":
+        active_value = result_record.year
+
+    elif result_checklist.get("display_type") == "month":
+        active_value = result_record.day
 
     else:
-        active_value = result_record.day
+        active_value = result_record.month
 
     notification_link = (
         f"/vehicle/checklists/{result_record.checklist_id}"
@@ -17935,8 +18466,31 @@ def save_vehicle_checklist_detail(index):
         }
         answers.append(answer)
 
-    uploaded_files = request.files.getlist("files")
+    uploaded_files = [
+        file
+        for file in request.files.getlist("files")
+        if file and file.filename
+    ]
+
     answer.setdefault("files", [])
+
+    for file in uploaded_files:
+        original_filename = os.path.basename(
+            str(file.filename or "")
+        )
+
+        extension = os.path.splitext(
+            original_filename
+        )[1].lower()
+
+        if (
+            extension not in ALLOWED_UPLOAD_EXTENSIONS
+            or not is_valid_uploaded_file(
+                file,
+                extension
+            )
+        ):
+            return "添付ファイルの検証に失敗しました。", 400
 
     for file in uploaded_files:
         filename = save_uploaded_file(file)
@@ -18176,6 +18730,46 @@ def complete_vehicle_checklist(index):
         if item.get("item_type") == "check"
     ]
 
+    answers_by_item_no = {
+        str(answer.get("item_no")): answer
+        for answer in answers
+    }
+
+    for item_no, item in enumerate(check_items):
+        answer = answers_by_item_no.get(
+            str(item_no)
+        )
+
+        if not answer:
+            return "未入力の点検項目があります。", 400
+
+        value = str(
+            answer.get("value") or ""
+        )
+
+        if item.get("input_type") == "select":
+            valid_choices = [
+                str(choice)
+                for choice in item.get(
+                    "choices",
+                    []
+                )
+            ]
+
+            if value not in valid_choices:
+                return "未入力の点検項目があります。", 400
+
+        elif not value.strip():
+            return "未入力の点検項目があります。", 400
+
+        if (
+            item.get("comment_required")
+            and not str(
+                answer.get("comment") or ""
+            ).strip()
+        ):
+            return "必須コメントが未入力です。", 400
+
     # =========================
     # 通知先ユーザー検証
     # =========================
@@ -18396,6 +18990,26 @@ def new_vehicle_checklist_result(index):
         month = str(month_int).zfill(2)
         day = str(day_int).zfill(2)
 
+        existing_result = VehicleChecklistResult.query.filter_by(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            day=day
+        ).first()
+
+        if existing_result:
+            return redirect(
+                url_for(
+                    "vehicle_checklist_results",
+                    index=checklist_record.id,
+                    vehicle_record_id=vehicle_record_id,
+                    year=year,
+                    month=month,
+                )
+            )
+
         answers = []
         answer_index = 0
         pending_answer_files = []
@@ -18456,14 +19070,41 @@ def new_vehicle_checklist_result(index):
 
             answer_index += 1
 
+        pending_uploads = []
+
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
                 f"files_{form_index}"
             ):
-                filename = save_uploaded_file(file)
+                if not file or not file.filename:
+                    continue
 
-                if filename:
-                    answers[item_index]["files"].append(filename)
+                original_filename = os.path.basename(
+                    str(file.filename or "")
+                )
+
+                extension = os.path.splitext(
+                    original_filename
+                )[1].lower()
+
+                if (
+                    extension not in ALLOWED_UPLOAD_EXTENSIONS
+                    or not is_valid_uploaded_file(
+                        file,
+                        extension
+                    )
+                ):
+                    return "添付ファイルの検証に失敗しました。", 400
+
+                pending_uploads.append(
+                    (item_index, file)
+                )
+
+        for item_index, file in pending_uploads:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                answers[item_index]["files"].append(filename)
 
         approvals = []
 
@@ -18722,14 +19363,41 @@ def new_safety_checklist_result(index):
 
             answer_index += 1
 
+        pending_uploads = []
+
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
                 f"files_{form_index}"
             ):
-                filename = save_uploaded_file(file)
+                if not file or not file.filename:
+                    continue
 
-                if filename:
-                    answers[item_index]["files"].append(filename)
+                original_filename = os.path.basename(
+                    str(file.filename or "")
+                )
+
+                extension = os.path.splitext(
+                    original_filename
+                )[1].lower()
+
+                if (
+                    extension not in ALLOWED_UPLOAD_EXTENSIONS
+                    or not is_valid_uploaded_file(
+                        file,
+                        extension
+                    )
+                ):
+                    return "添付ファイルの検証に失敗しました。", 400
+
+                pending_uploads.append(
+                    (item_index, file)
+                )
+
+        for item_index, file in pending_uploads:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                answers[item_index]["files"].append(filename)
 
         if target_type in PATROL_VIEW_TYPES:
             for answer in answers:
@@ -18903,6 +19571,9 @@ def edit_checklist(index):
         item_contents = request.form.getlist("item_content")
         input_types = request.form.getlist("input_type")
         item_types = request.form.getlist("item_type")
+        original_item_indexes = request.form.getlist(
+            "original_item_index"
+        )
         approval_labels = request.form.getlist("approval_label")
         approval_allow_general_list = request.form.getlist("approval_allow_general")
         choices_list = request.form.getlist("choices")
@@ -19024,6 +19695,17 @@ def edit_checklist(index):
                 return "表示形式が不正です。", 400
             
         old_items = checklist.get("items", [])
+
+        old_criteria_files = {
+            filename
+            for item in old_items
+            for filename in item.get(
+                "criteria_files",
+                []
+            )
+            if filename
+        }
+
         items = []
         pending_criteria_files = []
 
@@ -19123,10 +19805,25 @@ def edit_checklist(index):
 
             criteria_files = []
 
-            if i < len(old_items):
-                criteria_files = list(
-                    old_items[i].get("criteria_files", [])
+            original_item_index = ""
+
+            if i < len(original_item_indexes):
+                original_item_index = str(
+                    original_item_indexes[i] or ""
+                ).strip()
+
+            if original_item_index.isdigit():
+                old_index = int(
+                    original_item_index
                 )
+
+                if 0 <= old_index < len(old_items):
+                    criteria_files = list(
+                        old_items[old_index].get(
+                            "criteria_files",
+                            []
+                        )
+                    )
 
             item_index = len(items)
 
@@ -19145,14 +19842,41 @@ def edit_checklist(index):
 
             pending_criteria_files.append((item_index, i))
 
+        pending_uploads = []
+
         for item_index, form_index in pending_criteria_files:
             for file in request.files.getlist(
                 f"criteria_files_{form_index}"
             ):
-                filename = save_uploaded_file(file)
+                if not file or not file.filename:
+                    continue
 
-                if filename:
-                    items[item_index]["criteria_files"].append(filename)
+                original_filename = os.path.basename(
+                    str(file.filename or "")
+                )
+
+                extension = os.path.splitext(
+                    original_filename
+                )[1].lower()
+
+                if (
+                    extension not in ALLOWED_UPLOAD_EXTENSIONS
+                    or not is_valid_uploaded_file(
+                        file,
+                        extension
+                    )
+                ):
+                    return "添付ファイルの検証に失敗しました。", 400
+
+                pending_uploads.append(
+                    (item_index, file)
+                )
+
+        for item_index, file in pending_uploads:
+            filename = save_uploaded_file(file)
+
+            if filename:
+                items[item_index]["criteria_files"].append(filename)
 
         version_history = safe_json_dict_list(
             checklist_record.version_history_json
@@ -19199,7 +19923,186 @@ def edit_checklist(index):
 
         checklist_record.items_json = json.dumps(items, ensure_ascii=False)
 
+        new_criteria_files = {
+            filename
+            for item in items
+            for filename in item.get(
+                "criteria_files",
+                []
+            )
+            if filename
+        }
+
+        removed_criteria_files = (
+            old_criteria_files
+            - new_criteria_files
+        )
+
         db.session.commit()
+
+        company_code = checklist_record.company_code
+
+        for filename in removed_criteria_files:
+            filename = os.path.basename(
+                str(filename or "")
+            )
+
+            if not filename:
+                continue
+
+            still_referenced = False
+
+            for other_checklist in Checklist.query.filter_by(
+                company_code=company_code
+            ).all():
+                other_data = checklist_to_dict(
+                    other_checklist
+                )
+
+                if any(
+                    filename in item.get(
+                        "criteria_files",
+                        []
+                    )
+                    for item in other_data.get(
+                        "items",
+                        []
+                    )
+                ):
+                    still_referenced = True
+                    break
+
+                for version in other_data.get(
+                    "version_history",
+                    []
+                ):
+                    snapshot = version.get(
+                        "snapshot",
+                        {}
+                    )
+
+                    if any(
+                        filename in item.get(
+                            "criteria_files",
+                            []
+                        )
+                        for item in snapshot.get(
+                            "items",
+                            []
+                        )
+                    ):
+                        still_referenced = True
+                        break
+
+                if still_referenced:
+                    break
+
+            if not still_referenced:
+                result_records = ChecklistResult.query.filter_by(
+                    company_code=company_code
+                ).all()
+
+                for result_record in result_records:
+                    answers = safe_json_dict_list(
+                        result_record.answers_json
+                    )
+
+                    if any(
+                        filename in answer.get(
+                            "criteria_files",
+                            []
+                        )
+                        for answer in answers
+                    ):
+                        still_referenced = True
+                        break
+
+                    snapshot = safe_json_dict(
+                        result_record.checklist_snapshot_json
+                    )
+
+                    if any(
+                        filename in item.get(
+                            "criteria_files",
+                            []
+                        )
+                        for item in snapshot.get(
+                            "items",
+                            []
+                        )
+                    ):
+                        still_referenced = True
+                        break
+
+            if not still_referenced:
+                result_records = VehicleChecklistResult.query.filter_by(
+                    company_code=company_code
+                ).all()
+
+                for result_record in result_records:
+                    answers = safe_json_dict_list(
+                        result_record.answers_json
+                    )
+
+                    if any(
+                        filename in answer.get(
+                            "criteria_files",
+                            []
+                        )
+                        for answer in answers
+                    ):
+                        still_referenced = True
+                        break
+
+                    snapshot = safe_json_dict(
+                        result_record.checklist_snapshot_json
+                    )
+
+                    if any(
+                        filename in item.get(
+                            "criteria_files",
+                            []
+                        )
+                        for item in snapshot.get(
+                            "items",
+                            []
+                        )
+                    ):
+                        still_referenced = True
+                        break
+
+            if still_referenced:
+                continue
+
+            if s3_client and S3_BUCKET_NAME:
+                try:
+                    s3_client.delete_object(
+                        Bucket=S3_BUCKET_NAME,
+                        Key=(
+                            f"uploads/"
+                            f"{company_code}/"
+                            f"{filename}"
+                        )
+                    )
+                except ClientError:
+                    app.logger.warning(
+                        "旧評価基準ファイルのS3削除に失敗しました。",
+                        exc_info=True
+                    )
+            else:
+                safe_filename = secure_filename(
+                    filename
+                )
+
+                if safe_filename:
+                    file_path = os.path.join(
+                        app.config["UPLOAD_FOLDER"],
+                        company_code,
+                        safe_filename
+                    )
+
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
 
         return redirect("/master/checklists")
 
@@ -19330,13 +20233,171 @@ def delete_checklist(index):
         company_code=checklist.company_code,
     )
 
+    files_to_delete = []
+
+    checklist_data = checklist_to_dict(
+        checklist
+    )
+
+    for item in checklist_data.get(
+        "items",
+        []
+    ):
+        files_to_delete.extend(
+            item.get(
+                "criteria_files",
+                []
+            )
+        )
+
+    company_code = checklist.company_code
+
     VehicleChecklistNotifySetting.query.filter_by(
-        company_code=checklist.company_code,
+        company_code=company_code,
         checklist_id=checklist.id
     ).delete(synchronize_session=False)
 
     db.session.delete(checklist)
     db.session.commit()
+
+    for filename in files_to_delete:
+        filename = os.path.basename(
+            str(filename or "")
+        )
+
+        if not filename:
+            continue
+
+        still_referenced = False
+
+        other_checklists = Checklist.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        for other_checklist in other_checklists:
+            other_data = checklist_to_dict(
+                other_checklist
+            )
+
+            if any(
+                filename in item.get(
+                    "criteria_files",
+                    []
+                )
+                for item in other_data.get(
+                    "items",
+                    []
+                )
+            ):
+                still_referenced = True
+                break
+
+            for version in other_data.get(
+                "version_history",
+                []
+            ):
+                snapshot = version.get(
+                    "snapshot",
+                    {}
+                )
+
+                if any(
+                    filename in item.get(
+                        "criteria_files",
+                        []
+                    )
+                    for item in snapshot.get(
+                        "items",
+                        []
+                    )
+                ):
+                    still_referenced = True
+                    break
+
+            if still_referenced:
+                break
+
+        if not still_referenced:
+            safety_results = ChecklistResult.query.filter_by(
+                company_code=company_code
+            ).all()
+
+            for result_record in safety_results:
+                snapshot = safe_json_dict(
+                    result_record.checklist_snapshot_json
+                )
+
+                if any(
+                    filename in item.get(
+                        "criteria_files",
+                        []
+                    )
+                    for item in snapshot.get(
+                        "items",
+                        []
+                    )
+                ):
+                    still_referenced = True
+                    break
+
+        if not still_referenced:
+            vehicle_results = VehicleChecklistResult.query.filter_by(
+                company_code=company_code
+            ).all()
+
+            for result_record in vehicle_results:
+                snapshot = safe_json_dict(
+                    result_record.checklist_snapshot_json
+                )
+
+                if any(
+                    filename in item.get(
+                        "criteria_files",
+                        []
+                    )
+                    for item in snapshot.get(
+                        "items",
+                        []
+                    )
+                ):
+                    still_referenced = True
+                    break
+
+        if still_referenced:
+            continue
+
+        if s3_client and S3_BUCKET_NAME:
+            try:
+                s3_client.delete_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=(
+                        f"uploads/"
+                        f"{company_code}/"
+                        f"{filename}"
+                    )
+                )
+            except ClientError:
+                app.logger.warning(
+                    "チェックリスト評価基準添付のS3削除に失敗しました。",
+                    exc_info=True
+                )
+        else:
+            safe_filename = secure_filename(
+                filename
+            )
+
+            if not safe_filename:
+                continue
+
+            file_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                company_code,
+                safe_filename
+            )
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
     return redirect("/master/checklists")
 
 
