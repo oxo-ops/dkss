@@ -11321,7 +11321,66 @@ input:checked
     font-weight: 700;
 }
 
+.checklist-free-text-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.checklist-free-text-item {
+    padding: 16px;
+    border: 1px solid #dbe3ef;
+    border-left: 4px solid #60a5fa;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.checklist-free-text-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.checklist-free-text-content {
+    color: #0f172a;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+.checklist-free-text-value {
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #1e293b;
+    font-size: 16px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.checklist-free-text-comment,
+.checklist-free-text-files {
+    margin-top: 12px;
+}
+
 @media (max-width: 768px) {
+    .checklist-free-text-item {
+        padding: 14px;
+    }
+
+    .checklist-free-text-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .checklist-free-text-value {
+        padding: 12px 14px;
+        font-size: 15px;
+    }
+
     .checklist-result-alert {
         grid-template-columns: 30px minmax(0, 1fr);
         gap: 1px 8px;
