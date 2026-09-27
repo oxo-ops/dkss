@@ -21,6 +21,71 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    document.querySelectorAll(
+        ".checklist-score-progress-bar"
+    ).forEach(function (bar) {
+        const percent = Number(
+            bar.dataset.scorePercent || 0
+        );
+
+        bar.style.width =
+            Math.max(0, Math.min(100, percent)) + "%";
+    });
+
+    document.querySelectorAll(
+        ".checklist-score-filter"
+    ).forEach(function (button) {
+        button.addEventListener(
+            "click",
+            function () {
+                const value =
+                    button.dataset.scoreValue || "";
+
+                const isActive =
+                    button.classList.contains("is-active");
+
+                document.querySelectorAll(
+                    ".checklist-score-filter"
+                ).forEach(function (item) {
+                    item.classList.remove("is-active");
+                });
+
+                document.querySelectorAll(
+                    ".checklist-table tbody tr[data-score-value]"
+                ).forEach(function (row) {
+                    row.hidden =
+                        !isActive &&
+                        row.dataset.scoreValue !== value;
+                });
+
+                const otherItems = document.querySelector(
+                    ".checklist-other-items"
+                );
+
+                if (otherItems) {
+                    otherItems.open = !isActive;
+                }
+
+                if (!isActive) {
+                    button.classList.add("is-active");
+
+                    if (otherItems) {
+                        const hasVisibleOtherItem =
+                            Array.from(
+                                otherItems.querySelectorAll(
+                                    "tbody tr[data-score-value]"
+                                )
+                            ).some(function (row) {
+                                return !row.hidden;
+                            });
+
+                        otherItems.open = hasVisibleOtherItem;
+                    }
+                }
+            }
+        );
+    });
+
     const savedScrollY =
         sessionStorage.getItem("checklistResultScrollY");
 

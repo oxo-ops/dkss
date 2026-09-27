@@ -29,23 +29,21 @@
 
 <div class="card result-info-card">
 
-    <table class="result-info-table">
+    <div class="result-info-grid">
 
-        <tr>
-            <th>実施日</th>
-            <td>
-                {{ result.checked_date or "-" }}
-            </td>
+        <div class="result-info-item">
+            <span>実施日</span>
+            <strong>{{ result.checked_date or "-" }}</strong>
+        </div>
 
-            <th>点検者</th>
-            <td>
-                {{ result.checked_by }}
-            </td>
-        </tr>
+        <div class="result-info-item">
+            <span>点検者</span>
+            <strong>{{ result.checked_by }}</strong>
+        </div>
 
-        <tr>
-            <th>対象区分</th>
-            <td>
+        <div class="result-info-item">
+            <span>対象区分</span>
+            <strong>
                 {% if result.target_type == "user" %}
                     ユーザー
                 {% elif result.target_type == "vehicle" %}
@@ -55,10 +53,12 @@
                 {% else %}
                     指定なし
                 {% endif %}
-            </td>
+            </strong>
+        </div>
 
-            <th>対象</th>
-            <td>
+        <div class="result-info-item">
+            <span>対象</span>
+            <strong>
                 {% if result.target_type == "user" %}
                     {{ result.target_user }}
                 {% elif result.target_type == "vehicle" %}
@@ -68,12 +68,12 @@
                 {% else %}
                     -
                 {% endif %}
-            </td>
-        </tr>
+            </strong>
+        </div>
 
-        <tr>
-            <th>状態</th>
-            <td>
+        <div class="result-info-item result-info-status">
+            <span>状態</span>
+            <strong>
                 {% if result.status == "承認済み" %}
                     <span class="status-badge status-approved">
                         承認済み
@@ -87,22 +87,10 @@
                         承認待ち
                     </span>
                 {% endif %}
-            </td>
+            </strong>
+        </div>
 
-            <th>承認者</th>
-            <td>
-                {{ result.approved_by or "-" }}
-            </td>
-        </tr>
-
-        <tr>
-            <th>承認日</th>
-            <td colspan="3">
-                {{ result.approved_date or "-" }}
-            </td>
-        </tr>
-
-    </table>
+    </div>
 
     {% if result.reject_reason %}
         <div class="reject-reason-section">
@@ -128,43 +116,96 @@
 <div class="card checklist-result-detail-card">
     <h3 class="check-result-title">チェック結果</h3>
 
-    {% if criteria_list %}
-        <div class="criteria-box">
-            <strong>評価基準</strong>
+    {% if summary %}
+        <div class="checklist-score-summary{% if not checklist.score_enabled %} is-counts-only{% endif %}">
 
-            {% for criteria in criteria_list %}
-                <div class="criteria-line">
-                    {{ criteria }}
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
+            {% if checklist.score_enabled %}
+                <div class="checklist-score-main">
+                    <span class="checklist-score-label">
+                        合計点
+                    </span>
 
-    {% if checklist.score_enabled and summary %}
-        <div class="summary-row">
-            <strong>評価集計</strong>
+                    <div class="checklist-score-value">
+                        <strong>{{ total_score|int }}</strong>
+                        {% if max_score %}
+                            <span>/ {{ max_score|int }} 点</span>
+                        {% else %}
+                            <span>点</span>
+                        {% endif %}
+                    </div>
 
-            {% for value, count in summary.items() %}
-                <span class="summary-item">
-                    {{ value }}：{{ count }}件
-                </span>
-            {% endfor %}
-
-            <span class="summary-item">
-                <strong>
-                    合計点：
-                    {{ total_score|int }}
                     {% if max_score %}
-                        / {{ max_score|int }}点
-                    {% else %}
-                        点
+                        <div class="checklist-score-percent">
+                            {{ ((total_score / max_score) * 100)|round|int }}%
+                        </div>
+
+                        <div class="checklist-score-progress">
+                            <div
+                                class="checklist-score-progress-bar"
+                                data-score-percent="{{ ((total_score / max_score) * 100)|round|int }}"
+                            ></div>
+                        </div>
                     {% endif %}
-                </strong>
-            </span>
+                </div>
+            {% endif %}
+
+            <div class="checklist-score-counts">
+                {% for value, count in summary.items() %}
+                    <button
+                        type="button"
+                        class="checklist-score-count checklist-score-filter"
+                        data-score-value="{{ value }}"
+                    >
+                        <span class="checklist-score-count-value">
+                            {{ value }}
+                        </span>
+                        <strong>
+                            {{ count }}件
+                        </strong>
+                    </button>
+                {% endfor %}
+            </div>
+
         </div>
+
+        {% set detail_count = result_items|selectattr("has_detail")|list|length %}
+
+        {% if detail_count > 0 %}
+            <div class="checklist-result-alert">
+                <strong>コメント・添付あり</strong>
+                <span>
+                    {{ detail_count }}件
+                </span>
+            </div>
+        {% endif %}
     {% endif %}
 
-    <table class="checklist-table">
+    {% if criteria_list %}
+        <details class="checklist-criteria-details">
+            <summary>
+                評価基準
+            </summary>
+
+            <div class="criteria-box">
+                {% for criteria in criteria_list %}
+                    <div class="criteria-line">
+                        {{ criteria }}
+                    </div>
+                {% endfor %}
+            </div>
+        </details>
+    {% endif %}
+
+    <div class="checklist-problem-heading">
+        <h4>
+            コメント・添付あり
+            <span>
+                {{ result_items|selectattr("has_detail")|list|length }}件
+            </span>
+        </h4>
+    </div>
+
+    <table class="checklist-table checklist-problem-table">
 
         <thead>
             <tr>
@@ -177,24 +218,44 @@
         </thead>
 
         <tbody>
-            {% for answer in result.answers %}
-            <tr>
-                <td data-label="カテゴリ">{{ answer.category }}</td>
-                <td data-label="チェック内容">{{ answer.content }}</td>
-                <td data-label="評価">{{ answer.value }}</td>
+            {% for answer in result_items %}
+            {% if answer.has_detail %}
+            <tr data-score-value="{{ answer.value }}">
+                <td data-label="カテゴリ">
+                    <span class="checklist-result-category-badge">
+                        {{ answer.category }}
+                    </span>
+                </td>
+                <td
+                    data-label="チェック内容"
+                    class="checklist-result-content"
+                >
+                    {{ answer.content }}
+                </td>
+                <td data-label="評価">
+                    <span class="checklist-result-score-badge">
+                        {{ answer.value }}
+                    </span>
+                </td>
                 <td data-label="コメント">
                     {% if answer.comment %}
                         <div
-                            class="mention-display"
+                            class="checklist-result-comment mention-display"
                             data-value="{{ answer.comment }}"
                         ></div>
                     {% else %}
-                        -
+                        <span class="checklist-result-empty">
+                            なし
+                        </span>
                     {% endif %}
                 </td>
+                {% if answer.files %}
                 <td data-label="添付">
-                    {% if answer.files %}
-                        {% for file in answer.files %}
+                    <div class="checklist-result-attachment-count">
+                        添付 {{ answer.files|length }}件
+                    </div>
+
+                    {% for file in answer.files %}
 
                             {% set ext = file.rsplit('.', 1)[-1]|lower %}
 
@@ -245,62 +306,180 @@
                             {% endif %}
 
                         {% endfor %}
-                    {% else %}
-                        -
-                    {% endif %}
                 </td>
+                {% endif %}
             </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
 
     </table>
+
+    <details class="checklist-other-items">
+        <summary>
+            その他の項目
+            <span>
+                {{ result_items|rejectattr("has_detail")|list|length }}件
+            </span>
+        </summary>
+
+        <table class="checklist-table checklist-other-table">
+            <thead>
+                <tr>
+                    <th>カテゴリ</th>
+                    <th>チェック内容</th>
+                    <th>評価</th>
+                    <th>コメント</th>
+                    <th>添付</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for answer in result_items %}
+                {% if not answer.has_detail %}
+                <tr data-score-value="{{ answer.value }}">
+                    <td data-label="カテゴリ">
+                        <span class="checklist-result-category-badge">
+                            {{ answer.category }}
+                        </span>
+                    </td>
+
+                    <td
+                        data-label="チェック内容"
+                        class="checklist-result-content"
+                    >
+                        {{ answer.content }}
+                    </td>
+
+                    <td data-label="評価">
+                        <span class="checklist-result-score-badge is-ok">
+                            {{ answer.value }}
+                        </span>
+                    </td>
+
+                    <td data-label="コメント">
+                        {% if answer.comment %}
+                            <div
+                                class="checklist-result-comment mention-display"
+                                data-value="{{ answer.comment }}"
+                            ></div>
+                        {% else %}
+                            <span class="checklist-result-empty">
+                                なし
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    {% if answer.files %}
+                    <td data-label="添付">
+                        <div class="checklist-result-attachment-count">
+                            添付 {{ answer.files|length }}件
+                        </div>
+
+                        {% for file in answer.files %}
+                            {% set ext = file.rsplit('.', 1)[-1]|lower %}
+                            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    <img
+                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                        class="checklist-result-attachment-image"
+                                    >
+                                </a>
+                            {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                                <video
+                                    controls
+                                    preload="metadata"
+                                    class="checklist-result-attachment-video"
+                                >
+                                    <source src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
+                                </video>
+                            {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    ▶ 動画を開く
+                                </a>
+                            {% else %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    {{ file }}
+                                </a>
+                            {% endif %}
+                            {% if not loop.last %}
+                                <br>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
 </div>
 
 {% if result.approvals %}
 <div class="card approval-card">
     <h3>承認管理</h3>
 
-    {% for approval in result.approvals %}
+    <div class="approval-flow">
 
-        <div class="approval-item">
+        <div class="approval-flow-item is-complete">
+            <span class="approval-flow-status"></span>
 
-            <div class="approval-item-info">
-                <strong>
-                    {{ approval.label or "承認" }}
-                </strong>
-
-                {% if approval.approved_by %}
-                    <div>
-                        承認者：{{ approval.approved_by }}
-                    </div>
-
-                    <div>
-                        承認日：{{ approval.approved_date or "-" }}
-                    </div>
-                {% else %}
-                    <div>
-                        未承認
-                    </div>
-                {% endif %}
+            <div class="approval-flow-content">
+                <strong>点検完了</strong>
+                <span>
+                    {{ result.checked_by }}
+                    {{ result.checked_date or "-" }}
+                </span>
             </div>
-
-            {% if not approval.approved_by %}
-                {% if session.role in ["admin", "itc"] or approval.allow_general %}
-                    <form
-                        method="post"
-                        action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
-                    >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-approve">
-                            承認
-                        </button>
-                    </form>
-                {% endif %}
-            {% endif %}
-
         </div>
 
-    {% endfor %}
+        {% for approval in result.approvals %}
+            <div class="approval-flow-item{% if approval.approved_by %} is-complete{% endif %}">
+                <span class="approval-flow-status"></span>
+
+                <div class="approval-flow-content">
+                    <strong>
+                        {{ approval.label or "承認" }}
+                    </strong>
+
+                    {% if approval.approved_by %}
+                        <span>
+                            {{ approval.approved_by }}
+                            {{ approval.approved_date or "-" }}
+                        </span>
+                    {% else %}
+                        <span>未承認</span>
+                    {% endif %}
+                </div>
+
+                {% if not approval.approved_by %}
+                    {% if session.role in ["admin", "itc"] or approval.allow_general %}
+                        <form
+                            method="post"
+                            action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
+                        >
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <button type="submit" class="btn btn-approve">
+                                承認
+                            </button>
+                        </form>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+
+    </div>
 
     {% if result.status != "承認済み" and can_reject %}
         <form
