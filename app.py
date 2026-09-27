@@ -1660,6 +1660,13 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         if filename in files:
             return True
 
+        countermeasure_files = safe_json_str_list(
+            patrol.countermeasure_files_json
+        )
+
+        if filename in countermeasure_files:
+            return True
+
     # =========================
     # 安全チェックリスト結果添付
     # =========================
@@ -8196,6 +8203,8 @@ def register_countermeasure(index):
         countermeasure_due_date
     )
 
+    result_record.countermeasure = countermeasure
+
     result_record.approval_status = "承認待ち"
     result_record.reject_reason = ""
 
@@ -9328,21 +9337,6 @@ def delete_vehicle_type(index):
     db.session.commit()
 
     return redirect("/master/vehicle-types")
-
-@app.route("/vehicle")
-def vehicle():
-    return render_template("vehicle.html")
-
-
-@app.route("/analysis")
-def analysis():
-    return render_template("analysis.html")
-
-
-@app.route("/manuals")
-def manuals():
-    return render_template("manuals.html")
-
 
 @app.route("/master")
 def master():
