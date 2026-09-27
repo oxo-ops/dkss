@@ -542,7 +542,7 @@ textarea {
     font-weight: 700;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .approval-form {
         grid-template-columns: 1fr;
         gap: 8px;
@@ -1310,7 +1310,7 @@ textarea {
     background: #f5f8fd;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .checklist-result-detail-card {
         padding: 14px 16px;
         margin-bottom: 14px;
@@ -4733,7 +4733,7 @@ textarea[name="item_content"]{
     margin: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .approval-flow-item {
         grid-template-columns: 30px minmax(0, 1fr) auto;
         gap: 10px;
@@ -4761,7 +4761,7 @@ textarea[name="item_content"]{
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .approval-card {
         padding: 14px 16px 12px;
         margin-bottom: 0;
@@ -11365,7 +11365,7 @@ input:checked
     margin-top: 12px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .checklist-free-text-item {
         padding: 14px;
     }
@@ -11699,7 +11699,7 @@ input:checked
     box-shadow: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .checklist-score-summary {
         grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
         gap: 10px;
