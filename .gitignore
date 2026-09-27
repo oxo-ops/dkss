@@ -5,3 +5,4 @@ __pycache__/
 .vscode/
 private_key.pem
 public_key.pem
+static/uploads/ITC/*
