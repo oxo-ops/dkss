@@ -19092,6 +19092,9 @@ def new_vehicle_checklist_result(index):
 
                 if value not in valid_choices:
                     return "回答値が不正です。", 400
+
+            elif not value.strip():
+                return "必須項目を入力してください。", 400
                 
             comment = request.form.get(
                 f"comment_{answer_index}",
@@ -19104,6 +19107,10 @@ def new_vehicle_checklist_result(index):
             if item.get("comment_required") and not comment:
                 return "必須コメントが未入力です。", 400
 
+            patrol_link = request.form.get(
+                f"patrol_link_{answer_index}"
+            )
+
             item_index = len(answers)
 
             answers.append({
@@ -19113,7 +19120,8 @@ def new_vehicle_checklist_result(index):
                 "criteria": item.get("criteria", ""),
                 "value": value,
                 "comment": comment,
-                "files": []
+                "files": [],
+                "patrol_link": patrol_link == "1"
             })
 
             pending_answer_files.append(
@@ -19157,6 +19165,42 @@ def new_vehicle_checklist_result(index):
 
             if filename:
                 answers[item_index]["files"].append(filename)
+
+        for answer in answers:
+            if not answer.get("patrol_link"):
+                continue
+
+            content = answer.get("content", "")
+            comment = answer.get("comment", "")
+
+            existing_patrol = VehiclePatrol.query.filter_by(
+                company_code=company_code,
+                vehicle_record_id=vehicle_record_id,
+                occurred_date=f"{year}-{month}-{day}",
+                category="点検指摘",
+                content=content
+            ).first()
+
+            if existing_patrol:
+                existing_patrol.temporary_action = comment
+            else:
+                db.session.add(VehiclePatrol(
+                    company_code=company_code,
+                    vehicle_record_id=vehicle_record_id,
+                    occurred_date=f"{year}-{month}-{day}",
+                    category="点検指摘",
+                    priority="中",
+                    content=content,
+                    cause="",
+                    temporary_action=comment,
+                    repair_content="",
+                    status="未対応",
+                    repair_date="",
+                    repair_person="",
+                    repair_time="",
+                    parts="",
+                    cost=""
+                ))
 
         approvals = []
 

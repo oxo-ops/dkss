@@ -570,6 +570,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 type !== "office"
             );
         }
+
+        document.querySelectorAll(
+            ".checklist-result-patrol-option"
+        ).forEach(function (option) {
+            const checkbox = option.querySelector(
+                ".patrol-link-checkbox"
+            );
+
+            const supported = type === "user";
+
+            option.classList.toggle(
+                "is-hidden",
+                !supported
+            );
+
+            if (checkbox) {
+                checkbox.disabled = !supported;
+
+                if (!supported) {
+                    checkbox.checked = false;
+                }
+            }
+        });
     }
 
 
