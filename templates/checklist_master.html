@@ -8,9 +8,7 @@
     <h2>チェックリストマスタ</h2>
 
     <div class="header-actions">
-        <a href="/master" class="btn btn-back">
-            ← マスタ管理へ戻る
-        </a>
+
 
         <a href="/master/checklists/new" class="btn">
             新規登録
@@ -18,7 +16,8 @@
     </div>
 </div>
 
-<table>
+<div class="table-scroll">
+<table class="responsive-table checklist-master-table">
     <tr>
         <th>チェックリスト名</th>
         <th>用途</th>
@@ -102,5 +101,6 @@
     </tr>
     {% endfor %}
 </table>
+</div>
 
 {% endblock %}
