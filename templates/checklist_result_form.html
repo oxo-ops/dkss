@@ -197,7 +197,7 @@
             {% set ns = namespace(answer_index=0) %}
 
             {% for item in checklist["items"] %}
-            {% if item.item_type != "approval" %}
+            {% if item.item_type == "check" %}
 
             {% set saved_answer = result.answers[ns.answer_index] if result and result.answers|length > ns.answer_index else None %}
 

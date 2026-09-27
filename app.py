@@ -1641,6 +1641,49 @@ def file_belongs_to_current_company(filename, folder="uploads"):
             return True
 
     # =========================
+    # チェックリスト評価基準添付
+    # =========================
+    checklist_records = Checklist.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for checklist_record in checklist_records:
+        checklist = checklist_to_dict(checklist_record)
+
+        if any(
+            filename in item.get(
+                "criteria_files",
+                []
+            )
+            for item in checklist.get(
+                "items",
+                []
+            )
+        ):
+            return True
+
+        for version in checklist.get(
+            "version_history",
+            []
+        ):
+            snapshot = version.get(
+                "snapshot",
+                {}
+            )
+
+            if any(
+                filename in item.get(
+                    "criteria_files",
+                    []
+                )
+                for item in snapshot.get(
+                    "items",
+                    []
+                )
+            ):
+                return True
+
+    # =========================
     # 安全パトロール
     # =========================
     patrol_records = PatrolResult.query.filter_by(
@@ -14447,7 +14490,7 @@ def checklist_result_detail(result_index):
     check_items = [
         item
         for item in checklist["items"]
-        if item.get("item_type") != "approval"
+        if item.get("item_type") == "check"
     ]
 
     for item, answer in zip(check_items, result["answers"]):
@@ -14536,7 +14579,7 @@ def export_checklist_result_excel(result_index):
     check_items = [
         item
         for item in checklist["items"]
-        if item.get("item_type") != "approval"
+        if item.get("item_type") == "check"
     ]
 
 
@@ -15445,7 +15488,10 @@ def edit_checklist_result(result_index):
     if not checklist_record:
         return redirect("/safety/checklists")
 
-    checklist = checklist_to_dict(checklist_record)
+    checklist = (
+        result.get("checklist_snapshot")
+        or checklist_to_dict(checklist_record)
+    )
 
     if request.method == "POST":
         company_code = session.get("company_code")
@@ -15559,7 +15605,7 @@ def edit_checklist_result(result_index):
         pending_answer_files = []
 
         for item in checklist["items"]:
-            if item.get("item_type") == "approval":
+            if item.get("item_type") != "check":
                 continue
 
             value = request.form.get(
@@ -15703,6 +15749,9 @@ def edit_checklist_result(result_index):
     criteria_list = []
 
     for item in checklist["items"]:
+        if item.get("item_type") != "check":
+            continue
+
         criteria = item.get("criteria", "")
 
         if criteria and criteria not in criteria_list:
@@ -19015,7 +19064,7 @@ def new_vehicle_checklist_result(index):
         pending_answer_files = []
 
         for item in checklist["items"]:
-            if item.get("item_type") == "approval":
+            if item.get("item_type") != "check":
                 continue
 
             value = request.form.get(
@@ -19051,6 +19100,9 @@ def new_vehicle_checklist_result(index):
 
             if len(comment) > 5000:
                 return "コメントは5000文字以内で入力してください。", 400
+
+            if item.get("comment_required") and not comment:
+                return "必須コメントが未入力です。", 400
 
             item_index = len(answers)
 
@@ -19309,7 +19361,7 @@ def new_safety_checklist_result(index):
         pending_answer_files = []
 
         for item in checklist["items"]:
-            if item.get("item_type") == "approval":
+            if item.get("item_type") != "check":
                 continue
 
             value = request.form.get(
@@ -19510,7 +19562,7 @@ def new_safety_checklist_result(index):
     criteria_list = []
 
     for item in checklist["items"]:
-        if item.get("item_type") == "approval":
+        if item.get("item_type") != "check":
             continue
 
         criteria = item.get("criteria", "")
