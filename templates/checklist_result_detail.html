@@ -419,109 +419,76 @@
 <div class="card checklist-result-detail-card">
     <h3 class="check-result-title">自由記入</h3>
 
-    <table class="checklist-table checklist-other-table">
-        <thead>
-            <tr>
-                <th>カテゴリ</th>
-                <th>チェック内容</th>
-                <th>記入内容</th>
-                <th>コメント</th>
-                <th>添付</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for answer in free_text_items %}
-            <tr>
-                <td data-label="カテゴリ">
+    <div class="checklist-free-text-list">
+        {% for answer in free_text_items %}
+        <div class="checklist-free-text-item">
+            <div class="checklist-free-text-heading">
+                {% if answer.category %}
                     <span class="checklist-result-category-badge">
                         {{ answer.category }}
                     </span>
-                </td>
+                {% endif %}
 
-                <td
-                    data-label="チェック内容"
-                    class="checklist-result-content"
-                >
+                <span class="checklist-free-text-content">
                     {{ answer.content }}
-                </td>
+                </span>
+            </div>
 
-                <td data-label="記入内容">
-                    <div class="checklist-result-comment">
-                        {{ answer.value }}
+            <div class="checklist-free-text-value">
+                {{ answer.value }}
+            </div>
+
+            {% if answer.comment %}
+                <div class="checklist-free-text-comment">
+                    <span>コメント</span>
+                    <div
+                        class="checklist-result-comment mention-display"
+                        data-value="{{ answer.comment }}"
+                    ></div>
+                </div>
+            {% endif %}
+
+            {% if answer.files %}
+                <div class="checklist-free-text-files">
+                    <div class="checklist-result-attachment-count">
+                        添付 {{ answer.files|length }}件
                     </div>
-                </td>
 
-                <td data-label="コメント">
-                    {% if answer.comment %}
-                        <div
-                            class="checklist-result-comment mention-display"
-                            data-value="{{ answer.comment }}"
-                        ></div>
-                    {% else %}
-                        <span class="checklist-result-empty">
-                            なし
-                        </span>
-                    {% endif %}
-                </td>
+                    {% for file in answer.files %}
+                        {% set ext = file.rsplit('.', 1)[-1]|lower %}
 
-                <td data-label="添付">
-                    {% if answer.files %}
-                        <div class="checklist-result-attachment-count">
-                            添付 {{ answer.files|length }}件
-                        </div>
-
-                        {% for file in answer.files %}
-                            {% set ext = file.rsplit('.', 1)[-1]|lower %}
-
-                            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
-                                <a
-                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                    target="_blank"
+                        {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                            <a
+                                href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                target="_blank"
+                            >
+                                <img
+                                    src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    class="checklist-result-attachment-image"
                                 >
-                                    <img
-                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                        class="checklist-result-attachment-image"
-                                    >
-                                </a>
-                            {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
-                                <video
-                                    controls
-                                    preload="metadata"
-                                    class="checklist-result-attachment-video"
-                                >
-                                    <source src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
-                                </video>
-                            {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
-                                <a
-                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                    target="_blank"
-                                >
-                                    ▶ 動画を開く
-                                </a>
-                            {% else %}
-                                <a
-                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                    target="_blank"
-                                >
-                                    {{ file }}
-                                </a>
-                            {% endif %}
-
-                            {% if not loop.last %}
-                                <br>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        <span class="checklist-result-empty">
-                            なし
-                        </span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                            </a>
+                        {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                            <video
+                                controls
+                                preload="metadata"
+                                class="checklist-result-attachment-video"
+                            >
+                                <source src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
+                            </video>
+                        {% else %}
+                            <a
+                                href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                target="_blank"
+                            >
+                                {{ file }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 

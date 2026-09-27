@@ -53,9 +53,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.querySelectorAll(
                     ".checklist-table tbody tr[data-score-value]"
                 ).forEach(function (row) {
-                    row.hidden =
+                    const shouldHide =
                         !isActive &&
                         row.dataset.scoreValue !== value;
+
+                    if (shouldHide) {
+                        row.style.setProperty(
+                            "display",
+                            "none",
+                            "important"
+                        );
+                    } else {
+                        row.style.removeProperty("display");
+                    }
                 });
 
                 const otherItems = document.querySelector(
