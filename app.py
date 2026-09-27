@@ -1402,8 +1402,10 @@ def save_uploaded_file(file, folder=None):
         return ""
 
     upload_file_count = sum(
-        len(request.files.getlist(field_name))
+        1
         for field_name in request.files.keys()
+        for file in request.files.getlist(field_name)
+        if file and file.filename
     )
 
     if upload_file_count > 50:
@@ -14531,17 +14533,10 @@ def checklist_result_detail(result_index):
         result["answers"]
     ):
         result_item = dict(answer)
-
-        numeric_choices = []
-
-        if item.get("input_type") == "select":
-            for choice in item.get("choices", []):
-                try:
-                    numeric_choices.append(
-                        float(choice)
-                    )
-                except (TypeError, ValueError):
-                    pass
+        result_item["input_type"] = item.get(
+            "input_type",
+            ""
+        )
 
         result_item["has_detail"] = bool(
             str(
@@ -16671,9 +16666,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     approval["approved_by"] = session.get("name")
     approval["approved_by_username"] = session.get("username")    
-    approval["approved_date"] = datetime.now().strftime(
-        "%Y-%m-%d %H:%M"
-    )
+    approval["approved_date"] = get_user_local_now(
+        result_record.company_code,
+        session.get("username")
+    ).strftime("%Y-%m-%d %H:%M")
 
     result_record.approvals_json = json.dumps(
         approvals,
@@ -16691,9 +16687,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         result_record.status = "承認済み"
         result_record.approved_by = session.get("name")
         result_record.approved_by_username = session.get("username")
-        result_record.approved_date = datetime.now().strftime(
-            "%Y-%m-%d %H:%M"
-        )
+        result_record.approved_date = get_user_local_now(
+            result_record.company_code,
+            session.get("username")
+        ).strftime("%Y-%m-%d %H:%M")
     else:
         result_record.status = "承認待ち"
         result_record.approved_by = ""
@@ -20612,7 +20609,10 @@ def approve_checklist_result(result_index, approval_index):
 
     approval["approved_by"] = session.get("name")
     approval["approved_by_username"] = session.get("username")    
-    approval["approved_date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    approval["approved_date"] = get_user_local_now(
+        result_record.company_code,
+        session.get("username")
+    ).strftime("%Y-%m-%d %H:%M")
 
     result_record.approvals_json = json.dumps(
         approvals,
@@ -20630,7 +20630,10 @@ def approve_checklist_result(result_index, approval_index):
         result_record.status = "承認済み"
         result_record.approved_by = session.get("name")
         result_record.approved_by_username = session.get("username")        
-        result_record.approved_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        result_record.approved_date = get_user_local_now(
+            result_record.company_code,
+            session.get("username")
+        ).strftime("%Y-%m-%d %H:%M")
     else:
         result_record.status = "承認待ち"
         result_record.approved_by = ""

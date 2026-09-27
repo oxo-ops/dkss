@@ -167,17 +167,6 @@
             </div>
 
         </div>
-
-        {% set detail_count = result_items|selectattr("has_detail")|list|length %}
-
-        {% if detail_count > 0 %}
-            <div class="checklist-result-alert">
-                <strong>コメント・添付あり</strong>
-                <span>
-                    {{ detail_count }}件
-                </span>
-            </div>
-        {% endif %}
     {% endif %}
 
     {% if criteria_list %}
@@ -200,7 +189,7 @@
         <h4>
             コメント・添付あり
             <span>
-                {{ result_items|selectattr("has_detail")|list|length }}件
+                {{ result_items|selectattr("has_detail")|selectattr("input_type", "equalto", "select")|list|length }}件
             </span>
         </h4>
     </div>
@@ -219,7 +208,7 @@
 
         <tbody>
             {% for answer in result_items %}
-            {% if answer.has_detail %}
+            {% if answer.has_detail and answer.input_type == "select" %}
             <tr data-score-value="{{ answer.value }}">
                 <td data-label="カテゴリ">
                     <span class="checklist-result-category-badge">
@@ -319,7 +308,7 @@
         <summary>
             その他の項目
             <span>
-                {{ result_items|rejectattr("has_detail")|list|length }}件
+                {{ result_items|rejectattr("has_detail")|selectattr("input_type", "equalto", "select")|list|length }}件
             </span>
         </summary>
 
@@ -336,7 +325,7 @@
 
             <tbody>
                 {% for answer in result_items %}
-                {% if not answer.has_detail %}
+                {% if not answer.has_detail and answer.input_type == "select" %}
                 <tr data-score-value="{{ answer.value }}">
                     <td data-label="カテゴリ">
                         <span class="checklist-result-category-badge">
@@ -352,7 +341,7 @@
                     </td>
 
                     <td data-label="評価">
-                        <span class="checklist-result-score-badge is-ok">
+                        <span class="checklist-result-score-badge">
                             {{ answer.value }}
                         </span>
                     </td>
@@ -424,6 +413,117 @@
         </table>
     </details>
 </div>
+
+{% set free_text_items = result_items|rejectattr("input_type", "equalto", "select")|list %}
+{% if free_text_items %}
+<div class="card checklist-result-detail-card">
+    <h3 class="check-result-title">自由記入</h3>
+
+    <table class="checklist-table checklist-other-table">
+        <thead>
+            <tr>
+                <th>カテゴリ</th>
+                <th>チェック内容</th>
+                <th>記入内容</th>
+                <th>コメント</th>
+                <th>添付</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for answer in free_text_items %}
+            <tr>
+                <td data-label="カテゴリ">
+                    <span class="checklist-result-category-badge">
+                        {{ answer.category }}
+                    </span>
+                </td>
+
+                <td
+                    data-label="チェック内容"
+                    class="checklist-result-content"
+                >
+                    {{ answer.content }}
+                </td>
+
+                <td data-label="記入内容">
+                    <div class="checklist-result-comment">
+                        {{ answer.value }}
+                    </div>
+                </td>
+
+                <td data-label="コメント">
+                    {% if answer.comment %}
+                        <div
+                            class="checklist-result-comment mention-display"
+                            data-value="{{ answer.comment }}"
+                        ></div>
+                    {% else %}
+                        <span class="checklist-result-empty">
+                            なし
+                        </span>
+                    {% endif %}
+                </td>
+
+                <td data-label="添付">
+                    {% if answer.files %}
+                        <div class="checklist-result-attachment-count">
+                            添付 {{ answer.files|length }}件
+                        </div>
+
+                        {% for file in answer.files %}
+                            {% set ext = file.rsplit('.', 1)[-1]|lower %}
+
+                            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    <img
+                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                        class="checklist-result-attachment-image"
+                                    >
+                                </a>
+                            {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
+                                <video
+                                    controls
+                                    preload="metadata"
+                                    class="checklist-result-attachment-video"
+                                >
+                                    <source src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
+                                </video>
+                            {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    ▶ 動画を開く
+                                </a>
+                            {% else %}
+                                <a
+                                    href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                                    target="_blank"
+                                >
+                                    {{ file }}
+                                </a>
+                            {% endif %}
+
+                            {% if not loop.last %}
+                                <br>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <span class="checklist-result-empty">
+                            なし
+                        </span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 
 {% if result.approvals %}
 <div class="card approval-card">
