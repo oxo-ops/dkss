@@ -14524,6 +14524,35 @@ def checklist_result_detail(result_index):
             if numeric_choices:
                 max_score += max(numeric_choices)
 
+    result_items = []
+
+    for item, answer in zip(
+        check_items,
+        result["answers"]
+    ):
+        result_item = dict(answer)
+
+        numeric_choices = []
+
+        if item.get("input_type") == "select":
+            for choice in item.get("choices", []):
+                try:
+                    numeric_choices.append(
+                        float(choice)
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+        result_item["has_detail"] = bool(
+            str(
+                answer.get("comment", "")
+                or ""
+            ).strip()
+            or answer.get("files")
+        )
+
+        result_items.append(result_item)
+
     return render_template(
         "checklist_result_detail.html",
         result=result,
@@ -14532,6 +14561,7 @@ def checklist_result_detail(result_index):
         total_score=total_score,
         max_score=max_score,
         criteria_list=criteria_list,
+        result_items=result_items,
         checklist=checklist,
         can_manage=can_manage_checklist_result(result),
         can_reject=can_reject_checklist_result(result),
