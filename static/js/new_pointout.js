@@ -38,6 +38,25 @@ document.addEventListener("DOMContentLoaded", function () {
     const driverSearchData =
         document.getElementById("driver_search_data");
 
+    const countermeasureBySearch =
+        document.getElementById("countermeasure_by_search");
+
+    const countermeasureByInput =
+        document.getElementById("countermeasure_by");
+
+    const countermeasureByUsername =
+        document.getElementById("countermeasure_by_username");
+
+    const countermeasureDriverSearchResults =
+        document.getElementById(
+            "countermeasure_driver_search_results"
+        );
+
+    const countermeasureDriverSearchData =
+        document.getElementById(
+            "countermeasure_driver_search_data"
+        );
+
     const deliveryPlaceInput =
         document.getElementById("delivery_place");
 
@@ -526,6 +545,117 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    function updateCountermeasureDriverSearchResults() {
+        if (
+            !countermeasureBySearch ||
+            !countermeasureByInput ||
+            !countermeasureByUsername ||
+            !countermeasureDriverSearchResults ||
+            !countermeasureDriverSearchData
+        ) {
+            return;
+        }
+
+        const keyword =
+            countermeasureBySearch.value
+                .trim()
+                .toLowerCase();
+
+        if (
+            document.activeElement === countermeasureBySearch &&
+            countermeasureBySearch.dataset.selectedEmployeeId &&
+            countermeasureBySearch.value !==
+                countermeasureBySearch.dataset.selectedName
+        ) {
+            countermeasureByInput.value = "";
+            countermeasureByUsername.value = "";
+            countermeasureBySearch.dataset.selectedEmployeeId = "";
+            countermeasureBySearch.dataset.selectedName = "";
+        }
+
+        countermeasureDriverSearchResults.replaceChildren();
+
+        if (!keyword) {
+            countermeasureDriverSearchResults.classList.add(
+                "is-hidden"
+            );
+            return;
+        }
+
+        const drivers =
+            Array.from(
+                countermeasureDriverSearchData.querySelectorAll(
+                    "[data-name][data-employee-id]"
+                )
+            );
+
+        const matchedDrivers =
+            drivers.filter(function (driver) {
+                const name =
+                    String(
+                        driver.dataset.name || ""
+                    ).toLowerCase();
+
+                const employeeId =
+                    String(
+                        driver.dataset.employeeId || ""
+                    ).toLowerCase();
+
+                return (
+                    name.includes(keyword) ||
+                    employeeId.includes(keyword)
+                );
+            });
+
+        matchedDrivers.forEach(function (driver) {
+            const button =
+                document.createElement("button");
+
+            button.type = "button";
+            button.className =
+                "target-user-option";
+
+            button.textContent =
+                driver.dataset.name || "";
+
+            button.addEventListener(
+                "click",
+                function () {
+                    countermeasureBySearch.value =
+                        driver.dataset.name || "";
+
+                    countermeasureByInput.value =
+                        driver.dataset.employeeId || "";
+
+                    countermeasureByUsername.value =
+                        driver.dataset.username || "";
+
+                    countermeasureBySearch.dataset.selectedEmployeeId =
+                        driver.dataset.employeeId || "";
+
+                    countermeasureBySearch.dataset.selectedName =
+                        driver.dataset.name || "";
+
+                    countermeasureDriverSearchResults.replaceChildren();
+
+                    countermeasureDriverSearchResults.classList.add(
+                        "is-hidden"
+                    );
+                }
+            );
+
+            countermeasureDriverSearchResults.appendChild(
+                button
+            );
+        });
+
+        countermeasureDriverSearchResults.classList.toggle(
+            "is-hidden",
+            matchedDrivers.length === 0
+        );
+    }
+
+
     function updateDeliveryPlaceSearchResults() {
         if (
             !deliveryPlaceInput ||
@@ -627,6 +757,21 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDriverSearchResults
     );
 
+    countermeasureBySearch?.addEventListener(
+        "input",
+        updateCountermeasureDriverSearchResults
+    );
+
+    countermeasureBySearch?.addEventListener(
+        "focus",
+        updateCountermeasureDriverSearchResults
+    );
+
+    countermeasureBySearch?.addEventListener(
+        "compositionend",
+        updateCountermeasureDriverSearchResults
+    );
+
     if (
         targetUserSearch &&
         targetUserInput &&
@@ -683,6 +828,24 @@ document.addEventListener("DOMContentLoaded", function () {
             !event.target.closest("#delivery_place_search_results")
         ) {
             deliveryPlaceSearchResults?.classList.add("is-hidden");
+        }
+
+        if (
+            !event.target.closest("#countermeasure_by_search") &&
+            !event.target.closest("#countermeasure_driver_search_results")
+        ) {
+            countermeasureDriverSearchResults?.classList.add(
+                "is-hidden"
+            );
+        }
+
+        if (
+            !event.target.closest("#countermeasure_by_search") &&
+            !event.target.closest("#countermeasure_driver_search_results")
+        ) {
+            countermeasureDriverSearchResults?.classList.add(
+                "is-hidden"
+            );
         }
     });
 
