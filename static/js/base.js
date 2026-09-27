@@ -535,6 +535,22 @@ document.addEventListener("click", function(e) {
     }
 });
 
+document.addEventListener("DOMContentLoaded", function () {
+    const sidebarOverlay =
+        document.getElementById("sidebarOverlay");
+
+    sidebarOverlay?.addEventListener(
+        "click",
+        function () {
+            if (window.innerWidth <= 768) {
+                document.body.classList.remove(
+                    "sidebar-open"
+                );
+            }
+        }
+    );
+});
+
 window.addEventListener("DOMContentLoaded", function() {
 
     document.querySelectorAll(".mention-rich-editor")
@@ -642,11 +658,57 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-    const sidebarToggle = document.getElementById("sidebarToggle");
+    const sidebarToggle =
+        document.getElementById("sidebarToggle");
 
     if (sidebarToggle) {
-        sidebarToggle.addEventListener("click", toggleSidebar);
+        sidebarToggle.addEventListener(
+            "click",
+            toggleSidebar
+        );
     }
+
+    const settingsBack =
+        document.getElementById(
+            "topBarSettingsBack"
+        );
+
+    if (
+        window.location.pathname === "/settings"
+        && document.referrer
+    ) {
+        const referrerUrl =
+            new URL(document.referrer);
+
+        if (
+            referrerUrl.origin === window.location.origin
+            && referrerUrl.pathname !== "/settings"
+        ) {
+            sessionStorage.setItem(
+                "settingsReturnUrl",
+                referrerUrl.pathname
+                + referrerUrl.search
+                + referrerUrl.hash
+            );
+        }
+    }
+
+    settingsBack?.addEventListener(
+        "click",
+        function () {
+            const returnUrl =
+                sessionStorage.getItem(
+                    "settingsReturnUrl"
+                );
+
+            sessionStorage.removeItem(
+                "settingsReturnUrl"
+            );
+
+            window.location.href =
+                returnUrl || "/";
+        }
+    );
 });
 
 document.addEventListener("DOMContentLoaded", function () {

@@ -95,109 +95,268 @@ document.addEventListener("DOMContentLoaded", function () {
         return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
     }
 
-
-    function previewFiles() {
-        if (!filesInput || !previewArea) {
+    function prepareNextPointoutFileInput(input) {
+        if (!input.files || input.files.length === 0) {
             return;
         }
 
-        previewArea.replaceChildren();
+        const label =
+            input.closest(".file-upload-button");
 
-        Array.from(filesInput.files || [])
-            .forEach(function (file) {
-                const fileBox =
-                    document.createElement("div");
+        if (!label) {
+            return;
+        }
 
-                fileBox.className =
-                    "preview-item";
+        const nextInput =
+            input.cloneNode();
 
-                const mediaArea =
-                    document.createElement("div");
+        nextInput.value = "";
 
-                mediaArea.className =
-                    "preview-media";
+        label.parentNode.insertBefore(
+            input,
+            label
+        );
 
-                if (
-                    file.type.startsWith("image/")
-                ) {
-                    const img =
-                        document.createElement("img");
+        label.appendChild(nextInput);
+    }
 
-                    img.src =
-                        URL.createObjectURL(file);
+    function removeSelectedPointoutFile(
+        fileInput,
+        fileIndex
+    ) {
+        if (!fileInput.files) {
+            return;
+        }
 
-                    img.className =
-                        "preview-image";
+        const cell =
+            fileInput.closest(".file-upload-cell");
 
-                    img.alt =
-                        "選択した画像";
+        if (!cell) {
+            return;
+        }
 
-                    mediaArea.appendChild(img);
+        const transfer =
+            new DataTransfer();
 
-                } else if (
-                    file.type.startsWith("video/")
-                ) {
-                    const video =
-                        document.createElement("video");
+        Array.from(
+            fileInput.files
+        ).forEach(function (file, index) {
+            if (index !== fileIndex) {
+                transfer.items.add(file);
+            }
+        });
 
-                    video.src =
-                        URL.createObjectURL(file);
+        fileInput.files =
+            transfer.files;
 
-                    video.className =
-                        "preview-video";
+        if (fileInput.files.length === 0) {
+            fileInput.remove();
+        }
 
-                    video.controls = true;
-                    video.preload = "metadata";
+        const remainingInput =
+            cell.querySelector(
+                ".js-file-upload-input"
+            );
 
-                    mediaArea.appendChild(video);
+        if (remainingInput) {
+            showSelectedPointoutFiles(
+                remainingInput
+            );
+        } else {
+            cell.querySelector(
+                ".selected-file-names"
+            )?.replaceChildren();
+        }
+    }
 
-                } else {
-                    const pdf =
-                        document.createElement("div");
 
-                    pdf.className =
-                        "preview-file-icon";
+    function showSelectedPointoutFiles(
+        input,
+        showAll = false
+    ) {
+        const cell =
+            input.closest(".file-upload-cell");
 
-                    pdf.textContent =
-                        "PDF";
+        if (!cell) {
+            return;
+        }
 
-                    mediaArea.appendChild(pdf);
-                }
+        const area =
+            cell.querySelector(
+                ".selected-file-names"
+            );
 
-                const info =
-                    document.createElement("div");
+        if (!area) {
+            return;
+        }
 
-                info.className =
-                    "preview-info";
+        area.replaceChildren();
 
+        area.classList.toggle(
+            "is-expanded",
+            showAll
+        );
+
+        const visibleEntries =
+            [];
+
+        cell.querySelectorAll(
+            ".js-file-upload-input"
+        ).forEach(function (fileInput) {
+            Array.from(
+                fileInput.files || []
+            ).forEach(function (
+                file,
+                fileIndex
+            ) {
+                visibleEntries.push({
+                    file: file,
+                    fileInput: fileInput,
+                    fileIndex: fileIndex
+                });
+            });
+        });
+
+        const entriesToShow =
+            showAll
+                ? visibleEntries
+                : visibleEntries.slice(0, 2);
+
+        entriesToShow.forEach(function (entry) {
+            const file =
+                entry.file;
+
+            const item =
+                document.createElement("div");
+
+            item.className =
+                "selected-file-preview";
+
+            if (
+                file.type.startsWith("image/")
+            ) {
+                const image =
+                    document.createElement("img");
+
+                image.className =
+                    "selected-file-preview-image";
+
+                image.alt = file.name;
+
+                const objectUrl =
+                    URL.createObjectURL(file);
+
+                image.src = objectUrl;
+
+                image.addEventListener(
+                    "load",
+                    function () {
+                        URL.revokeObjectURL(
+                            objectUrl
+                        );
+                    }
+                );
+
+                item.appendChild(image);
+            } else {
                 const name =
-                    document.createElement("p");
+                    document.createElement("div");
 
                 name.className =
-                    "preview-file-name";
+                    "selected-file-preview-name";
 
                 name.textContent =
                     file.name;
 
-                const size =
-                    document.createElement("p");
+                item.appendChild(name);
+            }
 
-                size.className =
-                    "preview-file-size";
+            const removeButton =
+                document.createElement("button");
 
-                size.textContent =
-                    formatFileSize(file.size);
+            removeButton.type = "button";
+            removeButton.className =
+                "selected-file-preview-remove";
 
-                info.appendChild(name);
-                info.appendChild(size);
+            removeButton.textContent = "×";
 
-                fileBox.appendChild(mediaArea);
-                fileBox.appendChild(info);
+            removeButton.setAttribute(
+                "aria-label",
+                file.name + " を削除"
+            );
 
-                previewArea.appendChild(
-                    fileBox
-                );
-            });
+            removeButton.addEventListener(
+                "click",
+                function () {
+                    removeSelectedPointoutFile(
+                        entry.fileInput,
+                        entry.fileIndex
+                    );
+                }
+            );
+
+            item.appendChild(removeButton);
+
+            area.appendChild(item);
+        });
+
+        if (
+            !showAll &&
+            visibleEntries.length > 2
+        ) {
+            const more =
+                document.createElement("button");
+
+            more.type = "button";
+
+            more.className =
+                "selected-file-more";
+
+            more.textContent =
+                "＋" +
+                (visibleEntries.length - 2) +
+                "件";
+
+            more.addEventListener(
+                "click",
+                function () {
+                    showSelectedPointoutFiles(
+                        input,
+                        true
+                    );
+                }
+            );
+
+            area.appendChild(more);
+        }
+
+        if (
+            showAll &&
+            visibleEntries.length > 2
+        ) {
+            const collapse =
+                document.createElement("button");
+
+            collapse.type = "button";
+
+            collapse.className =
+                "selected-file-collapse";
+
+            collapse.textContent =
+                "閉じる";
+
+            collapse.addEventListener(
+                "click",
+                function () {
+                    showSelectedPointoutFiles(
+                        input,
+                        false
+                    );
+                }
+            );
+
+            area.appendChild(collapse);
+        }
     }
 
 
@@ -239,9 +398,23 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-    filesInput?.addEventListener(
+    document.addEventListener(
         "change",
-        previewFiles
+        function (event) {
+            if (
+                event.target.matches(
+                    ".js-file-upload-input"
+                )
+            ) {
+                showSelectedPointoutFiles(
+                    event.target
+                );
+
+                prepareNextPointoutFileInput(
+                    event.target
+                );
+            }
+        }
     );
 
 
@@ -265,7 +438,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 .trim()
                 .toLowerCase();
 
-        targetUserInput.value = "";
+        if (
+            document.activeElement === targetUserSearch &&
+            targetUserSearch.dataset.selectedEmployeeId &&
+            targetUserSearch.value !==
+                targetUserSearch.dataset.selectedName
+        ) {
+            targetUserInput.value = "";
+            targetUserSearch.dataset.selectedEmployeeId = "";
+            targetUserSearch.dataset.selectedName = "";
+        }
+
         driverSearchResults.replaceChildren();
 
         if (!keyword) {
@@ -319,6 +502,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     targetUserInput.value =
                         driver.dataset.employeeId || "";
+
+                    targetUserSearch.dataset.selectedEmployeeId =
+                        driver.dataset.employeeId || "";
+
+                    targetUserSearch.dataset.selectedName =
+                        driver.dataset.name || "";
 
                     driverSearchResults.replaceChildren();
 
@@ -458,6 +647,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (selectedDriver) {
             targetUserSearch.value =
+                selectedDriver.dataset.name || "";
+
+            targetUserSearch.dataset.selectedEmployeeId =
+                selectedDriver.dataset.employeeId || "";
+
+            targetUserSearch.dataset.selectedName =
                 selectedDriver.dataset.name || "";
         }
     }

@@ -207,35 +207,42 @@
         </div>
 
         <div class="form-group">
-            <label for="files">添付ファイル</label>
+            <label>添付ファイル</label>
 
             <p class="help-text">
                 写真・動画・PDFを追加できます。
                 必要に応じて、現場の状況が分かる写真や動画を添付してください。
             </p>
 
-            <input
-                type="file"
-                name="files"
-                id="files"
-                class="js-pointout-files"
-                multiple
-                accept="image/*,video/*,.pdf"
-                aria-describedby="files-help"
-            >
+            <div class="file-upload-cell pointout-file-upload-cell">
 
-            <div
-                id="files-help"
-                class="help-text"
-            >
-                複数ファイルを選択できます。
+                <label class="file-upload-button file-upload-button-camera">
+                    写真
+                    <input
+                        type="file"
+                        name="files"
+                        accept="image/*"
+                        capture="environment"
+                        class="file-upload-input js-file-upload-input"
+                    >
+                </label>
+
+                <label class="file-upload-button file-upload-button-secondary">
+                    ファイル
+                    <input
+                        type="file"
+                        name="files"
+                        multiple
+                        accept="image/*,video/*,.pdf"
+                        class="file-upload-input js-file-upload-input"
+                    >
+                </label>
+
+                <div
+                    class="selected-file-names"
+                    aria-live="polite"
+                ></div>
             </div>
-
-            <div
-                id="preview_area"
-                class="preview-area"
-                aria-live="polite"
-            ></div>
         </div>
 
         <div class="form-actions">
@@ -254,6 +261,6 @@
     </a>
 </div>
 
-<script src="{{ url_for('static', filename='js/new_pointout.js') }}?v=20260921-1"></script>
+<script src="{{ url_for('static', filename='js/new_pointout.js') }}?v=20260927-1"></script>
 
 {% endblock %}
