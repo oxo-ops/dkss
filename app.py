@@ -8392,40 +8392,54 @@ def register_countermeasure(index):
     if not can_countermeasure_patrol_result(result):
         return redirect(f"/pointouts/{index}")
 
+    form_errors = []
+
     countermeasure = request.form.get(
         "countermeasure",
         ""
     ).strip()
 
     if not countermeasure:
-        return "対策内容を入力してください。", 400
-
-    if len(countermeasure) > 5000:
-        return "対策内容は5000文字以内で入力してください。", 400
+        form_errors.append(
+            "対策内容を入力してください。"
+        )
+    elif len(countermeasure) > 5000:
+        form_errors.append(
+            "対策内容は5000文字以内で入力してください。"
+        )
 
     countermeasure_by_employee_id = request.form.get(
         "countermeasure_by",
         ""
     ).strip()
 
+    countermeasure_driver = None
+    countermeasure_user = None
+
     if not countermeasure_by_employee_id:
-        return "対応者を選択してください。", 400
+        form_errors.append(
+            "対応者を選択してください。"
+        )
+    else:
+        countermeasure_driver = Driver.query.filter_by(
+            company_code=result_record.company_code,
+            employee_id=countermeasure_by_employee_id
+        ).first()
 
-    countermeasure_driver = Driver.query.filter_by(
-        company_code=result_record.company_code,
-        employee_id=countermeasure_by_employee_id
-    ).first()
+        if not countermeasure_driver:
+            form_errors.append(
+                "対応者が不正です。"
+            )
+        else:
+            countermeasure_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=countermeasure_driver.employee_id
+            ).first()
 
-    if not countermeasure_driver:
-        return "対応者が不正です。", 400
-
-    countermeasure_user = User.query.filter_by(
-        company_code=result_record.company_code,
-        username=countermeasure_driver.employee_id
-    ).first()
-
-    if not countermeasure_user:
-        return "対応者情報が不正です。", 400
+            if not countermeasure_user:
+                form_errors.append(
+                    "対応者情報が不正です。"
+                )
 
     countermeasure_due_date = request.form.get(
         "countermeasure_due_date",
@@ -8439,7 +8453,43 @@ def register_countermeasure(index):
                 "%Y-%m-%d"
             )
         except ValueError:
-            return "対応期限が不正です。", 400
+            form_errors.append(
+                "対応期限が不正です。"
+            )
+
+    if form_errors:
+        session["countermeasure_form_data"] = {
+            "countermeasure": request.form.get(
+                "countermeasure",
+                ""
+            ),
+            "countermeasure_by": request.form.get(
+                "countermeasure_by",
+                ""
+            ),
+            "countermeasure_by_search": request.form.get(
+                "countermeasure_by_search",
+                ""
+            ),
+            "countermeasure_by_username": request.form.get(
+                "countermeasure_by_username",
+                ""
+            ),
+            "countermeasure_due_date": request.form.get(
+                "countermeasure_due_date",
+                ""
+            ),
+        }
+
+        for message in form_errors:
+            flash(
+                message,
+                f"error:{get_form_error_field(message) or ''}"
+            )
+
+        return redirect(
+            f"/pointouts/{result_record.id}"
+        )
 
     countermeasure_files = safe_json_str_list(
         result_record.countermeasure_files_json
