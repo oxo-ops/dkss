@@ -626,6 +626,7 @@ document.addEventListener("DOMContentLoaded", function () {
             "submit",
             function (event) {
                 let totalSize = 0;
+                let totalFiles = 0;
 
                 checklistResultForm.querySelectorAll(
                     ".js-file-upload-input"
@@ -634,8 +635,20 @@ document.addEventListener("DOMContentLoaded", function () {
                         input.files || []
                     ).forEach(function (file) {
                         totalSize += file.size;
+                        totalFiles += 1;
                     });
                 });
+
+                if (totalFiles > 50) {
+                    event.preventDefault();
+
+                    alert(
+                        "一度にアップロードできるファイルは" +
+                        "50件までです。"
+                    );
+
+                    return;
+                }
 
                 const maxSize =
                     1024 * 1024 * 1024;
