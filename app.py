@@ -7987,7 +7987,11 @@ def edit_pointout(index):
 
         except UploadValidationError as error:
             db.session.rollback()
-            return str(error), 400
+            app.logger.warning(
+                "Upload validation failed while updating patrol attachments.",
+                exc_info=True
+            )
+            return "添付ファイルの検証に失敗しました。入力内容を確認してください。", 400
 
         result_record.files_json = json.dumps(
             files,
