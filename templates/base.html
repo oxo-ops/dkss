@@ -16,7 +16,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260921-3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260927-1') }}">
 </head>
 <body data-current-user="{{ session.get('name', '') }}">
 
@@ -147,11 +147,10 @@
         </nav>
 
         <div class="sidebar-footer">
-            <p class="sidebar-user">
-                ユーザー：{{ session.get("name") }}
-            </p>
-
-            <a href="/settings" class="logout-link menu-item">
+            <a
+                href="/settings"
+                class="logout-link menu-item is-hidden"
+            >
                 <span class="menu-icon">
                     <img src="{{ url_for('static', filename='icons/master.png') }}">
                 </span>
@@ -182,6 +181,12 @@
 
     </aside>
 
+    <div
+        class="sidebar-overlay"
+        id="sidebarOverlay"
+        aria-hidden="true"
+    ></div>
+
     <main class="main-content">
 
         <div class="top-bar">
@@ -194,6 +199,65 @@
                     </span>
                 {% endif %}
             </a>
+
+            {% if request.path == "/settings" %}
+                <button
+                    type="button"
+                    class="top-bar-user"
+                    id="topBarSettingsBack"
+                    aria-label="設定を閉じる"
+                >
+                    <div class="top-bar-user-avatar">
+                        {% if session.get("profile_image") %}
+                            <img
+                                src="{{ url_for(
+                                    'uploaded_file',
+                                    folder='uploads',
+                                    filename=session.get('profile_image')
+                                ) }}"
+                                alt=""
+                                class="top-bar-user-avatar-image"
+                            >
+                        {% else %}
+                            <span class="top-bar-user-avatar-initial">
+                                {{ session.get("name", "")[:1] }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <span class="top-bar-user-name">
+                        {{ session.get("name") }}
+                    </span>
+                </button>
+            {% else %}
+                <a
+                    href="/settings"
+                    class="top-bar-user"
+                    aria-label="設定を開く"
+                >
+                    <div class="top-bar-user-avatar">
+                        {% if session.get("profile_image") %}
+                            <img
+                                src="{{ url_for(
+                                    'uploaded_file',
+                                    folder='uploads',
+                                    filename=session.get('profile_image')
+                                ) }}"
+                                alt=""
+                                class="top-bar-user-avatar-image"
+                            >
+                        {% else %}
+                            <span class="top-bar-user-avatar-initial">
+                                {{ session.get("name", "")[:1] }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <span class="top-bar-user-name">
+                        {{ session.get("name") }}
+                    </span>
+                </a>
+            {% endif %}
         </div>
 
                         {% set flash_messages = get_flashed_messages(with_categories=true) %}

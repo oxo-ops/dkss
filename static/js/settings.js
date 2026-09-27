@@ -1,4 +1,49 @@
 document.addEventListener("DOMContentLoaded", function () {
+    const profileImageInput =
+        document.querySelector(
+            'input[name="profile_image"]'
+        );
+
+    const profileAvatar =
+        document.querySelector(
+            ".settings-profile-avatar"
+        );
+
+    let profilePreviewUrl = null;
+
+    profileImageInput?.addEventListener(
+        "change",
+        function () {
+            const file =
+                profileImageInput.files?.[0];
+
+            if (!file || !profileAvatar) {
+                return;
+            }
+
+            if (profilePreviewUrl) {
+                URL.revokeObjectURL(
+                    profilePreviewUrl
+                );
+            }
+
+            profilePreviewUrl =
+                URL.createObjectURL(file);
+
+            profileAvatar.innerHTML = "";
+
+            const image =
+                document.createElement("img");
+
+            image.src = profilePreviewUrl;
+            image.alt = "";
+            image.className =
+                "settings-profile-avatar-image";
+
+            profileAvatar.appendChild(image);
+        }
+    );
+
     const timezone =
         Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -81,9 +126,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (Notification.permission === "granted") {
-        pushButton.textContent =
-            "端末通知は有効です";
-        pushButton.disabled = true;    
+        pushButton.innerHTML =
+            '<span class="settings-notification-action-icon">✓</span>'
+            + '<span>端末通知は有効です</span>';
+
+        pushButton.disabled = true;
 
         if (pushStatus) {
             pushStatus.textContent =

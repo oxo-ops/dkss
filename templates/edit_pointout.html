@@ -236,35 +236,43 @@
             </div>
 
             <div class="pointout-file-add">
-                <label for="files">添付ファイルを追加</label>
+                <label>添付ファイルを追加</label>
 
                 <p class="help-text">
                     写真・動画・PDFを追加できます。
                     現在の添付ファイルは保持され、新しいファイルが追加されます。
                 </p>
 
-                <input
-                    type="file"
-                    name="files"
-                    id="files"
-                    class="js-pointout-files"
-                    multiple
-                    accept="image/*,video/*,.pdf"
-                    aria-describedby="files-help"
-                >
+                <div class="file-upload-cell pointout-file-upload-cell">
 
-                <div
-                    id="files-help"
-                    class="help-text"
-                >
-                    複数ファイルを選択できます。
+                    <label class="file-upload-button file-upload-button-camera">
+                        写真
+                        <input
+                            type="file"
+                            name="files"
+                            accept="image/*"
+                            capture="environment"
+                            class="file-upload-input js-pointout-files"
+                        >
+                    </label>
+
+                    <label class="file-upload-button file-upload-button-secondary">
+                        ファイル
+                        <input
+                            type="file"
+                            name="files"
+                            multiple
+                            accept="image/*,video/*,.pdf"
+                            class="file-upload-input js-pointout-files"
+                        >
+                    </label>
+
+                    <div
+                        id="preview_area"
+                        class="preview-area"
+                        aria-live="polite"
+                    ></div>
                 </div>
-
-                <div
-                    id="preview_area"
-                    class="preview-area"
-                    aria-live="polite"
-                ></div>
             </div>
         </section>
         <div class="form-actions pointout-edit-actions">

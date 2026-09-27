@@ -31,7 +31,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from sqlalchemy import inspect
+from sqlalchemy import inspect, or_
 from sqlalchemy.exc import IntegrityError
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -216,6 +216,7 @@ def redirect_form_errors(response):
 
     if (
         request.path != "/pointouts/new"
+        and request.path != "/settings"
         and not request.path.startswith("/master/")
     ):
         return response
@@ -474,6 +475,11 @@ class User(db.Model):
 
     email_address = db.Column(
         db.String(255)
+    )
+
+    profile_image = db.Column(
+        db.String(255),
+        nullable=True
     )
 
     email_notify_enabled = db.Column(
@@ -1200,7 +1206,9 @@ def is_valid_uploaded_file(file, extension):
             return header.startswith(b"%PDF-")
 
         if extension == ".png":
-            return header == b"\x89PNG\r\n\x1a\n"
+            return header.startswith(
+                b"\x89PNG\r\n\x1a\n"
+            )
 
         if extension in {".jpg", ".jpeg"}:
             return header.startswith(b"\xff\xd8\xff")
@@ -1477,6 +1485,20 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         return False
 
     filename = os.path.basename(filename)
+
+    # =========================
+    # プロフィール画像
+    # =========================
+    current_user = User.query.filter_by(
+        company_code=company_code,
+        username=session.get("username")
+    ).first()
+
+    if (
+        current_user
+        and current_user.profile_image == filename
+    ):
+        return True
 
     # =========================
     # マニュアル
@@ -2006,6 +2028,8 @@ def require_login():
     session["role"] = current_user.role
     session["name"] = current_user.name
     session["office"] = current_user.office
+    session["profile_image"] = current_user.profile_image
+
     if current_user.role != "itc":
         current_company = Company.query.filter_by(
             company_code=current_user.company_code
@@ -4705,6 +4729,29 @@ def settings():
     if request.method == "POST":
         action = request.form.get("action", "password")
 
+        if action == "profile_image":
+            profile_image = request.files.get(
+                "profile_image"
+            )
+
+            if profile_image and profile_image.filename:
+                saved_filename = save_uploaded_file(
+                    profile_image
+                )
+
+                if saved_filename:
+                    current_user.profile_image = (
+                        saved_filename
+                    )
+
+                    db.session.commit()
+
+                    session["profile_image"] = (
+                        saved_filename
+                    )
+
+            return redirect("/settings")
+
         if action == "notifications":
             new_email_address = (
                 request.form.get("email_address", "").strip()
@@ -7152,17 +7199,71 @@ def pointouts():
         view_type = "user"
 
     keyword = request.args.get("keyword", "").strip()
+    office_filter = request.args.get("office", "").strip()
+    status_filter = request.args.get("status", "").strip()
     category = request.args.get("category", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
     mine = request.args.get("mine") == "1"
     pending = request.args.get("pending") == "1"
 
     if len(keyword) > 100:
         return "検索条件が長すぎます。", 400
 
+    for date_value in [date_from, date_to]:
+        if not date_value:
+            continue
+
+        try:
+            datetime.strptime(
+                date_value,
+                "%Y-%m-%d"
+            )
+        except ValueError:
+            return "発生日の検索条件が不正です。", 400
+
+    if (
+        date_from
+        and date_to
+        and date_from > date_to
+    ):
+        return "発生日の開始日と終了日が不正です。", 400
+
     query = PatrolResult.query.filter(
         PatrolResult.company_code == session.get("company_code"),
         PatrolResult.target_type == view_type
     )
+
+    if office_filter:
+        query = query.filter(
+            PatrolResult.office == office_filter
+        )
+
+    if status_filter == "not_started":
+        query = query.filter(
+            PatrolResult.category != "Good",
+            PatrolResult.countermeasure == ""
+        )
+    elif status_filter == "waiting":
+        query = query.filter(
+            PatrolResult.category != "Good",
+            PatrolResult.countermeasure != "",
+            PatrolResult.approval_status == "承認待ち"
+        )
+    elif status_filter == "rejected":
+        query = query.filter(
+            PatrolResult.category != "Good",
+            PatrolResult.approval_status == "差し戻し"
+        )
+    elif status_filter == "approved":
+        query = query.filter(
+            PatrolResult.category != "Good",
+            PatrolResult.approval_status == "承認済み"
+        )
+    elif status_filter == "none":
+        query = query.filter(
+            PatrolResult.category == "Good"
+        )
 
     if mine and view_type == "user":
         query = query.filter(
@@ -7181,17 +7282,37 @@ def pointouts():
             PatrolResult.category == category
         )
 
+    if date_from:
+        query = query.filter(
+            PatrolResult.date >= date_from
+        )
+
+    if date_to:
+        query = query.filter(
+            PatrolResult.date <= date_to
+        )
+
     if keyword:
         keyword_like = f"%{keyword}%"
 
+        keyword_filters = [
+            PatrolResult.office.ilike(keyword_like),
+            PatrolResult.content.ilike(keyword_like),
+            PatrolResult.content_type.ilike(keyword_like),
+        ]
+
         if view_type == "user":
-            query = query.filter(
+            keyword_filters.append(
                 PatrolResult.target_user.ilike(keyword_like)
             )
         elif view_type == "delivery_place":
-            query = query.filter(
+            keyword_filters.append(
                 PatrolResult.delivery_place.ilike(keyword_like)
             )
+
+        query = query.filter(
+            or_(*keyword_filters)
+        )
 
     result_records = query.order_by(
         PatrolResult.id.desc()
@@ -7207,7 +7328,7 @@ def pointouts():
 
         result["can_manage"] = can_edit_patrol_result(result)
         visible_results.append(result)
-    allowed_page_sizes = {5, 8, 10}
+    allowed_page_sizes = {10, 20, 50}
 
     try:
         page_size = int(
@@ -7277,9 +7398,15 @@ def pointouts():
         total_pages=total_pages,
         view_type=view_type,
         keyword=keyword,
+        office_filter=office_filter,
+        status_filter=status_filter,
+        category_filter=category,
+        date_from=date_from,
+        date_to=date_to,
         role=role,
         show_target_user=view_type == "user",
         drivers=driver_options,
+        offices=offices_for_current_company(),
         delivery_places=delivery_places_for_current_company(),
     )
 
@@ -20015,6 +20142,10 @@ with app.app_context():
         (
             "email_change_code_expires_at",
             "VARCHAR(20)"
+        ),
+        (
+            "profile_image",
+            "VARCHAR(255)"
         ),
         ("dashboard_settings_json", "TEXT DEFAULT '{}'")
     ]

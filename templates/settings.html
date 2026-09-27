@@ -8,17 +8,102 @@
     <h2>設定</h2>
 </div>
 
-<div class="card">
+<div class="card settings-user-card">
     <h3>ユーザー情報</h3>
 
-    <p><strong>会社コード：</strong>{{ user.company_code }}</p>
-    <p><strong>ユーザーID：</strong>{{ user.username }}</p>
-    <p><strong>氏名：</strong>{{ user.name }}</p>
-    <p><strong>権限：</strong>{{ user.role }}</p>
-    <p><strong>営業所：</strong>{{ user.office }}</p>
+    <div class="settings-user-layout">
+        <div class="settings-profile-area">
+            <div class="settings-profile-avatar">
+                {% if user.profile_image %}
+                    <img
+                        src="{{ url_for(
+                            'uploaded_file',
+                            folder='uploads',
+                            filename=user.profile_image
+                        ) }}"
+                        alt=""
+                        class="settings-profile-avatar-image"
+                    >
+                {% else %}
+                    <span class="settings-profile-avatar-initial">
+                        {{ user.name[:1] }}
+                    </span>
+                {% endif %}
+            </div>
+
+            <form
+                method="post"
+                enctype="multipart/form-data"
+                class="settings-profile-form"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="action"
+                    value="profile_image"
+                >
+
+                <div class="settings-profile-actions">
+                    <label class="file-upload-button file-upload-button-secondary">
+                        画像を選択
+                        <input
+                            type="file"
+                            name="profile_image"
+                            accept="image/*"
+                            class="file-upload-input"
+                        >
+                    </label>
+
+                    <button
+                        type="submit"
+                        class="btn"
+                    >
+                        保存
+                    </button>
+                </div>
+
+                <p class="help-text">
+                    画像が設定されていない場合は、
+                    名前のイニシャルが表示されます。
+                </p>
+            </form>
+        </div>
+
+        <div class="settings-user-info">
+            <p>
+                <strong>会社コード</strong>
+                <span>{{ user.company_code }}</span>
+            </p>
+
+            <p>
+                <strong>ユーザーID</strong>
+                <span>{{ user.username }}</span>
+            </p>
+
+            <p>
+                <strong>氏名</strong>
+                <span>{{ user.name }}</span>
+            </p>
+
+            <p>
+                <strong>権限</strong>
+                <span>{{ user.role }}</span>
+            </p>
+
+            <p>
+                <strong>営業所</strong>
+                <span>{{ user.office }}</span>
+            </p>
+        </div>
+    </div>
 </div>
 
-<form method="post" class="card">
+<form method="post" class="card settings-notification-card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <input
@@ -29,106 +114,140 @@
 
     <h3>通知設定</h3>
 
-    <button
-        type="button"
-        class="btn"
-        id="enablePushNotifications"
-    >
-        端末通知を有効にする
-    </button>
+    <div class="settings-notification-layout">
+        <div class="settings-notification-left">
 
-    <p class="help-text" id="pushNotificationStatus">
-        Windows・スマートフォンの端末通知を設定します。
-    </p>
+            <div class="settings-notification-actions">
+                <button
+                    type="button"
+                    class="btn settings-notification-action"
+                    id="enablePushNotifications"
+                >
+                    <span class="settings-notification-action-icon">
+                        ✓
+                    </span>
+                    <span>
+                        端末通知を有効にする
+                    </span>
+                </button>
 
-    <button
-        type="button"
-        class="btn"
-        id="testEmailNotification"
-    >
-        メール通知をテスト
-    </button>
-
-    <p class="help-text" id="testEmailNotificationStatus"></p>
-
-    {% if notification_success %}
-        <div class="alert success">
-            {{ notification_success }}
-        </div>
-    {% endif %}
-
-    <label>タイムゾーン</label>
-
-    <input
-        type="text"
-        id="timezone_display"
-        value="{{ user.timezone or 'Asia/Tokyo' }}"
-        readonly
-    >
-
-    <input
-        type="hidden"
-        name="timezone"
-        id="timezone"
-        value="{{ user.timezone or 'Asia/Tokyo' }}"
-    >
-
-    <p class="help-text">
-        現在利用している端末の現地時間を自動判定します。
-    </p>
-
-    <label class="checkbox-row">
-        <input
-            type="checkbox"
-            name="email_notify_enabled"
-            value="1"
-            {% if user.email_notify_enabled %}checked{% endif %}
-        >
-        <span>メールでも通知を受け取る</span>
-    </label>
-
-    <label>メールアドレス</label>
-
-    <input
-        type="email"
-        name="email_address"
-        value="{{ user.email_address or '' }}"
-        placeholder="example@example.com"
-    >
-    {% if error %}
-        <div class="settings-field-error" role="alert">
-            <span class="settings-field-error-icon">!</span>
-
-            <div>
-                <strong>メールを送信できませんでした</strong>
-                <p>{{ error }}</p>
+                <button
+                    type="button"
+                    class="btn settings-notification-action"
+                    id="testEmailNotification"
+                >
+                    <span class="settings-notification-action-icon">
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            class="settings-notification-plane-icon"
+                        >
+                            <path
+                                d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3Z"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </span>
+                    <span>
+                        テストメール送信
+                    </span>
+                </button>
             </div>
+
+            <p class="help-text" id="pushNotificationStatus">
+                Windows・スマートフォンの端末通知を設定します。
+            </p>
+
+            <p class="help-text" id="testEmailNotificationStatus"></p>
+
+            {% if notification_success %}
+                <div class="alert success">
+                    {{ notification_success }}
+                </div>
+            {% endif %}
+
+            <label>タイムゾーン</label>
+
+            <input
+                type="text"
+                id="timezone_display"
+                value="{{ user.timezone or 'Asia/Tokyo' }}"
+                readonly
+            >
+
+            <input
+                type="hidden"
+                name="timezone"
+                id="timezone"
+                value="{{ user.timezone or 'Asia/Tokyo' }}"
+            >
+
+            <p class="help-text">
+                現在利用している端末の現地時間を自動判定します。
+            </p>
         </div>
-    {% endif %}
-    <label>メールアドレス変更時の現在のパスワード</label>
 
-    <input
-        type="password"
-        name="notification_current_password"
-        autocomplete="current-password"
-    >
+        <div class="settings-notification-right">
+            <label class="checkbox-row">
+                <input
+                    type="checkbox"
+                    name="email_notify_enabled"
+                    value="1"
+                    {% if user.email_notify_enabled %}checked{% endif %}
+                >
+                <span>メールでも通知を受け取る</span>
+            </label>
 
-    <p class="help-text">
-        メールアドレスを変更する場合のみ入力してください。
-    </p>
+            <label>メールアドレス</label>
 
-<p class="help-text">
-    メール通知は登録済みのメールアドレス宛に送信されます。
-</p>
+            <input
+                type="email"
+                name="email_address"
+                value="{{ user.email_address or '' }}"
+                placeholder="example@example.com"
+            >
 
-    <button type="submit" class="btn">
-        通知設定を保存
-    </button>
+            {% if error %}
+                <div class="settings-field-error" role="alert">
+                    <span class="settings-field-error-icon">!</span>
+
+                    <div>
+                        <strong>メールを送信できませんでした</strong>
+                        <p>{{ error }}</p>
+                    </div>
+                </div>
+            {% endif %}
+
+            <p class="help-text">
+                メール通知は登録済みのメールアドレス宛に送信されます。
+            </p>
+
+            <label>本人確認用パスワード</label>
+
+            <input
+                type="password"
+                name="notification_current_password"
+                autocomplete="current-password"
+            >
+
+            <p class="help-text">
+                メールアドレスを変更する場合のみ入力してください。
+            </p>
+
+            <button type="submit" class="btn">
+                保存
+            </button>
+        </div>
+    </div>
 </form>
 
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 
-<form method="post" class="card">
+<form method="post" class="card settings-password-card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <h3>パスワード変更</h3>
@@ -139,14 +258,34 @@
         </div>
     {% endif %}
 
-    <label>現在のパスワード</label>
-    <input type="password" name="current_password" required>
+    <div class="settings-password-grid">
+        <div class="settings-password-field">
+            <label>現在のパスワード</label>
+            <input
+                type="password"
+                name="current_password"
+                required
+            >
+        </div>
 
-    <label>新しいパスワード</label>
-    <input type="password" name="new_password" required>
+        <div class="settings-password-field">
+            <label>新しいパスワード</label>
+            <input
+                type="password"
+                name="new_password"
+                required
+            >
+        </div>
 
-    <label>新しいパスワード確認</label>
-    <input type="password" name="new_password_confirm" required>
+        <div class="settings-password-field">
+            <label>新しいパスワード確認</label>
+            <input
+                type="password"
+                name="new_password_confirm"
+                required
+            >
+        </div>
+    </div>
 
     <button type="submit" class="btn">
         変更

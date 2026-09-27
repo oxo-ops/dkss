@@ -5,8 +5,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const manualLink =
         document.getElementById("manual_link");
 
-    const filesInput =
-        document.getElementById("files");
+    const filesInputs =
+        document.querySelectorAll(
+            ".js-pointout-files"
+        );
 
     const previewArea =
         document.getElementById("preview_area");
@@ -54,13 +56,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     function previewFiles() {
-        if (!filesInput || !previewArea) {
+        if (!previewArea) {
             return;
         }
 
         previewArea.replaceChildren();
 
-        Array.from(filesInput.files || [])
+        const selectedFiles =
+            Array.from(filesInputs)
+                .flatMap(function (input) {
+                    return Array.from(
+                        input.files || []
+                    );
+                });
+
+        selectedFiles
             .forEach(function (file) {
                 const fileBox =
                     document.createElement("div");
@@ -255,10 +265,12 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDriverSearchResults
     );
 
-    filesInput?.addEventListener(
-        "change",
-        previewFiles
-    );
+    filesInputs.forEach(function (input) {
+        input.addEventListener(
+            "change",
+            previewFiles
+        );
+    });
 
     const contentEditor = document.getElementById("content_editor");
     const contentValue = document.getElementById("content_value");

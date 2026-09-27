@@ -34,6 +34,11 @@
         href="{{ url_for(
             'pointouts',
             type='user',
+            office=office_filter,
+            status=status_filter,
+            category=category_filter,
+            date_from=date_from,
+            date_to=date_to,
             page_size=page_size
         ) }}"
     >
@@ -45,6 +50,11 @@
         href="{{ url_for(
             'pointouts',
             type='delivery_place',
+            office=office_filter,
+            status=status_filter,
+            category=category_filter,
+            date_from=date_from,
+            date_to=date_to,
             page_size=page_size
         ) }}"
     >
@@ -53,54 +63,150 @@
 </div>
 
 <div class="card tab-content search-card">
-    <form method="get" class="search-form">
+    <form method="get" class="search-form pointouts-filter-form">
         <input type="hidden" name="type" value="{{ view_type }}">
         <input type="hidden" name="page_size" value="{{ page_size }}">
 
-        {% if view_type == "user" %}
-            <label>対象者検索</label>
-            <div class="search-row">
-                <input
-                    type="text"
-                    name="keyword"
-                    id="pointout_target_search"
-                    value="{{ keyword }}"
-                    placeholder="対象者名を入力"
-                    autocomplete="off"
-                >
+        <div class="pointouts-filter-keyword">
+            <label for="pointout_keyword">フリーワード検索</label>
+            <input
+                type="text"
+                name="keyword"
+                id="pointout_keyword"
+                value="{{ keyword }}"
+                placeholder="{% if view_type == 'user' %}対象者・営業所・内容・内容区分を検索{% else %}納入先・営業所・内容・内容区分を検索{% endif %}"
+                autocomplete="off"
+            >
+        </div>
 
-                <button type="submit">検索</button>
-            </div>
-
-            <div
-                id="pointout_target_results"
-                class="vehicle-select-box is-hidden"
-            ></div>
-
-            <div id="pointout_target_data" class="is-hidden">
-                {% for driver in drivers %}
-                    <span data-name="{{ driver.name }}"></span>
+        <div class="pointouts-filter-item">
+            <label for="pointout_office">営業所</label>
+            <select
+                name="office"
+                id="pointout_office"
+            >
+                <option value="">すべて</option>
+                {% for office in offices %}
+                    <option
+                        value="{{ office.name }}"
+                        {% if office_filter == office.name %}selected{% endif %}
+                    >
+                        {{ office.name }}
+                    </option>
                 {% endfor %}
-            </div>
-        {% else %}
-            <label>納入先検索</label>
-            <div class="search-row">
-                <input
-                    type="text"
-                    name="keyword"
-                    value="{{ keyword }}"
-                    list="delivery_place_list"
-                    placeholder="納入先名を入力"
-                >
-                <button type="submit">検索</button>
-            </div>
+            </select>
+        </div>
 
-            <datalist id="delivery_place_list">
-                {% for place in delivery_places %}
-                    <option value="{{ place.name }}">
-                {% endfor %}
-            </datalist>
-        {% endif %}
+        <div class="pointouts-filter-item">
+            <label for="pointout_status">対策ステータス</label>
+            <select
+                name="status"
+                id="pointout_status"
+            >
+                <option value="">すべて</option>
+                <option
+                    value="not_started"
+                    {% if status_filter == "not_started" %}selected{% endif %}
+                >
+                    対策未登録
+                </option>
+                <option
+                    value="waiting"
+                    {% if status_filter == "waiting" %}selected{% endif %}
+                >
+                    未承認
+                </option>
+                <option
+                    value="rejected"
+                    {% if status_filter == "rejected" %}selected{% endif %}
+                >
+                    差し戻し中
+                </option>
+                <option
+                    value="approved"
+                    {% if status_filter == "approved" %}selected{% endif %}
+                >
+                    承認済み
+                </option>
+                <option
+                    value="none"
+                    {% if status_filter == "none" %}selected{% endif %}
+                >
+                    対象外
+                </option>
+            </select>
+        </div>
+
+        <div class="pointouts-filter-item">
+            <label for="pointout_category">分類</label>
+            <select
+                name="category"
+                id="pointout_category"
+            >
+                <option value="">すべて</option>
+                <option
+                    value="安全"
+                    {% if category_filter == "安全" %}selected{% endif %}
+                >
+                    安全
+                </option>
+                <option
+                    value="品質"
+                    {% if category_filter == "品質" %}selected{% endif %}
+                >
+                    品質
+                </option>
+                <option
+                    value="Good"
+                    {% if category_filter == "Good" %}selected{% endif %}
+                >
+                    Good
+                </option>
+            </select>
+        </div>
+
+        <div class="pointouts-filter-dates">
+            <label>発生日</label>
+
+            <div class="pointouts-date-range">
+                <div class="pointouts-date-field">
+                    <span>開始日</span>
+                    <input
+                        type="date"
+                        name="date_from"
+                        value="{{ date_from }}"
+                        aria-label="発生日の開始日"
+                    >
+                </div>
+
+                <span class="pointouts-date-separator">～</span>
+
+                <div class="pointouts-date-field">
+                    <span>終了日</span>
+                    <input
+                        type="date"
+                        name="date_to"
+                        value="{{ date_to }}"
+                        aria-label="発生日の終了日"
+                    >
+                </div>
+            </div>
+        </div>
+
+        <div class="pointouts-filter-actions">
+            <button type="submit">絞り込み</button>
+
+            <a
+                href="{{ url_for(
+                    'pointouts',
+                    type=view_type,
+                    page_size=page_size
+                ) }}"
+                class="btn-back"
+            >
+                条件をクリア
+            </a>
+        </div>
     </form>
 </div>
 <div
@@ -111,6 +217,27 @@
     <div class="pointouts-total">
         全{{ total_results }}件
     </div>
+
+    <form method="get" class="pointouts-page-size-form">
+        <input type="hidden" name="type" value="{{ view_type }}">
+        <input type="hidden" name="keyword" value="{{ keyword }}">
+        <input type="hidden" name="office" value="{{ office_filter }}">
+        <input type="hidden" name="status" value="{{ status_filter }}">
+        <input type="hidden" name="category" value="{{ category_filter }}">
+        <input type="hidden" name="date_from" value="{{ date_from }}">
+        <input type="hidden" name="date_to" value="{{ date_to }}">
+
+        <label for="pointouts_page_size">表示件数</label>
+        <select
+            name="page_size"
+            id="pointouts_page_size"
+            onchange="this.form.submit()"
+        >
+            <option value="10" {% if page_size == 10 %}selected{% endif %}>10件</option>
+            <option value="20" {% if page_size == 20 %}selected{% endif %}>20件</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50件</option>
+        </select>
+    </form>
 
     {% if total_pages > 1 %}
     <nav class="pointouts-pagination" aria-label="ページ移動">
@@ -124,7 +251,11 @@
                 'pointouts',
                 type=view_type,
                 keyword=keyword,
+                office=office_filter,
+                status=status_filter,
                 category=request.args.get('category'),
+                date_from=date_from,
+                date_to=date_to,
                 mine=request.args.get('mine'),
                 pending=request.args.get('pending'),
                 page_size=page_size,
@@ -160,7 +291,11 @@
                         'pointouts',
                         type=view_type,
                         keyword=keyword,
+                        office=office_filter,
+                        status=status_filter,
                         category=request.args.get('category'),
+                        date_from=date_from,
+                        date_to=date_to,
                         mine=request.args.get('mine'),
                         pending=request.args.get('pending'),
                         page_size=page_size,
@@ -192,7 +327,11 @@
                 'pointouts',
                 type=view_type,
                 keyword=keyword,
+                office=office_filter,
+                status=status_filter,
                 category=request.args.get('category'),
+                date_from=date_from,
+                date_to=date_to,
                 mine=request.args.get('mine'),
                 pending=request.args.get('pending'),
                 page_size=page_size,
@@ -260,11 +399,11 @@
 
         <td class="pointouts-col-files">
             {% if item.files %}
-                <img src="{{ url_for('static', filename='uploads/' + item.files[0]) }}" class="thumb">
-
-                {% if item.files|length > 1 %}
-                    <div class="subtle-text">他{{ item.files|length - 1 }}件</div>
-                {% endif %}
+                <img
+                    src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
+                    class="thumb"
+                    alt=""
+                >
             {% else %}
                 <span class="subtle-text">なし</span>
             {% endif %}
@@ -381,13 +520,15 @@
                     <span class="safety-result-mobile-label">
                         添付
                     </span>
-                    <strong>
-                        {% if item.files %}
-                            {{ item.files|length }}件
-                        {% else %}
-                            なし
-                        {% endif %}
-                    </strong>
+                    {% if item.files %}
+                        <img
+                            src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
+                            class="thumb"
+                            alt=""
+                        >
+                    {% else %}
+                        <strong>なし</strong>
+                    {% endif %}
                 </div>
 
             </div>
