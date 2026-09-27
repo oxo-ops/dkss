@@ -11349,12 +11349,13 @@ input:checked
 }
 
 .checklist-free-text-value {
-    padding: 14px 16px;
+    padding: 12px 14px;
     border-radius: 10px;
     background: #f8fafc;
     color: #1e293b;
     font-size: 16px;
     line-height: 1.7;
+    text-align: left;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
