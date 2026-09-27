@@ -8012,9 +8012,21 @@ def new_pointout():
         return redirect(
             "/pointouts?type=user"
         )
+    requested_target_type = request.args.get(
+        "target_type",
+        ""
+    ).strip()
+
     form_target_type = session.pop(
         "pointout_form_target_type",
-        "user"
+        (
+            requested_target_type
+            if requested_target_type in {
+                "user",
+                "delivery_place"
+            }
+            else "user"
+        )
     )
 
     form_data = session.pop(

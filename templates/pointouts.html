@@ -21,7 +21,7 @@
         </div>
         <a
             class="btn safety-results-new-button"
-            href="/pointouts/new"
+            href="{{ url_for('new_pointout', target_type=view_type) }}"
         >
             ＋ 新規登録
         </a>
@@ -400,7 +400,7 @@
         <td class="pointouts-col-files">
             {% if item.files %}
                 <img
-                    src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
+                    src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0]) }}"
                     class="thumb"
                     alt=""
                 >
@@ -522,7 +522,7 @@
                     </span>
                     {% if item.files %}
                         <img
-                            src="{{ url_for('static', filename='uploads/' + item.files[0]) }}"
+                            src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0]) }}"
                             class="thumb"
                             alt=""
                         >

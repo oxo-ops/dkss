@@ -117,7 +117,7 @@
                 {% if ext in ['png','jpg','jpeg','gif','webp'] %}
 
                     <img
-                        src="{{ url_for('static', filename='uploads/' + file) }}"
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                         class="detail-image"
                     >
 
@@ -129,13 +129,13 @@
                         preload="metadata"
                     >
                         <source
-                            src="{{ url_for('static', filename='uploads/' + file) }}">
+                            src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}">
                     </video>
 
                 {% elif ext in ['avi', 'mkv', 'mts', 'm2ts', 'mpg', 'mpeg'] %}
 
                     <a
-                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                        href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                         target="_blank"
                         class="btn"
                     >
@@ -145,7 +145,7 @@
                 {% elif ext == 'pdf' %}
 
                     <a
-                        href="{{ url_for('static', filename='uploads/' + file) }}"
+                        href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                         target="_blank"
                         class="btn"
                     >

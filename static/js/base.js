@@ -995,3 +995,71 @@ document.addEventListener("click", function (event) {
         target.focus({ preventScroll: true });
     }, 300);
 });
+
+// 全パスワード入力欄を共通の表示・非表示切替仕様にする
+document.querySelectorAll('input[type="password"]').forEach(function (input) {
+    if (input.closest(".password-field")) {
+        return;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "password-field";
+
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+
+    const toggle = document.createElement("button");
+
+    toggle.type = "button";
+    toggle.className = "password-eye";
+    toggle.setAttribute("aria-label", "パスワードを表示");
+    toggle.setAttribute("title", "パスワードを表示");
+
+    toggle.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+                d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            />
+            <circle
+                cx="12"
+                cy="12"
+                r="3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            />
+        </svg>
+    `;
+
+    toggle.addEventListener("click", function () {
+        const isHidden =
+            input.type === "password";
+
+        input.type =
+            isHidden ? "text" : "password";
+
+        toggle.classList.toggle(
+            "is-visible",
+            isHidden
+        );
+
+        toggle.setAttribute(
+            "aria-label",
+            isHidden
+                ? "パスワードを隠す"
+                : "パスワードを表示"
+        );
+
+        toggle.setAttribute(
+            "title",
+            isHidden
+                ? "パスワードを隠す"
+                : "パスワードを表示"
+        );
+    });
+
+    wrapper.appendChild(toggle);
+});
