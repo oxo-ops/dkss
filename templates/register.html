@@ -36,14 +36,23 @@
         readonly
     >
 
-    <label>氏名</label>
+    <label>姓</label>
     <input
         type="text"
-        name="name"
-        value="{{ request.form.get('name', '') }}"
+        name="last_name"
+        value="{{ request.form.get('last_name', '') }}"
         maxlength="100"
-        autocomplete="name"
+        autocomplete="family-name"
         required
+    >
+
+    <label>名</label>
+    <input
+        type="text"
+        name="first_name"
+        value="{{ request.form.get('first_name', '') }}"
+        maxlength="100"
+        autocomplete="given-name"
     >
 
     <label>メールアドレス（任意）</label>

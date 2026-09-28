@@ -366,8 +366,9 @@ def get_form_error_field(message):
         "ログインIDは50文字以内で入力してください。": "employee_id",
         "このログインIDはすでに使用されています。": "employee_id",
         "ログインIDは作成後に変更できません。": "employee_id",
-        "氏名を入力してください。": "name",
-        "氏名は100文字以内で入力してください。": "name",
+        "姓を入力してください。": "last_name",
+        "姓は100文字以内で入力してください。": "last_name",
+        "名は100文字以内で入力してください。": "first_name",
         "メールアドレスの形式が不正です。": "email_address",
         "パスワードを入力してください。": "password",
         "パスワードは8文字以上にしてください。": "password",
@@ -942,9 +943,14 @@ class User(db.Model):
         nullable=False
     )
 
-    name = db.Column(
+    last_name = db.Column(
         db.String(100),
         nullable=False
+    )
+
+    first_name = db.Column(
+        db.String(100),
+        nullable=True
     )
 
     role = db.Column(
@@ -2523,7 +2529,10 @@ def require_login():
             return redirect("/login")
 
         session["role"] = current_user.role
-        session["name"] = current_user.name
+        session["name"] = (
+            f"{current_user.last_name or ''}"
+            f"{current_user.first_name or ''}"
+        )
         session["office"] = current_user.office
 
         if current_user.role != "itc":
@@ -2612,7 +2621,10 @@ def require_login():
         return redirect("/login")
 
     session["role"] = current_user.role
-    session["name"] = current_user.name
+    session["name"] = (
+        f"{current_user.last_name or ''}"
+        f"{current_user.first_name or ''}"
+    )
     session["office"] = current_user.office
     session["profile_image"] = current_user.profile_image
 
@@ -3046,11 +3058,16 @@ def get_vehicle_checklist_notify_users(
     usernames_by_name = {}
 
     for user in company_users:
-        if not user.name or not user.username:
+        full_name = (
+            f"{user.last_name or ''}"
+            f"{user.first_name or ''}"
+        )
+
+        if not full_name or not user.username:
             continue
 
         usernames_by_name.setdefault(
-            user.name,
+            full_name,
             []
         ).append(
             user.username
@@ -3249,7 +3266,10 @@ def send_vehicle_checklist_reminders(company_code):
                     continue
 
                 add_notification(
-                    target_user.name,
+                    (
+                        f"{target_user.last_name or ''}"
+                        f"{target_user.first_name or ''}"
+                    ),
                     title,
                     (
                         f"{checklist.name}："
@@ -3744,7 +3764,10 @@ def add_notification(
         if not target_user_record:
             return
 
-        target_user = target_user_record.name
+        target_user = (
+            f"{target_user_record.last_name or ''}"
+            f"{target_user_record.first_name or ''}"
+        )
         target_username = target_user_record.username
 
     notification = Notification(
@@ -3872,18 +3895,26 @@ def notify_mentions(text, link=""):
     users_by_name = {}
 
     for user in users:
-        if not user.name or not user.username:
+        full_name = (
+            f"{user.last_name or ''}"
+            f"{user.first_name or ''}"
+        )
+
+        if not full_name or not user.username:
             continue
 
         users_by_name.setdefault(
-            user.name,
+            full_name,
             []
         ).append(user)
 
     notified_usernames = set()
 
     for user in users:
-        name = user.name
+        name = (
+            f"{user.last_name or ''}"
+            f"{user.first_name or ''}"
+        )
         username = user.username
 
         if not name or not username:
@@ -4524,7 +4555,10 @@ def login():
                 session["company_code"] = user.company_code
                 session["username"] = user.username
                 session["role"] = user.role
-                session["name"] = user.name
+                session["name"] = (
+                    f"{user.last_name or ''}"
+                    f"{user.first_name or ''}"
+                )
                 session["office"] = user.office
 
                 session["password_changed_at"] = (
@@ -4782,7 +4816,10 @@ def mfa():
                 session["company_code"] = user.company_code
                 session["username"] = user.username
                 session["role"] = user.role
-                session["name"] = user.name
+                session["name"] = (
+                    f"{user.last_name or ''}"
+                    f"{user.first_name or ''}"
+                )
                 session["office"] = user.office
                 session["password_changed_at"] = (
                     user.password_changed_at
@@ -4962,7 +4999,10 @@ def itc_new_news():
 
         for user in target_users:
             add_notification(
-                user.name,
+                (
+                    f"{user.last_name or ''}"
+                    f"{user.first_name or ''}"
+                ),
                 title,
                 message,
                 "",
@@ -5318,10 +5358,17 @@ def register():
     if request.method == "POST":
         company_code = company_code_from_url
 
-        name = request.form.get(
-            "name",
+        last_name = request.form.get(
+            "last_name",
             ""
         ).strip()
+
+        first_name = request.form.get(
+            "first_name",
+            ""
+        ).strip()
+
+        name = last_name + first_name
 
         employee_id = request.form.get(
             "employee_id",
@@ -5356,7 +5403,7 @@ def register():
 
         if (
             not company_code
-            or not name
+            or not last_name
             or not employee_id
             or not password
         ):
@@ -5371,8 +5418,11 @@ def register():
         elif len(employee_id) > 50:
             error = "ログインIDは50文字以内で入力してください。"
 
-        elif len(name) > 100:
-            error = "氏名は100文字以内で入力してください。"
+        elif len(last_name) > 100:
+            error = "姓は100文字以内で入力してください。"
+
+        elif len(first_name) > 100:
+            error = "名は100文字以内で入力してください。"
 
         elif email_address and not is_valid_email_address(
             email_address
@@ -5412,7 +5462,8 @@ def register():
                     "%Y-%m-%d %H:%M:%S"
                 ),
                 role="user",
-                name=name,
+                last_name=last_name,
+                first_name=first_name or None,
                 office=office,
                 email_address=email_address or None,
                 email_notify_enabled=bool(email_address)
@@ -5429,7 +5480,7 @@ def register():
                 driver = Driver(
                     company_code=company_code,
                     employee_id=employee_id,
-                    name=name,
+                    name=(last_name or "") + (first_name or ""),
                     role="user",
                     office=office,
                     safe_start_date=datetime.now().strftime(
@@ -5998,18 +6049,23 @@ def news_targets():
             keyword_like = f"%{keyword}%"
             query = query.filter(
                 db.or_(
-                    User.name.ilike(keyword_like),
+                    User.last_name.ilike(keyword_like),
+                    User.first_name.ilike(keyword_like),
                     User.username.ilike(keyword_like),
                     User.office.ilike(keyword_like)
                 )
             )
 
         for user in query.order_by(
-            User.name.asc()
+            User.last_name.asc(),
+            User.first_name.asc()
         ).limit(10).all():
             results.append({
                 "id": user.username,
-                "name": user.name or "",
+                "name": (
+                    f"{user.last_name or ''}"
+                    f"{user.first_name or ''}"
+                ),
                 "sub": user.office or ""
             })
 
@@ -6034,21 +6090,28 @@ def mention_users():
 
         user_query = user_query.filter(
             db.or_(
-                User.name.ilike(keyword_like),
+                User.last_name.ilike(keyword_like),
+                User.first_name.ilike(keyword_like),
                 User.username.ilike(keyword_like)
             )
         )
 
     matched_users = (
         user_query
-        .order_by(User.name.asc())
+        .order_by(
+            User.last_name.asc(),
+            User.first_name.asc()
+        )
         .limit(5)
         .all()
     )
 
     users = [
         {
-            "name": user.name or "",
+            "name": (
+                f"{user.last_name or ''}"
+                f"{user.first_name or ''}"
+            ),
             "username": user.username,
             "office": user.office or ""
         }
@@ -9358,7 +9421,7 @@ def approve_countermeasure(index):
             continue
 
         add_notification(
-            target_user.name,
+            (target_user.last_name or "") + (target_user.first_name or ""),
             "安全パトロールが承認されました",
             "安全パトロールの対応が承認されました。",
             f"/pointouts/{result_record.id}",
@@ -9431,7 +9494,7 @@ def reject_countermeasure(index):
             continue
 
         add_notification(
-            target_user.name,
+            (target_user.last_name or "") + (target_user.first_name or ""),
             "安全パトロールが差し戻されました",
             reject_reason
             or "安全パトロールが差し戻されました。",
@@ -11656,10 +11719,17 @@ def new_driver():
             ""
         ).strip()
 
-        name = request.form.get(
-            "name",
+        last_name = request.form.get(
+            "last_name",
             ""
         ).strip()
+
+        first_name = request.form.get(
+            "first_name",
+            ""
+        ).strip()
+
+        name = last_name + first_name
 
         email_address = request.form.get(
             "email_address",
@@ -11721,15 +11791,21 @@ def new_driver():
                 "employee_id"
             ))
 
-        if not name:
+        if not last_name:
             form_errors.append((
-                "氏名を入力してください。",
-                "name"
+                "姓を入力してください。",
+                "last_name"
             ))
-        elif len(name) > 100:
+        elif len(last_name) > 100:
             form_errors.append((
-                "氏名は100文字以内で入力してください。",
-                "name"
+                "姓は100文字以内で入力してください。",
+                "last_name"
+            ))
+
+        if len(first_name) > 100:
+            form_errors.append((
+                "名は100文字以内で入力してください。",
+                "first_name"
             ))
 
         if email_address and not is_valid_email_address(
@@ -11915,7 +11991,7 @@ def new_driver():
         driver = Driver(
             company_code=company_code,
             employee_id=employee_id,
-            name=name,
+            name=(last_name or "") + (first_name or ""),
             role=role,
             office=office,
             safe_start_date=safe_start_date,
@@ -11943,7 +12019,8 @@ def new_driver():
                 "%Y-%m-%d %H:%M:%S"
             ),
             role=role,
-            name=name,
+            last_name=last_name,
+            first_name=first_name or None,
             office=office,
             email_address=email_address or None,
             email_notify_enabled=bool(email_address)
@@ -11968,9 +12045,17 @@ def new_driver():
                 "employee_id",
                 ""
             ),
-            "name": driver_form_data.get(
-                "name",
+            "last_name": driver_form_data.get(
+                "last_name",
                 ""
+            ),
+            "first_name": driver_form_data.get(
+                "first_name",
+                ""
+            ),
+            "name": (
+                driver_form_data.get("last_name", "")
+                + driver_form_data.get("first_name", "")
             ),
             "email_address": driver_form_data.get(
                 "email_address",
@@ -12075,10 +12160,17 @@ def edit_driver(index):
             ""
         ).strip()
 
-        name = request.form.get(
-            "name",
+        last_name = request.form.get(
+            "last_name",
             ""
         ).strip()
+
+        first_name = request.form.get(
+            "first_name",
+            ""
+        ).strip()
+
+        name = last_name + first_name
 
         email_address = request.form.get(
             "email_address",
@@ -12089,6 +12181,14 @@ def edit_driver(index):
             "role",
             "user"
         ).strip()
+
+        existing_user = User.query.filter_by(
+            company_code=company_code,
+            username=old_employee_id
+        ).first()
+
+        if existing_user and existing_user.role == "itc":
+            role = "itc"
 
         office = request.form.get(
             "office",
@@ -12145,15 +12245,21 @@ def edit_driver(index):
                 "employee_id"
             ))
 
-        if not name:
+        if not last_name:
             form_errors.append((
-                "氏名を入力してください。",
-                "name"
+                "姓を入力してください。",
+                "last_name"
             ))
-        elif len(name) > 100:
+        elif len(last_name) > 100:
             form_errors.append((
-                "氏名は100文字以内で入力してください。",
-                "name"
+                "姓は100文字以内で入力してください。",
+                "last_name"
+            ))
+
+        if len(first_name) > 100:
+            form_errors.append((
+                "名は100文字以内で入力してください。",
+                "first_name"
             ))
 
         if email_address and not is_valid_email_address(
@@ -12186,7 +12292,7 @@ def edit_driver(index):
         # ロール検証
         # =========================
 
-        if role not in ["admin", "user"]:
+        if role not in ["admin", "user", "itc"]:
             form_errors.append((
                 "ユーザー種別が不正です。",
                 "role"
@@ -12359,7 +12465,8 @@ def edit_driver(index):
                     "%Y-%m-%d %H:%M:%S"
                 ),
                 role=role,
-                name=name,
+                last_name=last_name,
+                first_name=first_name or None,
                 office=office,
                 email_address=email_address or None,
                 email_notify_enabled=bool(email_address),
@@ -12432,7 +12539,8 @@ def edit_driver(index):
 
             user.username = new_employee_id
             user.role = role
-            user.name = name
+            user.last_name = last_name
+            user.first_name = first_name or None
             user.office = office
             user.email_address = email_address or None
             user.email_notify_enabled = bool(email_address)
@@ -12442,7 +12550,7 @@ def edit_driver(index):
         # =========================
 
         driver.employee_id = new_employee_id
-        driver.name = name
+        driver.name = (last_name or "") + (first_name or "")
         driver.role = role
         driver.office = office
         driver.safe_start_date = safe_start_date
@@ -12461,6 +12569,18 @@ def edit_driver(index):
 
     driver_dict = driver_to_dict(driver)
 
+    user = User.query.filter_by(
+        company_code=driver.company_code,
+        username=driver.employee_id
+    ).first()
+
+    driver_dict["last_name"] = (
+        user.last_name if user else ""
+    )
+    driver_dict["first_name"] = (
+        user.first_name if user else ""
+    )
+
     driver_edit_form_data = session.pop(
         "driver_edit_form_data",
         {}
@@ -12472,10 +12592,18 @@ def edit_driver(index):
                 "employee_id",
                 driver_dict["employee_id"]
             ),
-            "name": driver_edit_form_data.get(
-                "name",
-                driver_dict["name"]
+            "last_name": driver_edit_form_data.get(
+                "last_name",
+                driver_dict.get("last_name", "")
             ),
+            "first_name": driver_edit_form_data.get(
+                "first_name",
+                driver_dict.get("first_name", "")
+            ),
+            "name": (
+                driver_edit_form_data.get("last_name", "")
+                + driver_edit_form_data.get("first_name", "")
+            ) or driver_dict["name"],
             "email_address": driver_edit_form_data.get(
                 "email_address",
                 driver_dict["email_address"]
@@ -16400,6 +16528,10 @@ def export_checklist_result_excel(result_index):
         stamp_entries.append({
             "label": label,
             "approved_by": approval_result.get("approved_by", ""),
+            "approved_by_username": approval_result.get(
+                "approved_by_username",
+                ""
+            ),
             "approved_date": approval_result.get("approved_date", ""),
         })
 
@@ -16486,9 +16618,18 @@ def export_checklist_result_excel(result_index):
                 )
 
                 # 押印内容
-                stamp_value = entry["approved_by"]
+                approval_user = User.query.filter_by(
+                    company_code=result_record.company_code,
+                    username=entry.get("approved_by_username")
+                ).first()
 
-                if entry["approved_by"] and entry["approved_date"]:
+                stamp_value = (
+                    approval_user.last_name
+                    if approval_user
+                    else entry["approved_by"]
+                )
+
+                if stamp_value and entry["approved_date"]:
                     stamp_value += (
                         f"\n{entry['approved_date']}"
                     )
@@ -17957,7 +18098,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                 continue
 
             add_notification(
-                target_user.name,
+                (target_user.last_name or "") + (target_user.first_name or ""),
                 "車両チェックリストが承認されました",
                 (
                     f"車両 {vehicle_record.chassis_number if vehicle_record else '-'} の"
@@ -18782,10 +18923,19 @@ def export_vehicle_checklist_result_excel(result_index):
 
                 column = year_offset + 2
 
+            inspector_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=period_result.get("checked_by_username")
+            ).first()
+
             inspector_cell = sheet.cell(
                 row=inspector_row,
                 column=column,
-                value=period_result.get("checked_by", "") or ""
+                value=(
+                    inspector_user.last_name
+                    if inspector_user
+                    else period_result.get("checked_by", "") or ""
+                )
             )
 
             inspector_cell.alignment = Alignment(
@@ -18851,10 +19001,19 @@ def export_vehicle_checklist_result_excel(result_index):
 
                     column = year_offset + 2
 
+                approval_user = User.query.filter_by(
+                    company_code=result_record.company_code,
+                    username=approval.get("approved_by_username")
+                ).first()
+
                 sheet.cell(
                     row=approval_row,
                     column=column,
-                    value=approval.get("approved_by", "")
+                    value=(
+                        approval_user.last_name
+                        if approval_user
+                        else approval.get("approved_by", "")
+                    )
                 ).alignment = Alignment(
                     horizontal="center",
                     vertical="center",
@@ -20113,7 +20272,7 @@ def complete_vehicle_checklist(index):
         target_user = valid_users[target_username]
 
         add_notification(
-            target_user.name,
+            (target_user.last_name or "") + (target_user.first_name or ""),
             "車両点検完了のお知らせ",
             (
                 f"{vehicle.chassis_number} の"
@@ -20781,7 +20940,7 @@ def new_safety_checklist_result(index):
                 continue
 
             add_notification(
-                notify_user.name,
+                (notify_user.last_name or "") + (notify_user.first_name or ""),
                 "安全チェックリスト完了のお知らせ",
                 (
                     f"「{checklist_record.name}」の"
@@ -21940,7 +22099,7 @@ def approve_checklist_result(result_index, approval_index):
                 continue
 
             add_notification(
-                target_user.name,
+                (target_user.last_name or "") + (target_user.first_name or ""),
                 "チェックリストが承認されました",
                 "チェックリストの承認が完了しました。",
                 f"/safety/checklist-results/{result_record.id}",
@@ -22023,7 +22182,7 @@ def reject_checklist_result(result_index):
             continue
 
         add_notification(
-            target_user.name,
+            (target_user.last_name or "") + (target_user.first_name or ""),
             "チェックリストが差し戻されました",
             reject_reason or "チェックリストが差し戻されました。",
             f"/safety/checklist-results/{result_record.id}",
@@ -22036,6 +22195,41 @@ def reject_checklist_result(result_index):
 def init_db():
     with app.app_context():
         db.create_all()
+
+        inspector = inspect(db.engine)
+
+        existing_user_columns = [
+            column["name"]
+            for column in inspector.get_columns("user")
+        ]
+
+        if (
+            "name" in existing_user_columns
+            and "last_name" not in existing_user_columns
+        ):
+            db.session.execute(
+                db.text(
+                    'ALTER TABLE "user" '
+                    'RENAME COLUMN name TO last_name'
+                )
+            )
+            db.session.commit()
+
+            inspector = inspect(db.engine)
+
+        existing_user_columns = [
+            column["name"]
+            for column in inspector.get_columns("user")
+        ]
+
+        if "first_name" not in existing_user_columns:
+            db.session.execute(
+                db.text(
+                    'ALTER TABLE "user" '
+                    'ADD COLUMN first_name VARCHAR(100)'
+                )
+            )
+            db.session.commit()
 
         cleanup_old_audit_logs()
 
@@ -22069,7 +22263,8 @@ def init_db():
                     initial_password
                 ),
                 role="itc",
-                name="ITC管理者",
+                last_name="ITC管理者",
+                first_name=None,
                 office="ITC",
             ))
             
@@ -22522,9 +22717,12 @@ with app.app_context():
             checklist_result.checked_by or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=checklist_result.company_code,
-            name=checked_by_name
+        matched_users = User.query.filter(
+            User.company_code == checklist_result.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == checked_by_name
         ).all()
 
         if len(matched_users) != 1:
@@ -22551,9 +22749,12 @@ with app.app_context():
             checklist_result.target_user or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=checklist_result.company_code,
-            name=target_name
+        matched_users = User.query.filter(
+            User.company_code == checklist_result.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == target_name
         ).all()
 
         if len(matched_users) != 1:
@@ -22579,9 +22780,12 @@ with app.app_context():
             checklist_result.approved_by or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=checklist_result.company_code,
-            name=approved_by_name
+        matched_users = User.query.filter(
+            User.company_code == checklist_result.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == approved_by_name
         ).all()
 
         if len(matched_users) != 1:
@@ -22616,9 +22820,12 @@ with app.app_context():
             if not approved_by_name:
                 continue
 
-            matched_users = User.query.filter_by(
-                company_code=checklist_result.company_code,
-                name=approved_by_name
+            matched_users = User.query.filter(
+                User.company_code == checklist_result.company_code,
+                (
+                    User.last_name
+                    + db.func.coalesce(User.first_name, "")
+                ) == approved_by_name
             ).all()
 
             if len(matched_users) != 1:
@@ -22744,9 +22951,12 @@ with app.app_context():
             result.checked_by or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=result.company_code,
-            name=checked_by_name
+        matched_users = User.query.filter(
+            User.company_code == result.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == checked_by_name
         ).all()
 
         if len(matched_users) != 1:
@@ -22772,9 +22982,12 @@ with app.app_context():
             result.approved_by or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=result.company_code,
-            name=approved_by_name
+        matched_users = User.query.filter(
+            User.company_code == result.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == approved_by_name
         ).all()
 
         if len(matched_users) != 1:
@@ -22809,9 +23022,12 @@ with app.app_context():
             if not approved_by_name:
                 continue
 
-            matched_users = User.query.filter_by(
-                company_code=result.company_code,
-                name=approved_by_name
+            matched_users = User.query.filter(
+                User.company_code == result.company_code,
+                (
+                    User.last_name
+                    + db.func.coalesce(User.first_name, "")
+                ) == approved_by_name
             ).all()
 
             if len(matched_users) != 1:
@@ -22831,6 +23047,10 @@ with app.app_context():
     db.session.commit()
 
     user_columns = [
+        (
+            "first_name",
+            "VARCHAR(100)"
+        ),
         (
             "timezone",
             "VARCHAR(100) NOT NULL DEFAULT 'Asia/Tokyo'"
@@ -23073,9 +23293,12 @@ with app.app_context():
             notification.target_user or ""
         ).strip()
 
-        matched_users = User.query.filter_by(
-            company_code=notification.company_code,
-            name=target_name
+        matched_users = User.query.filter(
+            User.company_code == notification.company_code,
+            (
+                User.last_name
+                + db.func.coalesce(User.first_name, "")
+            ) == target_name
         ).all()
 
         if len(matched_users) != 1:
