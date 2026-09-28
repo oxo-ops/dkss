@@ -2969,11 +2969,18 @@ def send_web_push_notification(
     if not subscriptions:
         return False
 
+    unread_count = Notification.query.filter(
+        Notification.company_code == user.company_code,
+        Notification.target_username == user.username,
+        Notification.read == False
+    ).count()
+
     payload = json.dumps(
         {
             "title": str(title or "")[:200],
             "message": str(message or "")[:10000],
             "link": build_absolute_app_url(link),
+            "unread_count": unread_count,
         },
         ensure_ascii=False
     )
@@ -18887,7 +18894,21 @@ def complete_vehicle_checklist(index):
         )
 
         if not answer:
-            return "未入力の点検項目があります。", 400
+            flash(
+                "未入力の点検項目があります。",
+                "error"
+            )
+
+            return redirect(
+                url_for(
+                    "vehicle_checklist_results",
+                    index=checklist_record.id,
+                    vehicle_record_id=vehicle_record_id,
+                    year=year,
+                    month=month,
+                    active_day=active_day,
+                )
+            )
 
         value = str(
             answer.get("value") or ""
@@ -18903,10 +18924,38 @@ def complete_vehicle_checklist(index):
             ]
 
             if value not in valid_choices:
-                return "未入力の点検項目があります。", 400
+                flash(
+                    "未入力の点検項目があります。",
+                    "error"
+                )
+
+                return redirect(
+                    url_for(
+                        "vehicle_checklist_results",
+                        index=checklist_record.id,
+                        vehicle_record_id=vehicle_record_id,
+                        year=year,
+                        month=month,
+                        active_day=active_day,
+                    )
+                )
 
         elif not value.strip():
-            return "未入力の点検項目があります。", 400
+            flash(
+                "未入力の点検項目があります。",
+                "error"
+            )
+
+            return redirect(
+                url_for(
+                    "vehicle_checklist_results",
+                    index=checklist_record.id,
+                    vehicle_record_id=vehicle_record_id,
+                    year=year,
+                    month=month,
+                    active_day=active_day,
+                )
+            )
 
         if (
             item.get("comment_required")
@@ -18914,7 +18963,21 @@ def complete_vehicle_checklist(index):
                 answer.get("comment") or ""
             ).strip()
         ):
-            return "必須コメントが未入力です。", 400
+            flash(
+                "必須コメントが未入力です。",
+                "error"
+            )
+
+            return redirect(
+                url_for(
+                    "vehicle_checklist_results",
+                    index=checklist_record.id,
+                    vehicle_record_id=vehicle_record_id,
+                    year=year,
+                    month=month,
+                    active_day=active_day,
+                )
+            )
 
     # =========================
     # 通知先ユーザー検証
