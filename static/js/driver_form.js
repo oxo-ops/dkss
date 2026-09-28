@@ -101,10 +101,8 @@ document.addEventListener("DOMContentLoaded", function () {
         hiddenInput.value = vehicle.vehicle_record_id;
 
         const labelParts = [
-            vehicle.chassis_number,
-            vehicle.manufacturer,
-            vehicle.model_code
-        ].filter(Boolean);
+            vehicle.number || "ナンバー未登録"
+        ];
 
         const label = document.createElement("span");
         label.textContent = labelParts.join(" / ");
@@ -199,10 +197,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                     : "選択";
 
                             const labelParts = [
-                                vehicle.chassis_number,
-                                vehicle.manufacturer,
-                                vehicle.model_code
-                            ].filter(Boolean);
+                                vehicle.number || "ナンバー未登録"
+                            ];
 
                             const label =
                                 document.createElement("span");

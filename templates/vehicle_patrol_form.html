@@ -70,7 +70,7 @@
 
                     {% if selected_vehicle %}
 
-                        {{ selected_vehicle.chassis_number }}
+                        {{ selected_vehicle.number or "ナンバー未登録" }}
 
                         {% if selected_vehicle.manufacturer %}
                             / {{ selected_vehicle.manufacturer }}

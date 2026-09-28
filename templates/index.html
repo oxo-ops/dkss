@@ -378,7 +378,14 @@
                         <div class="dashboard-vehicle-main-row">
 
                             <strong class="dashboard-vehicle-id">
-                                {{ vehicle.chassis_number }}
+                                {% if vehicle.plate_number %}
+                                    {{ vehicle.plate_area or "" }}
+                                    {{ vehicle.plate_class or "" }}
+                                    {{ vehicle.plate_kana or "" }}
+                                    {{ vehicle.plate_number or "" }}
+                                {% else %}
+                                    ナンバー未登録
+                                {% endif %}
                             </strong>
 
                             {% if analysis.get("score_rate") is not none %}
@@ -390,25 +397,6 @@
                             {% endif %}
 
                         </div>
-
-
-                        <div class="dashboard-vehicle-plate">
-
-                            {% if vehicle.plate_number %}
-
-                                {{ vehicle.plate_area or "" }}
-                                {{ vehicle.plate_class or "" }}
-                                {{ vehicle.plate_kana or "" }}
-                                {{ vehicle.plate_number or "" }}
-
-                            {% else %}
-
-                                ナンバー未登録
-
-                            {% endif %}
-
-                        </div>
-
 
                         {% if analysis.get("score_rate") is not none %}
 
@@ -558,7 +546,7 @@
 
             {% if item.target == '車両管理' and item.vehicle_record_id %}
             <span class="help-text">
-                対象車両 {{ item.chassis_number }}
+                対象車両 {{ item.registration_number or "ナンバー未登録" }}
             </span>
             {% endif %}
 
@@ -1011,7 +999,7 @@
                     >
 
                     <span>
-                        {{ vehicle.chassis_number }}｜{{ vehicle.number }}
+                        {{ vehicle.number or "ナンバー未登録" }}
                     </span>
                 {% if is_dashboard_admin %}
                 </a>

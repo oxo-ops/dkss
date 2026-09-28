@@ -329,11 +329,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         targetVehicle.value = vehicle.vehicle_record_id;
 
-        selectedVehicleDisplay.textContent = [
-            vehicle.chassis_number || "",
-            vehicle.manufacturer || "",
-            vehicle.model_code || ""
-        ].join(" / ");
+        selectedVehicleDisplay.textContent =
+            vehicle.number || "ナンバー未登録";
 
         vehicleSearchResults.innerHTML = "";
         vehicleSearchInput.value = "";
@@ -384,11 +381,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     row.className =
                         "vehicle-search-result-row";
 
-                    row.textContent = [
-                        vehicle.chassis_number || "",
-                        vehicle.manufacturer || "",
-                        vehicle.model_code || ""
-                    ].join(" / ");
+                    row.textContent =
+                        vehicle.number || "ナンバー未登録";
 
                     row.addEventListener(
                         "click",

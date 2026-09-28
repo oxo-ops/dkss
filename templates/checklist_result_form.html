@@ -29,7 +29,7 @@
 
 <div class="card">
     <p>
-        <strong>点検者：</strong>
+        <strong>実施者：</strong>
         {% if result %}
             {{ result.checked_by }}
         {% else %}
@@ -138,11 +138,7 @@
 
             <div id="selected_vehicle_display">
                 {% if selected_vehicle %}
-                    {{ selected_vehicle.chassis_number }}
-                    /
-                    {{ selected_vehicle.manufacturer }}
-                    /
-                    {{ selected_vehicle.model_code }}
+                    {{ selected_vehicle.number or "ナンバー未登録" }}
                 {% else %}
                     未選択
                 {% endif %}
