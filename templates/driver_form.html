@@ -30,13 +30,25 @@
     <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <label>氏名</label>
+        <label>姓</label>
         <input
             type="text"
-            name="name"
-            id="name"
-            value="{{ driver.name if driver else '' }}"
+            name="last_name"
+            id="last_name"
+            value="{{ driver.last_name if driver and driver.last_name else '' }}"
+            maxlength="100"
+            autocomplete="family-name"
             required
+        >
+
+        <label>名</label>
+        <input
+            type="text"
+            name="first_name"
+            id="first_name"
+            value="{{ driver.first_name if driver and driver.first_name else '' }}"
+            maxlength="100"
+            autocomplete="given-name"
         >
 
         <label>ログインID</label>
@@ -64,6 +76,7 @@
             type="password"
             name="password"
             id="password"
+            autocomplete="{% if mode == 'edit' %}new-password{% else %}new-password{% endif %}"
             minlength="8"
             maxlength="128"
             pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
