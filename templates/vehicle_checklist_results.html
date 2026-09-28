@@ -415,21 +415,23 @@
 
                     {% else %}
 
-                    {% if approval_can_approve %}
+                    {% if ns.target_result.status == "承認待ち" and approval_can_approve %}
                     <form
                         method="post"
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
-                        class="inline-form"
+                        class="inline-form js-vehicle-checklist-approval"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-mini">
                             承認
                         </button>
                     </form>
-                    {% else %}
+                    {% elif ns.target_result.status == "承認待ち" %}
                     <span class="status-badge status-waiting">
                         未
                     </span>
+                    {% else %}
+                    -
                     {% endif %}
 
                     {% endif %}
