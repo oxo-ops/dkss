@@ -1074,3 +1074,81 @@ document.querySelectorAll('input[type="password"]').forEach(function (input) {
 
     wrapper.appendChild(toggle);
 });
+
+document.addEventListener("submit", async function (event) {
+    const form = event.target.closest(
+        ".js-vehicle-checklist-approval"
+    );
+
+    if (!form) {
+        return;
+    }
+
+    event.preventDefault();
+
+    const button = form.querySelector(
+        'button[type="submit"]'
+    );
+
+    if (button) {
+        button.disabled = true;
+    }
+
+    try {
+        const response = await fetch(
+            form.action,
+            {
+                method: "POST",
+                body: new FormData(form)
+            }
+        );
+
+        if (
+            !response.ok
+            || response.url.endsWith(
+                "/vehicle/checklists"
+            )
+        ) {
+            if (button) {
+                button.disabled = false;
+            }
+            return;
+        }
+
+        const approvedBy =
+            document.body.dataset.currentUser || "";
+
+        const badge =
+            document.createElement("span");
+
+        badge.className =
+            "status-badge status-approved";
+
+        badge.title = approvedBy;
+        badge.textContent =
+            approvedBy.slice(0, 1) || "済";
+
+        form.replaceWith(badge);
+
+    } catch (error) {
+        if (button) {
+            button.disabled = false;
+        }
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    if (!("setAppBadge" in navigator)) {
+        return;
+    }
+
+    const unreadCount = Number(
+        document.body.dataset.unreadNotificationCount || 0
+    );
+
+    if (unreadCount > 0) {
+        navigator.setAppBadge(unreadCount).catch(function () {});
+    } else if ("clearAppBadge" in navigator) {
+        navigator.clearAppBadge().catch(function () {});
+    }
+});
