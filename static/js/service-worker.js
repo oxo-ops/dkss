@@ -20,11 +20,28 @@ self.addEventListener("push", (event) => {
         }
     };
 
+    const unreadCount =
+        Number(data.unread_count || 0);
+
+    const badgePromise =
+        "setAppBadge" in self.registration
+            ? (
+                unreadCount > 0
+                    ? self.registration.setAppBadge(
+                        unreadCount
+                    )
+                    : self.registration.clearAppBadge()
+            )
+            : Promise.resolve();
+
     event.waitUntil(
-        self.registration.showNotification(
-            title,
-            options
-        )
+        Promise.all([
+            self.registration.showNotification(
+                title,
+                options
+            ),
+            badgePromise
+        ])
     );
 });
 
