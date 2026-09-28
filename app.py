@@ -18888,102 +18888,6 @@ def complete_vehicle_checklist(index):
         if item.get("item_type") == "check"
     ]
 
-    answers_by_item_no = {
-        str(answer.get("item_no")): answer
-        for answer in answers
-    }
-
-    for item_no, item in enumerate(check_items):
-        answer = answers_by_item_no.get(
-            str(item_no)
-        )
-
-        if not answer:
-            flash(
-                "未入力の点検項目があります。",
-                "error"
-            )
-
-            return redirect(
-                url_for(
-                    "vehicle_checklist_results",
-                    index=checklist_record.id,
-                    vehicle_record_id=vehicle_record_id,
-                    year=year,
-                    month=month,
-                    active_day=active_day,
-                )
-            )
-
-        value = str(
-            answer.get("value") or ""
-        )
-
-        if item.get("input_type") == "select":
-            valid_choices = [
-                str(choice)
-                for choice in item.get(
-                    "choices",
-                    []
-                )
-            ]
-
-            if value not in valid_choices:
-                flash(
-                    "未入力の点検項目があります。",
-                    "error"
-                )
-
-                return redirect(
-                    url_for(
-                        "vehicle_checklist_results",
-                        index=checklist_record.id,
-                        vehicle_record_id=vehicle_record_id,
-                        year=year,
-                        month=month,
-                        active_day=active_day,
-                    )
-                )
-
-        elif not value.strip():
-            flash(
-                "未入力の点検項目があります。",
-                "error"
-            )
-
-            return redirect(
-                url_for(
-                    "vehicle_checklist_results",
-                    index=checklist_record.id,
-                    vehicle_record_id=vehicle_record_id,
-                    year=year,
-                    month=month,
-                    active_day=active_day,
-                )
-            )
-
-        if (
-            item.get("comment_required")
-            and not str(
-                answer.get("comment") or ""
-            ).strip()
-        ):
-            flash(
-                "必須コメントが未入力です。",
-                "error"
-            )
-
-            return redirect(
-                url_for(
-                    "vehicle_checklist_results",
-                    index=checklist_record.id,
-                    vehicle_record_id=vehicle_record_id,
-                    year=year,
-                    month=month,
-                    active_day=active_day,
-                )
-            )
-
     # =========================
     # 通知先ユーザー検証
     # =========================
@@ -19029,6 +18933,14 @@ def complete_vehicle_checklist(index):
         for username in notify_usernames
         if username in valid_users
     ]
+
+    if (
+        not notify_usernames
+        and session.get("username") in valid_users
+    ):
+        notify_usernames = [
+            session.get("username")
+        ]
 
     # =========================
     # 完了処理
@@ -19580,23 +19492,17 @@ def new_safety_checklist_result(index):
 
             choices = item.get("choices", [])
 
-            if item.get("input_type") == "select":
-                if value not in choices:
-                    return "評価値が不正です。", 400
-
-            elif not value.strip():
-                return "必須項目を入力してください。", 400
+            if (
+                item.get("input_type") == "select"
+                and value
+                and value not in choices
+            ):
+                return "評価値が不正です。", 400
 
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
             ).strip()
-
-            if (
-                item.get("comment_required")
-                and not comment
-            ):
-                return "必須コメントを入力してください。", 400
 
             if len(comment) > 5000:
                 return "コメントは5000文字以内で入力してください。", 400
@@ -19740,9 +19646,29 @@ def new_safety_checklist_result(index):
         db.session.add(result)
         db.session.commit()
 
+        notify_usernames = set()
+
         if target_type == "user" and target_username:
+            notify_usernames.add(
+                target_username
+            )
+
+        if session.get("username"):
+            notify_usernames.add(
+                session.get("username")
+            )
+
+        for notify_username in notify_usernames:
+            notify_user = User.query.filter_by(
+                company_code=company_code,
+                username=notify_username
+            ).first()
+
+            if not notify_user:
+                continue
+
             add_notification(
-                target_user,
+                notify_user.name,
                 "安全チェックリスト完了のお知らせ",
                 (
                     f"「{checklist_record.name}」の"
@@ -19750,7 +19676,7 @@ def new_safety_checklist_result(index):
                 ),
                 f"/safety/checklist-results/{result.id}",
                 company_code=company_code,
-                target_username=target_username
+                target_username=notify_user.username
             )
 
         mention_text = "\n".join(
