@@ -181,15 +181,6 @@
 <div class="card pointout-countermeasure-card">
     <div class="pointout-section-header">
         <h3>対策管理</h3>
-
-        {% if result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1" %}
-            <a
-                class="btn"
-                href="/pointouts/{{ index }}?edit_countermeasure=1"
-            >
-                対策を編集
-            </a>
-        {% endif %}
     </div>
 
     <div class="pointout-countermeasure-status">
@@ -489,23 +480,34 @@
     {% endif %}
 </div>
 
-{% if can_manage and result.approval_status != "承認済み" %}
+{% if (result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1") or (can_manage and result.approval_status != "承認済み") %}
     <div class="pointout-record-footer-actions">
-        <form
-            method="post"
-            action="/pointouts/{{ index }}/delete"
-            class="js-pointout-delete-form"
-        >
-            <input
-                type="hidden"
-                name="csrf_token"
-                value="{{ csrf_token() }}"
+        {% if result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1" %}
+            <a
+                class="btn"
+                href="/pointouts/{{ index }}?edit_countermeasure=1"
             >
+                対策を編集
+            </a>
+        {% endif %}
 
-            <button type="submit" class="pointout-detail-delete">
-                削除
-            </button>
-        </form>
+        {% if can_manage and result.approval_status != "承認済み" %}
+            <form
+                method="post"
+                action="/pointouts/{{ index }}/delete"
+                class="js-pointout-delete-form"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <button type="submit" class="pointout-detail-delete">
+                    削除
+                </button>
+            </form>
+        {% endif %}
     </div>
 {% endif %}
 
