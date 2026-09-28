@@ -228,6 +228,11 @@ def redirect_form_errors(response):
         not request.path.startswith("/pointouts")
         and request.path != "/settings"
         and not request.path.startswith("/master/")
+        and not request.path.startswith("/vehicle/checklists/")
+        and not request.path.startswith("/vehicle/checklist-results/")
+        and not request.path.startswith("/safety/")
+        and not request.path.startswith("/vehicle-patrols")
+        and not request.path.startswith("/itc/")
     ):
         return response
 
@@ -20138,7 +20143,43 @@ def edit_checklist(index):
             checklist_record.version_history_json
         )
 
-        if has_safety_results or has_vehicle_results:
+        new_checklist_revision = {
+            **checklist,
+            "name": name,
+            "target": target,
+            "frequency_value": (
+                str(frequency_number)
+                if target == "車両管理"
+                else ""
+            ),
+            "frequency_unit": (
+                frequency_unit
+                if target == "車両管理"
+                else ""
+            ),
+            "display_type": (
+                display_type
+                if target == "車両管理"
+                else ""
+            ),
+            "print_portrait": (
+                print_portrait
+                if target == "車両管理"
+                else False
+            ),
+            "print_half_month": (
+                print_half_month
+                if target == "車両管理"
+                else False
+            ),
+            "items": items,
+        }
+
+        if (
+            (has_safety_results or has_vehicle_results)
+            and checklist_revision_key(checklist)
+            != checklist_revision_key(new_checklist_revision)
+        ):
             version_history.append({
                 "effective_until": datetime.now(
                     ZoneInfo("Asia/Tokyo")
