@@ -22203,18 +22203,23 @@ def init_db():
             for column in inspector.get_columns("user")
         ]
 
-        if (
-            "name" in existing_user_columns
-            and "last_name" not in existing_user_columns
-        ):
-            db.session.execute(
-                db.text(
-                    'ALTER TABLE "user" '
-                    'RENAME COLUMN name TO last_name'
+        if "last_name" not in existing_user_columns:
+            if "name" in existing_user_columns:
+                db.session.execute(
+                    db.text(
+                        'ALTER TABLE "user" '
+                        'RENAME COLUMN name TO last_name'
+                    )
                 )
-            )
-            db.session.commit()
+            else:
+                db.session.execute(
+                    db.text(
+                        'ALTER TABLE "user" '
+                        'ADD COLUMN last_name VARCHAR(100)'
+                    )
+                )
 
+            db.session.commit()
             inspector = inspect(db.engine)
 
         existing_user_columns = [
