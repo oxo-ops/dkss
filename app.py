@@ -16836,7 +16836,7 @@ def edit_checklist_result(result_index):
             choices = item.get("choices", [])
 
             if item.get("input_type") == "select":
-                if value not in choices:
+                if value and value not in choices:
                     return "評価値が不正です。", 400
 
             elif not value.strip():
@@ -19397,7 +19397,7 @@ def save_vehicle_checklist_one(index):
             )
         ]
 
-        if value not in valid_choices:
+        if value and value not in valid_choices:
             return "回答値が不正です。", 400
         
     if not result_record:
@@ -20280,7 +20280,7 @@ def new_vehicle_checklist_result(index):
                     )
                 ]
 
-                if value not in valid_choices:
+                if value and value not in valid_choices:
                     return "回答値が不正です。", 400
 
             elif not value.strip():
