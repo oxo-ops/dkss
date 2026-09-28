@@ -98,7 +98,7 @@
     </div>
 </div>
 
-<form method="post" class="card settings-notification-card">
+<form method="post" class="card settings-notification-card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <input
@@ -242,7 +242,7 @@
 
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 
-<form method="post" class="card settings-password-card">
+<form method="post" class="card settings-password-card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <h3>パスワード変更</h3>

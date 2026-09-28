@@ -264,14 +264,14 @@
         </div>
 
                         {% set flash_messages = get_flashed_messages(with_categories=true) %}
-        {% set form_errors = {} %}
+        {% set form_errors = [] %}
 
         {% for category, message in flash_messages %}
             {% if category.startswith("error:") %}
                 {% set field_id = category[6:] %}
-                {% set _ = form_errors.update({
-                    field_id: message
-                }) %}
+                {% set _ = form_errors.append(
+                    (field_id, message)
+                ) %}
             {% endif %}
         {% endfor %}
 
@@ -288,7 +288,7 @@
                 </h2>
 
                 <ul>
-                    {% for field_id, message in form_errors.items() %}
+                    {% for field_id, message in form_errors %}
                         <li>
                             {% if field_id %}
                                 <a

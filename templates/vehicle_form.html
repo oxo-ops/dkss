@@ -27,7 +27,7 @@
 </div>
 
 <div class="card form-card">
-    <form method="post" class="responsive-form">
+    <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         {% if mode == "edit" %}
@@ -53,6 +53,7 @@
             <input
                 type="text"
                 name="plate_area"
+                id="plate_area"
                 value="{{ vehicle.plate_area if vehicle else '' }}"
                 placeholder="例：品川"
                 required
@@ -64,6 +65,7 @@
             <input
                 type="text"
                 name="plate_class"
+                id="plate_class"
                 value="{{ vehicle.plate_class if vehicle else '' }}"
                 placeholder="例：100"
                 required
@@ -75,6 +77,7 @@
             <input
                 type="text"
                 name="plate_kana"
+                id="plate_kana"
                 value="{{ vehicle.plate_kana if vehicle else '' }}"
                 placeholder="例：あ"
                 required
@@ -86,6 +89,7 @@
             <input
                 type="text"
                 name="plate_number"
+                id="plate_number"
                 value="{{ vehicle.plate_number if vehicle else '' }}"
                 placeholder="例：12-34"
                 required
@@ -115,6 +119,7 @@
             <input
                 type="text"
                 name="model_code"
+                id="model_code"
                 value="{{ vehicle.model_code if vehicle else '' }}"
                 placeholder="例：QKG-FQ1ARBA"
             >
@@ -125,6 +130,7 @@
             <input
                 type="date"
                 name="first_registration_date"
+                id="first_registration_date"
                 value="{{ vehicle.first_registration_date if vehicle else '' }}"
             >
         </div>
@@ -134,6 +140,7 @@
             <input
                 type="text"
                 name="manufacturer"
+                id="manufacturer"
                 value="{{ vehicle.manufacturer if vehicle else '' }}"
                 placeholder="例：日野"
             >
@@ -144,6 +151,7 @@
             <input
                 type="text"
                 name="body_type"
+                id="body_type"
                 value="{{ vehicle.body_type if vehicle else '' }}"
                 placeholder="例：キャブオーバ"
             >
@@ -154,6 +162,7 @@
             <input
                 type="number"
                 name="gross_vehicle_weight"
+                id="gross_vehicle_weight"
                 value="{{ vehicle.gross_vehicle_weight if vehicle else '' }}"
                 placeholder="例：24950"
                 min="0"
@@ -165,6 +174,7 @@
             <input
                 type="number"
                 name="max_payload"
+                id="max_payload"
                 value="{{ vehicle.max_payload if vehicle else '' }}"
                 placeholder="例：12000"
                 min="0"
@@ -173,7 +183,7 @@
 
         <div class="form-group">
             <label>車種</label>
-            <select name="type" required>
+            <select name="type" id="type" required>
                 {% for vehicle_type in vehicle_types %}
                     <option
                         value="{{ vehicle_type.name }}"
@@ -187,7 +197,7 @@
 
         <div class="form-group">
             <label>営業所</label>
-            <select name="office" required>
+            <select name="office" id="office" required>
                 {% for office in offices %}
                     <option
                         value="{{ office.name }}"
@@ -204,6 +214,7 @@
             <input
                 type="date"
                 name="inspection_expiry"
+                id="inspection_expiry"
                 value="{{ vehicle.inspection_expiry if vehicle else '' }}"
             >
         </div>

@@ -199,6 +199,10 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                     resultBox.classList.add("is-open");
                 })
                 .catch(function () {
+                    showCommonError(
+                        "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                    );
+
                     resultBox.innerHTML =
                         '<p class="help-text dashboard-vehicle-empty-result">' +
                         '車両を取得できませんでした。通信状態を確認して、もう一度検索してください。' +
@@ -223,7 +227,10 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
         if (!vehicleIdInput.value) {
             event.preventDefault();
 
-            alert("候補から車両を選択してください。");
+            showCommonError(
+                "候補から車両を選択してください。",
+                searchInput.id || searchInput.name
+            );
             searchInput.focus();
         }
     });

@@ -26,13 +26,14 @@
     </div>
 </div>
 
-<form method="post" class="card">
+<form method="post" class="card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <label>会社コード</label>
     <input
         type="text"
         name="company_code"
+        id="company_code"
         value="{{ company.company_code if company else '' }}"
         required
     >
@@ -41,6 +42,7 @@
     <input
         type="text"
         name="company_name"
+        id="company_name"
         value="{{ company.company_name if company else '' }}"
         required
     >
@@ -49,6 +51,7 @@
     <input
         type="number"
         name="vehicle_limit"
+        id="vehicle_limit"
         value="{{ company.vehicle_limit if company else '' }}"
         required
     >

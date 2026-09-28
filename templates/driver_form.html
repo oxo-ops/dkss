@@ -27,13 +27,14 @@
 </div>
 
 <div class="card form-card">
-    <form method="post" class="responsive-form">
+    <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label>氏名</label>
         <input
             type="text"
             name="name"
+            id="name"
             value="{{ driver.name if driver else '' }}"
             required
         >
@@ -42,6 +43,7 @@
         <input
             type="text"
             name="employee_id"
+            id="employee_id"
             value="{{ driver.employee_id if driver else '' }}"
             required
         >
@@ -50,6 +52,7 @@
         <input
             type="email"
             name="email_address"
+            id="email_address"
             value="{{ driver.email_address if driver and driver.email_address else '' }}"
             maxlength="255"
             autocomplete="email"
@@ -60,6 +63,7 @@
         <input
             type="password"
             name="password"
+            id="password"
             minlength="8"
             maxlength="128"
             pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
@@ -69,7 +73,7 @@
         >
 
         <label>権限</label>
-        <select name="role" required>
+        <select name="role" id="role" required>
             <option value="user" {% if driver and driver.role == "user" %}selected{% endif %}>
                 一般ユーザー
             </option>
@@ -79,7 +83,7 @@
         </select>
 
         <label>営業所</label>
-        <select name="office">
+        <select name="office" id="office">
             {% for office in offices %}
                 <option
                     value="{{ office.name }}"
@@ -94,6 +98,7 @@
         <input
             type="date"
             name="safe_start_date"
+            id="safe_start_date"
             value="{{ driver.safe_start_date if driver else '' }}"
         >
 

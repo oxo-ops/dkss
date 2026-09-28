@@ -226,6 +226,10 @@ document.addEventListener("DOMContentLoaded", function () {
                         });
                     })
                     .catch(function () {
+                        showCommonError(
+                            "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                        );
+
                         vehicleSearchResults.innerHTML = "";
 
                         const message =

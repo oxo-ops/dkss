@@ -138,6 +138,10 @@ document.addEventListener("input", function(e) {
                 error
             );
 
+            showCommonError(
+                "メンション候補の取得に失敗しました。"
+            );
+
             closeMentionBox();
         });
 });
@@ -213,6 +217,10 @@ function handleRichMentionInput(editor) {
             console.error(
                 "メンション候補の取得に失敗しました。",
                 error
+            );
+
+            showCommonError(
+                "メンション候補の取得に失敗しました。"
             );
 
             closeMentionBox();
@@ -637,7 +645,7 @@ window.addEventListener("DOMContentLoaded", function() {
                         "checklist-validation-invalid"
                     );
 
-                    window.alert(
+                    showCommonError(
                         "必須コメントを入力してください。"
                     );
 
@@ -669,6 +677,42 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
+    const savedScrollPosition =
+        sessionStorage.getItem(
+            "formSubmitScrollPosition"
+        );
+
+    if (savedScrollPosition) {
+        try {
+            const position =
+                JSON.parse(
+                    savedScrollPosition
+                );
+
+            const currentPath =
+                window.location.pathname
+                + window.location.search;
+
+            if (
+                position.path === currentPath
+            ) {
+                window.scrollTo(
+                    position.x || 0,
+                    position.y || 0
+                );
+            }
+        } catch (error) {
+            console.error(
+                "スクロール位置の復元に失敗しました。",
+                error
+            );
+        }
+
+        sessionStorage.removeItem(
+            "formSubmitScrollPosition"
+        );
+    }
+
     const sidebarToggle =
         document.getElementById("sidebarToggle");
 
@@ -747,6 +791,19 @@ document.addEventListener("submit", function (event) {
         return;
     }
 
+    if (!event.defaultPrevented) {
+        sessionStorage.setItem(
+            "formSubmitScrollPosition",
+            JSON.stringify({
+                path:
+                    window.location.pathname
+                    + window.location.search,
+                x: window.scrollX,
+                y: window.scrollY
+            })
+        );
+    }
+
     window.setTimeout(function () {
         if (event.defaultPrevented) {
             return;
@@ -817,7 +874,7 @@ document.addEventListener("change", function (event) {
 
     input.value = "";
 
-    window.alert(
+    showCommonError(
         "1回に送信できるファイルの合計は1GB以下です。動画を短くするか、ファイルを分けて登録してください。"
     );
 });
@@ -872,12 +929,18 @@ async function registerPushNotifications() {
         );
 
         if (!response.ok) {
+            showCommonError(
+                "端末通知の設定情報を取得できませんでした。"
+            );
             return;
         }
 
         const data = await response.json();
 
         if (!data.publicKey) {
+            showCommonError(
+                "端末通知の設定情報を取得できませんでした。"
+            );
             return;
         }
 
@@ -930,37 +993,204 @@ window.addEventListener(
                         "Push通知登録エラー:",
                         error
                     );
+
+                    showCommonError(
+                        "端末通知の登録に失敗しました。通信状態を確認してください。"
+                    );
                 }
             );
         }
     }
 );
 
+function getFormErrorTarget(targetId) {
+    if (!targetId) return null;
+
+    let target = document.getElementById(targetId);
+
+    if (!target) {
+        target = document.querySelector(
+            `[name="${CSS.escape(targetId)}"]`
+        );
+    }
+
+    if (
+        target
+        && target.type === "hidden"
+        && target.parentElement
+    ) {
+        const richEditor = target.parentElement.querySelector(
+            ".mention-rich-editor"
+        );
+
+        if (richEditor) {
+            return richEditor;
+        }
+    }
+
+    return target;
+}
+
+
+function showCommonError(message, targetId = "") {
+    let summary = document.getElementById("error-summary");
+
+    if (!summary) {
+        summary = document.createElement("div");
+        summary.id = "error-summary";
+        summary.className = "error-summary";
+        summary.setAttribute("role", "alert");
+        summary.setAttribute("tabindex", "-1");
+        summary.setAttribute(
+            "aria-labelledby",
+            "error-summary-title"
+        );
+        summary.innerHTML = `
+            <h2 id="error-summary-title">
+                入力内容を確認してください
+            </h2>
+            <ul></ul>
+        `;
+
+        const main = document.querySelector("main");
+        if (main) {
+            main.prepend(summary);
+        } else {
+            document.body.prepend(summary);
+        }
+    }
+
+    const list = summary.querySelector("ul");
+
+    const duplicateError = Array.from(
+        list.children
+    ).some(function (item) {
+        const link = item.querySelector(
+            "[data-form-error-target]"
+        );
+
+        const itemTargetId = link
+            ? link.dataset.formErrorTarget || ""
+            : "";
+
+        return (
+            item.textContent.trim() === message.trim()
+            && itemTargetId === targetId
+        );
+    });
+
+    if (duplicateError) {
+        return;
+    }
+
+    const item = document.createElement("li");
+
+    if (targetId) {
+        const link = document.createElement("a");
+        link.href = `#${targetId}`;
+        link.dataset.formErrorTarget = targetId;
+        link.dataset.formErrorMessage = message;
+        link.textContent = message;
+        item.appendChild(link);
+
+        const target = getFormErrorTarget(targetId);
+
+        if (target) {
+            target.classList.add("form-control-error");
+            target.setAttribute("aria-invalid", "true");
+
+            const errorText = document.createElement("div");
+            errorText.id = `${targetId}_error_${list.children.length}`;
+            errorText.className = "field-error-message";
+            errorText.textContent = message;
+
+            target.insertAdjacentElement(
+                "afterend",
+                errorText
+            );
+
+            const describedBy = [
+                ...(target.getAttribute("aria-describedby") || "")
+                    .split(/\s+/)
+                    .filter(Boolean),
+                errorText.id
+            ];
+
+            target.setAttribute(
+                "aria-describedby",
+                [...new Set(describedBy)].join(" ")
+            );
+
+            if (list.children.length === 0) {
+                target.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+
+                window.setTimeout(() => {
+                    target.focus({ preventScroll: true });
+                }, 300);
+            }
+        }
+    } else {
+        item.textContent = message;
+        summary.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+        summary.focus({ preventScroll: true });
+    }
+
+    list.appendChild(item);
+}
+
+
 // フォームエラーを該当項目へ反映
 document.querySelectorAll(".error-summary a[data-form-error-target]").forEach((link) => {
     const targetId = link.dataset.formErrorTarget;
     const message = link.dataset.formErrorMessage;
-    const target = document.getElementById(targetId);
+    const target = getFormErrorTarget(targetId);
 
     if (!target) return;
+
+    const details = target.closest("details");
+
+    if (details) {
+        details.open = true;
+    }
 
     target.classList.add("form-control-error");
     target.setAttribute("aria-invalid", "true");
 
-    if (!document.getElementById(`${targetId}_error`)) {
-        const errorText = document.createElement("div");
-        errorText.id = `${targetId}_error`;
-        errorText.className = "field-error-message";
-        errorText.textContent = message;
+    const errorIndex = Array.from(
+        document.querySelectorAll(
+            `.error-summary a[data-form-error-target="${CSS.escape(targetId)}"]`
+        )
+    ).indexOf(link);
 
-        const errorAnchor =
-    target.id === "delivery_place"
-        ? document.getElementById("delivery_place_search_results")
-        : target;
+    const errorText = document.createElement("div");
+    errorText.id = `${targetId}_error_${errorIndex}`;
+    errorText.className = "field-error-message";
+    errorText.textContent = message;
 
-errorAnchor.insertAdjacentElement("afterend", errorText);
-        target.setAttribute("aria-describedby", errorText.id);
-    }
+    const errorAnchor =
+        target.id === "delivery_place"
+            ? document.getElementById("delivery_place_search_results")
+            : target;
+
+    errorAnchor.insertAdjacentElement("afterend", errorText);
+
+    const describedBy = [
+        ...(target.getAttribute("aria-describedby") || "")
+            .split(/\s+/)
+            .filter(Boolean),
+        errorText.id
+    ];
+
+    target.setAttribute(
+        "aria-describedby",
+        [...new Set(describedBy)].join(" ")
+    );
 });
 
 // エラーがある場合は最初の修正箇所へ自動移動
@@ -969,7 +1199,7 @@ const firstErrorLink = document.querySelector(
 );
 
 if (firstErrorLink) {
-    const firstErrorTarget = document.getElementById(
+    const firstErrorTarget = getFormErrorTarget(
         firstErrorLink.dataset.formErrorTarget
     );
 
@@ -994,7 +1224,9 @@ document.addEventListener("click", function (event) {
 
     event.preventDefault();
 
-    const target = document.getElementById(link.dataset.formErrorTarget);
+    const target = getFormErrorTarget(
+        link.dataset.formErrorTarget
+    );
     if (!target) return;
 
     target.scrollIntoView({
@@ -1112,6 +1344,20 @@ document.addEventListener("submit", async function (event) {
             if (button) {
                 button.disabled = false;
             }
+
+            let message = "承認処理に失敗しました。";
+
+            if (!response.ok) {
+                const responseText = (
+                    await response.text()
+                ).trim();
+
+                if (responseText) {
+                    message = responseText;
+                }
+            }
+
+            showCommonError(message);
             return;
         }
 
@@ -1134,6 +1380,10 @@ document.addEventListener("submit", async function (event) {
         if (button) {
             button.disabled = false;
         }
+
+        showCommonError(
+            "承認処理に失敗しました。通信状態を確認して、もう一度お試しください。"
+        );
     }
 });
 

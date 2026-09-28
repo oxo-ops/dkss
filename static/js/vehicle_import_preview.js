@@ -355,7 +355,7 @@ document.addEventListener("DOMContentLoaded", function () {
             field !== "vehicle_type" &&
             !oldValue
         ) {
-            alert(
+            showCommonError(
                 "現在の値を入力してください。"
             );
 
@@ -366,9 +366,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (
             field === "plate_full"
         ) {
-            alert(
-                "車番は地域名・分類番号・ひらがな・番号に分かれているため、" +
-                "個別編集してください。"
+            showCommonError(
+                "車番は地域名・分類番号・ひらがな・番号に分かれているため、個別編集してください。"
             );
 
             return;

@@ -878,9 +878,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (totalSize > maxSize) {
                     event.preventDefault();
 
-                    alert(
-                        "写真・動画・ファイルの合計を" +
-                        "1GB以下にしてください。"
+                    showCommonError(
+                        "写真・動画・ファイルの合計を1GB以下にしてください。"
                     );
                 }
             }
@@ -975,7 +974,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 error
             );
 
-            window.alert(
+            showCommonError(
                 "点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。"
             );
 
@@ -1108,6 +1107,10 @@ async function loadSavedNotifyUsers() {
                     "保存済み通知先を復元できません:",
                     value
                 );
+
+                showCommonError(
+                    "保存済みの通知先を復元できませんでした。通信状態を確認してください。"
+                );
                 continue;
             }
 
@@ -1161,6 +1164,10 @@ async function loadSavedNotifyUsers() {
             console.error(
                 "通知先ユーザーの復元に失敗しました。",
                 error
+            );
+
+            showCommonError(
+                "保存済みの通知先を復元できませんでした。通信状態を確認してください。"
             );
         }
     }
@@ -1376,6 +1383,10 @@ async function loadSavedNotifyUsers() {
                                     error
                                 );
 
+                                showCommonError(
+                                    "通知先を取得できませんでした。通信状態を確認してください。"
+                                );
+
                                 notifyResults.replaceChildren();
 
                                 const message =
@@ -1517,6 +1528,10 @@ async function loadSavedReminderNotifyUsers() {
                     "保存済み点検未実施通知先を復元できません:",
                     value
                 );
+
+                showCommonError(
+                    "保存済みの点検未実施通知先を復元できませんでした。通信状態を確認してください。"
+                );
                 continue;
             }
 
@@ -1570,6 +1585,10 @@ async function loadSavedReminderNotifyUsers() {
             console.error(
                 "点検未実施通知先の復元に失敗しました。",
                 error
+            );
+
+            showCommonError(
+                "保存済みの点検未実施通知先を復元できませんでした。通信状態を確認してください。"
             );
         }
     }
@@ -1633,7 +1652,7 @@ async function loadSavedReminderNotifyUsers() {
                 error
             );
 
-            window.alert(
+            showCommonError(
                 "点検忘れ通知先を保存できませんでした。通信状態を確認して、もう一度操作してください。"
             );
         }
@@ -1770,6 +1789,10 @@ async function loadSavedReminderNotifyUsers() {
                                     console.error(
                                         "点検忘れ通知先の取得に失敗しました。",
                                         error
+                                    );
+
+                                    showCommonError(
+                                        "通知先を取得できませんでした。通信状態を確認してください。"
                                     );
 
                                     reminderResults.replaceChildren();
@@ -2006,6 +2029,10 @@ async function loadSavedReminderNotifyUsers() {
                                 console.error(
                                     "車両の取得に失敗しました。",
                                     error
+                                );
+
+                                showCommonError(
+                                    "車両を取得できませんでした。通信状態を確認してください。"
                                 );
 
                                 vehicleSearchResults
@@ -2432,7 +2459,7 @@ async function loadSavedReminderNotifyUsers() {
                 !vehicleId ||
                 !vehicleId.value
             ) {
-                alert(
+                showCommonError(
                     "先に対象車両を選択してください。"
                 );
 
