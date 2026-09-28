@@ -160,10 +160,7 @@
                         >
 
                         <span>
-                            {{ vehicle.chassis_number }}
-                            {% if vehicle.type %}
-                                （{{ vehicle.type }}）
-                            {% endif %}
+                            {{ vehicle.number or "ナンバー未登録" }}
                         </span>
 
                         <button

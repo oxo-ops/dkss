@@ -2761,6 +2761,20 @@ def vehicle_patrol_to_dict(patrol):
             if vehicle
             else ""
         ),
+        "number": (
+            " ".join(
+                value
+                for value in [
+                    vehicle.plate_area or "",
+                    vehicle.plate_class or "",
+                    vehicle.plate_kana or "",
+                    vehicle.plate_number or "",
+                ]
+                if value
+            )
+            if vehicle
+            else ""
+        ),
         "id": patrol.id,
         "index": patrol.id,
         "company_code": patrol.company_code,
@@ -3273,7 +3287,7 @@ def send_vehicle_checklist_reminders(company_code):
                     title,
                     (
                         f"{checklist.name}："
-                        f"車両 {vehicle.chassis_number} の"
+                        f"車両 {' '.join(value for value in [vehicle.plate_area or '', vehicle.plate_class or '', vehicle.plate_kana or '', vehicle.plate_number or ''] if value) or 'ナンバー未登録'} の"
                         f"本日の点検が完了していません。"
                     ),
                     link,
@@ -4093,14 +4107,14 @@ def can_reject_checklist_result(result):
 
 def vehicle_number(vehicle):
     return (
-        vehicle.get("chassis_number")
-        or vehicle.get("number")
+        vehicle.get("number")
         or (
             f"{vehicle.get('plate_area', '')} "
             f"{vehicle.get('plate_class', '')} "
             f"{vehicle.get('plate_kana', '')} "
             f"{vehicle.get('plate_number', '')}"
         ).strip()
+        or "ナンバー未登録"
     )
 
 
@@ -6910,6 +6924,16 @@ def dashboard():
                     "name": checklist_record.name,
                     "target": checklist_record.target,
                     "vehicle_record_id": usage_vehicle_id,
+                    "registration_number": " ".join(
+                        value
+                        for value in [
+                            usage_vehicle.plate_area or "",
+                            usage_vehicle.plate_class or "",
+                            usage_vehicle.plate_kana or "",
+                            usage_vehicle.plate_number or "",
+                        ]
+                        if value
+                    ),
                     "chassis_number": (
                         usage_vehicle.chassis_number
                         if usage_vehicle
@@ -7376,7 +7400,16 @@ def dashboard():
                 if not target_vehicle_record:
                     continue
 
-                target_label = target_vehicle_record.chassis_number
+                target_label = " ".join(
+                    value
+                    for value in [
+                        target_vehicle_record.plate_area or "",
+                        target_vehicle_record.plate_class or "",
+                        target_vehicle_record.plate_kana or "",
+                        target_vehicle_record.plate_number or "",
+                    ]
+                    if value
+                ) or "ナンバー未登録"
 
             else:
                 target_type = result_record.target_type
@@ -7397,7 +7430,16 @@ def dashboard():
                     if not target_vehicle_record:
                         continue
 
-                    target_label = target_vehicle_record.chassis_number
+                        target_label = " ".join(
+                        value
+                        for value in [
+                            target_vehicle_record.plate_area or "",
+                            target_vehicle_record.plate_class or "",
+                            target_vehicle_record.plate_kana or "",
+                            target_vehicle_record.plate_number or "",
+                        ]
+                        if value
+                    ) or "ナンバー未登録"
 
                 elif target_type == "office":
                     target_label = result_record.target_office
@@ -11649,9 +11691,7 @@ def driver_master():
             )
 
             vehicle_labels.append(
-                plate
-                or vehicle_record.chassis_number
-                or f"車両ID {vehicle_record.id}"
+                plate or "ナンバー未登録"
             )
 
         driver_item = {
@@ -16000,7 +16040,16 @@ def export_checklist_result_excel(result_index):
         ).first()
 
         target_value = (
-            target_vehicle_record.chassis_number
+            " ".join(
+                value
+                for value in [
+                    target_vehicle_record.plate_area or "",
+                    target_vehicle_record.plate_class or "",
+                    target_vehicle_record.plate_kana or "",
+                    target_vehicle_record.plate_number or "",
+                ]
+                if value
+            ) or "ナンバー未登録"
             if target_vehicle_record
             else "-"
         )
@@ -16013,7 +16062,7 @@ def export_checklist_result_excel(result_index):
 
     info_rows = [
         ["実施日", result["checked_date"] or ""],
-        ["点検者", result["checked_by"] or ""],
+        ["実施者", result["checked_by"] or ""],
         ["対象", target_value or target_type_label],
         ["状態", result["status"] or ""],
     ]
@@ -18101,7 +18150,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                 (target_user.last_name or "") + (target_user.first_name or ""),
                 "車両チェックリストが承認されました",
                 (
-                    f"車両 {vehicle_record.chassis_number if vehicle_record else '-'} の"
+                    f"車両 {' '.join(value for value in [vehicle_record.plate_area or '', vehicle_record.plate_class or '', vehicle_record.plate_kana or '', vehicle_record.plate_number or ''] if value) if vehicle_record else '-'} の"
                     "チェックリストの承認が完了しました。"
                 ),
                 notification_link,
@@ -18176,11 +18225,6 @@ def export_vehicle_checklist_result_excel(result_index):
 
     vehicle_info = {
         "vehicle_record_id": result_record.vehicle_record_id,
-        "chassis_number": (
-            vehicle_record.chassis_number
-            if vehicle_record
-            else ""
-        ),
         "number": "",
         "manufacturer": "",
         "model_code": "",
@@ -18512,8 +18556,8 @@ def export_vehicle_checklist_result_excel(result_index):
 
         # 月間帳票の車両情報
         vehicle_number = (
-            vehicle_info["chassis_number"]
-            or vehicle_info["number"]
+            vehicle_info["number"]
+            or "ナンバー未登録"
         )
 
         sheet.merge_cells(
@@ -18523,7 +18567,7 @@ def export_vehicle_checklist_result_excel(result_index):
             end_column=end_column
         )
 
-        sheet["A4"] = f"車台番号　{vehicle_number}"
+        sheet["A4"] = f"登録番号　{vehicle_number}"
         sheet["A4"].font = Font(bold=True)
         sheet["A4"].alignment = Alignment(
             horizontal="left",
@@ -20275,7 +20319,7 @@ def complete_vehicle_checklist(index):
             (target_user.last_name or "") + (target_user.first_name or ""),
             "車両点検完了のお知らせ",
             (
-                f"{vehicle.chassis_number} の"
+                f"{' '.join(value for value in [vehicle.plate_area or '', vehicle.plate_class or '', vehicle.plate_kana or '', vehicle.plate_number or ''] if value) or 'ナンバー未登録'} の"
                 f"「{checklist_record.name}」が"
                 f"点検完了しました。"
             ),

@@ -159,11 +159,8 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                         row.className = "dashboard-vehicle-result-row";
 
                         const labelParts = [
-                            vehicle.chassis_number,
-                            vehicle.number,
-                            vehicle.manufacturer,
-                            vehicle.model_code
-                        ].filter(Boolean);
+                            vehicle.number || "ナンバー未登録"
+                        ];
 
                         const label = document.createElement("span");
                         label.textContent = labelParts.join(" / ");

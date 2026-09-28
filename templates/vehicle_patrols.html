@@ -21,7 +21,14 @@
         <div class="usage-list">
             {% for vehicle in usage_vehicle_records %}
                 <span class="usage-tag">
-                    {{ vehicle.chassis_number }}
+                    {% if vehicle.plate_number %}
+                        {{ vehicle.plate_area or "" }}
+                        {{ vehicle.plate_class or "" }}
+                        {{ vehicle.plate_kana or "" }}
+                        {{ vehicle.plate_number or "" }}
+                    {% else %}
+                        ナンバー未登録
+                    {% endif %}
 
                     <form
                         method="post"
@@ -115,7 +122,7 @@
     {% for patrol in usage_patrols %}
     <tr>
         <td>{{ patrol.occurred_date or "-" }}</td>
-        <td>★ {{ patrol.chassis_number or "-" }}</td>
+        <td>★ {{ patrol.number or "ナンバー未登録" }}</td>
         <td>{{ patrol.content or "-" }}</td>
 
         <td>
@@ -160,7 +167,7 @@
     {% for patrol in usage_patrols %}
         <div class="mobile-list-card">
             <div class="mobile-card-head">
-                <strong>★ {{ patrol.chassis_number or "-" }}</strong>
+                <strong>★ {{ patrol.number or "ナンバー未登録" }}</strong>
 
                 {% if patrol.status == "修理完了" %}
                     <span class="status-badge status-approved">修理完了</span>
@@ -223,7 +230,7 @@
     {% for patrol in other_patrols %}
     <tr>
         <td>{{ patrol.occurred_date or "-" }}</td>
-        <td>{{ patrol.chassis_number or "-" }}</td>
+        <td>{{ patrol.number or "ナンバー未登録" }}</td>
         <td>{{ patrol.content or "-" }}</td>
 
         <td>
@@ -268,7 +275,7 @@
     {% for patrol in other_patrols %}
         <div class="mobile-list-card">
             <div class="mobile-card-head">
-                <strong>{{ patrol.chassis_number or "-" }}</strong>
+                <strong>{{ patrol.number or "ナンバー未登録" }}</strong>
 
                 {% if patrol.status == "修理完了" %}
                     <span class="status-badge status-approved">修理完了</span>

@@ -78,7 +78,7 @@ function addChecklistItem() {
                         class="js-item-type"
                     >
                         <option value="check">点検項目</option>
-                        <option value="inspector">点検者</option>
+                        <option value="inspector">実施者</option>
                         <option value="approval">承認項目</option>
                     </select>
 

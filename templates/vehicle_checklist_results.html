@@ -58,7 +58,14 @@
                     class="usage-vehicle-shortcut{% if vehicle_record_id == vehicle.id %} is-selected{% endif %}"
                     data-vehicle-id="{{ vehicle.id }}"
                 >
-                    {{ vehicle.chassis_number }}
+                    {% if vehicle.plate_number %}
+                        {{ vehicle.plate_area or "" }}
+                        {{ vehicle.plate_class or "" }}
+                        {{ vehicle.plate_kana or "" }}
+                        {{ vehicle.plate_number or "" }}
+                    {% else %}
+                        ナンバー未登録
+                    {% endif %}
                 </button>
             {% else %}
                 <span class="help-text">
@@ -90,7 +97,7 @@
 
                 {% if selected_vehicle %}
 
-                    {{ selected_vehicle.chassis_number }}
+                    {{ selected_vehicle.number or "ナンバー未登録" }}
 
                     {% if selected_vehicle.manufacturer %}
                         / {{ selected_vehicle.manufacturer }}

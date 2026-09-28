@@ -9296,7 +9296,7 @@ input:checked
     }
 
     .safety-results-table td:nth-child(1)::before {
-        content: "点検者";
+        content: "実施者";
     }
 
     .safety-results-table td:nth-child(2)::before {

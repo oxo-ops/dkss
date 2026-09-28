@@ -2185,12 +2185,8 @@ async function loadSavedReminderNotifyUsers() {
 
                                     const labelParts =
                                         [
-                                            vehicle.chassis_number,
-                                            vehicle.manufacturer,
-                                            vehicle.model_code
-                                        ].filter(
-                                            Boolean
-                                        );
+                                            vehicle.number || "ナンバー未登録"
+                                        ];
 
                                     const label =
                                         document.createElement(

@@ -78,10 +78,8 @@ document.addEventListener("DOMContentLoaded", function () {
                             document.createElement("span");
 
                         const labelParts = [
-                            vehicle.chassis_number,
-                            vehicle.manufacturer,
-                            vehicle.model_code
-                        ].filter(Boolean);
+                            vehicle.number || "ナンバー未登録"
+                        ];
 
                         row.className =
                             "vehicle-option";
