@@ -22343,6 +22343,8 @@ def init_db():
 
         db.session.commit()
 
+init_db()
+
 with app.app_context():
 
     db.create_all()
@@ -23314,8 +23316,6 @@ with app.app_context():
         )
 
     db.session.commit()
-
-init_db()
 
 
 if __name__ == "__main__":
