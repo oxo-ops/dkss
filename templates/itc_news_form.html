@@ -83,7 +83,22 @@
     >
 
     <label>本文</label>
-    <textarea name="message" rows="6" class="mention-input" required>{{ news.message if news else '' }}</textarea>
+
+    <div class="mention-field">
+        <input
+            type="hidden"
+            name="message"
+            value="{{ news.message if news else '' }}"
+        >
+
+        <div
+            class="mention-rich-editor"
+            contenteditable="true"
+            data-value="{{ news.message if news else '' }}"
+            data-required="true"
+            data-placeholder="本文を入力してください"
+        ></div>
+    </div>
 
     <label>添付ファイル</label>
     <input

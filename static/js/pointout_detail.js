@@ -50,9 +50,13 @@ document.addEventListener("DOMContentLoaded", function () {
                         document.getElementById(field.id);
 
                     const valueInput =
-                        field.hiddenId
-                            ? document.getElementById(field.hiddenId)
-                            : visibleInput;
+                        visibleInput?.classList.contains(
+                            "mention-rich-editor"
+                        )
+                            ? getMentionHiddenInput(visibleInput)
+                            : field.hiddenId
+                                ? document.getElementById(field.hiddenId)
+                                : visibleInput;
 
                     if (
                         !valueInput ||

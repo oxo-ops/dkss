@@ -137,13 +137,19 @@
 
         <div class="form-group">
             <label>内容</label>
-            <textarea
+            <input
+                type="hidden"
                 name="content"
-                class="mention-input"
-                rows="4"
-                placeholder="例：エンジン始動時に異音あり、右後輪タイヤに亀裂あり"
-                required
-            >{{ patrol.content if patrol else '' }}</textarea>
+                value="{{ patrol.content if patrol else '' }}"
+            >
+
+            <div
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ patrol.content if patrol else '' }}"
+                data-required="true"
+                data-placeholder="例：エンジン始動時に異音あり、右後輪タイヤに亀裂あり"
+            ></div>
         </div>
     </div>
 
@@ -156,32 +162,50 @@
 
         <div class="form-group">
             <label>確認結果・原因</label>
-            <textarea
+            <input
+                type="hidden"
                 name="cause"
-                class="mention-input"
-                rows="3"
-                placeholder="例：バッテリー劣化、タイヤ摩耗、配線接触不良"
-            >{{ patrol.cause if patrol else '' }}</textarea>
+                value="{{ patrol.cause if patrol else '' }}"
+            >
+
+            <div
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ patrol.cause if patrol else '' }}"
+                data-placeholder="例：バッテリー劣化、タイヤ摩耗、配線接触不良"
+            ></div>
         </div>
 
         <div class="form-group">
             <label>応急対応</label>
-            <textarea
+            <input
+                type="hidden"
                 name="temporary_action"
-                class="mention-input"
-                rows="3"
-                placeholder="例：予備車両へ切替、ジャンプスターターで始動、走行停止"
-            >{{ patrol.temporary_action if patrol else '' }}</textarea>
+                value="{{ patrol.temporary_action if patrol else '' }}"
+            >
+
+            <div
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ patrol.temporary_action if patrol else '' }}"
+                data-placeholder="例：予備車両へ切替、ジャンプスターターで始動、走行停止"
+            ></div>
         </div>
 
         <div class="form-group">
             <label>修理・対応内容</label>
-            <textarea
+            <input
+                type="hidden"
                 name="repair_content"
-                class="mention-input"
-                rows="3"
-                placeholder="例：バッテリー交換、タイヤ交換、配線修理"
-            >{{ patrol.repair_content if patrol else '' }}</textarea>
+                value="{{ patrol.repair_content if patrol else '' }}"
+            >
+
+            <div
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ patrol.repair_content if patrol else '' }}"
+                data-placeholder="例：バッテリー交換、タイヤ交換、配線修理"
+            ></div>
         </div>
     </div>
 
