@@ -137,15 +137,19 @@
 
                         <td>
                             {% if item.input_type == "select" %}
-                                <select name="answer_{{ ns.answer_index }}" required>
-                                    <option value="">選択</option>
-
+                                <div class="checklist-result-choice-group vehicle-checklist-choice-group">
                                     {% for choice in item.choices %}
-                                        <option value="{{ choice }}">
-                                            {{ choice }}
-                                        </option>
+                                        <label class="checklist-result-choice">
+                                            <input
+                                                type="radio"
+                                                name="answer_{{ ns.answer_index }}"
+                                                value="{{ choice }}"
+                                                class="checklist-result-choice-radio"
+                                            >
+                                            <span>{{ choice }}</span>
+                                        </label>
                                     {% endfor %}
-                                </select>
+                                </div>
                             {% else %}
 
                                 <div class="mention-field">

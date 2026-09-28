@@ -249,10 +249,9 @@
                                         type="radio"
                                         name="answer_{{ ns.answer_index }}"
                                         value="{{ choice }}"
-                                        {% if saved_answer and saved_answer.value == choice %}
+                                        {% if saved_answer and saved_answer.value == choice and saved_answer.value %}
                                             checked
                                         {% endif %}
-                                        {% if item.choices %}required{% endif %}
                                         class="checklist-result-choice-radio"
                                     >
 

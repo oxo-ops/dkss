@@ -81,6 +81,82 @@ window.addEventListener("DOMContentLoaded", function () {
     });
 });
 
+const checklistChoiceState = new WeakMap();
+
+document.addEventListener(
+    "pointerdown",
+    function (event) {
+        const choice =
+            event.target.closest(
+                ".checklist-result-choice"
+            );
+
+        if (!choice) {
+            return;
+        }
+
+        const radio =
+            choice.querySelector(
+                ".checklist-result-choice-radio"
+            );
+
+        if (!radio) {
+            return;
+        }
+
+        checklistChoiceState.set(
+            choice,
+            radio.checked
+        );
+    },
+    true
+);
+
+document.addEventListener(
+    "click",
+    function (event) {
+        const choice =
+            event.target.closest(
+                ".checklist-result-choice"
+            );
+
+        if (!choice) {
+            return;
+        }
+
+        const radio =
+            choice.querySelector(
+                ".checklist-result-choice-radio"
+            );
+
+        if (!radio) {
+            return;
+        }
+
+        const wasChecked =
+            checklistChoiceState.get(choice);
+
+        checklistChoiceState.delete(choice);
+
+        if (!wasChecked) {
+            return;
+        }
+
+        event.preventDefault();
+        radio.checked = false;
+
+        radio.dispatchEvent(
+            new Event(
+                "change",
+                {
+                    bubbles: true
+                }
+            )
+        );
+    },
+    true
+);
+
 document.addEventListener("input", function(e) {
     const target = e.target;
 

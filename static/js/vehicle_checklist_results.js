@@ -998,18 +998,96 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    const checklistChoiceWasChecked =
+        new WeakMap();
 
     document.addEventListener(
-        "pointerdown",
+        "mousedown",
         function (event) {
-            if (
-                event.target.matches(
+            const choice =
+                event.target.closest(
+                    ".check-choice-button"
+                );
+
+            if (!choice) {
+                return;
+            }
+
+            const input =
+                choice.querySelector(
                     ".js-inline-check-input"
+                );
+
+            checklistChoiceWasChecked.set(
+                choice,
+                Boolean(
+                    input &&
+                    input.type === "radio" &&
+                    input.checked
+                )
+            );
+
+            if (
+                input &&
+                input.classList.contains(
+                    "js-inline-check-input"
                 )
             ) {
                 rememberChecklistPosition();
             }
-        }
+        },
+        true
+    );
+
+    document.addEventListener(
+        "click",
+        function (event) {
+            const choice =
+                event.target.closest(
+                    ".check-choice-button"
+                );
+
+            if (!choice) {
+                return;
+            }
+
+            const input =
+                choice.querySelector(
+                    ".js-inline-check-input"
+                );
+
+            const wasChecked =
+                checklistChoiceWasChecked.get(
+                    choice
+                );
+
+            checklistChoiceWasChecked.delete(
+                choice
+            );
+
+            if (
+                !wasChecked ||
+                !input ||
+                input.type !== "radio"
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            input.checked = false;
+
+            input.dispatchEvent(
+                new Event(
+                    "change",
+                    {
+                        bubbles: true
+                    }
+                )
+            );
+        },
+        true
     );
 
 
@@ -1038,13 +1116,17 @@ document.addEventListener("DOMContentLoaded", function () {
                                 );
                             });
 
-                        event.target
-                            .closest(
+                        const selectedButton =
+                            event.target.closest(
                                 ".check-choice-button"
-                            )
-                            ?.classList.add(
-                                "is-selected"
                             );
+
+                        if (selectedButton) {
+                            selectedButton.classList.toggle(
+                                "is-selected",
+                                event.target.checked
+                            );
+                        }
                     }
                 }
 
