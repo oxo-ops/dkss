@@ -185,13 +185,20 @@
 
         <div class="form-group">
             <label>内容</label>
-            <textarea
+            <input
+                type="hidden"
                 name="content"
+                id="content_value"
+                value="{{ form_data.get('content', '') }}"
+            >
+
+            <div
                 id="content_editor"
-                class="mention-input"
-                rows="5"
-                placeholder="内容を入力してください"
-            >{{ form_data.get('content', '') }}</textarea>
+                class="mention-rich-editor"
+                contenteditable="true"
+                data-value="{{ form_data.get('content', '') }}"
+                data-placeholder="内容を入力してください"
+            ></div>
         </div>
 
         <div class="form-group">

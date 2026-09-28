@@ -8499,6 +8499,11 @@ def register_countermeasure(index):
                 f"error:{get_form_error_field(message) or ''}"
             )
 
+        if result_record.countermeasure:
+            return redirect(
+                f"/pointouts/{result_record.id}?edit_countermeasure=1"
+            )
+
         return redirect(
             f"/pointouts/{result_record.id}"
         )

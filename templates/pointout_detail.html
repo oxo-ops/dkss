@@ -168,10 +168,20 @@
 
 </div>
 
+{% if can_manage and result.approval_status != "承認済み" %}
+    <div class="pointout-record-footer-actions">
+        <a class="btn" href="/pointouts/{{ index }}/edit">
+            登録内容を編集
+        </a>
+    </div>
+{% endif %}
+
 {% if result.category != "Good" %}
 
 <div class="card pointout-countermeasure-card">
-    <h3>対策管理</h3>
+    <div class="pointout-section-header">
+        <h3>対策管理</h3>
+    </div>
 
     <div class="pointout-countermeasure-status">
         <span>状態</span>
@@ -187,7 +197,7 @@
         {% endif %}
     </div>
 
-    {% if result.countermeasure and result.approval_status != "差し戻し" %}
+    {% if result.countermeasure and result.approval_status != "差し戻し" and request.args.get("edit_countermeasure") != "1" %}
         <div class="pointout-countermeasure-grid">
 
             <div>
@@ -271,6 +281,11 @@
                     enctype="multipart/form-data"
                     class="pointout-countermeasure-form"
                 >
+                    {% if request.args.get("edit_countermeasure") == "1" %}
+                        <p class="help-text">
+                            対策内容・対応者・対応期限・添付ファイルを編集できます。
+                        </p>
+                    {% endif %}
                     <input
                         type="hidden"
                         name="csrf_token"
@@ -281,14 +296,20 @@
                         <div>
                             <p><strong>対策内容：</strong></p>
 
-                            <textarea
-                                id="countermeasure"
+                            <input
+                                type="hidden"
                                 name="countermeasure"
-                                class="pointout-countermeasure-input"
-                                rows="3"
-                                maxlength="5000"
-                                placeholder="対策内容を入力してください"
-                            >{{ countermeasure_form_data.get("countermeasure", result.countermeasure or "") }}</textarea>
+                                value="{{ countermeasure_form_data.get('countermeasure', result.countermeasure or '') }}"
+                            >
+
+                            <div
+                                id="countermeasure"
+                                class="mention-rich-editor pointout-countermeasure-input"
+                                contenteditable="true"
+                                data-value="{{ countermeasure_form_data.get('countermeasure', result.countermeasure or '') }}"
+                                data-required="true"
+                                data-placeholder="対策内容を入力してください"
+                            ></div>
 
                             <div class="file-upload-cell pointout-countermeasure-upload">
                                 <label class="file-upload-button file-upload-button-camera">
@@ -350,6 +371,15 @@
                                                         ファイルを開く
                                                     </a>
                                                 {% endif %}
+
+                                                <label class="delete-check">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="delete_countermeasure_files"
+                                                        value="{{ file }}"
+                                                    >
+                                                    削除する
+                                                </label>
                                             </div>
                                         {% endfor %}
                                     </div>
@@ -419,8 +449,21 @@
 
                     <div class="pointout-countermeasure-footer-actions">
                         <button type="submit" class="btn">
-                            対策登録
+                            {% if request.args.get("edit_countermeasure") == "1" %}
+                                変更を保存
+                            {% else %}
+                                対策登録
+                            {% endif %}
                         </button>
+
+                        {% if request.args.get("edit_countermeasure") == "1" %}
+                            <a
+                                class="btn"
+                                href="/pointouts/{{ index }}"
+                            >
+                                キャンセル
+                            </a>
+                        {% endif %}
                     </div>
                 </form>
 
@@ -437,27 +480,34 @@
     {% endif %}
 </div>
 
-{% if can_manage and result.approval_status != "承認済み" %}
+{% if (result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1") or (can_manage and result.approval_status != "承認済み") %}
     <div class="pointout-record-footer-actions">
-        <a class="btn" href="/pointouts/{{ index }}/edit">
-            登録内容編集
-        </a>
-
-        <form
-            method="post"
-            action="/pointouts/{{ index }}/delete"
-            class="js-pointout-delete-form"
-        >
-            <input
-                type="hidden"
-                name="csrf_token"
-                value="{{ csrf_token() }}"
+        {% if result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1" %}
+            <a
+                class="btn"
+                href="/pointouts/{{ index }}?edit_countermeasure=1"
             >
+                対策を編集
+            </a>
+        {% endif %}
 
-            <button type="submit" class="pointout-detail-delete">
-                削除
-            </button>
-        </form>
+        {% if can_manage and result.approval_status != "承認済み" %}
+            <form
+                method="post"
+                action="/pointouts/{{ index }}/delete"
+                class="js-pointout-delete-form"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <button type="submit" class="pointout-detail-delete">
+                    削除
+                </button>
+            </form>
+        {% endif %}
     </div>
 {% endif %}
 
@@ -477,14 +527,20 @@
             <span>差し戻す場合のみ、理由を入力してください。</span>
         </div>
 
-        <textarea
-            id="reject_reason"
+        <input
+            type="hidden"
             name="reject_reason"
-            class="mention-input"
-            rows="4"
-            maxlength="5000"
-            placeholder="差し戻し理由を入力"
-        >{{ pointout_reject_form_data.get('reject_reason', '') }}</textarea>
+            value="{{ pointout_reject_form_data.get('reject_reason', '') }}"
+        >
+
+        <div
+            id="reject_reason"
+            class="mention-rich-editor"
+            contenteditable="true"
+            data-value="{{ pointout_reject_form_data.get('reject_reason', '') }}"
+            data-required="true"
+            data-placeholder="差し戻し理由を入力"
+        ></div>
 
     </form>
 
