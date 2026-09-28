@@ -21046,6 +21046,10 @@ def edit_checklist(index):
     if request.method == "POST":
         form_errors = []
 
+        create_new_version = (
+            request.form.get("create_new_version") == "1"
+        )
+
         has_safety_results = ChecklistResult.query.filter_by(
             company_code=checklist_record.company_code,
             checklist_id=checklist_record.id
@@ -21400,6 +21404,18 @@ def edit_checklist(index):
                 409 if duplicate_checklist else 400
             )
 
+        create_new_version = request.form.get(
+            "create_new_version",
+            ""
+        )
+
+        if create_new_version not in {"0", "1"}:
+            response = app.make_response(("", 409))
+            response.headers[
+                "X-DKSS-Choose-Checklist-Version"
+            ] = "1"
+            return response
+
         pending_uploads = []
 
         for item_index, form_index in pending_criteria_files:
@@ -21473,7 +21489,8 @@ def edit_checklist(index):
         }
 
         if (
-            (has_safety_results or has_vehicle_results)
+            create_new_version == "1"
+            and (has_safety_results or has_vehicle_results)
             and checklist_revision_key(checklist)
             != checklist_revision_key(new_checklist_revision)
         ):

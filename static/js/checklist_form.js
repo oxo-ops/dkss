@@ -519,7 +519,69 @@ window.addEventListener("DOMContentLoaded", function () {
     toggleVehicleChecklistSetting();
     toggleReminderTime();
 
+    const checklistForm =
+        document.querySelector(".responsive-form");
+    const updateButton =
+        document.querySelector(".js-checklist-update");
+    const versionInput =
+        document.getElementById("create_new_version");
+
+    if (checklistForm && updateButton && versionInput) {
+        const versionModal =
+            document.getElementById("checklist_version_modal");
+        const updateWithoutVersion =
+            document.querySelector(".js-update-without-version");
+        const updateWithVersion =
+            document.querySelector(".js-update-with-version");
+        const cancelUpdate =
+            document.querySelector(".js-cancel-update");
+
+        updateButton.addEventListener("click", function (event) {
+            event.preventDefault();
+            versionInput.value = "";
+
+            if (!checklistForm.reportValidity()) {
+                return;
+            }
+        });
+
+        updateWithoutVersion?.addEventListener("click", function () {
+            versionInput.value = "0";
+            versionModal?.classList.add("is-hidden");
+            checklistForm.requestSubmit();
+        });
+
+        updateWithVersion?.addEventListener("click", function () {
+            versionInput.value = "1";
+            versionModal?.classList.add("is-hidden");
+            checklistForm.requestSubmit();
+        });
+
+        cancelUpdate?.addEventListener("click", function () {
+            versionModal?.classList.add("is-hidden");
+        });
+
+        versionModal?.addEventListener("click", function (event) {
+            if (event.target === versionModal) {
+                versionModal.classList.add("is-hidden");
+            }
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (
+                event.key === "Escape"
+                && !versionModal?.classList.contains("is-hidden")
+            ) {
+                versionModal.classList.add("is-hidden");
+            }
+        });
+    }
+
     const params = new URLSearchParams(window.location.search);
+
+    if (params.get("choose_version") === "1") {
+        versionModal?.classList.remove("is-hidden");
+    }
 
     if (params.get("duplicated") === "1") {
         const nameInput = document.querySelector('input[name="name"]');
