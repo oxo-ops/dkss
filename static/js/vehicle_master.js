@@ -102,12 +102,15 @@ document.addEventListener("DOMContentLoaded", function () {
             if (selectedCount === 0) {
                 event.preventDefault();
 
-                window.alert(
-                    "操作する車両を1台以上選択してください。"
-                );
-
                 const firstCheckbox =
                     document.querySelector(".vehicle-select");
+
+                showCommonError(
+                    "操作する車両を1台以上選択してください。",
+                    firstCheckbox
+                        ? firstCheckbox.id || firstCheckbox.name
+                        : ""
+                );
 
                 if (firstCheckbox) {
                     firstCheckbox.scrollIntoView({

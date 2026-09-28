@@ -24,11 +24,11 @@ import secrets
 import zipfile
 import re
 from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, HTTPException
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import inspect, or_
@@ -135,15 +135,208 @@ app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 @app.errorhandler(413)
 def file_too_large(error):
     return "1回に送信できるファイルの合計は1GB以下です。", 413
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error):
+    return (
+        "セッションの有効期限が切れたか、"
+        "送信内容を確認できませんでした。"
+        "画面を再読み込みして、もう一度お試しください。",
+        400
+    )
 def return_form_errors(errors, status_code=400):
-    for message in errors:
-        error_field = get_form_error_field(message)
+    for error in errors:
+        if (
+            isinstance(error, (tuple, list))
+            and len(error) == 2
+        ):
+            message, error_field = error
+        else:
+            message = error
+            error_field = get_form_error_field(message)
+
         flash(
             message,
             f"error:{error_field or ''}"
         )
 
-    return "", status_code
+    response = app.make_response(
+        ("", status_code)
+    )
+    response.headers[
+        "X-DKSS-Form-Errors"
+    ] = "1"
+
+    return response
+
+
+def checklist_form_data_to_dict(
+    form_data,
+    base_checklist=None
+):
+    if not form_data:
+        return base_checklist
+
+    checklist = dict(base_checklist or {})
+
+    def first_value(key, default=""):
+        values = form_data.get(key, [])
+
+        if isinstance(values, list):
+            return values[0] if values else default
+
+        return values
+
+    def list_values(key):
+        values = form_data.get(key, [])
+
+        if isinstance(values, list):
+            return values
+
+        return [values] if values else []
+
+    item_types = list_values("item_type")
+    item_categories = list_values("item_category")
+    item_contents = list_values("item_content")
+    input_types = list_values("input_type")
+    choices_list = list_values("choices")
+    criteria_list = list_values("criteria")
+    approval_labels = list_values("approval_label")
+    original_item_indexes = list_values(
+        "original_item_index"
+    )
+
+    comment_required = {
+        str(value)
+        for value in list_values("comment_required")
+    }
+    shaded = {
+        str(value)
+        for value in list_values("shaded")
+    }
+    approval_allow_general = {
+        str(value)
+        for value in list_values(
+            "approval_allow_general"
+        )
+    }
+
+    old_items = (
+        base_checklist.get("items", [])
+        if base_checklist
+        else []
+    )
+
+    items = []
+
+    for i, item_type in enumerate(item_types):
+        criteria_files = []
+
+        if i < len(original_item_indexes):
+            original_index = str(
+                original_item_indexes[i] or ""
+            ).strip()
+
+            if original_index.isdigit():
+                old_index = int(original_index)
+
+                if 0 <= old_index < len(old_items):
+                    criteria_files = list(
+                        old_items[old_index].get(
+                            "criteria_files",
+                            []
+                        )
+                    )
+
+        choices_text = (
+            choices_list[i]
+            if i < len(choices_list)
+            else ""
+        )
+
+        items.append({
+            "item_type": item_type,
+            "category": (
+                item_categories[i]
+                if i < len(item_categories)
+                else ""
+            ),
+            "content": (
+                item_contents[i]
+                if i < len(item_contents)
+                else ""
+            ),
+            "input_type": (
+                input_types[i]
+                if i < len(input_types)
+                else "select"
+            ),
+            "choices": [
+                choice.strip()
+                for choice in str(
+                    choices_text or ""
+                ).split(",")
+                if choice.strip()
+            ],
+            "criteria": (
+                criteria_list[i]
+                if i < len(criteria_list)
+                else ""
+            ),
+            "criteria_files": criteria_files,
+            "comment_required": (
+                str(i) in comment_required
+            ),
+            "shaded": str(i) in shaded,
+            "approval_label": (
+                approval_labels[i]
+                if i < len(approval_labels)
+                else ""
+            ),
+            "approval_allow_general": (
+                str(i) in approval_allow_general
+            ),
+            "score_enabled": (
+                first_value("score_enabled") == "1"
+            ),
+        })
+
+    checklist.update({
+        "name": first_value("name"),
+        "target": first_value(
+            "target",
+            "安全管理"
+        ),
+        "frequency_value": first_value(
+            "frequency_value"
+        ),
+        "frequency_unit": first_value(
+            "frequency_unit"
+        ),
+        "display_type": first_value(
+            "display_type"
+        ),
+        "print_portrait": (
+            first_value("print_portrait") == "1"
+        ),
+        "print_half_month": (
+            first_value("print_half_month") == "1"
+        ),
+        "reminder_enabled": (
+            first_value("reminder_enabled") == "1"
+        ),
+        "reminder_time": first_value(
+            "reminder_time",
+            "08:00"
+        ),
+        "score_enabled": (
+            first_value("score_enabled") == "1"
+        ),
+        "items": items,
+    })
+
+    return checklist
 
 
 def get_form_error_field(message):
@@ -168,9 +361,115 @@ def get_form_error_field(message):
         "差し戻し理由は5000文字以内で入力してください。": "reject_reason",
         "車台番号を入力してください。": "chassis_number",
         "同じ車台番号の車両が既に登録されています。": "chassis_number",
+        "車両が不正です。": "vehicle_record_id",
+        "ログインIDを入力してください。": "employee_id",
+        "ログインIDは50文字以内で入力してください。": "employee_id",
+        "このログインIDはすでに使用されています。": "employee_id",
+        "ログインIDは作成後に変更できません。": "employee_id",
+        "氏名を入力してください。": "name",
+        "氏名は100文字以内で入力してください。": "name",
+        "メールアドレスの形式が不正です。": "email_address",
+        "パスワードを入力してください。": "password",
+        "パスワードは8文字以上にしてください。": "password",
+        "パスワードは128文字以内にしてください。": "password",
+        "パスワードは英大文字・英小文字・数字・記号のうち3種類以上を使用してください。": "password",
+        "ユーザー種別が不正です。": "role",
+        "営業所が不正です。": "office",
+        "無事故開始日が不正です。": "safe_start_date",
+        "選択車両数が多すぎます。": "selected_vehicles",
+        "免許種別が不正です。": "license_area",
+        "免許有効期限が不正です。": "license_area",
+        "初年度登録日が不正です。": "first_registration_date",
+        "車検満了日が不正です。": "inspection_expiry",
+        "車種が不正です。": "type",
+        "車番・地域名は50文字以内で入力してください。": "plate_area",
+        "車番・分類は50文字以内で入力してください。": "plate_class",
+        "車番・ひらがなは10文字以内で入力してください。": "plate_kana",
+        "車番は50文字以内で入力してください。": "plate_number",
+        "車台番号は100文字以内で入力してください。": "chassis_number",
+        "車体型式は100文字以内で入力してください。": "model_code",
+        "車両メーカーは100文字以内で入力してください。": "manufacturer",
+        "車両形状は100文字以内で入力してください。": "body_type",
+        "車両総重量は整数で入力してください。": "gross_vehicle_weight",
+        "車両総重量は0以上で入力してください。": "gross_vehicle_weight",
+        "車両総重量の値が大きすぎます。": "gross_vehicle_weight",
+        "最大積載量は整数で入力してください。": "max_payload",
+        "最大積載量は0以上で入力してください。": "max_payload",
+        "最大積載量の値が大きすぎます。": "max_payload",
+        "会社コードを入力してください。": "company_code",
+        "会社コードは50文字以内で入力してください。": "company_code",
+        "会社コードは半角英数字・ハイフン・アンダースコアのみ使用できます。": "company_code",
+        "この会社コードはすでに登録されています。": "company_code",
+        "会社名を入力してください。": "company_name",
+        "会社名は100文字以内で入力してください。": "company_name",
+        "車両上限数は整数で入力してください。": "vehicle_limit",
+        "車両上限数は0以上で入力してください。": "vehicle_limit",
+        "車両上限数の値が大きすぎます。": "vehicle_limit",
+        "通知対象が不正です。": "target_type",
+        "タイトルを入力してください。": "title",
+        "タイトルは200文字以内で入力してください。": "title",
+        "本文は10000文字以内で入力してください。": "message_editor",
+        "チェックリスト名を入力してください。": "name",
+        "チェックリスト名は200文字以内で入力してください。": "name",
+        "このチェックリストはすでに登録されています。": "name",
+        "用途が不正です。": "target",
+        "頻度は整数で入力してください。": "frequency_value",
+        "頻度は1以上で入力してください。": "frequency_value",
+        "頻度は9999以下で入力してください。": "frequency_value",
+        "頻度単位が不正です。": "frequency_unit",
+        "表示形式が不正です。": "display_type",
+        "未実施通知時刻の形式が不正です。": "reminder_time",
+        "重要度が不正です。": "priority",
+        "状態が不正です。": "status",
+        "修理担当者は100文字以内で入力してください。": "repair_person",
+        "修理時間の形式が不正です。": "repair_time",
+        "修理費用が不正です。": "cost",
+        "修理費用は50文字以内で入力してください。": "cost",
+        "修理費用は0以上で入力してください。": "cost",
     }
 
+    if (
+        request.path.startswith("/itc/news")
+        and message in {
+            "対象会社が不正です。",
+            "対象営業所が不正です。",
+            "対象ユーザーが不正です。",
+        }
+    ):
+        return "newsTargetSearch"
+
     return field_map.get(message)
+
+
+def is_html_document_request():
+    if request.path.startswith("/api/"):
+        return False
+
+    if request.is_json:
+        return False
+
+    fetch_dest = request.headers.get(
+        "Sec-Fetch-Dest",
+        ""
+    ).lower()
+
+    if fetch_dest:
+        return fetch_dest == "document"
+
+    fetch_mode = request.headers.get(
+        "Sec-Fetch-Mode",
+        ""
+    ).lower()
+
+    if fetch_mode:
+        return fetch_mode == "navigate"
+
+    accept_header = request.headers.get(
+        "Accept",
+        ""
+    ).lower()
+
+    return "text/html" in accept_header
 
 
 def build_safe_redirect_url(referrer, fallback="/"):
@@ -218,29 +517,24 @@ def redirect_form_errors(response):
         409,
         413,
         429,
+        500,
     }:
         return response
 
-    if not request.accept_mimetypes.accept_html:
-        return response
-
-    if (
-        not request.path.startswith("/pointouts")
-        and request.path != "/settings"
-        and not request.path.startswith("/master/")
-        and not request.path.startswith("/vehicle/checklists/")
-        and not request.path.startswith("/vehicle/checklist-results/")
-        and not request.path.startswith("/safety/")
-        and not request.path.startswith("/vehicle-patrols")
-        and not request.path.startswith("/itc/")
-    ):
+    if not is_html_document_request():
         return response
 
     message = response.get_data(
         as_text=True
     ).strip()
 
-    if not message:
+    form_errors_already_flashed = (
+        response.headers.get(
+            "X-DKSS-Form-Errors"
+        ) == "1"
+    )
+
+    if not message and not form_errors_already_flashed:
         if request.path != "/pointouts/new":
             message = "入力内容を確認してください。"
 
@@ -320,15 +614,74 @@ def redirect_form_errors(response):
             ),
         }
 
+    elif request.path == "/master/drivers/new":
+        driver_form_data = request.form.to_dict(
+            flat=True
+        )
+        driver_form_data.pop("password", None)
+
+        session["driver_form_data"] = {
+            **driver_form_data,
+            "vehicles": request.form.getlist("vehicles"),
+            "license_type": request.form.getlist(
+                "license_type"
+            ),
+            "license_expiry": request.form.getlist(
+                "license_expiry"
+            ),
+        }
+
+    elif (
+        request.path.startswith("/master/drivers/")
+        and request.path.endswith("/edit")
+    ):
+        driver_form_data = request.form.to_dict(
+            flat=True
+        )
+        driver_form_data.pop("password", None)
+
+        session["driver_edit_form_data"] = {
+            **driver_form_data,
+            "vehicles": request.form.getlist("vehicles"),
+            "license_type": request.form.getlist(
+                "license_type"
+            ),
+            "license_expiry": request.form.getlist(
+                "license_expiry"
+            ),
+        }
+
     elif request.path == "/master/vehicles/new":
         session["vehicle_form_data"] = request.form.to_dict(
             flat=True
         )
 
-    flash(
-        message,
-        f"error:{error_field or ''}"
-    )
+    elif (
+        request.path.startswith("/master/vehicles/")
+        and request.path.endswith("/edit")
+    ):
+        session["vehicle_edit_form_data"] = request.form.to_dict(
+            flat=True
+        )
+
+    elif request.path == "/master/checklists/new":
+        session["checklist_form_data"] = request.form.to_dict(
+            flat=False
+        )
+
+    elif (
+        request.path.startswith("/master/checklists/")
+        and request.path.endswith("/edit")
+    ):
+        session["checklist_edit_form_data"] = request.form.to_dict(
+            flat=False
+        )
+
+    if not form_errors_already_flashed:
+        flash(
+            message,
+            f"error:{error_field or ''}"
+        )
 
     if request.path == "/pointouts/new":
         return redirect("/pointouts/new")
@@ -347,6 +700,77 @@ class UploadValidationError(ValueError):
 @app.errorhandler(UploadValidationError)
 def handle_upload_validation_error(error):
     return str(error), 400
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(error):
+    if error.code == 500:
+        db.session.rollback()
+
+    if not is_html_document_request():
+        return error
+
+    error_messages = {
+        400: "入力内容を確認してください。",
+        401: "ログインが必要です。",
+        403: "この操作を行う権限がありません。",
+        404: "ページが見つかりません。",
+        405: "この操作は利用できません。",
+        409: "処理を完了できませんでした。最新の状態を確認してください。",
+        413: "1回に送信できるファイルの合計は1GB以下です。",
+        429: "操作回数が多すぎます。少し待ってからもう一度お試しください。",
+    }
+
+    flash(
+        error_messages.get(
+            error.code,
+            "処理中にエラーが発生しました。"
+        ),
+        "error:"
+    )
+
+    return redirect(
+        build_safe_redirect_url(
+            request.referrer,
+            "/"
+        )
+    )
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    db.session.rollback()
+
+    if isinstance(error, HTTPException):
+        return handle_http_error(error)
+
+    app.logger.exception(
+        "予期しないエラーが発生しました。"
+    )
+
+    if not is_html_document_request():
+        if (
+            request.path.startswith("/api/")
+            or request.path == "/notifications/email-test"
+        ):
+            return {
+                "ok": False,
+                "message": "処理中にエラーが発生しました。"
+            }, 500
+
+        return "処理中にエラーが発生しました。", 500
+
+    flash(
+        "処理中にエラーが発生しました。もう一度お試しください。",
+        "error:"
+    )
+
+    return redirect(
+        build_safe_redirect_url(
+            request.referrer,
+            "/"
+        )
+    )
+
 
 def parse_nonnegative_int(value, field_name):
     value = str(value or "").strip()
@@ -2140,6 +2564,15 @@ def require_login():
         return None
 
     if not session.get("username"):
+        if (
+            request.path.startswith("/api/")
+            or request.path == "/notifications/email-test"
+        ):
+            return {
+                "ok": False,
+                "message": "ログインが必要です。"
+            }, 401
+
         return redirect("/login")
 
     current_user = User.query.filter_by(
@@ -2149,6 +2582,16 @@ def require_login():
 
     if not current_user or current_user.login_locked:
         session.clear()
+
+        if (
+            request.path.startswith("/api/")
+            or request.path == "/notifications/email-test"
+        ):
+            return {
+                "ok": False,
+                "message": "ログインが必要です。"
+            }, 401
+
         return redirect("/login")
 
     if (
@@ -2156,6 +2599,16 @@ def require_login():
         != current_user.password_changed_at
     ):
         session.clear()
+
+        if (
+            request.path.startswith("/api/")
+            or request.path == "/notifications/email-test"
+        ):
+            return {
+                "ok": False,
+                "message": "ログインが必要です。"
+            }, 401
+
         return redirect("/login")
 
     session["role"] = current_user.role
@@ -2170,6 +2623,16 @@ def require_login():
 
         if not current_company or not current_company.active:
             session.clear()
+
+            if (
+                request.path.startswith("/api/")
+                or request.path == "/notifications/email-test"
+            ):
+                return {
+                    "ok": False,
+                    "message": "この会社では現在システムを利用できません。"
+                }, 403
+
             return redirect("/login")
         
     if (
@@ -2179,6 +2642,15 @@ def require_login():
             "logout"
         }
     ):
+        if (
+            request.path.startswith("/api/")
+            or request.path == "/notifications/email-test"
+        ):
+            return {
+                "ok": False,
+                "message": "パスワードの変更が必要です。"
+            }, 403
+
         return redirect("/settings")
 
     # =========================
@@ -4341,17 +4813,28 @@ def itc_new_news():
     company_code = session.get("company_code")
 
     if request.method == "POST":
+        form_errors = []
+        form_error_status = 400
+
         title = request.form.get("title", "").strip()
         message = request.form.get("message", "")
 
         if not title:
-            return "タイトルを入力してください。", 400
-
-        if len(title) > 200:
-            return "タイトルは200文字以内で入力してください。", 400
+            form_errors.append((
+                "タイトルを入力してください。",
+                "title"
+            ))
+        elif len(title) > 200:
+            form_errors.append((
+                "タイトルは200文字以内で入力してください。",
+                "title"
+            ))
 
         if len(message) > 10000:
-            return "本文は10000文字以内で入力してください。", 400
+            form_errors.append((
+                "本文は10000文字以内で入力してください。",
+                "message_editor"
+            ))
 
         target_type = request.form.get("target_type")
         target_value = request.form.get("target_value", "").strip()
@@ -4377,9 +4860,13 @@ def itc_new_news():
         elif target_type == "company":
             # 他社コードをPOSTされても無視する
             if target_value != company_code:
-                return "対象会社が不正です。", 403
-
-            target_users = user_query.all()
+                form_errors.append((
+                    "対象会社が不正です。",
+                    "target_company"
+                ))
+                form_error_status = 403
+            else:
+                target_users = user_query.all()
 
         elif target_type == "office":
             valid_office = Office.query.filter_by(
@@ -4388,11 +4875,15 @@ def itc_new_news():
             ).first()
 
             if not valid_office:
-                return "対象営業所が不正です。", 403
-
-            target_users = user_query.filter_by(
-                office=target_value
-            ).all()
+                form_errors.append((
+                    "対象営業所が不正です。",
+                    "target_office"
+                ))
+                form_error_status = 403
+            else:
+                target_users = user_query.filter_by(
+                    office=target_value
+                ).all()
 
         elif target_type == "user":
             target_user = User.query.filter_by(
@@ -4401,12 +4892,25 @@ def itc_new_news():
             ).first()
 
             if not target_user:
-                return "対象ユーザーが不正です。", 403
-
-            target_users = [target_user]
+                form_errors.append((
+                    "対象ユーザーが不正です。",
+                    "target_user_search"
+                ))
+                form_error_status = 403
+            else:
+                target_users = [target_user]
 
         else:
-            return "通知対象が不正です。", 400
+            form_errors.append((
+                "通知対象が不正です。",
+                "target_type"
+            ))
+
+        if form_errors:
+            return return_form_errors(
+                form_errors,
+                form_error_status
+            )
 
         file_names = []
 
@@ -4515,6 +5019,9 @@ def itc_edit_news(index):
         return redirect("/itc")
 
     if request.method == "POST":
+        form_errors = []
+        form_error_status = 400
+
         target_type = request.form.get("target_type")
         target_value = request.form.get(
             "target_value",
@@ -4527,7 +5034,11 @@ def itc_edit_news(index):
 
         if target_type == "company":
             if target_value != company_code:
-                return "対象会社が不正です。", 403
+                form_errors.append((
+                    "対象会社が不正です。",
+                    "target_company"
+                ))
+                form_error_status = 403
 
         elif target_type == "office":
             valid_office = Office.query.filter_by(
@@ -4536,7 +5047,11 @@ def itc_edit_news(index):
             ).first()
 
             if not valid_office:
-                return "対象営業所が不正です。", 403
+                form_errors.append((
+                    "対象営業所が不正です。",
+                    "target_office"
+                ))
+                form_error_status = 403
 
         elif target_type == "user":
             valid_user = User.query.filter_by(
@@ -4545,30 +5060,46 @@ def itc_edit_news(index):
             ).first()
 
             if not valid_user:
-                return "対象ユーザーが不正です。", 403
+                form_errors.append((
+                    "対象ユーザーが不正です。",
+                    "target_user_search"
+                ))
+                form_error_status = 403
 
         elif target_type not in [
             "all",
             "admins"
         ]:
-            return "通知対象が不正です。", 400
+            form_errors.append((
+                "通知対象が不正です。",
+                "target_type"
+            ))
 
         title = request.form.get("title", "").strip()
         message = request.form.get("message", "")
 
         if not title:
-            return "タイトルを入力してください。", 400
-
-        if len(title) > 200:
-            return "タイトルは200文字以内で入力してください。", 400
+            form_errors.append((
+                "タイトルを入力してください。",
+                "title"
+            ))
+        elif len(title) > 200:
+            form_errors.append((
+                "タイトルは200文字以内で入力してください。",
+                "title"
+            ))
 
         if len(message) > 10000:
-            return "本文は10000文字以内で入力してください。", 400
+            form_errors.append((
+                "本文は10000文字以内で入力してください。",
+                "message_editor"
+            ))
 
-        news.title = title
-        news.message = message
-        news.target_type = target_type
-        news.target_value = target_value
+        if form_errors:
+            return return_form_errors(
+                form_errors,
+                form_error_status
+            )
 
         files = safe_json_str_list(
             news.files_json
@@ -4605,6 +5136,11 @@ def itc_edit_news(index):
 
             if filename:
                 files.append(filename)
+
+        news.title = title
+        news.message = message
+        news.target_type = target_type
+        news.target_value = target_value
 
         news.files_json = json.dumps(
             files,
@@ -4922,7 +5458,12 @@ def register():
                     "画面を再読み込みして確認してください。"
                 )
             else:
-                return redirect("/login")
+                return redirect(
+                    url_for(
+                        "login",
+                        company_code=company_code
+                    )
+                )
 
     company = None
 
@@ -7417,6 +7958,8 @@ def itc_new_company():
         return redirect("/")
 
     if request.method == "POST":
+        form_errors = []
+
         company_code = request.form.get(
             "company_code",
             ""
@@ -7427,36 +7970,69 @@ def itc_new_company():
         ).strip()
 
         if not company_code:
-            return "会社コードを入力してください。", 400
-
-        if len(company_code) > 50:
-            return "会社コードは50文字以内で入力してください。", 400
-
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", company_code):
-            return (
+            form_errors.append((
+                "会社コードを入力してください。",
+                "company_code"
+            ))
+        elif len(company_code) > 50:
+            form_errors.append((
+                "会社コードは50文字以内で入力してください。",
+                "company_code"
+            ))
+        elif not re.fullmatch(
+            r"[A-Za-z0-9_-]+",
+            company_code
+        ):
+            form_errors.append((
                 "会社コードは半角英数字・ハイフン・"
                 "アンダースコアのみ使用できます。",
-                400
-            )
+                "company_code"
+            ))
 
         if not company_name:
-            return "会社名を入力してください。", 400
+            form_errors.append((
+                "会社名を入力してください。",
+                "company_name"
+            ))
+        elif len(company_name) > 100:
+            form_errors.append((
+                "会社名は100文字以内で入力してください。",
+                "company_name"
+            ))
 
-        if len(company_name) > 100:
-            return "会社名は100文字以内で入力してください。", 400
-
-        if Company.query.filter_by(
+        duplicate_company = Company.query.filter_by(
             company_code=company_code
-        ).first():
-            return "この会社コードはすでに登録されています。", 409
+        ).first()
+
+        if duplicate_company:
+            form_errors.append((
+                "この会社コードはすでに登録されています。",
+                "company_code"
+            ))
+
+        vehicle_limit = 0
+
+        try:
+            vehicle_limit = parse_nonnegative_int(
+                request.form.get("vehicle_limit"),
+                "車両上限数"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "vehicle_limit"
+            ))
+
+        if form_errors:
+            return return_form_errors(
+                form_errors,
+                409 if duplicate_company else 400
+            )
 
         company = Company(
             company_code=company_code,
             company_name=company_name,
-            vehicle_limit=parse_nonnegative_int(
-                request.form.get("vehicle_limit"),
-                "車両上限数"
-            ),
+            vehicle_limit=vehicle_limit,
             active=True,
         )
 
@@ -7512,22 +8088,42 @@ def itc_edit_company(index):
         return redirect("/itc")
 
     if request.method == "POST":
+        form_errors = []
+
         company_name = request.form.get(
             "company_name",
             ""
         ).strip()
 
         if not company_name:
-            return "会社名を入力してください。", 400
+            form_errors.append((
+                "会社名を入力してください。",
+                "company_name"
+            ))
+        elif len(company_name) > 100:
+            form_errors.append((
+                "会社名は100文字以内で入力してください。",
+                "company_name"
+            ))
 
-        if len(company_name) > 100:
-            return "会社名は100文字以内で入力してください。", 400
+        vehicle_limit = 0
+
+        try:
+            vehicle_limit = parse_nonnegative_int(
+                request.form.get("vehicle_limit"),
+                "車両上限数"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "vehicle_limit"
+            ))
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         company.company_name = company_name
-        company.vehicle_limit = parse_nonnegative_int(
-            request.form.get("vehicle_limit"),
-            "車両上限数"
-        )
+        company.vehicle_limit = vehicle_limit
         company.active = request.form.get("active") == "1"
 
         add_audit_log(
@@ -7828,12 +8424,16 @@ def new_pointout():
             "品質",
             "Good"
         }:
-            return "分類が不正です。", 400
+            form_errors.append((
+                "分類が不正です。",
+                "category"
+            ))
 
         if not date:
-            form_errors.append(
-                "発生日を入力してください。"
-            )
+            form_errors.append((
+                "発生日を入力してください。",
+                "event_date"
+            ))
         else:
             try:
                 datetime.strptime(
@@ -7841,16 +8441,19 @@ def new_pointout():
                     "%Y-%m-%d"
                 )
             except ValueError:
-                form_errors.append(
-                    "発生日が不正です。"
-                )        
-
+                form_errors.append((
+                    "発生日が不正です。",
+                    "event_date"
+                ))
         # =========================
         # 対象種別検証
         # =========================
 
         if target_type not in PATROL_VIEW_TYPES:
-            return "対象種別が不正です。", 400
+            form_errors.append((
+                "対象種別が不正です。",
+                "target_type"
+            ))
 
         target_office = session.get("office") or ""
 
@@ -7860,9 +8463,10 @@ def new_pointout():
 
         if target_type == "user":
             if not target_user:
-                form_errors.append(
-                    "対象ユーザーを選択してください。"
-                )
+                form_errors.append((
+                    "対象ユーザーを選択してください。",
+                    "target_user_search"
+                ))
             else:
                 target_driver = Driver.query.filter_by(
                     company_code=company_code,
@@ -7870,9 +8474,10 @@ def new_pointout():
                 ).first()
 
                 if not target_driver:
-                    form_errors.append(
-                        "対象ユーザーが不正です。"
-                    )
+                    form_errors.append((
+                        "対象ユーザーが不正です。",
+                        "target_user_search"
+                    ))
                 else:
                     target_user_record = User.query.filter_by(
                         company_code=company_code,
@@ -7880,9 +8485,10 @@ def new_pointout():
                     ).first()
 
                     if not target_user_record:
-                        form_errors.append(
-                            "対象ユーザー情報が不正です。"
-                        )
+                        form_errors.append((
+                            "対象ユーザー情報が不正です。",
+                            "target_user_search"
+                        ))
                     else:
                         target_username = target_user_record.username
                         target_user = target_driver.name
@@ -7896,9 +8502,10 @@ def new_pointout():
 
         elif target_type == "delivery_place":
             if not delivery_place:
-                form_errors.append(
-                    "納入先を選択してください。"
-                )
+                form_errors.append((
+                    "納入先を選択してください。",
+                    "delivery_place"
+                ))
 
             if delivery_place:
                 valid_delivery_place = DeliveryPlace.query.filter_by(
@@ -7907,9 +8514,10 @@ def new_pointout():
                 ).first()
 
                 if not valid_delivery_place:
-                    form_errors.append(
-                        "納入先が不正です。"
-                    )
+                    form_errors.append((
+                        "納入先が不正です。",
+                        "delivery_place"
+                    ))
 
             target_user = ""
 
@@ -7924,12 +8532,16 @@ def new_pointout():
             ).first()
 
             if not valid_content_type:
-                return "内容区分が不正です。", 400
+                form_errors.append((
+                    "内容区分が不正です。",
+                    "content_type"
+                ))
 
         if len(content) > 5000:
-            form_errors.append(
-                "内容は5000文字以内で入力してください。"
-            )
+            form_errors.append((
+                "内容は5000文字以内で入力してください。",
+                "content_editor"
+            ))
 
         if form_errors:
             return return_form_errors(form_errors)
@@ -8126,6 +8738,7 @@ def edit_pointout(index):
 
     if request.method == "POST":
         company_code = session.get("company_code")
+        form_errors = []
 
         date = request.form.get(
             "date",
@@ -8142,18 +8755,27 @@ def edit_pointout(index):
             "品質",
             "Good"
         }:
-            return "分類が不正です。", 400
+            form_errors.append((
+                "分類が不正です。",
+                "category"
+            ))
 
         if not date:
-            return "発生日を入力してください。", 400
-
-        try:
-            datetime.strptime(
-                date,
-                "%Y-%m-%d"
-            )
-        except ValueError:
-            return "発生日が不正です。", 400
+            form_errors.append((
+                "発生日を入力してください。",
+                "event_date"
+            ))
+        else:
+            try:
+                datetime.strptime(
+                    date,
+                    "%Y-%m-%d"
+                )
+            except ValueError:
+                form_errors.append((
+                    "発生日が不正です。",
+                    "event_date"
+                ))
 
         content_type = request.form.get(
             "content_type",
@@ -8166,7 +8788,10 @@ def edit_pointout(index):
         ).strip()
 
         if len(content) > 5000:
-            return "内容は5000文字以内で入力してください。", 400
+            form_errors.append((
+                "内容は5000文字以内で入力してください。",
+                "content_editor"
+            ))
 
         # =========================
         # 内容区分検証
@@ -8179,7 +8804,20 @@ def edit_pointout(index):
             ).first()
 
             if not valid_content_type:
-                return "内容区分が不正です。", 400
+                form_errors.append((
+                    "内容区分が不正です。",
+                    "content_type"
+                ))
+
+        validated_target_user = result_record.target_user
+        validated_target_username = result_record.target_username
+        validated_office = result_record.office
+        validated_delivery_place = result_record.delivery_place
+
+        validated_target_user = result_record.target_user
+        validated_target_username = result_record.target_username
+        validated_office = result_record.office
+        validated_delivery_place = result_record.delivery_place
 
         # =========================
         # 対象ユーザー検証
@@ -8192,37 +8830,43 @@ def edit_pointout(index):
             ).strip()
 
             if not target_username:
-                return "対象ユーザーを選択してください。", 400
+                form_errors.append((
+                    "対象ユーザーを選択してください。",
+                    "target_user_search"
+                ))
+            else:
+                target_driver = Driver.query.filter_by(
+                    company_code=company_code,
+                    employee_id=target_username
+                ).first()
 
-            target_driver = Driver.query.filter_by(
-                company_code=company_code,
-                employee_id=target_username
-            ).first()
+                if not target_driver:
+                    form_errors.append((
+                        "対象ユーザーが不正です。",
+                        "target_user_search"
+                    ))
+                else:
+                    target_user_record = User.query.filter_by(
+                        company_code=company_code,
+                        username=target_driver.employee_id
+                    ).first()
 
-            if not target_driver:
-                return "対象ユーザーが不正です。", 400
-
-            target_user_record = User.query.filter_by(
-                company_code=company_code,
-                username=target_driver.employee_id
-            ).first()
-
-            if not target_user_record:
-                return "対象ユーザー情報が不正です。", 400
-
-            result_record.target_user = (
-                target_driver.name
-            )
-
-            result_record.target_username = (
-                target_user_record.username
-            )
-
-            result_record.office = (
-                target_driver.office or ""
-            )
-
-            result_record.delivery_place = ""
+                    if not target_user_record:
+                        form_errors.append((
+                            "対象ユーザー情報が不正です。",
+                            "target_user_search"
+                        ))
+                    else:
+                        validated_target_user = (
+                            target_driver.name
+                        )
+                        validated_target_username = (
+                            target_user_record.username
+                        )
+                        validated_office = (
+                            target_driver.office or ""
+                        )
+                        validated_delivery_place = ""
 
         # =========================
         # 納入先検証
@@ -8235,31 +8879,30 @@ def edit_pointout(index):
             ).strip()
 
             if not delivery_place:
-                return "納入先を選択してください。", 400
+                form_errors.append(
+                    "納入先を選択してください。"
+                )
+            else:
+                valid_delivery_place = DeliveryPlace.query.filter_by(
+                    company_code=company_code,
+                    name=delivery_place
+                ).first()
 
-            valid_delivery_place = DeliveryPlace.query.filter_by(
-                company_code=company_code,
-                name=delivery_place
-            ).first()
-
-            if not valid_delivery_place:
-                return "納入先が不正です。", 400
-
-            result_record.delivery_place = delivery_place
-            result_record.target_user = ""
-            result_record.target_username = ""
+                if not valid_delivery_place:
+                    form_errors.append((
+                        "納入先が不正です。",
+                        "delivery_place"
+                    ))
+                else:
+                    validated_delivery_place = delivery_place
+                    validated_target_user = ""
+                    validated_target_username = ""
 
         else:
             return "対象種別が不正です。", 400
 
-        # =========================
-        # 基本情報更新
-        # =========================
-
-        result_record.date = date
-        result_record.category = category
-        result_record.content_type = content_type
-        result_record.content = content
+        if form_errors:
+            return return_form_errors(form_errors)
 
         # =========================
         # 既存添付
@@ -8327,6 +8970,15 @@ def edit_pointout(index):
 
             if filename:
                 files.append(filename)
+
+        result_record.date = date
+        result_record.category = category
+        result_record.content_type = content_type
+        result_record.content = content
+        result_record.target_user = validated_target_user
+        result_record.target_username = validated_target_username
+        result_record.office = validated_office
+        result_record.delivery_place = validated_delivery_place
 
         result_record.files_json = json.dumps(
             files,
@@ -8427,13 +9079,15 @@ def register_countermeasure(index):
     ).strip()
 
     if not countermeasure:
-        form_errors.append(
-            "対策内容を入力してください。"
-        )
+        form_errors.append((
+            "対策内容を入力してください。",
+            "countermeasure"
+        ))
     elif len(countermeasure) > 5000:
-        form_errors.append(
-            "対策内容は5000文字以内で入力してください。"
-        )
+        form_errors.append((
+            "対策内容は5000文字以内で入力してください。",
+            "countermeasure"
+        ))
 
     countermeasure_by_employee_id = request.form.get(
         "countermeasure_by",
@@ -8444,9 +9098,10 @@ def register_countermeasure(index):
     countermeasure_user = None
 
     if not countermeasure_by_employee_id:
-        form_errors.append(
-            "対応者を選択してください。"
-        )
+        form_errors.append((
+            "対応者を選択してください。",
+            "countermeasure_by_search"
+        ))
     else:
         countermeasure_driver = Driver.query.filter_by(
             company_code=result_record.company_code,
@@ -8454,9 +9109,10 @@ def register_countermeasure(index):
         ).first()
 
         if not countermeasure_driver:
-            form_errors.append(
-                "対応者が不正です。"
-            )
+            form_errors.append((
+                "対応者が不正です。",
+                "countermeasure_by_search"
+            ))
         else:
             countermeasure_user = User.query.filter_by(
                 company_code=result_record.company_code,
@@ -8464,9 +9120,10 @@ def register_countermeasure(index):
             ).first()
 
             if not countermeasure_user:
-                form_errors.append(
-                    "対応者情報が不正です。"
-                )
+                form_errors.append((
+                    "対応者情報が不正です。",
+                    "countermeasure_by_search"
+                ))
 
     countermeasure_due_date = request.form.get(
         "countermeasure_due_date",
@@ -8480,9 +9137,10 @@ def register_countermeasure(index):
                 "%Y-%m-%d"
             )
         except ValueError:
-            form_errors.append(
-                "対応期限が不正です。"
-            )
+            form_errors.append((
+                "対応期限が不正です。",
+                "countermeasure_due_date"
+            ))
 
     if form_errors:
         session["countermeasure_form_data"] = {
@@ -8901,6 +9559,7 @@ def delete_pointout(index):
 def new_vehicle_patrol():
 
     if request.method == "POST":
+        form_errors = []
 
         vehicle_record_id = request.form.get(
             "vehicle_record_id",
@@ -8914,7 +9573,10 @@ def new_vehicle_patrol():
         ).first()
 
         if not vehicle:
-            return "車両が不正です。", 403
+            form_errors.append((
+                "車両が不正です。",
+                "vehicle_record_id"
+            ))
 
         category = request.form.get("category", "").strip()
         priority = request.form.get("priority", "").strip()
@@ -8927,21 +9589,30 @@ def new_vehicle_patrol():
             "点検指摘",
             "その他"
         }:
-            return "分類が不正です。", 400
+            form_errors.append((
+                "分類が不正です。",
+                "category"
+            ))
 
         if priority not in {
             "高",
             "中",
             "低"
         }:
-            return "重要度が不正です。", 400
+            form_errors.append((
+                "重要度が不正です。",
+                "priority"
+            ))
 
         if status not in {
             "未対応",
             "対応中",
             "修理完了"
         }:
-            return "状態が不正です。", 400
+            form_errors.append((
+                "状態が不正です。",
+                "status"
+            ))
         occurred_date = request.form.get(
             "occurred_date",
             ""
@@ -8968,7 +9639,10 @@ def new_vehicle_patrol():
         ).strip()
 
         if len(repair_person) > 100:
-            return "修理担当者は100文字以内で入力してください。", 400
+            form_errors.append((
+                "修理担当者は100文字以内で入力してください。",
+                "repair_person"
+            ))
 
         for value, field_name in [
             (
@@ -9282,6 +9956,8 @@ def edit_vehicle_patrol(index):
         return redirect("/vehicle-patrols")
 
     if request.method == "POST":
+        form_errors = []
+
         vehicle_record_id = request.form.get(
             "vehicle_record_id",
             type=int
@@ -9321,7 +9997,10 @@ def edit_vehicle_patrol(index):
             "対応中",
             "修理完了"
         }:
-            return "状態が不正です。", 400
+            form_errors.append((
+                "状態が不正です。",
+                "status"
+            ))
         occurred_date = request.form.get(
             "occurred_date",
             ""
@@ -9348,7 +10027,10 @@ def edit_vehicle_patrol(index):
         ).strip()
 
         if len(repair_person) > 100:
-            return "修理担当者は100文字以内で入力してください。", 400
+            form_errors.append((
+                "修理担当者は100文字以内で入力してください。",
+                "repair_person"
+            ))
         
         for value, field_name in [
             (
@@ -9367,7 +10049,10 @@ def edit_vehicle_patrol(index):
                         "%Y-%m-%d"
                     )
                 except ValueError:
-                    return f"{field_name}が不正です。", 400
+                    form_errors.append((
+                        f"{field_name}が不正です。",
+                        "occurred_date" if field_name == "発生日" else "repair_date"
+                    ))
 
         if repair_time:
             try:
@@ -10964,6 +11649,8 @@ def new_driver():
     company_code = session.get("company_code")
 
     if request.method == "POST":
+        form_errors = []
+
         employee_id = request.form.get(
             "employee_id",
             ""
@@ -11014,51 +11701,76 @@ def new_driver():
         )
 
         if len(selected_vehicles) > 1000:
-            return "選択車両数が多すぎます。", 400
+            form_errors.append((
+                "選択車両数が多すぎます。",
+                "selected_vehicles"
+            ))
 
         # =========================
         # 基本入力チェック
         # =========================
 
         if not employee_id:
-            return "ログインIDを入力してください。", 400
-
-        if len(employee_id) > 50:
-            return "ログインIDは50文字以内で入力してください。", 400
+            form_errors.append((
+                "ログインIDを入力してください。",
+                "employee_id"
+            ))
+        elif len(employee_id) > 50:
+            form_errors.append((
+                "ログインIDは50文字以内で入力してください。",
+                "employee_id"
+            ))
 
         if not name:
-            return "氏名を入力してください。", 400
-
-        if len(name) > 100:
-            return "氏名は100文字以内で入力してください。", 400
+            form_errors.append((
+                "氏名を入力してください。",
+                "name"
+            ))
+        elif len(name) > 100:
+            form_errors.append((
+                "氏名は100文字以内で入力してください。",
+                "name"
+            ))
 
         if email_address and not is_valid_email_address(
             email_address
         ):
-            return "メールアドレスの形式が不正です。", 400
+            form_errors.append((
+                "メールアドレスの形式が不正です。",
+                "email_address"
+            ))
 
         if not password:
-            return "パスワードを入力してください。", 400
-
-        if len(password) < 8:
-            return "パスワードは8文字以上にしてください。", 400
-
-        if len(password) > 128:
-            return "パスワードは128文字以内にしてください。", 400
-
-        if password_type_count < 3:
-            return (
+            form_errors.append((
+                "パスワードを入力してください。",
+                "password"
+            ))
+        elif len(password) < 8:
+            form_errors.append((
+                "パスワードは8文字以上にしてください。",
+                "password"
+            ))
+        elif len(password) > 128:
+            form_errors.append((
+                "パスワードは128文字以内にしてください。",
+                "password"
+            ))
+        elif password_type_count < 3:
+            form_errors.append((
                 "パスワードは英大文字・英小文字・数字・記号の"
                 "うち3種類以上を使用してください。",
-                400
-            )
+                "password"
+            ))
 
         # =========================
         # ロール検証
         # =========================
 
         if role not in ["admin", "user"]:
-            return "ユーザー種別が不正です。", 400
+            form_errors.append((
+                "ユーザー種別が不正です。",
+                "role"
+            ))
         if safe_start_date:
             try:
                 datetime.strptime(
@@ -11066,7 +11778,10 @@ def new_driver():
                     "%Y-%m-%d"
                 )
             except ValueError:
-                return "無事故開始日が不正です。", 400        
+                form_errors.append((
+                    "無事故開始日が不正です。",
+                    "safe_start_date"
+                ))
 
         # =========================
         # ログインID重複確認
@@ -11076,7 +11791,10 @@ def new_driver():
             company_code=company_code,
             username=employee_id
         ).first():
-            return "このログインIDはすでに使用されています。", 400
+            form_errors.append((
+                "このログインIDはすでに使用されています。",
+                "employee_id"
+            ))
 
         # =========================
         # 営業所検証
@@ -11089,7 +11807,10 @@ def new_driver():
             ).first()
 
             if not valid_office:
-                return "営業所が不正です。", 400
+                form_errors.append((
+                    "営業所が不正です。",
+                    "office"
+                ))
 
         # =========================
         # 車両検証
@@ -11105,7 +11826,11 @@ def new_driver():
 
         for vehicle_record_id in selected_vehicles:
             if vehicle_record_id not in valid_vehicle_record_ids:
-                return "選択された車両が不正です。", 400
+                form_errors.append((
+                    "選択された車両が不正です。",
+                    "selected_vehicles"
+                ))
+                break
 
         # =========================
         # 免許種別検証
@@ -11132,7 +11857,10 @@ def new_driver():
             len(license_types) > 100
             or len(license_expiries) > 100
         ):
-            return "免許情報の件数が多すぎます。", 400
+            form_errors.append((
+                "免許情報の件数が多すぎます。",
+                "license_area"
+            ))
 
         for license_type, expiry in zip(
             license_types,
@@ -11149,8 +11877,14 @@ def new_driver():
             if not license_type:
                 continue
 
+            license_has_error = False
+
             if license_type not in valid_license_types:
-                return "免許種別が不正です。", 400
+                form_errors.append((
+                    "免許種別が不正です。",
+                    "license_area"
+                ))
+                license_has_error = True
 
             if expiry:
                 try:
@@ -11159,12 +11893,20 @@ def new_driver():
                         "%Y-%m-%d"
                     )
                 except ValueError:
-                    return "免許有効期限が不正です。", 400
+                    form_errors.append((
+                        "免許有効期限が不正です。",
+                        "license_area"
+                    ))
+                    license_has_error = True
 
-            licenses.append({
-                "type": license_type,
-                "expiry": expiry
-            })
+            if not license_has_error:
+                licenses.append({
+                    "type": license_type,
+                    "expiry": expiry
+                })
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         # =========================
         # Driver作成
@@ -11213,11 +11955,99 @@ def new_driver():
 
         return redirect("/master/drivers")
 
+    driver_form_data = session.pop(
+        "driver_form_data",
+        {}
+    )
+
+    form_driver = None
+
+    if driver_form_data:
+        form_driver = {
+            "employee_id": driver_form_data.get(
+                "employee_id",
+                ""
+            ),
+            "name": driver_form_data.get(
+                "name",
+                ""
+            ),
+            "email_address": driver_form_data.get(
+                "email_address",
+                ""
+            ),
+            "role": driver_form_data.get(
+                "role",
+                "user"
+            ),
+            "office": driver_form_data.get(
+                "office",
+                ""
+            ),
+            "safe_start_date": driver_form_data.get(
+                "safe_start_date",
+                ""
+            ),
+            "licenses": [
+                {
+                    "type": license_type,
+                    "expiry": expiry
+                }
+                for license_type, expiry in zip(
+                    driver_form_data.get(
+                        "license_type",
+                        []
+                    ),
+                    driver_form_data.get(
+                        "license_expiry",
+                        []
+                    )
+                )
+            ],
+        }
+
+    selected_vehicles = []
+
+    selected_vehicle_record_ids = [
+        int(vehicle_record_id)
+        for vehicle_record_id in driver_form_data.get(
+            "vehicles",
+            []
+        )
+        if str(vehicle_record_id).isdigit()
+    ]
+
+    if selected_vehicle_record_ids:
+        selected_vehicle_records = Vehicle.query.filter(
+            Vehicle.company_code == company_code,
+            Vehicle.id.in_(selected_vehicle_record_ids),
+            Vehicle.deleted == False
+        ).all()
+
+        for vehicle in selected_vehicle_records:
+            number = " ".join(
+                value
+                for value in [
+                    vehicle.plate_area or "",
+                    vehicle.plate_class or "",
+                    vehicle.plate_kana or "",
+                    vehicle.plate_number or "",
+                ]
+                if value
+            )
+
+            selected_vehicles.append({
+                "vehicle_record_id": vehicle.id,
+                "chassis_number": vehicle.chassis_number,
+                "number": number,
+                "type": vehicle.type or "",
+            })
+
     return render_template(
         "driver_form.html",
-        driver=None,
+        driver=form_driver,
         offices=offices_for_current_company(),
-        selected_vehicles=[],
+        selected_vehicles=selected_vehicles,
         license_types=license_types_for_current_company(),
         mode="new"
     )
@@ -11234,6 +12064,8 @@ def edit_driver(index):
         return redirect("/master/drivers")
 
     if request.method == "POST":
+        form_errors = []
+
         company_code = driver.company_code
 
         old_employee_id = driver.employee_id
@@ -11288,51 +12120,77 @@ def edit_driver(index):
         )
 
         if len(selected_vehicles) > 1000:
-            return "選択車両数が多すぎます。", 400
+            form_errors.append((
+                "選択車両数が多すぎます。",
+                "selected_vehicles"
+            ))
 
         # =========================
         # 基本入力チェック
         # =========================
 
         if not new_employee_id:
-            return "ログインIDを入力してください。", 400
-
-        if len(new_employee_id) > 50:
-            return "ログインIDは50文字以内で入力してください。", 400
-
-        if new_employee_id != old_employee_id:
-            return "ログインIDは作成後に変更できません。", 400
+            form_errors.append((
+                "ログインIDを入力してください。",
+                "employee_id"
+            ))
+        elif len(new_employee_id) > 50:
+            form_errors.append((
+                "ログインIDは50文字以内で入力してください。",
+                "employee_id"
+            ))
+        elif new_employee_id != old_employee_id:
+            form_errors.append((
+                "ログインIDは作成後に変更できません。",
+                "employee_id"
+            ))
 
         if not name:
-            return "氏名を入力してください。", 400
-
-        if len(name) > 100:
-            return "氏名は100文字以内で入力してください。", 400
+            form_errors.append((
+                "氏名を入力してください。",
+                "name"
+            ))
+        elif len(name) > 100:
+            form_errors.append((
+                "氏名は100文字以内で入力してください。",
+                "name"
+            ))
 
         if email_address and not is_valid_email_address(
             email_address
         ):
-            return "メールアドレスの形式が不正です。", 400
+            form_errors.append((
+                "メールアドレスの形式が不正です。",
+                "email_address"
+            ))
 
         if new_password:
             if len(new_password) < 8:
-                return "パスワードは8文字以上にしてください。", 400
-
-            if len(new_password) > 128:
-                return "パスワードは128文字以内にしてください。", 400
-
-            if password_type_count < 3:
-                return (
+                form_errors.append((
+                    "パスワードは8文字以上にしてください。",
+                    "password"
+                ))
+            elif len(new_password) > 128:
+                form_errors.append((
+                    "パスワードは128文字以内にしてください。",
+                    "password"
+                ))
+            elif password_type_count < 3:
+                form_errors.append((
                     "パスワードは英大文字・英小文字・数字・記号の"
                     "うち3種類以上を使用してください。",
-                    400
-                )
+                    "password"
+                ))
+
         # =========================
         # ロール検証
         # =========================
 
         if role not in ["admin", "user"]:
-            return "ユーザー種別が不正です。", 400
+            form_errors.append((
+                "ユーザー種別が不正です。",
+                "role"
+            ))
         if safe_start_date:
             try:
                 datetime.strptime(
@@ -11340,7 +12198,10 @@ def edit_driver(index):
                     "%Y-%m-%d"
                 )
             except ValueError:
-                return "無事故開始日が不正です。", 400        
+                form_errors.append((
+                    "無事故開始日が不正です。",
+                    "safe_start_date"
+                ))
 
         # =========================
         # ログインID重複確認
@@ -11353,10 +12214,10 @@ def edit_driver(index):
             ).first()
 
             if existing_user:
-                return (
+                form_errors.append((
                     "このログインIDはすでに使用されています。",
-                    400
-                )
+                    "employee_id"
+                ))
 
         # =========================
         # 営業所検証
@@ -11369,7 +12230,10 @@ def edit_driver(index):
             ).first()
 
             if not valid_office:
-                return "営業所が不正です。", 400
+                form_errors.append((
+                    "営業所が不正です。",
+                    "office"
+                ))
 
         # =========================
         # 車両検証
@@ -11385,7 +12249,11 @@ def edit_driver(index):
 
         for vehicle_record_id in selected_vehicles:
             if vehicle_record_id not in valid_vehicle_record_ids:
-                return "選択された車両が不正です。", 400
+                form_errors.append((
+                    "選択された車両が不正です。",
+                    "selected_vehicles"
+                ))
+                break
 
         # =========================
         # 免許種別検証
@@ -11412,7 +12280,10 @@ def edit_driver(index):
             len(license_types) > 100
             or len(license_expiries) > 100
         ):
-            return "免許情報の件数が多すぎます。", 400
+            form_errors.append((
+                "免許情報の件数が多すぎます。",
+                "license_area"
+            ))
 
         for license_type, expiry in zip(
             license_types,
@@ -11429,8 +12300,14 @@ def edit_driver(index):
             if not license_type:
                 continue
 
+            license_has_error = False
+
             if license_type not in valid_license_types:
-                return "免許種別が不正です。", 400
+                form_errors.append((
+                    "免許種別が不正です。",
+                    "license_area"
+                ))
+                license_has_error = True
 
             if expiry:
                 try:
@@ -11439,12 +12316,20 @@ def edit_driver(index):
                         "%Y-%m-%d"
                     )
                 except ValueError:
-                    return "免許有効期限が不正です。", 400
+                    form_errors.append((
+                        "免許有効期限が不正です。",
+                        "license_area"
+                    ))
+                    license_has_error = True
 
-            licenses.append({
-                "type": license_type,
-                "expiry": expiry
-            })
+            if not license_has_error:
+                licenses.append({
+                    "type": license_type,
+                    "expiry": expiry
+                })
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         # =========================
         # User取得
@@ -11459,11 +12344,10 @@ def edit_driver(index):
         # 固定パスワードを勝手に作らない
         if not user:
             if not new_password:
-                return (
+                return return_form_errors([
                     "ユーザー情報が見つかりません。"
-                    "再作成するためパスワードを入力してください。",
-                    400
-                )
+                    "再作成するためパスワードを入力してください。"
+                ])
 
             user = User(
                 company_code=company_code,
@@ -11485,13 +12369,6 @@ def edit_driver(index):
             db.session.add(user)
 
         else:
-            user.username = new_employee_id
-            user.role = role
-            user.name = name
-            user.office = office
-            user.email_address = email_address or None
-            user.email_notify_enabled = bool(email_address)
-
             if new_password:
                 password_history = parse_password_history(
                     user.password_history_json
@@ -11518,11 +12395,13 @@ def edit_driver(index):
                 )
 
                 if reused_password:
-                    return (
-                        "現在または過去5回以内に使用した"
-                        "パスワードは使用できません。",
-                        400
-                    )
+                    return return_form_errors([
+                        (
+                            "現在または過去5回以内に使用した"
+                            "パスワードは使用できません。",
+                            "password"
+                        )
+                    ])
 
                 password_history.append(
                     user.password
@@ -11550,6 +12429,14 @@ def edit_driver(index):
                     detail="管理者によるパスワード変更・アカウントロック解除",
                     company_code=user.company_code,
                 )
+
+            user.username = new_employee_id
+            user.role = role
+            user.name = name
+            user.office = office
+            user.email_address = email_address or None
+            user.email_notify_enabled = bool(email_address)
+
         # =========================
         # Driver更新
         # =========================
@@ -11574,8 +12461,67 @@ def edit_driver(index):
 
     driver_dict = driver_to_dict(driver)
 
+    driver_edit_form_data = session.pop(
+        "driver_edit_form_data",
+        {}
+    )
+
+    if driver_edit_form_data:
+        driver_dict.update({
+            "employee_id": driver_edit_form_data.get(
+                "employee_id",
+                driver_dict["employee_id"]
+            ),
+            "name": driver_edit_form_data.get(
+                "name",
+                driver_dict["name"]
+            ),
+            "email_address": driver_edit_form_data.get(
+                "email_address",
+                driver_dict["email_address"]
+            ),
+            "role": driver_edit_form_data.get(
+                "role",
+                driver_dict["role"]
+            ),
+            "office": driver_edit_form_data.get(
+                "office",
+                driver_dict["office"]
+            ),
+            "safe_start_date": driver_edit_form_data.get(
+                "safe_start_date",
+                driver_dict["safe_start_date"]
+            ),
+            "vehicles": driver_edit_form_data.get(
+                "vehicles",
+                driver_dict["vehicles"]
+            ),
+            "licenses": [
+                {
+                    "type": license_type,
+                    "expiry": expiry
+                }
+                for license_type, expiry in zip(
+                    driver_edit_form_data.get(
+                        "license_type",
+                        []
+                    ),
+                    driver_edit_form_data.get(
+                        "license_expiry",
+                        []
+                    )
+                )
+            ],
+        })
+
 
     selected_vehicle_records = []
+
+    if driver_edit_form_data:
+        driver_dict["vehicles"] = driver_edit_form_data.get(
+            "vehicles",
+            driver_dict["vehicles"]
+        )
 
     if driver_dict["vehicles"]:
 
@@ -13052,6 +13998,8 @@ def confirm_vehicle_import():
 @limiter.limit("10 per minute", methods=["POST"])
 def new_vehicle():
     if request.method == "POST":
+        form_errors = []
+
         company_code = session.get("company_code")
 
         vehicle_count = Vehicle.query.filter_by(
@@ -13098,7 +14046,14 @@ def new_vehicle():
                         "%Y-%m-%d"
                     )
                 except ValueError:
-                    return f"{field_name}が不正です。", 400
+                    form_errors.append((
+                        f"{field_name}が不正です。",
+                        (
+                            "first_registration_date"
+                            if field_name == "初年度登録日"
+                            else "inspection_expiry"
+                        )
+                    ))
         vehicle_type = (
             request.form.get("type", "").strip()
         )
@@ -13111,7 +14066,10 @@ def new_vehicle():
         )
 
         if not chassis_number:
-            return "車台番号を入力してください。", 400
+            form_errors.append((
+                "車台番号を入力してください。",
+                "chassis_number"
+            ))
 
         duplicate_vehicle = Vehicle.query.filter_by(
             company_code=company_code,
@@ -13122,7 +14080,6 @@ def new_vehicle():
             if not duplicate_vehicle.deleted:
                 return "同じ車台番号の車両が既に登録されています。", 409
 
-            duplicate_vehicle.deleted = False
         text_fields = [
             (
                 request.form.get("plate_area", "").strip(),
@@ -13168,11 +14125,20 @@ def new_vehicle():
 
         for value, field_name, max_length in text_fields:
             if len(value) > max_length:
-                return (
+                form_errors.append((
                     f"{field_name}は"
                     f"{max_length}文字以内で入力してください。",
-                    400
-                )
+                    {
+                        "車番・地域名": "plate_area",
+                        "車番・分類": "plate_class",
+                        "車番・ひらがな": "plate_kana",
+                        "車番": "plate_number",
+                        "車台番号": "chassis_number",
+                        "車体型式": "model_code",
+                        "車両メーカー": "manufacturer",
+                        "車両形状": "body_type"
+                    }.get(field_name, "")
+                ))
 
         if vehicle_type:
             valid_vehicle_type = VehicleType.query.filter_by(
@@ -13181,7 +14147,10 @@ def new_vehicle():
             ).first()
 
             if not valid_vehicle_type:
-                return "車種が不正です。", 400
+                form_errors.append((
+                    "車種が不正です。",
+                    "type"
+                ))
 
         if office:
             valid_office = Office.query.filter_by(
@@ -13190,7 +14159,38 @@ def new_vehicle():
             ).first()
 
             if not valid_office:
-                return "営業所が不正です。", 400
+                form_errors.append((
+                    "営業所が不正です。",
+                    "office"
+                ))
+        gross_vehicle_weight = 0
+        max_payload = 0
+
+        try:
+            gross_vehicle_weight = parse_nonnegative_int(
+                request.form.get("gross_vehicle_weight"),
+                "車両総重量"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "gross_vehicle_weight"
+            ))
+
+        try:
+            max_payload = parse_nonnegative_int(
+                request.form.get("max_payload"),
+                "最大積載量"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "max_payload"
+            ))
+
+        if form_errors:
+            return return_form_errors(form_errors)
+
         vehicle = duplicate_vehicle or Vehicle(
             company_code=company_code,
             chassis_number=chassis_number
@@ -13208,14 +14208,8 @@ def new_vehicle():
         vehicle.manufacturer = request.form.get("manufacturer")
         vehicle.body_type = request.form.get("body_type")
 
-        vehicle.gross_vehicle_weight = parse_nonnegative_int(
-            request.form.get("gross_vehicle_weight"),
-            "車両総重量"
-        )
-        vehicle.max_payload = parse_nonnegative_int(
-            request.form.get("max_payload"),
-            "最大積載量"
-        )
+        vehicle.gross_vehicle_weight = gross_vehicle_weight
+        vehicle.max_payload = max_payload
 
         vehicle.type = vehicle_type
         vehicle.office = office
@@ -13251,12 +14245,17 @@ def edit_vehicle(index):
         return redirect("/master/vehicles")
 
     if request.method == "POST":
+        form_errors = []
+
         chassis_number = (
             request.form.get("chassis_number", "").strip()
         )
 
         if not chassis_number:
-            return "車台番号を入力してください。", 400
+            form_errors.append((
+                "車台番号を入力してください。",
+                "chassis_number"
+            ))
 
         duplicate_vehicle = Vehicle.query.filter(
             Vehicle.company_code == vehicle.company_code,
@@ -13298,7 +14297,15 @@ def edit_vehicle(index):
                         "%Y-%m-%d"
                     )
                 except ValueError:
-                    return f"{field_name}が不正です。", 400
+                    form_errors.append((
+                        f"{field_name}が不正です。",
+                        (
+                            "first_registration_date"
+                            if field_name == "初年度登録日"
+                            else "inspection_expiry"
+                        )
+                    ))
+
         vehicle_type = (
             request.form.get("type", "").strip()
         )
@@ -13352,11 +14359,20 @@ def edit_vehicle(index):
 
         for value, field_name, max_length in text_fields:
             if len(value) > max_length:
-                return (
+                form_errors.append((
                     f"{field_name}は"
                     f"{max_length}文字以内で入力してください。",
-                    400
-                )
+                    {
+                        "車番・地域名": "plate_area",
+                        "車番・分類": "plate_class",
+                        "車番・ひらがな": "plate_kana",
+                        "車番": "plate_number",
+                        "車台番号": "chassis_number",
+                        "車体型式": "model_code",
+                        "車両メーカー": "manufacturer",
+                        "車両形状": "body_type"
+                    }.get(field_name, "")
+                ))
 
         if vehicle_type:
             valid_vehicle_type = VehicleType.query.filter_by(
@@ -13365,7 +14381,10 @@ def edit_vehicle(index):
             ).first()
 
             if not valid_vehicle_type:
-                return "車種が不正です。", 400
+                form_errors.append((
+                    "車種が不正です。",
+                    "type"
+                ))
 
         if office:
             valid_office = Office.query.filter_by(
@@ -13374,7 +14393,38 @@ def edit_vehicle(index):
             ).first()
 
             if not valid_office:
-                return "営業所が不正です。", 400
+                form_errors.append((
+                    "営業所が不正です。",
+                    "office"
+                ))
+        gross_vehicle_weight = 0
+        max_payload = 0
+
+        try:
+            gross_vehicle_weight = parse_nonnegative_int(
+                request.form.get("gross_vehicle_weight"),
+                "車両総重量"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "gross_vehicle_weight"
+            ))
+
+        try:
+            max_payload = parse_nonnegative_int(
+                request.form.get("max_payload"),
+                "最大積載量"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "max_payload"
+            ))
+
+        if form_errors:
+            return return_form_errors(form_errors)
+
         vehicle.plate_area = request.form.get("plate_area")
         vehicle.plate_class = request.form.get("plate_class")
         vehicle.plate_kana = request.form.get("plate_kana")
@@ -13386,15 +14436,8 @@ def edit_vehicle(index):
         vehicle.manufacturer = request.form.get("manufacturer")
         vehicle.body_type = request.form.get("body_type")
 
-        vehicle.gross_vehicle_weight = parse_nonnegative_int(
-            request.form.get("gross_vehicle_weight"),
-            "車両総重量"
-        )
-
-        vehicle.max_payload = parse_nonnegative_int(
-            request.form.get("max_payload"),
-            "最大積載量"
-        )
+        vehicle.gross_vehicle_weight = gross_vehicle_weight
+        vehicle.max_payload = max_payload
 
         vehicle.type = vehicle_type
         vehicle.office = office
@@ -13428,6 +14471,14 @@ def edit_vehicle(index):
         "office": vehicle.office,
         "inspection_expiry": vehicle.inspection_expiry,
     }
+
+    vehicle_edit_form_data = session.pop(
+        "vehicle_edit_form_data",
+        {}
+    )
+
+    if vehicle_edit_form_data:
+        vehicle_dict.update(vehicle_edit_form_data)
 
     return render_template(
         "vehicle_form.html",
@@ -14047,6 +15098,7 @@ def checklist_master():
 @limiter.limit("10 per minute", methods=["POST"])
 def new_checklist():
     if request.method == "POST":
+        form_errors = []
 
         target = request.form.get("target", "").strip()
 
@@ -14054,7 +15106,10 @@ def new_checklist():
             "安全管理",
             "車両管理"
         }:
-            return "用途が不正です。", 400
+            form_errors.append((
+                "用途が不正です。",
+                "target"
+            ))
 
         item_categories = request.form.getlist("item_category")
         item_contents = request.form.getlist("item_content")
@@ -14068,26 +15123,31 @@ def new_checklist():
         shaded_list = request.form.getlist("shaded")
 
         if len(item_types) > 500:
-            return "チェック項目は500件以内で設定してください。", 400
+            form_errors.append((
+                "チェック項目は500件以内で設定してください。",
+                "item_type_0"
+            ))
 
-        if any(
-            item_type not in {
+        for i, item_type in enumerate(item_types):
+            if item_type not in {
                 "check",
                 "inspector",
                 "approval"
-            }
-            for item_type in item_types
-        ):
-            return "項目種別が不正です。", 400
+            }:
+                form_errors.append((
+                    "項目種別が不正です。",
+                    f"item_type_{i}"
+                ))
 
-        if any(
-            input_type not in {
+        for i, input_type in enumerate(input_types):
+            if input_type not in {
                 "select",
                 "text"
-            }
-            for input_type in input_types
-        ):
-            return "評価方式が不正です。", 400
+            }:
+                form_errors.append((
+                    "評価方式が不正です。",
+                    f"input_type_{i}"
+                ))
 
         required_list_length = len(item_types)
 
@@ -14101,7 +15161,13 @@ def new_checklist():
                 criteria_list
             ]
         ):
-            return "チェック項目のデータが不正です。", 400
+            form_errors.append((
+                "チェック項目のデータが不正です。",
+                "item_type_0"
+            ))
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         score_enabled = request.form.get("score_enabled") == "1"
         print_portrait = (
@@ -14117,10 +15183,18 @@ def new_checklist():
             request.form.get("reminder_enabled") == "1"
         )
 
-        reminder_time = parse_time_hhmm(
-            request.form.get("reminder_time") or "08:00",
-            "未実施通知時刻"
-        )
+        reminder_time = "08:00"
+
+        try:
+            reminder_time = parse_time_hhmm(
+                request.form.get("reminder_time") or "08:00",
+                "未実施通知時刻"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "reminder_time"
+            ))
 
         items = []
         pending_criteria_files = []
@@ -14141,10 +15215,10 @@ def new_checklist():
                     label = approval_labels[i].strip()
 
                 if len(label) > 100:
-                    return (
+                    form_errors.append((
                         "承認ラベルは100文字以内で入力してください。",
-                        400
-                    )
+                        f"approval_label_{i}"
+                    ))
 
                 items.append({
                     "item_type": "approval",
@@ -14172,22 +15246,22 @@ def new_checklist():
             ).strip()
 
             if len(category) > 100:
-                return (
+                form_errors.append((
                     "カテゴリは100文字以内で入力してください。",
-                    400
-                )
+                    f"item_category_{i}"
+                ))
 
             if len(content) > 500:
-                return (
+                form_errors.append((
                     "チェック内容は500文字以内で入力してください。",
-                    400
-                )
+                    f"item_content_{i}"
+                ))
 
             if len(criteria) > 500:
-                return (
+                form_errors.append((
                     "判定基準は500文字以内で入力してください。",
-                    400
-                )
+                    f"criteria_{i}"
+                ))
 
             choices = []
 
@@ -14199,25 +15273,23 @@ def new_checklist():
                 ]
 
                 if not choices:
-                    return (
+                    form_errors.append((
                         "選択式のチェック項目には評価の選択肢を1つ以上入力してください。",
-                        400
-                    )
-
-                if len(choices) > 100:
-                    return (
+                        f"choices_{i}"
+                    ))
+                elif len(choices) > 100:
+                    form_errors.append((
                         "選択肢は100個以内で入力してください。",
-                        400
-                    )
-
-                if any(
+                        f"choices_{i}"
+                    ))
+                elif any(
                     len(choice) > 100
                     for choice in choices
                 ):
-                    return (
+                    form_errors.append((
                         "各選択肢は100文字以内で入力してください。",
-                        400
-                    )
+                        f"choices_{i}"
+                    ))
 
             item_index = len(items)
 
@@ -14257,42 +15329,74 @@ def new_checklist():
             try:
                 frequency_number = int(frequency_value)
             except (TypeError, ValueError):
-                return "頻度は整数で入力してください。", 400
+                form_errors.append((
+                    "頻度は整数で入力してください。",
+                    "frequency_value"
+                ))
+                frequency_number = None
 
-            if frequency_number < 1:
-                return "頻度は1以上で入力してください。", 400
-
-            if frequency_number > 9999:
-                return "頻度は9999以下で入力してください。", 400
-
-            frequency_value = str(frequency_number)
+            if frequency_number is not None:
+                if frequency_number < 1:
+                    form_errors.append((
+                        "頻度は1以上で入力してください。",
+                        "frequency_value"
+                    ))
+                elif frequency_number > 9999:
+                    form_errors.append((
+                        "頻度は9999以下で入力してください。",
+                        "frequency_value"
+                    ))
+                else:
+                    frequency_value = str(frequency_number)
 
             if frequency_unit not in {
                 "day",
                 "month",
                 "year"
             }:
-                return "頻度単位が不正です。", 400
+                form_errors.append((
+                    "頻度単位が不正です。",
+                    "frequency_unit"
+                ))
 
             if display_type not in {
                 "month",
                 "year"
             }:
-                return "表示形式が不正です。", 400
+                form_errors.append((
+                    "表示形式が不正です。",
+                    "display_type"
+                ))
 
         name = request.form.get("name", "").strip()
 
         if not name:
-            return "チェックリスト名を入力してください。", 400
+            form_errors.append((
+                "チェックリスト名を入力してください。",
+                "name"
+            ))
+        elif len(name) > 200:
+            form_errors.append((
+                "チェックリスト名は200文字以内で入力してください。",
+                "name"
+            ))
 
-        if len(name) > 200:
-            return "チェックリスト名は200文字以内で入力してください。", 400
-
-        if Checklist.query.filter_by(
+        duplicate_checklist = Checklist.query.filter_by(
             company_code=session.get("company_code"),
             name=name
-        ).first():
-            return "このチェックリストはすでに登録されています。", 409
+        ).first()
+
+        if duplicate_checklist:
+            form_errors.append((
+                "このチェックリストはすでに登録されています。",
+                "name"
+            ))
+
+        if form_errors:
+            return return_form_errors(
+                form_errors,
+                409 if duplicate_checklist else 400
+            )
 
         pending_uploads = []
 
@@ -14349,9 +15453,18 @@ def new_checklist():
 
         return redirect("/master/checklists")
 
+    checklist_form_data = session.pop(
+        "checklist_form_data",
+        {}
+    )
+
+    retained_checklist = checklist_form_data_to_dict(
+        checklist_form_data
+    )
+
     return render_template(
         "checklist_form.html",
-        checklist=None,
+        checklist=retained_checklist,
         index=None,
         mode="new"
     )
@@ -19728,6 +20841,8 @@ def edit_checklist(index):
     checklist = checklist_to_dict(checklist_record)
 
     if request.method == "POST":
+        form_errors = []
+
         has_safety_results = ChecklistResult.query.filter_by(
             company_code=checklist_record.company_code,
             checklist_id=checklist_record.id
@@ -19744,14 +20859,20 @@ def edit_checklist(index):
             "安全管理",
             "車両管理"
         }:
-            return "用途が不正です。", 400
+            form_errors.append((
+                "用途が不正です。",
+                "target"
+            ))
 
         if (
             has_vehicle_results
             and checklist_record.target != target
         ):
-            return (
-                "車両点検履歴が存在するため、用途は変更できません。",
+            return return_form_errors(
+                [(
+                    "車両点検履歴が存在するため、用途は変更できません。",
+                    "target"
+                )],
                 409
             )        
         item_categories = request.form.getlist("item_category")
@@ -19769,26 +20890,31 @@ def edit_checklist(index):
         shaded_list = request.form.getlist("shaded")
 
         if len(item_types) > 500:
-            return "チェック項目は500件以内で設定してください。", 400
+            form_errors.append((
+                "チェック項目は500件以内で設定してください。",
+                "item_type_0"
+            ))
 
-        if any(
-            item_type not in {
+        for i, item_type in enumerate(item_types):
+            if item_type not in {
                 "check",
                 "inspector",
                 "approval"
-            }
-            for item_type in item_types
-        ):
-            return "項目種別が不正です。", 400
+            }:
+                form_errors.append((
+                    "項目種別が不正です。",
+                    f"item_type_{i}"
+                ))
 
-        if any(
-            input_type not in {
+        for i, input_type in enumerate(input_types):
+            if input_type not in {
                 "select",
                 "text"
-            }
-            for input_type in input_types
-        ):
-            return "評価方式が不正です。", 400
+            }:
+                form_errors.append((
+                    "評価方式が不正です。",
+                    f"input_type_{i}"
+                ))
 
         required_list_length = len(item_types)
 
@@ -19802,7 +20928,13 @@ def edit_checklist(index):
                 criteria_list
             ]
         ):
-            return "チェック項目のデータが不正です。", 400
+            form_errors.append((
+                "チェック項目のデータが不正です。",
+                "item_type_0"
+            ))
+
+        if form_errors:
+            return return_form_errors(form_errors)
 
         score_enabled = request.form.get("score_enabled") == "1"
         print_portrait = (
@@ -19817,18 +20949,31 @@ def edit_checklist(index):
             request.form.get("reminder_enabled") == "1"
         )
 
-        reminder_time = parse_time_hhmm(
-            request.form.get("reminder_time") or "17:00",
-            "未実施通知時刻"
-        )
+        reminder_time = "08:00"
+
+        try:
+            reminder_time = parse_time_hhmm(
+                request.form.get("reminder_time") or "08:00",
+                "未実施通知時刻"
+            )
+        except UploadValidationError as error:
+            form_errors.append((
+                str(error),
+                "reminder_time"
+            ))
 
         name = request.form.get("name", "").strip()
 
         if not name:
-            return "チェックリスト名を入力してください。", 400
-
-        if len(name) > 200:
-            return "チェックリスト名は200文字以内で入力してください。", 400
+            form_errors.append((
+                "チェックリスト名を入力してください。",
+                "name"
+            ))
+        elif len(name) > 200:
+            form_errors.append((
+                "チェックリスト名は200文字以内で入力してください。",
+                "name"
+            ))
 
         duplicate_checklist = Checklist.query.filter(
             Checklist.company_code == checklist_record.company_code,
@@ -19837,7 +20982,10 @@ def edit_checklist(index):
         ).first()
 
         if duplicate_checklist:
-            return "このチェックリストはすでに登録されています。", 409
+            form_errors.append((
+                "このチェックリストはすでに登録されています。",
+                "name"
+            ))
 
         frequency_number = None
         frequency_unit = ""
@@ -19860,26 +21008,42 @@ def edit_checklist(index):
             try:
                 frequency_number = int(frequency_value)
             except (TypeError, ValueError):
-                return "頻度は整数で入力してください。", 400
+                form_errors.append((
+                    "頻度は整数で入力してください。",
+                    "frequency_value"
+                ))
+                frequency_number = None
 
-            if frequency_number < 1:
-                return "頻度は1以上で入力してください。", 400
-
-            if frequency_number > 9999:
-                return "頻度は9999以下で入力してください。", 400
+            if frequency_number is not None:
+                if frequency_number < 1:
+                    form_errors.append((
+                        "頻度は1以上で入力してください。",
+                        "frequency_value"
+                    ))
+                elif frequency_number > 9999:
+                    form_errors.append((
+                        "頻度は9999以下で入力してください。",
+                        "frequency_value"
+                    ))
 
             if frequency_unit not in {
                 "day",
                 "month",
                 "year"
             }:
-                return "頻度単位が不正です。", 400
+                form_errors.append((
+                    "頻度単位が不正です。",
+                    "frequency_unit"
+                ))
 
             if display_type not in {
                 "month",
                 "year"
             }:
-                return "表示形式が不正です。", 400
+                form_errors.append((
+                    "表示形式が不正です。",
+                    "display_type"
+                ))
             
         old_items = checklist.get("items", [])
 
@@ -19912,10 +21076,10 @@ def edit_checklist(index):
                     label = approval_labels[i].strip()
 
                 if len(label) > 100:
-                    return (
+                    form_errors.append((
                         "承認ラベルは100文字以内で入力してください。",
-                        400
-                    )
+                        f"approval_label_{i}"
+                    ))
 
                 items.append({
                     "item_type": "approval",
@@ -19943,22 +21107,22 @@ def edit_checklist(index):
             ).strip()
 
             if len(category) > 100:
-                return (
+                form_errors.append((
                     "カテゴリは100文字以内で入力してください。",
-                    400
-                )
+                    f"item_category_{i}"
+                ))
 
             if len(content) > 500:
-                return (
+                form_errors.append((
                     "チェック内容は500文字以内で入力してください。",
-                    400
-                )
+                    f"item_content_{i}"
+                ))
 
             if len(criteria) > 500:
-                return (
+                form_errors.append((
                     "判定基準は500文字以内で入力してください。",
-                    400
-                )
+                    f"criteria_{i}"
+                ))
 
             choices = []
 
@@ -19970,25 +21134,23 @@ def edit_checklist(index):
                 ]
 
                 if not choices:
-                    return (
+                    form_errors.append((
                         "選択式のチェック項目には評価の選択肢を1つ以上入力してください。",
-                        400
-                    )
-
-                if len(choices) > 100:
-                    return (
+                        f"choices_{i}"
+                    ))
+                elif len(choices) > 100:
+                    form_errors.append((
                         "選択肢は100個以内で入力してください。",
-                        400
-                    )
-
-                if any(
+                        f"choices_{i}"
+                    ))
+                elif any(
                     len(choice) > 100
                     for choice in choices
                 ):
-                    return (
+                    form_errors.append((
                         "各選択肢は100文字以内で入力してください。",
-                        400
-                    )
+                        f"choices_{i}"
+                    ))
 
             criteria_files = []
 
@@ -20028,6 +21190,12 @@ def edit_checklist(index):
             })
 
             pending_criteria_files.append((item_index, i))
+
+        if form_errors:
+            return return_form_errors(
+                form_errors,
+                409 if duplicate_checklist else 400
+            )
 
         pending_uploads = []
 
@@ -20329,9 +21497,19 @@ def edit_checklist(index):
 
         return redirect("/master/checklists")
 
+    checklist_edit_form_data = session.pop(
+        "checklist_edit_form_data",
+        {}
+    )
+
+    retained_checklist = checklist_form_data_to_dict(
+        checklist_edit_form_data,
+        checklist
+    )
+
     return render_template(
         "checklist_form.html",
-        checklist=checklist,
+        checklist=retained_checklist,
         index=checklist_record.id,
         mode="edit"
     )
@@ -21209,7 +22387,7 @@ with app.app_context():
         ),
         (
             "reminder_time",
-            "VARCHAR(5) NOT NULL DEFAULT '17:00'"
+            "VARCHAR(5) NOT NULL DEFAULT '08:00'"
         ),
     ]
 

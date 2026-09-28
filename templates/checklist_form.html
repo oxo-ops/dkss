@@ -31,6 +31,7 @@
         method="post"
         enctype="multipart/form-data"
         class="responsive-form"
+        novalidate
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -38,6 +39,7 @@
         <input
             type="text"
             name="name"
+            id="name"
             value="{{ checklist.name if checklist else '' }}"
             placeholder="例：車両日常点検表"
             required
@@ -46,6 +48,7 @@
         <label>用途</label>
         <select
             name="target"
+            id="target"
             required
             class="js-checklist-target"
         >
@@ -72,6 +75,7 @@
                 <input
                     type="number"
                     name="frequency_value"
+                    id="frequency_value"
                     min="1"
                     value="{{ checklist.frequency_value if checklist and checklist.frequency_value else 1 }}"
                     class="checklist-frequency-value"
@@ -79,6 +83,7 @@
 
                 <select
                     name="frequency_unit"
+                    id="frequency_unit"
                     class="checklist-frequency-unit"
                 >
                     <option value="day" {% if checklist and checklist.frequency_unit == "day" %}selected{% endif %}>
@@ -98,7 +103,7 @@
             </p>
 
             <label>表示形式</label>
-            <select name="display_type">
+            <select name="display_type" id="display_type">
                 <option value="month" {% if checklist and checklist.display_type == "month" %}selected{% endif %}>
                     月表示（1ヶ月分を横並び）
                 </option>
@@ -152,7 +157,7 @@
                 type="time"
                 name="reminder_time"
                 id="reminder_time"
-                value="{{ checklist.reminder_time if checklist and checklist.reminder_time else '17:00' }}"
+                value="{{ checklist.reminder_time if checklist and checklist.reminder_time else '08:00' }}"
                 class="js-reminder-time"
             >
 
@@ -204,6 +209,7 @@
 
                                     <select
                                         name="item_type"
+                                        id="item_type_{{ loop.index0 }}"
                                         class="js-item-type"
                                     >
                                         <option value="check"
@@ -237,6 +243,7 @@
                                         <input
                                             type="checkbox"
                                             name="approval_allow_general"
+                                            id="approval_allow_general_{{ loop.index0 }}"
                                             value="{{ loop.index0 }}"
                                             {% if item.approval_allow_general %}checked{% endif %}
                                         >
@@ -250,6 +257,7 @@
                                     <input
                                         type="text"
                                         name="item_category"
+                                        id="item_category_{{ loop.index0 }}"
                                         list="category_candidates"
                                         value="{{ item.category if item.category else '' }}"
                                         placeholder="例：荷扱い"
@@ -266,6 +274,7 @@
                             <label>チェック内容</label>
                             <textarea
                                 name="item_content"
+                                id="item_content_{{ loop.index0 }}"
                                 rows="3"
                                 placeholder="例：安全な立ち位置で作業しているか"
                             >{{ item.content if item.content else '' }}</textarea>
@@ -278,6 +287,7 @@
                                     <label>評価方式</label>
                                     <select
                                         name="input_type"
+                                        id="input_type_{{ loop.index0 }}"
                                         class="js-input-type"
                                     >
                                         <option value="select"
@@ -297,6 +307,7 @@
                                     <input
                                         type="text"
                                         name="choices"
+                                        id="choices_{{ loop.index0 }}"
                                         list="choices_candidates"
                                         value="{{ item.choices|join(',') if item.choices else '' }}"
                                         placeholder="例：2,1,0"
@@ -306,6 +317,7 @@
                                     <label>評価基準</label>
                                     <textarea
                                         name="criteria"
+                                        id="criteria_{{ loop.index0 }}"
                                         rows="3"
                                         placeholder="例：2＝完全にできている、1＝できている、0＝できていない"
                                     >{{ item.criteria if item.criteria else '' }}</textarea>
@@ -314,6 +326,7 @@
                                     <input
                                         type="file"
                                         name="criteria_files_{{ loop.index0 }}"
+                                        id="criteria_files_{{ loop.index0 }}"
                                         multiple
                                         accept="image/*,video/*,.pdf"
                                     >
@@ -332,6 +345,7 @@
                                         <input
                                             type="checkbox"
                                             name="comment_required"
+                                            id="comment_required_{{ loop.index0 }}"
                                             value="{{ loop.index0 }}"
                                             {% if item.comment_required %}checked{% endif %}
                                         >
@@ -362,6 +376,7 @@
                             <input
                                 type="text"
                                 name="approval_label"
+                                id="approval_label_{{ loop.index0 }}"
                                 value="{{ item.approval_label if item.approval_label else '' }}"
                                 placeholder="例：管理者印"
                             >
@@ -397,6 +412,7 @@
 
                                 <select
                                     name="item_type"
+                                    id="item_type_0"
                                     class="js-item-type"
                                 >
                                     <option value="check">点検項目</option>
@@ -410,6 +426,7 @@
                                     <input
                                         type="checkbox"
                                         name="approval_allow_general"
+                                        id="approval_allow_general_0"
                                         value="0"
                                     >
                                     <span>一般ユーザーも承認可能</span>
@@ -422,6 +439,7 @@
                                 <input
                                     type="text"
                                     name="item_category"
+                                    id="item_category_0"
                                     list="category_candidates"
                                     placeholder="例：荷扱い"
                                     class="js-category-input"
@@ -437,6 +455,7 @@
                         <label>チェック内容</label>
                         <textarea
                             name="item_content"
+                            id="item_content_0"
                             rows="3"
                             placeholder="例：荷台床板に異常はないか"
                         ></textarea>
@@ -449,6 +468,7 @@
                                 <label>評価方式</label>
                                 <select
                                     name="input_type"
+                                    id="input_type_0"
                                     class="js-input-type"
                                 >
                                     <option value="select">選択式</option>
@@ -459,6 +479,7 @@
                                 <input
                                     type="text"
                                     name="choices"
+                                    id="choices_0"
                                     list="choices_candidates"
                                     placeholder="例：〇,△,×"
                                     class="js-choice-input"
@@ -469,6 +490,7 @@
                                 <label>評価基準</label>
                                 <textarea
                                     name="criteria"
+                                    id="criteria_0"
                                     rows="3"
                                     placeholder="例：〇＝異常なし、△＝要注意、×＝使用禁止"
                                 ></textarea>
@@ -477,6 +499,7 @@
                                 <input
                                     type="file"
                                     name="criteria_files_0"
+                                    id="criteria_files_0"
                                     multiple
                                     accept="image/*,video/*,.pdf"
                                 >
@@ -485,6 +508,7 @@
                                     <input
                                         type="checkbox"
                                         name="comment_required"
+                                        id="comment_required_0"
                                         value="0"
                                     >
                                     <span>コメント入力あり</span>
@@ -513,6 +537,7 @@
                         <input
                             type="text"
                             name="approval_label"
+                            id="approval_label_0"
                             placeholder="例：管理者印"
                         >
                     </div>

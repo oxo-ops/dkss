@@ -95,6 +95,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 showTargetResults();
             })
             .catch(function () {
+                showCommonError(
+                    "配信対象を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                );
+
                 targetResults.innerHTML = "";
 
                 const message =
@@ -139,8 +143,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
             event.preventDefault();
 
-            window.alert(
-                "検索結果から配信対象を選択してください。"
+            showCommonError(
+                "検索結果から配信対象を選択してください。",
+                targetSearchInput.id || targetSearchInput.name
             );
 
             targetSearchArea.classList.remove("is-hidden");

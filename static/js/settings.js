@@ -200,6 +200,10 @@ document.addEventListener("DOMContentLoaded", function () {
                         error
                     );
 
+                    showCommonError(
+                        error.message || "メール通知の送信に失敗しました。"
+                    );
+
                     if (testEmailStatus) {
                         testEmailStatus.textContent =
                             error.message || "メール通知の送信に失敗しました。";
@@ -215,13 +219,8 @@ document.addEventListener("DOMContentLoaded", function () {
         "click",
         async function () {
             if (Notification.permission === "denied") {
-                window.alert(
-                    "端末通知がブラウザでブロックされています。\n\n"
-                    + "アドレスバー左の鍵アイコンを押してください。\n"
-                    + "↓\n"
-                    + "「通知」をONにしてください。\n"
-                    + "↓\n"
-                    + "その後、このページを再読み込みしてください。"
+                showCommonError(
+                    "端末通知がブラウザでブロックされています。ブラウザの通知設定をONにしてから、このページを再読み込みしてください。"
                 );
 
                 return;
@@ -274,6 +273,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 );
 
                 pushButton.disabled = false;
+
+                showCommonError(
+                    "端末通知の設定に失敗しました。"
+                );
 
                 if (pushStatus) {
                     pushStatus.textContent =

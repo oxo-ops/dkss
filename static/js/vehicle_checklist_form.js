@@ -166,6 +166,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 })
                 .catch(function () {
+                    showCommonError(
+                        "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                    );
+
                     showMessage(
                         "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
                     );
@@ -209,7 +213,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     message = "評価を選択してください。";
                 }
 
-                window.alert(message);
+                showCommonError(
+                    message,
+                    field.id || field.name
+                );
 
                 const target =
                     field.closest("tr") ||
@@ -235,8 +242,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
             event.preventDefault();
 
-            window.alert(
-                "候補から対象車両を選択してください。"
+            showCommonError(
+                "候補から対象車両を選択してください。",
+                vehicleSearch.id || vehicleSearch.name
             );
 
             vehicleSearch.scrollIntoView({

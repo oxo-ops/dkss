@@ -21,7 +21,11 @@
 
     <div>
         <label>会社コード</label>
-        <input type="text" name="company_code">
+        <input
+            type="text"
+            name="company_code"
+            value="{{ request.form.get('company_code', request.args.get('company_code', '')) }}"
+        >
     </div>
 
     <div>

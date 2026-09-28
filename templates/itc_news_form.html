@@ -24,11 +24,11 @@
     </div>
 </div>
 
-<form method="post" enctype="multipart/form-data" class="card">
+<form method="post" enctype="multipart/form-data" class="card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <label>投稿先</label>
-    <select name="target_type" required>
+    <select name="target_type" id="target_type" required>
         <option value="all" {% if news and news.target_type == "all" %}selected{% endif %}>
             全ユーザー
         </option>
@@ -78,6 +78,7 @@
     <input
         type="text"
         name="title"
+        id="title"
         value="{{ news.title if news else '' }}"
         required
     >
@@ -92,6 +93,7 @@
         >
 
         <div
+            id="message_editor"
             class="mention-rich-editor"
             contenteditable="true"
             data-value="{{ news.message if news else '' }}"

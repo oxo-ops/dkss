@@ -19,6 +19,7 @@
         method="post"
         action="{{ url_for('register', company_code=company_code) }}"
         class="responsive-form register-form"
+        novalidate
     >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 

@@ -74,6 +74,7 @@ function addChecklistItem() {
 
                     <select
                         name="item_type"
+                        id="item_type_${index}"
                         class="js-item-type"
                     >
                         <option value="check">点検項目</option>
@@ -93,6 +94,7 @@ function addChecklistItem() {
                         <input
                             type="checkbox"
                             name="approval_allow_general"
+                            id="approval_allow_general_${index}"
                             value="${index}"
                         >
                         <span>一般ユーザーも承認可能</span>
@@ -105,6 +107,7 @@ function addChecklistItem() {
                     <input
                         type="text"
                         name="item_category"
+                        id="item_category_${index}"
                         list="category_candidates"
                         placeholder="例：荷扱い"
                         class="js-category-input"
@@ -120,6 +123,7 @@ function addChecklistItem() {
             <label>チェック内容</label>
             <textarea
                 name="item_content"
+                id="item_content_${index}"
                 rows="3"
                 placeholder="例：荷台床板に異常はないか"
             ></textarea>
@@ -132,6 +136,7 @@ function addChecklistItem() {
                     <label>評価方式</label>
                     <select
                         name="input_type"
+                        id="input_type_${index}"
                         class="js-input-type"
                     >
                         <option value="select">選択式</option>
@@ -142,6 +147,7 @@ function addChecklistItem() {
                     <input
                         type="text"
                         name="choices"
+                        id="choices_${index}"
                         list="choices_candidates"
                         placeholder="例：〇,△,×"
                         class="js-choice-input"
@@ -150,6 +156,7 @@ function addChecklistItem() {
                     <label>評価基準</label>
                     <textarea
                         name="criteria"
+                        id="criteria_${index}"
                         rows="3"
                         placeholder="例：〇＝異常なし、△＝要注意、×＝使用禁止"
                     ></textarea>
@@ -158,6 +165,7 @@ function addChecklistItem() {
                     <input
                         type="file"
                         name="criteria_files_${index}"
+                        id="criteria_files_${index}"
                         multiple
                         accept="image/*,video/*,.pdf"
                     >
@@ -166,6 +174,7 @@ function addChecklistItem() {
                         <input
                             type="checkbox"
                             name="comment_required"
+                            id="comment_required_${index}"
                             value="${index}"
                         >
                         <span>コメント入力あり</span>
@@ -194,6 +203,7 @@ function addChecklistItem() {
             <input
                 type="text"
                 name="approval_label"
+                id="approval_label_${index}"
                 placeholder="例：管理者印"
             >
         </div>
@@ -353,6 +363,26 @@ function resetCommentIndexes() {
     const rows = document.querySelectorAll(".checklist-item-row");
 
     rows.forEach((row, index) => {
+        const indexedFields = [
+            ["item_type", "item_type"],
+            ["item_category", "item_category"],
+            ["item_content", "item_content"],
+            ["input_type", "input_type"],
+            ["choices", "choices"],
+            ["criteria", "criteria"],
+            ["comment_required", "comment_required"],
+            ["approval_label", "approval_label"],
+            ["approval_allow_general", "approval_allow_general"]
+        ];
+
+        indexedFields.forEach(([name, idPrefix]) => {
+            const field = row.querySelector(`[name="${name}"]`);
+
+            if (field) {
+                field.id = `${idPrefix}_${index}`;
+            }
+        });
+
         const commentCheckbox = row.querySelector(
             'input[name="comment_required"]'
         );
@@ -387,6 +417,7 @@ function resetFileIndexes() {
 
         if (fileInput) {
             fileInput.name = `criteria_files_${index}`;
+            fileInput.id = `criteria_files_${index}`;
         }
     });
 }
@@ -509,6 +540,20 @@ window.addEventListener("DOMContentLoaded", function () {
         .querySelectorAll('select[name="input_type"]')
         .forEach(function(select) {
             toggleChoices(select);
+        });
+
+    document
+        .querySelectorAll(
+            ".check-detail-settings .form-control-error"
+        )
+        .forEach(function(field) {
+            const details = field.closest(
+                ".check-detail-settings"
+            );
+
+            if (details) {
+                details.open = true;
+            }
         });
     document.querySelector(".js-checklist-target")
     ?.addEventListener("change", toggleVehicleChecklistSetting);

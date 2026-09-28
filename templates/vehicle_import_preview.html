@@ -167,6 +167,7 @@
     id="vehicle-import-form"
     method="post"
     action="/master/vehicles/import/confirm"
+    novalidate
 >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="table-scroll">

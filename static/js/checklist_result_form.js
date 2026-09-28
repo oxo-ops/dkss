@@ -401,6 +401,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             })
             .catch(function () {
+                showCommonError(
+                    "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
+                );
+
                 vehicleSearchResults.innerHTML = "";
 
                 const errorMessage =
@@ -642,9 +646,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (totalFiles > 50) {
                     event.preventDefault();
 
-                    alert(
-                        "一度にアップロードできるファイルは" +
-                        "50件までです。"
+                    showCommonError(
+                        "一度にアップロードできるファイルは50件までです。"
                     );
 
                     return;
@@ -656,9 +659,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (totalSize > maxSize) {
                     event.preventDefault();
 
-                    alert(
-                        "写真・動画・ファイルの合計を" +
-                        "1GB以下にしてください。"
+                    showCommonError(
+                        "写真・動画・ファイルの合計を1GB以下にしてください。"
                     );
                 }
             }
@@ -754,11 +756,12 @@ document.addEventListener("DOMContentLoaded", function () {
             function (event) {
                 event.preventDefault();
 
-                if (invalidMessageShown) {
-                    return;
-                }
+                const isFirstInvalid =
+                    !invalidMessageShown;
 
-                invalidMessageShown = true;
+                if (isFirstInvalid) {
+                    invalidMessageShown = true;
+                }
 
                 const field = event.target;
                 const row = field.closest("tr");
@@ -789,6 +792,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         "必須項目を入力してください。";
                 }
 
+                showCommonError(
+                    message.textContent,
+                    field.id || field.name
+                );
+
                 const choiceGroup = field.closest(
                     ".checklist-result-choice-group"
                 );
@@ -805,10 +813,18 @@ document.addEventListener("DOMContentLoaded", function () {
                     );
                 }
 
-                card.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center"
-                });
+                if (isFirstInvalid) {
+                    card.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                    window.setTimeout(function () {
+                        field.focus({
+                            preventScroll: true
+                        });
+                    }, 300);
+                }
             },
             true
         );
