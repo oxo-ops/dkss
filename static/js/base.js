@@ -110,6 +110,11 @@ document.addEventListener("input", function(e) {
 
     const keyword = match[1];
 
+    if (!keyword) {
+        closeMentionBox();
+        return;
+    }
+
     fetch("/api/mention-users?q=" + encodeURIComponent(keyword))
         .then(function (response) {
             if (!response.ok) {
@@ -174,6 +179,12 @@ function handleRichMentionInput(editor) {
     }
 
     const keyword = match[1];
+
+    if (!keyword) {
+        activeRichMentionRange = null;
+        closeMentionBox();
+        return;
+    }
 
     activeRichMentionRange = {
         editor: editor,

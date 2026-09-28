@@ -5469,6 +5469,9 @@ def mention_users():
     if len(keyword) > 100:
         return {"users": []}, 400
 
+    if not keyword:
+        return {"users": []}
+
     user_query = User.query.filter_by(
         company_code=session.get("company_code")
     )
@@ -5486,7 +5489,7 @@ def mention_users():
     matched_users = (
         user_query
         .order_by(User.name.asc())
-        .limit(10)
+        .limit(5)
         .all()
     )
 
