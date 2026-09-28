@@ -176,7 +176,10 @@
                     <div class="notification-item">
                         <div class="notification-body">
                             <div class="notification-title">{{ item.title }}</div>
-                            <div class="notification-message">{{ item.message }}</div>
+                            <div
+                                class="notification-message mention-display"
+                                data-value="{{ item.message }}"
+                            ></div>
                             <div class="notification-date">{{ item.created_at }}</div>
                             <a href="/itc/news/{{ item.id }}/edit" class="btn-mini">
                                 編集

@@ -380,7 +380,10 @@
 
         <td class="pointouts-col-category">{{ item.category }}</td>
         <td class="pointouts-col-content-type">{{ item.content_type }}</td>
-        <td class="content-summary pointouts-col-content">{{ item.content }}</td>
+        <td
+            class="content-summary pointouts-col-content mention-display"
+            data-value="{{ item.content }}"
+        ></td>
         <td class="pointouts-col-status">
             {% if item.category == "Good" %}
                 <span class="status-badge status-none">対象外</span>
@@ -534,9 +537,10 @@
             </div>
 
             {% if item.content %}
-            <div class="mobile-card-content">
-                {{ item.content }}
-            </div>
+            <div
+                class="mobile-card-content mention-display"
+                data-value="{{ item.content }}"
+            ></div>
             {% endif %}
 
             <a

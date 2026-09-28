@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                     "tbody tr[data-score-value]"
                                 )
                             ).some(function (row) {
-                                return !row.hidden;
+                                return row.style.display !== "none";
                             });
 
                         otherItems.open = hasVisibleOtherItem;

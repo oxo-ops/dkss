@@ -114,7 +114,7 @@
 
             {% for file in news.files %}
                 <div>
-                    <a href="{{ url_for('static', filename='uploads/' ~ file) }}" target="_blank">
+                    <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank">
                         {{ file }}
                     </a>
                 </div>
