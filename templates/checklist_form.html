@@ -578,7 +578,7 @@
         <div class="form-actions">
 
             <button
-                type="submit"
+                type="{% if mode == 'edit' %}button{% else %}submit{% endif %}"
                 class="btn{% if mode == 'edit' %} js-checklist-update{% endif %}"
             >
                 {% if mode == "edit" %}
@@ -598,38 +598,49 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="checklist_version_modal_title"
+            aria-describedby="checklist_version_modal_description"
         >
             <div class="checklist-version-modal-content">
                 <h2 id="checklist_version_modal_title">
                     チェックリストを更新します
                 </h2>
 
-                <p>
+                <p id="checklist_version_modal_description">
                     今回の変更を新しい版として保存しますか？
                 </p>
 
-                <div class="form-actions">
+                <div class="checklist-version-options">
                     <button
                         type="button"
-                        class="btn js-update-without-version"
+                        class="checklist-version-option checklist-version-option-minor js-update-without-version"
                     >
-                        版替えせず更新
+                        <span class="checklist-version-option-title">
+                            版替えせず更新
+                        </span>
+                        <span class="checklist-version-option-description">
+                            誤字・表記などの軽微な修正
+                        </span>
                     </button>
 
                     <button
                         type="button"
-                        class="btn js-update-with-version"
+                        class="checklist-version-option checklist-version-option-major js-update-with-version"
                     >
-                        新しい版として更新
-                    </button>
-
-                    <button
-                        type="button"
-                        class="btn-secondary js-cancel-update"
-                    >
-                        キャンセル
+                        <span class="checklist-version-option-title">
+                            新しい版として更新
+                        </span>
+                        <span class="checklist-version-option-description">
+                            項目・選択肢など内容を変更
+                        </span>
                     </button>
                 </div>
+
+                <button
+                    type="button"
+                    class="btn-secondary checklist-version-cancel js-cancel-update"
+                >
+                    キャンセル
+                </button>
             </div>
         </div>
     {% endif %}

@@ -1108,6 +1108,51 @@ function getFormErrorTarget(targetId) {
 }
 
 
+function clearCommonErrors() {
+    document
+        .querySelectorAll(".field-error-message")
+        .forEach(function (element) {
+            const errorId = element.id;
+
+            if (errorId) {
+                document
+                    .querySelectorAll(
+                        `[aria-describedby~="${CSS.escape(errorId)}"]`
+                    )
+                    .forEach(function (target) {
+                        const describedBy = (
+                            target.getAttribute("aria-describedby") || ""
+                        )
+                            .split(/\s+/)
+                            .filter(function (id) {
+                                return id && id !== errorId;
+                            });
+
+                        if (describedBy.length > 0) {
+                            target.setAttribute(
+                                "aria-describedby",
+                                describedBy.join(" ")
+                            );
+                        } else {
+                            target.removeAttribute("aria-describedby");
+                        }
+                    });
+            }
+
+            element.remove();
+        });
+
+    document
+        .querySelectorAll(".form-control-error")
+        .forEach(function (element) {
+            element.classList.remove("form-control-error");
+            element.removeAttribute("aria-invalid");
+        });
+
+    document.getElementById("error-summary")?.remove();
+}
+
+
 function showCommonError(message, targetId = "") {
     let summary = document.getElementById("error-summary");
 

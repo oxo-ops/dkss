@@ -525,63 +525,554 @@ window.addEventListener("DOMContentLoaded", function () {
         document.querySelector(".js-checklist-update");
     const versionInput =
         document.getElementById("create_new_version");
+    const versionModal =
+        document.getElementById("checklist_version_modal");
 
     if (checklistForm && updateButton && versionInput) {
-        const versionModal =
-            document.getElementById("checklist_version_modal");
         const updateWithoutVersion =
             document.querySelector(".js-update-without-version");
         const updateWithVersion =
             document.querySelector(".js-update-with-version");
         const cancelUpdate =
             document.querySelector(".js-cancel-update");
-
-        updateButton.addEventListener("click", function (event) {
+        checklistForm.addEventListener("submit", function (event) {
             event.preventDefault();
-            versionInput.value = "";
 
-            if (!checklistForm.reportValidity()) {
+            if (
+                versionModal
+                && !versionModal.classList.contains("is-hidden")
+            ) {
                 return;
+            }
+
+            updateButton.click();
+        });
+
+        versionModal?.addEventListener("keydown", function (event) {
+            if (
+                event.key === "Enter"
+                && !event.target.closest("button")
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
             }
         });
 
-        updateWithoutVersion?.addEventListener("click", function () {
-            versionInput.value = "0";
-            versionModal?.classList.add("is-hidden");
-            checklistForm.requestSubmit();
+        updateButton.addEventListener("click", async function (event) {
+            event.preventDefault();
+
+            if (updateButton.disabled) {
+                return;
+            }
+
+            updateButton.disabled = true;
+            versionInput.value = "";
+
+            clearCommonErrors();
+
+            if (!checklistForm.reportValidity()) {
+                updateButton.disabled = false;
+                return;
+            }
+
+            let response;
+
+            try {
+                response = await fetch(
+                    checklistForm.action,
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-DKSS-Validation-Only": "1"
+                        },
+                        body: new FormData(checklistForm)
+                    }
+                );
+            } catch (error) {
+                updateButton.disabled = false;
+                showCommonError(
+                    "入力内容の確認中に通信エラーが発生しました。"
+                );
+                return;
+            }
+
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+
+            const hasFormErrors =
+                response.headers.get(
+                    "X-DKSS-Form-Errors"
+                ) === "1";
+
+            const chooseVersion =
+                response.headers.get(
+                    "X-DKSS-Choose-Checklist-Version"
+                ) === "1";
+
+            if (hasFormErrors) {
+                let errorData;
+
+                try {
+                    errorData = await response.json();
+                } catch (error) {
+                    updateButton.disabled = false;
+                    showCommonError(
+                        "入力内容を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                updateButton.disabled = false;
+
+                if (
+                    !Array.isArray(errorData.errors)
+                    || errorData.errors.length === 0
+                ) {
+                    showCommonError(
+                        "入力内容を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                errorData.errors.forEach(function (error) {
+                    const errorField =
+                        getFormErrorTarget(error.field);
+                    const details =
+                        errorField?.closest(".check-detail-settings");
+
+                    if (details) {
+                        details.open = true;
+                    }
+
+                    showCommonError(
+                        error.message,
+                        error.field
+                    );
+                });
+
+                return;
+            }
+
+            if (!chooseVersion) {
+                updateButton.disabled = false;
+                showCommonError(
+                    "入力内容を確認できませんでした。もう一度お試しください。"
+                );
+                return;
+            }
+
+            updateButton.disabled = false;
+
+            if (updateWithoutVersion) {
+                updateWithoutVersion.disabled = false;
+            }
+
+            if (updateWithVersion) {
+                updateWithVersion.disabled = false;
+            }
+
+            if (!versionModal) {
+                updateButton.disabled = false;
+                showCommonError(
+                    "更新方法の選択画面を表示できませんでした。"
+                );
+                return;
+            }
+
+            versionInput.value = "";
+            versionModal.classList.remove("is-hidden");
+            updateWithoutVersion?.focus();
+            return;
         });
 
-        updateWithVersion?.addEventListener("click", function () {
-            versionInput.value = "1";
+        updateWithoutVersion?.addEventListener("click", async function (event) {
+            event.preventDefault();
+
+            if (updateWithoutVersion.disabled) {
+                return;
+            }
+
+            if (!checklistForm.reportValidity()) {
+                versionInput.value = "";
+                versionModal?.classList.add("is-hidden");
+                updateButton.disabled = false;
+                updateWithoutVersion.disabled = false;
+
+                if (updateWithVersion) {
+                    updateWithVersion.disabled = false;
+                }
+
+                return;
+            }
+
+            clearCommonErrors();
+
+            updateWithoutVersion.disabled = true;
+
+            if (updateWithVersion) {
+                updateWithVersion.disabled = true;
+            }
+
+            versionInput.value = "0";
+            updateButton.disabled = true;
             versionModal?.classList.add("is-hidden");
-            checklistForm.requestSubmit();
+
+            let response;
+
+            try {
+                response = await fetch(
+                    checklistForm.action,
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-DKSS-Final-Submit": "1"
+                        },
+                        body: new FormData(checklistForm)
+                    }
+                );
+            } catch (error) {
+                versionInput.value = "";
+                updateButton.disabled = false;
+                updateWithoutVersion.disabled = false;
+
+                if (updateWithVersion) {
+                    updateWithVersion.disabled = false;
+                }
+
+                showCommonError(
+                    "更新中に通信エラーが発生しました。"
+                );
+                return;
+            }
+
+            const hasFormErrors =
+                response.headers.get(
+                    "X-DKSS-Form-Errors"
+                ) === "1";
+
+            if (hasFormErrors) {
+                clearCommonErrors();
+                let errorData;
+
+                try {
+                    errorData = await response.json();
+                } catch (error) {
+                    versionInput.value = "";
+                    updateButton.disabled = false;
+                    updateWithoutVersion.disabled = false;
+
+                    if (updateWithVersion) {
+                        updateWithVersion.disabled = false;
+                    }
+
+                    showCommonError(
+                        "更新結果を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                versionInput.value = "";
+                updateButton.disabled = false;
+                updateWithoutVersion.disabled = false;
+
+                if (updateWithVersion) {
+                    updateWithVersion.disabled = false;
+                }
+
+                if (
+                    !Array.isArray(errorData.errors)
+                    || errorData.errors.length === 0
+                ) {
+                    showCommonError(
+                        "更新結果を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                errorData.errors.forEach(function (error) {
+                    const errorField =
+                        getFormErrorTarget(error.field);
+                    const details =
+                        errorField?.closest(".check-detail-settings");
+
+                    if (details) {
+                        details.open = true;
+                    }
+
+                    showCommonError(
+                        error.message,
+                        error.field
+                    );
+                });
+
+                return;
+            }
+
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+
+            versionInput.value = "";
+            updateButton.disabled = false;
+            updateWithoutVersion.disabled = false;
+
+            if (updateWithVersion) {
+                updateWithVersion.disabled = false;
+            }
+
+            showCommonError(
+                "チェックリストを更新できませんでした。もう一度お試しください。"
+            );
+        });
+
+        updateWithVersion?.addEventListener("click", async function (event) {
+            event.preventDefault();
+
+            if (updateWithVersion.disabled) {
+                return;
+            }
+
+            if (!checklistForm.reportValidity()) {
+                versionInput.value = "";
+                versionModal?.classList.add("is-hidden");
+                updateButton.disabled = false;
+                updateWithVersion.disabled = false;
+
+                if (updateWithoutVersion) {
+                    updateWithoutVersion.disabled = false;
+                }
+
+                return;
+            }
+
+            clearCommonErrors();
+
+            updateWithVersion.disabled = true;
+
+            if (updateWithoutVersion) {
+                updateWithoutVersion.disabled = true;
+            }
+
+            versionInput.value = "1";
+            updateButton.disabled = true;
+            versionModal?.classList.add("is-hidden");
+
+            let response;
+
+            try {
+                response = await fetch(
+                    checklistForm.action,
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-DKSS-Final-Submit": "1"
+                        },
+                        body: new FormData(checklistForm)
+                    }
+                );
+            } catch (error) {
+                versionInput.value = "";
+                updateButton.disabled = false;
+                updateWithVersion.disabled = false;
+
+                if (updateWithoutVersion) {
+                    updateWithoutVersion.disabled = false;
+                }
+
+                showCommonError(
+                    "更新中に通信エラーが発生しました。"
+                );
+                return;
+            }
+
+            const hasFormErrors =
+                response.headers.get(
+                    "X-DKSS-Form-Errors"
+                ) === "1";
+
+            if (hasFormErrors) {
+                clearCommonErrors();
+
+                let errorData;
+
+                try {
+                    errorData = await response.json();
+                } catch (error) {
+                    versionInput.value = "";
+                    updateButton.disabled = false;
+                    updateWithVersion.disabled = false;
+
+                    if (updateWithoutVersion) {
+                        updateWithoutVersion.disabled = false;
+                    }
+
+                    showCommonError(
+                        "更新結果を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                versionInput.value = "";
+                updateButton.disabled = false;
+                updateWithVersion.disabled = false;
+
+                if (updateWithoutVersion) {
+                    updateWithoutVersion.disabled = false;
+                }
+
+                if (
+                    !Array.isArray(errorData.errors)
+                    || errorData.errors.length === 0
+                ) {
+                    showCommonError(
+                        "更新結果を確認できませんでした。もう一度お試しください。"
+                    );
+                    return;
+                }
+
+                errorData.errors.forEach(function (error) {
+                    const errorField =
+                        getFormErrorTarget(error.field);
+                    const details =
+                        errorField?.closest(".check-detail-settings");
+
+                    if (details) {
+                        details.open = true;
+                    }
+
+                    showCommonError(
+                        error.message,
+                        error.field
+                    );
+                });
+
+                return;
+            }
+
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+
+            versionInput.value = "";
+            updateButton.disabled = false;
+            updateWithVersion.disabled = false;
+
+            if (updateWithoutVersion) {
+                updateWithoutVersion.disabled = false;
+            }
+
+            showCommonError(
+                "チェックリストを更新できませんでした。もう一度お試しください。"
+            );
         });
 
         cancelUpdate?.addEventListener("click", function () {
+            versionInput.value = "";
+            updateButton.disabled = false;
+
+            if (updateWithoutVersion) {
+                updateWithoutVersion.disabled = false;
+            }
+
+            if (updateWithVersion) {
+                updateWithVersion.disabled = false;
+            }
+
             versionModal?.classList.add("is-hidden");
+            updateButton.focus();
         });
 
         versionModal?.addEventListener("click", function (event) {
             if (event.target === versionModal) {
+                versionInput.value = "";
+                updateButton.disabled = false;
+
+                if (updateWithoutVersion) {
+                    updateWithoutVersion.disabled = false;
+                }
+
+                if (updateWithVersion) {
+                    updateWithVersion.disabled = false;
+                }
+
                 versionModal.classList.add("is-hidden");
+                updateButton.focus();
             }
         });
 
         document.addEventListener("keydown", function (event) {
             if (
+                event.key === "Tab"
+                && !versionModal?.classList.contains("is-hidden")
+            ) {
+                const focusableElements = [
+                    updateWithoutVersion,
+                    updateWithVersion,
+                    cancelUpdate
+                ].filter(function (element) {
+                    return element && !element.disabled;
+                });
+
+                if (focusableElements.length > 0) {
+                    const firstElement = focusableElements[0];
+                    const lastElement =
+                        focusableElements[focusableElements.length - 1];
+
+                    if (
+                        !focusableElements.includes(document.activeElement)
+                    ) {
+                        event.preventDefault();
+
+                        if (event.shiftKey) {
+                            lastElement.focus();
+                        } else {
+                            firstElement.focus();
+                        }
+                    } else if (
+                        event.shiftKey
+                        && document.activeElement === firstElement
+                    ) {
+                        event.preventDefault();
+                        lastElement.focus();
+                    } else if (
+                        !event.shiftKey
+                        && document.activeElement === lastElement
+                    ) {
+                        event.preventDefault();
+                        firstElement.focus();
+                    }
+                }
+            }
+
+            if (
                 event.key === "Escape"
                 && !versionModal?.classList.contains("is-hidden")
             ) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                versionInput.value = "";
+                updateButton.disabled = false;
+
+                if (updateWithoutVersion) {
+                    updateWithoutVersion.disabled = false;
+                }
+
+                if (updateWithVersion) {
+                    updateWithVersion.disabled = false;
+                }
+
                 versionModal.classList.add("is-hidden");
+                updateButton.focus();
             }
         });
     }
 
     const params = new URLSearchParams(window.location.search);
-
-    if (params.get("choose_version") === "1") {
-        versionModal?.classList.remove("is-hidden");
-    }
 
     if (params.get("duplicated") === "1") {
         const nameInput = document.querySelector('input[name="name"]');
