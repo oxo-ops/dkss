@@ -11846,3 +11846,118 @@ input:checked
         font-weight: 700;
     }
 }
+
+.checklist-version-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.checklist-version-modal.is-hidden {
+    display: none;
+}
+
+.checklist-version-modal-content {
+    width: min(100%, 480px);
+    padding: 24px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+}
+
+.checklist-version-modal-content h2 {
+    margin: 0 0 12px;
+}
+
+.checklist-version-modal-content p {
+    margin: 0 0 20px;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.checklist-version-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.checklist-version-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 112px;
+    padding: 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #1e293b;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.15s ease;
+}
+
+.checklist-version-option:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    transform: translateY(-1px);
+}
+
+.checklist-version-option:focus-visible {
+    outline: 3px solid rgba(59, 130, 246, 0.3);
+    outline-offset: 2px;
+}
+
+.checklist-version-option-major {
+    border: 2px solid #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.checklist-version-option-major:hover {
+    background: #dbeafe;
+}
+
+.checklist-version-option-title {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.checklist-version-option-description {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+.checklist-version-option-major .checklist-version-option-description {
+    color: #475569;
+}
+
+.checklist-version-cancel {
+    width: 100%;
+}
+
+@media (max-width: 600px) {
+    .checklist-version-options {
+        grid-template-columns: 1fr;
+    }
+
+    .checklist-version-option {
+        min-height: auto;
+    }
+}

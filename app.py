@@ -7,6 +7,7 @@
     send_file,
     url_for,
     flash,
+    jsonify,
 )
 from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -146,6 +147,40 @@ def handle_csrf_error(error):
         400
     )
 def return_form_errors(errors, status_code=400):
+    if (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+        or request.headers.get("X-DKSS-Final-Submit") == "1"
+    ):
+        normalized_errors = []
+
+        for error in errors:
+            if (
+                isinstance(error, (tuple, list))
+                and len(error) == 2
+            ):
+                message, error_field = error
+            else:
+                message = error
+                error_field = get_form_error_field(message)
+
+            normalized_errors.append({
+                "message": message,
+                "field": error_field or ""
+            })
+
+        response = jsonify({
+            "errors": normalized_errors
+        })
+        response.status_code = status_code
+        response.headers[
+            "X-DKSS-Form-Errors"
+        ] = "1"
+        response.headers[
+            "X-DKSS-Form-Error-Count"
+        ] = str(len(normalized_errors))
+
+        return response
+
     for error in errors:
         if (
             isinstance(error, (tuple, list))
@@ -15568,6 +15603,22 @@ def new_checklist():
 
         pending_uploads = []
 
+        if not session.get("company_code"):
+            return "company_code is required for file upload.", 400
+
+        upload_file_count = sum(
+            1
+            for field_name in request.files.keys()
+            for file in request.files.getlist(field_name)
+            if file and file.filename
+        )
+
+        if upload_file_count > 50:
+            return (
+                "一度にアップロードできるファイルは50件までです。",
+                400
+            )
+
         for item_index, form_index in pending_criteria_files:
             for file in request.files.getlist(
                 f"criteria_files_{form_index}"
@@ -21031,7 +21082,13 @@ def new_safety_checklist_result(index):
     )
 
 @app.route("/master/checklists/<int:index>/edit", methods=["GET", "POST"])
-@limiter.limit("10 per minute", methods=["POST"])
+@limiter.limit(
+    "10 per minute",
+    methods=["POST"],
+    deduct_when=lambda response: (
+        request.headers.get("X-DKSS-Validation-Only") != "1"
+    )
+)
 def edit_checklist(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
@@ -21402,6 +21459,26 @@ def edit_checklist(index):
 
         pending_uploads = []
 
+        upload_file_count = sum(
+            1
+            for field_name in request.files.keys()
+            for file in request.files.getlist(field_name)
+            if file and file.filename
+        )
+
+        if upload_file_count > 50:
+            return return_form_errors([
+                "一度にアップロードできるファイルは50件までです。"
+            ])
+
+        if (
+            upload_file_count > 0
+            and not session.get("company_code")
+        ):
+            return return_form_errors([
+                "company_code is required for file upload."
+            ])
+
         for item_index, form_index in pending_criteria_files:
             for file in request.files.getlist(
                 f"criteria_files_{form_index}"
@@ -21424,11 +21501,25 @@ def edit_checklist(index):
                         extension
                     )
                 ):
-                    return "添付ファイルの検証に失敗しました。", 400
+                    return return_form_errors([
+                        "添付ファイルの検証に失敗しました。"
+                    ])
 
                 pending_uploads.append(
                     (item_index, file)
                 )
+
+        create_new_version = request.form.get(
+            "create_new_version",
+            ""
+        )
+
+        if create_new_version not in {"0", "1"}:
+            response = app.make_response(("", 409))
+            response.headers[
+                "X-DKSS-Choose-Checklist-Version"
+            ] = "1"
+            return response
 
         for item_index, file in pending_uploads:
             filename = save_uploaded_file(file)
@@ -21473,7 +21564,7 @@ def edit_checklist(index):
         }
 
         if (
-            (has_safety_results or has_vehicle_results)
+            create_new_version == "1"
             and checklist_revision_key(checklist)
             != checklist_revision_key(new_checklist_revision)
         ):
