@@ -9744,22 +9744,6 @@ input:checked
         font-weight: 700;
     }
 
-    .vehicle-check-table-scroll
-    .monthly-check-table
-    td.mobile-previous-date
-    .btn-mini {
-        width: auto !important;
-        min-width: 0 !important;
-        max-width: none !important;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: inherit;
-        font-size: 16px;
-        font-weight: 700;
-        box-shadow: none;
-    }
-
     .vehicle-check-table-scroll .inline-check-form {
         flex-direction: row;
         align-items: center;
