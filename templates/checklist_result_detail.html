@@ -578,6 +578,111 @@
 </div>
 {% endif %}
 
+{% if checklist_events %}
+<div class="card checklist-history-card">
+    <h3>対応履歴</h3>
+
+    <div class="checklist-history-list">
+        {% for event in checklist_events %}
+        <div class="checklist-history-item">
+            <div class="checklist-history-header">
+                <strong>{{ event.event_type }}</strong>
+                <span>{{ event.created_at }}</span>
+            </div>
+
+            <div class="checklist-history-actor">
+                {{ event.actor_name or event.actor_username or "-" }}
+            </div>
+
+            {% if event.event_type == "差し戻し" and event.detail.reject_reason %}
+            <div class="checklist-history-detail">
+                <strong>差し戻し理由</strong>
+                <div
+                    class="mention-display"
+                    data-value="{{ event.detail.reject_reason }}"
+                ></div>
+            </div>
+            {% endif %}
+
+            {% if event.event_type in ["修正", "再申請"] and event.detail.changes %}
+            <div class="checklist-history-detail">
+                <strong>変更内容</strong>
+
+                {% for change in event.detail.changes %}
+                <div class="checklist-history-change">
+                    <div class="checklist-history-change-title">
+                        {% if change.item_no is defined and change.item_no is not none %}
+                            No.{{ change.item_no + 1 }} /
+                        {% endif %}
+                        {{ change.category }}
+                        {% if change.category %} / {% endif %}
+                        {{ change.content }}
+                    </div>
+
+                    {% if change.before.value != change.after.value %}
+                    <div class="checklist-history-change-row">
+                        <strong>評価</strong>
+                        <span class="checklist-history-before">
+                            {{ change.before.value or "未入力" }}
+                        </span>
+                        <span class="checklist-history-arrow">→</span>
+                        <span class="checklist-history-after">
+                            {{ change.after.value or "未入力" }}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    {% if change.before.comment != change.after.comment %}
+                    <div class="checklist-history-change-row">
+                        <strong>コメント</strong>
+                        <span class="checklist-history-before">
+                            {{ change.before.comment or "なし" }}
+                        </span>
+                        <span class="checklist-history-arrow">→</span>
+                        <span class="checklist-history-after">
+                            {{ change.after.comment or "なし" }}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    {% if change.before.files != change.after.files %}
+                    <div class="checklist-history-change-row">
+                        <strong>添付</strong>
+                        <span class="checklist-history-before">
+                            {{ change.before.files|length }}件
+                        </span>
+                        <span class="checklist-history-arrow">→</span>
+                        <span class="checklist-history-after">
+                            {{ change.after.files|length }}件
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if event.event_type == "差し戻し" and event.detail.previous_approvals %}
+            <div class="checklist-history-detail">
+                <strong>差し戻し前の承認状況</strong>
+
+                {% for approval in event.detail.previous_approvals %}
+                    {% if approval.approved_by %}
+                    <div>
+                        {{ approval.label or "承認" }}：
+                        {{ approval.approved_by }}
+                        {{ approval.approved_date or "" }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {% if can_manage %}
 <div class="action-row">
     <a
