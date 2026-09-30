@@ -36,7 +36,7 @@
         <th class="col-actions-wide">操作</th>
     </tr>
 
-    {% for period in checklist_periods|reverse %}
+    {% for period in checklist_periods %}
     <tr class="checklist-version-row">
         <td colspan="7">
             <div class="checklist-version-header">
@@ -141,7 +141,7 @@
 </table>
 
 <div class="safety-results-mobile-list">
-    {% for period in checklist_periods|reverse %}
+    {% for period in checklist_periods %}
         {% set period_is_current = loop.first %}
         {% for result in period.results %}
         <article class="safety-result-mobile-card">

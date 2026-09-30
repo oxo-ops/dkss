@@ -7558,11 +7558,41 @@ def dashboard():
                         if target_type == "vehicle"
                         else None
                     ),
+                    "target_value": (
+                        result_record.target_username
+                        if target_type == "user"
+                        else result_record.target_office
+                        if target_type == "office"
+                        else result_record.target_vehicle_record_id
+                        if target_type == "vehicle"
+                        else None
+                    ),
+                    "lowest_score_rate": None,
+                    "year": "",
+                    "month": "",
+                    "day": "",
                 }
 
             target_stats[key]["score"] += target_score
             target_stats[key]["max_score"] += target_max_score
             target_stats[key]["count"] += 1
+
+            current_score_rate = target_score / target_max_score
+
+            if (
+                target_stats[key]["lowest_score_rate"] is None
+                or current_score_rate < target_stats[key]["lowest_score_rate"]
+            ):
+                target_stats[key]["lowest_score_rate"] = current_score_rate
+                target_stats[key]["year"] = getattr(
+                    result_record, "year", ""
+                ) or ""
+                target_stats[key]["month"] = getattr(
+                    result_record, "month", ""
+                ) or ""
+                target_stats[key]["day"] = getattr(
+                    result_record, "day", ""
+                ) or ""
 
 
         target_analysis = []
@@ -7580,6 +7610,10 @@ def dashboard():
                 "target_type": target_type,
                 "target_label": target_label,
                 "vehicle_record_id": stats.get("vehicle_record_id"),
+                "target_value": stats.get("target_value"),
+                "year": stats.get("year", ""),
+                "month": stats.get("month", ""),
+                "day": stats.get("day", ""),
                 "score_rate": score_rate,
                 "improvement_rate": round(
                     100 - score_rate,
@@ -7619,6 +7653,8 @@ def dashboard():
             "id": checklist_record.id,
             "name": checklist_record.name,
             "target": checklist_record.target,
+            "frequency_unit": checklist_record.frequency_unit,
+            "display_type": checklist_record.display_type,
             "average_score": average_score,
             "result_count": len(result_scores),
             "scores": result_scores,
@@ -15772,7 +15808,10 @@ def safety_checklist_results(index):
         company_code=session.get("company_code")
     )
 
-    for result in query.order_by(ChecklistResult.id.desc()).all():
+    for result in query.order_by(
+        ChecklistResult.checked_date.desc(),
+        ChecklistResult.id.desc()
+    ).all():
         item = checklist_result_to_dict(result)
 
         if not can_view_checklist_result(item):
@@ -16603,18 +16642,32 @@ def export_checklist_result_excel(result_index):
             wrap_text=True
         )
 
-    # 承認・押印欄
+    # 押印欄（実施者・承認項目をマスタの並び順で出力）
     approval_items = [
         item
         for item in checklist["items"]
-        if item.get("item_type") == "approval"
+        if item.get("item_type") in {"inspector", "approval"}
     ]
 
     approval_results = result.get("approvals", [])
 
     stamp_entries = []
 
-    for approval_index, item in enumerate(approval_items):
+    approval_index = 0
+
+    for item in approval_items:
+        if item.get("item_type") == "inspector":
+            stamp_entries.append({
+                "label": "実施者",
+                "approved_by": result.get("checked_by", ""),
+                "approved_by_username": result.get(
+                    "checked_by_username",
+                    ""
+                ),
+                "approved_date": result.get("checked_date", ""),
+            })
+            continue
+
         label = item.get("approval_label", "").strip()
 
         if not label:
@@ -16635,6 +16688,8 @@ def export_checklist_result_excel(result_index):
             ),
             "approved_date": approval_result.get("approved_date", ""),
         })
+
+        approval_index += 1
 
     stamp_headers = [
         entry["label"]
@@ -18967,86 +19022,11 @@ def export_vehicle_checklist_result_excel(result_index):
 
             current_row += 1
 
-        # 点検実施者
-        inspector_row = current_row
-
-        sheet.cell(
-            row=inspector_row,
-            column=1,
-            value="点検実施者"
-        )
-
-        for period_result in excel_period_results:
-
-            if excel_display_mode == "day":
-                try:
-                    period_value = int(
-                        period_result.get("day", 0)
-                    )
-                except (TypeError, ValueError):
-                    continue
-
-                if period_value < 1 or period_value > 31:
-                    continue
-
-                column = period_value + 1
-
-            elif excel_display_mode == "month":
-                try:
-                    period_value = int(
-                        period_result.get("month", 0)
-                    )
-                except (TypeError, ValueError):
-                    continue
-
-                if period_value < 1 or period_value > 12:
-                    continue
-
-                column = period_value + 1
-
-            else:
-                try:
-                    period_year = int(
-                        period_result.get("year", 0)
-                    )
-                except (TypeError, ValueError):
-                    continue
-
-                year_offset = period_year - base_year
-
-                if year_offset < 0 or year_offset >= 5:
-                    continue
-
-                column = year_offset + 2
-
-            inspector_user = User.query.filter_by(
-                company_code=result_record.company_code,
-                username=period_result.get("checked_by_username")
-            ).first()
-
-            inspector_cell = sheet.cell(
-                row=inspector_row,
-                column=column,
-                value=(
-                    inspector_user.last_name
-                    if inspector_user
-                    else period_result.get("checked_by", "") or ""
-                )
-            )
-
-            inspector_cell.alignment = Alignment(
-                horizontal="center",
-                vertical="center",
-                wrap_text=True
-            )
-
-        current_row += 1
-
-        # 承認欄
+        # 押印欄（実施者・承認項目をマスタの並び順で出力）
         approval_items = [
             item
             for item in excel_checklist.get("items", [])
-            if item.get("item_type") == "approval"
+            if item.get("item_type") in {"inspector", "approval"}
         ]
 
         for approval_index, approval_item in enumerate(approval_items):
@@ -19057,16 +19037,35 @@ def export_vehicle_checklist_result_excel(result_index):
             sheet.cell(
                 row=approval_row,
                 column=1,
-                value=approval_item.get("approval_label", "") or "承認"
+                value=(
+                    "実施者"
+                    if approval_item.get("item_type") == "inspector"
+                    else approval_item.get("approval_label", "") or "承認"
+                )
             )
 
             for period_result in excel_period_results:
-                approvals = period_result.get("approvals", [])
+                if approval_item.get("item_type") == "inspector":
+                    approval = {
+                        "approved_by": period_result.get("checked_by", ""),
+                        "approved_by_username": period_result.get(
+                            "checked_by_username",
+                            ""
+                        ),
+                    }
+                else:
+                    approvals = period_result.get("approvals", [])
 
-                if approval_index >= len(approvals):
-                    continue
+                    approval_position = sum(
+                        1
+                        for previous_item in approval_items[:approval_index]
+                        if previous_item.get("item_type") == "approval"
+                    )
 
-                approval = approvals[approval_index]
+                    if approval_position >= len(approvals):
+                        continue
+
+                    approval = approvals[approval_position]
 
                 if not approval.get("approved_by"):
                     continue
@@ -21581,6 +21580,32 @@ def edit_checklist(index):
                     if key != "version_history"
                 }
             })
+
+        if create_new_version == "0":
+            updated_snapshot_json = json.dumps(
+                new_checklist_revision,
+                ensure_ascii=False
+            )
+
+            ChecklistResult.query.filter_by(
+                company_code=checklist_record.company_code,
+                checklist_id=checklist_record.id
+            ).update(
+                {
+                    "checklist_snapshot_json": updated_snapshot_json
+                },
+                synchronize_session=False
+            )
+
+            VehicleChecklistResult.query.filter_by(
+                company_code=checklist_record.company_code,
+                checklist_id=checklist_record.id
+            ).update(
+                {
+                    "checklist_snapshot_json": updated_snapshot_json
+                },
+                synchronize_session=False
+            )
 
         checklist_record.version_history_json = json.dumps(
             version_history,

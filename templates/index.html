@@ -784,7 +784,7 @@
                             {% if target.target_type != "user" or is_dashboard_admin %}
 
                             <a
-                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={% if target.target_type == 'vehicle' %}{{ target.vehicle_record_id }}{% else %}{{ target.target_label|urlencode }}{% endif %}{% endif %}"
+                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}&year={{ target.year|urlencode }}&month={{ target.month|urlencode }}&active_day={% if item.frequency_unit == 'year' %}{{ target.year|urlencode }}{% elif item.display_type == 'month' %}{{ target.day|urlencode }}{% else %}{{ target.month|urlencode }}{% endif %}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_value|urlencode }}{% endif %}"
                                 class="dashboard-analysis-target-link"
                             >
 
