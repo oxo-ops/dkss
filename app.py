@@ -15474,7 +15474,10 @@ def new_checklist():
             if i >= len(item_contents):
                 continue
 
-            if not item_contents[i]:
+            if (
+                not item_contents[i]
+                and input_types[i] != "text"
+            ):
                 continue
 
             category = str(
@@ -21328,6 +21331,11 @@ def edit_checklist(index):
             if item_type == "inspector":
                 items.append({
                     "item_type": "inspector",
+                    "content": (
+                        str(item_contents[i] or "").strip()
+                        if i < len(item_contents)
+                        else ""
+                    ),
                 })
                 continue
 
@@ -21355,7 +21363,10 @@ def edit_checklist(index):
             if i >= len(item_contents):
                 continue
 
-            if not item_contents[i]:
+            if (
+                not item_contents[i]
+                and input_types[i] != "text"
+            ):
                 continue
 
             category = str(

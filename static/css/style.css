@@ -11961,3 +11961,30 @@ input:checked
         min-height: auto;
     }
 }
+
+.checklist-table .mention-rich-editor.free-answer-input {
+    width: 100%;
+    min-height: 36px;
+    max-height: 36px;
+    box-sizing: border-box;
+    text-align: left;
+    background: #fff;
+    border-color: #cbd5e1;
+    font-weight: normal;
+    overflow: hidden;
+}
+
+.checklist-table .mention-rich-editor.free-answer-input:empty::before {
+    color: #94a3b8;
+    font-weight: normal;
+}
+
+.checklist-table .mention-rich-editor.free-answer-input:focus {
+    position: relative;
+    z-index: 20;
+    width: 500px;
+    min-height: 160px;
+    max-height: 160px;
+    text-align: left;
+    overflow-y: auto;
+}
