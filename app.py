@@ -140,8 +140,10 @@ def file_too_large(error):
 
 @app.errorhandler(CSRFError)
 def handle_csrf_error(error):
+    if not session.get("username"):
+        return redirect("/login")
+
     return (
-        "セッションの有効期限が切れたか、"
         "送信内容を確認できませんでした。"
         "画面を再読み込みして、もう一度お試しください。",
         400
