@@ -7563,6 +7563,8 @@ def dashboard():
                         if target_type == "user"
                         else result_record.target_office
                         if target_type == "office"
+                        else result_record.vehicle_record_id
+                        if is_vehicle_checklist
                         else result_record.target_vehicle_record_id
                         if target_type == "vehicle"
                         else None
