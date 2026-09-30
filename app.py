@@ -164,7 +164,7 @@ def return_form_errors(errors, status_code=400):
                 error_field = get_form_error_field(message)
 
             normalized_errors.append({
-                "message": message,
+                "message": str(message) if isinstance(message, str) else "入力内容を確認してください。",
                 "field": error_field or ""
             })
 
@@ -192,7 +192,7 @@ def return_form_errors(errors, status_code=400):
             error_field = get_form_error_field(message)
 
         flash(
-            message,
+            message if isinstance(message, str) else "入力内容を確認してください。",
             f"error:{error_field or ''}"
         )
 
@@ -735,7 +735,11 @@ class UploadValidationError(ValueError):
 
 @app.errorhandler(UploadValidationError)
 def handle_upload_validation_error(error):
-    return str(error), 400
+    app.logger.warning(
+        "アップロード検証エラー: %s",
+        error
+    )
+    return "アップロード内容を確認してください。", 400
 
 
 @app.errorhandler(HTTPException)
@@ -3555,9 +3559,9 @@ def send_web_push_notification(
             sent = True
 
         except WebPushException as e:
-            print(
-                "Web Push送信エラー:",
-                repr(e)
+            app.logger.warning(
+                "Web Push送信エラー: %s",
+                e
             )
 
             response = getattr(
@@ -3573,10 +3577,9 @@ def send_web_push_notification(
                 db.session.delete(subscription)
                 db.session.commit()
 
-        except Exception as e:
-            print(
-                "Web Push送信エラー:",
-                repr(e)
+        except Exception:
+            app.logger.exception(
+                "Web Push送信中に予期しないエラーが発生しました。"
             )
 
     return sent
@@ -3717,10 +3720,9 @@ def send_email_notification(
 
         return True
 
-    except Exception as e:
-        print(
-            "メール通知送信エラー:",
-            repr(e)
+    except Exception:
+        app.logger.exception(
+            "メール通知送信中に予期しないエラーが発生しました。"
         )
         return False
 def dispatch_external_notification(
@@ -4388,10 +4390,9 @@ def send_email_change_code_email(
 
         return True
 
-    except Exception as e:
-        print(
-            "メールアドレス変更確認メール送信エラー:",
-            repr(e)
+    except Exception:
+        app.logger.exception(
+            "メールアドレス変更確認メール送信中に予期しないエラーが発生しました。"
         )
         return False
 def create_email_change_code(
@@ -8157,9 +8158,9 @@ def itc_new_company():
                 request.form.get("vehicle_limit"),
                 "車両上限数"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "車両上限数の入力内容を確認してください。",
                 "vehicle_limit"
             ))
 
@@ -8253,9 +8254,9 @@ def itc_edit_company(index):
                 request.form.get("vehicle_limit"),
                 "車両上限数"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "車両上限数の入力内容を確認してください。",
                 "vehicle_limit"
             ))
 
@@ -9809,8 +9810,8 @@ def new_vehicle_patrol():
                     repair_time,
                     "修理時間"
                 )
-            except UploadValidationError as error:
-                return str(error), 400
+            except UploadValidationError:
+                return "修理時間の入力内容を確認してください。", 400
 
         if cost:
             normalized_cost = cost.replace(",", "")
@@ -10200,8 +10201,8 @@ def edit_vehicle_patrol(index):
                     repair_time,
                     "修理時間"
                 )
-            except UploadValidationError as error:
-                return str(error), 400
+            except UploadValidationError:
+                return "修理時間の入力内容を確認してください。", 400
 
         if cost:
             normalized_cost = cost.replace(",", "")
@@ -14374,9 +14375,9 @@ def new_vehicle():
                 request.form.get("gross_vehicle_weight"),
                 "車両総重量"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "車両総重量の入力内容を確認してください。",
                 "gross_vehicle_weight"
             ))
 
@@ -14385,9 +14386,9 @@ def new_vehicle():
                 request.form.get("max_payload"),
                 "最大積載量"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "最大積載量の入力内容を確認してください。",
                 "max_payload"
             ))
 
@@ -14608,9 +14609,9 @@ def edit_vehicle(index):
                 request.form.get("gross_vehicle_weight"),
                 "車両総重量"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "車両総重量の入力内容を確認してください。",
                 "gross_vehicle_weight"
             ))
 
@@ -14619,9 +14620,9 @@ def edit_vehicle(index):
                 request.form.get("max_payload"),
                 "最大積載量"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "最大積載量の入力内容を確認してください。",
                 "max_payload"
             ))
 
@@ -15393,9 +15394,9 @@ def new_checklist():
                 request.form.get("reminder_time") or "08:00",
                 "未実施通知時刻"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "未実施通知時刻の入力内容を確認してください。",
                 "reminder_time"
             ))
 
@@ -21216,9 +21217,9 @@ def edit_checklist(index):
                 request.form.get("reminder_time") or "08:00",
                 "未実施通知時刻"
             )
-        except UploadValidationError as error:
+        except UploadValidationError:
             form_errors.append((
-                str(error),
+                "未実施通知時刻の入力内容を確認してください。",
                 "reminder_time"
             ))
 
