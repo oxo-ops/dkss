@@ -265,12 +265,21 @@
                     {% endfor %}
                 </div>
                     {% else %}
-                        <textarea
-                            name="answer_{{ ns.answer_index }}"
-                            class="free-answer-input"
-                            placeholder="入力"
-                            required
-                        >{{ saved_answer.value if saved_answer else '' }}</textarea>
+                        <div class="mention-field">
+                            <input
+                                type="hidden"
+                                name="answer_{{ ns.answer_index }}"
+                                value="{{ saved_answer.value if saved_answer else '' }}"
+                            >
+
+                            <div
+                                class="mention-rich-editor free-answer-input"
+                                contenteditable="true"
+                                data-value="{{ saved_answer.value if saved_answer else '' }}"
+                                data-required="false"
+                                data-placeholder="入力"
+                            ></div>
+                        </div>
                     {% endif %}
                 </td>
 
