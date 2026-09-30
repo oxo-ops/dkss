@@ -7558,11 +7558,41 @@ def dashboard():
                         if target_type == "vehicle"
                         else None
                     ),
+                    "target_value": (
+                        result_record.target_username
+                        if target_type == "user"
+                        else result_record.target_office
+                        if target_type == "office"
+                        else result_record.target_vehicle_record_id
+                        if target_type == "vehicle"
+                        else None
+                    ),
+                    "lowest_score_rate": None,
+                    "year": "",
+                    "month": "",
+                    "day": "",
                 }
 
             target_stats[key]["score"] += target_score
             target_stats[key]["max_score"] += target_max_score
             target_stats[key]["count"] += 1
+
+            current_score_rate = target_score / target_max_score
+
+            if (
+                target_stats[key]["lowest_score_rate"] is None
+                or current_score_rate < target_stats[key]["lowest_score_rate"]
+            ):
+                target_stats[key]["lowest_score_rate"] = current_score_rate
+                target_stats[key]["year"] = getattr(
+                    result_record, "year", ""
+                ) or ""
+                target_stats[key]["month"] = getattr(
+                    result_record, "month", ""
+                ) or ""
+                target_stats[key]["day"] = getattr(
+                    result_record, "day", ""
+                ) or ""
 
 
         target_analysis = []
@@ -7580,6 +7610,10 @@ def dashboard():
                 "target_type": target_type,
                 "target_label": target_label,
                 "vehicle_record_id": stats.get("vehicle_record_id"),
+                "target_value": stats.get("target_value"),
+                "year": stats.get("year", ""),
+                "month": stats.get("month", ""),
+                "day": stats.get("day", ""),
                 "score_rate": score_rate,
                 "improvement_rate": round(
                     100 - score_rate,
@@ -7619,6 +7653,8 @@ def dashboard():
             "id": checklist_record.id,
             "name": checklist_record.name,
             "target": checklist_record.target,
+            "frequency_unit": checklist_record.frequency_unit,
+            "display_type": checklist_record.display_type,
             "average_score": average_score,
             "result_count": len(result_scores),
             "scores": result_scores,
