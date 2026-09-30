@@ -11972,3 +11972,29 @@ input:checked
     text-align: left;
     overflow-y: auto;
 }
+
+.checklist-history-change-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.checklist-history-change-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.checklist-history-change-row > strong {
+    flex: 0 0 72px;
+}
+
+.checklist-history-before,
+.checklist-history-after {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.checklist-history-arrow {
+    flex: 0 0 auto;
+}

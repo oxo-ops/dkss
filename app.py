@@ -1589,6 +1589,48 @@ class VehicleChecklistResult(db.Model):
         default=""
     )
 
+class ChecklistEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    result_type = db.Column(
+        db.String(20),
+        nullable=False
+    )
+
+    result_id = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    event_type = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    actor_username = db.Column(
+        db.String(50)
+    )
+
+    actor_name = db.Column(
+        db.String(100)
+    )
+
+    detail_json = db.Column(
+        db.Text,
+        default="{}"
+    )
+
+    created_at = db.Column(
+        db.String(30),
+        nullable=False
+    )
+
+
 class VehicleChecklistNotifySetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -16009,6 +16051,27 @@ def checklist_result_detail(result_index):
 
         result_items.append(result_item)
 
+    checklist_event_records = ChecklistEvent.query.filter_by(
+        company_code=result_record.company_code,
+        result_type="safety",
+        result_id=result_record.id
+    ).order_by(
+        ChecklistEvent.id.asc()
+    ).all()
+
+    checklist_events = []
+
+    for event in checklist_event_records:
+        checklist_events.append({
+            "event_type": event.event_type,
+            "actor_username": event.actor_username,
+            "actor_name": event.actor_name,
+            "created_at": event.created_at,
+            "detail": safe_json_dict(
+                event.detail_json
+            ),
+        })
+
     return render_template(
         "checklist_result_detail.html",
         result=result,
@@ -16021,6 +16084,7 @@ def checklist_result_detail(result_index):
         checklist=checklist,
         can_manage=can_manage_checklist_result(result),
         can_reject=can_reject_checklist_result(result),
+        checklist_events=checklist_events,
     )
 
 @app.route("/safety/checklist-results/<int:result_index>/excel")
@@ -17124,6 +17188,11 @@ def edit_checklist_result(result_index):
             target_username = ""
             target_vehicle_record_id = None
 
+        previous_answers = [
+            dict(answer)
+            for answer in result.get("answers", [])
+        ]
+
         answers = []
         answer_index = 0
         pending_answer_files = []
@@ -17143,8 +17212,8 @@ def edit_checklist_result(result_index):
                 if value and value not in choices:
                     return "評価値が不正です。", 400
 
-            elif not value.strip():
-                return "必須項目を入力してください。", 400
+                if not value:
+                    return "未回答の項目があります。", 400
 
             comment = request.form.get(
                 f"comment_{answer_index}",
@@ -17170,6 +17239,7 @@ def edit_checklist_result(result_index):
             item_index = len(answers)
 
             answers.append({
+                "item_no": answer_index,
                 "category": item.get("category", ""),
                 "content": item.get("content", ""),
                 "criteria": item.get("criteria", ""),
@@ -17222,6 +17292,49 @@ def edit_checklist_result(result_index):
             if filename:
                 answers[item_index]["files"].append(filename)
 
+        changes = []
+
+        previous_answers_by_item_no = {
+            answer.get("item_no"): answer
+            for answer in previous_answers
+            if answer.get("item_no") is not None
+        }
+
+        for answer_index, answer in enumerate(answers):
+            item_no = answer.get("item_no")
+
+            previous_answer = previous_answers_by_item_no.get(
+                item_no
+            )
+
+            if previous_answer is None:
+                previous_answer = (
+                    previous_answers[answer_index]
+                    if answer_index < len(previous_answers)
+                    else {}
+                )
+
+            before = {
+                "value": previous_answer.get("value", ""),
+                "comment": previous_answer.get("comment", ""),
+                "files": previous_answer.get("files", []),
+            }
+
+            after = {
+                "value": answer.get("value", ""),
+                "comment": answer.get("comment", ""),
+                "files": answer.get("files", []),
+            }
+
+            if before != after:
+                changes.append({
+                    "item_no": answer.get("item_no"),
+                    "category": answer.get("category", ""),
+                    "content": answer.get("content", ""),
+                    "before": before,
+                    "after": after,
+                })
+
         result_record.target_type = target_type
         result_record.target_user = target_user
         result_record.target_username = target_username
@@ -17243,6 +17356,10 @@ def edit_checklist_result(result_index):
                 "approved_date": "",
             })
 
+        was_rejected = (
+            result_record.status == "差し戻し"
+        )
+
         result_record.status = "承認待ち"
         result_record.approvals_json = json.dumps(
             approvals,
@@ -17252,6 +17369,30 @@ def edit_checklist_result(result_index):
         result_record.approved_by_username = ""
         result_record.approved_date = ""
         result_record.reject_reason = ""
+
+        checklist_event = ChecklistEvent(
+            company_code=result_record.company_code,
+            result_type="safety",
+            result_id=result_record.id,
+            event_type=(
+                "再申請"
+                if was_rejected
+                else "修正"
+            ),
+            actor_username=session.get("username"),
+            actor_name=session.get("name"),
+            detail_json=json.dumps(
+                {
+                    "changes": changes,
+                },
+                ensure_ascii=False
+            ),
+            created_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+
+        db.session.add(checklist_event)
 
         mention_text = "\n".join(
             "\n".join([
@@ -20262,6 +20403,43 @@ def complete_vehicle_checklist(index):
         if item.get("item_type") == "check"
     ]
 
+    answers_by_item_no = {}
+
+    for answer in answers:
+        try:
+            answer_item_no = int(
+                answer.get("item_no")
+            )
+        except (TypeError, ValueError):
+            continue
+
+        answers_by_item_no[answer_item_no] = answer
+
+    for item_no, item in enumerate(check_items):
+        answer = answers_by_item_no.get(item_no, {})
+
+        value = str(
+            answer.get("value", "")
+            or ""
+        ).strip()
+
+        comment = str(
+            answer.get("comment", "")
+            or ""
+        ).strip()
+
+        if (
+            item.get("input_type") == "select"
+            and not value
+        ):
+            return "未回答の項目があります。", 400
+
+        if (
+            item.get("comment_required")
+            and not comment
+        ):
+            return "必須コメントが未入力です。", 400
+
     # =========================
     # 通知先ユーザー検証
     # =========================
@@ -20544,9 +20722,9 @@ def new_vehicle_checklist_result(index):
                 if value and value not in valid_choices:
                     return "回答値が不正です。", 400
 
-            elif not value.strip():
-                return "必須項目を入力してください。", 400
-                
+                if not value:
+                    return "未回答の項目があります。", 400
+
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
@@ -20888,6 +21066,7 @@ def new_safety_checklist_result(index):
             item_index = len(answers)
 
             answers.append({
+                "item_no": answer_index,
                 "category": item.get("category", ""),
                 "content": item.get("content", ""),
                 "criteria": item.get("criteria", ""),
@@ -22253,6 +22432,28 @@ def approve_checklist_result(result_index, approval_index):
         result_record.approved_by_username = ""
         result_record.approved_date = ""
 
+    checklist_event = ChecklistEvent(
+        company_code=result_record.company_code,
+        result_type="safety",
+        result_id=result_record.id,
+        event_type="承認",
+        actor_username=session.get("username"),
+        actor_name=session.get("name"),
+        detail_json=json.dumps(
+            {
+                "approval_index": approval_index,
+                "approval": dict(approval),
+                "all_approved": all_approved,
+            },
+            ensure_ascii=False
+        ),
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    db.session.add(checklist_event)
+
     db.session.commit()
 
     if result_record.status == "承認済み":
@@ -22311,12 +22512,20 @@ def reject_checklist_result(result_index):
         ""
     ).strip()
 
+    if not reject_reason:
+        return "差し戻し理由を入力してください。", 400
+
     if len(reject_reason) > 5000:
         return "差し戻し理由は5000文字以内で入力してください。", 400
 
     approvals = safe_json_dict_list(
         result_record.approvals_json
     )
+
+    previous_approvals = [
+        dict(approval)
+        for approval in approvals
+    ]
 
     for approval in approvals:
         approval["approved_by"] = ""
@@ -22333,6 +22542,27 @@ def reject_checklist_result(result_index):
     result_record.approved_by_username = ""
     result_record.approved_date = ""
     result_record.reject_reason = reject_reason
+
+    checklist_event = ChecklistEvent(
+        company_code=result_record.company_code,
+        result_type="safety",
+        result_id=result_record.id,
+        event_type="差し戻し",
+        actor_username=session.get("username"),
+        actor_name=session.get("name"),
+        detail_json=json.dumps(
+            {
+                "reject_reason": reject_reason,
+                "previous_approvals": previous_approvals,
+            },
+            ensure_ascii=False
+        ),
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    db.session.add(checklist_event)
 
     notify_usernames = set()
 
