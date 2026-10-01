@@ -217,6 +217,8 @@
         </div>
     </div>
 
+    {% set approval_ns = namespace(approval_index=0) %}
+
     {% for item in checklist["items"] %}
         {% if item.item_type == "approval" %}
             <div class="card form-card">
@@ -228,6 +230,10 @@
                     <strong>状態：</strong>未承認
                 </p>
             </div>
+
+            {% set approval_ns.approval_index =
+                approval_ns.approval_index + 1
+            %}
         {% endif %}
     {% endfor %}
 

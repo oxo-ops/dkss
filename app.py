@@ -18434,12 +18434,22 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     if approval_index < 0 or approval_index >= len(approvals):
         return redirect("/vehicle/checklists")
 
-    if any(
-        not (
-            item.get("approved_by")
-            or item.get("approved_by_username")
-        )
-        for item in approvals[:approval_index]
+    current_approval_index = next(
+        (
+            index
+            for index, item in enumerate(approvals)
+            if item.get("candidate_usernames")
+            and not (
+                item.get("approved_by")
+                or item.get("approved_by_username")
+            )
+        ),
+        None
+    )
+
+    if (
+        current_approval_index is None
+        or approval_index != current_approval_index
     ):
         return redirect("/vehicle/checklists")
 
@@ -18488,7 +18498,18 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     result = vehicle_checklist_result_to_dict(result_record)
 
-    if not can_approve_checklist_result(result, approval):
+    candidate_usernames = approval.get(
+        "candidate_usernames",
+        []
+    )
+
+    if not candidate_usernames:
+        return redirect("/vehicle/checklists")
+
+    if (
+        session.get("username")
+        not in candidate_usernames
+    ):
         return redirect("/vehicle/checklists")
 
     approval["approved_by"] = session.get("name")
@@ -18508,6 +18529,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     all_approved = all(
         item.get("approved_by")
         for item in approvals
+        if item.get("candidate_usernames")
     )
 
     if approvals and all_approved:
@@ -18524,6 +18546,27 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         result_record.approved_by_username = ""
         result_record.approved_date = ""
 
+    checklist_event = ChecklistEvent(
+        company_code=result_record.company_code,
+        result_type="vehicle",
+        result_id=result_record.id,
+        event_type="承認",
+        actor_username=session.get("username"),
+        actor_name=session.get("name"),
+        detail_json=json.dumps(
+            {
+                "approval_index": approval_index,
+                "approval": dict(approval),
+                "all_approved": all_approved,
+            },
+            ensure_ascii=False
+        ),
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    db.session.add(checklist_event)
     db.session.commit()
 
     vehicle_record = Vehicle.query.filter_by(
@@ -18567,6 +18610,44 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         f"&active_day={active_value}"
     )
 
+    if result_record.status != "承認済み":
+        next_approval = next(
+            (
+                item
+                for item in approvals[approval_index + 1:]
+                if item.get("candidate_usernames")
+                and not (
+                    item.get("approved_by")
+                    or item.get("approved_by_username")
+                )
+            ),
+            None
+        )
+
+        if next_approval:
+
+            for target_username in next_approval.get(
+                "candidate_usernames",
+                []
+            ):
+                target_user = User.query.filter_by(
+                    company_code=result_record.company_code,
+                    username=target_username
+                ).first()
+
+                if not target_user:
+                    continue
+
+                add_notification(
+                    (target_user.last_name or "")
+                    + (target_user.first_name or ""),
+                    "車両チェックリスト承認依頼",
+                    "次の承認をお願いします。",
+                    notification_link,
+                    company_code=result_record.company_code,
+                    target_username=target_user.username
+                )
+
     if result_record.status == "承認済み":
         notify_usernames = set(
             safe_json_str_list(
@@ -18607,6 +18688,163 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         f"&month={result_record.month}"
         f"&active_day={active_value}"
     )
+
+@app.route(
+    "/vehicle/checklist-results/<int:result_index>/reject",
+    methods=["POST"]
+)
+@limiter.limit("20 per minute")
+def reject_vehicle_checklist_result(result_index):
+    result_record = VehicleChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=session.get("company_code")
+    ).first()
+
+    if not result_record:
+        return redirect("/vehicle/checklists")
+
+    if result_record.status != "承認待ち":
+        return redirect("/vehicle/checklists")
+
+    approvals = safe_json_dict_list(
+        result_record.approvals_json
+    )
+
+    current_approval = next(
+        (
+            approval
+            for approval in approvals
+            if approval.get("candidate_usernames")
+            and not (
+                approval.get("approved_by")
+                or approval.get("approved_by_username")
+            )
+        ),
+        None
+    )
+
+    candidate_usernames = (
+        current_approval.get(
+            "candidate_usernames",
+            []
+        )
+        if current_approval
+        else []
+    )
+
+    if (
+        not candidate_usernames
+        or session.get("username")
+        not in candidate_usernames
+    ):
+        return redirect("/vehicle/checklists")
+
+    reject_reason = request.form.get(
+        "reject_reason",
+        ""
+    ).strip()
+
+    if not reject_reason:
+        return "差し戻し理由を入力してください。", 400
+
+    if len(reject_reason) > 5000:
+        return (
+            "差し戻し理由は5000文字以内で入力してください。",
+            400
+        )
+
+    previous_approvals = [
+        dict(approval)
+        for approval in approvals
+    ]
+
+    for approval in approvals:
+        approval["approved_by"] = ""
+        approval["approved_by_username"] = ""
+        approval["approved_date"] = ""
+
+    result_record.approvals_json = json.dumps(
+        approvals,
+        ensure_ascii=False
+    )
+
+    result_record.status = "差し戻し"
+    result_record.approved_by = ""
+    result_record.approved_by_username = ""
+    result_record.approved_date = ""
+    result_record.reject_reason = reject_reason
+
+    checklist_event = ChecklistEvent(
+        company_code=result_record.company_code,
+        result_type="vehicle",
+        result_id=result_record.id,
+        event_type="差し戻し",
+        actor_username=session.get("username"),
+        actor_name=session.get("name"),
+        detail_json=json.dumps(
+            {
+                "reject_reason": reject_reason,
+                "approval_label": (
+                    current_approval.get("label", "")
+                    if current_approval
+                    else ""
+                ),
+                "previous_approvals": previous_approvals,
+            },
+            ensure_ascii=False
+        ),
+        created_at=datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    db.session.add(checklist_event)
+    db.session.commit()
+
+    result_checklist = safe_json_dict(
+        result_record.checklist_snapshot_json
+    )
+
+    if result_checklist.get("frequency_unit") == "year":
+        active_value = result_record.year
+    elif result_checklist.get("display_type") == "month":
+        active_value = result_record.day
+    else:
+        active_value = result_record.month
+
+    if result_record.checked_by_username:
+        target_user = User.query.filter_by(
+            company_code=result_record.company_code,
+            username=result_record.checked_by_username
+        ).first()
+
+        if target_user:
+            add_notification(
+                (target_user.last_name or "")
+                + (target_user.first_name or ""),
+                "車両チェックリストが差し戻されました",
+                reject_reason,
+                (
+                    f"/vehicle/checklists/"
+                    f"{result_record.checklist_id}"
+                    f"?vehicle_record_id="
+                    f"{result_record.vehicle_record_id}"
+                    f"&year={result_record.year}"
+                    f"&month={result_record.month}"
+                    f"&active_day={active_value}"
+                ),
+                company_code=result_record.company_code,
+                target_username=target_user.username
+            )
+
+    return redirect(
+        f"/vehicle/checklists/{result_record.checklist_id}"
+        f"?vehicle_record_id={result_record.vehicle_record_id}"
+        f"&year={result_record.year}"
+        f"&month={result_record.month}"
+        f"&active_day={active_value}"
+    )
+
 
 @app.route("/vehicle/checklist-results/<int:result_index>/excel")
 def export_vehicle_checklist_result_excel(result_index):
@@ -20047,15 +20285,32 @@ def save_vehicle_checklist_one(index):
     result_record.checked_by_username = session.get("username")
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
     result_record.status = "入力中"
+
+    previous_approvals = safe_json_dict_list(
+        result_record.approvals_json
+    )
+
     approvals = []
 
     for item in result_checklist.get("items", []):
         if item.get("item_type") != "approval":
             continue
 
+        approval_index = len(approvals)
+
+        previous_approval = (
+            previous_approvals[approval_index]
+            if approval_index < len(previous_approvals)
+            else {}
+        )
+
         approvals.append({
             "label": item.get("approval_label", ""),
             "allow_general": item.get("approval_allow_general", False),
+            "candidate_usernames": previous_approval.get(
+                "candidate_usernames",
+                []
+            ),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -20363,15 +20618,31 @@ def save_vehicle_checklist_detail(index):
     answer["content"] = content
     answer["criteria"] = criteria
 
+    previous_approvals = safe_json_dict_list(
+        result_record.approvals_json
+    )
+
     approvals = []
 
     for item in result_checklist.get("items", []):
         if item.get("item_type") != "approval":
             continue
 
+        approval_index = len(approvals)
+
+        previous_approval = (
+            previous_approvals[approval_index]
+            if approval_index < len(previous_approvals)
+            else {}
+        )
+
         approvals.append({
             "label": item.get("approval_label", ""),
             "allow_general": item.get("approval_allow_general", False),
+            "candidate_usernames": previous_approval.get(
+                "candidate_usernames",
+                []
+            ),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -20685,7 +20956,6 @@ def complete_vehicle_checklist(index):
     # 完了処理
     # =========================
 
-    result_record.status = "承認待ち"
     result_record.checked_by = session.get("name")
     result_record.checked_by_username = session.get("username")
     result_record.checked_date = (
@@ -20698,14 +20968,57 @@ def complete_vehicle_checklist(index):
         if item.get("item_type") != "approval":
             continue
 
+        approval_index = len(approvals)
+
+        candidate_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                f"approval_notify_users_{approval_index}"
+            )
+            if username.strip()
+            and username.strip() in valid_users
+            and (
+                valid_users[
+                    username.strip()
+                ].role == "admin"
+                or (
+                    item.get(
+                        "approval_allow_general",
+                        False
+                    )
+                    and valid_users[
+                        username.strip()
+                    ].role == "user"
+                )
+            )
+        ]
+
+        candidate_usernames = list(
+            dict.fromkeys(candidate_usernames)
+        )
+
         approvals.append({
             "label": item.get("approval_label", ""),
-            "allow_general": item.get("approval_allow_general", False),
+            "allow_general": item.get(
+                "approval_allow_general",
+                False
+            ),
+            "candidate_usernames": candidate_usernames,
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
         })
 
+    has_system_approval = any(
+        approval.get("candidate_usernames")
+        for approval in approvals
+    )
+
+    result_record.status = (
+        "承認待ち"
+        if has_system_approval
+        else "点検完了"
+    )
     result_record.approved_by = ""
     result_record.approved_by_username = ""
     result_record.approved_date = ""
@@ -20734,6 +21047,40 @@ def complete_vehicle_checklist(index):
         month=month,
         active_day=active_day,
     )
+
+    if has_system_approval and approvals:
+        first_approval = next(
+            (
+                approval
+                for approval in approvals
+                if approval.get("candidate_usernames")
+            ),
+            None
+        )
+
+        for target_username in first_approval.get(
+            "candidate_usernames",
+            []
+        ):
+            target_user = valid_users.get(
+                target_username
+            )
+
+            if not target_user:
+                continue
+
+            add_notification(
+                (target_user.last_name or "")
+                + (target_user.first_name or ""),
+                "車両チェックリスト承認依頼",
+                (
+                    f"「{checklist_record.name}」"
+                    "の承認をお願いします。"
+                ),
+                notification_link,
+                company_code=company_code,
+                target_username=target_user.username
+            )
 
     for target_username in notify_usernames:
         target_user = valid_users[target_username]
@@ -21018,19 +21365,67 @@ def new_vehicle_checklist_result(index):
                     cost=""
                 ))
 
+        valid_users = {
+            user.username: user
+            for user in User.query.filter_by(
+                company_code=company_code
+            ).all()
+            if user.username
+        }
+
         approvals = []
 
         for item in checklist.get("items", []):
             if item.get("item_type") != "approval":
                 continue
 
+            approval_index = len(approvals)
+
+            candidate_usernames = [
+                username.strip()
+                for username in request.form.getlist(
+                    f"approval_notify_users_{approval_index}"
+                )
+                if username.strip()
+                and username.strip() in valid_users
+                and (
+                    valid_users[
+                        username.strip()
+                    ].role == "admin"
+                    or (
+                        item.get(
+                            "approval_allow_general",
+                            False
+                        )
+                        and valid_users[
+                            username.strip()
+                        ].role == "user"
+                    )
+                )
+            ]
+
+            candidate_usernames = list(
+                dict.fromkeys(candidate_usernames)
+            )
+
             approvals.append({
                 "label": item.get("approval_label", ""),
-                "allow_general": item.get("approval_allow_general", False),
+                "allow_general": item.get(
+                    "approval_allow_general",
+                    False
+                ),
+                "candidate_usernames": (
+                    candidate_usernames
+                ),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
             })
+
+        has_system_approval = any(
+            approval.get("candidate_usernames")
+            for approval in approvals
+        )
 
         result = VehicleChecklistResult(
             company_code=company_code,
@@ -21044,7 +21439,11 @@ def new_vehicle_checklist_result(index):
             checked_date=datetime.now(
                 ZoneInfo("Asia/Tokyo")
             ).strftime("%Y-%m-%d %H:%M"),
-            status="承認待ち",
+            status=(
+                "承認待ち"
+                if has_system_approval
+                else "点検完了"
+            ),
             approved_by="",
             approved_by_username="",
             approved_date="",
@@ -21062,6 +21461,34 @@ def new_vehicle_checklist_result(index):
 
         db.session.add(result)
         db.session.commit()
+
+        if has_system_approval and approvals:
+            first_approval = next(
+                (
+                    approval
+                    for approval in approvals
+                    if approval.get("candidate_usernames")
+                ),
+                None
+            )
+
+            for username in first_approval.get(
+                "candidate_usernames",
+                []
+            ):
+                add_notification(
+                    company_code=company_code,
+                    target_username=username,
+                    title="車両チェックリスト承認依頼",
+                    message=(
+                        f"「{checklist.get('name', '車両チェックリスト')}」"
+                        "の承認をお願いします。"
+                    ),
+                    link=(
+                        f"/vehicle/checklist-results/"
+                        f"{result.id}"
+                    ),
+                )
 
         mention_text = "\n".join(
             "\n".join([
@@ -22865,7 +23292,8 @@ def reject_checklist_result(result_index):
         (
             approval
             for approval in approvals
-            if not (
+            if approval.get("candidate_usernames")
+            and not (
                 approval.get("approved_by")
                 or approval.get("approved_by_username")
             )
