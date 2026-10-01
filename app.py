@@ -18754,14 +18754,36 @@ def reject_vehicle_checklist_result(result_index):
             "差し戻し理由を入力してください。",
             "error:reject_reason"
         )
-        return redirect(request.referrer or "/vehicle/checklists")
+        referrer = (request.referrer or "").replace("\\", "/")
+        parsed_referrer = urlparse(referrer)
+        safe_target = "/vehicle/checklists"
+        if not parsed_referrer.scheme and not parsed_referrer.netloc:
+            safe_target = referrer or safe_target
+        elif parsed_referrer.netloc == request.host:
+            safe_target = (
+                parsed_referrer.path
+                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
+                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
+            ) or safe_target
+        return redirect(safe_target)
 
     if len(reject_reason) > 5000:
         flash(
             "差し戻し理由は5000文字以内で入力してください。",
             "error:reject_reason"
         )
-        return redirect(request.referrer or "/vehicle/checklists")
+        referrer = (request.referrer or "").replace("\\", "/")
+        parsed_referrer = urlparse(referrer)
+        safe_target = "/vehicle/checklists"
+        if not parsed_referrer.scheme and not parsed_referrer.netloc:
+            safe_target = referrer or safe_target
+        elif parsed_referrer.netloc == request.host:
+            safe_target = (
+                parsed_referrer.path
+                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
+                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
+            ) or safe_target
+        return redirect(safe_target)
 
     previous_approvals = [
         dict(approval)
