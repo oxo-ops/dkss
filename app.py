@@ -23461,13 +23461,20 @@ def reject_checklist_result(result_index):
         ""
     ).strip()
 
+    safe_referrer = ""
+    if request.referrer:
+        normalized_referrer = request.referrer.replace("\\", "")
+        parsed_referrer = urlparse(normalized_referrer)
+        if not parsed_referrer.netloc and not parsed_referrer.scheme:
+            safe_referrer = normalized_referrer
+
     if not reject_reason:
         flash(
             "差し戻し理由を入力してください。",
             "error:reject_reason"
         )
         return redirect(
-            request.referrer
+            safe_referrer
             or f"/safety/checklist-results/{result_index}"
         )
 
@@ -23477,7 +23484,7 @@ def reject_checklist_result(result_index):
             "error:reject_reason"
         )
         return redirect(
-            request.referrer
+            safe_referrer
             or f"/safety/checklist-results/{result_index}"
         )
 
