@@ -148,6 +148,402 @@ document.addEventListener("DOMContentLoaded", function () {
     const csrfToken =
         csrfInput ? csrfInput.value : "";
 
+    const approvalUserSearchInputs =
+        document.querySelectorAll(
+            ".approval-user-search"
+        );
+
+    approvalUserSearchInputs.forEach(
+        function (searchInput) {
+            fetch("/api/approval-candidates")
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
+                    return response.json();
+                })
+                .then(function (data) {
+                    searchInput.dispatchEvent(
+                        new CustomEvent(
+                            "approval-candidates-loaded",
+                            {
+                                detail: {
+                                    users:
+                                        data.users || []
+                                }
+                            }
+                        )
+                    );
+                })
+                .catch(function () {
+                    showCommonError(
+                        "承認者候補を取得できませんでした。"
+                    );
+                });
+        }
+    );
+
+
+    function addApprovalUser(
+        approvalIndex,
+        user
+    ) {
+        const selectedArea =
+            document.querySelector(
+                '.selected-approval-users[data-approval-index="' +
+                approvalIndex +
+                '"]'
+            );
+
+        if (!selectedArea || !user.username) {
+            return;
+        }
+
+        if (
+            selectedArea.querySelector(
+                '[data-username="' +
+                CSS.escape(user.username) +
+                '"]'
+            )
+        ) {
+            return;
+        }
+
+        const tag =
+            document.createElement("span");
+
+        tag.className = "selected-vehicle-tag";
+        tag.dataset.username = user.username;
+
+        tag.appendChild(
+            document.createTextNode(
+                user.name || user.username
+            )
+        );
+
+        const remove =
+            document.createElement("button");
+
+        remove.type = "button";
+        remove.className = "tag-remove-btn";
+        remove.textContent = "×";
+
+        const hidden =
+            document.createElement("input");
+
+        hidden.type = "hidden";
+        hidden.name =
+            "approval_notify_users_" +
+            approvalIndex;
+        hidden.value = user.username;
+
+        remove.addEventListener(
+            "click",
+            function () {
+                tag.remove();
+
+                const searchInput =
+                    document.querySelector(
+                        '.approval-user-search[data-approval-index="' +
+                        approvalIndex +
+                        '"]'
+                    );
+
+                if (searchInput) {
+                    searchInput.dispatchEvent(
+                        new Event(
+                            "approval-reload-candidates"
+                        )
+                    );
+                }
+            }
+        );
+
+        tag.appendChild(remove);
+        tag.appendChild(hidden);
+        selectedArea.appendChild(tag);
+
+        const selectedHeading =
+            document.querySelector(
+                '.selected-approval-users-heading[data-approval-index="' +
+                approvalIndex +
+                '"]'
+            );
+
+        if (selectedHeading) {
+            selectedHeading.textContent =
+                "選択済み（" +
+                selectedArea.querySelectorAll(
+                    'input[name^="approval_notify_users_"]'
+                ).length +
+                "人）";
+        }
+
+        remove.addEventListener(
+            "click",
+            function () {
+                if (selectedHeading) {
+                    selectedHeading.textContent =
+                        "選択済み（" +
+                        selectedArea.querySelectorAll(
+                            'input[name^="approval_notify_users_"]'
+                        ).length +
+                        "人）";
+                }
+            }
+        );
+    }
+
+    approvalUserSearchInputs.forEach(
+        function (searchInput) {
+            searchInput.addEventListener(
+                "approval-reload-candidates",
+                function () {
+                    fetch("/api/approval-candidates")
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error(
+                                    "HTTP " + response.status
+                                );
+                            }
+
+                            return response.json();
+                        })
+                        .then(function (data) {
+                            searchInput.dispatchEvent(
+                                new CustomEvent(
+                                    "approval-candidates-loaded",
+                                    {
+                                        detail: {
+                                            users:
+                                                data.users || []
+                                        }
+                                    }
+                                )
+                            );
+                        })
+                        .catch(function () {
+                            showCommonError(
+                                "承認者候補を取得できませんでした。"
+                            );
+                        });
+                }
+            );
+
+            searchInput.addEventListener(
+                "approval-candidates-loaded",
+                function (event) {
+                    const approvalIndex =
+                        searchInput.dataset.approvalIndex;
+
+                    const candidateArea =
+                        document.querySelector(
+                            '.approval-candidate-users[data-approval-index="' +
+                            approvalIndex +
+                            '"]'
+                        );
+
+                    if (!candidateArea) {
+                        return;
+                    }
+
+                    candidateArea.replaceChildren();
+
+                    (event.detail.users || [])
+                        .forEach(function (user) {
+                            const selectedArea =
+                                document.querySelector(
+                                    '.selected-approval-users[data-approval-index="' +
+                                    approvalIndex +
+                                    '"]'
+                                );
+
+                            if (
+                                selectedArea &&
+                                selectedArea.querySelector(
+                                    '[data-username="' +
+                                    CSS.escape(user.username) +
+                                    '"]'
+                                )
+                            ) {
+                                return;
+                            }
+
+                            const button =
+                                document.createElement(
+                                    "button"
+                                );
+
+                            button.type = "button";
+                            button.className =
+                                "vehicle-select-item";
+
+                            button.textContent =
+                                user.name ||
+                                user.username;
+
+                            button.addEventListener(
+                                "click",
+                                function () {
+                                    addApprovalUser(
+                                        approvalIndex,
+                                        user
+                                    );
+
+                                    button.remove();
+                                }
+                            );
+
+                            candidateArea.appendChild(
+                                button
+                            );
+                        });
+                }
+            );
+        }
+    );
+
+
+    approvalUserSearchInputs.forEach(
+        function (searchInput) {
+            const approvalIndex =
+                searchInput.dataset.approvalIndex;
+
+            const searchResults =
+                document.querySelector(
+                    '.approval-user-search-results[data-approval-index="' +
+                    approvalIndex +
+                    '"]'
+                );
+
+            if (!searchResults) {
+                return;
+            }
+
+            let approvalSearchTimer = null;
+
+            searchInput.addEventListener(
+                "input",
+                function () {
+                    clearTimeout(
+                        approvalSearchTimer
+                    );
+
+                    const keyword =
+                        searchInput.value.trim();
+
+                    searchResults.replaceChildren();
+
+                    if (!keyword) {
+                        searchResults.classList.add(
+                            "is-hidden"
+                        );
+                        return;
+                    }
+
+                    approvalSearchTimer =
+                        setTimeout(
+                            async function () {
+                                try {
+                                    const response =
+                                        await fetch(
+                                            "/api/mention-users?q=" +
+                                            encodeURIComponent(
+                                                keyword
+                                            )
+                                        );
+
+                                    if (!response.ok) {
+                                        throw new Error(
+                                            "HTTP " +
+                                            response.status
+                                        );
+                                    }
+
+                                    const data =
+                                        await response.json();
+
+                                    const allowGeneral =
+                                        searchInput.dataset.allowGeneral ===
+                                        "1";
+
+                                    const users =
+                                        (data.users || []).filter(
+                                            function (user) {
+                                                return (
+                                                    user.role === "admin"
+                                                    || (
+                                                        allowGeneral
+                                                        && user.role === "user"
+                                                    )
+                                                );
+                                            }
+                                        );
+
+                                    searchResults.replaceChildren();
+
+                                    users.forEach(
+                                        function (user) {
+                                            const button =
+                                                document.createElement(
+                                                    "button"
+                                                );
+
+                                            button.type = "button";
+                                            button.className =
+                                                "vehicle-select-item";
+
+                                            button.textContent =
+                                                user.name ||
+                                                user.username;
+
+                                            button.addEventListener(
+                                                "click",
+                                                function () {
+                                                    addApprovalUser(
+                                                        approvalIndex,
+                                                        user
+                                                    );
+
+                                                    searchInput.value = "";
+                                                    searchResults.replaceChildren();
+                                                    searchResults.classList.add(
+                                                        "is-hidden"
+                                                    );
+                                                }
+                                            );
+
+                                            searchResults.appendChild(
+                                                button
+                                            );
+                                        }
+                                    );
+
+                                    searchResults.classList.toggle(
+                                        "is-hidden",
+                                        users.length === 0
+                                    );
+                                } catch (error) {
+                                    searchResults.replaceChildren();
+                                    searchResults.classList.add(
+                                        "is-hidden"
+                                    );
+
+                                    showCommonError(
+                                        "承認者を検索できませんでした。"
+                                    );
+                                }
+                            },
+                            300
+                        );
+                }
+            );
+        }
+    );
+
 
     /* =========================
        点検完了確認
@@ -168,6 +564,91 @@ document.addEventListener("DOMContentLoaded", function () {
                     )
                 ) {
                     event.preventDefault();
+                }
+            }
+        );
+    }
+
+
+    /* =========================
+       承認差し戻し
+    ========================= */
+
+    const vehicleRejectModal =
+        document.getElementById(
+            "vehicleRejectModal"
+        );
+
+    const vehicleRejectForm =
+        document.getElementById(
+            "vehicleRejectForm"
+        );
+
+    const vehicleRejectReason =
+        document.getElementById(
+            "vehicleRejectReason"
+        );
+
+    const vehicleRejectCancel =
+        document.getElementById(
+            "vehicleRejectCancel"
+        );
+
+    document.querySelectorAll(
+        ".js-vehicle-checklist-reject"
+    ).forEach(function (button) {
+        button.addEventListener(
+            "click",
+            function () {
+                if (
+                    !vehicleRejectModal
+                    || !vehicleRejectForm
+                ) {
+                    return;
+                }
+
+                const resultIndex =
+                    button.dataset.resultIndex;
+
+                vehicleRejectForm.action =
+                    "/vehicle/checklist-results/"
+                    + resultIndex
+                    + "/reject";
+
+                if (vehicleRejectReason) {
+                    vehicleRejectReason.value = "";
+                }
+
+                vehicleRejectModal.classList.remove(
+                    "is-hidden"
+                );
+
+                if (vehicleRejectReason) {
+                    vehicleRejectReason.focus();
+                }
+            }
+        );
+    });
+
+    if (vehicleRejectCancel) {
+        vehicleRejectCancel.addEventListener(
+            "click",
+            function () {
+                vehicleRejectModal.classList.add(
+                    "is-hidden"
+                );
+            }
+        );
+    }
+
+    if (vehicleRejectModal) {
+        vehicleRejectModal.addEventListener(
+            "click",
+            function (event) {
+                if (event.target === vehicleRejectModal) {
+                    vehicleRejectModal.classList.add(
+                        "is-hidden"
+                    );
                 }
             }
         );

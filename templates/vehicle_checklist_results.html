@@ -407,9 +407,24 @@
                     {% endif %}
 
                     {% set approval_can_approve =
-                        session.get("role") in ["admin", "itc"]
-                        or approval_allow_general
+                        approval
+                        and session.get("username")
+                            in approval.get("candidate_usernames", [])
                     %}
+
+                    {% set current_ns = namespace(index=none) %}
+
+                    {% for approval_item in ns.target_result.approvals %}
+                        {% if current_ns.index is none
+                            and approval_item.get("candidate_usernames")
+                            and not (
+                                approval_item.get("approved_by")
+                                or approval_item.get("approved_by_username")
+                            )
+                        %}
+                            {% set current_ns.index = loop.index0 %}
+                        {% endif %}
+                    {% endfor %}
 
                     {% if approval and approval.approved_by %}
 
@@ -422,7 +437,10 @@
 
                     {% else %}
 
-                    {% if ns.target_result.status == "承認待ち" and approval_can_approve %}
+                    {% if ns.target_result.status == "承認待ち"
+                        and approval_can_approve
+                        and approval_ns.index == current_ns.index
+                    %}
                     <form
                         method="post"
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
@@ -433,6 +451,14 @@
                             承認
                         </button>
                     </form>
+
+                    <button
+                        type="button"
+                        class="btn-mini btn-back js-vehicle-checklist-reject"
+                        data-result-index="{{ ns.target_result.index }}"
+                    >
+                        差し戻し
+                    </button>
                     {% elif ns.target_result.status == "承認待ち" %}
                     <span class="status-badge status-waiting">
                         未
@@ -645,6 +671,81 @@
             <input type="hidden" name="day" value="{{ active_day }}">
         {% endif %}
 
+        {% set approval_form_ns = namespace(index=0) %}
+
+        {% set approval_form_ns2 = namespace(checklist=checklist) %}
+
+        {% for section in table_sections %}
+            {% if active_day|int in section.days %}
+                {% set approval_form_ns2.checklist = section.checklist %}
+            {% endif %}
+        {% endfor %}
+
+        {% for item in approval_form_ns2.checklist["items"] %}
+            {% if item.item_type == "approval" %}
+                <div
+                    class="card form-card vehicle-approval-card"
+                    data-approval-index="{{ approval_form_ns.index }}"
+                >
+                    <h3>{{ item.approval_label or "承認欄" }}</h3>
+
+                    <div
+                        class="notify-user-selector"
+                        data-approval-index="{{ approval_form_ns.index }}"
+                    >
+                        <div
+                            class="approval-candidate-area"
+                            data-approval-index="{{ approval_form_ns.index }}"
+                        >
+                            <div class="approval-candidate-label">
+                                選択した承認者に、承認依頼が通知されます
+                            </div>
+
+                            <div
+                                class="approval-candidate-users"
+                                data-approval-index="{{ approval_form_ns.index }}"
+                            ></div>
+                        </div>
+
+                        <div class="approval-user-search-heading">
+                            承認者を追加
+                        </div>
+
+                        <input
+                            type="text"
+                            class="approval-user-search"
+                            id="approval_user_search_{{ approval_form_ns.index }}"
+                            data-approval-index="{{ approval_form_ns.index }}"
+                            data-allow-general="{{ '1' if item.approval_allow_general else '0' }}"
+                            placeholder="名前で検索"
+                            autocomplete="off"
+                        >
+
+                        <div
+                            class="approval-user-search-results vehicle-select-box is-hidden"
+                            data-approval-index="{{ approval_form_ns.index }}"
+                        ></div>
+
+                        <div
+                            class="selected-approval-users-heading"
+                            data-approval-index="{{ approval_form_ns.index }}"
+                        >
+                            選択済み（0人）
+                        </div>
+
+                        <div
+                            class="selected-approval-users selected-vehicle-tags"
+                            data-approval-index="{{ approval_form_ns.index }}"
+                        ></div>
+                    </div>
+                </div>
+
+                {% set approval_form_ns.index =
+                    approval_form_ns.index + 1
+                %}
+            {% endif %}
+        {% endfor %}
+
         <div class="vehicle-check-notify-grid">
 
             <div class="notify-user-selector">
@@ -802,6 +903,48 @@
                     class="btn btn-back js-close-detail-modal"
                 >
                     閉じる
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="vehicleRejectModal" class="modal-bg is-hidden">
+    <div class="modal-box modal-small">
+        <h3>チェックリストを差し戻す</h3>
+
+        <form
+            method="post"
+            id="vehicleRejectForm"
+        >
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token() }}"
+            >
+
+            <label for="vehicleRejectReason">
+                差し戻し理由
+            </label>
+
+            <textarea
+                id="vehicleRejectReason"
+                name="reject_reason"
+                maxlength="5000"
+                required
+            ></textarea>
+
+            <div class="action-row">
+                <button type="submit" class="btn">
+                    差し戻す
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-back"
+                    id="vehicleRejectCancel"
+                >
+                    キャンセル
                 </button>
             </div>
         </form>
