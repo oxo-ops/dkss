@@ -18710,6 +18710,11 @@ def reject_vehicle_checklist_result(result_index):
         result_record.approvals_json
     )
 
+    previous_approvals = [
+        dict(approval)
+        for approval in approvals
+    ]
+
     current_approval = next(
         (
             approval
@@ -18745,13 +18750,40 @@ def reject_vehicle_checklist_result(result_index):
     ).strip()
 
     if not reject_reason:
-        return "差し戻し理由を入力してください。", 400
+        flash(
+            "差し戻し理由を入力してください。",
+            "error:reject_reason"
+        )
+        referrer = (request.referrer or "").replace("\\", "/")
+        parsed_referrer = urlparse(referrer)
+        safe_target = "/vehicle/checklists"
+        if not parsed_referrer.scheme and not parsed_referrer.netloc:
+            safe_target = referrer or safe_target
+        elif parsed_referrer.netloc == request.host:
+            safe_target = (
+                parsed_referrer.path
+                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
+                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
+            ) or safe_target
+        return redirect(safe_target)
 
     if len(reject_reason) > 5000:
-        return (
+        flash(
             "差し戻し理由は5000文字以内で入力してください。",
-            400
+            "error:reject_reason"
         )
+        referrer = (request.referrer or "").replace("\\", "/")
+        parsed_referrer = urlparse(referrer)
+        safe_target = "/vehicle/checklists"
+        if not parsed_referrer.scheme and not parsed_referrer.netloc:
+            safe_target = referrer or safe_target
+        elif parsed_referrer.netloc == request.host:
+            safe_target = (
+                parsed_referrer.path
+                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
+                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
+            ) or safe_target
+        return redirect(safe_target)
 
     previous_approvals = [
         dict(approval)
@@ -20276,15 +20308,25 @@ def save_vehicle_checklist_one(index):
         }
         answers.append(answer)
 
+    previous_value = answer.get("value", "")
+
     answer["value"] = value
     answer["category"] = category
     answer["content"] = content
     answer["criteria"] = criteria
 
+    was_rejected = (
+        result_record.status == "差し戻し"
+    )
+
     result_record.checked_by = session.get("name")
     result_record.checked_by_username = session.get("username")
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    result_record.status = "入力中"
+    result_record.status = (
+        "差し戻し"
+        if was_rejected
+        else "入力中"
+    )
 
     previous_approvals = safe_json_dict_list(
         result_record.approvals_json
@@ -20323,8 +20365,35 @@ def save_vehicle_checklist_one(index):
         approvals,
         ensure_ascii=False
     )
-    result_record.reject_reason = ""
+    if not was_rejected:
+        result_record.reject_reason = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
+
+    if was_rejected and previous_value != value:
+        checklist_event = ChecklistEvent(
+            company_code=result_record.company_code,
+            result_type="vehicle",
+            result_id=result_record.id,
+            event_type="修正",
+            actor_username=session.get("username"),
+            actor_name=session.get("name"),
+            detail_json=json.dumps(
+                {
+                    "changes": [
+                        {
+                            "item_no": item_no,
+                            "before": previous_value,
+                            "after": value,
+                        }
+                    ],
+                },
+                ensure_ascii=False
+            ),
+            created_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+        db.session.add(checklist_event)
 
     db.session.commit()
 
@@ -20589,6 +20658,10 @@ def save_vehicle_checklist_detail(index):
 
     answer.setdefault("files", [])
 
+    previous_files = list(
+        answer.get("files", [])
+    )
+
     for file in uploaded_files:
         original_filename = os.path.basename(
             str(file.filename or "")
@@ -20613,10 +20686,16 @@ def save_vehicle_checklist_detail(index):
         if filename:
             answer["files"].append(filename)
 
+    previous_comment = answer.get("comment", "")
+
     answer["comment"] = comment
     answer["category"] = category
     answer["content"] = content
     answer["criteria"] = criteria
+
+    was_rejected = (
+        result_record.status == "差し戻し"
+    )
 
     previous_approvals = safe_json_dict_list(
         result_record.approvals_json
@@ -20651,7 +20730,11 @@ def save_vehicle_checklist_detail(index):
     result_record.checked_by = session.get("name")
     result_record.checked_by_username = session.get("username")
     result_record.checked_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    result_record.status = "入力中"
+    result_record.status = (
+        "差し戻し"
+        if was_rejected
+        else "入力中"
+    )
     result_record.approved_by = ""
     result_record.approved_by_username = ""
     result_record.approved_date = ""
@@ -20659,8 +20742,48 @@ def save_vehicle_checklist_detail(index):
         approvals,
         ensure_ascii=False
     )
-    result_record.reject_reason = ""
+    if not was_rejected:
+        result_record.reject_reason = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
+
+    if (
+        was_rejected
+        and (
+            previous_comment != comment
+            or previous_files != answer.get("files", [])
+        )
+    ):
+        checklist_event = ChecklistEvent(
+            company_code=result_record.company_code,
+            result_type="vehicle",
+            result_id=result_record.id,
+            event_type="修正",
+            actor_username=session.get("username"),
+            actor_name=session.get("name"),
+            detail_json=json.dumps(
+                {
+                    "changes": [
+                        {
+                            "item_no": item_no,
+                            "field": "comment",
+                            "before": previous_comment,
+                            "after": comment,
+                        },
+                        {
+                            "item_no": item_no,
+                            "field": "files",
+                            "before": previous_files,
+                            "after": answer.get("files", []),
+                        },
+                    ],
+                },
+                ensure_ascii=False
+            ),
+            created_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+        db.session.add(checklist_event)
 
     if request.form.get("patrol_link") == "1":
         existing_patrol = VehiclePatrol.query.filter_by(
@@ -21014,6 +21137,10 @@ def complete_vehicle_checklist(index):
         for approval in approvals
     )
 
+    was_rejected = (
+        result_record.status == "差し戻し"
+    )
+
     result_record.status = (
         "承認待ち"
         if has_system_approval
@@ -21032,6 +21159,26 @@ def complete_vehicle_checklist(index):
         notify_usernames,
         ensure_ascii=False
     )
+
+    if was_rejected:
+        checklist_event = ChecklistEvent(
+            company_code=result_record.company_code,
+            result_type="vehicle",
+            result_id=result_record.id,
+            event_type="再申請",
+            actor_username=session.get("username"),
+            actor_name=session.get("name"),
+            detail_json=json.dumps(
+                {
+                    "approvals": approvals,
+                },
+                ensure_ascii=False
+            ),
+            created_at=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+        db.session.add(checklist_event)
 
     db.session.commit()
 
@@ -23314,11 +23461,32 @@ def reject_checklist_result(result_index):
         ""
     ).strip()
 
+    safe_referrer = ""
+    if request.referrer:
+        normalized_referrer = request.referrer.replace("\\", "")
+        parsed_referrer = urlparse(normalized_referrer)
+        if not parsed_referrer.netloc and not parsed_referrer.scheme:
+            safe_referrer = normalized_referrer
+
     if not reject_reason:
-        return "差し戻し理由を入力してください。", 400
+        flash(
+            "差し戻し理由を入力してください。",
+            "error:reject_reason"
+        )
+        return redirect(
+            safe_referrer
+            or f"/safety/checklist-results/{result_index}"
+        )
 
     if len(reject_reason) > 5000:
-        return "差し戻し理由は5000文字以内で入力してください。", 400
+        flash(
+            "差し戻し理由は5000文字以内で入力してください。",
+            "error:reject_reason"
+        )
+        return redirect(
+            safe_referrer
+            or f"/safety/checklist-results/{result_index}"
+        )
 
     previous_approvals = [
         dict(approval)
