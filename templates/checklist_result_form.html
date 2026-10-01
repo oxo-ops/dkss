@@ -190,10 +190,82 @@
                 </th>
             </tr>
 
-            {% set ns = namespace(answer_index=0) %}
+            {% set ns = namespace(
+                answer_index=0,
+                approval_index=0
+            ) %}
 
             {% for item in checklist["items"] %}
-            {% if item.item_type == "check" %}
+
+            {% if item.item_type == "approval" %}
+            <tr
+                class="checklist-result-approval-row"
+                data-approval-index="{{ ns.approval_index }}"
+            >
+                <td>承認</td>
+
+                <td
+                    colspan="3"
+                    class="checklist-result-content checklist-result-approval-content"
+                >
+                    <div class="checklist-result-approval-label">
+                        {{ item.approval_label or "承認欄" }}
+                    </div>
+                    <div
+                        class="notify-user-selector"
+                        data-approval-index="{{ ns.approval_index }}"
+                    >
+                        <div
+                            class="approval-candidate-area"
+                            data-approval-index="{{ ns.approval_index }}"
+                        >
+                            <div class="approval-candidate-label">
+                                選択した承認者に、承認依頼が通知されます
+                            </div>
+
+                            <div
+                                class="approval-candidate-users"
+                                data-approval-index="{{ ns.approval_index }}"
+                            ></div>
+                        </div>
+
+                        <div class="approval-user-search-heading">
+                            承認者を追加
+                        </div>
+
+                        <input
+                            type="text"
+                            id="approval_user_search_{{ ns.approval_index }}"
+                            class="approval-user-search"
+                            data-approval-index="{{ ns.approval_index }}"
+                            data-allow-general="{{ '1' if item.approval_allow_general else '0' }}"
+                            placeholder="名前で検索"
+                            autocomplete="off"
+                        >
+
+                        <div
+                            class="approval-user-search-results vehicle-select-box is-hidden"
+                            data-approval-index="{{ ns.approval_index }}"
+                        ></div>
+
+                        <div
+                            class="selected-approval-users-heading"
+                            data-approval-index="{{ ns.approval_index }}"
+                        >
+                            選択済み（0人）
+                        </div>
+
+                        <div
+                            class="selected-approval-users selected-vehicle-tags"
+                            data-approval-index="{{ ns.approval_index }}"
+                        ></div>
+                    </div>
+                </td>
+            </tr>
+
+            {% set ns.approval_index = ns.approval_index + 1 %}
+
+            {% elif item.item_type == "check" %}
 
             {% set saved_answer = result.answers[ns.answer_index] if result and result.answers|length > ns.answer_index else None %}
 
@@ -401,6 +473,11 @@
     </button>
 
 </form>
+
+<div
+    id="safetyChecklistConfig"
+    data-saved-approval-users="{{ selected_approval_users | default({}) | tojson | forceescape }}"
+></div>
 
 <script src="{{ url_for('static', filename='js/checklist_result_form.js') }}"></script>
 

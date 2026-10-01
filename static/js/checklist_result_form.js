@@ -37,6 +37,695 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let vehicleSearchTimer = null;
 
+    const approvalUsers =
+        new Map();
+
+    const config =
+        document.getElementById(
+            "safetyChecklistConfig"
+        );
+
+    let savedApprovalUsers = {};
+
+    if (config) {
+        try {
+            savedApprovalUsers =
+                JSON.parse(
+                    config.dataset.savedApprovalUsers ||
+                    "{}"
+                );
+        } catch (error) {
+            console.error(
+                "保存済み承認者の読込に失敗しました。",
+                error
+            );
+        }
+    }
+
+    async function loadSavedNotifyUsers() {
+        for (
+            const [
+                approvalIndex,
+                savedUsers
+            ]
+            of Object.entries(
+                savedApprovalUsers
+            )
+        ) {
+            for (
+                const savedValue
+                of savedUsers
+            ) {
+            const value =
+                String(
+                    savedValue || ""
+                ).trim();
+
+            if (!value) {
+                continue;
+            }
+
+            try {
+                const response =
+                    await fetch(
+                        "/api/mention-users?q=" +
+                        encodeURIComponent(
+                            value
+                        )
+                    );
+
+                if (!response.ok) {
+                    console.warn(
+                        "保存済み承認者を復元できません:",
+                        value
+                    );
+
+                    showCommonError(
+                        "保存済みの承認者を復元できませんでした。通信状態を確認してください。"
+                    );
+                    continue;
+                }
+
+                const data =
+                    await response.json();
+
+                const users =
+                    data.users || [];
+
+                const usernameMatch =
+                    users.find(
+                        function (user) {
+                            return (
+                                user.username ===
+                                value
+                            );
+                        }
+                    );
+
+                if (usernameMatch) {
+                    addNotifyUser(
+                        approvalIndex,
+                        usernameMatch.username,
+                        usernameMatch.name
+                    );
+                    continue;
+                }
+
+                const nameMatches =
+                    users.filter(
+                        function (user) {
+                            return (
+                                user.name ===
+                                value
+                            );
+                        }
+                    );
+
+                if (nameMatches.length === 1) {
+                    addNotifyUser(
+                        approvalIndex,
+                        nameMatches[0].username,
+                        nameMatches[0].name
+                    );
+                } else {
+                    console.warn(
+                        "保存済み承認者を一意に復元できません:",
+                        value
+                    );
+                }
+
+            } catch (error) {
+                console.error(
+                    "承認者の復元に失敗しました。",
+                    error
+                );
+
+                showCommonError(
+                    "保存済みの承認者を復元できませんでした。通信状態を確認してください。"
+                );
+            }
+        }
+        }
+    }
+
+    function updateSelectedApprovalCount(
+        approvalIndex
+    ) {
+        const heading =
+            document.querySelector(
+                '.selected-approval-users-heading[data-approval-index="' +
+                approvalIndex +
+                '"]'
+            );
+
+        if (!heading) {
+            return;
+        }
+
+        const count =
+            approvalUsers.has(approvalIndex)
+                ? approvalUsers.get(approvalIndex).size
+                : 0;
+
+        heading.textContent =
+            `選択済み（${count}人）`;
+    }
+
+    function addNotifyUser(
+        approvalIndex,
+        username,
+        name
+    ) {
+        if (
+            !username ||
+            (
+                approvalUsers.has(approvalIndex) &&
+                approvalUsers
+                    .get(approvalIndex)
+                    .has(username)
+            )
+        ) {
+            return;
+        }
+
+        if (!approvalUsers.has(approvalIndex)) {
+            approvalUsers.set(
+                approvalIndex,
+                new Map()
+            );
+        }
+
+        approvalUsers
+            .get(approvalIndex)
+            .set(username, name);
+
+        updateSelectedApprovalCount(
+            approvalIndex
+        );
+
+        const approvalSearchInput =
+            document.getElementById(
+                "approval_user_search_" + approvalIndex
+            );
+
+        if (approvalSearchInput) {
+            approvalSearchInput.classList.remove(
+                "common-error-target"
+            );
+        }
+
+        const tag =
+            document.createElement("span");
+
+        tag.className =
+            "selected-vehicle-tag";
+
+        tag.dataset.username = username;
+
+        const text =
+            document.createTextNode(name);
+
+        const remove =
+            document.createElement("button");
+
+        remove.type = "button";
+        remove.className = "tag-remove-btn";
+        remove.textContent = "×";
+        remove.setAttribute(
+            "aria-label",
+            name + " を削除"
+        );
+
+        remove.addEventListener(
+            "click",
+            function () {
+                const users =
+                    approvalUsers.get(
+                        approvalIndex
+                    );
+
+                if (users) {
+                    users.delete(username);
+                }
+
+                updateSelectedApprovalCount(
+                    approvalIndex
+                );
+
+                tag.remove();
+
+                const candidateArea =
+                    document.querySelector(
+                        '.approval-candidate-users[data-approval-index="' +
+                        approvalIndex +
+                        '"]'
+                    );
+
+                if (candidateArea) {
+                    const candidateWrapper =
+                        candidateArea.closest(
+                            ".approval-candidate-area"
+                        );
+
+                    if (candidateWrapper) {
+                        candidateWrapper.classList.remove(
+                            "is-hidden"
+                        );
+                    }
+                }
+
+                loadApprovalCandidates(
+                    approvalIndex
+                );
+
+                const searchInput =
+                    document.querySelector(
+                        '.approval-user-search[data-approval-index="' +
+                        approvalIndex +
+                        '"]'
+                    );
+
+                const searchResults =
+                    document.querySelector(
+                        '.approval-user-search-results[data-approval-index="' +
+                        approvalIndex +
+                        '"]'
+                    );
+
+                if (
+                    searchInput &&
+                    searchResults &&
+                    searchInput.value.trim()
+                ) {
+                    searchNotifyUsers(
+                        searchInput,
+                        searchResults
+                    );
+                }
+            }
+        );
+
+        const hidden =
+            document.createElement("input");
+
+        hidden.type = "hidden";
+        hidden.name =
+            "approval_notify_users_" +
+            approvalIndex;
+        hidden.value = username;
+        hidden.dataset.approvalIndex =
+            String(approvalIndex);
+
+        tag.appendChild(text);
+        tag.appendChild(remove);
+        tag.appendChild(hidden);
+
+        const selectedArea =
+            document.querySelector(
+                '.selected-approval-users[data-approval-index="' +
+                approvalIndex +
+                '"]'
+            );
+
+        if (selectedArea) {
+            selectedArea.appendChild(tag);
+        }
+    }
+
+    function loadApprovalCandidates(
+        targetApprovalIndex = null
+    ) {
+        fetch("/api/approval-candidates")
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error(
+                        "HTTP " + response.status
+                    );
+                }
+
+                return response.json();
+            })
+            .then(function (data) {
+                const users = data.users || [];
+
+                document.querySelectorAll(
+                    ".approval-candidate-users"
+                ).forEach(function (candidateArea) {
+                    const approvalIndex =
+                        candidateArea.dataset.approvalIndex;
+
+                    if (
+                        targetApprovalIndex !== null &&
+                        String(targetApprovalIndex) !==
+                        String(approvalIndex)
+                    ) {
+                        return;
+                    }
+
+                    candidateArea.replaceChildren();
+
+                    users.forEach(function (user) {
+                        if (
+                            !user.username ||
+                            (
+                                approvalUsers.has(approvalIndex) &&
+                                approvalUsers
+                                    .get(approvalIndex)
+                                    .has(user.username)
+                            )
+                        ) {
+                            return;
+                        }
+
+                        const button =
+                            document.createElement(
+                                "button"
+                            );
+
+                        button.type = "button";
+                        button.className =
+                            "vehicle-select-item";
+                        button.dataset.username =
+                            user.username;
+
+                        const name =
+                            document.createElement(
+                                "strong"
+                            );
+
+                        name.textContent =
+                            user.name || user.username;
+
+                        const addMark =
+                            document.createElement(
+                                "span"
+                            );
+
+                        addMark.className =
+                            "approval-candidate-add";
+                        addMark.textContent = "＋";
+
+                        button.appendChild(name);
+                        button.appendChild(addMark);
+
+                        button.addEventListener(
+                            "click",
+                            function () {
+                                addNotifyUser(
+                                    approvalIndex,
+                                    user.username,
+                                    user.name ||
+                                    user.username
+                                );
+
+                                const searchResults =
+                                    document.querySelector(
+                                        '.approval-user-search-results[data-approval-index="' +
+                                        approvalIndex +
+                                        '"]'
+                                    );
+
+                                if (searchResults) {
+                                    searchResults
+                                        .querySelectorAll(
+                                            ".vehicle-select-item"
+                                        )
+                                        .forEach(function (searchButton) {
+                                            if (
+                                                searchButton.dataset.username ===
+                                                user.username
+                                            ) {
+                                                searchButton.remove();
+                                            }
+                                        });
+
+                                    searchResults.classList.toggle(
+                                        "is-hidden",
+                                        searchResults.children.length === 0
+                                    );
+                                }
+
+                                candidateArea
+                                    .querySelectorAll(
+                                        ".vehicle-select-item"
+                                    )
+                                    .forEach(function (candidateButton) {
+                                        if (
+                                            candidateButton.dataset.username ===
+                                            user.username
+                                        ) {
+                                            candidateButton.remove();
+                                        }
+                                    });
+
+                                const candidateWrapper =
+                                    candidateArea.closest(
+                                        ".approval-candidate-area"
+                                    );
+
+                                if (candidateWrapper) {
+                                    candidateWrapper.classList.toggle(
+                                        "is-hidden",
+                                        candidateArea.children.length === 0
+                                    );
+                                }
+                            }
+                        );
+
+                        candidateArea.appendChild(
+                            button
+                        );
+                    });
+
+                    const candidateWrapper =
+                        candidateArea.closest(
+                            ".approval-candidate-area"
+                        );
+
+                    if (candidateWrapper) {
+                        candidateWrapper.classList.toggle(
+                            "is-hidden",
+                            candidateArea.children.length === 0
+                        );
+                    }
+                });
+            })
+            .catch(function () {
+                // 候補の取得失敗時も、
+                // 現在の表示状態はそのまま維持する
+            });
+    }
+
+    loadSavedNotifyUsers().then(function () {
+        loadApprovalCandidates();
+    });
+
+    function searchNotifyUsers(
+        searchInput,
+        searchResults
+    ) {
+        if (!searchInput || !searchResults) {
+            return;
+        }
+
+        const approvalIndex =
+            searchInput.dataset.approvalIndex;
+
+        const keyword =
+            searchInput.value.trim();
+
+        searchResults.replaceChildren();
+
+        if (!keyword) {
+            searchResults.classList.add(
+                "is-hidden"
+            );
+            return;
+        }
+
+        fetch(
+            "/api/mention-users?q=" +
+            encodeURIComponent(keyword)
+        )
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error(
+                        "HTTP " + response.status
+                    );
+                }
+
+                return response.json();
+            })
+            .then(function (data) {
+                searchResults.replaceChildren();
+
+                const users =
+                    data.users || [];
+
+                users.forEach(function (user) {
+                    const allowGeneral =
+                        searchInput.dataset.allowGeneral === "1";
+
+                    if (
+                        !user.username ||
+                        (
+                            !allowGeneral &&
+                            user.role !== "admin"
+                        ) ||
+                        (
+                            approvalUsers.has(approvalIndex) &&
+                            approvalUsers
+                                .get(approvalIndex)
+                                .has(user.username)
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const button =
+                        document.createElement(
+                            "button"
+                        );
+
+                    button.type = "button";
+                    button.className =
+                        "vehicle-select-item";
+                    button.dataset.username =
+                        user.username;
+
+                    const name =
+                        document.createElement(
+                            "strong"
+                        );
+
+                    name.textContent =
+                        user.name || "";
+
+                    button.appendChild(name);
+
+                    button.addEventListener(
+                        "click",
+                        function () {
+                            addNotifyUser(
+                                approvalIndex,
+                                user.username,
+                                user.name ||
+                                user.username
+                            );
+
+                            const candidateArea =
+                                document.querySelector(
+                                    '.approval-candidate-users[data-approval-index="' +
+                                    approvalIndex +
+                                    '"]'
+                                );
+
+                            if (candidateArea) {
+                                candidateArea
+                                    .querySelectorAll(
+                                        ".vehicle-select-item"
+                                    )
+                                    .forEach(function (candidateButton) {
+                                        if (
+                                            candidateButton.dataset.username ===
+                                            user.username
+                                        ) {
+                                            candidateButton.remove();
+                                        }
+                                    });
+
+                                const candidateWrapper =
+                                    candidateArea.closest(
+                                        ".approval-candidate-area"
+                                    );
+
+                                if (candidateWrapper) {
+                                    candidateWrapper.classList.toggle(
+                                        "is-hidden",
+                                        candidateArea.children.length === 0
+                                    );
+                                }
+                            }
+
+                            searchInput.value = "";
+                            searchResults.replaceChildren();
+                            searchResults.classList.add(
+                                "is-hidden"
+                            );
+                        }
+                    );
+
+                    searchResults.appendChild(
+                        button
+                    );
+                });
+
+                searchResults.classList.toggle(
+                    "is-hidden",
+                    searchResults.children.length === 0
+                );
+            })
+            .catch(function () {
+                searchResults.replaceChildren();
+                searchResults.classList.add(
+                    "is-hidden"
+                );
+
+                showCommonError(
+                    "承認者を取得できませんでした。"
+                );
+            });
+    }
+
+    document.querySelectorAll(
+        ".approval-user-search"
+    ).forEach(function (searchInput) {
+        searchInput.addEventListener(
+            "input",
+            function () {
+                if (!searchInput.value.trim()) {
+                    const searchResults =
+                        document.querySelector(
+                            '.approval-user-search-results[data-approval-index="' +
+                            searchInput.dataset.approvalIndex +
+                            '"]'
+                        );
+
+                    if (searchResults) {
+                        searchResults.replaceChildren();
+                        searchResults.classList.add(
+                            "is-hidden"
+                        );
+                    }
+
+                    return;
+                }
+
+                clearTimeout(
+                    searchInput._approvalSearchTimer
+                );
+
+                searchInput._approvalSearchTimer =
+                    setTimeout(
+                        function () {
+                            const searchResults =
+                                document.querySelector(
+                                    '.approval-user-search-results[data-approval-index="' +
+                                    searchInput.dataset.approvalIndex +
+                                    '"]'
+                                );
+
+                            searchNotifyUsers(
+                                searchInput,
+                                searchResults
+                            );
+                        },
+                        250
+                    );
+            }
+        );
+    });
+
     function prepareNextFileInput(input) {
         if (!input.files || input.files.length === 0) {
             return;
@@ -623,6 +1312,36 @@ document.addEventListener("DOMContentLoaded", function () {
         checklistResultForm.addEventListener(
             "submit",
             function (event) {
+                clearCommonErrors();
+
+                const approvalRows =
+                    checklistResultForm.querySelectorAll(
+                        ".checklist-result-approval-row"
+                    );
+
+                for (const approvalRow of approvalRows) {
+                    const selectedApprovers =
+                        approvalRow.querySelectorAll(
+                            'input[name^="approval_notify_users_"]'
+                        );
+
+                    if (selectedApprovers.length === 0) {
+                        event.preventDefault();
+
+                        const label =
+                            approvalRow.querySelector(
+                                ".checklist-result-approval-label"
+                            )?.textContent.trim() || "承認";
+
+                        showCommonError(
+                            `承認「${label}」の承認者を1人以上選択してください。`,
+                            `approval_user_search_${approvalRow.dataset.approvalIndex}`
+                        );
+
+                        return;
+                    }
+                }
+
                 let totalSize = 0;
                 let totalFiles = 0;
 

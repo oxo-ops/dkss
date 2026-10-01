@@ -1524,6 +1524,11 @@ class ChecklistResult(db.Model):
         default="[]"
     )
 
+    notify_users_json = db.Column(
+        db.Text,
+        default="[]"
+    )
+
     answers_json = db.Column(
         db.Text,
         default="[]"
@@ -3082,6 +3087,9 @@ def checklist_result_to_dict(result):
         "approved_date": result.approved_date,
         "reject_reason": result.reject_reason,
         "approvals": safe_json_dict_list(result.approvals_json),
+        "notify_users": safe_json_str_list(
+            result.notify_users_json
+        ),
         "answers": safe_json_dict_list(result.answers_json),
         "checklist_snapshot": (
             safe_json_dict(result.checklist_snapshot_json)
@@ -4177,14 +4185,34 @@ def can_approve_checklist_result(result, approval=None):
     if not approval:
         return False
 
-    return approval.get("allow_general", False)
+    candidate_usernames = approval.get(
+        "candidate_usernames",
+        []
+    )
+
+    return (
+        session.get("username")
+        in candidate_usernames
+    )
 
 
-def can_reject_checklist_result(result):
+def can_reject_checklist_result(result, approval=None):
     if not is_same_company_result(result):
         return False
 
-    return session.get("role") in ["admin", "itc"]
+    if session.get("role") in ["admin", "itc"]:
+        return True
+
+    if not approval:
+        return False
+
+    return (
+        session.get("username")
+        in approval.get(
+            "candidate_usernames",
+            []
+        )
+    )
 
 def vehicle_number(vehicle):
     return (
@@ -6165,6 +6193,39 @@ def news_targets():
 
     return {"results": results}
 
+@app.route("/api/approval-candidates")
+def approval_candidates():
+    company_code = session.get("company_code")
+    office = session.get("office") or ""
+
+    if not company_code or not office:
+        return {"users": []}
+
+    users = User.query.filter(
+        User.company_code == company_code,
+        User.office == office,
+        User.role == "admin",
+        User.username != session.get("username")
+    ).order_by(
+        User.last_name.asc(),
+        User.first_name.asc()
+    ).limit(10).all()
+
+    return {
+        "users": [
+            {
+                "name": (
+                    f"{user.last_name or ''}"
+                    f"{user.first_name or ''}"
+                ),
+                "username": user.username,
+                "office": user.office or ""
+            }
+            for user in users
+        ]
+    }
+
+
 @app.route("/api/mention-users")
 def mention_users():
     keyword = request.args.get("q", "").strip()
@@ -6207,7 +6268,8 @@ def mention_users():
                 f"{user.first_name or ''}"
             ),
             "username": user.username,
-            "office": user.office or ""
+            "office": user.office or "",
+            "role": user.role or "user"
         }
         for user in matched_users
     ]
@@ -15974,6 +16036,7 @@ def checklist_result_detail(result_index):
             approvals.append({
                 "label": item.get("approval_label", ""),
                 "allow_general": item.get("approval_allow_general", False),
+                "candidate_usernames": [],
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -16072,6 +16135,18 @@ def checklist_result_detail(result_index):
             ),
         })
 
+    current_approval = next(
+        (
+            approval
+            for approval in result.get("approvals", [])
+            if not (
+                approval.get("approved_by")
+                or approval.get("approved_by_username")
+            )
+        ),
+        None
+    )
+
     return render_template(
         "checklist_result_detail.html",
         result=result,
@@ -16083,7 +16158,10 @@ def checklist_result_detail(result_index):
         result_items=result_items,
         checklist=checklist,
         can_manage=can_manage_checklist_result(result),
-        can_reject=can_reject_checklist_result(result),
+        can_reject=can_reject_checklist_result(
+            result,
+            current_approval
+        ),
         checklist_events=checklist_events,
     )
 
@@ -17342,15 +17420,78 @@ def edit_checklist_result(result_index):
         result_record.target_office = target_office
         result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
+        notify_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                "notify_users"
+            )
+            if username.strip()
+        ]
+
+        notify_usernames = list(
+            dict.fromkeys(notify_usernames)
+        )
+
+        if len(notify_usernames) > 500:
+            return "承認者数が多すぎます。", 400
+
+        valid_users = {
+            user.username: user
+            for user in User.query.filter_by(
+                company_code=company_code
+            ).all()
+            if user.username
+        }
+
+        notify_usernames = [
+            username
+            for username in notify_usernames
+            if username in valid_users
+        ]
+
+        result_record.notify_users_json = json.dumps(
+            notify_usernames,
+            ensure_ascii=False
+        )
+
         approvals = []
 
         for item in checklist.get("items", []):
             if item.get("item_type") != "approval":
                 continue
 
+            approval_index = len(approvals)
+            candidate_usernames = [
+                username.strip()
+                for username in request.form.getlist(
+                    f"approval_notify_users_{approval_index}"
+                )
+                if username.strip()
+                and username.strip() in valid_users
+                and (
+                    item.get(
+                        "approval_allow_general",
+                        False
+                    )
+                    or valid_users[
+                        username.strip()
+                    ].role == "admin"
+                )
+            ]
+
+            if not candidate_usernames:
+                return (
+                    f"承認「{item.get('approval_label', '')}」の"
+                    "承認者を1人以上選択してください。",
+                    400
+                )
+
             approvals.append({
                 "label": item.get("approval_label", ""),
                 "allow_general": item.get("approval_allow_general", False),
+                "candidate_usernames": list(
+                    dict.fromkeys(candidate_usernames)
+                ),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -17363,6 +17504,10 @@ def edit_checklist_result(result_index):
         result_record.status = "承認待ち"
         result_record.approvals_json = json.dumps(
             approvals,
+            ensure_ascii=False
+        )
+        result_record.notify_users_json = json.dumps(
+            notify_usernames,
             ensure_ascii=False
         )
         result_record.approved_by = ""
@@ -17384,6 +17529,7 @@ def edit_checklist_result(result_index):
             detail_json=json.dumps(
                 {
                     "changes": changes,
+                    "approvals": approvals,
                 },
                 ensure_ascii=False
             ),
@@ -17404,12 +17550,48 @@ def edit_checklist_result(result_index):
 
         db.session.commit()
 
+        first_approval_usernames = (
+            approvals[0].get(
+                "candidate_usernames",
+                []
+            )
+            if approvals
+            else []
+        )
+
+        for approval_username in first_approval_usernames:
+            approval_user = User.query.filter_by(
+                company_code=company_code,
+                username=approval_username
+            ).first()
+
+            if not approval_user:
+                continue
+
+            add_notification(
+                (approval_user.last_name or "")
+                + (approval_user.first_name or ""),
+                "安全チェックリスト承認依頼",
+                (
+                    f"「{checklist_record.name}」の"
+                    f"承認をお願いします。"
+                ),
+                f"/safety/checklist-results/{result_record.id}",
+                company_code=company_code,
+                target_username=approval_user.username
+            )
+
         notify_mentions(
             mention_text,
             f"/safety/checklist-results/{result_record.id}"
         )
 
         return redirect(f"/safety/checklist-results/{result_record.id}")
+
+    selected_notify_users = result.get(
+        "notify_users",
+        []
+    )
 
     criteria_list = []
 
@@ -17461,7 +17643,12 @@ def edit_checklist_result(result_index):
         criteria_list=criteria_list,
         drivers=drivers_for_current_company(),
         selected_vehicle=selected_vehicle,
-        offices=offices_for_current_company()
+        selected_approval_users=[
+            approval.get("candidate_usernames", [])
+            for approval in result.get("approvals", [])
+        ],
+        offices=offices_for_current_company(),
+        selected_notify_users=selected_notify_users
     )
 
 @app.route("/safety/checklist-results/<int:result_index>/delete", methods=["POST"])
@@ -21150,15 +21337,73 @@ def new_safety_checklist_result(index):
                     reject_reason=""
                 ))
 
+        notify_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                "notify_users"
+            )
+            if username.strip()
+        ]
+
+        notify_usernames = list(
+            dict.fromkeys(notify_usernames)
+        )
+
+        if len(notify_usernames) > 500:
+            return "承認者数が多すぎます。", 400
+
+        valid_users = {
+            user.username: user
+            for user in User.query.filter_by(
+                company_code=company_code
+            ).all()
+            if user.username
+        }
+
+        notify_usernames = [
+            username
+            for username in notify_usernames
+            if username in valid_users
+        ]
+
         approvals = []
 
         for item in checklist.get("items", []):
             if item.get("item_type") != "approval":
                 continue
 
+            approval_index = len(approvals)
+            candidate_usernames = [
+                username.strip()
+                for username in request.form.getlist(
+                    f"approval_notify_users_{approval_index}"
+                )
+                if username.strip()
+                and username.strip() in valid_users
+                and (
+                    item.get(
+                        "approval_allow_general",
+                        False
+                    )
+                    or valid_users[
+                        username.strip()
+                    ].role == "admin"
+                )
+            ]
+
+            if not candidate_usernames:
+                return (
+                    f"承認「{item.get('approval_label', '')}」の"
+                    "承認者を1人以上選択してください。",
+                    400
+                )
+
             approvals.append({
                 "label": item.get("approval_label", ""),
                 "allow_general": item.get("approval_allow_general", False),
+                "candidate_usernames": list(
+                    dict.fromkeys(candidate_usernames)
+                ),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -21186,6 +21431,10 @@ def new_safety_checklist_result(index):
                 approvals,
                 ensure_ascii=False
             ),
+            notify_users_json=json.dumps(
+                notify_usernames,
+                ensure_ascii=False
+            ),
             answers_json=json.dumps(
                 answers,
                 ensure_ascii=False
@@ -21199,19 +21448,50 @@ def new_safety_checklist_result(index):
         db.session.add(result)
         db.session.commit()
 
-        notify_usernames = set()
+        first_approval_usernames = (
+            approvals[0].get(
+                "candidate_usernames",
+                []
+            )
+            if approvals
+            else []
+        )
+
+        for approval_username in first_approval_usernames:
+            approval_user = User.query.filter_by(
+                company_code=company_code,
+                username=approval_username
+            ).first()
+
+            if not approval_user:
+                continue
+
+            add_notification(
+                (approval_user.last_name or "")
+                + (approval_user.first_name or ""),
+                "安全チェックリスト承認依頼",
+                (
+                    f"「{checklist_record.name}」の"
+                    f"承認をお願いします。"
+                ),
+                f"/safety/checklist-results/{result.id}",
+                company_code=company_code,
+                target_username=approval_user.username
+            )
+
+        completion_notify_usernames = set()
 
         if target_type == "user" and target_username:
-            notify_usernames.add(
+            completion_notify_usernames.add(
                 target_username
             )
 
         if session.get("username"):
-            notify_usernames.add(
+            completion_notify_usernames.add(
                 session.get("username")
             )
 
-        for notify_username in notify_usernames:
+        for notify_username in completion_notify_usernames:
             notify_user = User.query.filter_by(
                 company_code=company_code,
                 username=notify_username
@@ -22367,6 +22647,9 @@ def approve_checklist_result(result_index, approval_index):
                     "approval_allow_general",
                     False
                 ),
+                "candidate_usernames": safe_json_str_list(
+                    result_record.notify_users_json
+                ),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -22382,6 +22665,23 @@ def approve_checklist_result(result_index, approval_index):
         )
         for item in approvals[:approval_index]
     ):
+        return redirect(
+            f"/safety/checklist-results/{result_index}"
+        )
+
+    current_approval_index = next(
+        (
+            index
+            for index, item in enumerate(approvals)
+            if not (
+                item.get("approved_by")
+                or item.get("approved_by_username")
+            )
+        ),
+        None
+    )
+
+    if approval_index != current_approval_index:
         return redirect(
             f"/safety/checklist-results/{result_index}"
         )
@@ -22456,6 +22756,36 @@ def approve_checklist_result(result_index, approval_index):
 
     db.session.commit()
 
+    if (
+        result_record.status != "承認済み"
+        and approval_index + 1 < len(approvals)
+    ):
+        next_approval = approvals[
+            approval_index + 1
+        ]
+
+        for target_username in next_approval.get(
+            "candidate_usernames",
+            []
+        ):
+            target_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=target_username
+            ).first()
+
+            if not target_user:
+                continue
+
+            add_notification(
+                (target_user.last_name or "")
+                + (target_user.first_name or ""),
+                "安全チェックリスト承認依頼",
+                "次の承認をお願いします。",
+                f"/safety/checklist-results/{result_record.id}",
+                company_code=result_record.company_code,
+                target_username=target_user.username
+            )
+
     if result_record.status == "承認済み":
         notify_usernames = {
             username
@@ -22504,8 +22834,52 @@ def reject_checklist_result(result_index):
 
     result = checklist_result_to_dict(result_record)
 
-    if not can_reject_checklist_result(result):
-        return redirect(f"/safety/checklist-results/{result_index}")
+    approvals = safe_json_dict_list(
+        result_record.approvals_json
+    )
+
+    if not approvals:
+        checklist = safe_json_dict(
+            result_record.checklist_snapshot_json
+        )
+
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get(
+                    "approval_allow_general",
+                    False
+                ),
+                "candidate_usernames": safe_json_str_list(
+                    result_record.notify_users_json
+                ),
+                "approved_by": "",
+                "approved_by_username": "",
+                "approved_date": "",
+            })
+
+    current_approval = next(
+        (
+            approval
+            for approval in approvals
+            if not (
+                approval.get("approved_by")
+                or approval.get("approved_by_username")
+            )
+        ),
+        None
+    )
+
+    if not can_reject_checklist_result(
+        result,
+        current_approval
+    ):
+        return redirect(
+            f"/safety/checklist-results/{result_index}"
+        )
 
     reject_reason = request.form.get(
         "reject_reason",
@@ -22517,10 +22891,6 @@ def reject_checklist_result(result_index):
 
     if len(reject_reason) > 5000:
         return "差し戻し理由は5000文字以内で入力してください。", 400
-
-    approvals = safe_json_dict_list(
-        result_record.approvals_json
-    )
 
     previous_approvals = [
         dict(approval)
@@ -22553,6 +22923,11 @@ def reject_checklist_result(result_index):
         detail_json=json.dumps(
             {
                 "reject_reason": reject_reason,
+                "approval_label": (
+                    current_approval.get("label", "")
+                    if current_approval
+                    else ""
+                ),
                 "previous_approvals": previous_approvals,
             },
             ensure_ascii=False
@@ -23015,6 +23390,7 @@ with app.app_context():
 
     checklist_result_columns = [
         ("approvals_json", "TEXT"),
+        ("notify_users_json", "TEXT"),
         ("target_username", "VARCHAR(50)"),
         ("target_vehicle_record_id", "INTEGER"),
         ("checked_by_username", "VARCHAR(50)"),

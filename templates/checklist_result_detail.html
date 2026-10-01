@@ -528,7 +528,9 @@
                 </div>
 
                 {% if not approval.approved_by %}
-                    {% if session.role in ["admin", "itc"] or approval.allow_general %}
+                    {% set previous_approvals = result.approvals[:loop.index0] %}
+                    {% set previous_complete = previous_approvals | selectattr("approved_by") | list | length == previous_approvals | length %}
+                    {% if previous_complete and (session.role in ["admin", "itc"] or session.username in approval.candidate_usernames) %}
                         <form
                             method="post"
                             action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
