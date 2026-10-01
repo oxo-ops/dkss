@@ -18754,36 +18754,14 @@ def reject_vehicle_checklist_result(result_index):
             "差し戻し理由を入力してください。",
             "error:reject_reason"
         )
-        referrer = (request.referrer or "").replace("\\", "/")
-        parsed_referrer = urlparse(referrer)
-        safe_target = "/vehicle/checklists"
-        if not parsed_referrer.scheme and not parsed_referrer.netloc:
-            safe_target = referrer or safe_target
-        elif parsed_referrer.netloc == request.host:
-            safe_target = (
-                parsed_referrer.path
-                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
-                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
-            ) or safe_target
-        return redirect(safe_target)
+        return redirect("/vehicle/checklists")
 
     if len(reject_reason) > 5000:
         flash(
             "差し戻し理由は5000文字以内で入力してください。",
             "error:reject_reason"
         )
-        referrer = (request.referrer or "").replace("\\", "/")
-        parsed_referrer = urlparse(referrer)
-        safe_target = "/vehicle/checklists"
-        if not parsed_referrer.scheme and not parsed_referrer.netloc:
-            safe_target = referrer or safe_target
-        elif parsed_referrer.netloc == request.host:
-            safe_target = (
-                parsed_referrer.path
-                + (f"?{parsed_referrer.query}" if parsed_referrer.query else "")
-                + (f"#{parsed_referrer.fragment}" if parsed_referrer.fragment else "")
-            ) or safe_target
-        return redirect(safe_target)
+        return redirect("/vehicle/checklists")
 
     previous_approvals = [
         dict(approval)
@@ -23461,21 +23439,13 @@ def reject_checklist_result(result_index):
         ""
     ).strip()
 
-    safe_referrer = ""
-    if request.referrer:
-        normalized_referrer = request.referrer.replace("\\", "")
-        parsed_referrer = urlparse(normalized_referrer)
-        if not parsed_referrer.netloc and not parsed_referrer.scheme:
-            safe_referrer = normalized_referrer
-
     if not reject_reason:
         flash(
             "差し戻し理由を入力してください。",
             "error:reject_reason"
         )
         return redirect(
-            safe_referrer
-            or f"/safety/checklist-results/{result_index}"
+            f"/safety/checklist-results/{result_index}"
         )
 
     if len(reject_reason) > 5000:
@@ -23484,8 +23454,7 @@ def reject_checklist_result(result_index):
             "error:reject_reason"
         )
         return redirect(
-            safe_referrer
-            or f"/safety/checklist-results/{result_index}"
+            f"/safety/checklist-results/{result_index}"
         )
 
     previous_approvals = [
