@@ -344,12 +344,12 @@
                                     <label class="checkbox-row">
                                         <input
                                             type="checkbox"
-                                            name="comment_required"
-                                            id="comment_required_{{ loop.index0 }}"
+                                            name="answer_required"
+                                            id="answer_required_{{ loop.index0 }}"
                                             value="{{ loop.index0 }}"
-                                            {% if item.comment_required %}checked{% endif %}
+                                            {% if item.answer_required %}checked{% endif %}
                                         >
-                                        <span>コメント入力あり</span>
+                                        <span>回答必須</span>
                                     </label>
 
                                     <label class="checkbox-row">
@@ -507,11 +507,11 @@
                                 <label class="checkbox-row">
                                     <input
                                         type="checkbox"
-                                        name="comment_required"
-                                        id="comment_required_0"
+                                        name="answer_required"
+                                        id="answer_required_0"
                                         value="0"
                                     >
-                                    <span>コメント入力あり</span>
+                                    <span>回答必須</span>
                                 </label>
 
                                 <label class="checkbox-row">

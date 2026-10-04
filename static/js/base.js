@@ -722,7 +722,7 @@ window.addEventListener("DOMContentLoaded", function() {
                     );
 
                     showCommonError(
-                        "必須コメントを入力してください。"
+                        "必須項目を入力してください。"
                     );
 
                     firstInvalidEditor.scrollIntoView({

@@ -317,6 +317,7 @@
                                         type="radio"
                                         name="answer_{{ ns.answer_index }}"
                                         value="{{ choice }}"
+                                        {% if item.answer_required %}required{% endif %}
                                         {% if saved_answer and saved_answer.value == choice and saved_answer.value %}
                                             checked
                                         {% endif %}
@@ -348,8 +349,8 @@
                                 class="mention-rich-editor free-answer-input"
                                 contenteditable="true"
                                 data-value="{{ saved_answer.value if saved_answer else '' }}"
-                                data-required="false"
-                                data-placeholder="入力"
+                                data-required="{{ 'true' if item.answer_required else 'false' }}"
+                                data-placeholder="{% if item.answer_required %}入力必須{% else %}入力{% endif %}"
                             ></div>
                         </div>
                     {% endif %}
@@ -366,8 +367,8 @@
                             class="mention-rich-editor"
                             contenteditable="true"
                             data-value="{{ saved_answer.comment if saved_answer else '' }}"
-                            data-required="{{ 'true' if item.comment_required else 'false' }}"
-                            data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメントを追加{% endif %}"
+                            data-required="false"
+                            data-placeholder="コメントを追加"
                         ></div>
                         <div class="checklist-result-support-actions">
                             <div class="file-upload-cell">

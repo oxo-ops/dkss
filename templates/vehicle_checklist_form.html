@@ -114,7 +114,6 @@
                     <th class="vehicle-checklist-rating-col">評価</th>
                     <th class="vehicle-checklist-comment-col">コメント</th>
                     <th class="vehicle-checklist-file-col">写真・ファイル</th>
-                    <th class="vehicle-checklist-link-col">連携</th>
                 </tr>
 
                 {% set ns = namespace(answer_index=0) %}
@@ -145,6 +144,7 @@
                                                 name="answer_{{ ns.answer_index }}"
                                                 value="{{ choice }}"
                                                 class="checklist-result-choice-radio"
+                                                {% if item.answer_required %}required{% endif %}
                                             >
                                             <span>{{ choice }}</span>
                                         </label>
@@ -164,8 +164,8 @@
                                         class="mention-rich-editor"
                                         contenteditable="true"
                                         data-value=""
-                                        data-required="true"
-                                        data-placeholder="入力"
+                                        data-required="{{ 'true' if item.answer_required else 'false' }}"
+                                        data-placeholder="{% if item.answer_required %}入力必須{% else %}入力{% endif %}"
                                     ></div>
 
                                 </div>
@@ -184,8 +184,8 @@
                                 class="mention-rich-editor"
                                 contenteditable="true"
                                 data-value=""
-                                data-required="{{ 'true' if item.comment_required else 'false' }}"
-                                data-placeholder="{% if item.comment_required %}コメント必須{% else %}コメント任意{% endif %}"
+                                data-required="{{ 'true' if item.answer_required else 'false' }}"
+                                data-placeholder="コメント任意"
                             ></div>
                         </td>
 
@@ -198,16 +198,6 @@
                             >
                         </td>
 
-                        <td>
-                            <label class="checkbox-row">
-                                <input
-                                    type="checkbox"
-                                    name="patrol_link_{{ ns.answer_index }}"
-                                    value="1"
-                                >
-                                <span>要対応として登録</span>
-                            </label>
-                        </td>
                     </tr>
 
                     {% set ns.answer_index = ns.answer_index + 1 %}

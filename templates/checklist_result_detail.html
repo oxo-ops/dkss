@@ -509,7 +509,7 @@
         </div>
 
         {% for approval in result.approvals %}
-            <div class="approval-flow-item{% if approval.approved_by %} is-complete{% endif %}">
+            <div class="approval-flow-item{% if approval.get('approved_by') or approval.get('approved_by_username') %} is-complete{% endif %}">
                 <span class="approval-flow-status"></span>
 
                 <div class="approval-flow-content">
@@ -517,20 +517,41 @@
                         {{ approval.label or "承認" }}
                     </strong>
 
-                    {% if approval.approved_by %}
+                    {% if approval.get("approved_by") or approval.get("approved_by_username") %}
                         <span>
-                            {{ approval.approved_by }}
-                            {{ approval.approved_date or "-" }}
+                            {{ approval.get("approved_by") or approval.get("approved_by_username") }}
+                            {{ approval.get("approved_date") or "-" }}
                         </span>
                     {% else %}
                         <span>未承認</span>
                     {% endif %}
                 </div>
 
-                {% if not approval.approved_by %}
+                {% if not (
+                    approval.get("approved_by")
+                    or approval.get("approved_by_username")
+                ) %}
                     {% set previous_approvals = result.approvals[:loop.index0] %}
-                    {% set previous_complete = previous_approvals | selectattr("approved_by") | list | length == previous_approvals | length %}
-                    {% if previous_complete and (session.role in ["admin", "itc"] or session.username in approval.candidate_usernames) %}
+                    {% set previous_complete = namespace(value=true) %}
+
+                    {% for previous_approval in previous_approvals %}
+                        {% if not (
+                            previous_approval.get("approved_by")
+                            or previous_approval.get("approved_by_username")
+                        ) %}
+                            {% set previous_complete.value = false %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if result.status == "承認待ち"
+                        and previous_complete.value
+                        and (
+                            session.get("role") == "admin"
+                            or (
+                                approval.get("allow_general", false)
+                                and session.get("role") == "user"
+                            )
+                        )
+                    %}
                         <form
                             method="post"
                             action="/safety/checklist-results/{{ result_index }}/approve/{{ loop.index0 }}"
@@ -669,11 +690,11 @@
                 <strong>差し戻し前の承認状況</strong>
 
                 {% for approval in event.detail.previous_approvals %}
-                    {% if approval.approved_by %}
+                    {% if approval.get("approved_by") or approval.get("approved_by_username") %}
                     <div>
-                        {{ approval.label or "承認" }}：
-                        {{ approval.approved_by }}
-                        {{ approval.approved_date or "" }}
+                        {{ approval.get("label") or "承認" }}：
+                        {{ approval.get("approved_by") or approval.get("approved_by_username") }}
+                        {{ approval.get("approved_date") or "" }}
                     </div>
                     {% endif %}
                 {% endfor %}

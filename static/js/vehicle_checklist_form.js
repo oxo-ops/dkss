@@ -224,25 +224,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     checklistForm.querySelectorAll(
                         ".vehicle-approval-card"
                     );
-
-                for (const approvalCard of approvalCards) {
-                    const selectedApprovers =
-                        approvalCard.querySelectorAll(
-                            'input[name^="approval_notify_users_"]'
-                        );
-
-                    if (selectedApprovers.length === 0) {
-                        event.preventDefault();
-
-                        showCommonError(
-                            "承認者を1人以上選択してください。",
-                            "approval_user_search_"
-                            + approvalCard.dataset.approvalIndex
-                        );
-
-                        return;
-                    }
-                }
             }
         );
     }

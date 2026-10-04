@@ -33,7 +33,7 @@ from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import inspect, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
@@ -135,7 +135,29 @@ app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 @app.errorhandler(413)
 def file_too_large(error):
-    return "1回に送信できるファイルの合計は1GB以下です。", 413
+    if (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+        or request.headers.get("X-DKSS-Final-Submit") == "1"
+    ):
+        return return_form_errors(
+            [
+                (
+                    "1回に送信できるファイルの合計は1GB以下です。",
+                    ""
+                )
+            ],
+            status_code=413
+        )
+
+    return return_form_errors(
+        [
+            (
+                "1回に送信できるファイルの合計は1GB以下です。",
+                ""
+            )
+        ],
+        status_code=413
+    )
 
 
 @app.errorhandler(CSRFError)
@@ -143,11 +165,36 @@ def handle_csrf_error(error):
     if not session.get("username"):
         return redirect("/login")
 
-    return (
+    message = (
         "送信内容を確認できませんでした。"
-        "画面を再読み込みして、もう一度お試しください。",
-        400
+        "画面を再読み込みして、もう一度お試しください。"
     )
+
+    if (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+        or request.headers.get("X-DKSS-Final-Submit") == "1"
+    ):
+        return return_form_errors(
+            [
+                (
+                    message,
+                    ""
+                )
+            ],
+            status_code=400
+        )
+
+    return return_form_errors(
+        [
+            (
+                message,
+                ""
+            )
+        ],
+        status_code=400
+    )
+
+
 def return_form_errors(errors, status_code=400):
     if (
         request.headers.get("X-DKSS-Validation-Only") == "1"
@@ -244,9 +291,9 @@ def checklist_form_data_to_dict(
         "original_item_index"
     )
 
-    comment_required = {
+    answer_required = {
         str(value)
-        for value in list_values("comment_required")
+        for value in list_values("answer_required")
     }
     shaded = {
         str(value)
@@ -322,8 +369,8 @@ def checklist_form_data_to_dict(
                 else ""
             ),
             "criteria_files": criteria_files,
-            "comment_required": (
-                str(i) in comment_required
+            "answer_required": (
+                str(i) in answer_required
             ),
             "shaded": str(i) in shaded,
             "approval_label": (
@@ -741,6 +788,22 @@ def handle_upload_validation_error(error):
         "アップロード検証エラー: %s",
         error
     )
+
+    if (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+        or request.headers.get("X-DKSS-Final-Submit") == "1"
+    ):
+        return return_form_errors(
+            [
+                (
+                    str(error)
+                    or "アップロード内容を確認してください。",
+                    ""
+                )
+            ],
+            status_code=400
+        )
+
     return "アップロード内容を確認してください。", 400
 
 
@@ -2076,6 +2139,71 @@ def save_uploaded_file(file, folder=None):
     )
 
     return filename
+
+
+def delete_uploaded_file(filename, folder=None):
+    company_code = session.get("company_code")
+
+    if not company_code or not filename:
+        return
+
+    filename = os.path.basename(str(filename))
+
+    if not filename:
+        return
+
+    if folder == "static/manuals":
+        storage_folder = "manuals"
+        base_folder = "static/manuals"
+    else:
+        storage_folder = "uploads"
+        base_folder = app.config["UPLOAD_FOLDER"]
+
+    if s3_client and S3_BUCKET_NAME:
+        try:
+            s3_client.delete_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=(
+                    f"{storage_folder}/"
+                    f"{company_code}/"
+                    f"{filename}"
+                )
+            )
+        except ClientError:
+            app.logger.exception(
+                "アップロード済みファイルの削除に失敗しました。"
+            )
+        return
+
+    safe_company_code = secure_filename(
+        str(company_code)
+    )
+    safe_filename = secure_filename(
+        filename
+    )
+
+    if (
+        not safe_company_code
+        or safe_company_code != company_code
+        or not safe_filename
+        or safe_filename != filename
+    ):
+        return
+
+    file_path = safe_join(
+        base_folder,
+        safe_company_code,
+        safe_filename
+    )
+
+    if file_path and os.path.isfile(file_path):
+        try:
+            os.remove(file_path)
+        except OSError:
+            app.logger.exception(
+                "アップロード済みファイルの削除に失敗しました。"
+            )
+
 
 def file_belongs_to_current_company(filename, folder="uploads"):
     company_code = session.get("company_code")
@@ -4174,25 +4302,26 @@ def can_manage_checklist_result(result):
 
 
 def can_approve_checklist_result(result, approval=None):
-    role = session.get("role")
-
     if not is_same_company_result(result):
         return False
-
-    if role in ["admin", "itc"]:
-        return True
 
     if not approval:
         return False
 
-    candidate_usernames = approval.get(
-        "candidate_usernames",
-        []
-    )
+    approval_user = User.query.filter_by(
+        company_code=result.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not approval_user:
+        return False
+
+    if approval_user.role == "admin":
+        return True
 
     return (
-        session.get("username")
-        in candidate_usernames
+        approval.get("allow_general", False)
+        and approval_user.role == "user"
     )
 
 
@@ -4200,18 +4329,23 @@ def can_reject_checklist_result(result, approval=None):
     if not is_same_company_result(result):
         return False
 
-    if session.get("role") in ["admin", "itc"]:
-        return True
-
     if not approval:
         return False
 
+    approval_user = User.query.filter_by(
+        company_code=result.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if not approval_user:
+        return False
+
+    if approval_user.role == "admin":
+        return True
+
     return (
-        session.get("username")
-        in approval.get(
-            "candidate_usernames",
-            []
-        )
+        approval.get("allow_general", False)
+        and approval_user.role == "user"
     )
 
 def vehicle_number(vehicle):
@@ -6209,7 +6343,7 @@ def approval_candidates():
     ).order_by(
         User.last_name.asc(),
         User.first_name.asc()
-    ).limit(10).all()
+    ).all()
 
     return {
         "users": [
@@ -15467,7 +15601,7 @@ def new_checklist():
         approval_allow_general_list = request.form.getlist("approval_allow_general")
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
-        comment_required_list = request.form.getlist("comment_required")
+        answer_required_list = request.form.getlist("answer_required")
         shaded_list = request.form.getlist("shaded")
 
         if len(item_types) > 500:
@@ -15652,7 +15786,7 @@ def new_checklist():
                 "choices": choices,
                 "criteria": criteria,
                 "criteria_files": [],
-                "comment_required": str(i) in comment_required_list,
+                "answer_required": str(i) in answer_required_list,
                 "shaded": str(i) in shaded_list,
                 "score_enabled": score_enabled,
             })
@@ -16043,6 +16177,26 @@ def checklist_result_detail(result_index):
             })
 
         result["approvals"] = approvals
+
+    approval_items = [
+        item
+        for item in checklist.get("items", [])
+        if item.get("item_type") == "approval"
+    ]
+
+    for approval_index, approval in enumerate(
+        result.get("approvals", [])
+    ):
+        if (
+            "allow_general" not in approval
+            and approval_index < len(approval_items)
+        ):
+            approval["allow_general"] = approval_items[
+                approval_index
+            ].get(
+                "approval_allow_general",
+                False
+            )
 
     criteria_list = []
 
@@ -16817,10 +16971,10 @@ def export_checklist_result_excel(result_index):
             })
             continue
 
-        label = item.get("approval_label", "").strip()
-
-        if not label:
-            continue
+        label = (
+            item.get("approval_label", "").strip()
+            or "承認"
+        )
 
         approval_result = (
             approval_results[approval_index]
@@ -16931,7 +17085,11 @@ def export_checklist_result_excel(result_index):
                 stamp_value = (
                     approval_user.last_name
                     if approval_user
-                    else entry["approved_by"]
+                    else (
+                        entry.get("approved_by")
+                        or entry.get("approved_by_username")
+                        or ""
+                    )
                 )
 
                 if stamp_value and entry["approved_date"]:
@@ -17162,6 +17320,32 @@ def edit_checklist_result(result_index):
     if request.method == "POST":
         company_code = session.get("company_code")
 
+        result_record = ChecklistResult.query.filter_by(
+            id=result_index,
+            company_code=company_code
+        ).with_for_update().first()
+
+        if not result_record:
+            return redirect("/safety/checklists")
+
+        if result_record.status == "承認済み":
+            return redirect(
+                f"/safety/checklist-results/{result_index}"
+            )
+
+        db.session.refresh(result_record)
+        result = checklist_result_to_dict(result_record)
+
+        if not can_manage_checklist_result(result):
+            return redirect(
+                f"/safety/checklist-results/{result_index}"
+            )
+
+        checklist = (
+            result.get("checklist_snapshot")
+            or checklist_to_dict(checklist_record)
+        )
+
         target_type = request.form.get(
             "target_type",
             ""
@@ -17193,7 +17377,12 @@ def edit_checklist_result(result_index):
             "vehicle",
             "office"
         }:
-            return "対象種別が不正です。", 400
+            return return_form_errors([
+                (
+                    "対象種別が不正です。",
+                    "target_type"
+                )
+            ])
 
         # =========================
         # 個人
@@ -17201,7 +17390,12 @@ def edit_checklist_result(result_index):
 
         if target_type == "user":
             if not target_user:
-                return "対象ユーザーを選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザーを選択してください。",
+                        "target_user"
+                    )
+                ])
 
             target_driver = Driver.query.filter_by(
                 company_code=company_code,
@@ -17209,7 +17403,12 @@ def edit_checklist_result(result_index):
             ).first()
 
             if not target_driver:
-                return "対象ユーザーが不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザーが不正です。",
+                        "target_user"
+                    )
+                ])
 
             target_user_record = User.query.filter_by(
                 company_code=company_code,
@@ -17217,7 +17416,12 @@ def edit_checklist_result(result_index):
             ).first()
 
             if not target_user_record:
-                return "対象ユーザー情報が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザー情報が不正です。",
+                        "target_user"
+                    )
+                ])
 
             target_username = target_user_record.username
             target_user = target_driver.name
@@ -17231,7 +17435,12 @@ def edit_checklist_result(result_index):
 
         elif target_type == "vehicle":
             if not target_vehicle_record_id:
-                return "対象車両を選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象車両を選択してください。",
+                        "target_vehicle_record_id"
+                    )
+                ])
 
             vehicle = Vehicle.query.filter_by(
                 company_code=company_code,
@@ -17240,7 +17449,12 @@ def edit_checklist_result(result_index):
             ).first()
 
             if not vehicle:
-                return "対象車両が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象車両が不正です。",
+                        "target_vehicle_record_id"
+                    )
+                ])
 
             target_office = vehicle.office or ""
             target_user = ""
@@ -17252,7 +17466,12 @@ def edit_checklist_result(result_index):
 
         elif target_type == "office":
             if not target_office:
-                return "対象営業所を選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象営業所を選択してください。",
+                        "target_office"
+                    )
+                ])
 
             valid_office = Office.query.filter_by(
                 company_code=company_code,
@@ -17260,7 +17479,12 @@ def edit_checklist_result(result_index):
             ).first()
 
             if not valid_office:
-                return "対象営業所が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象営業所が不正です。",
+                        "target_office"
+                    )
+                ])
 
             target_user = ""
             target_username = ""
@@ -17270,6 +17494,16 @@ def edit_checklist_result(result_index):
             dict(answer)
             for answer in result.get("answers", [])
         ]
+
+        previous_target = {
+            "target_type": result_record.target_type or "",
+            "target_user": result_record.target_user or "",
+            "target_username": result_record.target_username or "",
+            "target_vehicle_record_id": (
+                result_record.target_vehicle_record_id
+            ),
+            "target_office": result_record.target_office or "",
+        }
 
         answers = []
         answer_index = 0
@@ -17288,10 +17522,12 @@ def edit_checklist_result(result_index):
 
             if item.get("input_type") == "select":
                 if value and value not in choices:
-                    return "評価値が不正です。", 400
-
-                if not value:
-                    return "未回答の項目があります。", 400
+                    return return_form_errors([
+                        (
+                            "評価値が不正です。",
+                            f"answer_{answer_index}"
+                        )
+                    ])
 
             comment = request.form.get(
                 f"comment_{answer_index}",
@@ -17299,13 +17535,23 @@ def edit_checklist_result(result_index):
             ).strip()
 
             if (
-                item.get("comment_required")
-                and not comment
+                item.get("answer_required")
+                and not value
             ):
-                return "必須コメントを入力してください。", 400
+                return return_form_errors([
+                    (
+                        "必須項目が未回答です。",
+                        f"answer_{answer_index}"
+                    )
+                ])
 
             if len(comment) > 5000:
-                return "コメントは5000文字以内で入力してください。", 400
+                return return_form_errors([
+                    (
+                        "コメントは5000文字以内で入力してください。",
+                        f"comment_{answer_index}"
+                    )
+                ])
 
             file_names = []
 
@@ -17325,7 +17571,20 @@ def edit_checklist_result(result_index):
                 "value": value,
                 "comment": comment,
                 "files": file_names,
-                "patrol_link": False,
+                "patrol_link": (
+                    request.form.get(
+                        f"patrol_link_{answer_index}"
+                    ) == "1"
+                    if f"patrol_link_{answer_index}" in request.form
+                    else (
+                        previous_answers[answer_index].get(
+                            "patrol_link",
+                            False
+                        )
+                        if answer_index < len(previous_answers)
+                        else False
+                    )
+                ),
             })
 
             pending_answer_files.append(
@@ -17335,6 +17594,21 @@ def edit_checklist_result(result_index):
             answer_index += 1
 
         pending_uploads = []
+
+        upload_file_count = sum(
+            1
+            for field_name in request.files.keys()
+            for file in request.files.getlist(field_name)
+            if file and file.filename
+        )
+
+        if upload_file_count > 50:
+            return return_form_errors([
+                (
+                    "一度にアップロードできるファイルは50件までです。",
+                    ""
+                )
+            ])
 
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
@@ -17358,19 +17632,169 @@ def edit_checklist_result(result_index):
                         extension
                     )
                 ):
-                    return "添付ファイルの検証に失敗しました。", 400
+                    return return_form_errors([
+                        (
+                            "添付ファイルの検証に失敗しました。",
+                            f"files_{form_index}"
+                        )
+                    ])
 
                 pending_uploads.append(
                     (item_index, file)
                 )
 
-        for item_index, file in pending_uploads:
-            filename = save_uploaded_file(file)
+        result_record.target_type = target_type
+        result_record.target_user = target_user
+        result_record.target_username = target_username
+        result_record.target_vehicle_record_id = target_vehicle_record_id
+        result_record.target_office = target_office
+        result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
-            if filename:
-                answers[item_index]["files"].append(filename)
+        notify_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                "notify_users"
+            )
+            if username.strip()
+        ]
+
+        notify_usernames = list(
+            dict.fromkeys(notify_usernames)
+        )
+
+        if len(notify_usernames) > 500:
+            return return_form_errors([
+                (
+                    "通知先ユーザー数が多すぎます。",
+                    "notify_user_search"
+                )
+            ])
+
+        valid_users = {
+            user.username: user
+            for user in User.query.filter_by(
+                company_code=company_code
+            ).all()
+            if user.username
+        }
+
+        invalid_notify_usernames = [
+            username
+            for username in notify_usernames
+            if username not in valid_users
+        ]
+
+        if invalid_notify_usernames:
+            return return_form_errors([
+                (
+                    "通知先ユーザーが不正です。",
+                    "notify_user_search"
+                )
+            ])
+
+        result_record.notify_users_json = json.dumps(
+            notify_usernames,
+            ensure_ascii=False
+        )
+
+        approvals = []
+
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approval_index = len(approvals)
+
+            submitted_candidate_usernames = [
+                username.strip()
+                for username in request.form.getlist(
+                    f"approval_notify_users_{approval_index}"
+                )
+                if username.strip()
+            ]
+
+            if len(submitted_candidate_usernames) > 500:
+                return return_form_errors([
+                    (
+                        "承認候補者数が多すぎます。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
+            invalid_candidate_usernames = [
+                username
+                for username in submitted_candidate_usernames
+                if (
+                    username not in valid_users
+                    or not (
+                        valid_users[username].role == "admin"
+                        or (
+                            item.get(
+                                "approval_allow_general",
+                                False
+                            )
+                            and valid_users[username].role == "user"
+                        )
+                    )
+                )
+            ]
+
+            if invalid_candidate_usernames:
+                return return_form_errors([
+                    (
+                        "承認者の選択内容が不正です。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get("approval_allow_general", False),
+                "candidate_usernames": list(
+                    dict.fromkeys(submitted_candidate_usernames)
+                ),
+                "approved_by": "",
+                "approved_by_username": "",
+                "approved_date": "",
+            })
+
+        saved_filenames = []
+
+        try:
+            for item_index, file in pending_uploads:
+                filename = save_uploaded_file(file)
+
+                if filename:
+                    answers[item_index]["files"].append(filename)
+                    saved_filenames.append(filename)
+
+        except UploadValidationError:
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors([
+                (
+                    "添付ファイルの検証に失敗しました。",
+                    ""
+                )
+            ])
 
         changes = []
+
+        current_target = {
+            "target_type": target_type,
+            "target_user": target_user,
+            "target_username": target_username,
+            "target_vehicle_record_id": target_vehicle_record_id,
+            "target_office": target_office,
+        }
+
+        if previous_target != current_target:
+            changes.append({
+                "type": "target",
+                "before": previous_target,
+                "after": current_target,
+            })
 
         previous_answers_by_item_no = {
             answer.get("item_no"): answer
@@ -17396,12 +17820,20 @@ def edit_checklist_result(result_index):
                 "value": previous_answer.get("value", ""),
                 "comment": previous_answer.get("comment", ""),
                 "files": previous_answer.get("files", []),
+                "patrol_link": previous_answer.get(
+                    "patrol_link",
+                    False
+                ),
             }
 
             after = {
                 "value": answer.get("value", ""),
                 "comment": answer.get("comment", ""),
                 "files": answer.get("files", []),
+                "patrol_link": answer.get(
+                    "patrol_link",
+                    False
+                ),
             }
 
             if before != after:
@@ -17413,95 +17845,66 @@ def edit_checklist_result(result_index):
                     "after": after,
                 })
 
-        result_record.target_type = target_type
-        result_record.target_user = target_user
-        result_record.target_username = target_username
-        result_record.target_vehicle_record_id = target_vehicle_record_id
-        result_record.target_office = target_office
-        result_record.answers_json = json.dumps(answers, ensure_ascii=False)
+        if target_type in PATROL_VIEW_TYPES:
+            previous_answers_by_item_no = {
+                answer.get("item_no"): answer
+                for answer in previous_answers
+                if answer.get("item_no") is not None
+            }
 
-        notify_usernames = [
-            username.strip()
-            for username in request.form.getlist(
-                "notify_users"
-            )
-            if username.strip()
-        ]
+            for answer in answers:
+                item_no = answer.get("item_no")
 
-        notify_usernames = list(
-            dict.fromkeys(notify_usernames)
-        )
-
-        if len(notify_usernames) > 500:
-            return "承認者数が多すぎます。", 400
-
-        valid_users = {
-            user.username: user
-            for user in User.query.filter_by(
-                company_code=company_code
-            ).all()
-            if user.username
-        }
-
-        notify_usernames = [
-            username
-            for username in notify_usernames
-            if username in valid_users
-        ]
-
-        result_record.notify_users_json = json.dumps(
-            notify_usernames,
-            ensure_ascii=False
-        )
-
-        approvals = []
-
-        for item in checklist.get("items", []):
-            if item.get("item_type") != "approval":
-                continue
-
-            approval_index = len(approvals)
-            candidate_usernames = [
-                username.strip()
-                for username in request.form.getlist(
-                    f"approval_notify_users_{approval_index}"
+                previous_answer = (
+                    previous_answers_by_item_no.get(
+                        item_no,
+                        {}
+                    )
                 )
-                if username.strip()
-                and username.strip() in valid_users
-                and (
-                    item.get(
-                        "approval_allow_general",
+
+                if (
+                    answer.get("patrol_link")
+                    and not previous_answer.get(
+                        "patrol_link",
                         False
                     )
-                    or valid_users[
-                        username.strip()
-                    ].role == "admin"
-                )
-            ]
-
-            if not candidate_usernames:
-                return (
-                    f"承認「{item.get('approval_label', '')}」の"
-                    "承認者を1人以上選択してください。",
-                    400
-                )
-
-            approvals.append({
-                "label": item.get("approval_label", ""),
-                "allow_general": item.get("approval_allow_general", False),
-                "candidate_usernames": list(
-                    dict.fromkeys(candidate_usernames)
-                ),
-                "approved_by": "",
-                "approved_by_username": "",
-                "approved_date": "",
-            })
+                ):
+                    db.session.add(PatrolResult(
+                        company_code=company_code,
+                        created_by_username=session.get("username"),
+                        created_by_name=session.get("name"),
+                        date=datetime.now().strftime("%Y-%m-%d"),
+                        delivery_place="",
+                        category="点検指摘",
+                        content_type="安全",
+                        target_type=target_type,
+                        target_user=target_user,
+                        target_username=target_username,
+                        office=target_office,
+                        content=(
+                            f"{answer.get('category', '')}："
+                            f"{answer.get('content', '')}"
+                            f" / 評価：{answer.get('value') or '-'}"
+                            f" / コメント：{answer.get('comment') or '-'}"
+                        ),
+                        files_json=json.dumps(
+                            answer.get("files", []),
+                            ensure_ascii=False
+                        ),
+                        countermeasure="",
+                        approval_status="未対応",
+                        reject_reason=""
+                    ))
 
         was_rejected = (
             result_record.status == "差し戻し"
         )
 
-        result_record.status = "承認待ち"
+        result_record.status = (
+            "承認待ち"
+            if approvals
+            else "点検完了"
+        )
         result_record.approvals_json = json.dumps(
             approvals,
             ensure_ascii=False
@@ -17548,7 +17951,42 @@ def edit_checklist_result(result_index):
             for answer in answers
         )
 
-        db.session.commit()
+        try:
+            db.session.commit()
+
+        except IntegrityError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors(
+                [
+                    (
+                        "安全チェックリストの更新に失敗しました。"
+                        "もう一度お試しください。",
+                        ""
+                    )
+                ],
+                status_code=409
+            )
+
+        except SQLAlchemyError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors(
+                [
+                    (
+                        "安全チェックリストの更新に失敗しました。"
+                        "もう一度お試しください。",
+                        ""
+                    )
+                ],
+                status_code=500
+            )
 
         first_approval_usernames = (
             approvals[0].get(
@@ -17580,6 +18018,42 @@ def edit_checklist_result(result_index):
                 company_code=company_code,
                 target_username=approval_user.username
             )
+
+        if result_record.status == "点検完了":
+            completion_notify_usernames = set(
+                notify_usernames
+            )
+
+            if result_record.target_username:
+                completion_notify_usernames.add(
+                    result_record.target_username
+                )
+
+            if result_record.checked_by_username:
+                completion_notify_usernames.add(
+                    result_record.checked_by_username
+                )
+
+            for notify_username in completion_notify_usernames:
+                notify_user = valid_users.get(
+                    notify_username
+                )
+
+                if not notify_user:
+                    continue
+
+                add_notification(
+                    (notify_user.last_name or "")
+                    + (notify_user.first_name or ""),
+                    "安全チェックリスト完了のお知らせ",
+                    (
+                        f"「{checklist_record.name}」の"
+                        "チェックが完了しました。"
+                    ),
+                    f"/safety/checklist-results/{result_record.id}",
+                    company_code=company_code,
+                    target_username=notify_user.username
+                )
 
         notify_mentions(
             mention_text,
@@ -17806,13 +18280,28 @@ def vehicle_checklist_results(index):
         year_int = int(year)
         month_int = int(month)
     except (TypeError, ValueError):
-        return "表示年月が不正です。", 400
+        return return_form_errors([
+            (
+                "表示年月が不正です。",
+                None
+            )
+        ])
 
     if year_int < 2000 or year_int > 2100:
-        return "表示年が不正です。", 400
+        return return_form_errors([
+            (
+                "表示年が不正です。",
+                None
+            )
+        ])
 
     if month_int < 1 or month_int > 12:
-        return "表示月が不正です。", 400
+        return return_form_errors([
+            (
+                "表示月が不正です。",
+                None
+            )
+        ])
 
     year = str(year_int)
     month = str(month_int).zfill(2)
@@ -17825,7 +18314,12 @@ def vehicle_checklist_results(index):
         ).first()
 
         if not valid_vehicle:
-            return "対象車両が不正です。", 400
+            return return_form_errors([
+                (
+                    "対象車両が不正です。",
+                    "vehicle_record_id"
+                )
+            ])
         
     if checklist.get("frequency_unit") == "year":
         default_active_day = str(datetime.now().year)
@@ -18167,6 +18661,7 @@ def vehicle_checklist_results(index):
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
+        active_result=active_result,
         selected_notify_users=selected_notify_users,
         selected_reminder_notify_users=selected_reminder_notify_users,
         selected_vehicle=selected_vehicle,
@@ -18192,10 +18687,12 @@ def vehicle_checklist_results(index):
 def save_vehicle_checklist_reminder_notify_users(checklist_index):
     company_code = session.get("company_code")
     if session.get("role") not in ["admin", "itc"]:
-        return {
-            "ok": False,
-            "message": "通知先設定を変更する権限がありません。"
-        }, 403    
+        return return_form_errors([
+            (
+                "通知先設定を変更する権限がありません。",
+                ""
+            )
+        ], status_code=403)    
 
     vehicle_record_id = request.form.get(
         "vehicle_record_id",
@@ -18211,10 +18708,12 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     ]
 
     if len(notify_usernames) > 500:
-        return {
-            "ok": False,
-            "message": "通知先ユーザー数が多すぎます。"
-        }, 400
+        return return_form_errors([
+            (
+                "通知先ユーザー数が多すぎます。",
+                "reminder_notify_user_search"
+            )
+        ])
 
     # =========================
     # チェックリスト検証
@@ -18227,26 +18726,32 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     ).first()
 
     if not checklist_record:
-        return {
-            "ok": False,
-            "message": "チェックリストが不正です。"
-        }, 404
+        return return_form_errors([
+            (
+                "チェックリストが不正です。",
+                ""
+            )
+        ], status_code=404)
 
     if checklist_record.target != "車両管理":
-        return {
-            "ok": False,
-            "message": "チェックリスト種別が不正です。"
-        }, 400
+        return return_form_errors([
+            (
+                "チェックリスト種別が不正です。",
+                ""
+            )
+        ])
 
     # =========================
     # 車両検証
     # =========================
 
     if not vehicle_record_id:
-        return {
-            "ok": False,
-            "message": "車両を選択してください。"
-        }, 400
+        return return_form_errors([
+            (
+                "車両を選択してください。",
+                "vehicle_record_id"
+            )
+        ])
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
@@ -18254,18 +18759,12 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         deleted=False
     ).first()
 
-    if not vehicle:
-        return {
-            "ok": False,
-            "message": "車両が不正です。"
-        }, 400
-
     # =========================
     # 通知先ユーザー検証
     # =========================
 
-    valid_usernames = {
-        user.username
+    valid_users = {
+        user.username: user
         for user in User.query.filter_by(
             company_code=company_code
         ).all()
@@ -18273,11 +18772,13 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     }
 
     for username in notify_usernames:
-        if username not in valid_usernames:
-            return {
-                "ok": False,
-                "message": "通知先ユーザーが不正です。"
-            }, 400
+        if username not in valid_users:
+            return return_form_errors([
+                (
+                    "通知先ユーザーが不正です。",
+                    "reminder_notify_user_search"
+                )
+            ])
 
     # 重複除去
     notify_usernames = list(
@@ -18383,10 +18884,15 @@ def test_email_notification():
 )
 @limiter.limit("20 per minute")
 def approve_vehicle_checklist_result(result_index, approval_index):
-    result_record = VehicleChecklistResult.query.filter_by(
-        id=result_index,
-        company_code=session.get("company_code")
-    ).first()
+    result_record = (
+        VehicleChecklistResult.query
+        .filter_by(
+            id=result_index,
+            company_code=session.get("company_code")
+        )
+        .with_for_update()
+        .first()
+    )
 
     if not result_record:
         return redirect("/vehicle/checklists")
@@ -18426,6 +18932,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                     "approval_allow_general",
                     False
                 ),
+                "candidate_usernames": [],
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -18438,8 +18945,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         (
             index
             for index, item in enumerate(approvals)
-            if item.get("candidate_usernames")
-            and not (
+            if not (
                 item.get("approved_by")
                 or item.get("approved_by_username")
             )
@@ -18498,17 +19004,21 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     result = vehicle_checklist_result_to_dict(result_record)
 
-    candidate_usernames = approval.get(
-        "candidate_usernames",
-        []
-    )
-
-    if not candidate_usernames:
-        return redirect("/vehicle/checklists")
+    approval_user = User.query.filter_by(
+        company_code=result_record.company_code,
+        username=session.get("username")
+    ).first()
 
     if (
-        session.get("username")
-        not in candidate_usernames
+        not approval_user
+
+        or not (
+            approval_user.role == "admin"
+            or (
+                approval.get("allow_general", False)
+                and approval_user.role == "user"
+            )
+        )
     ):
         return redirect("/vehicle/checklists")
 
@@ -18527,9 +19037,11 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     result_record.reject_reason = ""
 
     all_approved = all(
-        item.get("approved_by")
+        (
+            item.get("approved_by")
+            or item.get("approved_by_username")
+        )
         for item in approvals
-        if item.get("candidate_usernames")
     )
 
     if approvals and all_approved:
@@ -18615,8 +19127,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
             (
                 item
                 for item in approvals[approval_index + 1:]
-                if item.get("candidate_usernames")
-                and not (
+                if not (
                     item.get("approved_by")
                     or item.get("approved_by_username")
                 )
@@ -18695,10 +19206,15 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 )
 @limiter.limit("20 per minute")
 def reject_vehicle_checklist_result(result_index):
-    result_record = VehicleChecklistResult.query.filter_by(
-        id=result_index,
-        company_code=session.get("company_code")
-    ).first()
+    result_record = (
+        VehicleChecklistResult.query
+        .filter_by(
+            id=result_index,
+            company_code=session.get("company_code")
+        )
+        .with_for_update()
+        .first()
+    )
 
     if not result_record:
         return redirect("/vehicle/checklists")
@@ -18710,17 +19226,46 @@ def reject_vehicle_checklist_result(result_index):
         result_record.approvals_json
     )
 
-    previous_approvals = [
-        dict(approval)
-        for approval in approvals
-    ]
+    if not approvals:
+        approval_checklist = {}
+
+        if result_record.checklist_snapshot_json:
+            approval_checklist = safe_json_dict(
+                result_record.checklist_snapshot_json
+            )
+
+        if not approval_checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
+
+            if checklist_record:
+                approval_checklist = checklist_to_dict(
+                    checklist_record
+                )
+
+        for item in approval_checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get(
+                    "approval_allow_general",
+                    False
+                ),
+                "candidate_usernames": [],
+                "approved_by": "",
+                "approved_by_username": "",
+                "approved_date": "",
+            })
 
     current_approval = next(
         (
             approval
             for approval in approvals
-            if approval.get("candidate_usernames")
-            and not (
+            if not (
                 approval.get("approved_by")
                 or approval.get("approved_by_username")
             )
@@ -18728,19 +19273,65 @@ def reject_vehicle_checklist_result(result_index):
         None
     )
 
-    candidate_usernames = (
-        current_approval.get(
-            "candidate_usernames",
-            []
+    if not current_approval:
+        return redirect("/vehicle/checklists")
+
+    if "allow_general" not in current_approval:
+        approval_checklist = {}
+
+        if result_record.checklist_snapshot_json:
+            approval_checklist = safe_json_dict(
+                result_record.checklist_snapshot_json
+            )
+
+        if not approval_checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
+
+            if checklist_record:
+                approval_checklist = checklist_to_dict(
+                    checklist_record
+                )
+
+        approval_items = [
+            item
+            for item in approval_checklist.get("items", [])
+            if item.get("item_type") == "approval"
+        ]
+
+        current_approval_index = approvals.index(
+            current_approval
         )
-        if current_approval
-        else []
-    )
+
+        if current_approval_index < len(approval_items):
+            current_approval["allow_general"] = (
+                approval_items[
+                    current_approval_index
+                ].get(
+                    "approval_allow_general",
+                    False
+                )
+            )
+
+    approval_user = User.query.filter_by(
+        company_code=result_record.company_code,
+        username=session.get("username")
+    ).first()
 
     if (
-        not candidate_usernames
-        or session.get("username")
-        not in candidate_usernames
+        not approval_user
+        or not (
+            approval_user.role == "admin"
+            or (
+                current_approval.get(
+                    "allow_general",
+                    False
+                )
+                and approval_user.role == "user"
+            )
+        )
     ):
         return redirect("/vehicle/checklists")
 
@@ -18749,19 +19340,26 @@ def reject_vehicle_checklist_result(result_index):
         ""
     ).strip()
 
-    if not reject_reason:
-        flash(
-            "差し戻し理由を入力してください。",
-            "error:reject_reason"
-        )
-        return redirect("/vehicle/checklists")
+    form_errors = []
 
-    if len(reject_reason) > 5000:
-        flash(
-            "差し戻し理由は5000文字以内で入力してください。",
-            "error:reject_reason"
+    if not reject_reason:
+        form_errors.append(
+            (
+                "差し戻し理由を入力してください。",
+                "vehicleRejectReason"
+            )
         )
-        return redirect("/vehicle/checklists")
+
+    elif len(reject_reason) > 5000:
+        form_errors.append(
+            (
+                "差し戻し理由は5000文字以内で入力してください。",
+                "vehicleRejectReason"
+            )
+        )
+
+    if form_errors:
+        return return_form_errors(form_errors)
 
     previous_approvals = [
         dict(approval)
@@ -18815,6 +19413,17 @@ def reject_vehicle_checklist_result(result_index):
         result_record.checklist_snapshot_json
     )
 
+    if not result_checklist:
+        checklist_record = Checklist.query.filter_by(
+            id=result_record.checklist_id,
+            company_code=result_record.company_code
+        ).first()
+
+        if checklist_record:
+            result_checklist = checklist_to_dict(
+                checklist_record
+            )
+
     if result_checklist.get("frequency_unit") == "year":
         active_value = result_record.year
     elif result_checklist.get("display_type") == "month":
@@ -18833,7 +19442,10 @@ def reject_vehicle_checklist_result(result_index):
                 (target_user.last_name or "")
                 + (target_user.first_name or ""),
                 "車両チェックリストが差し戻されました",
-                reject_reason,
+                (
+                    "差し戻し理由："
+                    f"{reject_reason}"
+                ),
                 (
                     f"/vehicle/checklists/"
                     f"{result_record.checklist_id}"
@@ -19370,10 +19982,14 @@ def export_vehicle_checklist_result_excel(result_index):
         category_rows = set()
         shaded_rows = set()
 
-        for item_no, item in enumerate(excel_checklist.get("items", [])):
+        item_no = -1
+
+        for item in excel_checklist.get("items", []):
 
             if item.get("item_type") != "check":
                 continue
+
+            item_no += 1
 
             category = item.get("category", "").strip()
             content = item.get("content", "").strip()
@@ -19650,7 +20266,10 @@ def export_vehicle_checklist_result_excel(result_index):
 
                     approval = approvals[approval_position]
 
-                if not approval.get("approved_by"):
+                if not (
+                    approval.get("approved_by")
+                    or approval.get("approved_by_username")
+                ):
                     continue
 
                 if excel_display_mode == "day":
@@ -19690,7 +20309,11 @@ def export_vehicle_checklist_result_excel(result_index):
                     value=(
                         approval_user.last_name
                         if approval_user
-                        else approval.get("approved_by", "")
+                        else (
+                            approval.get("approved_by")
+                            or approval.get("approved_by_username")
+                            or ""
+                        )
                     )
                 ).alignment = Alignment(
                     horizontal="center",
@@ -20077,7 +20700,12 @@ def save_vehicle_checklist_one(index):
     # =========================
 
     if not vehicle_record_id:
-        return "対象車両を選択してください。", 400
+        return return_form_errors([
+            (
+                "対象車両を選択してください。",
+                "vehicle_record_id"
+            )
+        ])
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
@@ -20086,7 +20714,12 @@ def save_vehicle_checklist_one(index):
     ).first()
 
     if not vehicle:
-        return "対象車両が不正です。", 400
+        return return_form_errors([
+            (
+                "対象車両が不正です。",
+                "vehicle_record_id"
+            )
+        ])
 
     # =========================
     # 日付検証
@@ -20097,10 +20730,20 @@ def save_vehicle_checklist_one(index):
         month_int = int(month)
         day_int = int(day)
     except (TypeError, ValueError):
-        return "点検日が不正です。", 400
+        return return_form_errors([
+            (
+                "点検日が不正です。",
+                "year"
+            )
+        ])
 
     if year_int < 2000 or year_int > 2100:
-        return "点検年が不正です。", 400
+        return return_form_errors([
+            (
+                "点検年が不正です。",
+                "year"
+            )
+        ])
 
     if checklist.get("frequency_unit") == "year":
         month_int = 1
@@ -20108,7 +20751,12 @@ def save_vehicle_checklist_one(index):
 
     elif checklist.get("display_type") == "month":
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "month"
+                )
+            ])
 
         try:
             datetime(
@@ -20117,11 +20765,21 @@ def save_vehicle_checklist_one(index):
                 day_int
             )
         except ValueError:
-            return "点検日が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検日が不正です。",
+                    "day"
+                )
+            ])
 
     else:
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "month"
+                )
+            ])
 
         day_int = 1
 
@@ -20146,20 +20804,37 @@ def save_vehicle_checklist_one(index):
         ""
     )
 
-    result_record = VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        checklist_id=checklist_record.id,
-        vehicle_record_id=vehicle_record_id,
-        year=year,
-        month=month,
-        day=day
-    ).first()
+    result_record = (
+        VehicleChecklistResult.query
+        .filter_by(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            day=day
+        )
+        .with_for_update()
+        .first()
+    )
 
     if (
         result_record
-        and result_record.status == "承認済み"
+        and result_record.status in {
+            "承認待ち",
+            "承認済み"
+        }
     ):
-        return "承認済みの点検結果は変更できません。", 403
+        return return_form_errors([
+            (
+                (
+                    "承認待ちの点検結果は変更できません。"
+                    if result_record.status == "承認待ち"
+                    else "承認済みの点検結果は変更できません。"
+                ),
+                ""
+            )
+        ], status_code=403)
 
     result_checklist = checklist_for_date(
         checklist,
@@ -20186,7 +20861,12 @@ def save_vehicle_checklist_one(index):
     try:
         item_no = int(item_no_raw)
     except (TypeError, ValueError):
-        return "チェック項目が不正です。", 400
+        return return_form_errors([
+            (
+                "チェック項目が不正です。",
+                ""
+            )
+        ])
 
     check_items = [
         item
@@ -20195,7 +20875,12 @@ def save_vehicle_checklist_one(index):
     ]
 
     if item_no < 0 or item_no >= len(check_items):
-        return "チェック項目が不正です。", 400
+        return return_form_errors([
+            (
+                "チェック項目が不正です。",
+                ""
+            )
+        ])
 
     checklist_item = check_items[item_no]
 
@@ -20235,8 +20920,18 @@ def save_vehicle_checklist_one(index):
         ]
 
         if value and value not in valid_choices:
-            return "回答値が不正です。", 400
-        
+            return return_form_errors([
+                (
+                    "回答値が不正です。",
+                    f"answer_{item_no}"
+                )
+            ])
+
+    if not result_record and not value:
+        return jsonify({
+            "success": True
+        })
+
     if not result_record:
         result_record = VehicleChecklistResult(
             company_code=company_code,
@@ -20373,7 +21068,18 @@ def save_vehicle_checklist_one(index):
         )
         db.session.add(checklist_event)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+
+        return return_form_errors([
+            (
+                "同じ点検結果が同時に更新されました。"
+                "画面を再読み込みして確認してください。",
+                ""
+            )
+        ], status_code=409)
 
     notify_mentions(
         value,
@@ -20439,7 +21145,12 @@ def save_vehicle_checklist_detail(index):
     # =========================
 
     if not vehicle_record_id:
-        return "対象車両を選択してください。", 400
+        return return_form_errors([
+            (
+                "対象車両を選択してください。",
+                "vehicle_record_id"
+            )
+        ])
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
@@ -20448,7 +21159,12 @@ def save_vehicle_checklist_detail(index):
     ).first()
 
     if not vehicle:
-        return "対象車両が不正です。", 400
+        return return_form_errors([
+            (
+                "対象車両が不正です。",
+                "vehicle_record_id"
+            )
+        ])
 
     # =========================
     # 日付検証
@@ -20459,10 +21175,20 @@ def save_vehicle_checklist_detail(index):
         month_int = int(month)
         day_int = int(day)
     except (TypeError, ValueError):
-        return "点検日が不正です。", 400
+        return return_form_errors([
+            (
+                "点検日が不正です。",
+                "detailYear"
+            )
+        ])
 
     if year_int < 2000 or year_int > 2100:
-        return "点検年が不正です。", 400
+        return return_form_errors([
+            (
+                "点検年が不正です。",
+                "detailYear"
+            )
+        ])
 
     if checklist.get("frequency_unit") == "year":
         month_int = 1
@@ -20470,7 +21196,12 @@ def save_vehicle_checklist_detail(index):
 
     elif checklist.get("display_type") == "month":
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "detailMonth"
+                )
+            ])
 
         try:
             datetime(
@@ -20479,11 +21210,21 @@ def save_vehicle_checklist_detail(index):
                 day_int
             )
         except ValueError:
-            return "点検日が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検日が不正です。",
+                    "detailDay"
+                )
+            ])
 
     else:
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "detailMonth"
+                )
+            ])
 
         day_int = 1
 
@@ -20508,23 +21249,51 @@ def save_vehicle_checklist_detail(index):
         ""
     ).strip()
 
-    if len(comment) > 5000:
-        return "コメントは5000文字以内で入力してください。", 400
+    uploaded_files = [
+        file
+        for file in request.files.getlist("files")
+        if file and file.filename
+    ]
 
-    result_record = VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        checklist_id=checklist_record.id,
-        vehicle_record_id=vehicle_record_id,
-        year=year,
-        month=month,
-        day=day
-    ).first()
+    if len(comment) > 5000:
+        return return_form_errors([
+            (
+                "コメントは5000文字以内で入力してください。",
+                "detailCommentEditor"
+            )
+        ])
+
+    result_record = (
+        VehicleChecklistResult.query
+        .filter_by(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            day=day
+        )
+        .with_for_update()
+        .first()
+    )
 
     if (
         result_record
-        and result_record.status == "承認済み"
+        and result_record.status in {
+            "承認待ち",
+            "承認済み"
+        }
     ):
-        return "承認済みの点検結果は変更できません。", 403
+        return return_form_errors([
+            (
+                (
+                    "承認待ちの点検結果は変更できません。"
+                    if result_record.status == "承認待ち"
+                    else "承認済みの点検結果は変更できません。"
+                ),
+                ""
+            )
+        ], status_code=403)
 
     result_checklist = checklist_for_date(
         checklist,
@@ -20551,7 +21320,12 @@ def save_vehicle_checklist_detail(index):
     try:
         item_no = int(item_no_raw)
     except (TypeError, ValueError):
-        return "チェック項目が不正です。", 400
+        return return_form_errors([
+            (
+                "チェック項目が不正です。",
+                "detailItemNo"
+            )
+        ])
 
     check_items = [
         item
@@ -20560,7 +21334,12 @@ def save_vehicle_checklist_detail(index):
     ]
 
     if item_no < 0 or item_no >= len(check_items):
-        return "チェック項目が不正です。", 400
+        return return_form_errors([
+            (
+                "チェック項目が不正です。",
+                "detailItemNo"
+            )
+        ])
 
     checklist_item = check_items[item_no]
 
@@ -20578,7 +21357,18 @@ def save_vehicle_checklist_detail(index):
         "criteria",
         ""
     )
-    
+
+
+
+    if (
+        not result_record
+        and not comment
+        and not uploaded_files
+    ):
+        return jsonify({
+            "success": True
+        })
+
     if not result_record:
         result_record = VehicleChecklistResult(
             company_code=company_code,
@@ -20628,11 +21418,13 @@ def save_vehicle_checklist_detail(index):
         }
         answers.append(answer)
 
-    uploaded_files = [
-        file
-        for file in request.files.getlist("files")
-        if file and file.filename
-    ]
+    if len(uploaded_files) > 50:
+        return return_form_errors([
+            (
+                "一度にアップロードできるファイルは50件までです。",
+                "detailPreview"
+            )
+        ])
 
     answer.setdefault("files", [])
 
@@ -20656,12 +21448,31 @@ def save_vehicle_checklist_detail(index):
                 extension
             )
         ):
-            return "添付ファイルの検証に失敗しました。", 400
+            return return_form_errors([
+                (
+                    "添付ファイルの検証に失敗しました。",
+                    "detailPreview"
+                )
+            ])
+
+    saved_filenames = []
 
     for file in uploaded_files:
-        filename = save_uploaded_file(file)
+        try:
+            filename = save_uploaded_file(file)
+        except UploadValidationError:
+            for saved_filename in saved_filenames:
+                delete_uploaded_file(saved_filename)
+
+            return return_form_errors([
+                (
+                    "添付ファイルの検証に失敗しました。",
+                    "detailPreview"
+                )
+            ])
 
         if filename:
+            saved_filenames.append(filename)
             answer["files"].append(filename)
 
     previous_comment = answer.get("comment", "")
@@ -20741,18 +21552,30 @@ def save_vehicle_checklist_detail(index):
             detail_json=json.dumps(
                 {
                     "changes": [
-                        {
-                            "item_no": item_no,
-                            "field": "comment",
-                            "before": previous_comment,
-                            "after": comment,
-                        },
-                        {
-                            "item_no": item_no,
-                            "field": "files",
-                            "before": previous_files,
-                            "after": answer.get("files", []),
-                        },
+                        *(
+                            [
+                                {
+                                    "item_no": item_no,
+                                    "field": "comment",
+                                    "before": previous_comment,
+                                    "after": comment,
+                                }
+                            ]
+                            if previous_comment != comment
+                            else []
+                        ),
+                        *(
+                            [
+                                {
+                                    "item_no": item_no,
+                                    "field": "files",
+                                    "before": previous_files,
+                                    "after": answer.get("files", []),
+                                }
+                            ]
+                            if previous_files != answer.get("files", [])
+                            else []
+                        ),
                     ],
                 },
                 ensure_ascii=False
@@ -20763,38 +21586,36 @@ def save_vehicle_checklist_detail(index):
         )
         db.session.add(checklist_event)
 
-    if request.form.get("patrol_link") == "1":
-        existing_patrol = VehiclePatrol.query.filter_by(
-            company_code=checklist_record.company_code,
-            vehicle_record_id=vehicle_record_id,
-            occurred_date=f"{year}-{month}-{day}",
-            category="点検指摘",
-            content=content
-        ).first()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
 
-        if existing_patrol:
-            existing_patrol.temporary_action = comment
-        else:
-            db.session.add(VehiclePatrol(
-                company_code=checklist_record.company_code,
-                vehicle_record_id=vehicle_record_id,
-                occurred_date=f"{year}-{month}-{day}",
-                category="点検指摘",
-                priority="中",
-                content=content,
-                cause="",
-                temporary_action=comment,
-                repair_content="",
-                status="未対応",
-                repair_date="",
-                repair_person="",
-                repair_time="",
-                parts="",
-                cost=""
-            ))
+        for filename in saved_filenames:
+            delete_uploaded_file(filename)
 
-    db.session.commit()
+        return return_form_errors([
+            (
+                "同じ点検結果が同時に更新されました。"
+                "画面を再読み込みして確認してください。",
+                ""
+            )
+        ], status_code=409)
 
+    except SQLAlchemyError:
+        db.session.rollback()
+
+        for filename in saved_filenames:
+            delete_uploaded_file(filename)
+
+        return return_form_errors([
+            (
+                "車両チェックリストの更新に失敗しました。"
+                "もう一度お試しください。",
+                ""
+            )
+        ], status_code=500)
+    
     notify_mentions(
         comment,
         f"/vehicle/checklists/{checklist_record.id}?vehicle_record_id={vehicle_record_id}&year={year}&month={month}&active_day={active_day}"
@@ -20862,7 +21683,12 @@ def complete_vehicle_checklist(index):
     # =========================
 
     if not vehicle_record_id:
-        return "対象車両を選択してください。", 400
+        return return_form_errors([
+            (
+                "対象車両を選択してください。",
+                "vehicle_record_id"
+            )
+        ])
 
     vehicle = Vehicle.query.filter_by(
         company_code=company_code,
@@ -20871,7 +21697,12 @@ def complete_vehicle_checklist(index):
     ).first()
 
     if not vehicle:
-        return "対象車両が不正です。", 400
+        return return_form_errors([
+            (
+                "対象車両が不正です。",
+                "vehicle_record_id"
+            )
+        ])
 
     # =========================
     # 日付検証
@@ -20882,10 +21713,20 @@ def complete_vehicle_checklist(index):
         month_int = int(month)
         day_int = int(day)
     except (TypeError, ValueError):
-        return "点検日が不正です。", 400
+        return return_form_errors([
+            (
+                "点検日が不正です。",
+                "year"
+            )
+        ])
 
     if year_int < 2000 or year_int > 2100:
-        return "点検年が不正です。", 400
+        return return_form_errors([
+            (
+                "点検年が不正です。",
+                "year"
+            )
+        ])
 
     if checklist.get("frequency_unit") == "year":
         month_int = 1
@@ -20893,7 +21734,12 @@ def complete_vehicle_checklist(index):
 
     elif checklist.get("display_type") == "month":
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "month"
+                )
+            ])
 
         try:
             datetime(
@@ -20902,11 +21748,21 @@ def complete_vehicle_checklist(index):
                 day_int
             )
         except ValueError:
-            return "点検日が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検日が不正です。",
+                    "day"
+                )
+            ])
 
     else:
         if month_int < 1 or month_int > 12:
-            return "点検月が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検月が不正です。",
+                    "month"
+                )
+            ])
 
         day_int = 1
 
@@ -20918,29 +21774,61 @@ def complete_vehicle_checklist(index):
     # 結果取得
     # =========================
 
-    result_record = VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        checklist_id=checklist_record.id,
-        vehicle_record_id=vehicle_record_id,
-        year=year,
-        month=month,
-        day=day
-    ).first()
+    result_record = (
+        VehicleChecklistResult.query
+        .filter_by(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            day=day
+        )
+        .with_for_update()
+        .first()
+    )
 
     if not result_record:
-        return redirect(
-            url_for(
-                "vehicle_checklist_results",
-                index=checklist_record.id,
-                vehicle_record_id=vehicle_record_id,
-                year=year,
-                month=month,
-                active_day=active_day,
+        result_record = VehicleChecklistResult(
+            company_code=company_code,
+            checklist_id=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            day=day,
+            checked_by=session.get("name"),
+            checked_by_username=session.get("username"),
+            checked_date=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).strftime("%Y-%m-%d %H:%M"),
+            status="入力中",
+            approved_by="",
+            approved_by_username="",
+            approved_date="",
+            reject_reason="",
+            answers_json="[]",
+            checklist_snapshot_json=json.dumps(
+                checklist,
+                ensure_ascii=False
             )
         )
 
-    if result_record.status == "承認済み":
-        return "承認済みの点検結果は変更できません。", 403
+        db.session.add(result_record)
+
+    if result_record.status in {
+        "承認待ち",
+        "承認済み"
+    }:
+        return return_form_errors([
+            (
+                (
+                    "すでに承認待ちです。"
+                    if result_record.status == "承認待ち"
+                    else "すでに承認済みです。"
+                ),
+                ""
+            )
+        ], status_code=409)
 
     result_checklist = checklist
 
@@ -20987,17 +21875,41 @@ def complete_vehicle_checklist(index):
             or ""
         ).strip()
 
-        if (
-            item.get("input_type") == "select"
-            and not value
-        ):
-            return "未回答の項目があります。", 400
+        if item.get("input_type") == "select":
+            valid_choices = [
+                str(choice)
+                for choice in item.get(
+                    "choices",
+                    []
+                )
+            ]
+
+            if value and value not in valid_choices:
+                return return_form_errors([
+                    (
+                        "回答値が不正です。",
+                        f"answer_{item_no}"
+                    )
+                ])
 
         if (
-            item.get("comment_required")
-            and not comment
+            item.get("answer_required")
+            and not value
         ):
-            return "必須コメントが未入力です。", 400
+            return return_form_errors([
+                (
+                    "必須項目が未回答です。",
+                    f"answer_{item_no}"
+                )
+            ])
+
+        if len(comment) > 5000:
+            return return_form_errors([
+                (
+                    "コメントは5000文字以内で入力してください。",
+                    f"comment_{item_no}"
+                )
+            ])
 
     # =========================
     # 通知先ユーザー検証
@@ -21012,7 +21924,12 @@ def complete_vehicle_checklist(index):
     ]
 
     if len(notify_usernames) > 500:
-        return "通知先ユーザー数が多すぎます。", 400
+        return return_form_errors([
+            (
+                "通知先ユーザー数が多すぎます。",
+                "notify_user_search"
+            )
+        ])
 
     valid_users = {
         user.username: user
@@ -21024,7 +21941,12 @@ def complete_vehicle_checklist(index):
 
     for username in notify_usernames:
         if username not in valid_users:
-            return "通知先ユーザーが不正です。", 400
+            return return_form_errors([
+                (
+                    "通知先ユーザーが不正です。",
+                    "notify_user_search"
+                )
+            ])
 
     notify_usernames = list(
         dict.fromkeys(notify_usernames)
@@ -21071,31 +21993,52 @@ def complete_vehicle_checklist(index):
 
         approval_index = len(approvals)
 
-        candidate_usernames = [
+        submitted_candidate_usernames = [
             username.strip()
             for username in request.form.getlist(
                 f"approval_notify_users_{approval_index}"
             )
             if username.strip()
-            and username.strip() in valid_users
-            and (
-                valid_users[
-                    username.strip()
-                ].role == "admin"
-                or (
-                    item.get(
-                        "approval_allow_general",
-                        False
+        ]
+
+        if len(submitted_candidate_usernames) > 500:
+            return return_form_errors([
+                (
+                    "承認候補者数が多すぎます。",
+                    f"approval_user_search_{approval_index}"
+                )
+            ])
+
+        invalid_candidate_usernames = [
+            username
+            for username in submitted_candidate_usernames
+            if (
+                username not in valid_users
+                or not (
+                    valid_users[username].role == "admin"
+                    or (
+                        item.get(
+                            "approval_allow_general",
+                            False
+                        )
+                        and valid_users[username].role == "user"
                     )
-                    and valid_users[
-                        username.strip()
-                    ].role == "user"
                 )
             )
         ]
 
+        if invalid_candidate_usernames:
+            return return_form_errors([
+                (
+                    "承認者の選択内容が不正です。",
+                    f"approval_user_search_{approval_index}"
+                )
+            ])
+
         candidate_usernames = list(
-            dict.fromkeys(candidate_usernames)
+            dict.fromkeys(
+                submitted_candidate_usernames
+            )
         )
 
         approvals.append({
@@ -21110,10 +22053,7 @@ def complete_vehicle_checklist(index):
             "approved_date": "",
         })
 
-    has_system_approval = any(
-        approval.get("candidate_usernames")
-        for approval in approvals
-    )
+    has_system_approval = bool(approvals)
 
     was_rejected = (
         result_record.status == "差し戻し"
@@ -21174,18 +22114,15 @@ def complete_vehicle_checklist(index):
     )
 
     if has_system_approval and approvals:
-        first_approval = next(
-            (
-                approval
-                for approval in approvals
-                if approval.get("candidate_usernames")
-            ),
-            None
-        )
+        first_approval = approvals[0]
 
-        for target_username in first_approval.get(
-            "candidate_usernames",
-            []
+        for target_username in (
+            first_approval.get(
+                "candidate_usernames",
+                []
+            )
+            if first_approval
+            else []
         ):
             target_user = valid_users.get(
                 target_username
@@ -21207,21 +22144,22 @@ def complete_vehicle_checklist(index):
                 target_username=target_user.username
             )
 
-    for target_username in notify_usernames:
-        target_user = valid_users[target_username]
+    if not has_system_approval:
+        for target_username in notify_usernames:
+            target_user = valid_users[target_username]
 
-        add_notification(
-            (target_user.last_name or "") + (target_user.first_name or ""),
-            "車両点検完了のお知らせ",
-            (
-                f"{' '.join(value for value in [vehicle.plate_area or '', vehicle.plate_class or '', vehicle.plate_kana or '', vehicle.plate_number or ''] if value) or 'ナンバー未登録'} の"
-                f"「{checklist_record.name}」が"
-                f"点検完了しました。"
-            ),
-            notification_link,
-            company_code=company_code,
-            target_username=target_user.username
-        )
+            add_notification(
+                (target_user.last_name or "") + (target_user.first_name or ""),
+                "車両点検完了のお知らせ",
+                (
+                    f"{' '.join(value for value in [vehicle.plate_area or '', vehicle.plate_class or '', vehicle.plate_kana or '', vehicle.plate_number or ''] if value) or 'ナンバー未登録'} の"
+                    f"「{checklist_record.name}」が"
+                    "点検完了しました。"
+                ),
+                notification_link,
+                company_code=company_code,
+                target_username=target_user.username
+            )
 
     return redirect(
         notification_link
@@ -21272,7 +22210,12 @@ def new_vehicle_checklist_result(index):
         # =========================
 
         if not vehicle_record_id:
-            return "対象車両を選択してください。", 400
+            return return_form_errors([
+                (
+                    "対象車両を選択してください。",
+                    "vehicle_record_id"
+                )
+            ])
 
         vehicle = Vehicle.query.filter_by(
             company_code=company_code,
@@ -21281,7 +22224,12 @@ def new_vehicle_checklist_result(index):
         ).first()
 
         if not vehicle:
-            return "対象車両が不正です。", 400
+            return return_form_errors([
+                (
+                    "対象車両が不正です。",
+                    "vehicle_record_id"
+                )
+            ])
 
         # =========================
         # 日付検証
@@ -21292,10 +22240,20 @@ def new_vehicle_checklist_result(index):
             month_int = int(month)
             day_int = int(day)
         except (TypeError, ValueError):
-            return "点検日が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検日が不正です。",
+                    "year"
+                )
+            ])
 
         if year_int < 2000 or year_int > 2100:
-            return "点検年が不正です。", 400
+            return return_form_errors([
+                (
+                    "点検年が不正です。",
+                    "year"
+                )
+            ])
 
         # 年次チェックリスト
         if checklist.get("frequency_unit") == "year":
@@ -21305,7 +22263,12 @@ def new_vehicle_checklist_result(index):
         # 日単位表示
         elif checklist.get("display_type") == "month":
             if month_int < 1 or month_int > 12:
-                return "点検月が不正です。", 400
+                return return_form_errors([
+                    (
+                        "点検月が不正です。",
+                        "month"
+                    )
+                ])
 
             try:
                 datetime(
@@ -21314,12 +22277,22 @@ def new_vehicle_checklist_result(index):
                     day_int
                 )
             except ValueError:
-                return "点検日が不正です。", 400
+                return return_form_errors([
+                    (
+                        "点検日が不正です。",
+                        "day"
+                    )
+                ])
 
         # 月単位など
         else:
             if month_int < 1 or month_int > 12:
-                return "点検月が不正です。", 400
+                return return_form_errors([
+                    (
+                        "点検月が不正です。",
+                        "month"
+                    )
+                ])
 
             day_int = 1
 
@@ -21344,6 +22317,7 @@ def new_vehicle_checklist_result(index):
                     vehicle_record_id=vehicle_record_id,
                     year=year,
                     month=month,
+                    active_day=day,
                 )
             )
 
@@ -21379,25 +22353,38 @@ def new_vehicle_checklist_result(index):
                 ]
 
                 if value and value not in valid_choices:
-                    return "回答値が不正です。", 400
+                    return return_form_errors([
+                        (
+                            "回答値が不正です。",
+                            f"answer_{answer_index}"
+                        )
+                    ])
 
-                if not value:
-                    return "未回答の項目があります。", 400
+
 
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
             ).strip()
 
+            if (
+                item.get("answer_required")
+                and not value
+            ):
+                return return_form_errors([
+                    (
+                        "必須項目が未回答です。",
+                        f"answer_{answer_index}"
+                    )
+                ])
+
             if len(comment) > 5000:
-                return "コメントは5000文字以内で入力してください。", 400
-
-            if item.get("comment_required") and not comment:
-                return "必須コメントが未入力です。", 400
-
-            patrol_link = request.form.get(
-                f"patrol_link_{answer_index}"
-            )
+                return return_form_errors([
+                    (
+                        "コメントは5000文字以内で入力してください。",
+                        f"comment_{answer_index}"
+                    )
+                ])
 
             item_index = len(answers)
 
@@ -21408,8 +22395,7 @@ def new_vehicle_checklist_result(index):
                 "criteria": item.get("criteria", ""),
                 "value": value,
                 "comment": comment,
-                "files": [],
-                "patrol_link": patrol_link == "1"
+                "files": []
             })
 
             pending_answer_files.append(
@@ -21419,6 +22405,21 @@ def new_vehicle_checklist_result(index):
             answer_index += 1
 
         pending_uploads = []
+
+        upload_file_count = sum(
+            1
+            for field_name in request.files.keys()
+            for file in request.files.getlist(field_name)
+            if file and file.filename
+        )
+
+        if upload_file_count > 50:
+            return return_form_errors([
+                (
+                    "一度にアップロードできるファイルは50件までです。",
+                    ""
+                )
+            ])
 
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
@@ -21442,53 +22443,16 @@ def new_vehicle_checklist_result(index):
                         extension
                     )
                 ):
-                    return "添付ファイルの検証に失敗しました。", 400
+                    return return_form_errors([
+                        (
+                            "添付ファイルの検証に失敗しました。",
+                            f"files_{form_index}"
+                        )
+                    ])
 
                 pending_uploads.append(
                     (item_index, file)
                 )
-
-        for item_index, file in pending_uploads:
-            filename = save_uploaded_file(file)
-
-            if filename:
-                answers[item_index]["files"].append(filename)
-
-        for answer in answers:
-            if not answer.get("patrol_link"):
-                continue
-
-            content = answer.get("content", "")
-            comment = answer.get("comment", "")
-
-            existing_patrol = VehiclePatrol.query.filter_by(
-                company_code=company_code,
-                vehicle_record_id=vehicle_record_id,
-                occurred_date=f"{year}-{month}-{day}",
-                category="点検指摘",
-                content=content
-            ).first()
-
-            if existing_patrol:
-                existing_patrol.temporary_action = comment
-            else:
-                db.session.add(VehiclePatrol(
-                    company_code=company_code,
-                    vehicle_record_id=vehicle_record_id,
-                    occurred_date=f"{year}-{month}-{day}",
-                    category="点検指摘",
-                    priority="中",
-                    content=content,
-                    cause="",
-                    temporary_action=comment,
-                    repair_content="",
-                    status="未対応",
-                    repair_date="",
-                    repair_person="",
-                    repair_time="",
-                    parts="",
-                    cost=""
-                ))
 
         valid_users = {
             user.username: user
@@ -21506,31 +22470,52 @@ def new_vehicle_checklist_result(index):
 
             approval_index = len(approvals)
 
-            candidate_usernames = [
+            submitted_candidate_usernames = [
                 username.strip()
                 for username in request.form.getlist(
                     f"approval_notify_users_{approval_index}"
                 )
                 if username.strip()
-                and username.strip() in valid_users
-                and (
-                    valid_users[
-                        username.strip()
-                    ].role == "admin"
-                    or (
-                        item.get(
-                            "approval_allow_general",
-                            False
+            ]
+
+            if len(submitted_candidate_usernames) > 500:
+                return return_form_errors([
+                    (
+                        "承認候補者数が多すぎます。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
+            invalid_candidate_usernames = [
+                username
+                for username in submitted_candidate_usernames
+                if (
+                    username not in valid_users
+                    or not (
+                        valid_users[username].role == "admin"
+                        or (
+                            item.get(
+                                "approval_allow_general",
+                                False
+                            )
+                            and valid_users[username].role == "user"
                         )
-                        and valid_users[
-                            username.strip()
-                        ].role == "user"
                     )
                 )
             ]
 
+            if invalid_candidate_usernames:
+                return return_form_errors([
+                    (
+                        "承認者の選択内容が不正です。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
             candidate_usernames = list(
-                dict.fromkeys(candidate_usernames)
+                dict.fromkeys(
+                    submitted_candidate_usernames
+                )
             )
 
             approvals.append({
@@ -21547,10 +22532,38 @@ def new_vehicle_checklist_result(index):
                 "approved_date": "",
             })
 
-        has_system_approval = any(
-            approval.get("candidate_usernames")
-            for approval in approvals
+        has_system_approval = bool(approvals)
+
+        notify_usernames = (
+            get_vehicle_checklist_notify_users(
+                company_code,
+                checklist_record.id,
+                vehicle_record_id
+            )
         )
+
+        saved_filenames = []
+
+        for item_index, file in pending_uploads:
+            try:
+                filename = save_uploaded_file(file)
+            except UploadValidationError:
+                for saved_filename in saved_filenames:
+                    delete_uploaded_file(saved_filename)
+
+                return return_form_errors([
+                    (
+                        "添付ファイルの検証に失敗しました。",
+                        ""
+                    )
+                ])
+
+            if filename:
+                saved_filenames.append(filename)
+
+                answers[item_index]["files"].append(
+                    filename
+                )
 
         result = VehicleChecklistResult(
             company_code=company_code,
@@ -21577,7 +22590,14 @@ def new_vehicle_checklist_result(index):
                 approvals,
                 ensure_ascii=False
             ),
-            answers_json=json.dumps(answers, ensure_ascii=False),
+            notify_users_json=json.dumps(
+                notify_usernames,
+                ensure_ascii=False
+            ),
+            answers_json=json.dumps(
+                answers,
+                ensure_ascii=False
+            ),
             checklist_snapshot_json=json.dumps(
                 checklist,
                 ensure_ascii=False
@@ -21585,21 +22605,47 @@ def new_vehicle_checklist_result(index):
         )
 
         db.session.add(result)
-        db.session.commit()
 
-        if has_system_approval and approvals:
-            first_approval = next(
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors([
                 (
-                    approval
-                    for approval in approvals
-                    if approval.get("candidate_usernames")
-                ),
-                None
-            )
+                    "同じ車両・点検日の結果が同時に登録されました。"
+                    "画面を再読み込みして確認してください。",
+                    ""
+                )
+            ], status_code=409)
 
-            for username in first_approval.get(
-                "candidate_usernames",
-                []
+        except SQLAlchemyError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors([
+                (
+                    "車両チェックリストの保存に失敗しました。"
+                    "もう一度お試しください。",
+                    ""
+                )
+            ], status_code=500)
+        
+        if has_system_approval and approvals:
+            first_approval = approvals[0]
+
+            for username in (
+                first_approval.get(
+                    "candidate_usernames",
+                    []
+                )
+                if first_approval
+                else []
             ):
                 add_notification(
                     company_code=company_code,
@@ -21609,10 +22655,45 @@ def new_vehicle_checklist_result(index):
                         f"「{checklist.get('name', '車両チェックリスト')}」"
                         "の承認をお願いします。"
                     ),
-                    link=(
-                        f"/vehicle/checklist-results/"
-                        f"{result.id}"
+                    link=url_for(
+                        "vehicle_checklist_results",
+                        index=checklist_record.id,
+                        vehicle_record_id=vehicle_record_id,
+                        year=year,
+                        month=month,
+                        active_day=day,
                     ),
+                )
+
+        if not has_system_approval:
+            for target_username in notify_usernames:
+                target_user = valid_users.get(
+                    target_username
+                )
+
+                if not target_user:
+                    continue
+
+                add_notification(
+                    (
+                        (target_user.last_name or "")
+                        + (target_user.first_name or "")
+                    ),
+                    "車両点検完了のお知らせ",
+                    (
+                        f"「{checklist_record.name}」が"
+                        "点検完了しました。"
+                    ),
+                    url_for(
+                        "vehicle_checklist_results",
+                        index=checklist_record.id,
+                        vehicle_record_id=vehicle_record_id,
+                        year=year,
+                        month=month,
+                        active_day=day,
+                    ),
+                    company_code=company_code,
+                    target_username=target_user.username
                 )
 
         mention_text = "\n".join(
@@ -21700,7 +22781,12 @@ def new_safety_checklist_result(index):
             "vehicle",
             "office"
         }:
-            return "対象種別が不正です。", 400
+            return return_form_errors([
+                (
+                    "対象種別が不正です。",
+                    "target_type"
+                )
+            ])
 
         # =========================
         # 個人
@@ -21708,7 +22794,12 @@ def new_safety_checklist_result(index):
 
         if target_type == "user":
             if not target_user:
-                return "対象ユーザーを選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザーを選択してください。",
+                        "target_user"
+                    )
+                ])
 
             target_driver = Driver.query.filter_by(
                 company_code=company_code,
@@ -21716,7 +22807,12 @@ def new_safety_checklist_result(index):
             ).first()
 
             if not target_driver:
-                return "対象ユーザーが不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザーが不正です。",
+                        "target_user"
+                    )
+                ])
 
             target_user_record = User.query.filter_by(
                 company_code=company_code,
@@ -21724,7 +22820,12 @@ def new_safety_checklist_result(index):
             ).first()
 
             if not target_user_record:
-                return "対象ユーザー情報が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象ユーザー情報が不正です。",
+                        "target_user"
+                    )
+                ])
 
             target_username = target_user_record.username
             target_user = target_driver.name
@@ -21737,7 +22838,12 @@ def new_safety_checklist_result(index):
 
         elif target_type == "vehicle":
             if not target_vehicle_record_id:
-                return "対象車両を選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象車両を選択してください。",
+                        "target_vehicle_record_id"
+                    )
+                ])
 
             vehicle = Vehicle.query.filter_by(
                 company_code=company_code,
@@ -21746,7 +22852,12 @@ def new_safety_checklist_result(index):
             ).first()
 
             if not vehicle:
-                return "対象車両が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象車両が不正です。",
+                        "target_vehicle_record_id"
+                    )
+                ])
 
             target_office = vehicle.office or ""
             target_user = ""
@@ -21757,7 +22868,12 @@ def new_safety_checklist_result(index):
 
         elif target_type == "office":
             if not target_office:
-                return "対象営業所を選択してください。", 400
+                return return_form_errors([
+                    (
+                        "対象営業所を選択してください。",
+                        "target_office"
+                    )
+                ])
 
             valid_office = Office.query.filter_by(
                 company_code=company_code,
@@ -21765,7 +22881,12 @@ def new_safety_checklist_result(index):
             ).first()
 
             if not valid_office:
-                return "対象営業所が不正です。", 400
+                return return_form_errors([
+                    (
+                        "対象営業所が不正です。",
+                        "target_office"
+                    )
+                ])
 
             target_user = ""
             target_vehicle_record_id = None
@@ -21788,15 +22909,36 @@ def new_safety_checklist_result(index):
                 and value
                 and value not in choices
             ):
-                return "評価値が不正です。", 400
+                return return_form_errors([
+                    (
+                        "評価値が不正です。",
+                        f"answer_{answer_index}"
+                    )
+                ])
 
             comment = request.form.get(
                 f"comment_{answer_index}",
                 ""
             ).strip()
 
+            if (
+                item.get("answer_required")
+                and not value
+            ):
+                return return_form_errors([
+                    (
+                        "必須項目が未回答です。",
+                        f"answer_{answer_index}"
+                    )
+                ])
+
             if len(comment) > 5000:
-                return "コメントは5000文字以内で入力してください。", 400
+                return return_form_errors([
+                    (
+                        "コメントは5000文字以内で入力してください。",
+                        f"comment_{answer_index}"
+                    )
+                ])
 
             patrol_link = request.form.get(
                 f"patrol_link_{answer_index}"
@@ -21824,6 +22966,21 @@ def new_safety_checklist_result(index):
 
         pending_uploads = []
 
+        upload_file_count = sum(
+            1
+            for field_name in request.files.keys()
+            for file in request.files.getlist(field_name)
+            if file and file.filename
+        )
+
+        if upload_file_count > 50:
+            return return_form_errors([
+                (
+                    "一度にアップロードできるファイルは50件までです。",
+                    ""
+                )
+            ])
+
         for item_index, form_index in pending_answer_files:
             for file in request.files.getlist(
                 f"files_{form_index}"
@@ -21846,17 +23003,151 @@ def new_safety_checklist_result(index):
                         extension
                     )
                 ):
-                    return "添付ファイルの検証に失敗しました。", 400
+                    return return_form_errors([
+                        (
+                            "添付ファイルの検証に失敗しました。",
+                            f"files_{form_index}"
+                        )
+                    ])
 
                 pending_uploads.append(
                     (item_index, file)
                 )
 
-        for item_index, file in pending_uploads:
-            filename = save_uploaded_file(file)
 
-            if filename:
-                answers[item_index]["files"].append(filename)
+
+        notify_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                "notify_users"
+            )
+            if username.strip()
+        ]
+
+        notify_usernames = list(
+            dict.fromkeys(notify_usernames)
+        )
+
+        if len(notify_usernames) > 500:
+            return return_form_errors([
+                (
+                    "通知先ユーザー数が多すぎます。",
+                    "notify_user_search"
+                )
+            ])
+
+        valid_users = {
+            user.username: user
+            for user in User.query.filter_by(
+                company_code=company_code
+            ).all()
+            if user.username
+        }
+
+        invalid_notify_usernames = [
+            username
+            for username in notify_usernames
+            if username not in valid_users
+        ]
+
+        if invalid_notify_usernames:
+            return return_form_errors([
+                (
+                    "通知先ユーザーが不正です。",
+                    "notify_user_search"
+                )
+            ])
+
+        approvals = []
+
+        for item in checklist.get("items", []):
+            if item.get("item_type") != "approval":
+                continue
+
+            approval_index = len(approvals)
+
+            submitted_candidate_usernames = [
+                username.strip()
+                for username in request.form.getlist(
+                    f"approval_notify_users_{approval_index}"
+                )
+                if username.strip()
+            ]
+
+            if len(submitted_candidate_usernames) > 500:
+                return return_form_errors([
+                    (
+                        "承認候補者数が多すぎます。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
+            invalid_candidate_usernames = [
+                username
+                for username in submitted_candidate_usernames
+                if (
+                    username not in valid_users
+                    or not (
+                        valid_users[username].role == "admin"
+                        or (
+                            item.get(
+                                "approval_allow_general",
+                                False
+                            )
+                            and valid_users[username].role == "user"
+                        )
+                    )
+                )
+            ]
+
+            if invalid_candidate_usernames:
+                return return_form_errors([
+                    (
+                        "承認者の選択内容が不正です。",
+                        f"approval_user_search_{approval_index}"
+                    )
+                ])
+
+            candidate_usernames = list(
+                dict.fromkeys(
+                    submitted_candidate_usernames
+                )
+            )
+
+            approvals.append({
+                "label": item.get("approval_label", ""),
+                "allow_general": item.get(
+                    "approval_allow_general",
+                    False
+                ),
+                "candidate_usernames": list(
+                    dict.fromkeys(candidate_usernames)
+                ),
+                "approved_by": "",
+                "approved_by_username": "",
+                "approved_date": "",
+            })
+
+        saved_filenames = []
+
+        try:
+            for item_index, file in pending_uploads:
+                filename = save_uploaded_file(file)
+
+                if filename:
+                    answers[item_index]["files"].append(filename)
+                    saved_filenames.append(filename)
+
+        except UploadValidationError:
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors([
+                (
+                    "添付ファイルの検証に失敗しました。",
+                    ""
+                )
+            ])
 
         if target_type in PATROL_VIEW_TYPES:
             for answer in answers:
@@ -21889,78 +23180,6 @@ def new_safety_checklist_result(index):
                     reject_reason=""
                 ))
 
-        notify_usernames = [
-            username.strip()
-            for username in request.form.getlist(
-                "notify_users"
-            )
-            if username.strip()
-        ]
-
-        notify_usernames = list(
-            dict.fromkeys(notify_usernames)
-        )
-
-        if len(notify_usernames) > 500:
-            return "承認者数が多すぎます。", 400
-
-        valid_users = {
-            user.username: user
-            for user in User.query.filter_by(
-                company_code=company_code
-            ).all()
-            if user.username
-        }
-
-        notify_usernames = [
-            username
-            for username in notify_usernames
-            if username in valid_users
-        ]
-
-        approvals = []
-
-        for item in checklist.get("items", []):
-            if item.get("item_type") != "approval":
-                continue
-
-            approval_index = len(approvals)
-            candidate_usernames = [
-                username.strip()
-                for username in request.form.getlist(
-                    f"approval_notify_users_{approval_index}"
-                )
-                if username.strip()
-                and username.strip() in valid_users
-                and (
-                    item.get(
-                        "approval_allow_general",
-                        False
-                    )
-                    or valid_users[
-                        username.strip()
-                    ].role == "admin"
-                )
-            ]
-
-            if not candidate_usernames:
-                return (
-                    f"承認「{item.get('approval_label', '')}」の"
-                    "承認者を1人以上選択してください。",
-                    400
-                )
-
-            approvals.append({
-                "label": item.get("approval_label", ""),
-                "allow_general": item.get("approval_allow_general", False),
-                "candidate_usernames": list(
-                    dict.fromkeys(candidate_usernames)
-                ),
-                "approved_by": "",
-                "approved_by_username": "",
-                "approved_date": "",
-            })
-
         result = ChecklistResult(
             company_code=company_code,
             checklist_id=checklist_record.id,
@@ -21978,7 +23197,11 @@ def new_safety_checklist_result(index):
             approved_by_username="",
             approved_date="",
             reject_reason="",
-            status="承認待ち",
+            status=(
+                "承認待ち"
+                if approvals
+                else "点検完了"
+            ),
             approvals_json=json.dumps(
                 approvals,
                 ensure_ascii=False
@@ -21998,8 +23221,44 @@ def new_safety_checklist_result(index):
         )
 
         db.session.add(result)
-        db.session.commit()
 
+        try:
+            db.session.commit()
+
+        except IntegrityError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors(
+                [
+                    (
+                        "安全チェックリストの保存に失敗しました。"
+                        "もう一度お試しください。",
+                        ""
+                    )
+                ],
+                status_code=409
+            )
+
+        except SQLAlchemyError:
+            db.session.rollback()
+
+            for filename in saved_filenames:
+                delete_uploaded_file(filename)
+
+            return return_form_errors(
+                [
+                    (
+                        "安全チェックリストの保存に失敗しました。"
+                        "もう一度お試しください。",
+                        ""
+                    )
+                ],
+                status_code=500
+            )
+        
         first_approval_usernames = (
             approvals[0].get(
                 "candidate_usernames",
@@ -22031,38 +23290,39 @@ def new_safety_checklist_result(index):
                 target_username=approval_user.username
             )
 
-        completion_notify_usernames = set()
+        if result.status == "点検完了":
+            completion_notify_usernames = set()
 
-        if target_type == "user" and target_username:
-            completion_notify_usernames.add(
-                target_username
-            )
+            if target_type == "user" and target_username:
+                completion_notify_usernames.add(
+                    target_username
+                )
 
-        if session.get("username"):
-            completion_notify_usernames.add(
-                session.get("username")
-            )
+            if session.get("username"):
+                completion_notify_usernames.add(
+                    session.get("username")
+                )
 
-        for notify_username in completion_notify_usernames:
-            notify_user = User.query.filter_by(
-                company_code=company_code,
-                username=notify_username
-            ).first()
+            for notify_username in completion_notify_usernames:
+                notify_user = User.query.filter_by(
+                    company_code=company_code,
+                    username=notify_username
+                ).first()
 
-            if not notify_user:
-                continue
+                if not notify_user:
+                    continue
 
-            add_notification(
-                (notify_user.last_name or "") + (notify_user.first_name or ""),
-                "安全チェックリスト完了のお知らせ",
-                (
-                    f"「{checklist_record.name}」の"
-                    f"チェックが完了しました。"
-                ),
-                f"/safety/checklist-results/{result.id}",
-                company_code=company_code,
-                target_username=notify_user.username
-            )
+                add_notification(
+                    (notify_user.last_name or "") + (notify_user.first_name or ""),
+                    "安全チェックリスト完了のお知らせ",
+                    (
+                        f"「{checklist_record.name}」の"
+                        f"チェックが完了しました。"
+                    ),
+                    f"/safety/checklist-results/{result.id}",
+                    company_code=company_code,
+                    target_username=notify_user.username
+                )
 
         mention_text = "\n".join(
             "\n".join([
@@ -22164,7 +23424,7 @@ def edit_checklist(index):
         approval_allow_general_list = request.form.getlist("approval_allow_general")
         choices_list = request.form.getlist("choices")
         criteria_list = request.form.getlist("criteria")
-        comment_required_list = request.form.getlist("comment_required")
+        answer_required_list = request.form.getlist("answer_required")
         shaded_list = request.form.getlist("shaded")
 
         if len(item_types) > 500:
@@ -22470,7 +23730,7 @@ def edit_checklist(index):
                 "choices": choices,
                 "criteria": criteria,
                 "criteria_files": criteria_files,
-                "comment_required": str(i) in comment_required_list,
+                "answer_required": str(i) in answer_required_list,
                 "shaded": str(i) in shaded_list,
                 "score_enabled": score_enabled,
             })
@@ -23154,10 +24414,15 @@ def delete_checklist(index):
 )
 @limiter.limit("20 per minute")
 def approve_checklist_result(result_index, approval_index):
-    result_record = ChecklistResult.query.filter_by(
-        id=result_index,
-        company_code=session.get("company_code")
-    ).first()
+    result_record = (
+        ChecklistResult.query
+        .filter_by(
+            id=result_index,
+            company_code=session.get("company_code")
+        )
+        .with_for_update()
+        .first()
+    )
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -23199,9 +24464,7 @@ def approve_checklist_result(result_index, approval_index):
                     "approval_allow_general",
                     False
                 ),
-                "candidate_usernames": safe_json_str_list(
-                    result_record.notify_users_json
-                ),
+                "candidate_usernames": [],
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -23240,6 +24503,41 @@ def approve_checklist_result(result_index, approval_index):
 
     approval = approvals[approval_index]
 
+    # 旧データに allow_general が無い場合は
+    # 記録時点のチェックリストから補完
+    if "allow_general" not in approval:
+        approval_checklist = {}
+
+        if result_record.checklist_snapshot_json:
+            approval_checklist = safe_json_dict(
+                result_record.checklist_snapshot_json
+            )
+
+        if not approval_checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
+
+            if checklist_record:
+                approval_checklist = checklist_to_dict(
+                    checklist_record
+                )
+
+        approval_items = [
+            item
+            for item in approval_checklist.get("items", [])
+            if item.get("item_type") == "approval"
+        ]
+
+        if approval_index < len(approval_items):
+            approval["allow_general"] = approval_items[
+                approval_index
+            ].get(
+                "approval_allow_general",
+                False
+            )
+
     if (
         approval.get("approved_by")
         or approval.get("approved_by_username")
@@ -23266,7 +24564,10 @@ def approve_checklist_result(result_index, approval_index):
     result_record.reject_reason = ""
 
     all_approved = all(
-        item.get("approved_by")
+        (
+            item.get("approved_by")
+            or item.get("approved_by_username")
+        )
         for item in approvals
     )
 
@@ -23308,17 +24609,28 @@ def approve_checklist_result(result_index, approval_index):
 
     db.session.commit()
 
-    if (
-        result_record.status != "承認済み"
-        and approval_index + 1 < len(approvals)
-    ):
-        next_approval = approvals[
-            approval_index + 1
-        ]
+    if result_record.status != "承認済み":
+        next_approval = next(
+            (
+                item
+                for item in approvals[
+                    approval_index + 1:
+                ]
+                if not (
+                    item.get("approved_by")
+                    or item.get("approved_by_username")
+                )
+            ),
+            None
+        )
 
-        for target_username in next_approval.get(
-            "candidate_usernames",
-            []
+        for target_username in (
+            next_approval.get(
+                "candidate_usernames",
+                []
+            )
+            if next_approval
+            else []
         ):
             target_user = User.query.filter_by(
                 company_code=result_record.company_code,
@@ -23371,10 +24683,15 @@ def approve_checklist_result(result_index, approval_index):
 @app.route("/safety/checklist-results/<int:result_index>/reject", methods=["POST"])
 @limiter.limit("20 per minute")
 def reject_checklist_result(result_index):
-    result_record = ChecklistResult.query.filter_by(
-        id=result_index,
-        company_code=session.get("company_code")
-    ).first()
+    result_record = (
+        ChecklistResult.query
+        .filter_by(
+            id=result_index,
+            company_code=session.get("company_code")
+        )
+        .with_for_update()
+        .first()
+    )
 
     if not result_record:
         return redirect("/safety/checklists")
@@ -23395,6 +24712,17 @@ def reject_checklist_result(result_index):
             result_record.checklist_snapshot_json
         )
 
+        if not checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
+
+            if checklist_record:
+                checklist = checklist_to_dict(
+                    checklist_record
+                )
+
         for item in checklist.get("items", []):
             if item.get("item_type") != "approval":
                 continue
@@ -23405,26 +24733,62 @@ def reject_checklist_result(result_index):
                     "approval_allow_general",
                     False
                 ),
-                "candidate_usernames": safe_json_str_list(
-                    result_record.notify_users_json
-                ),
+                "candidate_usernames": [],
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
             })
 
-    current_approval = next(
+    current_approval_index = next(
         (
-            approval
-            for approval in approvals
-            if approval.get("candidate_usernames")
-            and not (
+            index
+            for index, approval in enumerate(approvals)
+            if not (
                 approval.get("approved_by")
                 or approval.get("approved_by_username")
             )
         ),
         None
     )
+
+    current_approval = (
+        approvals[current_approval_index]
+        if current_approval_index is not None
+        else None
+    )
+
+    if (
+        current_approval is not None
+        and "allow_general" not in current_approval
+    ):
+        checklist = safe_json_dict(
+            result_record.checklist_snapshot_json
+        )
+
+        if not checklist:
+            checklist_record = Checklist.query.filter_by(
+                id=result_record.checklist_id,
+                company_code=result_record.company_code
+            ).first()
+
+            if checklist_record:
+                checklist = checklist_to_dict(
+                    checklist_record
+                )
+
+        approval_items = [
+            item
+            for item in checklist.get("items", [])
+            if item.get("item_type") == "approval"
+        ]
+
+        if current_approval_index < len(approval_items):
+            current_approval["allow_general"] = approval_items[
+                current_approval_index
+            ].get(
+                "approval_allow_general",
+                False
+            )
 
     if not can_reject_checklist_result(
         result,
@@ -23439,23 +24803,26 @@ def reject_checklist_result(result_index):
         ""
     ).strip()
 
+    form_errors = []
+
     if not reject_reason:
-        flash(
-            "差し戻し理由を入力してください。",
-            "error:reject_reason"
-        )
-        return redirect(
-            f"/safety/checklist-results/{result_index}"
+        form_errors.append(
+            (
+                "差し戻し理由を入力してください。",
+                "reject_reason"
+            )
         )
 
-    if len(reject_reason) > 5000:
-        flash(
-            "差し戻し理由は5000文字以内で入力してください。",
-            "error:reject_reason"
+    elif len(reject_reason) > 5000:
+        form_errors.append(
+            (
+                "差し戻し理由は5000文字以内で入力してください。",
+                "reject_reason"
+            )
         )
-        return redirect(
-            f"/safety/checklist-results/{result_index}"
-        )
+
+    if form_errors:
+        return return_form_errors(form_errors)
 
     previous_approvals = [
         dict(approval)
@@ -23509,11 +24876,6 @@ def reject_checklist_result(result_index):
     if result_record.checked_by_username:
         notify_usernames.add(
             result_record.checked_by_username
-        )
-
-    if result_record.target_username:
-        notify_usernames.add(
-            result_record.target_username
         )
 
     db.session.commit()
@@ -23684,6 +25046,45 @@ def init_db():
                 "CREATE UNIQUE INDEX IF NOT EXISTS "
                 "uq_vehicle_type_company_name "
                 "ON vehicle_type (company_code, name)"
+            )
+        )
+
+        duplicate_vehicle_checklist_result = (
+            db.session.query(
+                VehicleChecklistResult.company_code,
+                VehicleChecklistResult.checklist_id,
+                VehicleChecklistResult.vehicle_record_id,
+                VehicleChecklistResult.year,
+                VehicleChecklistResult.month,
+                VehicleChecklistResult.day
+            )
+            .group_by(
+                VehicleChecklistResult.company_code,
+                VehicleChecklistResult.checklist_id,
+                VehicleChecklistResult.vehicle_record_id,
+                VehicleChecklistResult.year,
+                VehicleChecklistResult.month,
+                VehicleChecklistResult.day
+            )
+            .having(
+                db.func.count(VehicleChecklistResult.id) > 1
+            )
+            .first()
+        )
+
+        if duplicate_vehicle_checklist_result:
+            raise RuntimeError(
+                "車両チェックリスト結果に同一会社・チェックリスト・"
+                "車両・点検日の重複があります。"
+            )
+
+        db.session.execute(
+            db.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "uq_vehicle_checklist_result_target_date "
+                "ON vehicle_checklist_result "
+                "(company_code, checklist_id, vehicle_record_id, "
+                "year, month, day)"
             )
         )
 
