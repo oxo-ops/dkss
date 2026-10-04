@@ -1313,35 +1313,6 @@ document.addEventListener("DOMContentLoaded", function () {
             "submit",
             function (event) {
                 clearCommonErrors();
-
-                const approvalRows =
-                    checklistResultForm.querySelectorAll(
-                        ".checklist-result-approval-row"
-                    );
-
-                for (const approvalRow of approvalRows) {
-                    const selectedApprovers =
-                        approvalRow.querySelectorAll(
-                            'input[name^="approval_notify_users_"]'
-                        );
-
-                    if (selectedApprovers.length === 0) {
-                        event.preventDefault();
-
-                        const label =
-                            approvalRow.querySelector(
-                                ".checklist-result-approval-label"
-                            )?.textContent.trim() || "承認";
-
-                        showCommonError(
-                            `承認「${label}」の承認者を1人以上選択してください。`,
-                            `approval_user_search_${approvalRow.dataset.approvalIndex}`
-                        );
-
-                        return;
-                    }
-                }
-
                 let totalSize = 0;
                 let totalFiles = 0;
 

@@ -186,7 +186,7 @@
     </h3>
 
     <p class="help-text">
-        入力日はプルダウンで変更できます。コメント・写真・要対応登録は「詳細」から入力します。
+        入力日はプルダウンで変更できます。コメント・写真は「詳細」から入力します。
     </p>
 
     <p class="help-text">
@@ -312,9 +312,14 @@
             </tr>
 
             {% set approval_ns = namespace(index=-1) %}
+            {% set check_ns = namespace(index=-1) %}
 
             {% for item in table_checklist["items"] %}
-            {% set item_no = loop.index0 %}
+            {% if item.item_type == "check" %}
+            {% set check_ns.index = check_ns.index + 1 %}
+            {% endif %}
+
+            {% set item_no = check_ns.index %}
 
             {% if item.item_type == "approval" %}
             {% set approval_ns.index = approval_ns.index + 1 %}
@@ -408,15 +413,19 @@
 
                     {% set approval_can_approve =
                         approval
-                        and session.get("username")
-                            in approval.get("candidate_usernames", [])
+                        and (
+                            session.get("role") == "admin"
+                            or (
+                                approval_allow_general
+                                and session.get("role") == "user"
+                            )
+                        )
                     %}
 
                     {% set current_ns = namespace(index=none) %}
 
                     {% for approval_item in ns.target_result.approvals %}
                         {% if current_ns.index is none
-                            and approval_item.get("candidate_usernames")
                             and not (
                                 approval_item.get("approved_by")
                                 or approval_item.get("approved_by_username")
@@ -426,13 +435,16 @@
                         {% endif %}
                     {% endfor %}
 
-                    {% if approval and approval.approved_by %}
+                    {% if approval and (
+                        approval.get("approved_by")
+                        or approval.get("approved_by_username")
+                    ) %}
 
                     <span
                         class="status-badge status-approved"
-                        title="{{ approval.approved_by }}"
+                        title="{{ approval.get('approved_by') or approval.get('approved_by_username') or '' }}"
                     >
-                        {{ approval.approved_by[:1] if approval.approved_by else "済" }}
+                        {{ (approval.get("approved_by") or approval.get("approved_by_username") or "済")[:1] }}
                     </span>
 
                     {% else %}
@@ -500,7 +512,13 @@
                     {% set detail_ns.files_text = ns.files_text %}
                     {% endif %}
 
-                    {% if day_text == active_day and checklist.active %}
+                    {% if day_text == active_day
+                        and checklist.active
+                        and (
+                            not ns.target_result
+                            or ns.target_result.status in ["入力中", "差し戻し"]
+                        )
+                    %}
 
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
                         class="inline-check-form">
@@ -647,7 +665,12 @@
 
     {% endfor %}
 
-    {% if checklist.active %}
+    {% if checklist.active
+        and (
+            not active_result
+            or active_result.status in ["入力中", "差し戻し"]
+        )
+    %}
     <form
         method="post"
         action="/vehicle/checklists/{{ checklist_index }}/complete"
@@ -890,11 +913,6 @@
                 <div id="savedFilesArea" class="saved-file-names"></div>
                 <div id="detailPreview" class="selected-file-names"></div>
             </div>
-
-            <label class="checkbox-row">
-                <input type="checkbox" name="patrol_link" value="1">
-                <span>要対応として車両パトロールへ登録</span>
-            </label>
 
             <div class="action-row">
                 <button type="submit" class="btn">保存</button>

@@ -173,11 +173,11 @@ function addChecklistItem() {
                     <label class="checkbox-row">
                         <input
                             type="checkbox"
-                            name="comment_required"
-                            id="comment_required_${index}"
+                            name="answer_required"
+                            id="answer_required_${index}"
                             value="${index}"
                         >
-                        <span>コメント入力あり</span>
+                        <span>回答必須</span>
                     </label>
 
                     <label class="checkbox-row">
@@ -370,7 +370,7 @@ function resetCommentIndexes() {
             ["input_type", "input_type"],
             ["choices", "choices"],
             ["criteria", "criteria"],
-            ["comment_required", "comment_required"],
+            ["answer_required", "answer_required"],
             ["approval_label", "approval_label"],
             ["approval_allow_general", "approval_allow_general"]
         ];
@@ -383,12 +383,12 @@ function resetCommentIndexes() {
             }
         });
 
-        const commentCheckbox = row.querySelector(
-            'input[name="comment_required"]'
+        const answerRequiredCheckbox = row.querySelector(
+            'input[name="answer_required"]'
         );
 
-        if (commentCheckbox) {
-            commentCheckbox.value = index;
+        if (answerRequiredCheckbox) {
+            answerRequiredCheckbox.value = index;
         }
 
         const shadedCheckbox = row.querySelector(

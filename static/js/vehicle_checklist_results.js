@@ -557,13 +557,81 @@ document.addEventListener("DOMContentLoaded", function () {
     if (completeForm) {
         completeForm.addEventListener(
             "submit",
-            function (event) {
+            async function (event) {
+                event.preventDefault();
+
                 if (
                     !window.confirm(
                         "この日の点検を完了しますか？"
                     )
                 ) {
-                    event.preventDefault();
+                    return;
+                }
+
+                clearCommonErrors();
+
+                try {
+                    const response =
+                        await fetch(
+                            completeForm.action,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "X-DKSS-Final-Submit":
+                                        "1"
+                                },
+                                body:
+                                    new FormData(
+                                        completeForm
+                                    )
+                            }
+                        );
+
+                    if (!response.ok) {
+                        if (
+                            response.headers.get(
+                                "X-DKSS-Form-Errors"
+                            ) === "1"
+                        ) {
+                            const data =
+                                await response.json();
+
+                            (data.errors || []).forEach(
+                                function (error) {
+                                    showCommonError(
+                                        error.message,
+                                        error.field || ""
+                                    );
+                                }
+                            );
+
+                            return;
+                        }
+
+                        throw new Error(
+                            "HTTP " +
+                            response.status
+                        );
+                    }
+
+                    if (response.redirected) {
+                        window.location.assign(
+                            response.url
+                        );
+                        return;
+                    }
+
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error(
+                        "点検完了エラー:",
+                        error
+                    );
+
+                    showCommonError(
+                        "点検を完了できませんでした。通信状態を確認して、もう一度操作してください。"
+                    );
                 }
             }
         );
@@ -637,6 +705,82 @@ document.addEventListener("DOMContentLoaded", function () {
                 vehicleRejectModal.classList.add(
                     "is-hidden"
                 );
+            }
+        );
+    }
+
+    if (vehicleRejectForm) {
+        vehicleRejectForm.addEventListener(
+            "submit",
+            async function (event) {
+                event.preventDefault();
+
+                clearCommonErrors();
+
+                try {
+                    const response =
+                        await fetch(
+                            vehicleRejectForm.action,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "X-DKSS-Validation-Only":
+                                        "1"
+                                },
+                                body:
+                                    new FormData(
+                                        vehicleRejectForm
+                                    )
+                            }
+                        );
+
+                    if (!response.ok) {
+                        if (
+                            response.headers.get(
+                                "X-DKSS-Form-Errors"
+                            ) === "1"
+                        ) {
+                            const data =
+                                await response.json();
+
+                            (data.errors || []).forEach(
+                                function (error) {
+                                    showCommonError(
+                                        error.message,
+                                        error.field || ""
+                                    );
+                                }
+                            );
+
+                            return;
+                        }
+
+                        throw new Error(
+                            "HTTP " +
+                            response.status
+                        );
+                    }
+
+                    if (response.redirected) {
+                        window.location.assign(
+                            response.url
+                        );
+                        return;
+                    }
+
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error(
+                        "差し戻しエラー:",
+                        error
+                    );
+
+                    showCommonError(
+                        "差し戻しできませんでした。通信状態を確認して、もう一度操作してください。",
+                        "vehicleRejectReason"
+                    );
+                }
             }
         );
     }
@@ -1322,7 +1466,11 @@ document.addEventListener("DOMContentLoaded", function () {
     if (detailFileForm) {
         detailFileForm.addEventListener(
             "submit",
-            function (event) {
+            async function (event) {
+                event.preventDefault();
+
+                clearCommonErrors();
+
                 const tableScrollPositions =
                     Array.from(
                         document.querySelectorAll(
@@ -1357,10 +1505,74 @@ document.addEventListener("DOMContentLoaded", function () {
                     1024 * 1024 * 1024;
 
                 if (totalSize > maxSize) {
-                    event.preventDefault();
-
                     showCommonError(
                         "写真・動画・ファイルの合計を1GB以下にしてください。"
+                    );
+
+                    return;
+                }
+
+                try {
+                    const response =
+                        await fetch(
+                            detailFileForm.action,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "X-DKSS-Validation-Only":
+                                        "1"
+                                },
+                                body:
+                                    new FormData(
+                                        detailFileForm
+                                    )
+                            }
+                        );
+
+                    if (!response.ok) {
+                        if (
+                            response.headers.get(
+                                "X-DKSS-Form-Errors"
+                            ) === "1"
+                        ) {
+                            const data =
+                                await response.json();
+
+                            (data.errors || []).forEach(
+                                function (error) {
+                                    showCommonError(
+                                        error.message,
+                                        error.field || ""
+                                    );
+                                }
+                            );
+
+                            return;
+                        }
+
+                        throw new Error(
+                            "HTTP " +
+                            response.status
+                        );
+                    }
+
+                    if (response.redirected) {
+                        window.location.assign(
+                            response.url
+                        );
+                        return;
+                    }
+
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error(
+                        "詳細保存エラー:",
+                        error
+                    );
+
+                    showCommonError(
+                        "保存できませんでした。通信状態を確認して、もう一度操作してください。"
                     );
                 }
             }
@@ -1440,11 +1652,36 @@ document.addEventListener("DOMContentLoaded", function () {
                 form.action,
                 {
                     method: "POST",
+                    headers: {
+                        "X-DKSS-Validation-Only": "1"
+                    },
                     body: formData
                 }
             );
 
             if (!response.ok) {
+                if (
+                    response.headers.get(
+                        "X-DKSS-Form-Errors"
+                    ) === "1"
+                ) {
+                    const data =
+                        await response.json();
+
+                    clearCommonErrors();
+
+                    (data.errors || []).forEach(
+                        function (error) {
+                            showCommonError(
+                                error.message,
+                                error.field || ""
+                            );
+                        }
+                    );
+
+                    return;
+                }
+
                 throw new Error(
                     "HTTP " + response.status
                 );
@@ -2200,11 +2437,37 @@ async function loadSavedReminderNotifyUsers() {
                     reminderUrl,
                     {
                         method: "POST",
+                        headers: {
+                            "X-DKSS-Validation-Only":
+                                "1"
+                        },
                         body: formData
                     }
                 );
 
             if (!response.ok) {
+                if (
+                    response.headers.get(
+                        "X-DKSS-Form-Errors"
+                    ) === "1"
+                ) {
+                    const data =
+                        await response.json();
+
+                    clearCommonErrors();
+
+                    (data.errors || []).forEach(
+                        function (error) {
+                            showCommonError(
+                                error.message,
+                                error.field || ""
+                            );
+                        }
+                    );
+
+                    return;
+                }
+
                 throw new Error(
                     "HTTP " + response.status
                 );
