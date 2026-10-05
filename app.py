@@ -13738,6 +13738,22 @@ def import_vehicles():
             vehicle_data = {
                 "excel_row": data_row,
 
+                "office": (
+                    str(
+                        row_values[header_map["営業所"]] or ""
+                    ).strip()
+                    if "営業所" in header_map
+                    else ""
+                ),
+
+                "active_status": (
+                    str(
+                        row_values[header_map["有効／無効"]] or ""
+                    ).strip()
+                    if "有効／無効" in header_map
+                    else ""
+                ),
+
                 "vehicle_type_code": str(
                     row_values[header_map["車種コード"]] or ""
                 ).strip(),
@@ -13768,6 +13784,32 @@ def import_vehicles():
             }
 
             vehicles_data.append(vehicle_data)
+
+        valid_import_offices = {
+            office.name
+            for office in Office.query.filter_by(
+                company_code=session.get("company_code")
+            ).all()
+        }
+
+        for vehicle in vehicles_data:
+            office = vehicle.get("office", "")
+            active_status = vehicle.get("active_status", "")
+            excel_row = vehicle.get("excel_row")
+
+            if office and office not in valid_import_offices:
+                return (
+                    f"{excel_row}行目の営業所「{office}」は"
+                    "営業所マスタに登録されていません。",
+                    400
+                )
+
+            if active_status not in {"", "有効", "無効"}:
+                return (
+                    f"{excel_row}行目の有効／無効は"
+                    "「有効」または「無効」で入力してください。",
+                    400
+                )
 
         def clean_preview_text(value):
             return str(value or "").strip()
@@ -13895,10 +13937,27 @@ def import_vehicles():
                             existing_vehicle_type
                         )
 
-                if existing_vehicle.deleted:
-                    vehicle["reactivate"] = True
-                else:
-                    vehicle["reactivate"] = False
+                if not vehicle.get("active_status"):
+                    vehicle["active_status"] = (
+                        "無効" if existing_vehicle.deleted else "有効"
+                    )
+
+                target_deleted = (
+                    vehicle["active_status"] == "無効"
+                )
+
+                vehicle["reactivate"] = (
+                    existing_vehicle.deleted and not target_deleted
+                )
+
+                vehicle["state_changed"] = (
+                    bool(existing_vehicle.deleted) != target_deleted
+                )
+
+                if not vehicle.get("office"):
+                    vehicle["office"] = (
+                        existing_vehicle.office or ""
+                    )
 
                 update_values = {
                     "plate_area": clean_preview_text(
@@ -13944,9 +14003,11 @@ def import_vehicles():
                     ),
                 }
 
-                vehicle_changed = False
-                if vehicle.get("reactivate"):
-                    vehicle_changed = True
+                vehicle_changed = (
+                    bool(vehicle.get("state_changed"))
+                    or clean_preview_text(existing_vehicle.office)
+                    != clean_preview_text(vehicle.get("office"))
+                )
 
                 for field_name, new_value in (
                     update_values.items()
@@ -13994,6 +14055,9 @@ def import_vehicles():
 
             else:
                 vehicle["import_status"] = "新規"
+
+                if not vehicle.get("active_status"):
+                    vehicle["active_status"] = "有効"
 
             vehicle["base_import_status"] = (
                 vehicle["import_status"]
@@ -14067,6 +14131,9 @@ def confirm_vehicle_import():
     body_types = request.form.getlist("body_type")
     max_payloads = request.form.getlist("max_payload")
 
+    offices = request.form.getlist("office")
+    active_statuses = request.form.getlist("active_status")
+
     form_lists = [
         vehicle_type_codes,
         vehicle_types,
@@ -14082,6 +14149,8 @@ def confirm_vehicle_import():
         vehicle_names,
         body_types,
         max_payloads,
+        offices,
+        active_statuses,
     ]
 
     form_list_lengths = {
@@ -14109,6 +14178,46 @@ def confirm_vehicle_import():
             "取込対象の車両がありません。",
             400
         )
+
+    valid_import_offices = {
+        office.name
+        for office in Office.query.filter_by(
+            company_code=company_code
+        ).all()
+    }
+
+    offices = [
+        str(value or "").strip()
+        for value in offices
+    ]
+
+    target_deleted_values = []
+
+    for i in range(import_count):
+        office = offices[i]
+        active_status = str(active_statuses[i] or "").strip()
+
+        if len(office) > 100:
+            return (
+                f"{i + 1}件目の営業所は100文字以内で入力してください。",
+                400
+            )
+
+        if office and office not in valid_import_offices:
+            return (
+                f"{i + 1}件目の営業所「{office}」は"
+                "営業所マスタに登録されていません。",
+                400
+            )
+
+        if active_status not in {"有効", "無効"}:
+            return (
+                f"{i + 1}件目の有効／無効を選択してください。",
+                400
+            )
+
+        target_deleted_values.append(active_status == "無効")
+
     company = Company.query.filter_by(
         company_code=company_code
     ).first()
@@ -14156,6 +14265,7 @@ def confirm_vehicle_import():
     counted_import_keys = set()
     new_vehicle_count = 0
     reactivate_vehicle_count = 0
+    deactivate_vehicle_count = 0
 
     for i in range(import_count):
 
@@ -14174,42 +14284,43 @@ def confirm_vehicle_import():
             chassis_number
         )
 
-        existing_vehicle = (
-            existing_vehicles_by_chassis.get(
-                chassis_number
-            )
-        )
-
-        if existing_vehicle:
-            if (
-                existing_vehicle.deleted
-                and import_key not in counted_import_keys
-            ):
-                counted_import_keys.add(import_key)
-                reactivate_vehicle_count += 1
-
-            continue
-
         if import_key in counted_import_keys:
             continue
 
         counted_import_keys.add(import_key)
-        new_vehicle_count += 1
 
-    # 新規登録予定台数で上限チェック
+        existing_vehicle = existing_vehicles_by_chassis.get(
+            chassis_number
+        )
+        target_deleted = target_deleted_values[i]
+
+        if existing_vehicle:
+            if existing_vehicle.deleted and not target_deleted:
+                reactivate_vehicle_count += 1
+            elif not existing_vehicle.deleted and target_deleted:
+                deactivate_vehicle_count += 1
+        elif not target_deleted:
+            new_vehicle_count += 1
+
+    # 取込後の有効車両台数で上限チェック
     if company:
-        if (
+        projected_active_count = (
             current_count
             + new_vehicle_count
             + reactivate_vehicle_count
-            > company.vehicle_limit
-        ):
+            - deactivate_vehicle_count
+        )
+
+        if projected_active_count > company.vehicle_limit:
             return (
                 f"登録上限を超えます。"
-                f"現在 {current_count} 台、"
-                f"新規登録予定 {new_vehicle_count} 台、"
+                f"現在の有効車両 {current_count} 台、"
+                f"有効車両の新規登録予定 {new_vehicle_count} 台、"
                 f"再有効化予定 {reactivate_vehicle_count} 台、"
-                f"上限 {company.vehicle_limit} 台です。"
+                f"無効化予定 {deactivate_vehicle_count} 台、"
+                f"取込後の有効車両 {projected_active_count} 台、"
+                f"上限 {company.vehicle_limit} 台です。",
+                400
             )
     # 今回のExcel内ですでに処理した車両
     processed_import_keys = set()
@@ -14462,11 +14573,14 @@ def confirm_vehicle_import():
                 "manufacturer": manufacturer,
                 "body_type": body_type,
                 "max_payload": max_payload,
+                "office": offices[i],
             }
 
             vehicle_changed = False
-            if existing_vehicle.deleted:
-                existing_vehicle.deleted = False
+            target_deleted = target_deleted_values[i]
+
+            if bool(existing_vehicle.deleted) != target_deleted:
+                existing_vehicle.deleted = target_deleted
                 vehicle_changed = True
 
             for field_name, new_value in update_values.items():
@@ -14518,11 +14632,10 @@ def confirm_vehicle_import():
 
             max_payload=max_payload,
 
-            # 今回のExcel登録対象外
             type=selected_vehicle_type,
-            office="",
+            office=offices[i],
 
-            deleted=False,
+            deleted=target_deleted_values[i],
         )
 
         db.session.add(vehicle)

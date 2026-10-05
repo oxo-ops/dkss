@@ -1160,7 +1160,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     )
                 );
 
-                const unansweredCount = checkForms.filter(
+                const unansweredForms = checkForms.filter(
                     function (form) {
                         const value = new FormData(form).get(
                             "value"
@@ -1169,14 +1169,38 @@ document.addEventListener("DOMContentLoaded", function () {
                         return value === null
                             || !String(value).trim();
                     }
-                ).length;
+                );
 
+                const missingRequiredForms = unansweredForms.filter(
+                    function (form) {
+                        return form.dataset.answerRequired === "1";
+                    }
+                );
+
+                clearCommonErrors();
+
+                if (missingRequiredForms.length > 0) {
+                    missingRequiredForms.forEach(function (form, index) {
+                        const itemNo = new FormData(form).get("item_no");
+                        const content = new FormData(form).get("content") || "";
+                        showCommonError(
+                            "必須項目が未回答です。" + (content ? "：" + content : ""),
+                            "answer_" + itemNo,
+                            index === 0
+                        );
+                    });
+                    return;
+                }
+
+                const unansweredCount = unansweredForms.length;
                 const confirmationMessage =
-                    unansweredCount > 0
-                        ? "未回答の項目が"
-                            + unansweredCount
-                            + "件あります。未回答のまま点検を完了しますか？"
-                        : "この日の点検を完了しますか？";
+                    checkForms.length > 0 && unansweredCount === checkForms.length
+                        ? "すべての点検項目が未回答です。全件未回答のまま点検を完了しますか？"
+                        : unansweredCount > 0
+                            ? "任意項目に未回答が"
+                                + unansweredCount
+                                + "件あります。未回答のまま点検を完了しますか？"
+                            : "この日の点検を完了しますか？";
 
                 if (
                     !window.confirm(

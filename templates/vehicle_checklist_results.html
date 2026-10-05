@@ -566,7 +566,8 @@
                     %}
 
                     <form method="post" action="/vehicle/checklists/{{ checklist_index }}/save-one"
-                        class="inline-check-form">
+                        class="inline-check-form"
+                        data-answer-required="{{ '1' if item.get('answer_required') else '0' }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
                         {% if display_mode == "year_list" %}
@@ -1860,7 +1861,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261004-4'
+        v='20261005-3'
     ) }}"
 ></script>
 
