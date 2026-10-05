@@ -168,6 +168,32 @@
 
 </form>
 
+{% if vehicle_today and selected_vehicle %}
+<div class="card form-card vehicle-approval-card">
+    <h3>{{ selected_vehicle.number or "ナンバー未登録" }}：{{ year }}/{{ month }}/{{ active_day }}の点検</h3>
+
+    {% if not vehicle_today.is_selected %}
+    <p>現在は別の日の記録を表示しています。今日の点検は {{ vehicle_today.label }} です。</p>
+    <a class="btn btn-outline" href="{{ vehicle_today.url }}">
+        今日の点検（{{ vehicle_today.label }}）へ
+    </a>
+    {% endif %}
+
+    {% if not active_result or active_result.status in ["入力中", "差し戻し"] %}
+    <p>この日の点検を入力し、「点検完了」で保存してください。前日の点検結果・運行判断は、この日には引き継がれません。</p>
+    {% else %}
+    <p>この日の点検は完了しています。整備・再確認・運行判断の状況は下に表示します。</p>
+    {% endif %}
+
+    {% if other_vehicle_inspection_defects %}
+    <p>同じ車両の別の日に、未解消の不具合が {{ other_vehicle_inspection_defects|length }} 件あります。今日の点検とは別に、元の点検日で対応を続けてください。</p>
+    <a class="btn btn-outline" href="#vehicle-other-day-defects">
+        別の日の未対応を確認（{{ other_vehicle_inspection_defects|length }}件）
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if not vehicle_record_id %}
 
 <div class="card">
@@ -325,6 +351,10 @@
             {% set approval_ns.index = approval_ns.index + 1 %}
             {% endif %}
 
+            {% if not (
+                item.item_type == "approval"
+                and table_checklist.get("fixed_template_code") == "daily_inspection_truck_trailer"
+            ) %}
             <tr{% if item.get("shaded") %} class="vehicle-check-shaded-row"{% endif %}>
                 <td class="fixed-category">
                     {% if item.item_type == "inspector" %}
@@ -338,7 +368,7 @@
 
                 <td class="fixed-item">
                     {% if item.item_type == "inspector" %}
-                    実施者
+                    {{ item.get("content") or "実施者" }}
                     {% elif item.item_type == "approval" %}
                     {{ item.approval_label or "承認欄" }}
                     {% else %}
@@ -387,7 +417,9 @@
                     {% endif %}
                     {% endfor %}
 
-                    {% if item.item_type == "inspector" %}
+                    {% if item.item_type == "operation_judgment" %}
+                        -
+                    {% elif item.item_type == "inspector" %}
 
                     {% if ns.target_result %}
                         <span title="{{ ns.target_result.checked_by }}">
@@ -453,6 +485,18 @@
                         and approval_can_approve
                         and approval_ns.index == current_ns.index
                     %}
+                    {% if table_checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" %}
+                    <a class="btn-mini" href="{{ url_for(
+                        'vehicle_checklist_results',
+                        index=checklist_index,
+                        vehicle_record_id=vehicle_record_id,
+                        year=ns.target_result.year,
+                        month=ns.target_result.month,
+                        active_day=ns.target_result.day
+                    ) }}#vehicle-flow-judgment">
+                        確認・運行判断
+                    </a>
+                    {% else %}
                     <form
                         method="post"
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
@@ -463,6 +507,7 @@
                             承認
                         </button>
                     </form>
+                    {% endif %}
 
                     <button
                         type="button"
@@ -635,7 +680,7 @@
                 {% endfor %}
 
                 <td class="mobile-detail-cell">
-                    {% if item.item_type not in ["inspector", "approval"] %}
+                    {% if item.item_type not in ["inspector", "approval", "operation_judgment"] %}
                     <button
                         type="button"
                         class="btn-mini js-open-detail {% if detail_ns.has_comment or detail_ns.has_files %}comment-cell{% endif %}"
@@ -655,6 +700,7 @@
                     {% endif %}
                 </td>
             </tr>
+            {% endif %}
             {% endfor %}
 
         </table>
@@ -704,13 +750,17 @@
             {% endif %}
         {% endfor %}
 
+        {% if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" %}
+        <div class="vehicle-check-notify-grid vehicle-check-recipient-grid">
+        {% endif %}
+
         {% for item in approval_form_ns2.checklist["items"] %}
             {% if item.item_type == "approval" %}
                 <div
                     class="card form-card vehicle-approval-card"
                     data-approval-index="{{ approval_form_ns.index }}"
                 >
-                    <h3>{{ item.approval_label or "承認欄" }}</h3>
+                    <h3>{{ "整備管理者" if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" else (item.approval_label or "承認欄") }}</h3>
 
                     <div
                         class="notify-user-selector"
@@ -721,7 +771,7 @@
                             data-approval-index="{{ approval_form_ns.index }}"
                         >
                             <div class="approval-candidate-label">
-                                選択した承認者に、承認依頼が通知されます
+                                {{ "選択した整備管理者・補助者に、運行判断の依頼を通知します。自分が判断する場合は、自分を選択してください。" if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" else "選択した承認者に、承認依頼が通知されます" }}
                             </div>
 
                             <div
@@ -731,7 +781,7 @@
                         </div>
 
                         <div class="approval-user-search-heading">
-                            承認者を追加
+                            {{ "整備管理者・補助者を追加" if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" else "承認者を追加" }}
                         </div>
 
                         <input
@@ -756,9 +806,22 @@
                             選択済み（0人）
                         </div>
 
+                        {% set saved_approvals =
+                            active_result.get("approvals", [])
+                            if active_result else []
+                        %}
+                        {% set saved_candidates =
+                            saved_approvals[approval_form_ns.index].get(
+                                "candidate_usernames", []
+                            )
+                            if approval_form_ns.index < saved_approvals|length
+                            else []
+                        %}
+
                         <div
                             class="selected-approval-users selected-vehicle-tags"
                             data-approval-index="{{ approval_form_ns.index }}"
+                            data-saved-usernames="{{ saved_candidates | tojson | forceescape }}"
                         ></div>
                     </div>
                 </div>
@@ -769,8 +832,9 @@
             {% endif %}
         {% endfor %}
 
-        <div class="vehicle-check-notify-grid">
+        <div class="{{ 'vehicle-check-reminder' if checklist.get('fixed_template_code') == 'daily_inspection_truck_trailer' else 'vehicle-check-notify-grid' }}">
 
+            {% if checklist.get("fixed_template_code") != "daily_inspection_truck_trailer" %}
             <div class="notify-user-selector">
                 <label>点検完了通知先</label>
 
@@ -791,9 +855,10 @@
                     class="selected-vehicle-tags"
                 ></div>
             </div>
+            {% endif %}
 
             <div class="notify-user-selector">
-                <label>点検未実施通知先</label>
+                <label for="reminder_notify_user_search">点検未実施通知先</label>
 
                 <input
                     type="text"
@@ -831,9 +896,13 @@
 
         </div>
 
+        {% if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" %}
+        </div>
+        {% else %}
         <p class="help-text vehicle-check-notify-help">
             未選択の場合は「点検未実施通知先」へ通知されます。
         </p>
+        {% endif %}
 
         <button type="submit" class="btn">
             点検完了
@@ -842,6 +911,796 @@
     {% endif %}
 </div>
 
+{% endif %}
+
+{% if other_vehicle_inspection_defects %}
+<div id="vehicle-other-day-defects" class="card form-card vehicle-approval-card">
+    <h3>この車両の未解消不具合（ほかの点検日）</h3>
+
+    <div class="checklist-history-list">
+        {% for entry in other_vehicle_inspection_defects %}
+        {% set defect = entry.get("defect", {}) %}
+        {% set reported_answer = defect.get("reported_answer", {}) %}
+        <div class="checklist-history-item">
+            <div class="checklist-history-header">
+                <span>
+                    点検日：{{ entry.get("inspection_date") }}
+                    ／No.{{ defect.get("item_no")|int + 1 }}
+                </span>
+                <span class="status-badge status-none">
+                    {{ defect.get("status") or "対応待ち" }}
+                </span>
+            </div>
+
+            <div class="checklist-history-detail">
+                {{ reported_answer.get("content") or "" }}
+            </div>
+
+            <a class="btn btn-outline" href="{{ entry.get('link') }}#vehicle-inspection-response">
+                {{ entry.get("inspection_date") }}の不具合対応へ
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if selected_vehicle and active_result and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" %}
+{% set judgment = active_result.get("operation_judgment", {}) %}
+{% set flow = namespace(repair=0, recheck=0, repair_link='', recheck_link='') %}
+{% for defect in judgment.get("defects", []) %}
+    {% set target_link = '#vehicle-flow-defect-' ~ active_result.index ~ '-' ~ defect.get('defect_no') %}
+    {% if defect.get("status") == "再確認待ち" %}
+        {% set flow.recheck = flow.recheck + 1 %}
+        {% if not flow.recheck_link %}{% set flow.recheck_link = target_link %}{% endif %}
+    {% elif defect.get("status") != "解消" %}
+        {% set flow.repair = flow.repair + 1 %}
+        {% if not flow.repair_link %}{% set flow.repair_link = target_link %}{% endif %}
+    {% endif %}
+{% endfor %}
+{% for entry in other_vehicle_inspection_defects %}
+    {% set defect = entry.get("defect", {}) %}
+    {% set target_link = entry.get('link').split('#')[0] ~ '#vehicle-flow-defect-' ~ entry.get('result_id') ~ '-' ~ defect.get('defect_no') %}
+    {% if defect.get("status") == "再確認待ち" %}
+        {% set flow.recheck = flow.recheck + 1 %}
+        {% if not flow.recheck_link %}{% set flow.recheck_link = target_link %}{% endif %}
+    {% elif defect.get("status") != "解消" %}
+        {% set flow.repair = flow.repair + 1 %}
+        {% if not flow.repair_link %}{% set flow.repair_link = target_link %}{% endif %}
+    {% endif %}
+{% endfor %}
+{% set point_done = active_result.status in ['承認待ち', '承認済み', '点検完了'] %}
+{% set decision = judgment.get('status') or '未判定' %}
+
+{% if request.args.get('vehicle_saved') == 'complete' and point_done %}
+<div id="vehicle-flow-completed" class="card vehicle-approval-card vehicle-judgment-result" role="status" tabindex="-1">
+    <h3>{{ year }}/{{ month }}/{{ active_day }}の点検を保存しました</h3>
+
+    {% if flow.repair + flow.recheck %}
+    <p>次は不具合の対応です。整備・再確認が {{ flow.repair + flow.recheck }} 件残っています。</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="{{ flow.repair_link if flow.repair else flow.recheck_link }}">
+        {{ "整備内容を入力する" if flow.repair else "再確認結果を登録する" }}
+    </a>
+
+    {% elif decision in ['運行可', '運行不可', '判定保留'] %}
+    <p>運行判断は登録済みです：{{ "判断保留" if decision == "判定保留" else decision }}</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="#vehicle-flow-judgment">
+        判断結果を確認する
+    </a>
+
+    {% elif not judgment.get('requested_usernames', []) %}
+    <p>運行判断の担当者が未設定です。整備管理者・補助者を設定してください。自分が判断する場合は、自分を選択してください。</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="#vehicle-flow-judgment">
+        担当者を設定する
+    </a>
+
+    {% elif session.get('role') == 'admin' and session.get('username') in judgment.get('requested_usernames', []) %}
+    <p>次はあなたの運行判断です。点検結果を確認し、運行可・運行不可・判断保留を登録してください。</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="#vehicle-flow-judgment">
+        運行判断を入力する
+    </a>
+
+    {% else %}
+    <p>点検は完了しました。現在は運行判断待ちです。</p>
+    <p>次の担当者：{{ vehicle_judgment_names|join('、') or '選択された整備管理者・補助者' }}</p>
+    <p>担当者が判断を登録すると、点検者にシステム内通知で結果をお知らせします。</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="#vehicle-flow-judgment">
+        運行判断の状況を確認する
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="vehicle-inspection-layout">
+    <aside class="vehicle-flow-panel" aria-label="この車両の進行状況">
+        <h3>この車両の状況</h3>
+        <p>{{ selected_vehicle.number or 'ナンバー未登録' }}</p>
+        <p class="vehicle-flow-current">
+            現在：{% if not point_done %}点検中
+            {% elif flow.repair + flow.recheck %}整備・再確認中
+            {% elif decision == '未判定' %}運行判断待ち
+            {% else %}{{ decision }}{% endif %}
+        </p>
+        <p>運行判断（表示日）：{{ decision }}</p>
+        <ol class="vehicle-flow-steps">
+            <li class="{{ 'is-done' if point_done else 'is-active' }}">
+                <a class="js-vehicle-flow-link" href="#vehicle-flow-checks">
+                    <span class="vehicle-flow-dot" aria-hidden="true">{{ '✓' if point_done else '1' }}</span>
+                    <span>点検{{ '完了' if point_done else '中' }}<small>表示日の点検表を開く</small></span>
+                </a>
+            </li>
+            <li class="{{ 'is-active' if flow.repair else '' }}">
+                <a class="js-vehicle-flow-link" href="{{ flow.repair_link or '#vehicle-flow-overview' }}">
+                    <span class="vehicle-flow-dot" aria-hidden="true">{{ '2' if flow.repair else '—' }}</span>
+                    <span>整備対応<small>{{ '対応が必要：' ~ flow.repair ~ '件' if flow.repair else '対応待ちなし' }}</small></span>
+                </a>
+            </li>
+            <li class="{{ 'is-active' if flow.recheck else '' }}">
+                <a class="js-vehicle-flow-link" href="{{ flow.recheck_link or '#vehicle-flow-overview' }}">
+                    <span class="vehicle-flow-dot" aria-hidden="true">{{ '3' if flow.recheck else '—' }}</span>
+                    <span>再確認<small>{{ '再確認待ち：' ~ flow.recheck ~ '件' if flow.recheck else '再確認待ちなし' }}</small></span>
+                </a>
+            </li>
+            <li class="{{ 'is-done' if decision in ['運行可', '運行不可'] else 'is-active' if point_done and not (flow.repair + flow.recheck) else '' }}">
+                <a class="js-vehicle-flow-link" href="#vehicle-flow-judgment">
+                    <span class="vehicle-flow-dot" aria-hidden="true">{{ '✓' if decision in ['運行可', '運行不可'] else '4' }}</span>
+                    <span>運行判断<small>{{ decision }}／整備管理者が判断</small></span>
+                </a>
+            </li>
+        </ol>
+        <p class="vehicle-flow-total">この車両の残りの対応：{{ flow.repair + flow.recheck }}件</p>
+        <p class="vehicle-flow-note">不具合の件数は、ほかの点検日も含みます。</p>
+        <p id="vehicle-flow-message" class="vehicle-flow-note" role="status"></p>
+    </aside>
+<div
+    id="vehicle-inspection-response"
+    class="card form-card vehicle-approval-card"
+    tabindex="-1"
+>
+    <h3>{{ selected_vehicle.number or "ナンバー未登録" }}：運行可否判断・不具合対応（{{ year }}/{{ month }}/{{ active_day }}）</h3>
+    <p>
+        <span class="status-badge {{ 'status-rejected' if judgment.get('status') == '運行不可' else 'status-none' }}">
+            {{ judgment.get("status") or "未判定" }}
+        </span>
+        {% if judgment.get("judged_by") %}
+        <span title="{{ judgment.get('judged_by') }}">
+            {{ judgment.get("judged_by") }}
+        </span>
+        {{ judgment.get("judged_at") or "" }}
+        {% endif %}
+    </p>
+
+    {% if judgment.get("reason") %}
+    <p>
+        {% for line in judgment.get("reason").split('\n') %}
+            {{ line }}{% if not loop.last %}<br>{% endif %}
+        {% endfor %}
+    </p>
+    {% endif %}
+
+    {% if judgment.get("status") == "運行可" and judgment.get("checks_evidence") %}
+    <div class="checklist-history-detail">
+        <div>点検・確認内容</div>
+        {% for line in judgment.get("checks_evidence").split('\n') %}
+        {{ line }}{% if not loop.last %}<br>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if judgment.get("defects") %}
+    <details class="vehicle-defect-details" open>
+        <summary class="vehicle-defect-summary">
+            {% set pending_defects = judgment.get("defects", [])|rejectattr('status', 'equalto', '解消')|list %}
+            <span>対応が必要 {{ pending_defects|length }}件／解消済み {{ judgment.get("defects", [])|length - pending_defects|length }}件</span>
+            <span class="vehicle-defect-toggle">
+                <span class="vehicle-defect-show">＋ 詳細を開く</span>
+                <span class="vehicle-defect-hide">− 詳細を閉じる</span>
+            </span>
+        </summary>
+    <div class="checklist-history-list">
+        {% for defect in judgment.get("defects", []) %}
+        {% set reported_answer = defect.get("reported_answer", {}) %}
+        {% set resolved = defect.get("status") == "解消" %}
+        {% if resolved %}
+        <details class="checklist-history-item vehicle-resolved-defect"
+            id="vehicle-flow-defect-{{ active_result.index }}-{{ defect.get('defect_no') }}"
+            data-defect-status="{{ defect.get('status') or '対応待ち' }}">
+            <summary class="checklist-history-header vehicle-resolved-summary">
+        {% else %}
+        <div class="checklist-history-item"
+            id="vehicle-flow-defect-{{ active_result.index }}-{{ defect.get('defect_no') }}"
+            data-defect-status="{{ defect.get('status') or '対応待ち' }}">
+            <div class="checklist-history-header">
+        {% endif %}
+                <span>
+                    No.{{ defect.get("item_no")|int + 1 }}
+                    {{ reported_answer.get("content") or "" }}
+                </span>
+                <span class="status-badge status-none">
+                    {{ defect.get("status") or "対応待ち" }}
+                </span>
+            {% if resolved %}
+                <span class="vehicle-record-toggle">
+                    <span class="vehicle-record-open">＋ 記録を開く</span>
+                    <span class="vehicle-record-close">− 記録を閉じる</span>
+                </span>
+            </summary>
+            {% else %}
+            </div>
+            {% endif %}
+
+            <div class="checklist-history-actor">
+                報告者：
+                {{ defect.get("reported_by")
+                    or defect.get("reported_by_username")
+                    or "-" }}
+                ／報告日時：{{ defect.get("reported_at") or "-" }}
+            </div>
+
+            {% set repair = defect.get("repair", {}) %}
+            {% set can_record_defect = checklist.active
+                and session.get("role") in ["admin", "user"]
+                and defect.get("status") in ["対応待ち", "整備中", "再確認待ち"] %}
+            <div class="vehicle-defect-workspace{{ ' has-saved' if repair or defect.get('recheck') else '' }}{{ ' has-form' if can_record_defect else '' }}">
+            {% if repair %}
+            <div class="checklist-history-detail vehicle-defect-saved vehicle-defect-saved-repair">
+                <h4>保存済みの整備内容</h4>
+                <div>
+                    整備実施者：{{ repair.get("performed_by") or "-" }}
+                    ／実施日時：{{ repair.get("performed_at") or "-" }}
+                </div>
+                {% for line in (repair.get("note") or "").split('\n') %}
+                {{ line }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if checklist.active
+                and session.get("role") in ["admin", "user"]
+                and defect.get("status") in ["対応待ち", "整備中"]
+            %}
+            <form
+                method="post"
+                action="/vehicle/checklist-results/{{ active_result.index }}/defects/{{ defect.get('defect_no') }}/repair"
+                class="register-form js-vehicle-inspection-repair"
+            >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
+
+                <div class="vehicle-defect-form-heading">
+                    <h4>整備内容を登録</h4>
+                    <p>操作する人：整備を実施・記録する人</p>
+                </div>
+                <label for="repair_status_{{ defect.get('defect_no') }}">整備状況</label>
+                <select id="repair_status_{{ defect.get('defect_no') }}" name="repair_status" required>
+                    <option value="整備中">整備中</option>
+                    <option value="再確認待ち">整備完了（再確認待ち）</option>
+                </select>
+
+                <label for="repair_note_{{ defect.get('defect_no') }}">整備内容</label>
+                <textarea id="repair_note_{{ defect.get('defect_no') }}" name="repair_note" rows="3" maxlength="5000" required>{{ repair.get("note") or "" }}</textarea>
+
+                <label for="repair_performed_at_{{ defect.get('defect_no') }}">整備実施日時</label>
+                <input
+                    id="repair_performed_at_{{ defect.get('defect_no') }}"
+                    type="datetime-local"
+                    name="repair_performed_at"
+                    value="{{ (repair.get('performed_at') or '')|replace(' ', 'T') }}"
+                    required
+                >
+
+                <p>実施者としてログイン中のユーザーを記録します。</p>
+                <div class="vehicle-defect-form-heading">
+                    <p>途中保存：通知なし。整備中の記録として保存します。</p>
+                    <p>整備完了で保存：対象箇所の再確認を依頼する通知を送ります。</p>
+                    <p>通知先：{{ vehicle_response_notify_names|join('、') or '通知先なし' }}</p>
+                </div>
+                <button type="submit" class="btn">整備内容を保存</button>
+            </form>
+            {% endif %}
+
+            {% set recheck = defect.get("recheck", {}) %}
+            {% if recheck %}
+            <div class="checklist-history-detail vehicle-defect-saved vehicle-defect-saved-recheck">
+                <h4>保存済みの再確認結果</h4>
+                <div>
+                    再確認結果：{{ recheck.get("result") or "-" }}
+                </div>
+                <div>
+                    再確認者：{{ recheck.get("performed_by") or "-" }}
+                    ／再確認日時：{{ recheck.get("performed_at") or "-" }}
+                </div>
+                {% for line in (recheck.get("note") or "").split('\n') %}
+                {{ line }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if checklist.active
+                and session.get("role") in ["admin", "user"]
+                and defect.get("status") == "再確認待ち"
+            %}
+            <form
+                method="post"
+                action="/vehicle/checklist-results/{{ active_result.index }}/defects/{{ defect.get('defect_no') }}/repair"
+                class="register-form js-vehicle-inspection-repair"
+            >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
+
+                <div class="vehicle-defect-form-heading">
+                    <h4>再確認結果を登録</h4>
+                    <p>操作する人：整備後の状態を確認した人</p>
+                </div>
+                <label for="recheck_result_{{ defect.get('defect_no') }}">再確認結果</label>
+                <select id="recheck_result_{{ defect.get('defect_no') }}" name="recheck_result" required>
+                    <option value="">選択してください</option>
+                    <option value="異常なし">異常なし</option>
+                    <option value="異常あり">異常あり</option>
+                </select>
+
+                <label for="repair_note_{{ defect.get('defect_no') }}">再確認した箇所・確認内容</label>
+                <textarea id="repair_note_{{ defect.get('defect_no') }}" name="repair_note" rows="3" maxlength="5000" required></textarea>
+
+                <label for="repair_performed_at_{{ defect.get('defect_no') }}">再確認実施日時</label>
+                <input id="repair_performed_at_{{ defect.get('defect_no') }}" type="datetime-local" name="repair_performed_at" required>
+
+                <p>再確認者としてログイン中のユーザーを記録します。</p>
+                <div class="vehicle-defect-form-heading">
+                    <p>保存すると、再確認結果を通知します。</p>
+                    <p>異常なし：この不具合を解消として記録します。</p>
+                    <p>異常あり：対応待ちに戻し、追加の整備が必要になります。</p>
+                    <p>通知先：{{ vehicle_response_notify_names|join('、') or '通知先なし' }}</p>
+                </div>
+                <button type="submit" class="btn">再確認結果を保存</button>
+            </form>
+            {% endif %}
+            </div>
+
+            {% if reported_answer.get("files") %}
+            <div
+                id="defectReportedFiles_{{ active_result.index }}_{{ loop.index }}"
+                class="checklist-history-detail js-vehicle-defect-files"
+                data-files="{{ reported_answer.get('files')|join(',')|e }}"
+            ></div>
+            {% endif %}
+
+            {% if reported_answer.get("comment") %}
+            <div class="checklist-history-detail">
+                {% for line in reported_answer.get("comment").split('\n') %}
+                {{ line }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% if resolved %}
+        </details>
+        {% else %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    </details>
+    {% endif %}
+
+    {% if checklist.active
+        and active_result.status == "承認待ち"
+        and session.get("role") == "admin"
+    %}
+    <div class="action-row">
+        <button type="button"
+            class="btn btn-outline js-vehicle-checklist-reject"
+            data-result-index="{{ active_result.index }}">
+            点検内容の修正依頼
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="vehicle-judgment-heading">
+        <p>整備管理者：{{ vehicle_judgment_names|join('、') or '未設定' }}</p>
+    </div>
+
+    {% if checklist.active
+        and active_result.status in ["承認待ち", "承認済み", "点検完了"]
+        and not judgment.get("requested_usernames", [])
+        and judgment.get("status") in [none, "", "未判定"]
+    %}
+        {% if session.get("role") == "admin"
+            or (session.get("role") == "user"
+                and session.get("username") == active_result.checked_by_username)
+        %}
+        <form method="post"
+            action="/vehicle/checklist-results/{{ active_result.index }}/operation-judgment"
+            class="register-form js-vehicle-operation-manager">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="assign_operation_manager">
+            <input type="hidden" name="judgment_version" value="{{ judgment.get('version') or 0 }}">
+
+            <label for="manager_username">整備管理者を選択</label>
+            <select id="manager_username" name="manager_username" required>
+                <option value="">選択してください</option>
+                {% for manager in vehicle_operation_managers %}
+                <option value="{{ manager.username }}">{{ manager.name }}{% if manager.office %}（{{ manager.office }}）{% endif %}</option>
+                {% endfor %}
+            </select>
+            <p>設定した整備管理者に、運行判断の依頼を通知します。</p>
+            {% if not vehicle_operation_managers %}
+            <p>同じ会社の管理者ユーザーが登録されていません。</p>
+            {% endif %}
+            <button type="submit" class="btn btn-outline"{% if not vehicle_operation_managers %} disabled{% endif %}>整備管理者を設定</button>
+        </form>
+        {% else %}
+        <p>点検者または管理者が整備管理者を設定してください。</p>
+        {% endif %}
+    {% endif %}
+
+    {% set judgment_ready = active_result.status in ["承認待ち", "承認済み", "点検完了"] %}
+    {% set judgment_assigned = session.get("username") in judgment.get("requested_usernames", []) %}
+
+    {% if not (
+        checklist.active
+        and judgment_ready
+        and session.get("role") == "admin"
+        and judgment_assigned
+    ) %}
+    <div class="vehicle-judgment-heading">
+        <h4>運行判断へ進むには</h4>
+
+        {% if not checklist.active %}
+        <p>この点検表は使用停止中のため、運行判断を登録できません。</p>
+
+        {% elif not judgment_ready %}
+        <p>この日の点検が完了していません。画面上部で整備管理者を選択し、「点検完了」を押してください。</p>
+
+        {% elif not judgment.get("requested_usernames", []) %}
+        <p>整備管理者が未設定です。</p>
+
+        {% elif session.get("role") != "admin" or not judgment_assigned %}
+        <p>次の担当者：点検完了時に選択した整備管理者。担当者のアカウントで、この日の点検記録を開いて運行判断を登録してください。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% set judgment_saved = judgment.get("status") in ["運行可", "運行不可", "判定保留"] and judgment.get("judged_at") %}
+    {% if judgment_saved %}
+    <div class="vehicle-judgment-heading js-vehicle-judgment-completed vehicle-judgment-result" role="status">
+        <p class="vehicle-judgment-result-label">運行可否の判断結果</p>
+        <p class="vehicle-judgment-result-value">{{ "判断保留" if judgment.get("status") == "判定保留" else judgment.get("status") }}</p>
+        <p>
+            判断者：
+            <span title="{{ judgment.get('judged_by') or judgment.get('judged_by_username') or '' }}">
+                {{ judgment.get('judged_by') or judgment.get('judged_by_username') or '未設定' }}
+            </span>
+            ／ 判断日時：{{ judgment.get("judged_at") or "未登録" }}
+        </p>
+        {% if judgment.get("reason") %}
+        <p>補足・判断理由：</p>
+        <div>
+            {% for line in judgment.get("reason").split('\n') %}
+                {{ line }}{% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if checklist.active
+        and active_result.status in ["承認待ち", "承認済み", "点検完了"]
+        and session.get("role") == "admin"
+        and session.get("username") in judgment.get("requested_usernames", [])
+    %}
+    <details class="vehicle-history-details"{% if not judgment_saved %} open{% endif %}>
+        <summary class="vehicle-history-summary">
+            <span>{{ "運行判断の再登録" if judgment_saved else "運行判断を入力" }}</span>
+            <span class="vehicle-record-toggle">
+                <span class="vehicle-record-open">＋ {{ "再判断する" if judgment_saved else "入力欄を開く" }}</span>
+                <span class="vehicle-record-close">− 入力欄を閉じる</span>
+            </span>
+        </summary>
+    <form
+        method="post"
+        action="/vehicle/checklist-results/{{ active_result.index }}/operation-judgment"
+        class="register-form js-vehicle-operation-judgment"
+    >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
+        <input type="hidden" name="expected_answers" value="{{ active_result.get('answers', []) | tojson | forceescape }}">
+        <input type="hidden" name="expected_snapshot" value="{{ active_result.get('checklist_snapshot', {}) | tojson | forceescape }}">
+
+        <div class="vehicle-judgment-heading">
+            <h4>点検記録の確認・運行判断</h4>
+            <p>操作する人：設定された整備管理者</p>
+            {% if flow.repair + flow.recheck %}
+            <p class="vehicle-judgment-pending">
+                対応が必要な不具合が{{ flow.repair + flow.recheck }}件あります。
+                運行可にするには、整備・再確認を完了してください。
+            </p>
+            {% endif %}
+        </div>
+
+        <label id="vehicle_authority_role_label">判断者の役割</label>
+        <div id="authority_role" class="vehicle-judgment-options"
+            role="group" aria-labelledby="vehicle_authority_role_label"
+            tabindex="-1">
+            <label>
+                <input type="radio" name="authority_role"
+                    value="整備管理者" required>
+                <span>整備管理者</span>
+            </label>
+            <label>
+                <input type="radio" name="authority_role"
+                    value="補助者" required>
+                <span>補助者</span>
+            </label>
+        </div>
+
+        <div class="vehicle-judgment-confirmation">
+            <label for="authority_confirmed">
+                <input id="authority_confirmed" type="checkbox" name="authority_confirmed" value="1" required>
+                <span>この車両の運行判断を行う権限があることを確認しました</span>
+            </label>
+        </div>
+
+        <label id="vehicle_decision_label">運行判断</label>
+        <div id="decision" class="vehicle-judgment-options" role="group"
+            aria-labelledby="vehicle_decision_label" tabindex="-1">
+            <label>
+                <input type="radio" name="decision" value="運行可" required
+                    {% if flow.repair + flow.recheck %}disabled{% endif %}>
+                <span>運行可</span>
+            </label>
+            <label>
+                <input type="radio" name="decision" value="運行不可" required>
+                <span>運行不可</span>
+            </label>
+            <label>
+                <input type="radio" name="decision" value="判定保留" required>
+                <span>判断保留</span>
+            </label>
+        </div>
+
+        <input type="hidden" name="vehicle_operation_basis" value="{{ vehicle_operation_basis }}">
+
+        <div id="vehicle_judgment_checks" class="vehicle-judgment-confirmation" hidden>
+            <label for="checks_confirmed">
+                <input id="checks_confirmed" type="checkbox" name="checks_confirmed" value="1">
+                <span>運行可の判断に必要な点検・確認を実施しました</span>
+            </label>
+        </div>
+
+        <label for="reason">補足・判断理由</label>
+        <textarea id="reason" name="reason" rows="2" maxlength="5000"
+            aria-describedby="vehicle_judgment_reason_help"></textarea>
+        <p id="vehicle_judgment_reason_help" class="vehicle-judgment-help">
+            運行不可・判断保留の場合は必須です。運行可の場合は任意です。
+        </p>
+
+        <button type="submit" class="btn btn-outline">確認・判断を保存</button>
+    </form>
+    </details>
+    {% endif %}
+</div>
+</div>
+{% endif %}
+
+{% if checklist_events %}
+<details class="card checklist-history-card vehicle-history-details">
+    <summary class="vehicle-history-summary">
+        <span>対応履歴（{{ checklist_events|length }}件）</span>
+        <span class="vehicle-record-toggle">
+            <span class="vehicle-record-open">＋ 履歴を開く</span>
+            <span class="vehicle-record-close">− 履歴を閉じる</span>
+        </span>
+    </summary>
+
+    <div class="checklist-history-list">
+        {% for event in checklist_events|reverse %}
+        <div class="checklist-history-item" data-event-type="{{ event.event_type }}">
+            <div class="checklist-history-header">
+                <strong>{{ event.event_type }}</strong>
+                <span>{{ event.created_at }}</span>
+            </div>
+
+            <div class="checklist-history-actor">
+                {{ event.actor_name or event.actor_username or "-" }}
+            </div>
+
+            {% set prior_judgment = event.detail.get("previous_judgment", {}) %}
+            {% if prior_judgment.get("status") in ("運行可", "運行不可", "判定保留") %}
+            <div class="checklist-history-detail">
+                <div>変更前の運行判断：{{ prior_judgment.get("status") }}</div>
+                <div>
+                    判断者：{{ prior_judgment.get("judged_by")
+                        or prior_judgment.get("judged_by_username") or "-" }}
+                    ／判断日時：{{ prior_judgment.get("judged_at") or "-" }}
+                </div>
+                {% if prior_judgment.get("authority_role") %}
+                <div>判断者の立場：{{ prior_judgment.get("authority_role") }}</div>
+                {% endif %}
+                {% if prior_judgment.get("checks_evidence") %}
+                <div>
+                    点検・確認内容：
+                    {% for line in prior_judgment.get("checks_evidence").split('\n') %}
+                    {{ line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if prior_judgment.get("reason") %}
+                <div>
+                    判断理由：
+                    {% for line in prior_judgment.get("reason").split('\n') %}
+                    {{ line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if event.event_type == "承認" %}
+            {% set approved_slot = event.detail.get("approval", {}) %}
+            <div class="checklist-history-detail">
+                {{ approved_slot.get("label") or "承認欄" }}：
+                {{ approved_slot.get("approved_by")
+                    or approved_slot.get("approved_by_username")
+                    or event.actor_name
+                    or event.actor_username
+                    or "-" }}
+                {{ approved_slot.get("approved_date") or "" }}
+            </div>
+            {% endif %}
+
+            {% if event.detail.get("repair") or event.detail.get("recheck") %}
+            {% set work = event.detail.get("recheck") or event.detail.get("repair") %}
+            {% set previous_defect = event.detail.get("previous_defect", {}) %}
+            {% set saved_defect = event.detail.get("defect", {}) %}
+            <div class="checklist-history-detail">
+                <div>
+                    No.{{ saved_defect.get("item_no")|int + 1 }}：
+                    {{ previous_defect.get("status") or "対応待ち" }}
+                    →
+                    {{ saved_defect.get("status") or "-" }}
+                </div>
+                <div>
+                    {{ "再確認" if event.detail.get("recheck") else "整備" }}
+                    実施者：{{ work.get("performed_by") or "-" }}
+                    ／実施日時：{{ work.get("performed_at") or "-" }}
+                </div>
+                {% if work.get("result") %}
+                <div>再確認結果：{{ work.get("result") }}</div>
+                {% endif %}
+                <div>
+                    {% for line in (work.get("note") or "").split('\n') %}
+                    {{ line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if event.event_type == "運行判断" %}
+            {% set previous_judgment = event.detail.get("previous_judgment", {}) %}
+            {% set saved_judgment = event.detail.get("judgment", {}) %}
+            <div class="checklist-history-detail">
+                <div>
+                    判断：
+                    {{ previous_judgment.get("status") or "未判定" }}
+                    →
+                    {{ saved_judgment.get("status") or "未判定" }}
+                </div>
+                {% if saved_judgment.get("authority_role") %}
+                <div>
+                    判断者の立場：
+                    {{ saved_judgment.get("authority_role") }}
+                </div>
+                {% endif %}
+                {% if saved_judgment.get("checks_evidence") %}
+                <div>
+                    点検・確認内容：
+                    {% for line in saved_judgment.get("checks_evidence").split('\n') %}
+                    {{ line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if saved_judgment.get("reason") %}
+                <div>
+                    理由：
+                    {% for line in saved_judgment.get("reason").split('\n') %}
+                    {{ line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if event.detail.get("reject_reason") %}
+            <div class="checklist-history-detail">
+                <strong>差し戻し理由</strong>
+                <div
+                    class="mention-display"
+                    data-value="{{ event.detail.get('reject_reason') }}"
+                ></div>
+            </div>
+            {% endif %}
+
+            {% if event.detail.get("changes") %}
+            <div class="checklist-history-detail">
+                <strong>変更内容</strong>
+
+                {% for change in event.detail.get("changes", []) %}
+                {% set change_field = change.get("field", "value") %}
+                <div class="checklist-history-change">
+                    <div class="checklist-history-change-title">
+                        {% if change.get("item_no") is not none %}
+                        No.{{ change.get("item_no")|int + 1 }}
+                        {% endif %}
+                    </div>
+
+                    <div class="checklist-history-change-row">
+                        <strong>
+                            {% if change_field == "comment" %}
+                            コメント
+                            {% elif change_field == "files" %}
+                            添付
+                            {% else %}
+                            回答
+                            {% endif %}
+                        </strong>
+
+                        <span class="checklist-history-before">
+                            {% if change_field == "files" %}
+                            {{ change.get("before", [])|length }}件
+                            {% elif change_field == "comment" %}
+                            <span
+                                class="mention-display"
+                                data-value="{{ change.get('before') or 'なし' }}"
+                            ></span>
+                            {% else %}
+                            {{ change.get("before")
+                                if change.get("before") not in [none, ""]
+                                else "未入力" }}
+                            {% endif %}
+                        </span>
+
+                        <span class="checklist-history-arrow">→</span>
+
+                        <span class="checklist-history-after">
+                            {% if change_field == "files" %}
+                            {{ change.get("after", [])|length }}件
+                            {% elif change_field == "comment" %}
+                            <span
+                                class="mention-display"
+                                data-value="{{ change.get('after') or 'なし' }}"
+                            ></span>
+                            {% else %}
+                            {{ change.get("after")
+                                if change.get("after") not in [none, ""]
+                                else "未入力" }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if event.detail.get("previous_approvals") %}
+            <div class="checklist-history-detail">
+                <strong>差し戻し前の承認状況</strong>
+
+                {% for approval in event.detail.get("previous_approvals", []) %}
+                <div>
+                    {{ approval.get("label") or "承認欄" }}：
+                    {{ approval.get("approved_by")
+                        or approval.get("approved_by_username")
+                        or "未承認" }}
+                    {{ approval.get("approved_date") or "" }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
 {% endif %}
 
 <div id="detailModal" class="modal-bg is-hidden">
@@ -1001,7 +1860,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20260921-3'
+        v='20261004-4'
     ) }}"
 ></script>
 

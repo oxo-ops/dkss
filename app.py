@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from uuid import uuid4
+from daily_inspection_defaults import get_daily_inspection_default
 import os
 import json
 import boto3
@@ -1657,6 +1658,11 @@ class VehicleChecklistResult(db.Model):
         default=""
     )
 
+    operation_judgment_json = db.Column(
+        db.Text,
+        default="{}"
+    )
+
 class ChecklistEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -1697,7 +1703,6 @@ class ChecklistEvent(db.Model):
         db.String(30),
         nullable=False
     )
-
 
 class VehicleChecklistNotifySetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3021,6 +3026,99 @@ def vehicle_patrols_for_current_company():
         for patrol in query.order_by(VehiclePatrol.id.desc()).all()
     ]
 
+def ensure_daily_inspection_checklist():
+    company_code = session.get("company_code")
+    template = get_daily_inspection_default()
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).with_for_update().first()
+
+    if not company:
+        raise ValueError("会社情報を確認できません。")
+
+    existing_checklist = None
+
+    for checklist in Checklist.query.filter_by(
+        company_code=company_code,
+        target="車両管理"
+    ).all():
+        items = safe_json_dict_list(checklist.items_json)
+
+        if items and items[0].get("fixed_template_code") == template["template_code"]:
+            existing_checklist = checklist
+            break
+
+    items = []
+
+    for source in template["items"]:
+        item = dict(source)
+        item.update({
+            "answer_required": False,
+            "comment_required": False,
+            "score_enabled": False,
+            "criteria_files": []
+        })
+        items.append(item)
+
+    for field in template["footer_fields"]:
+        item = {
+            "item_type": field["field_type"],
+            "item_code": f"footer_{field['order']}",
+            "category": "",
+            "content": field["label"]
+        }
+
+        if field["field_type"] == "check":
+            item.update({
+                "input_type": "select",
+                "choices": list(field["choices"]),
+                "criteria": template["criteria"],
+                "answer_required": False,
+                "comment_required": False,
+                "score_enabled": False,
+                "criteria_files": [],
+                "shaded": False
+            })
+
+        if field["field_type"] == "approval":
+            item["approval_label"] = field["label"]
+            item["approval_allow_general"] = False
+
+        items.append(item)
+
+    items[0]["fixed_template_code"] = template["template_code"]
+    items[0]["fixed_template_version"] = template["template_version"]
+
+    if existing_checklist:
+        if safe_json_dict_list(existing_checklist.items_json) != items:
+            existing_checklist.items_json = json.dumps(items, ensure_ascii=False)
+            db.session.flush()
+        return existing_checklist
+
+    checklist = Checklist(
+        company_code=company_code,
+        name=template["name"],
+        target="車両管理",
+        frequency_value="1",
+        frequency_unit="day",
+        display_type="month",
+        print_portrait=False,
+        print_half_month=template["print_half_month"],
+        reminder_enabled=False,
+        reminder_time="08:00",
+        active=True,
+        items_json=json.dumps(items, ensure_ascii=False),
+        version_history_json="[]",
+        notify_users_json="[]"
+    )
+
+    db.session.add(checklist)
+    db.session.flush()
+
+    return checklist
+
+
 def checklist_to_dict(checklist):
     items = safe_json_dict_list(
         checklist.items_json
@@ -3041,6 +3139,11 @@ def checklist_to_dict(checklist):
         "reminder_enabled": bool(checklist.reminder_enabled),
         "reminder_time": checklist.reminder_time or "08:00",
         "items": items,
+        "fixed_template_code": (
+            items[0].get("fixed_template_code", "")
+            if items
+            else ""
+        ),
         "version_history": safe_json_dict_list(
             checklist.version_history_json
         ),
@@ -3233,6 +3336,7 @@ def vehicle_checklist_result_to_dict(result):
         "company_code": result.company_code,
         "checklist_id": result.checklist_id,
         "vehicle_record_id": result.vehicle_record_id,
+        "operation_judgment": safe_json_dict(result.operation_judgment_json),
         "year": result.year,
         "month": result.month,
         "day": result.day,
@@ -6338,8 +6442,7 @@ def approval_candidates():
     users = User.query.filter(
         User.company_code == company_code,
         User.office == office,
-        User.role == "admin",
-        User.username != session.get("username")
+        User.role == "admin"
     ).order_by(
         User.last_name.asc(),
         User.first_name.asc()
@@ -6374,16 +6477,30 @@ def mention_users():
         company_code=session.get("company_code")
     )
 
-    if keyword:
+    if request.args.get("exact_username") == "1":
+        user_query = user_query.filter(
+            User.username == keyword
+        )
+    elif keyword:
         keyword_like = f"%{keyword}%"
 
         user_query = user_query.filter(
             db.or_(
                 User.last_name.ilike(keyword_like),
                 User.first_name.ilike(keyword_like),
-                User.username.ilike(keyword_like)
+                User.username.ilike(keyword_like),
+                (
+                    db.func.coalesce(User.last_name, "")
+                    + db.func.coalesce(User.first_name, "")
+                ).ilike(keyword_like)
             )
         )
+
+    approval_scope = request.args.get("approval_scope", "")
+    if approval_scope == "admin":
+        user_query = user_query.filter(User.role == "admin")
+    elif approval_scope == "admin_user":
+        user_query = user_query.filter(User.role.in_(["admin", "user"]))
 
     matched_users = (
         user_query
@@ -8164,6 +8281,24 @@ def notification_detail(index):
         "read": notification.read,
         "created_at": notification.created_at,
     }
+
+    if notification_dict["title"] == "車両チェックリスト承認依頼":
+        link = notification_dict.get("link") or ""
+        parsed_link = urlparse(link)
+        match = re.fullmatch(r"/vehicle/checklists/(\d+)/?", parsed_link.path)
+        if match:
+            checklist_record = Checklist.query.filter_by(
+                id=int(match.group(1)),
+                company_code=session.get("company_code")
+            ).first()
+            if (
+                checklist_record
+                and checklist_to_dict(checklist_record).get("fixed_template_code")
+                == "daily_inspection_truck_trailer"
+            ):
+                notification_dict["link"] = parsed_link._replace(
+                    fragment="vehicle-flow-judgment"
+                ).geturl()
 
     return render_template(
         "notification_detail.html",
@@ -15516,6 +15651,21 @@ def delete_manual(index):
 
 @app.route("/master/checklists")
 def checklist_master():
+    try:
+        ensure_daily_inspection_checklist()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("日常点検の標準様式の登録に失敗しました。")
+        flash("日常点検の標準様式を登録できませんでした。", "error:")
+        return render_template(
+            "checklist_master.html",
+            checklists=[],
+            keyword=request.args.get("keyword", "").strip(),
+            target=request.args.get("target", "").strip(),
+            status=request.args.get("status", "").strip()
+        ), 500
+
     checklists = checklists_for_current_company()
     company_code = session.get("company_code")
 
@@ -15559,13 +15709,13 @@ def checklist_master():
         checklists = [
             checklist
             for checklist in checklists
-            if checklist.active
+            if checklist["active"]
         ]
     elif status == "inactive":
         checklists = [
             checklist
             for checklist in checklists
-            if not checklist.active
+            if not checklist["active"]
         ]
 
     return render_template(
@@ -18230,8 +18380,24 @@ def delete_checklist_result(result_index):
 
     return redirect(f"/safety/checklists/{checklist_id}")
 
+@app.route("/vehicle/daily-inspections")
+def vehicle_daily_inspection_entry():
+    return redirect("/vehicle/checklists")
+
 @app.route("/vehicle/checklists")
 def vehicle_checklists():
+    try:
+        ensure_daily_inspection_checklist()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("日常点検の標準様式の登録に失敗しました。")
+        flash("日常点検の標準様式を登録できませんでした。", "error:")
+        return render_template(
+            "vehicle_checklists.html",
+            checklists=[]
+        ), 500
+
     vehicle_lists = []
 
     for checklist in checklists_for_current_company():
@@ -18381,6 +18547,8 @@ def vehicle_checklist_results(index):
                 "is_weekend": False
             }
 
+    input_days = list(display_days)
+
     checklist_periods = []
 
     if display_mode == "day_list":
@@ -18456,7 +18624,7 @@ def vehicle_checklist_results(index):
             vehicle_record_id=vehicle_record_id
         )
 
-    for result_record in query.all():
+    for result_record in (query.all() if vehicle_record_id else []):
         result = vehicle_checklist_result_to_dict(result_record)
 
         if display_mode == "year_list":
@@ -18524,8 +18692,46 @@ def vehicle_checklist_results(index):
                     day_checklist = period["checklist"]
                     break
 
+            if day_result:
+                result_snapshot = (
+                    day_result.get("checklist_snapshot") or {}
+                )
+                if result_snapshot:
+                    day_checklist = result_snapshot
+
             if not day_checklist:
                 continue
+
+            if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+                current_template = next(
+                    (
+                        item
+                        for item in checklist.get("items", [])
+                        if item.get("fixed_template_code")
+                        == "daily_inspection_truck_trailer"
+                    ),
+                    {}
+                )
+                saved_template = next(
+                    (
+                        item
+                        for item in day_checklist.get("items", [])
+                        if item.get("fixed_template_code")
+                        == "daily_inspection_truck_trailer"
+                    ),
+                    {}
+                )
+                current_version = current_template.get(
+                    "fixed_template_version",
+                    1
+                )
+                saved_version = saved_template.get(
+                    "fixed_template_version",
+                    current_version
+                )
+
+                if str(saved_version) == str(current_version):
+                    day_checklist = checklist
 
             checklist_key = checklist_revision_key(
                 day_checklist
@@ -18656,12 +18862,151 @@ def vehicle_checklist_results(index):
                 "model_code": vehicle_record.model_code or "",
             }
 
+    checklist_events = []
+
+    if active_result and vehicle_record_id:
+        checklist_event_records = (
+            ChecklistEvent.query.filter_by(
+                company_code=checklist_record.company_code,
+                result_type="vehicle",
+                result_id=active_result["id"]
+            )
+            .order_by(ChecklistEvent.id.asc())
+            .all()
+        )
+
+        for event in checklist_event_records:
+            checklist_events.append({
+                "event_type": event.event_type,
+                "actor_username": event.actor_username,
+                "actor_name": event.actor_name,
+                "created_at": event.created_at,
+                "detail": safe_json_dict(event.detail_json),
+            })
+
+    vehicle_today = None
+    if (
+        vehicle_record_id
+        and checklist.get("fixed_template_code")
+        == "daily_inspection_truck_trailer"
+    ):
+        local_today = get_user_local_now(
+            checklist_record.company_code,
+            session.get("username")
+        )
+        vehicle_today = {
+            "label": local_today.strftime("%Y/%m/%d"),
+            "is_selected": (
+                int(year) == local_today.year
+                and int(month) == local_today.month
+                and int(active_day) == local_today.day
+            ),
+            "url": url_for(
+                "vehicle_checklist_results",
+                index=checklist_record.id,
+                vehicle_record_id=vehicle_record_id,
+                year=str(local_today.year),
+                month=local_today.strftime("%m"),
+                active_day=local_today.strftime("%d")
+            ),
+        }
+
+    other_vehicle_inspection_defects = []
+
+    if checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+        other_vehicle_inspection_defects = [
+            entry
+            for entry in get_vehicle_open_inspection_defects(
+                checklist_record.company_code,
+                vehicle_record_id
+            )
+            if not active_result
+            or entry["result_id"] != active_result["id"]
+        ]
+
+    vehicle_response_notify_names = []
+    if active_result and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+        response_judgment = active_result.get("operation_judgment", {})
+        target_usernames = set(response_judgment.get("requested_usernames") or [])
+        inspector_username = active_result.get("checked_by_username")
+
+        if not target_usernames and inspector_username:
+            inspector = User.query.filter_by(
+                company_code=checklist_record.company_code,
+                username=inspector_username
+            ).first()
+            if inspector and inspector.office:
+                target_usernames.update(
+                    user.username
+                    for user in User.query.filter_by(
+                        company_code=checklist_record.company_code,
+                        office=inspector.office,
+                        role="admin"
+                    ).all()
+                )
+
+        if inspector_username:
+            target_usernames.add(inspector_username)
+
+        if target_usernames:
+            notify_users = User.query.filter_by(
+                company_code=checklist_record.company_code
+            ).filter(User.username.in_(target_usernames)).all()
+            vehicle_response_notify_names = [
+                (user.last_name or "") + (user.first_name or "") or user.username
+                for user in sorted(notify_users, key=lambda user: user.username)
+            ]
+
+    vehicle_judgment_names = []
+    if active_result and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+        assigned_usernames = set(
+            active_result.get("operation_judgment", {}).get("requested_usernames") or []
+        )
+        if assigned_usernames:
+            vehicle_judgment_names = [
+                (user.last_name or "") + (user.first_name or "") or user.username
+                for user in sorted(notify_users, key=lambda user: user.username)
+                if user.username in assigned_usernames and user.role == "admin"
+            ]
+
+    vehicle_operation_managers = []
+    if active_result and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+        vehicle_operation_managers = [
+            {
+                "username": user.username,
+                "name": (user.last_name or "") + (user.first_name or "") or user.username,
+                "office": user.office or "",
+            }
+            for user in User.query.filter_by(
+                company_code=checklist_record.company_code,
+                role="admin"
+            ).all()
+        ]
+        vehicle_operation_managers.sort(
+            key=lambda user: (user["name"], user["username"])
+        )
+
     return render_template(
         "vehicle_checklist_results.html",
+        vehicle_operation_managers=vehicle_operation_managers,
+        vehicle_judgment_names=vehicle_judgment_names,
+        vehicle_response_notify_names=vehicle_response_notify_names,
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
         active_result=active_result,
+        checklist_events=checklist_events,
+        other_vehicle_inspection_defects=other_vehicle_inspection_defects,
+        vehicle_today=vehicle_today,
+        vehicle_operation_basis=(
+            get_vehicle_operation_basis(
+                checklist_record.company_code,
+                vehicle_record_id
+            )
+            if checklist.get("fixed_template_code")
+            == "daily_inspection_truck_trailer"
+            else ""
+        ),
         selected_notify_users=selected_notify_users,
         selected_reminder_notify_users=selected_reminder_notify_users,
         selected_vehicle=selected_vehicle,
@@ -18758,6 +19103,14 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         id=vehicle_record_id,
         deleted=False
     ).first()
+
+    if not vehicle:
+        return return_form_errors([
+            (
+                "車両が不正です。",
+                "vehicle_record_id"
+            )
+        ])
 
     # =========================
     # 通知先ユーザー検証
@@ -18879,11 +19232,802 @@ def test_email_notification():
     }
     
 @app.route(
+    "/vehicle/checklist-results/<int:result_index>/defects/<int:defect_no>/repair",
+    methods=["POST"]
+)
+@limiter.limit("20 per minute")
+def save_vehicle_inspection_repair(result_index, defect_no):
+    lock_error = lock_vehicle_inspection_updates(
+        session.get("company_code"),
+        result_index=result_index
+    )
+    if lock_error is not None:
+        return lock_error
+    company_code = session.get("company_code")
+    current_user = User.query.filter_by(
+        company_code=company_code,
+        username=session.get("username")
+    ).first()
+    if not current_user or current_user.role not in {"admin", "user"}:
+        return return_form_errors([("整備内容を登録する権限がありません。", "")], 403)
+
+    result_record = VehicleChecklistResult.query.filter_by(
+        id=result_index,
+        company_code=company_code
+    ).with_for_update().first()
+    if not result_record:
+        return return_form_errors([("対象の点検記録がありません。", "")], 404)
+
+    snapshot = safe_json_dict(result_record.checklist_snapshot_json)
+    if not any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in snapshot.get("items", [])
+    ):
+        return return_form_errors([("不具合対応の対象外の様式です。", "")], 400)
+
+    previous_json = result_record.operation_judgment_json
+    previous = safe_json_dict(previous_json)
+    defects = [dict(item) for item in previous.get("defects", [])]
+    defect = next(
+        (item for item in defects if item.get("defect_no") == defect_no),
+        None
+    )
+    if not defect:
+        return return_form_errors([("対象の不具合がありません。", "")], 404)
+
+    try:
+        expected_version = int(request.form.get("judgment_version", ""))
+        current_version = int(previous.get("version") or 0)
+    except (TypeError, ValueError):
+        return return_form_errors([("再読み込みして不具合の状態を確認してください。", "")], 409)
+
+    if expected_version != current_version:
+        return return_form_errors([("点検または不具合対応が更新されています。再読み込みしてください。", "")], 409)
+
+    is_recheck = request.form.get("recheck_result") is not None
+
+    if is_recheck:
+        recheck_result = request.form.get("recheck_result", "").strip()
+        if defect.get("status") != "再確認待ち":
+            return return_form_errors([
+                ("再確認待ちの不具合を選択してください。", "")
+            ], 409)
+
+        if recheck_result not in {"異常なし", "異常あり"}:
+            return return_form_errors([
+                ("再確認結果を選択してください。", f"recheck_result_{defect_no}")
+            ])
+
+        next_status = (
+            "解消"
+            if recheck_result == "異常なし"
+            else "対応待ち"
+        )
+    else:
+        next_status = request.form.get("repair_status", "").strip()
+        if (
+            defect.get("status") not in {"対応待ち", "整備中"}
+            or next_status not in {"整備中", "再確認待ち"}
+        ):
+            return return_form_errors([
+                ("現在の状態ではこの整備操作を行えません。", "")
+            ], 409)
+
+    note = request.form.get("repair_note", "").strip()
+    if not note or len(note) > 5000:
+        return return_form_errors([
+            ("整備内容を1〜5000文字で入力してください。", f"repair_note_{defect_no}")
+        ])
+
+    local_now = get_user_local_now(company_code, current_user.username)
+    try:
+        performed_at = datetime.strptime(
+            request.form.get("repair_performed_at", ""),
+            "%Y-%m-%dT%H:%M"
+        )
+    except ValueError:
+        return return_form_errors([
+            ("整備実施日時を入力してください。", f"repair_performed_at_{defect_no}")
+        ])
+
+    if performed_at > local_now.replace(tzinfo=None):
+        return return_form_errors([
+            ("整備実施日時に未来の日時は指定できません。", f"repair_performed_at_{defect_no}")
+        ])
+
+    repair = {
+        "status": next_status,
+        "note": note,
+        "performed_by": (current_user.last_name or "") + (current_user.first_name or ""),
+        "performed_by_username": current_user.username,
+        "performed_at": performed_at.strftime("%Y-%m-%d %H:%M"),
+        "recorded_at": local_now.strftime("%Y-%m-%d %H:%M:%S"),
+        "timezone": str(local_now.tzinfo),
+    }
+    previous_defect = dict(defect)
+    defect["status"] = next_status
+
+    if is_recheck:
+        try:
+            previous_repair = defect.get("repair") or {}
+            repair_completed_at = datetime.strptime(
+                previous_repair.get("performed_at", ""),
+                "%Y-%m-%d %H:%M"
+            ).replace(
+                tzinfo=ZoneInfo(
+                    previous_repair.get("timezone") or "Asia/Tokyo"
+                )
+            )
+        except (TypeError, ValueError, KeyError):
+            return return_form_errors([
+                ("整備実施日時を確認できません。整備記録を確認してください。", "")
+            ], 409)
+
+        if performed_at.replace(tzinfo=local_now.tzinfo) < repair_completed_at:
+            return return_form_errors([
+                (
+                    "再確認日時は整備実施日時以降を指定してください。",
+                    f"repair_performed_at_{defect_no}"
+                )
+            ])
+
+        repair["result"] = recheck_result
+        defect["recheck"] = repair
+        defect["rechecked_answer"] = next(
+            (
+                dict(answer)
+                for answer in safe_json_dict_list(result_record.answers_json)
+                if str(answer.get("item_no", ""))
+                == str(defect.get("item_no", ""))
+            ),
+            {}
+        )
+    else:
+        defect["repair"] = repair
+
+    judgment = {
+        **previous,
+        "defects": defects,
+        "status": "未判定",
+        "version": current_version + 1,
+    }
+    for key in (
+        "reason", "judged_by", "judged_by_username",
+        "judged_at", "authority_role", "authority_confirmed",
+        "checks_confirmed", "checks_evidence"
+    ):
+        judgment.pop(key, None)
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"success": True})
+
+    try:
+        updated = VehicleChecklistResult.query.filter_by(
+            id=result_record.id,
+            company_code=company_code,
+            operation_judgment_json=previous_json
+        ).update(
+            {"operation_judgment_json": json.dumps(judgment, ensure_ascii=False)},
+            synchronize_session=False
+        )
+        if updated != 1:
+            db.session.rollback()
+            return return_form_errors([
+                ("不具合対応が更新されています。再読み込みしてください。", "")
+            ], 409)
+
+        invalidate_other_vehicle_operation_judgments(result_record)
+
+        db.session.add(ChecklistEvent(
+            company_code=company_code,
+            result_type="vehicle",
+            result_id=result_record.id,
+            event_type=next_status,
+            actor_username=current_user.username,
+            actor_name=repair["performed_by"],
+            created_at=repair["recorded_at"],
+            detail_json=json.dumps({
+                "previous_defect": previous_defect,
+                "defect": defect,
+                "repair": {} if is_recheck else repair,
+                "recheck": repair if is_recheck else {},
+                "previous_judgment": previous,
+            }, ensure_ascii=False)
+        ))
+
+        notification_targets = []
+        if next_status == "再確認待ち" or is_recheck:
+            target_usernames = set(previous.get("requested_usernames") or [])
+
+            if not target_usernames:
+                inspector = User.query.filter_by(
+                    company_code=company_code,
+                    username=result_record.checked_by_username
+                ).first()
+
+                if inspector and inspector.office:
+                    target_usernames.update(
+                        user.username
+                        for user in User.query.filter_by(
+                            company_code=company_code,
+                            office=inspector.office,
+                            role="admin"
+                        ).all()
+                    )
+
+            if result_record.checked_by_username:
+                target_usernames.add(result_record.checked_by_username)
+
+            vehicle = Vehicle.query.filter_by(
+                id=result_record.vehicle_record_id,
+                company_code=company_code
+            ).first()
+            vehicle_name = (
+                " ".join(value for value in [
+                    vehicle.plate_area or "",
+                    vehicle.plate_class or "",
+                    vehicle.plate_kana or "",
+                    vehicle.plate_number or ""
+                ] if value)
+                if vehicle else ""
+            ) or f"車両ID：{result_record.vehicle_record_id}"
+
+            item_name = (
+                defect.get("reported_answer", {}).get("content") or ""
+            )
+
+            if not is_recheck:
+                notification_action = "再確認待ち"
+                next_action = (
+                    "整備した箇所を再確認し、再確認結果を登録してください。"
+                )
+            elif next_status == "解消":
+                notification_action = "再確認済み・異常なし"
+                next_action = (
+                    "この不具合の再確認は完了しました。"
+                    "整備管理者は、ほかの未解消の不具合と点検結果を確認し、"
+                    "運行可否を判断してください。"
+                )
+            else:
+                notification_action = "再確認で異常あり"
+                next_action = (
+                    "異常が残っています。整備内容を確認し、"
+                    "追加の整備を登録してください。"
+                )
+
+            notification_title = (
+                f"{vehicle_name}：{notification_action}"
+            )
+            notification_message = (
+                f"対象車両：{vehicle_name}\n"
+                f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
+                f"項目：No.{int(defect.get('item_no', 0)) + 1} {item_name}\n"
+                f"対応状況：{next_status}\n"
+                f"次にすること：{next_action}\n"
+                f"実施者：{repair['performed_by']}\n"
+                f"実施日時：{repair['performed_at']}\n"
+                f"内容：{repair['note']}"
+            )
+            notification_link = url_for(
+                "vehicle_checklist_results",
+                index=result_record.checklist_id,
+                vehicle_record_id=result_record.vehicle_record_id,
+                year=result_record.year,
+                month=result_record.month,
+                active_day=result_record.day
+            ) + (
+                f"#vehicle-flow-defect-{result_record.id}-"
+                f"{defect.get('defect_no')}"
+            )
+
+            for target_username in sorted(target_usernames):
+                target_user = User.query.filter_by(
+                    company_code=company_code,
+                    username=target_username
+                ).first()
+                if not target_user:
+                    continue
+
+                notification_targets.append(target_user)
+                db.session.add(Notification(
+                    company_code=company_code,
+                    target_user=(target_user.last_name or "")
+                    + (target_user.first_name or ""),
+                    target_username=target_user.username,
+                    title=notification_title,
+                    message=notification_message,
+                    link=notification_link,
+                    files_json="[]",
+                    read=False,
+                    created_at=repair["recorded_at"]
+                ))
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("日常点検の整備内容の保存に失敗しました。")
+        return return_form_errors([
+            ("整備内容を保存できませんでした。もう一度お試しください。", "")
+        ], 500)
+
+    dispatch_vehicle_defect_notifications(result_record)
+
+    for target_user in notification_targets:
+        try:
+            dispatch_external_notification(
+                target_user,
+                notification_title,
+                notification_message,
+                notification_link
+            )
+        except Exception:
+            app.logger.exception("不具合対応の外部通知に失敗しました。")
+
+    from urllib.parse import parse_qsl, urlencode, urlunparse
+
+    destination = url_for(
+        "vehicle_checklist_results",
+        index=result_record.checklist_id,
+        vehicle_record_id=result_record.vehicle_record_id,
+        year=result_record.year,
+        month=result_record.month,
+        active_day=result_record.day
+    )
+    target = "vehicle-flow-judgment"
+    saved_result_id = result_record.id
+    saved_defect_no = defect.get("defect_no")
+    saved_item_no = int(defect.get("item_no", 0)) + 1
+    saved_date = (
+        f"{result_record.year}/"
+        f"{str(result_record.month).zfill(2)}/"
+        f"{str(result_record.day).zfill(2)}"
+    )
+
+    try:
+        pending_defects = get_vehicle_open_inspection_defects(
+            company_code,
+            result_record.vehicle_record_id
+        )
+        next_entry = next(
+            (
+                entry for entry in pending_defects
+                if entry.get("result_id") == saved_result_id
+                and str(entry.get("defect", {}).get("defect_no"))
+                == str(saved_defect_no)
+            ),
+            pending_defects[0] if pending_defects else None
+        )
+        if next_entry:
+            destination = next_entry["link"]
+            next_defect_no = next_entry.get("defect", {}).get("defect_no")
+            target = (
+                f"vehicle-flow-defect-{next_entry['result_id']}-{next_defect_no}"
+                if next_defect_no is not None else "vehicle-flow-overview"
+            )
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("保存後の不具合対応の移動先を取得できませんでした。")
+        target = f"vehicle-flow-defect-{saved_result_id}-{saved_defect_no}"
+
+    parts = urlparse(destination)
+    params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    params.update({
+        "vehicle_saved": "recheck" if is_recheck else "repair",
+        "vehicle_saved_item": str(saved_item_no),
+        "vehicle_saved_date": saved_date,
+    })
+    redirect_url = urlunparse(parts._replace(
+        query=urlencode(params),
+        fragment=target
+    ))
+    if request.headers.get("X-DKSS-Final-Submit") == "1":
+        return jsonify({"redirect_url": redirect_url})
+    return redirect(redirect_url)
+
+
+@app.route(
+    "/vehicle/checklist-results/<int:result_index>/operation-judgment",
+    methods=["POST"]
+)
+@limiter.limit("20 per minute")
+def save_vehicle_operation_judgment(result_index):
+    lock_error = lock_vehicle_inspection_updates(
+        session.get("company_code"),
+        result_index=result_index
+    )
+    if lock_error is not None:
+        return lock_error
+    result_record = (
+        VehicleChecklistResult.query.filter_by(
+            id=result_index,
+            company_code=session.get("company_code")
+        ).with_for_update().first()
+    )
+    if not result_record:
+        return return_form_errors([("対象の点検記録がありません。", "")], 404)
+
+    snapshot = safe_json_dict(result_record.checklist_snapshot_json)
+    if not any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in snapshot.get("items", [])
+    ):
+        return return_form_errors([("運行判断の対象外の様式です。", "")], 400)
+
+    if result_record.status not in {"承認待ち", "承認済み", "点検完了"}:
+        return return_form_errors([("点検完了後に運行判断を記録してください。", "")], 409)
+
+    vehicle = Vehicle.query.filter_by(
+        id=result_record.vehicle_record_id,
+        company_code=result_record.company_code,
+        deleted=False
+    ).first()
+    if not vehicle:
+        return return_form_errors([("対象車両を確認できません。", "")], 409)
+
+    previous_json = result_record.operation_judgment_json
+    previous = safe_json_dict(previous_json)
+    current_user = User.query.filter_by(
+        company_code=result_record.company_code,
+        username=session.get("username")
+    ).first()
+    if request.form.get("action") == "assign_operation_manager":
+        if not current_user or not (
+            current_user.role == "admin"
+            or (
+                current_user.role == "user"
+                and current_user.username == result_record.checked_by_username
+            )
+        ):
+            return return_form_errors([("整備管理者・補助者の設定は、点検者または管理者が行ってください。", "")], 403)
+
+        if previous.get("requested_usernames") or previous.get("status") not in {None, "", "未判定"}:
+            return return_form_errors([("整備管理者・補助者または判断結果が既に登録されています。再読み込みしてください。", "")], 409)
+
+        try:
+            expected_version = int(request.form.get("judgment_version", ""))
+            current_version = int(previous.get("version") or 0)
+        except (TypeError, ValueError):
+            return return_form_errors([("画面を再読み込みしてください。", "")], 409)
+
+        if expected_version != current_version:
+            return return_form_errors([("記録が更新されています。再読み込みしてください。", "")], 409)
+
+        manager = User.query.filter_by(
+            company_code=result_record.company_code,
+            username=request.form.get("manager_username", "").strip(),
+            role="admin"
+        ).first()
+        if not manager:
+            return return_form_errors([("整備管理者・補助者を選択してください。", "manager_username")], 400)
+
+        if request.headers.get("X-DKSS-Validation-Only") == "1":
+            return jsonify({"success": True})
+
+        judgment = dict(previous)
+        judgment["requested_usernames"] = [manager.username]
+        judgment["version"] = current_version + 1
+        created_at = get_user_local_now(
+            result_record.company_code, current_user.username
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        manager_name = (
+            (manager.last_name or "") + (manager.first_name or "")
+            or manager.username
+        )
+        notification_link = url_for(
+            "vehicle_checklist_results",
+            index=result_record.checklist_id,
+            vehicle_record_id=result_record.vehicle_record_id,
+            year=result_record.year,
+            month=result_record.month,
+            active_day=result_record.day
+        ) + "#vehicle-flow-judgment"
+        notification_title = "運行判断の依頼"
+        notification_message = (
+            f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
+            "整備管理者として運行判断を依頼されました。点検結果と不具合の対応状況を確認し、運行可否を登録してください。"
+        )
+
+        try:
+            updated = VehicleChecklistResult.query.filter_by(
+                id=result_record.id,
+                company_code=result_record.company_code,
+                operation_judgment_json=previous_json
+            ).update({
+                "operation_judgment_json": json.dumps(judgment, ensure_ascii=False)
+            }, synchronize_session=False)
+
+            if updated != 1:
+                db.session.rollback()
+                return return_form_errors([("記録が更新されています。再読み込みしてください。", "")], 409)
+
+            db.session.add(ChecklistEvent(
+                company_code=result_record.company_code,
+                result_type="vehicle",
+                result_id=result_record.id,
+                event_type="運行管理者設定",
+                actor_username=current_user.username,
+                actor_name=(
+                    (current_user.last_name or "") + (current_user.first_name or "")
+                    or current_user.username
+                ),
+                created_at=created_at,
+                detail_json=json.dumps({"運行管理者": manager_name}, ensure_ascii=False)
+            ))
+            db.session.add(Notification(
+                company_code=result_record.company_code,
+                target_user=manager_name,
+                target_username=manager.username,
+                title=notification_title,
+                message=notification_message,
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=created_at
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("運行管理者の設定に失敗しました。")
+            return return_form_errors([("整備管理者・補助者を設定できませんでした。", "")], 500)
+
+        try:
+            dispatch_external_notification(
+                manager, notification_title, notification_message, notification_link
+            )
+        except Exception:
+            app.logger.exception("運行管理者設定の外部通知に失敗しました。")
+
+        return redirect(notification_link)
+
+    if (
+        not current_user
+        or current_user.role != "admin"
+        or current_user.username not in previous.get("requested_usernames", [])
+    ):
+        return return_form_errors([("選択された運行判断の担当者が操作してください。", "")], 403)
+
+    decision = request.form.get("decision", "").strip()
+    reason = request.form.get("reason", "").strip()
+    authority_role = request.form.get("authority_role", "").strip()
+
+    if decision not in {"運行可", "運行不可", "判定保留"}:
+        return return_form_errors([
+            ("運行可・運行不可・判定保留を選択してください。", "decision")
+        ])
+    if len(reason) > 5000:
+        return return_form_errors([("補足・判断理由は5000文字以内で入力してください。", "reason")])
+    if decision in {"運行不可", "判定保留"} and not reason:
+        return return_form_errors([("運行不可・判断保留の場合は理由を入力してください。", "reason")])
+    if (
+        authority_role not in {"整備管理者", "補助者"}
+        or request.form.get("authority_confirmed") != "1"
+    ):
+        return return_form_errors([("対象車両の運行判断を行う権限があることを確認してください。", "authority_confirmed")], 403)
+
+    try:
+        expected_version = int(request.form.get("judgment_version", ""))
+        current_version = int(previous.get("version", 0))
+        expected_answers = json.loads(request.form.get("expected_answers", ""))
+        expected_snapshot = json.loads(request.form.get("expected_snapshot", ""))
+    except (TypeError, ValueError):
+        return return_form_errors([("画面を再読み込みして、点検内容を確認してください。", "")], 409)
+
+    if (
+        expected_version != current_version
+        or expected_answers != safe_json_dict_list(result_record.answers_json)
+        or expected_snapshot != snapshot
+    ):
+        return return_form_errors([("点検内容または運行判断が更新されています。再読み込みして確認してください。", "")], 409)
+
+    approval_items = [
+        item for item in snapshot.get("items", [])
+        if item.get("item_type") == "approval"
+        or (
+            item.get("item_type") == "operation_judgment"
+            and item.get("item_code") == "footer_30"
+        )
+    ]
+    previous_approvals_json = result_record.approvals_json
+    approvals = safe_json_dict_list(previous_approvals_json)
+    if len(approval_items) != 1 or len(approvals) > 1:
+        return return_form_errors([("標準点検表の確認欄を確認してください。", "")], 409)
+    if not approvals:
+        approvals = [{
+            "label": approval_items[0].get("approval_label", "整備管理者（又は補助者）"),
+            "allow_general": False,
+            "candidate_usernames": list(previous.get("requested_usernames", [])),
+            "approved_by": "",
+            "approved_by_username": "",
+            "approved_date": "",
+        }]
+
+    checks_evidence = ""
+
+    if decision == "運行可":
+        if request.form.get("checks_confirmed") != "1":
+            return return_form_errors([
+                ("必要な点検・確認の実施を確認してください。", "checks_confirmed")
+            ])
+
+        if request.form.get("vehicle_operation_basis", "") != get_vehicle_operation_basis(
+            result_record.company_code,
+            result_record.vehicle_record_id
+        ):
+            return return_form_errors([
+                ("この車両の点検・不具合対応が更新されています。再読み込みして確認してください。", "")
+            ], 409)
+
+        if get_vehicle_open_inspection_defects(
+            result_record.company_code,
+            result_record.vehicle_record_id
+        ):
+            return return_form_errors([
+                ("未解消の不具合があります。整備・再確認を完了してから判断してください。", "decision")
+            ], 409)
+
+        answers_by_no = {
+            str(answer.get("item_no", "")): answer
+            for answer in safe_json_dict_list(result_record.answers_json)
+        }
+        check_items = [
+            item
+            for item in snapshot.get("items", [])
+            if item.get("item_type") == "check"
+        ]
+
+        for item_no, item in enumerate(check_items):
+            if item.get("answer_required") and not str(
+                answers_by_no.get(str(item_no), {}).get("value") or ""
+            ).strip():
+                return return_form_errors([
+                    ("必須の点検項目に未回答があります。確認してから判断してください。", "decision")
+                ])
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"success": True})
+
+    judged_at = get_user_local_now(
+        result_record.company_code,
+        current_user.username
+    ).strftime("%Y-%m-%d %H:%M:%S")
+    judgment = {
+        **previous,
+        "status": decision,
+        "reason": reason,
+        "judged_by": (current_user.last_name or "") + (current_user.first_name or ""),
+        "judged_by_username": current_user.username,
+        "judged_at": judged_at,
+        "authority_role": authority_role,
+        "authority_confirmed": True,
+        "checks_confirmed": decision == "運行可",
+        "checks_evidence": checks_evidence,
+        "version": current_version + 1
+    }
+
+    approval = approvals[0]
+    approval_added = not (
+        approval.get("approved_by") or approval.get("approved_by_username")
+    )
+    if approval_added:
+        approval["approved_by"] = judgment["judged_by"]
+        approval["approved_by_username"] = current_user.username
+        approval["approved_date"] = judged_at[:16]
+
+    try:
+        updated = VehicleChecklistResult.query.filter_by(
+            id=result_record.id,
+            company_code=result_record.company_code,
+            operation_judgment_json=previous_json,
+            approvals_json=previous_approvals_json,
+            answers_json=result_record.answers_json,
+            checklist_snapshot_json=result_record.checklist_snapshot_json,
+            status=result_record.status
+        ).update(
+            {
+                "operation_judgment_json": json.dumps(judgment, ensure_ascii=False),
+                "approvals_json": json.dumps(approvals, ensure_ascii=False),
+                "status": "承認済み",
+                "approved_by": approval.get("approved_by", ""),
+                "approved_by_username": approval.get("approved_by_username", ""),
+                "approved_date": approval.get("approved_date", ""),
+                "reject_reason": "",
+            },
+            synchronize_session=False
+        )
+        if updated != 1:
+            db.session.rollback()
+            return return_form_errors([("点検記録が更新されています。再読み込みして確認してください。", "")], 409)
+
+        db.session.add(ChecklistEvent(
+            company_code=result_record.company_code,
+            result_type="vehicle",
+            result_id=result_record.id,
+            event_type="運行判断",
+            actor_username=current_user.username,
+            actor_name=judgment["judged_by"],
+            detail_json=json.dumps(
+                {"previous_judgment": previous, "judgment": judgment},
+                ensure_ascii=False
+            ),
+            created_at=judged_at
+        ))
+
+        notification_target = None
+        notification_title = "車両の運行判断：" + decision
+        notification_message = (
+            f"点検日：{result_record.year}-{result_record.month}-{result_record.day}\n"
+            f"判断：{decision}\n理由：{reason}"
+        )
+        notification_link = url_for(
+            "vehicle_checklist_results",
+            index=result_record.checklist_id,
+            vehicle_record_id=result_record.vehicle_record_id,
+            year=result_record.year,
+            month=result_record.month,
+            active_day=result_record.day
+        ) + "#vehicle-flow-judgment"
+
+        if result_record.checked_by_username:
+            notification_target = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=result_record.checked_by_username
+            ).first()
+
+        if notification_target:
+            db.session.add(Notification(
+                company_code=result_record.company_code,
+                target_user=(notification_target.last_name or "")
+                + (notification_target.first_name or ""),
+                target_username=notification_target.username,
+                title=notification_title,
+                message=notification_message,
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=judged_at
+            ))
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("運行判断の保存に失敗しました。")
+        return return_form_errors([("運行判断を保存できませんでした。もう一度お試しください。", "")], 500)
+
+    if notification_target:
+        try:
+            dispatch_external_notification(
+                notification_target,
+                notification_title,
+                notification_message,
+                notification_link
+            )
+        except Exception:
+            app.logger.exception("運行判断の外部通知に失敗しました。")
+
+    redirect_url = url_for(
+        "vehicle_checklist_results",
+        index=result_record.checklist_id,
+        vehicle_record_id=result_record.vehicle_record_id,
+        year=result_record.year,
+        month=result_record.month,
+        active_day=result_record.day
+    ) + "#vehicle-flow-judgment"
+    if request.headers.get("X-DKSS-Final-Submit") == "1":
+        return jsonify({"redirect_url": redirect_url})
+    return redirect(redirect_url)
+
+@app.route(
     "/vehicle/checklist-results/<int:result_index>/approve/<int:approval_index>",
     methods=["POST"]
 )
 @limiter.limit("20 per minute")
 def approve_vehicle_checklist_result(result_index, approval_index):
+    lock_error = lock_vehicle_inspection_updates(
+        session.get("company_code"),
+        result_index=result_index
+    )
+    if lock_error is not None:
+        return lock_error
     result_record = (
         VehicleChecklistResult.query
         .filter_by(
@@ -19001,6 +20145,15 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         or approval.get("approved_by_username")
     ):
         return redirect("/vehicle/checklists")
+
+    approval_snapshot = safe_json_dict(result_record.checklist_snapshot_json)
+    if any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in approval_snapshot.get("items", [])
+    ):
+        return return_form_errors([
+            ("標準の日常点検表は、運行判断の欄から確認・判断を保存してください。", "")
+        ], 409)
 
     result = vehicle_checklist_result_to_dict(result_record)
 
@@ -19206,6 +20359,12 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 )
 @limiter.limit("20 per minute")
 def reject_vehicle_checklist_result(result_index):
+    lock_error = lock_vehicle_inspection_updates(
+        session.get("company_code"),
+        result_index=result_index
+    )
+    if lock_error is not None:
+        return lock_error
     result_record = (
         VehicleChecklistResult.query
         .filter_by(
@@ -19659,6 +20818,44 @@ def export_vehicle_checklist_result_excel(result_index):
 
             day_result = results_by_day.get(day)
 
+            if day_result:
+                result_snapshot = (
+                    day_result.get("checklist_snapshot") or {}
+                )
+                if result_snapshot:
+                    day_checklist = result_snapshot
+
+            if current_checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+                current_template = next(
+                    (
+                        item
+                        for item in current_checklist.get("items", [])
+                        if item.get("fixed_template_code")
+                        == "daily_inspection_truck_trailer"
+                    ),
+                    {}
+                )
+                saved_template = next(
+                    (
+                        item
+                        for item in day_checklist.get("items", [])
+                        if item.get("fixed_template_code")
+                        == "daily_inspection_truck_trailer"
+                    ),
+                    {}
+                )
+                current_version = current_template.get(
+                    "fixed_template_version",
+                    1
+                )
+                saved_version = saved_template.get(
+                    "fixed_template_version",
+                    current_version
+                )
+
+                if str(saved_version) == str(current_version):
+                    day_checklist = current_checklist
+
             checklist_key = checklist_revision_key(
                 day_checklist
             )
@@ -19696,6 +20893,7 @@ def export_vehicle_checklist_result_excel(result_index):
     half_month_mode = (
         excel_display_mode == "day"
         and checklist.get("print_half_month")
+        and checklist.get("fixed_template_code") != "daily_inspection_truck_trailer"
         and len(excel_render_sections) == 1
     )
 
@@ -19983,8 +21181,16 @@ def export_vehicle_checklist_result_excel(result_index):
         shaded_rows = set()
 
         item_no = -1
+        approval_row_positions = []
 
         for item in excel_checklist.get("items", []):
+
+            if item.get("item_type") in {
+                "inspector", "approval", "operation_judgment"
+            }:
+                approval_row_positions.append(current_row)
+                current_row += 1
+                continue
 
             if item.get("item_type") != "check":
                 continue
@@ -20225,11 +21431,13 @@ def export_vehicle_checklist_result_excel(result_index):
         approval_items = [
             item
             for item in excel_checklist.get("items", [])
-            if item.get("item_type") in {"inspector", "approval"}
+            if item.get("item_type") in {
+                "inspector", "approval", "operation_judgment"
+            }
         ]
 
         for approval_index, approval_item in enumerate(approval_items):
-            approval_row = current_row
+            approval_row = approval_row_positions[approval_index]
 
             sheet.row_dimensions[approval_row].height = 28
 
@@ -20237,13 +21445,20 @@ def export_vehicle_checklist_result_excel(result_index):
                 row=approval_row,
                 column=1,
                 value=(
-                    "実施者"
+                    (approval_item.get("content") or "実施者")
                     if approval_item.get("item_type") == "inspector"
-                    else approval_item.get("approval_label", "") or "承認"
+                    else (
+                        approval_item.get("content") or "整備管理者"
+                        if approval_item.get("item_type") == "operation_judgment"
+                        else approval_item.get("approval_label", "") or "承認"
+                    )
                 )
             )
 
             for period_result in excel_period_results:
+                if approval_item.get("item_type") == "operation_judgment":
+                    continue
+
                 if approval_item.get("item_type") == "inspector":
                     approval = {
                         "approved_by": period_result.get("checked_by", ""),
@@ -20320,8 +21535,6 @@ def export_vehicle_checklist_result_excel(result_index):
                     vertical="center",
                     wrap_text=True
                 )
-
-            current_row += 1
 
         # 表全体の罫線・配置
         thin = Side(
@@ -20656,6 +21869,553 @@ def export_vehicle_checklist_result_excel(result_index):
         )
     )
 
+def lock_vehicle_inspection_updates(
+    company_code,
+    vehicle_record_id=None,
+    checklist=None,
+    result_index=None
+):
+    if result_index is not None:
+        record = VehicleChecklistResult.query.filter_by(
+            id=result_index,
+            company_code=company_code
+        ).first()
+        if not record:
+            return None
+
+        vehicle_record_id = record.vehicle_record_id
+        checklist = safe_json_dict(record.checklist_snapshot_json)
+
+    if not any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in (checklist or {}).get("items", [])
+    ):
+        return None
+
+    try:
+        locked = Vehicle.query.filter_by(
+            company_code=company_code,
+            id=vehicle_record_id,
+            deleted=False
+        ).update(
+            {Vehicle.id: Vehicle.id},
+            synchronize_session=False
+        )
+
+        if locked != 1:
+            db.session.rollback()
+            return return_form_errors([
+                ("対象車両を確認できません。", "")
+            ], 404)
+
+        db.session.expire_all()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("日常点検の車両更新ロックに失敗しました。")
+        return return_form_errors([
+            ("この車両の保存処理が競合しました。少し待ってからもう一度操作してください。", "")
+        ], 409)
+
+    return None
+
+
+def get_vehicle_operation_basis(company_code, vehicle_record_id):
+    if not company_code or not vehicle_record_id:
+        return ""
+
+    from hashlib import sha256
+
+    basis = []
+    records = VehicleChecklistResult.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id
+    ).order_by(VehicleChecklistResult.id.asc()).all()
+
+    for record in records:
+        snapshot = safe_json_dict(record.checklist_snapshot_json)
+        if any(
+            item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+            for item in snapshot.get("items", [])
+        ):
+            basis.append([
+                record.id,
+                record.answers_json,
+                record.checklist_snapshot_json,
+                record.operation_judgment_json,
+                record.status,
+            ])
+
+    return sha256(
+        json.dumps(basis, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def get_vehicle_open_inspection_defects(company_code, vehicle_record_id):
+    if not company_code or not vehicle_record_id:
+        return []
+
+    records = VehicleChecklistResult.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id
+    ).order_by(VehicleChecklistResult.id.asc()).all()
+
+    open_defects = []
+
+    for record in records:
+        snapshot = safe_json_dict(record.checklist_snapshot_json)
+        if not any(
+            item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+            for item in snapshot.get("items", [])
+        ):
+            continue
+
+        judgment = safe_json_dict(record.operation_judgment_json)
+        defects = list(judgment.get("defects") or [])
+
+        for answer in safe_json_dict_list(record.answers_json):
+            if str(answer.get("value") or "").strip() != "×":
+                continue
+
+            item_no = str(answer.get("item_no", ""))
+            accounted_for = any(
+                str(defect.get("item_no", "")) == item_no
+                and (
+                    defect.get("status") != "解消"
+                    or all(
+                        defect.get("rechecked_answer", {}).get(field)
+                        == answer.get(field)
+                        for field in ("value", "comment", "files")
+                    )
+                )
+                for defect in defects
+            )
+            if not accounted_for:
+                defects.append({
+                    "item_no": item_no,
+                    "status": "対応待ち",
+                    "reported_answer": dict(answer),
+                })
+
+        for defect in defects:
+            if defect.get("status") == "解消":
+                continue
+
+            open_defects.append({
+                "result_id": record.id,
+                "judgment_version": judgment.get("version", 0),
+                "inspection_date": (
+                    f"{record.year}/"
+                    f"{str(record.month).zfill(2)}/"
+                    f"{str(record.day).zfill(2)}"
+                ),
+                "defect": dict(defect),
+                "link": url_for(
+                    "vehicle_checklist_results",
+                    index=record.checklist_id,
+                    vehicle_record_id=record.vehicle_record_id,
+                    year=record.year,
+                    month=record.month,
+                    active_day=record.day
+                ),
+            })
+
+    return open_defects
+
+
+def invalidate_other_vehicle_operation_judgments(result_record):
+    if not result_record.vehicle_record_id:
+        return
+
+    local_now = get_user_local_now(
+        result_record.company_code,
+        session.get("username")
+    )
+    today = (local_now.year, local_now.month, local_now.day)
+    reason = "同じ車両の点検・不具合対応が更新されたため、再判定が必要です。"
+
+    with db.session.no_autoflush:
+        records = VehicleChecklistResult.query.filter_by(
+            company_code=result_record.company_code,
+            vehicle_record_id=result_record.vehicle_record_id
+        ).all()
+
+    for record in records:
+        if record.id == result_record.id:
+            continue
+        try:
+            inspection_date = (
+                int(record.year), int(record.month), int(record.day)
+            )
+        except (TypeError, ValueError):
+            continue
+        if inspection_date < today:
+            continue
+
+        checklist = safe_json_dict(record.checklist_snapshot_json)
+        if not any(
+            item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+            for item in checklist.get("items", [])
+        ):
+            continue
+
+        previous = safe_json_dict(record.operation_judgment_json)
+        if previous.get("status") != "運行可":
+            continue
+
+        judgment = {
+            **previous,
+            "status": "未判定",
+            "version": int(previous.get("version") or 0) + 1,
+            "reason": reason,
+        }
+        for key in (
+            "judged_by", "judged_by_username", "judged_at",
+            "authority_role", "authority_confirmed",
+            "checks_confirmed", "checks_evidence"
+        ):
+            judgment.pop(key, None)
+
+        record.operation_judgment_json = json.dumps(
+            judgment, ensure_ascii=False
+        )
+        db.session.add(ChecklistEvent(
+            company_code=record.company_code,
+            result_type="vehicle",
+            result_id=record.id,
+            event_type="運行判断",
+            actor_username=session.get("username"),
+            actor_name=session.get("name"),
+            created_at=local_now.strftime("%Y-%m-%d %H:%M:%S"),
+            detail_json=json.dumps({
+                "previous_judgment": previous,
+                "judgment": judgment,
+                "changed_result_id": result_record.id,
+            }, ensure_ascii=False)
+        ))
+
+        vehicle = Vehicle.query.filter_by(
+            company_code=record.company_code,
+            id=record.vehicle_record_id
+        ).first()
+        vehicle_name = (
+            " ".join(
+                value for value in (
+                    vehicle.plate_area or "",
+                    vehicle.plate_class or "",
+                    vehicle.plate_kana or "",
+                    vehicle.plate_number or "",
+                ) if value
+            ) if vehicle else ""
+        ) or f"車両ID：{record.vehicle_record_id}"
+        notification_link = url_for(
+            "vehicle_checklist_results",
+            index=record.checklist_id,
+            vehicle_record_id=record.vehicle_record_id,
+            year=record.year,
+            month=record.month,
+            active_day=record.day
+        ) + "#vehicle-flow-judgment"
+
+        for username in sorted(set(previous.get("requested_usernames") or [])):
+            target_user = User.query.filter_by(
+                company_code=record.company_code,
+                username=username,
+                role="admin"
+            ).first()
+            if not target_user:
+                continue
+
+            notification = Notification(
+                company_code=record.company_code,
+                target_user=(target_user.last_name or "") + (target_user.first_name or ""),
+                target_username=target_user.username,
+                title="運行可否の再判定依頼：" + vehicle_name,
+                message=(
+                    f"対象車両：{vehicle_name}\n"
+                    f"点検日：{record.year}/{record.month}/{record.day}\n"
+                    f"{reason}\n"
+                    "点検結果と未解消の不具合を確認し、運行可否を再登録してください。"
+                ),
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=local_now.strftime("%Y-%m-%d %H:%M:%S")
+            )
+            db.session.add(notification)
+            result_record._pending_defect_notifications = (
+                getattr(result_record, "_pending_defect_notifications", [])
+                + [(target_user, notification)]
+            )
+
+
+def dispatch_vehicle_defect_notifications(result_record):
+    notifications = getattr(
+        result_record,
+        "_pending_defect_notifications",
+        []
+    )
+    result_record._pending_defect_notifications = []
+
+    for target_user, notification in notifications:
+        try:
+            dispatch_external_notification(
+                target_user,
+                notification.title,
+                notification.message,
+                notification.link
+            )
+        except Exception:
+            app.logger.exception(
+                "日常点検の異常報告の外部通知に失敗しました。"
+            )
+
+
+def reset_vehicle_operation_judgment(result_record, result_checklist):
+    if not any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in result_checklist.get("items", [])
+    ):
+        return
+
+    previous = safe_json_dict(result_record.operation_judgment_json)
+    judgment = dict(previous)
+    defects = list(judgment.get("defects") or [])
+
+    for answer in safe_json_dict_list(result_record.answers_json):
+        if str(answer.get("value") or "").strip() != "×":
+            continue
+
+        item_no = str(answer.get("item_no", ""))
+        if not item_no or any(
+            str(defect.get("item_no", "")) == item_no
+            and (
+                defect.get("status") != "解消"
+                or all(
+                    defect.get("rechecked_answer", {}).get(field)
+                    == answer.get(field)
+                    for field in ("value", "comment", "files")
+                )
+            )
+            for defect in defects
+        ):
+            continue
+
+        defects.append({
+            "defect_no": len(defects) + 1,
+            "item_no": item_no,
+            "status": "対応待ち",
+            "reported_by": session.get("name") or "",
+            "reported_by_username": session.get("username") or "",
+            "reported_at": get_user_local_now(
+                result_record.company_code,
+                session.get("username")
+            ).strftime("%Y-%m-%d %H:%M:%S"),
+            "reported_answer": dict(answer),
+        })
+
+    new_defects = defects[len(previous.get("defects") or []):]
+    if new_defects:
+        target_usernames = set(previous.get("requested_usernames") or [])
+
+        if not target_usernames:
+            inspector = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=result_record.checked_by_username
+            ).first()
+
+            if inspector and inspector.office:
+                target_usernames.update(
+                    user.username
+                    for user in User.query.filter_by(
+                        company_code=result_record.company_code,
+                        office=inspector.office,
+                        role="admin"
+                    ).all()
+                )
+
+        vehicle = Vehicle.query.filter_by(
+            company_code=result_record.company_code,
+            id=result_record.vehicle_record_id
+        ).first()
+
+        vehicle_name = (
+            " ".join(
+                value
+                for value in (
+                    vehicle.plate_area or "",
+                    vehicle.plate_class or "",
+                    vehicle.plate_kana or "",
+                    vehicle.plate_number or "",
+                )
+                if value
+            )
+            if vehicle else ""
+        ) or f"車両ID：{result_record.vehicle_record_id}"
+
+        notification_link = url_for(
+            "vehicle_checklist_results",
+            index=result_record.checklist_id,
+            vehicle_record_id=result_record.vehicle_record_id,
+            year=result_record.year,
+            month=result_record.month,
+            active_day=result_record.day
+        ) + (
+            f"#vehicle-flow-defect-{result_record.id}-"
+            f"{new_defects[0]['defect_no']}"
+        )
+
+        item_names = "\n".join(
+            f"No.{int(defect['item_no']) + 1} "
+            f"{defect.get('reported_answer', {}).get('content') or ''}"
+            for defect in new_defects
+        )
+
+        for target_username in sorted(target_usernames):
+            target_user = User.query.filter_by(
+                company_code=result_record.company_code,
+                username=target_username,
+                role="admin"
+            ).first()
+
+            if not target_user:
+                continue
+
+            notification = Notification(
+                company_code=result_record.company_code,
+                target_user=(target_user.last_name or "")
+                + (target_user.first_name or ""),
+                target_username=target_user.username,
+                title="日常点検の異常報告：" + vehicle_name,
+                message=(
+                    f"対象車両：{vehicle_name}\n"
+                    f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
+                    f"異常項目：\n{item_names}\n"
+                    "不具合対応と運行可否の判断を確認してください。"
+                ),
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=new_defects[-1]["reported_at"]
+            )
+            db.session.add(notification)
+
+            result_record._pending_defect_notifications = (
+                getattr(result_record, "_pending_defect_notifications", [])
+                + [(target_user, notification)]
+            )
+
+    judgment["defects"] = defects
+    judgment["status"] = "未判定"
+    judgment["version"] = int(previous.get("version") or 0) + 1
+
+    for key in (
+        "reason",
+        "judged_by",
+        "judged_by_username",
+        "judged_at",
+        "authority_role",
+        "authority_confirmed",
+        "checks_confirmed",
+        "checks_evidence",
+    ):
+        judgment.pop(key, None)
+
+    result_record.operation_judgment_json = json.dumps(
+        judgment,
+        ensure_ascii=False
+    )
+
+    invalidate_other_vehicle_operation_judgments(result_record)
+
+    if previous.get("status") not in (
+        "運行可",
+        "運行不可",
+        "判定保留",
+    ):
+        return
+
+    vehicle = Vehicle.query.filter_by(
+        company_code=result_record.company_code,
+        id=result_record.vehicle_record_id
+    ).first()
+    vehicle_name = (
+        " ".join(
+            value for value in (
+                vehicle.plate_area or "",
+                vehicle.plate_class or "",
+                vehicle.plate_kana or "",
+                vehicle.plate_number or "",
+            ) if value
+        ) if vehicle else ""
+    ) or f"車両ID：{result_record.vehicle_record_id}"
+    notification_link = url_for(
+        "vehicle_checklist_results",
+        index=result_record.checklist_id,
+        vehicle_record_id=result_record.vehicle_record_id,
+        year=result_record.year,
+        month=result_record.month,
+        active_day=result_record.day
+    ) + "#vehicle-flow-judgment"
+    recorded_at = get_user_local_now(
+        result_record.company_code,
+        session.get("username")
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    for username in sorted(set(previous.get("requested_usernames") or [])):
+        target_user = User.query.filter_by(
+            company_code=result_record.company_code,
+            username=username,
+            role="admin"
+        ).first()
+        if not target_user:
+            continue
+
+        notification = Notification(
+            company_code=result_record.company_code,
+            target_user=(target_user.last_name or "") + (target_user.first_name or ""),
+            target_username=target_user.username,
+            title="運行可否の再判定依頼：" + vehicle_name,
+            message=(
+                f"対象車両：{vehicle_name}\n"
+                f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
+                "点検内容が変更され、変更前の運行判断は無効になりました。"
+                "点検結果と未解消の不具合を確認し、運行可否を再登録してください。"
+            ),
+            link=notification_link,
+            files_json="[]",
+            read=False,
+            created_at=recorded_at
+        )
+        db.session.add(notification)
+        result_record._pending_defect_notifications = (
+            getattr(result_record, "_pending_defect_notifications", [])
+            + [(target_user, notification)]
+        )
+
+    db.session.add(ChecklistEvent(
+        company_code=result_record.company_code,
+        result_type="vehicle",
+        result_id=result_record.id,
+        event_type="運行判断",
+        actor_username=session.get("username"),
+        actor_name=session.get("name"),
+        detail_json=json.dumps(
+            {
+                "previous_judgment": previous,
+                "judgment": {
+                    **judgment,
+                    "reason": "点検内容が変更されたため、再判定が必要です。",
+                },
+            },
+            ensure_ascii=False
+        ),
+        created_at=get_user_local_now(
+            result_record.company_code,
+            session.get("username")
+        ).strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
+
 @app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])
 @limiter.limit("20 per minute")
 def save_vehicle_checklist_one(index):
@@ -20803,6 +22563,14 @@ def save_vehicle_checklist_one(index):
         "value",
         ""
     )
+
+    lock_error = lock_vehicle_inspection_updates(
+        company_code,
+        vehicle_record_id=vehicle_record_id,
+        checklist=checklist
+    )
+    if lock_error is not None:
+        return lock_error
 
     result_record = (
         VehicleChecklistResult.query
@@ -20988,6 +22756,17 @@ def save_vehicle_checklist_one(index):
     answer["content"] = content
     answer["criteria"] = criteria
 
+    if (
+        not value.strip()
+        and not str(answer.get("comment") or "").strip()
+        and not answer.get("files")
+    ):
+        answers = [
+            stored_answer
+            for stored_answer in answers
+            if stored_answer is not answer
+        ]
+
     was_rejected = (
         result_record.status == "差し戻し"
     )
@@ -21042,6 +22821,12 @@ def save_vehicle_checklist_one(index):
         result_record.reject_reason = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
 
+    if previous_value != value:
+        reset_vehicle_operation_judgment(
+            result_record,
+            result_checklist
+        )
+
     if was_rejected and previous_value != value:
         checklist_event = ChecklistEvent(
             company_code=result_record.company_code,
@@ -21080,6 +22865,8 @@ def save_vehicle_checklist_one(index):
                 ""
             )
         ], status_code=409)
+
+    dispatch_vehicle_defect_notifications(result_record)
 
     notify_mentions(
         value,
@@ -21482,6 +23269,19 @@ def save_vehicle_checklist_detail(index):
     answer["content"] = content
     answer["criteria"] = criteria
 
+    answer_value = answer.get("value", "")
+
+    if (
+        (answer_value is None or not str(answer_value).strip())
+        and not comment
+        and not answer.get("files")
+    ):
+        answers = [
+            stored_answer
+            for stored_answer in answers
+            if stored_answer is not answer
+        ]
+
     was_rejected = (
         result_record.status == "差し戻し"
     )
@@ -21534,6 +23334,15 @@ def save_vehicle_checklist_detail(index):
     if not was_rejected:
         result_record.reject_reason = ""
     result_record.answers_json = json.dumps(answers, ensure_ascii=False)
+
+    if (
+        previous_comment != comment
+        or previous_files != answer.get("files", [])
+    ):
+        reset_vehicle_operation_judgment(
+            result_record,
+            result_checklist
+        )
 
     if (
         was_rejected
@@ -21616,6 +23425,8 @@ def save_vehicle_checklist_detail(index):
             )
         ], status_code=500)
     
+    dispatch_vehicle_defect_notifications(result_record)
+
     notify_mentions(
         comment,
         f"/vehicle/checklists/{checklist_record.id}?vehicle_record_id={vehicle_record_id}&year={year}&month={month}&active_day={active_day}"
@@ -21808,7 +23619,12 @@ def complete_vehicle_checklist(index):
             reject_reason="",
             answers_json="[]",
             checklist_snapshot_json=json.dumps(
-                checklist,
+                checklist_for_date(
+                    checklist,
+                    year,
+                    month,
+                    day
+                ),
                 ensure_ascii=False
             )
         )
@@ -21830,7 +23646,12 @@ def complete_vehicle_checklist(index):
             )
         ], status_code=409)
 
-    result_checklist = checklist
+    result_checklist = checklist_for_date(
+        checklist,
+        year,
+        month,
+        day
+    )
 
     if result_record.checklist_snapshot_json:
         snapshot = safe_json_dict(
@@ -21839,6 +23660,11 @@ def complete_vehicle_checklist(index):
 
         if snapshot:
             result_checklist = snapshot
+    else:
+        result_record.checklist_snapshot_json = json.dumps(
+            result_checklist,
+            ensure_ascii=False
+        )
 
     answers = safe_json_dict_list(
         result_record.answers_json
@@ -21975,6 +23801,12 @@ def complete_vehicle_checklist(index):
             session.get("username")
         ]
 
+    if any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in result_checklist.get("items", [])
+    ):
+        notify_usernames = []
+
     # =========================
     # 完了処理
     # =========================
@@ -22053,6 +23885,75 @@ def complete_vehicle_checklist(index):
             "approved_date": "",
         })
 
+    if any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in result_checklist.get("items", [])
+    ):
+        existing_defects = safe_json_dict(
+            result_record.operation_judgment_json
+        ).get("defects") or []
+
+        has_unregistered_defect = any(
+            str(answer.get("value") or "").strip() == "×"
+            and str(answer.get("item_no", ""))
+            and not any(
+                str(defect.get("item_no", ""))
+                == str(answer.get("item_no", ""))
+                and (
+                    defect.get("status") != "解消"
+                    or all(
+                        defect.get("rechecked_answer", {}).get(field)
+                        == answer.get(field)
+                        for field in ("value", "comment", "files")
+                    )
+                )
+                for defect in existing_defects
+            )
+            for answer in answers
+        )
+
+        if has_unregistered_defect:
+            reset_vehicle_operation_judgment(
+                result_record,
+                result_checklist
+            )
+
+        approval_items = [
+            item
+            for item in result_checklist.get("items", [])
+            if item.get("item_type") == "approval"
+        ]
+        judgment = safe_json_dict(result_record.operation_judgment_json)
+        judgment.setdefault("status", "未判定")
+        judgment["requested_usernames"] = []
+
+        for approval_index, item in enumerate(approval_items):
+            if item.get("item_code") == "footer_30":
+                previous_requested_usernames = safe_json_dict(
+                    result_record.operation_judgment_json
+                ).get("requested_usernames", [])
+
+                next_requested_usernames = approvals[
+                    approval_index
+                ].get("candidate_usernames", [])
+
+                if set(previous_requested_usernames) != set(
+                    next_requested_usernames
+                ):
+                    judgment["version"] = int(
+                        judgment.get("version") or 0
+                    ) + 1
+
+                judgment["requested_usernames"] = list(
+                    approvals[approval_index].get("candidate_usernames", [])
+                )
+                break
+
+        result_record.operation_judgment_json = json.dumps(
+            judgment,
+            ensure_ascii=False
+        )
+
     has_system_approval = bool(approvals)
 
     was_rejected = (
@@ -22099,6 +24000,7 @@ def complete_vehicle_checklist(index):
         db.session.add(checklist_event)
 
     db.session.commit()
+    dispatch_vehicle_defect_notifications(result_record)
 
     # =========================
     # 通知
@@ -22161,9 +24063,25 @@ def complete_vehicle_checklist(index):
                 target_username=target_user.username
             )
 
-    return redirect(
-        notification_link
-    )
+    completion_link = notification_link
+    if any(
+        item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+        for item in result_checklist.get("items", [])
+    ):
+        completion_link = url_for(
+            "vehicle_checklist_results",
+            index=checklist_record.id,
+            vehicle_record_id=vehicle_record_id,
+            year=year,
+            month=month,
+            active_day=active_day,
+            vehicle_saved="complete"
+        ) + "#vehicle-flow-completed"
+
+    if request.headers.get("X-DKSS-Final-Submit") == "1":
+        return jsonify({"success": True, "redirect_url": completion_link})
+
+    return redirect(completion_link)
 
 @app.route("/vehicle/checklists/<int:index>/new", methods=["GET", "POST"])
 @limiter.limit("20 per minute", methods=["POST"])
@@ -22183,6 +24101,13 @@ def new_vehicle_checklist_result(index):
         return redirect("/vehicle/checklists")
 
     if request.method == "POST":
+        lock_error = lock_vehicle_inspection_updates(
+            session.get("company_code"),
+            vehicle_record_id=request.form.get("vehicle_record_id", type=int),
+            checklist=checklist
+        )
+        if lock_error is not None:
+            return lock_error
         company_code = session.get("company_code")
 
         vehicle_record_id = request.form.get(
@@ -22299,6 +24224,13 @@ def new_vehicle_checklist_result(index):
         year = str(year_int)
         month = str(month_int).zfill(2)
         day = str(day_int).zfill(2)
+
+        checklist = checklist_for_date(
+            checklist,
+            year,
+            month,
+            day
+        )
 
         existing_result = VehicleChecklistResult.query.filter_by(
             company_code=company_code,
@@ -22564,6 +24496,14 @@ def new_vehicle_checklist_result(index):
                 answers[item_index]["files"].append(
                     filename
                 )
+
+        answers = [
+            answer
+            for answer in answers
+            if str(answer.get("value", "")).strip()
+            or str(answer.get("comment", "")).strip()
+            or answer.get("files")
+        ]
 
         result = VehicleChecklistResult(
             company_code=company_code,
@@ -23378,6 +25318,14 @@ def edit_checklist(index):
 
     checklist = checklist_to_dict(checklist_record)
 
+    if checklist.get("fixed_template_code"):
+        if request.method == "POST":
+            return return_form_errors(
+                [("標準の日常点検表は固定様式のため、変更できません。", "")],
+                403
+            )
+        return redirect("/master/checklists")
+
     if request.method == "POST":
         form_errors = []
 
@@ -24134,6 +26082,12 @@ def duplicate_checklist(index):
     if not source:
         return redirect("/master/checklists")
 
+    if checklist_to_dict(source).get("fixed_template_code"):
+        return return_form_errors(
+            [("標準の日常点検表は固定様式のため、複製できません。", "")],
+            403
+        )
+
     base_name = f"{source.name}（コピー）"
     new_name = base_name
     copy_no = 2
@@ -24190,6 +26144,12 @@ def toggle_checklist_active(index):
     if not checklist:
         return redirect("/master/checklists")
 
+    if checklist_to_dict(checklist).get("fixed_template_code"):
+        return return_form_errors(
+            [("標準の日常点検表は固定様式のため、無効化できません。", "")],
+            403
+        )
+
     checklist.active = not checklist.active
 
     add_audit_log(
@@ -24215,6 +26175,12 @@ def delete_checklist(index):
 
     if not checklist:
         return redirect("/master/checklists")
+
+    if checklist_to_dict(checklist).get("fixed_template_code"):
+        return return_form_errors(
+            [("標準の日常点検表は固定様式のため、削除できません。", "")],
+            403
+        )
 
     has_safety_results = ChecklistResult.query.filter_by(
         company_code=checklist.company_code,
@@ -25600,6 +27566,7 @@ with app.app_context():
     db.session.commit()
 
     vehicle_checklist_result_columns = [
+        ("operation_judgment_json", "TEXT"),
         ("notify_users_json", "TEXT"),
         ("approvals_json", "TEXT"),
         ("vehicle_record_id", "INTEGER"),

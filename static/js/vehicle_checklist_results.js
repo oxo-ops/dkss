@@ -1,4 +1,213 @@
 document.addEventListener("DOMContentLoaded", function () {
+    const responsePanel = document.getElementById("vehicle-inspection-response");
+    const flowPanel = document.querySelector(".vehicle-flow-panel");
+
+    if (responsePanel?.querySelector(".js-vehicle-judgment-completed")) {
+        responsePanel.querySelectorAll(".vehicle-judgment-heading")
+            .forEach(function (heading) {
+                const title = heading.querySelector("h4");
+                if (title?.textContent.trim() === "運行判断へ進むには") {
+                    heading.hidden = true;
+                }
+            });
+    }
+
+    if (responsePanel && flowPanel) {
+        const checks = document.querySelector(".vehicle-check-table-scroll");
+        if (checks) checks.id = "vehicle-flow-checks";
+
+        const overview = responsePanel.querySelector("h3");
+        if (overview) overview.id = "vehicle-flow-overview";
+
+        const judgmentTarget =
+            responsePanel.querySelector(".js-vehicle-judgment-completed")
+            || responsePanel.querySelector(".js-vehicle-operation-judgment, .js-vehicle-operation-manager")
+            || responsePanel.querySelector("h3 + p");
+
+        if (judgmentTarget) {
+            judgmentTarget.id = "vehicle-flow-judgment";
+        }
+
+        function showFlowTarget(hash) {
+            if (!hash.startsWith("#vehicle-flow-")) return;
+
+            const container = document.getElementById(hash.slice(1));
+            if (!container) return;
+
+            if (container.dataset.defectStatus === "解消") {
+                const nextLink = Array.from(
+                    flowPanel.querySelectorAll(".vehicle-flow-steps a")
+                ).find(function (link) {
+                    const url = new URL(link.href, window.location.href);
+                    return /^#vehicle-flow-defect-\d+-\d+$/.test(url.hash)
+                        && url.hash !== hash;
+                });
+
+                const destination = new URL(
+                    nextLink ? nextLink.href : "#vehicle-flow-judgment",
+                    window.location.href
+                );
+
+                const samePage =
+                    destination.origin === window.location.origin
+                    && destination.pathname === window.location.pathname
+                    && destination.search === window.location.search;
+
+                destination.searchParams.set("vehicle_notice", "resolved");
+                sessionStorage.removeItem("vehicleChecklistReturnPosition");
+
+                if (samePage) {
+                    window.history.replaceState(null, "", destination.href);
+                    showFlowTarget(destination.hash);
+                } else {
+                    window.location.assign(destination.href);
+                }
+                return;
+            }
+
+            const target =
+                container.querySelector(".js-vehicle-inspection-repair")
+                || container;
+
+            let ancestor = target;
+            while (ancestor) {
+                if (ancestor.tagName === "DETAILS") {
+                    ancestor.open = true;
+                }
+                ancestor = ancestor.parentElement;
+            }
+
+            document.querySelectorAll(".vehicle-flow-focus")
+                .forEach(function (item) {
+                    item.classList.remove("vehicle-flow-focus");
+                });
+
+            target.classList.add("vehicle-flow-focus");
+
+            const savedUrl = new URL(window.location.href);
+
+            if (savedUrl.searchParams.get("vehicle_notice") === "resolved") {
+                document.querySelectorAll(".vehicle-response-notice")
+                    .forEach(function (item) {
+                        item.remove();
+                    });
+
+                const notice = document.createElement("p");
+                notice.className = "vehicle-save-feedback vehicle-response-notice";
+                notice.setAttribute("role", "status");
+                notice.textContent = target.id === "vehicle-flow-judgment"
+                    ? "通知の対象は対応済みです。運行判断の状況を表示しました。"
+                    : "通知の対象は対応済みです。次の対応箇所を表示しました。";
+
+                const noticeTarget =
+                    target.closest(".vehicle-defect-workspace") || target;
+                noticeTarget.before(notice);
+
+                savedUrl.searchParams.delete("vehicle_notice");
+                window.history.replaceState(null, "", savedUrl.href);
+            }
+            const savedKind = savedUrl.searchParams.get("vehicle_saved");
+            const savedItem = savedUrl.searchParams.get("vehicle_saved_item") || "";
+            const savedDate = savedUrl.searchParams.get("vehicle_saved_date") || "";
+
+            if (
+                ["repair", "recheck"].includes(savedKind)
+                && /^\d+$/.test(savedItem)
+            ) {
+                document.querySelectorAll(".vehicle-save-feedback")
+                    .forEach(function (item) {
+                        item.remove();
+                    });
+
+                const feedback = document.createElement("p");
+                feedback.className = "vehicle-save-feedback";
+                feedback.setAttribute("role", "status");
+
+                const dateText = /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(savedDate)
+                    ? savedDate + " " : "";
+                const savedLabel = savedKind === "recheck"
+                    ? "再確認結果" : "整備内容";
+
+                feedback.textContent = dateText + "No." + savedItem
+                    + "の" + savedLabel + "を保存しました。";
+
+                const feedbackTarget =
+                    target.closest(".vehicle-defect-workspace") || target;
+                feedbackTarget.before(feedback);
+
+                savedUrl.searchParams.delete("vehicle_saved");
+                savedUrl.searchParams.delete("vehicle_saved_item");
+                savedUrl.searchParams.delete("vehicle_saved_date");
+                window.history.replaceState(null, "", savedUrl.href);
+            }
+
+            target.tabIndex = -1;
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({
+                block: "start",
+                behavior: "instant"
+            });
+
+            const message = document.getElementById("vehicle-flow-message");
+            if (message) {
+                message.textContent = target.matches(".js-vehicle-judgment-completed")
+                    ? "運行判断は登録済みです。保存した結果を表示しています。"
+                    : target.matches(
+                    ".js-vehicle-inspection-repair, .js-vehicle-operation-judgment"
+                )
+                    ? "入力欄を開きました。青枠の箇所で対応してください。"
+                    : "青枠の箇所を表示しました。入力欄がない場合は閲覧のみです。";
+            }
+        }
+
+        document.addEventListener("click", function (event) {
+            const link = event.target.closest(".js-vehicle-flow-link");
+            if (!link) return;
+
+            const destination = new URL(link.href, window.location.href);
+
+            if (
+                destination.origin !== window.location.origin
+                || destination.pathname !== window.location.pathname
+                || destination.search !== window.location.search
+            ) {
+                return;
+            }
+
+            if (!document.getElementById(destination.hash.slice(1))) {
+                return;
+            }
+
+            event.preventDefault();
+            sessionStorage.removeItem("vehicleChecklistReturnPosition");
+            window.history.replaceState(null, "", destination.href);
+            showFlowTarget(destination.hash);
+        });
+
+        window.addEventListener("hashchange", function () {
+            showFlowTarget(window.location.hash);
+        });
+
+        if (window.location.hash.startsWith("#vehicle-flow-")) {
+            sessionStorage.removeItem("vehicleChecklistReturnPosition");
+
+            const showAfterLoad = function () {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        showFlowTarget(window.location.hash);
+                    });
+                });
+            };
+
+            if (document.readyState === "complete") {
+                showAfterLoad();
+            } else {
+                window.addEventListener("load", showAfterLoad, {
+                    once: true
+                });
+            }
+        }
+    }
     const config =
         document.getElementById("vehicleChecklistConfig");
 
@@ -23,6 +232,298 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const reminderUrl =
         config.dataset.reminderUrl || "";
+
+    document.querySelectorAll(".vehicle-approval-card .btn")
+        .forEach(function (button) {
+            button.classList.add("btn-outline");
+        });
+
+    if (window.location.hash === "#vehicle-inspection-response") {
+        const target =
+            document.getElementById("vehicle-inspection-response");
+
+        if (target) {
+            sessionStorage.removeItem("vehicleChecklistReturnPosition");
+
+            const details = target.querySelector("details");
+            if (details) {
+                details.open = true;
+            }
+
+            const showTarget = function () {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        target.focus({ preventScroll: true });
+                        target.scrollIntoView({
+                            block: "start",
+                            behavior: "instant"
+                        });
+                    });
+                });
+            };
+
+            if (document.readyState === "complete") {
+                showTarget();
+            } else {
+                window.addEventListener("load", showTarget, {
+                    once: true
+                });
+            }
+        }
+    }
+
+    document.querySelectorAll(
+        ".js-vehicle-operation-judgment, .js-vehicle-inspection-repair"
+    ).forEach(function (form) {
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            if (form.dataset.submitting === "1") {
+                return;
+            }
+
+            form.dataset.submitting = "1";
+            const button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+            }
+            clearCommonErrors();
+
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    headers: {"X-DKSS-Final-Submit": "1"},
+                    body: new FormData(form)
+                });
+
+                if (!response.ok) {
+                    if (response.headers.get("X-DKSS-Form-Errors") === "1") {
+                        const data = await response.json();
+                        (data.errors || []).forEach(function (error) {
+                            showCommonError(error.message, error.field || "");
+                        });
+                        return;
+                    }
+                    throw new Error("HTTP " + response.status);
+                }
+
+                let redirectUrl;
+                if ((response.headers.get("Content-Type") || "")
+                    .includes("application/json")) {
+                    const data = await response.json();
+                    if (typeof data.redirect_url !== "string" || !data.redirect_url) {
+                        throw new Error("保存結果を確認できません。");
+                    }
+                    redirectUrl = new URL(data.redirect_url, window.location.href);
+                } else if (response.redirected) {
+                    redirectUrl = new URL(response.url);
+                } else {
+                    throw new Error("保存結果を確認できません。");
+                }
+                if (redirectUrl.origin !== window.location.origin) {
+                    throw new Error("保存結果の移動先を確認できません。");
+                }
+
+                sessionStorage.removeItem("vehicleChecklistReturnPosition");
+                if (redirectUrl.pathname === window.location.pathname
+                    && redirectUrl.search === window.location.search) {
+                    window.history.replaceState(null, "", redirectUrl.href);
+                    window.location.reload();
+                } else {
+                    window.location.assign(redirectUrl.href);
+                }
+            } catch (error) {
+                showCommonError(
+                    "保存できませんでした。通信状態を確認して、もう一度操作してください。"
+                );
+            } finally {
+                delete form.dataset.submitting;
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll(".js-vehicle-inspection-repair")
+        .forEach(function (form) {
+            const status = form.querySelector('[name="repair_status"]');
+            const button = form.querySelector('button[type="submit"]');
+            const heading = form.querySelector(".vehicle-defect-form-heading");
+            if (!status || !button || !heading) return;
+
+            const help = document.createElement("p");
+            help.setAttribute("aria-live", "polite");
+            heading.appendChild(help);
+
+            function updateRepairAction() {
+                const completed = status.value === "再確認待ち";
+                help.textContent = completed
+                    ? "整備が完了したら保存してください。保存後は、異常が解消したか再確認します。"
+                    : "作業途中の内容を保存できます。整備が終わったら「整備完了（再確認待ち）」を選んで保存してください。";
+                button.textContent = completed
+                    ? "整備完了を記録して再確認へ"
+                    : "作業途中の内容を保存";
+            }
+
+            status.addEventListener("change", updateRepairAction);
+            updateRepairAction();
+        });
+
+    document.querySelectorAll(".js-vehicle-inspection-repair")
+        .forEach(function (form) {
+            const result = form.querySelector('[name="recheck_result"]');
+            const button = form.querySelector('button[type="submit"]');
+            const heading = form.querySelector(".vehicle-defect-form-heading");
+            if (!result || !button || !heading) return;
+
+            const help = document.createElement("p");
+            help.setAttribute("aria-live", "polite");
+            heading.appendChild(help);
+
+            function updateRecheckAction() {
+                if (result.value === "異常なし") {
+                    help.textContent = "この不具合を解消として記録します。ほかの不具合への対応が済んだら、整備管理者が運行可否を判断します。";
+                    button.textContent = "不具合の解消を記録";
+                } else if (result.value === "異常あり") {
+                    help.textContent = "この不具合を対応待ちに戻します。再度、整備が必要です。";
+                    button.textContent = "再整備が必要として記録";
+                } else {
+                    help.textContent = "整備後に対象箇所を確認し、結果・確認内容・実施日時を入力してください。";
+                    button.textContent = "再確認結果を保存";
+                }
+            }
+
+            result.addEventListener("change", updateRecheckAction);
+            updateRecheckAction();
+        });
+
+    document.querySelectorAll(
+        ".js-vehicle-inspection-repair, .js-vehicle-operation-judgment, .js-vehicle-operation-manager"
+    ).forEach(function (form) {
+        const heading = form.querySelector(
+            ".vehicle-defect-form-heading, .vehicle-judgment-heading"
+        ) || form;
+        const help = heading.querySelector('p[aria-live="polite"]')
+            || document.createElement("p");
+        help.classList.add("vehicle-next-action");
+        help.setAttribute("aria-live", "polite");
+        heading.prepend(help);
+
+        function updateNextAction() {
+            form.querySelectorAll(".vehicle-next-input").forEach(function (item) {
+                item.classList.remove("vehicle-next-input");
+            });
+
+            const status = form.querySelector('[name="repair_status"]');
+            const result = form.querySelector('[name="recheck_result"]');
+            const button = form.querySelector('button[type="submit"]');
+            let next = form.querySelector(":invalid") || button;
+            let message;
+
+            if (status && status.value !== "再確認待ち") {
+                next = status;
+                message = "次にする操作：整備が終わったら、青枠の「整備状況」を「整備完了（再確認待ち）」に変更して保存してください。作業途中なら、途中保存できます。";
+            } else if (status) {
+                message = next === button
+                    ? "次にする操作：青枠の「整備完了を記録して再確認へ」を押してください。再確認の依頼通知が送られます。"
+                    : "次にする操作：青枠の未入力欄を入力し、「整備完了を記録して再確認へ」を押してください。";
+            } else if (result) {
+                if (!result.value) {
+                    next = result;
+                    message = "次にする操作：整備後の状態を確認し、青枠の「再確認結果」を選択してください。";
+                } else if (next !== button) {
+                    message = "次にする操作：青枠の確認内容・実施日時を入力して保存してください。異常なしは解消、異常ありは再整備として記録します。";
+                } else {
+                    message = result.value === "異常なし"
+                        ? "次にする操作：青枠の「不具合の解消を記録」を押してください。残りの対応が0件になったら、整備管理者が運行判断を登録します。"
+                        : "次にする操作：青枠の「再整備が必要として記録」を押してください。この不具合を再び整備する段階へ戻します。";
+                }
+            } else if (form.matches(".js-vehicle-operation-manager")) {
+                message = next === button
+                    ? "次にする操作：青枠の「整備管理者を設定」を押してください。選んだ人へ運行判断の依頼を通知します。"
+                    : "次にする操作：青枠の選択欄で、運行判断を行う整備管理者を選んでください。";
+            } else {
+                const instructions = {
+                    authority_role: "判断者の役割を選択してください。",
+                    authority_confirmed: "運行判断を行う権限の確認にチェックしてください。",
+                    decision: "運行可・運行不可・判断保留を選択してください。",
+                    reason: "判断理由を入力してください。",
+                    checks_confirmed: "点検記録の確認にチェックしてください。"
+                };
+                message = next === button
+                    ? "次にする操作：青枠の保存ボタンを押して、点検確認・運行判断を記録してください。"
+                    : "次にする操作：青枠で" + (
+                        instructions[next.name]
+                        || "必要な内容を入力・確認してください。"
+                    );
+            }
+
+            help.textContent = message;
+
+            if (next) {
+                const target = next.closest('[role="group"]')
+                    || next.closest(".vehicle-judgment-confirmation")
+                    || next;
+                target.classList.add("vehicle-next-input");
+            }
+        }
+
+        form.addEventListener("input", updateNextAction);
+        form.addEventListener("change", updateNextAction);
+        updateNextAction();
+    });
+
+    document.querySelectorAll(".js-vehicle-operation-judgment")
+        .forEach(function (form) {
+            const reason = form.querySelector('[name="reason"]');
+            const checks = form.querySelector('[name="checks_confirmed"]');
+            const checksGroup = form.querySelector("#vehicle_judgment_checks");
+            const help = form.querySelector("#vehicle_judgment_reason_help");
+
+            function updateJudgmentFields() {
+                const choice = form.querySelector('[name="decision"]:checked');
+                const decision = choice ? choice.value : "";
+                const allowed = decision === "運行可";
+
+                if (reason) {
+                    reason.required = ["運行不可", "判定保留"].includes(decision);
+                }
+                if (checksGroup) {
+                    checksGroup.hidden = !allowed;
+                }
+                if (checks) {
+                    checks.required = allowed;
+                    checks.disabled = !allowed;
+                    if (!allowed) checks.checked = false;
+                }
+                if (help) {
+                    help.textContent = decision === "運行可"
+                        ? "点検・整備・再確認の結果を確認して判断します。下の確認事項にチェックしてください。理由は任意です。"
+                        : decision === "運行不可"
+                            ? "運行できない理由を入力してください。この車両を運行不可として記録します。"
+                            : decision === "判定保留"
+                                ? "判断を保留する理由を入力してください。運行可の判断はまだ出ていない状態として記録します。"
+                                : "整備管理者が点検結果と不具合の対応状況を確認し、運行可否を選んでください。";
+                }
+                const button = form.querySelector('button[type="submit"]');
+                if (button) {
+                    button.textContent = decision === "運行可"
+                        ? "点検確認・運行可を記録"
+                        : decision === "運行不可"
+                            ? "点検確認・運行不可を記録"
+                            : decision === "判定保留"
+                                ? "点検確認・判断保留を記録"
+                                : "確認・判断を保存";
+                }
+            }
+
+            form.querySelectorAll('[name="decision"]')
+                .forEach(function (input) {
+                    input.addEventListener("change", updateJudgmentFields);
+                });
+
+            updateJudgmentFields();
+        });
 
     function setupMobileChoiceButtons() {
         if (
@@ -224,6 +725,32 @@ document.addEventListener("DOMContentLoaded", function () {
             )
         );
 
+        if (!user.name) {
+            fetch(
+                "/api/mention-users?exact_username=1&q="
+                + encodeURIComponent(user.username)
+            )
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("HTTP " + response.status);
+                    }
+                    return response.json();
+                })
+                .then(function (data) {
+                    const matchedUser = (data.users || []).find(
+                        function (entry) {
+                            return entry.username === user.username;
+                        }
+                    );
+                    if (matchedUser?.name && tag.isConnected) {
+                        tag.firstChild.textContent = matchedUser.name;
+                    }
+                })
+                .catch(function () {
+                    showCommonError("選択済みのユーザー名を取得できませんでした。");
+                });
+        }
+
         const remove =
             document.createElement("button");
 
@@ -296,6 +823,44 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         );
     }
+
+    document.querySelectorAll(
+        ".selected-approval-users[data-saved-usernames]"
+    ).forEach(function (selectedArea) {
+        let usernames;
+
+        try {
+            usernames = JSON.parse(
+                selectedArea.dataset.savedUsernames || "[]"
+            );
+        } catch (error) {
+            showCommonError(
+                "保存済みの承認者候補を読み込めませんでした。"
+            );
+            return;
+        }
+
+        if (!Array.isArray(usernames)) {
+            showCommonError(
+                "保存済みの承認者候補が不正です。"
+            );
+            return;
+        }
+
+        usernames.forEach(function (username) {
+            if (
+                typeof username !== "string"
+                || !username.trim()
+            ) {
+                return;
+            }
+
+            addApprovalUser(
+                selectedArea.dataset.approvalIndex,
+                { username: username }
+            );
+        });
+    });
 
     approvalUserSearchInputs.forEach(
         function (searchInput) {
@@ -450,7 +1015,11 @@ document.addEventListener("DOMContentLoaded", function () {
                                 try {
                                     const response =
                                         await fetch(
-                                            "/api/mention-users?q=" +
+                                            "/api/mention-users?approval_scope=" +
+                                            (searchInput.dataset.allowGeneral === "1"
+                                                ? "admin_user"
+                                                : "admin") +
+                                            "&q=" +
                                             encodeURIComponent(
                                                 keyword
                                             )
@@ -560,13 +1129,68 @@ document.addEventListener("DOMContentLoaded", function () {
             async function (event) {
                 event.preventDefault();
 
+                const focusedInput = document.activeElement;
+
+                if (
+                    focusedInput
+                    && focusedInput.matches(
+                        ".js-inline-check-input"
+                    )
+                ) {
+                    focusedInput.blur();
+                }
+
+                let pendingSave;
+
+                do {
+                    pendingSave = inlineSaveQueue;
+                    await pendingSave;
+                } while (pendingSave !== inlineSaveQueue);
+
+                if (failedInlineForms.size > 0) {
+                    showCommonError(
+                        "保存に失敗した項目があります。該当項目を再保存してから、点検完了してください。"
+                    );
+                    return;
+                }
+
+                const checkForms = Array.from(
+                    document.querySelectorAll(
+                        ".inline-check-form"
+                    )
+                );
+
+                const unansweredCount = checkForms.filter(
+                    function (form) {
+                        const value = new FormData(form).get(
+                            "value"
+                        );
+
+                        return value === null
+                            || !String(value).trim();
+                    }
+                ).length;
+
+                const confirmationMessage =
+                    unansweredCount > 0
+                        ? "未回答の項目が"
+                            + unansweredCount
+                            + "件あります。未回答のまま点検を完了しますか？"
+                        : "この日の点検を完了しますか？";
+
                 if (
                     !window.confirm(
-                        "この日の点検を完了しますか？"
+                        confirmationMessage
                     )
                 ) {
                     return;
                 }
+
+                if (completeForm.dataset.submitting === "1") {
+                    return;
+                }
+
+                completeForm.dataset.submitting = "1";
 
                 clearCommonErrors();
 
@@ -614,10 +1238,19 @@ document.addEventListener("DOMContentLoaded", function () {
                         );
                     }
 
+                    const contentType = response.headers.get("Content-Type") || "";
+                    if (contentType.includes("application/json")) {
+                        const data = await response.json();
+                        if (data.success && data.redirect_url) {
+                            sessionStorage.removeItem("vehicleChecklistReturnPosition");
+                            window.location.assign(data.redirect_url);
+                            return;
+                        }
+                        throw new Error("点検完了後の移動先を取得できませんでした。");
+                    }
+
                     if (response.redirected) {
-                        window.location.assign(
-                            response.url
-                        );
+                        window.location.assign(response.url);
                         return;
                     }
 
@@ -632,6 +1265,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     showCommonError(
                         "点検を完了できませんでした。通信状態を確認して、もう一度操作してください。"
                     );
+                } finally {
+                    delete completeForm.dataset.submitting;
                 }
             }
         );
@@ -923,6 +1558,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    document.querySelectorAll(".js-vehicle-defect-files").forEach(function (area) {
+        renderFiles(
+            area.id,
+            area.dataset.files || "",
+            "初回報告の添付"
+        );
+    });
+
     function openDetailModal(button) {
         const content =
             button.dataset.content || "";
@@ -1075,11 +1718,43 @@ document.addEventListener("DOMContentLoaded", function () {
             input.remove();
         });
 
+        const detailRow = button.closest("tr");
+
+        const canEdit =
+            Number(day) === Number(activeDay)
+            && Boolean(
+                detailRow
+                && detailRow.querySelector(
+                    ".inline-check-form"
+                )
+            );
+
+        if (commentEditor) {
+            commentEditor.contentEditable =
+                canEdit ? "true" : "false";
+        }
+
         document.querySelectorAll(
             "#detailModal .js-detail-file-input"
         ).forEach(function (input) {
             input.value = "";
+            input.disabled = !canEdit;
+
+            const uploadLabel = input.closest("label");
+
+            if (uploadLabel) {
+                uploadLabel.hidden = !canEdit;
+            }
         });
+
+        const detailSaveButton = document.querySelector(
+            '#detailModal button[type="submit"]'
+        );
+
+        if (detailSaveButton) {
+            detailSaveButton.disabled = !canEdit;
+            detailSaveButton.hidden = !canEdit;
+        }
 
         if (detailModal) {
             detailModal.classList.remove(
@@ -1097,6 +1772,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!detailModal) {
             return;
         }
+
+        clearCommonErrors();
 
         detailModal.classList.remove(
             "is-open"
@@ -1469,6 +2146,18 @@ document.addEventListener("DOMContentLoaded", function () {
             async function (event) {
                 event.preventDefault();
 
+                const saveButton = detailFileForm.querySelector(
+                    'button[type="submit"]'
+                );
+
+                if (
+                    !saveButton
+                    || saveButton.disabled
+                    || saveButton.hidden
+                ) {
+                    return;
+                }
+
                 clearCommonErrors();
 
                 const tableScrollPositions =
@@ -1631,96 +2320,83 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    async function saveInlineCheck(
-        input
-    ) {
+    let inlineSaveQueue = Promise.resolve();
+    const failedInlineForms = new Set();
+
+    function saveInlineCheck(input) {
         const form = input.form;
 
         if (!form) {
             return;
         }
 
-        input.blur();
+        const formData = new FormData(form);
 
+        input.blur();
         restoreChecklistPosition();
 
-        try {
-            const formData =
-                new FormData(form);
-
-            const response = await fetch(
-                form.action,
-                {
-                    method: "POST",
-                    headers: {
-                        "X-DKSS-Validation-Only": "1"
-                    },
-                    body: formData
-                }
-            );
-
-            if (!response.ok) {
-                if (
-                    response.headers.get(
-                        "X-DKSS-Form-Errors"
-                    ) === "1"
-                ) {
-                    const data =
-                        await response.json();
-
-                    clearCommonErrors();
-
-                    (data.errors || []).forEach(
-                        function (error) {
-                            showCommonError(
-                                error.message,
-                                error.field || ""
-                            );
+        inlineSaveQueue = inlineSaveQueue.then(
+            async function () {
+                try {
+                    const response = await fetch(
+                        form.action,
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-DKSS-Validation-Only": "1"
+                            },
+                            body: formData
                         }
                     );
 
-                    return;
+                    if (!response.ok) {
+                        failedInlineForms.add(form);
+
+                        if (
+                            response.headers.get(
+                                "X-DKSS-Form-Errors"
+                            ) === "1"
+                        ) {
+                            const data = await response.json();
+
+                            clearCommonErrors();
+
+                            (data.errors || []).forEach(
+                                function (error) {
+                                    showCommonError(
+                                        error.message,
+                                        error.field || ""
+                                    );
+                                }
+                            );
+
+                            return;
+                        }
+
+                        throw new Error(
+                            "HTTP " + response.status
+                        );
+                    }
+
+                    failedInlineForms.delete(form);
+                } catch (error) {
+                    failedInlineForms.add(form);
+
+                    showCommonError(
+                        "点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。"
+                    );
                 }
-
-                throw new Error(
-                    "HTTP " + response.status
-                );
             }
-        } catch (error) {
-            console.error(
-                "保存エラー:",
-                error
-            );
-
-            showCommonError(
-                "点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。"
-            );
-
-            input.focus();
-        }
-
-        restoreChecklistPosition();
-
-        requestAnimationFrame(
-            restoreChecklistPosition
         );
 
-        setTimeout(
-            restoreChecklistPosition,
-            50
-        );
-
-        setTimeout(
-            restoreChecklistPosition,
-            200
-        );
+        return inlineSaveQueue;
     }
 
     const checklistChoiceWasChecked =
         new WeakMap();
 
     document.addEventListener(
-        "mousedown",
+        "pointerdown",
         function (event) {
             const choice =
                 event.target.closest(
@@ -1880,6 +2556,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
 async function loadSavedNotifyUsers() {
+    if (!notifySearch || !notifyResults || !notifySelected) {
+        return;
+    }
     for (
         const savedValue
         of savedNotifyUsers
@@ -3197,29 +3876,36 @@ async function loadSavedReminderNotifyUsers() {
                 "vehicleChecklistReturnPosition"
             );
 
-            window.scrollTo(
-                position.pageX || 0,
-                position.pageY || 0
-            );
+            const restorePosition = function () {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        document.querySelectorAll(
+                            ".vehicle-check-table-scroll"
+                        ).forEach(function (area, index) {
+                            if (
+                                position.tables &&
+                                position.tables[index] !== undefined
+                            ) {
+                                area.scrollLeft = position.tables[index];
+                            }
+                        });
 
-            document.querySelectorAll(
-                ".vehicle-check-table-scroll"
-            ).forEach(function (area, index) {
-                if (
-                    position.tables &&
-                    position.tables[index] !== undefined
-                ) {
-                    area.scrollLeft =
-                        position.tables[index];
-                }
-            });
+                        window.scrollTo({
+                            left: position.pageX || 0,
+                            top: position.pageY || 0,
+                            behavior: "instant"
+                        });
+                    });
+                });
+            };
 
-            requestAnimationFrame(function () {
-                window.scrollTo(
-                    position.pageX || 0,
-                    position.pageY || 0
-                );
-            });
+            if (document.readyState === "complete") {
+                restorePosition();
+            } else {
+                window.addEventListener("load", restorePosition, {
+                    once: true
+                });
+            }
 
             return true;
 
