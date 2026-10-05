@@ -10,6 +10,7 @@
     jsonify,
     escape,
 )
+from markupsafe import escape
 from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
