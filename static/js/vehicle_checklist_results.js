@@ -1306,6 +1306,87 @@ document.addEventListener("DOMContentLoaded", function () {
             "vehicleRejectModal"
         );
 
+    if (vehicleRejectModal) {
+        const box = vehicleRejectModal.querySelector(".modal-box");
+        const handle = box && box.querySelector("h3");
+
+        if (handle) {
+            let offsetX = 0;
+            let offsetY = 0;
+            let drag = null;
+
+            handle.style.cursor = "move";
+            handle.style.touchAction = "none";
+            handle.style.userSelect = "none";
+            handle.title = "ドラッグで移動できます";
+
+            function resetPosition() {
+                drag = null;
+                offsetX = 0;
+                offsetY = 0;
+                box.style.transform = "";
+            }
+
+            document.querySelectorAll(
+                ".js-vehicle-checklist-reject"
+            ).forEach(function (button) {
+                button.addEventListener("click", resetPosition);
+            });
+
+            handle.addEventListener("pointerdown", function (event) {
+                if (!event.isPrimary || event.button !== 0) {
+                    return;
+                }
+
+                const rect = box.getBoundingClientRect();
+                drag = {
+                    id: event.pointerId,
+                    x: event.clientX,
+                    y: event.clientY,
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height,
+                    offsetX: offsetX,
+                    offsetY: offsetY
+                };
+                handle.setPointerCapture(event.pointerId);
+                event.preventDefault();
+            });
+
+            handle.addEventListener("pointermove", function (event) {
+                if (!drag || event.pointerId !== drag.id) {
+                    return;
+                }
+
+                const left = Math.max(0, Math.min(
+                    drag.left + event.clientX - drag.x,
+                    Math.max(0, window.innerWidth - drag.width)
+                ));
+                const top = Math.max(0, Math.min(
+                    drag.top + event.clientY - drag.y,
+                    Math.max(0, window.innerHeight - drag.height)
+                ));
+
+                offsetX = drag.offsetX + left - drag.left;
+                offsetY = drag.offsetY + top - drag.top;
+                box.style.transform =
+                    "translate(" + offsetX + "px, " + offsetY + "px)";
+            });
+
+            function stopDrag(event) {
+                if (drag && event.pointerId === drag.id) {
+                    drag = null;
+                }
+            }
+
+            handle.addEventListener("pointerup", stopDrag);
+            handle.addEventListener("pointercancel", stopDrag);
+            handle.addEventListener("lostpointercapture", stopDrag);
+            window.addEventListener("resize", resetPosition);
+        }
+    }
+
     const vehicleRejectForm =
         document.getElementById(
             "vehicleRejectForm"
@@ -1421,13 +1502,28 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
 
                     if (response.redirected) {
-                        window.location.assign(
-                            response.url
+                        showCommonError(
+                            "差し戻しを完了できませんでした。ログイン状態・権限・点検の状態を確認してください。",
+                            "vehicleRejectReason"
                         );
                         return;
                     }
 
-                    window.location.reload();
+                    const data = await response.json();
+
+                    if (data.success !== true) {
+                        throw new Error(
+                            "差し戻しの成功結果を確認できませんでした。"
+                        );
+                    }
+
+                    vehicleRejectModal.classList.add(
+                        "is-hidden"
+                    );
+
+                    if (vehicleRejectReason) {
+                        vehicleRejectReason.value = "";
+                    }
 
                 } catch (error) {
                     console.error(

@@ -20732,6 +20732,12 @@ def reject_vehicle_checklist_result(result_index):
                 target_username=target_user.username
             )
 
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({
+            "success": True,
+            "status": "差し戻し"
+        })
+
     return redirect(
         f"/vehicle/checklists/{result_record.checklist_id}"
         f"?vehicle_record_id={result_record.vehicle_record_id}"
