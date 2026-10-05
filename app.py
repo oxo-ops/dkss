@@ -14351,10 +14351,10 @@ def confirm_vehicle_import():
         return value, None
 
     def to_nonnegative_int(value, field_name, row_number):
-        value = clean_text(value).replace(",", "")
+        value = str("" if value is None else value).strip().replace(",", "")
 
         if not value:
-            return None
+            return None, None
 
         try:
             parsed = int(value)
