@@ -1574,17 +1574,98 @@ document.addEventListener("submit", async function (event) {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-    if (!("setAppBadge" in navigator)) {
-        return;
+    let refreshing = false;
+
+    function updateNotificationCount(count) {
+        document.body.dataset.unreadNotificationCount =
+            String(count);
+
+        document.querySelectorAll(
+            ".notification-bell"
+        ).forEach(function (bell) {
+            let badge = bell.querySelector(
+                ".notification-count"
+            );
+
+            if (count === 0) {
+                if (badge) {
+                    badge.remove();
+                }
+                return;
+            }
+
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "notification-count";
+                bell.appendChild(badge);
+            }
+
+            badge.textContent = String(count);
+        });
+
+        if (count > 0 && "setAppBadge" in navigator) {
+            navigator.setAppBadge(count).catch(function () {});
+        } else if (count === 0 && "clearAppBadge" in navigator) {
+            navigator.clearAppBadge().catch(function () {});
+        }
     }
 
-    const unreadCount = Number(
+    async function refreshNotificationCount() {
+        if (refreshing || document.visibilityState === "hidden") {
+            return;
+        }
+
+        refreshing = true;
+
+        try {
+            const response = await fetch(
+                "/api/notifications/unread-count",
+                {
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    headers: {
+                        "Accept": "application/json"
+                    }
+                }
+            );
+
+            if (!response.ok || response.redirected) {
+                return;
+            }
+
+            const data = await response.json();
+            const count = data.unread_count;
+
+            if (!Number.isInteger(count) || count < 0) {
+                return;
+            }
+
+            updateNotificationCount(count);
+        } catch (error) {
+            console.error("通知件数の更新に失敗しました:", error);
+        } finally {
+            refreshing = false;
+        }
+    }
+
+    updateNotificationCount(Number(
         document.body.dataset.unreadNotificationCount || 0
+    ));
+
+    refreshNotificationCount();
+
+    window.addEventListener(
+        "pageshow",
+        refreshNotificationCount
     );
 
-    if (unreadCount > 0) {
-        navigator.setAppBadge(unreadCount).catch(function () {});
-    } else if ("clearAppBadge" in navigator) {
-        navigator.clearAppBadge().catch(function () {});
-    }
+    window.addEventListener(
+        "focus",
+        refreshNotificationCount
+    );
+
+    document.addEventListener(
+        "visibilitychange",
+        refreshNotificationCount
+    );
 });

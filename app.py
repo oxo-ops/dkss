@@ -3807,7 +3807,10 @@ def send_web_push_notification(
     unread_count = Notification.query.filter(
         Notification.company_code == user.company_code,
         Notification.target_username == user.username,
-        Notification.read == False
+        db.or_(
+            Notification.read.is_(False),
+            Notification.read.is_(None)
+        )
     ).count()
 
     payload = json.dumps(
@@ -5689,22 +5692,41 @@ def itc_delete_news(index):
 
     return redirect("/itc")
 
-@app.context_processor
-def inject_notification_count():
+def get_unread_notification_count():
+    company_code = session.get("company_code")
     username = session.get("username")
 
-    unread_count = 0
+    if not company_code or not username:
+        return 0
 
-    if username:
-        unread_count = Notification.query.filter(
-            Notification.company_code == session.get("company_code"),
-            Notification.read == False,
-            Notification.target_username == username
-        ).count()
+    return Notification.query.filter(
+        Notification.company_code == company_code,
+        Notification.target_username == username,
+        db.or_(
+            Notification.read.is_(False),
+            Notification.read.is_(None)
+        )
+    ).count()
 
+
+@app.context_processor
+def inject_notification_count():
     return {
-        "unread_notification_count": unread_count
+        "unread_notification_count":
+            get_unread_notification_count()
     }
+
+
+@app.route("/api/notifications/unread-count")
+def notification_unread_count():
+    if not session.get("company_code") or not session.get("username"):
+        return jsonify({"error": "login_required"}), 401
+
+    response = jsonify({
+        "unread_count": get_unread_notification_count()
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 @app.route("/register", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
