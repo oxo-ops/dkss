@@ -12630,63 +12630,120 @@ input:checked
     color: #1d4ed8;
 }
 .vehicle-flow-steps {
-    margin: 16px 0;
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    margin: 12px 0;
     padding: 0;
     list-style: none;
 }
-.vehicle-flow-steps li {
+.vehicle-flow-steps > li {
     position: relative;
+    min-width: 0;
     margin: 0;
-    padding: 0 0 16px;
+    padding: 0;
 }
-.vehicle-flow-steps li:not(:last-child)::before {
+.vehicle-flow-steps > li:not(:last-child)::before {
     content: '';
+    display: block;
     position: absolute;
-    top: 24px;
-    bottom: 0;
-    left: 15px;
-    border-left: 2px solid #dbeafe;
+    z-index: 1;
+    top: 36px;
+    bottom: -8px;
+    left: 18px;
+    width: 2px;
+    border: 0;
+    background: #cbd5e1;
+    transform: translateX(-50%);
+    pointer-events: none;
 }
-.vehicle-flow-steps a {
-    display: flex;
-    align-items: flex-start;
+.vehicle-flow-steps > li > a {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: start;
     gap: 10px;
-    padding: 4px;
-    border-radius: 6px;
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 60px;
+    margin: 0;
+    padding: 8px 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
     color: #334155;
-    text-decoration: none;
+    font-size: 14px;
     font-weight: 400;
+    line-height: 1.5;
+    text-decoration: none;
 }
-.vehicle-flow-steps a:hover,
-.vehicle-flow-steps a:focus-visible {
+.vehicle-flow-steps > li.is-active > a {
     background: #eff6ff;
     color: #1d4ed8;
-    outline: 2px solid #93c5fd;
 }
-.vehicle-flow-dot {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 24px;
-    height: 24px;
+.vehicle-flow-steps > li > a:hover {
+    background: #e8f0fc;
+    color: #1d4ed8;
+}
+.vehicle-flow-steps > li > a:focus-visible {
+    background: #eff6ff;
+    color: #1d4ed8;
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+.vehicle-flow-steps > li > a > span:last-child {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    overflow-wrap: anywhere;
+}
+.vehicle-flow-steps .vehicle-flow-dot {
+    display: grid;
+    place-items: center;
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
     border: 2px solid #94a3b8;
     border-radius: 50%;
     background: #fff;
     color: #64748b;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0;
+    text-align: center;
+    text-indent: 0;
 }
-.vehicle-flow-steps .is-active .vehicle-flow-dot {
+.vehicle-flow-steps > .is-active .vehicle-flow-dot {
     border-color: #2563eb;
-    color: #2563eb;
+    color: #1d4ed8;
 }
-.vehicle-flow-steps .is-done .vehicle-flow-dot {
+.vehicle-flow-steps > .is-done .vehicle-flow-dot {
     border-color: #2563eb;
     background: #2563eb;
     color: #fff;
 }
 .vehicle-flow-steps small {
     display: block;
-    margin-top: 4px;
+    margin: 3px 0 0;
+    color: #64748b;
     font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.vehicle-flow-steps > .is-active small {
+    color: #1d4ed8;
 }
 .vehicle-flow-note {
     color: #64748b;
@@ -12768,9 +12825,13 @@ input:checked
 }
 
 .vehicle-approval-card .register-form .vehicle-next-input {
-    outline: 2px solid #2563eb;
-    outline-offset: 2px;
+    outline: none;
     border-radius: 6px;
+    box-shadow:
+        inset 0 0 0 2px #0284c7,
+        0 0 0 2px rgba(14, 165, 233, 0.20),
+        0 0 10px rgba(14, 165, 233, 0.65),
+        0 0 18px rgba(14, 165, 233, 0.35);
 }
 
 .vehicle-defect-form-heading p {
@@ -12971,27 +13032,21 @@ input:checked
     margin-top: 12px;
 }
 
-.vehicle-flow-focus {
+.vehicle-flow-focus,
+.vehicle-approval-card .register-form.vehicle-flow-focus {
     position: relative;
-    outline: 2px solid #2563eb;
-    outline-offset: 4px;
-    border-radius: 6px;
+    outline: none;
+    border-radius: 8px;
+    box-shadow:
+        inset 0 0 0 2px #60a5fa,
+        0 0 8px rgba(59, 130, 246, 0.25);
     scroll-margin-top: 100px;
 }
+.vehicle-approval-card .register-form.vehicle-flow-focus {
+    padding: 14px;
+}
 .vehicle-flow-focus::before {
-    content: '今回の表示箇所';
-    position: absolute;
-    top: -18px;
-    right: 8px;
-    z-index: 1;
-    padding: 2px 8px;
-    border: 1px solid #2563eb;
-    border-radius: 12px;
-    background: #fff;
-    color: #1d4ed8;
-    font-size: 12px;
-    font-weight: 400;
-    pointer-events: none;
+    content: none;
 }
 @media (max-width: 1100px) {
     .vehicle-inspection-layout {
@@ -13005,16 +13060,9 @@ input:checked
         padding: 12px;
     }
     .vehicle-flow-steps {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
         margin: 12px 0;
-    }
-    .vehicle-flow-steps li {
-        padding: 0;
-    }
-    .vehicle-flow-steps li::before {
-        display: none;
     }
 }
 
