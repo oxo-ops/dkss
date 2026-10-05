@@ -6576,6 +6576,40 @@ input:checked
     margin-bottom: 16px;
 }
 
+.vehicle-check-notify-grid.vehicle-check-recipient-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+.vehicle-check-recipient-grid > .vehicle-approval-card,
+.vehicle-check-recipient-grid > .vehicle-check-reminder {
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.vehicle-check-recipient-grid > .vehicle-approval-card > h3,
+.vehicle-check-recipient-grid .vehicle-check-reminder label {
+    display: block;
+    margin: 0 0 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #334155;
+}
+
+@media (max-width: 600px) {
+    .vehicle-check-notify-grid.vehicle-check-recipient-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 @media (max-width: 768px) {
     .vehicle-check-notify-grid {
         grid-template-columns: 1fr 1fr;
@@ -12318,28 +12352,778 @@ input:checked
     overflow-y: auto;
 }
 
+/* 安全・車両共通：履歴と不具合対応 */
+.checklist-history-card,
+.approval-card {
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.checklist-history-card > h3,
+.approval-card > h3 {
+    margin: 0 0 10px;
+}
+
+.approval-card .approval-flow-item {
+    min-height: 44px;
+    padding: 6px 0;
+}
+
+.checklist-history-list {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    margin-top: 10px;
+}
+
+.checklist-history-item {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #dbe3ed;
+    border-left: 4px solid #94a3b8;
+    border-radius: 10px;
+    background: #fff;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.checklist-history-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.checklist-history-header > strong {
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.checklist-history-header > span {
+    min-width: 0;
+}
+
+.checklist-history-item[data-event-type] .checklist-history-header > span {
+    color: #64748b;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.checklist-history-item[data-event-type="承認"] {
+    border-left-color: #16a34a;
+}
+
+.checklist-history-item[data-event-type="差し戻し"] {
+    border-left-color: #dc2626;
+}
+
+.checklist-history-item[data-event-type="差し戻し"] .checklist-history-header > strong {
+    color: #991b1b;
+    background: #fef2f2;
+}
+
+.checklist-history-actor {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 13px;
+}
+
+.checklist-history-detail {
+    min-width: 0;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #334155;
+}
+
+.checklist-history-detail > strong {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.checklist-history-change + .checklist-history-change {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
 .checklist-history-change-title {
     margin-bottom: 8px;
     font-weight: 600;
 }
 
 .checklist-history-change-row {
-    display: flex;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 20px minmax(0, 1fr);
+    align-items: start;
     gap: 8px;
-    margin-top: 6px;
+    margin-top: 10px;
 }
 
 .checklist-history-change-row > strong {
-    flex: 0 0 72px;
+    padding-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .checklist-history-before,
 .checklist-history-after {
     min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
     overflow-wrap: anywhere;
 }
 
+.checklist-history-before::before,
+.checklist-history-after::before {
+    display: block;
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.checklist-history-before::before {
+    content: "変更前";
+}
+
+.checklist-history-after::before {
+    content: "変更後";
+}
+
 .checklist-history-arrow {
+    padding-top: 20px;
+    color: #64748b;
+    text-align: center;
+}
+
+.vehicle-approval-card {
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.vehicle-approval-card > h3 {
+    margin: 0 0 8px;
+}
+
+.vehicle-approval-card .btn-outline:hover,
+.vehicle-approval-card .btn-outline:focus-visible {
+    background: #eff6ff;
+    color: #2563eb;
+    border-color: #2563eb;
+}
+
+.vehicle-approval-card > h4 {
+    margin: 12px 0 8px;
+}
+
+.vehicle-defect-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #1e293b;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.vehicle-defect-summary::-webkit-details-marker {
+    display: none;
+}
+
+.vehicle-defect-summary:hover {
+    background: #f8fafc;
+}
+
+.vehicle-defect-summary:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.vehicle-defect-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #93b4f6;
+    border-radius: 6px;
+    background: #fff;
+    color: #1d4ed8;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.vehicle-defect-summary:hover .vehicle-defect-toggle {
+    background: #eff6ff;
+    border-color: #2563eb;
+}
+
+.vehicle-defect-hide,
+.vehicle-defect-details[open] .vehicle-defect-show {
+    display: none;
+}
+
+.vehicle-defect-details[open] .vehicle-defect-hide {
+    display: inline;
+}
+
+.checklist-history-item > .register-form {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.vehicle-inspection-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    align-items: start;
+    gap: 16px;
+}
+.vehicle-inspection-layout > #vehicle-inspection-response {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
+    margin-top: 0;
+}
+.vehicle-flow-panel {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 80px;
+    padding: 16px;
+    border: 1px solid #dbe5ef;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    font-size: 14px;
+}
+.vehicle-flow-panel h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+}
+.vehicle-flow-panel p {
+    margin: 8px 0;
+}
+.vehicle-flow-current,
+.vehicle-flow-total {
+    padding: 8px;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+.vehicle-flow-steps {
+    margin: 16px 0;
+    padding: 0;
+    list-style: none;
+}
+.vehicle-flow-steps li {
+    position: relative;
+    margin: 0;
+    padding: 0 0 16px;
+}
+.vehicle-flow-steps li:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    bottom: 0;
+    left: 15px;
+    border-left: 2px solid #dbeafe;
+}
+.vehicle-flow-steps a {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px;
+    border-radius: 6px;
+    color: #334155;
+    text-decoration: none;
+    font-weight: 400;
+}
+.vehicle-flow-steps a:hover,
+.vehicle-flow-steps a:focus-visible {
+    background: #eff6ff;
+    color: #1d4ed8;
+    outline: 2px solid #93c5fd;
+}
+.vehicle-flow-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
+    height: 24px;
+    border: 2px solid #94a3b8;
+    border-radius: 50%;
+    background: #fff;
+    color: #64748b;
+}
+.vehicle-flow-steps .is-active .vehicle-flow-dot {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+.vehicle-flow-steps .is-done .vehicle-flow-dot {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+}
+.vehicle-flow-steps small {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+}
+.vehicle-flow-note {
+    color: #64748b;
+    font-size: 12px;
+}
+.vehicle-save-feedback {
+    margin: 12px 0;
+    padding: 10px 12px;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+.vehicle-defect-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    margin-top: 12px;
+}
+.vehicle-defect-workspace.has-saved.has-form {
+    grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
+}
+.vehicle-defect-workspace.has-saved.has-form > .vehicle-defect-saved {
+    grid-column: 1;
+}
+.vehicle-defect-workspace.has-saved.has-form > .register-form {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+.vehicle-defect-workspace > .vehicle-defect-saved {
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #334155;
+    overflow-wrap: anywhere;
+}
+.vehicle-defect-saved h4,
+.vehicle-defect-form-heading h4 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 400;
+}
+.vehicle-approval-card .vehicle-defect-workspace > .register-form {
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #dbe5ef;
+    border-radius: 6px;
+    background: #fff;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 8px 10px;
+}
+.vehicle-approval-card .vehicle-defect-workspace > .register-form > .vehicle-defect-form-heading {
+    grid-column: 1 / -1;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.vehicle-approval-card .register-form p.vehicle-next-action {
+    grid-column: 1 / -1;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border: 1px solid #93c5fd;
+    border-left: 4px solid #2563eb;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-approval-card .register-form .vehicle-next-input {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.vehicle-defect-form-heading p {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 400;
+}
+.vehicle-approval-card .vehicle-defect-workspace > .register-form > p {
+    grid-column: 1 / -1;
+    margin: 2px 0;
+    color: #64748b;
+    font-size: 12px;
+}
+@media (max-width: 900px) {
+    .vehicle-defect-workspace.has-saved.has-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .vehicle-defect-workspace.has-saved.has-form > .vehicle-defect-saved,
+    .vehicle-defect-workspace.has-saved.has-form > .register-form {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
+@media (max-width: 600px) {
+    .vehicle-approval-card .vehicle-defect-workspace > .register-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .vehicle-approval-card .vehicle-defect-workspace > .register-form > :not(input[type="hidden"]) {
+        grid-column: 1 / -1;
+    }
+}
+
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-heading,
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-confirmation,
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-help {
+    grid-column: 1 / -1;
+}
+.vehicle-judgment-heading {
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.vehicle-judgment-heading h4 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 400;
+}
+.vehicle-judgment-result {
+    padding: 14px 16px;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    background: #eff6ff;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-judgment-result p.vehicle-judgment-result-label {
+    margin: 0 0 6px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.vehicle-judgment-result p.vehicle-judgment-result-value {
+    margin: 0 0 10px;
+    color: #1e40af;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+.vehicle-judgment-heading p {
+    margin: 4px 0;
+    color: #64748b;
+    font-size: 12px;
+}
+.vehicle-judgment-heading .vehicle-judgment-pending {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+}
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-options {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 10px 0;
+}
+.vehicle-judgment-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 400;
+}
+.vehicle-judgment-confirmation label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+.vehicle-approval-card .vehicle-judgment-options input,
+.vehicle-approval-card .vehicle-judgment-confirmation input {
+    flex: 0 0 16px;
+    width: 16px;
+    max-width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: #2563eb;
+}
+.vehicle-approval-card .vehicle-judgment-confirmation input {
+    margin-top: 2px;
+}
+#vehicle_judgment_checks[hidden] {
+    display: none;
+}
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-help {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+}
+@media (max-width: 768px) {
+    .vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-judgment-options {
+        grid-column: 1 / -1;
+    }
+}
+
+.vehicle-resolved-summary,
+.vehicle-history-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 400;
+}
+.vehicle-resolved-summary::-webkit-details-marker,
+.vehicle-history-summary::-webkit-details-marker {
+    display: none;
+}
+.vehicle-resolved-summary:focus-visible,
+.vehicle-history-summary:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+.vehicle-record-toggle {
     flex: 0 0 auto;
+    margin-left: auto;
+    padding: 5px 10px;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    background: #fff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+}
+.vehicle-resolved-summary:hover .vehicle-record-toggle,
+.vehicle-history-summary:hover .vehicle-record-toggle {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #2563eb;
+}
+.vehicle-record-close {
+    display: none;
+}
+.vehicle-resolved-defect[open] > .vehicle-resolved-summary .vehicle-record-open,
+.vehicle-history-details[open] > .vehicle-history-summary .vehicle-record-open {
+    display: none;
+}
+.vehicle-resolved-defect[open] > .vehicle-resolved-summary .vehicle-record-close,
+.vehicle-history-details[open] > .vehicle-history-summary .vehicle-record-close {
+    display: inline;
+}
+.vehicle-resolved-defect:not([open]) {
+    padding: 10px 12px;
+}
+.vehicle-resolved-defect[open] > .checklist-history-actor {
+    margin-top: 10px;
+}
+.vehicle-history-details > .checklist-history-list {
+    margin-top: 12px;
+}
+
+.vehicle-flow-focus {
+    position: relative;
+    outline: 2px solid #2563eb;
+    outline-offset: 4px;
+    border-radius: 6px;
+    scroll-margin-top: 100px;
+}
+.vehicle-flow-focus::before {
+    content: '今回の表示箇所';
+    position: absolute;
+    top: -18px;
+    right: 8px;
+    z-index: 1;
+    padding: 2px 8px;
+    border: 1px solid #2563eb;
+    border-radius: 12px;
+    background: #fff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 400;
+    pointer-events: none;
+}
+@media (max-width: 1100px) {
+    .vehicle-inspection-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .vehicle-flow-panel {
+        position: static;
+        width: 100%;
+        padding: 12px;
+    }
+    .vehicle-flow-steps {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px 0;
+    }
+    .vehicle-flow-steps li {
+        padding: 0;
+    }
+    .vehicle-flow-steps li::before {
+        display: none;
+    }
+}
+
+.vehicle-approval-card .register-form {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px 12px;
+    width: 100%;
+    max-width: none;
+    margin: 10px 0 0;
+    padding: 10px 0 0;
+}
+
+.vehicle-approval-card .register-form > label:not(.checkbox-label) {
+    grid-column: 1;
+    margin: 0;
+    padding-top: 10px;
+}
+
+.vehicle-approval-card .register-form > input:not([type="hidden"]),
+.vehicle-approval-card .register-form > select,
+.vehicle-approval-card .register-form > textarea {
+    grid-column: 2;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+}
+
+.vehicle-approval-card .register-form > textarea {
+    min-height: 72px;
+    resize: vertical;
+}
+
+.vehicle-approval-card .register-form > p,
+.vehicle-approval-card .register-form > .btn,
+.vehicle-approval-card .register-form > .field-error-message {
+    grid-column: 2;
+    margin: 0;
+}
+
+.vehicle-approval-card .register-form > .btn {
+    justify-self: start;
+    min-height: 44px;
+}
+
+.vehicle-approval-card .register-form > .checkbox-label {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+}
+
+.vehicle-approval-card .register-form input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+}
+
+@media (max-width: 768px) {
+    .vehicle-approval-card .register-form {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .vehicle-approval-card .register-form > label,
+    .vehicle-approval-card .register-form > input:not([type="hidden"]),
+    .vehicle-approval-card .register-form > select,
+    .vehicle-approval-card .register-form > textarea,
+    .vehicle-approval-card .register-form > p,
+    .vehicle-approval-card .register-form > .btn,
+    .vehicle-approval-card .register-form > .field-error-message {
+        grid-column: 1;
+    }
+
+    .vehicle-approval-card .register-form > label:not(.checkbox-label) {
+        padding-top: 4px;
+    }
+}
+
+.checklist-history-detail .preview-image,
+.checklist-history-detail .preview-video {
+    max-width: 100%;
+}
+
+@media (max-width: 768px) {
+    .checklist-history-item {
+        padding: 10px;
+    }
+
+    .checklist-history-detail {
+        padding: 10px;
+    }
+
+    .checklist-history-change-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .checklist-history-change-row > strong {
+        padding-top: 0;
+    }
+
+    .checklist-history-arrow {
+        justify-self: center;
+        padding-top: 0;
+        transform: rotate(90deg);
+    }
 }

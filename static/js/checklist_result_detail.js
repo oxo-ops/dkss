@@ -11,12 +11,25 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (
-            form.action.includes("/approve/") ||
-            form.action.includes("/reject")
+            !event.defaultPrevented &&
+            (
+                form.action.includes("/approve/") ||
+                form.action.includes("/reject")
+            )
         ) {
             sessionStorage.setItem(
-                "checklistResultScrollY",
-                window.scrollY
+                "checklistResultScrollPosition",
+                JSON.stringify({
+                    path: location.pathname + location.search,
+                    x: window.scrollX,
+                    y: window.scrollY,
+                    savedAt: Date.now(),
+                    details: Array.from(document.querySelectorAll(
+                        ".checklist-other-items, .checklist-criteria-details"
+                    )).map(function (element) {
+                        return element.open;
+                    })
+                })
             );
         }
     });
@@ -96,13 +109,52 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     });
 
-    const savedScrollY =
-        sessionStorage.getItem("checklistResultScrollY");
+    const savedPosition = sessionStorage.getItem(
+        "checklistResultScrollPosition"
+    );
+    sessionStorage.removeItem("checklistResultScrollPosition");
+    sessionStorage.removeItem("checklistResultScrollY");
 
-    if (savedScrollY !== null) {
-        window.scrollTo(0, Number(savedScrollY));
-        sessionStorage.removeItem(
-            "checklistResultScrollY"
-        );
+    if (savedPosition && !document.getElementById("error-summary")) {
+        try {
+            const position = JSON.parse(savedPosition);
+
+            if (
+                position.path === location.pathname + location.search &&
+                Date.now() - position.savedAt < 60000
+            ) {
+                document.querySelectorAll(
+                    ".checklist-other-items, .checklist-criteria-details"
+                ).forEach(function (element, index) {
+                    if (typeof position.details?.[index] === "boolean") {
+                        element.open = position.details[index];
+                    }
+                });
+
+                const restorePosition = function () {
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            if (!document.getElementById("error-summary")) {
+                                window.scrollTo({
+                                    left: position.x || 0,
+                                    top: position.y || 0,
+                                    behavior: "instant"
+                                });
+                            }
+                        });
+                    });
+                };
+
+                if (document.readyState === "complete") {
+                    restorePosition();
+                } else {
+                    window.addEventListener(
+                        "load", restorePosition, { once: true }
+                    );
+                }
+            }
+        } catch (error) {
+            // 読めない保存値は破棄し、通常の表示を続けます。
+        }
     }
 });

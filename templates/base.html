@@ -16,9 +16,10 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260927-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261005-1') }}">
 </head>
 <body
+    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}"
     data-current-user="{{ session.get('name', '') }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
@@ -82,7 +83,7 @@
                 </button>
 
                 <div class="sidebar-submenu">
-                    <a href="/vehicle/checklists" class="menu-item submenu-item {% if path.startswith('/vehicle/checklists') %}active{% endif %}">
+                    <a href="/vehicle/checklists" class="menu-item submenu-item {% if path.startswith('/vehicle/checklists') or path.startswith('/vehicle/daily-inspections') %}active{% endif %}">
                         <span class="menu-text">チェックリスト</span>
                     </a>
                 </div>
@@ -313,7 +314,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', v='20261005-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

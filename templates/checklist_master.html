@@ -92,6 +92,9 @@
 
         <td class="action-cell">
             <div class="checklist-master-actions">
+                {% if checklist.get("fixed_template_code") %}
+                    <span class="help-text">固定様式</span>
+                {% else %}
                 <a
                     href="/master/checklists/{{ checklist.id }}/edit"
                     class="btn-small btn-edit"
@@ -153,6 +156,7 @@
                         {% endif %}
                     </div>
                 </details>
+                {% endif %}
             </div>
         </td>
     </tr>
@@ -195,6 +199,9 @@
             </div>
 
             <div class="checklist-master-mobile-actions">
+                {% if checklist.get("fixed_template_code") %}
+                    <span class="help-text">固定様式</span>
+                {% else %}
                 <a
                     href="/master/checklists/{{ checklist.id }}/edit"
                     class="btn-small btn-edit"
@@ -254,6 +261,7 @@
                         {% endif %}
                     </div>
                 </details>
+                {% endif %}
             </div>
 
         </div>

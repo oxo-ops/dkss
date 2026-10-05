@@ -35,6 +35,10 @@ function toggleMenu(button) {
 window.addEventListener("DOMContentLoaded", function () {
     const currentPath = window.location.pathname;
 
+    if (window.innerWidth <= 900) {
+        document.body.classList.remove("sidebar-collapsed");
+    }
+
     const isSafetyInputPage =
         /^\/safety\/checklists\/\d+\/new\/?$/.test(currentPath);
 
@@ -1004,9 +1008,18 @@ async function registerPushNotifications() {
             "/api/push/vapid-public-key"
         );
 
+        if (response.status === 503) {
+            const configuration = await response.clone().json().catch(() => null);
+            if (configuration?.error === "VAPID public key is not configured.") {
+                return;
+            }
+        }
+
         if (!response.ok) {
             showCommonError(
-                "端末通知の設定情報を取得できませんでした。"
+                "端末通知の設定情報を取得できませんでした。",
+                "",
+                false
             );
             return;
         }
@@ -1015,7 +1028,9 @@ async function registerPushNotifications() {
 
         if (!data.publicKey) {
             showCommonError(
-                "端末通知の設定情報を取得できませんでした。"
+                "端末通知の設定情報を取得できませんでした。",
+                "",
+                false
             );
             return;
         }
@@ -1071,7 +1086,9 @@ window.addEventListener(
                     );
 
                     showCommonError(
-                        "端末通知の登録に失敗しました。通信状態を確認してください。"
+                        "端末通知の登録に失敗しました。通信状態を確認してください。",
+                        "",
+                        false
                     );
                 }
             );
@@ -1081,6 +1098,39 @@ window.addEventListener(
 
 function getFormErrorTarget(targetId) {
     if (!targetId) return null;
+
+    const vehicleAnswerMatch =
+        /^answer_(\d+)$/.exec(targetId);
+
+    if (
+        vehicleAnswerMatch
+        && document.getElementById("vehicleChecklistConfig")
+    ) {
+        const checkForm = Array.from(
+            document.querySelectorAll(".inline-check-form")
+        ).find(function (form) {
+            const itemNumber = form.querySelector(
+                'input[name="item_no"]'
+            );
+
+            return itemNumber
+                && itemNumber.value === vehicleAnswerMatch[1];
+        });
+
+        if (checkForm) {
+            const answerInput =
+                checkForm.querySelector(
+                    '[name="value"]:checked'
+                )
+                || checkForm.querySelector(
+                    '[name="value"]'
+                );
+
+            if (answerInput) {
+                return answerInput;
+            }
+        }
+    }
 
     let target = document.getElementById(targetId);
 
@@ -1153,7 +1203,7 @@ function clearCommonErrors() {
 }
 
 
-function showCommonError(message, targetId = "") {
+function showCommonError(message, targetId = "", moveFocus = true) {
     let summary = document.getElementById("error-summary");
 
     if (!summary) {
@@ -1179,6 +1229,19 @@ function showCommonError(message, targetId = "") {
         } else {
             document.body.prepend(summary);
         }
+    }
+
+    const openModalBox = document.querySelector(
+        ".modal-bg.is-open:not(.is-hidden) .modal-box"
+    );
+
+    const summaryContainer =
+        openModalBox
+        || document.querySelector("main")
+        || document.body;
+
+    if (summary.parentElement !== summaryContainer) {
+        summaryContainer.prepend(summary);
     }
 
     const list = summary.querySelector("ul");
@@ -1242,7 +1305,7 @@ function showCommonError(message, targetId = "") {
                 [...new Set(describedBy)].join(" ")
             );
 
-            if (list.children.length === 0) {
+            if (list.children.length === 0 && moveFocus) {
                 target.scrollIntoView({
                     behavior: "smooth",
                     block: "center"
@@ -1255,11 +1318,13 @@ function showCommonError(message, targetId = "") {
         }
     } else {
         item.textContent = message;
-        summary.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-        summary.focus({ preventScroll: true });
+        if (moveFocus) {
+            summary.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+            summary.focus({ preventScroll: true });
+        }
     }
 
     list.appendChild(item);

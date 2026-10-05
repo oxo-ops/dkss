@@ -606,8 +606,8 @@
     <h3>対応履歴</h3>
 
     <div class="checklist-history-list">
-        {% for event in checklist_events %}
-        <div class="checklist-history-item">
+        {% for event in checklist_events|reverse %}
+        <div class="checklist-history-item" data-event-type="{{ event.event_type }}">
             <div class="checklist-history-header">
                 <strong>{{ event.event_type }}</strong>
                 <span>{{ event.created_at }}</span>
@@ -685,7 +685,10 @@
             </div>
             {% endif %}
 
-            {% if event.event_type == "差し戻し" and event.detail.previous_approvals %}
+            {% if event.event_type == "差し戻し" and (
+                event.detail.get("previous_approvals", [])|selectattr("approved_by")|list
+                or event.detail.get("previous_approvals", [])|selectattr("approved_by_username")|list
+            ) %}
             <div class="checklist-history-detail">
                 <strong>差し戻し前の承認状況</strong>
 
