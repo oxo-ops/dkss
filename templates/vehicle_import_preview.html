@@ -178,6 +178,8 @@
                     <tr>
                         <th>No.</th>
                         <th>処理</th>
+                        <th>営業所</th>
+                        <th>有効／無効</th>
                         <th>車種</th>
                         <th>車番</th>
                         <th>車両総重量</th>
@@ -233,6 +235,36 @@
                                     Excel内重複
                                 </strong>
                             {% endif %}
+                        </td>
+
+                        <td>
+                            <input
+                                type="text"
+                                name="office"
+                                class="bulk-office"
+                                value="{{ vehicle.office or '' }}"
+                                maxlength="100"
+                            >
+                        </td>
+
+                        <td>
+                            <select
+                                name="active_status"
+                                class="bulk-active_status"
+                            >
+                                <option
+                                    value="有効"
+                                    {% if vehicle.active_status == "有効" %}selected{% endif %}
+                                >
+                                    有効
+                                </option>
+                                <option
+                                    value="無効"
+                                    {% if vehicle.active_status == "無効" %}selected{% endif %}
+                                >
+                                    無効
+                                </option>
+                            </select>
                         </td>
 
                         <td>
