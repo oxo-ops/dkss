@@ -8,7 +8,6 @@
     url_for,
     flash,
     jsonify,
-    escape,
 )
 from markupsafe import escape
 from werkzeug.utils import secure_filename, safe_join
