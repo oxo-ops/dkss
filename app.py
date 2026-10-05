@@ -23050,6 +23050,14 @@ def save_vehicle_checklist_detail(index):
             )
         ])
 
+    lock_error = lock_vehicle_inspection_updates(
+        company_code,
+        vehicle_record_id=vehicle_record_id,
+        checklist=checklist
+    )
+    if lock_error is not None:
+        return lock_error
+
     result_record = (
         VehicleChecklistResult.query
         .filter_by(
@@ -23580,6 +23588,14 @@ def complete_vehicle_checklist(index):
     year = str(year_int)
     month = str(month_int).zfill(2)
     day = str(day_int).zfill(2)
+
+    lock_error = lock_vehicle_inspection_updates(
+        company_code,
+        vehicle_record_id=vehicle_record_id,
+        checklist=checklist
+    )
+    if lock_error is not None:
+        return lock_error
 
     # =========================
     # 結果取得

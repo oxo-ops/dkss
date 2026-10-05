@@ -936,7 +936,7 @@
                 {{ reported_answer.get("content") or "" }}
             </div>
 
-            <a class="btn btn-outline" href="{{ entry.get('link') }}#vehicle-inspection-response">
+            <a class="btn btn-outline js-vehicle-flow-link" href="{{ entry.get('link').split('#')[0] }}#vehicle-flow-defect-{{ entry.get('result_id') }}-{{ defect.get('defect_no') }}">
                 {{ entry.get("inspection_date") }}の不具合対応へ
             </a>
         </div>
