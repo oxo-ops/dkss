@@ -8,6 +8,7 @@
     url_for,
     flash,
     jsonify,
+    escape,
 )
 from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14205,7 +14206,7 @@ def confirm_vehicle_import():
 
         if office and office not in valid_import_offices:
             return (
-                f"{i + 1}件目の営業所「{office}」は"
+                f"{i + 1}件目の営業所「{escape(office)}」は"
                 "営業所マスタに登録されていません。",
                 400
             )
