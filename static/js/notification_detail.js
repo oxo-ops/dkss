@@ -1,16 +1,24 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const deleteForm =
-        document.querySelector(
-            ".js-notification-delete-form"
-        );
+    const forms = Array.from(
+        document.querySelectorAll(".notification-actions form")
+    );
 
-    if (!deleteForm) {
-        return;
-    }
+    forms.forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            if (form.dataset.submitting === "true") {
+                event.preventDefault();
+                return;
+            }
 
-    deleteForm.addEventListener("submit", function (event) {
-        if (!window.confirm("この通知を削除しますか？")) {
-            event.preventDefault();
-        }
+            form.dataset.submitting = "true";
+            form.setAttribute("aria-busy", "true");
+        });
+    });
+
+    window.addEventListener("pageshow", function () {
+        forms.forEach(function (form) {
+            delete form.dataset.submitting;
+            form.removeAttribute("aria-busy");
+        });
     });
 });

@@ -1,89 +1,241 @@
-{% extends "base.html" %}
+{% if not panel_only %}
+    {% extends "base.html" %}
+{% endif %}
 
-{% block title %}通知詳細{% endblock %}
+{% block title %}
+    {% if not panel_only %}通知詳細{% endif %}
+{% endblock %}
 
 {% block content %}
-
-<div class="page-header">
-    <h2>通知詳細</h2>
-
-    <div class="header-actions">
-        <a href="/notifications" class="btn btn-back">
-            ← 通知一覧へ戻る
+<section class="dkss-notification-detail">
+    <header class="nd-header">
+        <h2>通知詳細</h2>
+        <a href="{{ url_for('notifications', **list_state) }}"
+           class="nd-close" aria-label="通知詳細を閉じる">
+            <svg viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18"/>
+            </svg>
         </a>
+    </header>
 
-        <a href="/" class="btn btn-back">
-            × 閉じる
-        </a>
-    </div>
-</div>
+    <div class="nd-content">
+        <div class="nd-meta">
+            <span>
+                {{ notification.category_label }}・{{ notification.type_label }}
+            </span>
 
-<div class="card notification-detail-card">
+            <div class="nd-badges">
+                <span class="nd-badge nd-read">
+                    {% if notification.read %}既読{% else %}未読{% endif %}
+                </span>
 
-    <div class="notification-detail-head">
-        <img
-            src="{{ url_for('static', filename='icons/notification.png') }}"
-            alt="通知"
-        >
-
-        <div>
-            <h3>{{ notification.title }}</h3>
-            <p>{{ notification.created_at }}</p>
-        </div>
-    </div>
-
-    <div
-        class="notification-detail-message mention-display"
-        data-value="{{ notification.message }}"
-    ></div>
-{% if notification.files %}
-    <div class="attached-files">
-        <strong>添付ファイル</strong>
-
-        <div class="file-preview-list">
-            {% for file in notification.files %}
-                {% set ext = file.split('.')[-1].lower() %}
-                {% set path = url_for('static', filename='uploads/' ~ file) %}
-
-                {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
-                    <a href="{{ path }}" target="_blank">
-                        <img src="{{ path }}" class="preview-image">
-                    </a>
-                {% else %}
-                    <a href="{{ path }}" target="_blank" class="file-link">
-                        {{ file }}
-                    </a>
+                {% if notification.workflow_label %}
+                    <span class="nd-badge nd-workflow
+                        {% if notification.requires_action %}nd-pending
+                        {% elif notification.workflow_status == 'completed' %}nd-completed
+                        {% else %}nd-ended{% endif %}">
+                        {{ notification.workflow_label }}
+                    </span>
                 {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-{% endif %}
 
-{% if notification.link %}
-    <div class="action-row">
+                {% if notification.deleted_at %}
+                    <span class="nd-badge nd-ended">削除済み</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <h3 class="nd-title">
+            {% if notification.target_info and notification.notification_type == "recheck" %}
+                {{ notification.title.rsplit("：", 1)[-1] }}
+            {% else %}
+                {{ notification.title }}
+            {% endif %}
+        </h3>
+        {% if notification.target_info %}
+            {% set target = notification.target_info %}
+            <section class="nd-target" aria-label="通知の対象">
+                <span class="nd-target-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.7"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="4" width="14" height="17" rx="2"/>
+                        <rect x="9" y="2" width="6" height="4" rx="1"/>
+                        <path d="m8 11 1 1 2-2M13 11h3M8 16h8"/>
+                    </svg>
+                </span>
+                <div class="nd-target-name">
+                    {{ target.checklist_name }}
+                </div>
+
+                {% if target.target_label %}
+                    <div class="nd-target-label">
+                        {{ target.target_label }}
+                    </div>
+                {% endif %}
+
+                {% if target.period_label or target.office %}
+                    <div class="nd-target-meta">
+                        {% if target.period_label %}
+                            <span>対象日：{{ target.period_label }}</span>
+                        {% endif %}
+                        {% if target.office %}
+                            <span>{{ target.office }}</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </section>
+        {% endif %}
+        <div class="nd-actor">
+            {% if notification.actor_name %}
+                <span class="nd-actor-avatar" aria-hidden="true">
+                    {{ notification.actor_name[0] }}
+                </span>
+            {% endif %}
+
+            <div class="nd-actor-info">
+                {% if notification.actor_name %}
+                    <div class="nd-actor-name">
+                        {{ notification.actor_name }}
+                    </div>
+                {% endif %}
+
+                <p class="nd-date">
+                    {{ notification.created_at
+                       | notification_datetime("detail") }}
+                </p>
+            </div>
+        </div>
+
+        {% set summary_message = notification.summary_message | default(notification.message, true) %}
+        {% set message_lines = summary_message.splitlines() %}
+        {% if notification.notification_type == "operation_result"
+              and notification.target_info
+              and notification.target_info.period_label
+              and message_lines|length > 1
+              and message_lines[1].startswith("点検日：") %}
+            {% set summary_message = (message_lines[:1] + message_lines[2:]) | join("\n") %}
+        {% endif %}
+        <div class="nd-message mention-display"
+             data-value="{{ summary_message }}"></div>
+
+        {% if summary_message != notification.message %}
+            <details class="nd-attachments">
+                <summary>
+                    <span>詳細を見る</span>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" stroke="currentColor"
+                              stroke-width="1.6" stroke-linecap="round"
+                              stroke-linejoin="round" />
+                    </svg>
+                </summary>
+                <div class="nd-message mention-display"
+                     data-value="{{ notification.message }}"></div>
+            </details>
+        {% endif %}
+
         {% if notification.link %}
-            <a href="{{ notification.link }}" class="btn">
-                該当ページを開く
+            <a href="{% if notification.deleted_at %}{{ notification.link }}{% else %}{{ url_for('open_notification_target', index=notification.index, **list_state) }}{% endif %}"
+               class="nd-primary">
+                <span>{{ notification.action_label }}</span>
             </a>
         {% endif %}
+
+        {% if notification.requires_action %}
+            <p class="nd-hint">
+                既読にしても、業務の対応が終わるまで「要対応」に残ります。
+            </p>
+        {% endif %}
+
+        <div class="nd-tools">
+            {% if notification.deleted_at %}
+                <form method="post"
+                      action="{{ url_for('restore_notification', index=notification.index, **list_state) }}">
+                    <input type="hidden" name="csrf_token"
+                           value="{{ csrf_token() }}">
+                    <button type="submit" class="nd-secondary">
+                        受信箱へ戻す
+                    </button>
+                </form>
+            {% else %}
+                <form method="post"
+                      action="{{ url_for('bulk_notifications', **list_state) }}">
+                    <input type="hidden" name="csrf_token"
+                           value="{{ csrf_token() }}">
+                    <input type="hidden" name="view" value="{{ current_view }}">
+                    <input type="hidden" name="notification_ids"
+                           value="{{ notification.index }}">
+                    <button type="submit" name="action" value="unread"
+                            class="nd-secondary">
+                        未読に戻す
+                    </button>
+                </form>
+            {% endif %}
+
+            <details class="nd-menu">
+                <summary aria-label="その他の操作">
+                    <svg viewBox="0 0 24 24"
+                         fill="currentColor" aria-hidden="true">
+                        <circle cx="5" cy="12" r="1.5"/>
+                        <circle cx="12" cy="12" r="1.5"/>
+                        <circle cx="19" cy="12" r="1.5"/>
+                    </svg>
+                </summary>
+                <div class="nd-menu-content">
+                    {% if notification.deleted_at %}
+                        <span>削除済みの通知です</span>
+                    {% else %}
+                        <form method="post"
+                              action="{{ url_for('delete_notification', index=notification.index, **list_state) }}"
+                              class="js-notification-delete-form">
+                            <input type="hidden" name="csrf_token"
+                                   value="{{ csrf_token() }}">
+                            <button type="submit" class="nd-delete">
+                                通知を削除
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </details>
+        </div>
+
+        {% if notification.files %}
+            <details class="nd-attachments">
+                <summary>
+                    <span>添付を見る（{{ notification.files|length }}件）</span>
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true">
+                        <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                </summary>
+                <div class="file-preview-list">
+                    {% for file in notification.files %}
+                        {% set ext = file.split('.')[-1].lower() %}
+                        {% set path = url_for('static', filename='uploads/' ~ file) %}
+                        <a href="{{ path }}" target="_blank"
+                           rel="noopener noreferrer" class="file-link">
+                            {% if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                                <img src="{{ path }}" class="preview-image"
+                                     alt="{{ file }}" loading="lazy">
+                            {% else %}
+                                {{ file }}
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+            </details>
+        {% endif %}
+
+        <p class="nd-footer-note">
+            通知を削除しても、点検記録・承認履歴・添付ファイルは削除されません。
+        </p>
     </div>
+</section>
+
+{% if not panel_only %}
+    <script src="{{ url_for('static', filename='js/notification_detail.js') }}"></script>
 {% endif %}
-
-<div class="notification-actions">
-    <form
-        method="post"
-        action="/notifications/{{ notification.index }}/delete"
-        class="js-notification-delete-form"
-    >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn-small btn-delete">
-            削除
-        </button>
-    </form>
-</div>
-
-</div>
-
-<script src="{{ url_for('static', filename='js/notification_detail.js') }}"></script>
-
 {% endblock %}

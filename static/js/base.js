@@ -1575,10 +1575,35 @@ document.addEventListener("submit", async function (event) {
 
 document.addEventListener("DOMContentLoaded", function () {
     let refreshing = false;
+    let refreshAgain = false;
 
     function updateNotificationCount(count) {
+        if (!Number.isInteger(count) || count < 0) {
+            return;
+        }
+
         document.body.dataset.unreadNotificationCount =
             String(count);
+
+        [
+            "notificationUnreadTabCount",
+            "notificationReadAllCount",
+            "notificationPopoverUnreadCount"
+        ].forEach(function (id) {
+            const element = document.getElementById(id);
+
+            if (element) {
+                element.textContent = String(count);
+            }
+        });
+
+        const readAllButton = document.getElementById(
+            "notificationReadAllButton"
+        );
+
+        if (readAllButton) {
+            readAllButton.disabled = count === 0;
+        }
 
         document.querySelectorAll(
             ".notification-bell"
@@ -1611,15 +1636,25 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function refreshNotificationCount() {
-        if (refreshing || document.visibilityState === "hidden") {
+        if (document.visibilityState === "hidden") return;
+
+        if (refreshing) {
+            refreshAgain = true;
             return;
         }
 
         refreshing = true;
 
         try {
+            const actionCountLabel = document.getElementById(
+                "notificationActionTabCount"
+            );
+            const countUrl = actionCountLabel
+                ? "/api/notifications/unread-count?include_action=1"
+                : "/api/notifications/unread-count";
+
             const response = await fetch(
-                "/api/notifications/unread-count",
+                countUrl,
                 {
                     credentials: "same-origin",
                     cache: "no-store",
@@ -1634,6 +1669,9 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             const data = await response.json();
+
+            if (refreshAgain) return;
+
             const count = data.unread_count;
 
             if (!Number.isInteger(count) || count < 0) {
@@ -1641,16 +1679,86 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             updateNotificationCount(count);
+
+            if (
+                actionCountLabel
+                && Number.isInteger(data.action_count)
+                && data.action_count >= 0
+            ) {
+                actionCountLabel.textContent = data.action_count;
+            }
+
+            const workflowStates = data.workflow_states;
+
+            if (
+                workflowStates
+                && typeof workflowStates === "object"
+                && !Array.isArray(workflowStates)
+            ) {
+                document.querySelectorAll(
+                    ".notification-wrapper[data-notification-id]"
+                ).forEach(function (row) {
+                    const state = workflowStates[row.dataset.notificationId];
+                    const label = row.querySelector(
+                        ".js-notification-workflow-label"
+                    );
+
+                    if (
+                        !label
+                        || !state
+                        || typeof state.workflow_label !== "string"
+                    ) {
+                        return;
+                    }
+
+                    label.textContent = state.workflow_label;
+                    label.hidden = !state.workflow_label;
+                    label.dataset.workflowStatus =
+                        state.workflow_status || "";
+                    label.dataset.requiresAction =
+                        state.requires_action ? "true" : "false";
+                });
+
+                document.dispatchEvent(new CustomEvent(
+                    "dkss:notification-workflow-updated",
+                    { detail: { workflowStates: workflowStates } }
+                ));
+            }
         } catch (error) {
             console.error("通知件数の更新に失敗しました:", error);
         } finally {
             refreshing = false;
+
+            if (refreshAgain) {
+                refreshAgain = false;
+                refreshNotificationCount();
+            }
         }
     }
 
     updateNotificationCount(Number(
         document.body.dataset.unreadNotificationCount || 0
     ));
+
+    document.addEventListener(
+        "dkss:notifications-changed",
+        function (event) {
+            updateNotificationCount(event.detail?.unread_count);
+            refreshNotificationCount();
+        }
+    );
+
+    const notificationSyncKey = "dkss-notifications-changed";
+
+    window.addEventListener("storage", function (event) {
+        if (event.key === notificationSyncKey) {
+            refreshNotificationCount();
+        }
+    });
+
+    window.setInterval(function () {
+        refreshNotificationCount();
+    }, 30000);
 
     refreshNotificationCount();
 
@@ -1668,4 +1776,426 @@ document.addEventListener("DOMContentLoaded", function () {
         "visibilitychange",
         refreshNotificationCount
     );
+});
+
+// ベル：最近の通知の開閉・取得
+document.addEventListener("DOMContentLoaded", function () {
+    const menu = document.getElementById("notificationMenu");
+    const bell = document.getElementById("notificationBell");
+    const panel = document.getElementById("notificationPopover");
+    const closeButton = document.getElementById("notificationPopoverClose");
+    const list = document.getElementById("notificationPopoverList");
+    const status = document.getElementById("notificationPopoverStatus");
+
+    if (!menu || !bell || !panel || !closeButton || !list || !status) {
+        return;
+    }
+
+    let controller = null;
+
+    function positionPanel() {
+        if (panel.hidden) {
+            return;
+        }
+
+        const rect = bell.getBoundingClientRect();
+        const top = Math.max(
+            16,
+            Math.min(rect.bottom + 8, window.innerHeight - 120)
+        );
+        const width = panel.getBoundingClientRect().width;
+        const right = Math.max(
+            16,
+            Math.min(
+                window.innerWidth - rect.right,
+                window.innerWidth - width - 16
+            )
+        );
+
+        panel.style.top = top + "px";
+        panel.style.right = right + "px";
+        panel.style.maxHeight = Math.max(
+            80,
+            Math.min(560, window.innerHeight - top - 16)
+        ) + "px";
+    }
+
+    function closePanel(returnFocus) {
+        panel.hidden = true;
+        bell.setAttribute("aria-expanded", "false");
+        bell.setAttribute("aria-label", "最近の通知を開く");
+
+        if (controller) {
+            controller.abort();
+            controller = null;
+        }
+
+        list.setAttribute("aria-busy", "false");
+
+        if (returnFocus) {
+            bell.focus();
+        }
+    }
+
+    function appendText(parent, className, text) {
+        const element = document.createElement("div");
+        element.className = className;
+        element.textContent = text;
+        parent.appendChild(element);
+    }
+
+    let actionPending = false;
+
+    async function runNotificationAction(id, action, button, payload) {
+        if (actionPending) return;
+        actionPending = true;
+        button.disabled = true;
+
+        try {
+            const response = await fetch(
+                "/api/notifications/" + id + "/" + action,
+                {
+                    method: "POST",
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": document.querySelector(
+                            'meta[name="csrf-token"]'
+                        )?.content || ""
+                    },
+                    body: JSON.stringify(payload || {})
+                }
+            );
+            const result = await response.json();
+
+            if (!response.ok || response.redirected) {
+                throw new Error(result.error || "通知を更新できませんでした。");
+            }
+            if (
+                result.notification_id !== id ||
+                !Number.isInteger(result.unread_count) ||
+                result.unread_count < 0 ||
+                (action === "read" && result.read !== true) ||
+                (action === "delete" && typeof result.deleted_at !== "string") ||
+                (action === "undo-delete" && result.deleted_at !== null)
+            ) {
+                throw new Error("通知の更新結果が正しくありません。");
+            }
+
+            document.dispatchEvent(new CustomEvent(
+                "dkss:notifications-changed", { detail: result }
+            ));
+            document.dispatchEvent(new CustomEvent(
+                "dkss:notification-item-updated",
+                { detail: { ...result, action: action } }
+            ));
+            try {
+                localStorage.setItem(
+                    "dkss-notifications-changed",
+                    Date.now() + ":" + Math.random()
+                );
+            } catch (error) {}
+
+            if (!panel.hidden) {
+                await loadRecentNotifications();
+                if (!panel.hidden && action === "delete") {
+                    status.replaceChildren(
+                        document.createTextNode("通知を削除しました。 ")
+                    );
+                    const undo = document.createElement("button");
+                    undo.type = "button";
+                    undo.className = "notification-popover-undo";
+                    undo.textContent = "元に戻す";
+                    undo.addEventListener("click", function () {
+                        runNotificationAction(id, "undo-delete", undo, {
+                            deleted_at: result.deleted_at
+                        });
+                    });
+                    status.appendChild(undo);
+                    undo.focus({ preventScroll: true });
+                } else if (!panel.hidden) {
+                    closeButton.focus({ preventScroll: true });
+                }
+            }
+        } catch (error) {
+            showCommonError(
+                error.message || "通知を更新できませんでした。"
+            );
+        } finally {
+            actionPending = false;
+            button.disabled = false;
+        }
+    }
+
+    async function loadRecentNotifications() {
+        const requestController = new AbortController();
+        controller = requestController;
+        list.replaceChildren();
+        list.setAttribute("aria-busy", "true");
+        status.textContent = "読み込み中…";
+
+        try {
+            const response = await fetch("/api/notifications/recent", {
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: { "Accept": "application/json" },
+                signal: requestController.signal
+            });
+
+            if (!response.ok || response.redirected) {
+                throw new Error("通知を取得できませんでした。");
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data.notifications)) {
+                throw new Error("通知の取得結果が正しくありません。");
+            }
+
+            if (panel.hidden || controller !== requestController) {
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            let previousDayKey = null;
+
+            data.notifications.forEach(function (notification) {
+                if (
+                    !Number.isInteger(notification.id)
+                    || notification.id <= 0
+                ) {
+                    return;
+                }
+
+                const dayKey = notification.day_key || "unknown";
+
+                if (dayKey !== previousDayKey) {
+                    appendText(
+                        fragment,
+                        "notification-popover-day",
+                        notification.day_label || "日時不明"
+                    );
+                    previousDayKey = dayKey;
+                }
+
+                const item = document.createElement("a");
+                item.className = "notification-popover-item"
+                    + (notification.read ? "" : " unread");
+                item.href = "/notifications?view=inbox&notification="
+                    + notification.id;
+
+                appendText(
+                    item,
+                    "notification-popover-meta",
+                    [
+                        notification.category_label,
+                        notification.type_label
+                    ].filter(Boolean).join("・")
+                );
+
+                const target = notification.target_info;
+                const title = target?.checklist_name
+                    ? [
+                        target.checklist_name,
+                        target.target_label || target.office
+                    ].filter(Boolean).join("｜")
+                    : notification.title || "";
+
+                appendText(
+                    item,
+                    "notification-popover-title",
+                    title
+                );
+
+                const states = document.createElement("div");
+                states.className = "notification-popover-states";
+
+                const readBadge = document.createElement("span");
+                readBadge.className = "notification-popover-read";
+                readBadge.textContent =
+                    notification.read ? "既読" : "未読";
+                states.appendChild(readBadge);
+
+                if (notification.workflow_label) {
+                    const workflowBadge = document.createElement("span");
+                    workflowBadge.className =
+                        "notification-popover-workflow";
+                    workflowBadge.dataset.workflowStatus =
+                        notification.workflow_status || "";
+                    workflowBadge.dataset.requiresAction =
+                        notification.requires_action ? "true" : "false";
+                    workflowBadge.textContent =
+                        notification.workflow_label;
+                    states.appendChild(workflowBadge);
+                }
+
+                item.appendChild(states);
+                const message = document.createElement("div");
+                message.className = "notification-popover-message";
+
+                renderMentionValue(
+                    message,
+                    notification.message || ""
+                );
+
+                item.appendChild(message);
+                appendText(
+                    item,
+                    "notification-popover-meta",
+                    notification.time_label || ""
+                );
+
+                const wrapper = document.createElement("div");
+                wrapper.className = "notification-popover-row";
+                wrapper.appendChild(item);
+
+                const actions = document.createElement("details");
+                actions.className = "notification-popover-actions";
+                const trigger = document.createElement("summary");
+                trigger.setAttribute("aria-label", "通知の操作");
+                trigger.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+                actions.appendChild(trigger);
+
+                const commands = document.createElement("div");
+                commands.className = "notification-popover-commands";
+                const confirm = document.createElement("a");
+                confirm.href = item.href;
+                confirm.textContent = "確認";
+                commands.appendChild(confirm);
+
+                function addAction(label, action) {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.textContent = label;
+                    button.dataset.action = action;
+                    button.addEventListener("click", function () {
+                        actions.open = false;
+                        runNotificationAction(
+                            notification.id, action, button
+                        );
+                    });
+                    commands.appendChild(button);
+                }
+
+                if (!notification.read) addAction("既読", "read");
+                addAction("削除", "delete");
+                actions.appendChild(commands);
+                wrapper.appendChild(actions);
+
+                actions.addEventListener("toggle", function () {
+                    if (!actions.open) return;
+
+                    list.querySelectorAll(
+                        ".notification-popover-actions[open]"
+                    ).forEach(function (other) {
+                        if (other !== actions) other.open = false;
+                    });
+
+                    const rect = trigger.getBoundingClientRect();
+                    commands.style.left = Math.max(
+                        8,
+                        Math.min(
+                            rect.right - 140,
+                            window.innerWidth - 148
+                        )
+                    ) + "px";
+                    commands.style.top = Math.max(
+                        8,
+                        Math.min(
+                            rect.bottom + 4,
+                            window.innerHeight - commands.offsetHeight - 8
+                        )
+                    ) + "px";
+                });
+
+                fragment.appendChild(wrapper);
+            });
+
+            list.replaceChildren(fragment);
+
+            if (
+                Number.isInteger(data.unread_count) &&
+                data.unread_count >= 0
+            ) {
+                document.dispatchEvent(new CustomEvent(
+                    "dkss:notifications-changed",
+                    { detail: { unread_count: data.unread_count } }
+                ));
+            }
+
+            status.textContent = list.childElementCount
+                ? ""
+                : "受信箱に通知はありません。";
+        } catch (error) {
+            if (
+                error.name === "AbortError"
+                || panel.hidden
+                || controller !== requestController
+            ) {
+                return;
+            }
+
+            status.textContent = "通知一覧から確認してください。";
+            showCommonError("最近の通知を取得できませんでした。");
+        } finally {
+            if (controller === requestController) {
+                controller = null;
+                list.setAttribute("aria-busy", "false");
+            }
+        }
+    }
+
+    bell.addEventListener("click", function (event) {
+        if (
+            event.button !== 0
+            || event.ctrlKey
+            || event.metaKey
+            || event.shiftKey
+            || event.altKey
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (!panel.hidden) {
+            closePanel(true);
+            return;
+        }
+
+        panel.hidden = false;
+        bell.setAttribute("aria-expanded", "true");
+        bell.setAttribute("aria-label", "最近の通知を閉じる");
+        positionPanel();
+        closeButton.focus();
+        loadRecentNotifications();
+    });
+
+    closeButton.addEventListener("click", function () {
+        closePanel(true);
+    });
+
+    document.addEventListener("click", function (event) {
+        if (!panel.hidden && !menu.contains(event.target)) {
+            closePanel(false);
+        }
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !panel.hidden) {
+            event.preventDefault();
+            closePanel(true);
+        }
+    });
+
+    document.addEventListener("focusin", function (event) {
+        if (!panel.hidden && !menu.contains(event.target)) {
+            closePanel(false);
+        }
+    });
+
+    window.addEventListener("resize", positionPanel);
+    window.addEventListener("scroll", positionPanel, true);
 });
