@@ -16,7 +16,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261005-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261006-2') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}"
@@ -193,16 +193,71 @@
 
     <main class="main-content">
 
-        <div class="top-bar">
-            <a href="/notifications" class="notification-bell">
-                <img src="{{ url_for('static', filename='icons/notification.png') }}" alt="通知">
+        <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}">
+            <div class="notification-menu" id="notificationMenu">
+                <a
+                    href="{{ url_for('notifications') }}"
+                    class="notification-bell"
+                    id="notificationBell"
+                    aria-label="最近の通知を開く"
+                    aria-controls="notificationPopover"
+                    aria-expanded="false"
+                >
+                    <img
+                        src="{{ url_for('static', filename='icons/notification.png') }}"
+                        alt=""
+                    >
 
-                {% if unread_notification_count > 0 %}
-                    <span class="notification-count">
-                        {{ unread_notification_count }}
-                    </span>
-                {% endif %}
-            </a>
+                    {% if unread_notification_count > 0 %}
+                        <span class="notification-count">
+                            {{ unread_notification_count }}
+                        </span>
+                    {% endif %}
+                </a>
+
+                <section
+                    class="notification-popover"
+                    id="notificationPopover"
+                    aria-labelledby="notificationPopoverTitle"
+                    hidden
+                >
+                    <div class="notification-popover-header">
+                        <div class="notification-popover-heading">
+                            <h2 id="notificationPopoverTitle">最近の通知</h2>
+                            <span class="notification-popover-unread">
+                                未読 <span id="notificationPopoverUnreadCount">{{ unread_notification_count }}</span>件
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            id="notificationPopoverClose"
+                            class="notification-popover-close"
+                            aria-label="通知を閉じる"
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <div
+                        class="notification-popover-list"
+                        id="notificationPopoverList"
+                        aria-busy="false"
+                    ></div>
+
+                    <p
+                        class="notification-popover-status"
+                        id="notificationPopoverStatus"
+                        role="status"
+                    ></p>
+
+                    <a
+                        href="{{ url_for('notifications') }}"
+                        class="notification-popover-footer"
+                    >
+                        通知一覧を開く
+                    </a>
+                </section>
+            </div>
 
             {% if request.path == "/settings" %}
                 <button
@@ -314,7 +369,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js', v='20261005-2') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', v='20261006-2') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

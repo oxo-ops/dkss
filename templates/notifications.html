@@ -4,71 +4,504 @@
 
 {% block content %}
 
-<div class="page-header">
-    <h2>通知一覧</h2>
+<div class="page-header notification-page-header">
+    <div class="notification-heading">
+        <h2>通知</h2>
+    </div>
 
     <div class="header-actions">
-        <a href="/" class="btn btn-back">
-            × 閉じる
+        {% if current_view != "deleted" %}
+            <form id="notificationReadAllForm"
+                  method="post"
+                  action="{{ url_for('mark_all_notifications_read', category=selected_category, type=selected_type, q=search_query) }}">
+                <input type="hidden" name="csrf_token"
+                       value="{{ csrf_token() }}">
+                <input type="hidden" name="view"
+                       value="{{ current_view }}">
+
+                <button type="submit"
+                        id="notificationReadAllButton"
+                        class="btn-small"
+                        {% if unread_notification_count == 0 %}disabled{% endif %}>
+                    <span>すべて既読（<span id="notificationReadAllCount">{{ unread_notification_count }}</span>件）</span>
+                </button>
+            </form>
+        {% endif %}
+
+        <a href="/" class="notification-page-close">
+            <svg viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18"/>
+            </svg>
+            <span>閉じる</span>
         </a>
     </div>
 </div>
 
-<div class="card">
+<div class="card notifications-card">
+    <nav class="notification-tabs" aria-label="通知の表示切替">
+        {% for view, label in [
+            ("inbox", "受信箱"),
+            ("unread", "未読"),
+            ("action", "要対応"),
+            ("deleted", "削除済み")
+        ] %}
+            <a
+                href="{{ url_for('notifications', view=view, category=selected_category, type=selected_type, q=search_query) }}"
+                class="notification-view-tab"
+                {% if current_view == view %}aria-current="page"{% endif %}
+            >
+                <span>{{ label }}</span>
+
+                {% if view == "inbox" %}
+                    <span class="notification-tab-count"
+                          id="notificationInboxTabCount">
+                        {{ inbox_notification_count }}
+                    </span>
+                {% elif view == "unread" %}
+                    <span class="notification-tab-count"
+                          id="notificationUnreadTabCount">
+                        {{ unread_notification_count }}
+                    </span>
+                {% elif view == "action" %}
+                    <span class="notification-tab-count"
+                          id="notificationActionTabCount">
+                        {{ action_notification_count }}
+                    </span>
+                {% endif %}
+            </a>
+        {% endfor %}
+    </nav>
+
+    <div class="notification-layout" id="notificationLayout">
+        <div class="notification-list-pane" id="notificationListPane">
+
+    <form method="get"
+          action="{{ url_for('notifications') }}"
+          class="notification-filter"
+          id="notificationFilterForm">
+        <input type="hidden" name="view" value="{{ current_view }}">
+
+        <div class="form-group notification-filter-search">
+            <label for="notificationSearch"
+                   class="notification-filter-label">検索</label>
+
+            <div class="notification-search-control">
+                <button type="submit"
+                        class="notification-search-submit"
+                        aria-label="検索する">
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" aria-hidden="true">
+                        <circle cx="10.5" cy="10.5" r="6.5"/>
+                        <path d="m16 16 4.5 4.5"/>
+                    </svg>
+                </button>
+
+                <input type="search"
+                       id="notificationSearch"
+                       name="q"
+                       value="{{ search_query }}"
+                       maxlength="200"
+                       placeholder="車両番号・点検表名・氏名・本文">
+
+                {% if search_query or selected_category or selected_type %}
+                    <a href="{{ url_for('notifications', view=current_view) }}"
+                       class="notification-filter-reset"
+                       aria-label="検索と絞り込みをすべて解除"
+                       title="条件をクリア">×</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="notificationCategory"
+                   class="notification-filter-label">区分</label>
+            <select id="notificationCategory" name="category">
+                <option value="">区分：すべて</option>
+                {% for value, label in category_labels.items() %}
+                    <option value="{{ value }}"
+                            {% if selected_category == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="notificationType"
+                   class="notification-filter-label">通知種類</label>
+            <select id="notificationType" name="type">
+                <option value="">種類：すべて</option>
+                {% for value, label in type_labels.items() %}
+                    <option value="{{ value }}"
+                            {% if selected_type == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    {% for message in get_flashed_messages(
+        category_filter=["notification_success"]
+    ) %}
+        <p class="notification-operation-result" role="status">
+            {{ message }}
+        </p>
+    {% endfor %}
+
+    {% for deletion in get_flashed_messages(
+        category_filter=["notification_deleted"]
+    ) %}
+        <div class="action-row notification-operation-result">
+            <p role="status">
+                {{ deletion.count }}件の通知を削除しました。
+            </p>
+
+            <form
+                method="post"
+                action="{{ url_for('undo_notification_delete', category=selected_category, type=selected_type, q=search_query) }}"
+                class="js-notification-undo-form"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+                <input
+                    type="hidden"
+                    name="deleted_at"
+                    value="{{ deletion.deleted_at }}"
+                >
+                <input
+                    type="hidden"
+                    name="view"
+                    value="{{ deletion.view }}"
+                >
+
+                <button type="submit" class="btn-small">
+                    元に戻す
+                </button>
+            </form>
+        </div>
+    {% endfor %}
+        
     {% if notifications %}
+        <form
+            id="notificationBulkForm"
+            method="post"
+            action="{{ url_for('bulk_notifications', category=selected_category, type=selected_type, q=search_query) }}"
+            class="notification-bulk-toolbar"
+        >
+            <input type="hidden" name="csrf_token"
+                   value="{{ csrf_token() }}">
+            <input type="hidden" name="view"
+                   value="{{ current_view }}">
+
+            <label class="notification-bulk-selection">
+                <input type="checkbox"
+                       id="notificationSelectAll"
+                       aria-label="表示中の通知をすべて選択">
+                <span id="notificationSelectedCount" role="status">
+                    0件選択
+                </span>
+            </label>
+
+            {% if current_view == "deleted" %}
+                {% set bulk_actions = [
+                    ("restore", "受信箱へ戻す"),
+                    ("unread", "未読に戻す")
+                ] %}
+            {% else %}
+                {% set bulk_actions = [
+                    ("read", "既読にする"),
+                    ("unread", "未読に戻す"),
+                    ("delete", "削除")
+                ] %}
+            {% endif %}
+
+            {% for action, label in bulk_actions %}
+                <button type="submit"
+                        name="action"
+                        value="{{ action }}"
+                        class="notification-bulk-action"
+                        disabled>
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true">
+                        {% if action == "delete" %}
+                            <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>
+                        {% elif action == "restore" %}
+                            <path d="M4 10V5h5M4 5l5 5"/>
+                            <path d="M5 8a8 8 0 1 1-1 8"/>
+                        {% else %}
+                            <rect x="3" y="5" width="18"
+                                  height="14" rx="2"/>
+                            <path d="m3 6 9 7 9-7"/>
+                            {% if action == "unread" %}
+                                <circle cx="19" cy="5" r="3"
+                                        fill="currentColor"
+                                        stroke="#ffffff"/>
+                            {% endif %}
+                        {% endif %}
+                    </svg>
+                    <span>{{ label }}</span>
+                </button>
+            {% endfor %}
+
+            <button type="button"
+                    id="notificationClearSelection"
+                    class="notification-bulk-clear"
+                    disabled>
+                選択解除
+            </button>
+        </form>
 
         <div class="notification-list">
             {% for notification in notifications %}
+                {% if loop.changed(
+                    notification.created_at
+                    | notification_datetime("group")
+                ) %}
+                    <div class="notification-date-heading">
+                        <button type="button"
+                                class="notification-date-toggle"
+                                aria-expanded="true">
+                            <svg width="16" height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor"
+                                 stroke-width="1.5"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <path d="m9 5 7 7-7 7"/>
+                            </svg>
+                            <span>
+                                {{ notification.created_at
+                                   | notification_datetime("group") }}
+                            </span>
+                        </button>
 
-                <div class="notification-wrapper">
+                        {% if loop.first %}
+                            <select
+                                id="notificationSort"
+                                name="sort"
+                                form="notificationFilterForm"
+                                aria-label="通知の並び順"
+                            >
+                                <option value="newest"
+                                    {% if current_sort == "newest" %}selected{% endif %}>
+                                    新しい順
+                                </option>
+                                <option value="oldest"
+                                    {% if current_sort == "oldest" %}selected{% endif %}>
+                                    古い順
+                                </option>
+                            </select>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <div
+                    class="notification-wrapper"
+                    data-notification-id="{{ notification.index }}"
+                >
+                    <div class="notification-select">
+                        <input
+                            type="checkbox"
+                            name="notification_ids"
+                            value="{{ notification.index }}"
+                            form="notificationBulkForm"
+                            class="js-notification-select"
+                            aria-label="{{ notification.title }}を選択"
+                        >
+                    </div>
 
                     <a
-                        href="/notifications/{{ notification.index }}"
-                        class="notification-item {% if not notification.read %}unread{% endif %}"
+                        href="{{ url_for('notification_detail', index=notification.index, view=current_view, category=selected_category, type=selected_type, q=search_query) }}"
+                        class="notification-item notification-row {% if not notification.read %}unread{% endif %}"
                     >
-                        <div class="notification-icon">
-                            <img src="{{ url_for('static', filename='icons/notification.png') }}">
-                        </div>
+                        <span class="notification-kind-icon notification-kind-{{ notification.category }}"
+                              aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="1.7"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                {% if notification.category == "vehicle" %}
+                                    <path d="M3 5h11v12H3zM14 9h4l3 4v4h-7"/>
+                                    <circle cx="7" cy="18" r="2"/>
+                                    <circle cx="18" cy="18" r="2"/>
+                                {% elif notification.category == "safety" %}
+                                    <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/>
+                                    <path d="m8 12 3 3 5-6"/>
+                                {% else %}
+                                    <path d="M6 3h8l4 4v14H6zM14 3v5h4"/>
+                                    <path d="M9 12h6M9 16h6"/>
+                                {% endif %}
+                            </svg>
+                        </span>
 
                         <div class="notification-body">
-                            <div class="notification-title">
-                                {{ notification.title }}
+                            <div class="notification-row-top">
+                                <span class="notification-kind-label">
+                                    {{ notification.category_label }}・{{ notification.type_label }}
+                                </span>
+                                <span class="notification-row-time">
+                                    {{ notification.created_at | notification_datetime("time") }}
+                                </span>
                             </div>
 
-                            <div
-                                class="notification-message mention-display"
-                                data-value="{{ notification.message }}"
-                            ></div>
+                            <div class="notification-title">
+                                {% if notification.target_info %}
+                                    {{ notification.target_info.checklist_name }}
+                                    {% if notification.target_info.target_label %}
+                                        ｜{{ notification.target_info.target_label }}
+                                    {% elif notification.target_info.office %}
+                                        ｜{{ notification.target_info.office }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ notification.title }}
+                                {% endif %}
+                            </div>
 
-                            <div class="notification-date">
-                                {{ notification.created_at }}
+                            {% set display_message = notification.summary_message | default(notification.message, true) %}
+                            {% set message_lines = display_message.splitlines() %}
+                            {% if notification.notification_type == "operation_result"
+                                  and notification.target_info
+                                  and notification.target_info.period_label
+                                  and message_lines|length > 1
+                                  and message_lines[1].startswith("点検日：") %}
+                                {% set display_message = (message_lines[:1] + message_lines[2:]) | join("\n") %}
+                            {% endif %}
+                            <div class="notification-message mention-display"
+                                 data-value="{{ display_message }}"></div>
+
+                            <div class="notification-row-states">
+                                <span class="notification-read-tag js-notification-read-label">
+                                    {% if notification.read %}既読{% else %}未読{% endif %}
+                                </span>
+
+                                <span
+                                    class="notification-state-tag js-notification-workflow-label"
+                                    data-workflow-status="{{ notification.workflow_status }}"
+                                    data-requires-action="{{ 'true' if notification.requires_action else 'false' }}"
+                                    {% if not notification.workflow_label %}hidden{% endif %}
+                                >{{ notification.workflow_label }}</span>
+
+                                {% if notification.deleted_at %}
+                                    <span class="notification-state-tag">
+                                        削除済み
+                                    </span>
+                                {% endif %}
                             </div>
                         </div>
                     </a>
 
                     <div class="notification-actions">
-                        <form
-                            method="post"
-                            action="/notifications/{{ notification.index }}/delete"
-                            class="js-notification-list-delete-form"
-                        >
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn-small btn-delete">
-                                削除
-                            </button>
-                        </form>
+                        {% if notification.link and current_view != "deleted" %}
+                            <a
+                                href="{{ url_for('open_notification_target', index=notification.index, view=current_view, category=selected_category, type=selected_type, q=search_query) }}"
+                                class="btn-small js-notification-open"
+                            >
+                                {{ notification.action_label }}
+                            </a>
+                        {% endif %}
+
+                        {% if current_view == "deleted" %}
+                            <form
+                                method="post"
+                                action="{{ url_for('restore_notification', index=notification.index, view=current_view, category=selected_category, type=selected_type, q=search_query) }}"
+                            >
+                                <input
+                                    type="hidden"
+                                    name="csrf_token"
+                                    value="{{ csrf_token() }}"
+                                >
+                                <button type="submit" class="btn-small">
+                                    受信箱へ戻す
+                                </button>
+                            </form>
+                        {% else %}
+                            <details class="notification-row-menu">
+                                <summary aria-label="{{ notification.title }}の操作">
+                                    <svg width="24" height="24" viewBox="0 0 24 24"
+                                         fill="currentColor" aria-hidden="true">
+                                        <circle cx="5" cy="12" r="1.8" />
+                                        <circle cx="12" cy="12" r="1.8" />
+                                        <circle cx="19" cy="12" r="1.8" />
+                                    </svg>
+                                </summary>
+
+                                <div class="notification-row-menu-content">
+                                    <form method="post"
+                                          action="{{ url_for('bulk_notifications', view=current_view, category=selected_category, type=selected_type, q=search_query) }}">
+                                        <input type="hidden" name="csrf_token"
+                                               value="{{ csrf_token() }}">
+                                        <input type="hidden" name="view"
+                                               value="{{ current_view }}">
+                                        <input type="hidden" name="notification_ids"
+                                               value="{{ notification.index }}">
+
+                                        {% if notification.read %}
+                                            <button type="submit" name="action"
+                                                    value="unread"
+                                                    class="js-notification-read-toggle">
+                                                未読に戻す
+                                            </button>
+                                        {% else %}
+                                            <button type="submit" name="action"
+                                                    value="read"
+                                                    class="js-notification-read-toggle">
+                                                既読にする
+                                            </button>
+                                        {% endif %}
+                                    </form>
+
+                                    <form method="post"
+                                          action="{{ url_for('delete_notification', index=notification.index, view=current_view, category=selected_category, type=selected_type, q=search_query) }}"
+                                          class="js-notification-list-delete-form">
+                                        <input type="hidden" name="csrf_token"
+                                               value="{{ csrf_token() }}">
+                                        <button type="submit" class="notification-menu-delete">
+                                            通知を削除
+                                        </button>
+                                    </form>
+                                </div>
+                            </details>
+                        {% endif %}
                     </div>
 
                 </div>
-
             {% endfor %}
         </div>
-
     {% else %}
-        <p class="empty-text">通知はありません。</p>
+        <p class="empty-text">
+            {% if current_view == "deleted" %}
+                削除済みの通知はありません。
+            {% elif current_view == "unread" %}
+                未読の通知はありません。
+            {% elif current_view == "action" %}
+                この条件に一致する要対応の通知はありません。
+            {% else %}
+                通知はありません。
+            {% endif %}
+        </p>
     {% endif %}
+        </div>
+
+        <aside class="notification-detail-pane"
+               id="notificationDetailPane"
+               aria-label="通知詳細"
+               aria-busy="false">
+            <div class="notification-detail-placeholder">
+                <h3>通知詳細</h3>
+                <p>左の通知を選ぶと、ここに詳細を表示します。</p>
+            </div>
+        </aside>
+    </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+<script src="{{ url_for('static', filename='js/notifications.js', v='20261006-4') }}"></script>
 
 {% endblock %}

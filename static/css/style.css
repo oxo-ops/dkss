@@ -13175,3 +13175,3024 @@ input:checked
         transform: rotate(90deg);
     }
 }
+
+/* 通知一覧：選択・一括操作 */
+.notification-wrapper {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+}
+
+.notification-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+}
+
+.notification-select input,
+#notificationSelectAll {
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.notification-wrapper .notification-item,
+.notification-wrapper .notification-body {
+    min-width: 0;
+}
+
+.notification-wrapper .notification-title {
+    overflow-wrap: anywhere;
+}
+
+.notification-wrapper .notification-message {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.notification-wrapper .notification-actions {
+    margin-top: 0;
+}
+
+.notification-wrapper .notification-actions form,
+.notification-wrapper .notification-actions button {
+    width: auto;
+}
+
+.notification-bulk-toolbar,
+#notificationReadAllForm,
+.notification-operation-result.action-row,
+nav[aria-label="通知の表示切替"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin: 14px 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.notification-bulk-toolbar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    cursor: pointer;
+}
+
+.notification-bulk-toolbar button,
+#notificationReadAllForm button,
+.notification-operation-result.action-row form,
+.notification-operation-result.action-row button,
+nav[aria-label="通知の表示切替"] > a {
+    width: auto;
+    min-height: 44px;
+}
+
+.notification-bulk-toolbar button:disabled,
+#notificationReadAllButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.notification-operation-result {
+    color: #334155;
+}
+
+.notification-operation-result p {
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .notification-wrapper {
+        grid-template-columns: 32px minmax(0, 1fr);
+        align-items: start;
+        gap: 8px;
+    }
+
+    .notification-wrapper .notification-actions {
+        grid-column: 2;
+        justify-content: flex-end;
+    }
+
+    .notification-bulk-toolbar label {
+        flex-basis: 100%;
+    }
+}
+
+/* 通知一覧：検索・絞り込み */
+.notification-filter {
+    display: grid;
+    grid-template-columns:
+        minmax(120px, 0.7fr)
+        minmax(160px, 0.9fr)
+        minmax(200px, 1.5fr)
+        auto;
+    align-items: end;
+    gap: 12px;
+    margin: 16px 0 20px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.notification-filter > .form-group {
+    min-width: 0;
+    margin: 0;
+    gap: 6px;
+}
+
+.notification-filter label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.notification-filter input[type="search"],
+.notification-filter select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f172a;
+}
+
+.notification-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.notification-filter-actions .btn-small {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+    .notification-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .notification-filter > .form-group:nth-of-type(3),
+    .notification-filter-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 600px) {
+    .notification-filter {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 12px;
+    }
+}
+
+.notification-wrapper .notification-actions {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.notification-wrapper .js-notification-open {
+    min-height: 44px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* ベル：最近の通知 */
+.notification-menu {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.notification-popover {
+    position: fixed;
+    top: 80px;
+    right: 16px;
+    z-index: 1250;
+    display: flex;
+    flex-direction: column;
+    width: min(400px, calc(100vw - 32px));
+    max-height: min(560px, calc(100dvh - 32px));
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    color: #334155;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.notification-popover[hidden] {
+    display: none;
+}
+
+.notification-popover-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.notification-popover-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.notification-popover-close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #475569;
+    font-size: 24px;
+}
+
+.notification-popover-close:hover {
+    background: #f1f5f9;
+}
+
+.notification-popover-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.notification-popover-item {
+    display: block;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    color: inherit;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.notification-popover-item.unread {
+    background: #eff6ff;
+}
+
+.notification-popover-item:hover {
+    background: #e8f0fc;
+}
+
+.notification-popover-meta {
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.notification-popover-title {
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.notification-popover-message {
+    color: #475569;
+    font-size: 13px;
+    white-space: pre-line;
+}
+
+.notification-popover-title,
+.notification-popover-message {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+}
+
+.notification-popover-status {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 16px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.notification-popover-status:empty {
+    display: none;
+}
+
+.notification-popover-footer {
+    display: block;
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    border-top: 1px solid #e2e8f0;
+    color: #2563eb;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+}
+
+.notification-popover-footer:hover {
+    background: #eff6ff;
+}
+
+.notification-menu a:focus-visible,
+.notification-popover-close:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: -3px;
+}
+
+/* 通知一覧：共通カードの横並び指定を解除 */
+.page-header + .card.notifications-card {
+    display: block;
+    padding: 22px;
+}
+
+.notifications-card > .notification-list {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .page-header + .card.notifications-card {
+        padding: 14px;
+    }
+}
+
+/* 通知画面：落ち着いた配色 */
+.notifications-card .btn,
+.notifications-card .btn-small,
+.notifications-card button {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: none;
+}
+
+.notifications-card .btn:hover,
+.notifications-card .btn-small:hover,
+.notifications-card button:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.notifications-card button:disabled {
+    background: #f9fafb;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+    opacity: 1;
+}
+
+/* 表示切替は下線タブ */
+.notifications-card nav[aria-label="通知の表示切替"] {
+    gap: 4px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] .btn {
+    padding: 10px 16px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: #6b7280;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] .btn:hover {
+    background: #f9fafb;
+    color: #111827;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] .btn[aria-current="page"] {
+    color: #111827;
+    border-bottom-color: #374151;
+}
+
+/* 検索欄・通知 */
+.notifications-card .notification-filter {
+    background: #fafafa;
+    border-color: #e5e7eb;
+    border-radius: 8px;
+}
+
+.notifications-card .notification-item {
+    border-color: #e5e7eb;
+    border-radius: 8px;
+}
+
+.notifications-card .notification-item.unread {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    box-shadow: inset 3px 0 #64748b;
+}
+
+.notifications-card .notification-date {
+    color: #6b7280;
+}
+
+/* 削除は文字色で区別 */
+.notifications-card .btn-delete {
+    background: transparent;
+    color: #b91c1c;
+    border-color: transparent;
+}
+
+.notifications-card .btn-delete:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.notifications-card .btn-delete:disabled {
+    background: transparent;
+    color: #9ca3af;
+    border-color: transparent;
+}
+
+/* ベル内も同じ配色 */
+.notification-popover-item.unread {
+    background: #f8fafc;
+    box-shadow: inset 3px 0 #64748b;
+}
+
+.notification-popover-item:hover,
+.notification-popover-footer:hover {
+    background: #f3f4f6;
+}
+
+.notification-popover-footer {
+    color: #334155;
+}
+
+/* 通知詳細：通知センター右ペインと共通の配置 */
+.dkss-notification-detail {
+    --nd-blue: #2f73f6;
+    --nd-line: #dce7fb;
+    --nd-muted: #64748b;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    background: #fff;
+    color: #172b4d;
+    border: 1px solid var(--nd-line);
+    border-radius: 12px;
+    overflow: visible;
+}
+
+.dkss-notification-detail .nd-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--nd-line);
+    background: #f4f8ff;
+    border-radius: 12px 12px 0 0;
+}
+
+.dkss-notification-detail .nd-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.dkss-notification-detail .nd-close {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    color: #334155;
+    font-size: 28px;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+.dkss-notification-detail .nd-content { padding: 24px; }
+
+.dkss-notification-detail .nd-meta,
+.dkss-notification-detail .nd-badges,
+.dkss-notification-detail .nd-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dkss-notification-detail .nd-meta {
+    justify-content: space-between;
+    color: var(--nd-muted);
+    font-size: 13px;
+}
+
+.dkss-notification-detail .nd-badge {
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dkss-notification-detail .nd-read {
+    order: 1;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    background: #edf3ff;
+    color: #42618f;
+}
+
+.dkss-notification-detail .nd-pending {
+    background: #fff0d8;
+    color: #92530b;
+}
+
+.dkss-notification-detail .nd-completed {
+    background: #e4f7ef;
+    color: #187452;
+}
+
+.dkss-notification-detail .nd-ended {
+    background: #f1f3f6;
+    color: #64748b;
+}
+
+.dkss-notification-detail .nd-title {
+    margin: 22px 0 10px;
+    font-size: 24px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.dkss-notification-detail .nd-date,
+.dkss-notification-detail .nd-hint,
+.dkss-notification-detail .nd-footer-note {
+    color: var(--nd-muted);
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.dkss-notification-detail .nd-date { margin: 0 0 22px; }
+
+.dkss-notification-detail .nd-message {
+    margin-bottom: 24px;
+    font-size: 13px;
+    line-height: 1.9;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.dkss-notification-detail .nd-primary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px 18px;
+    border: 1px solid var(--nd-blue);
+    border-radius: 7px;
+    background: #f6f9ff;
+    color: #245dc9;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dkss-notification-detail .nd-hint { margin: 8px 0 0; }
+.dkss-notification-detail .nd-tools { margin: 22px 0; }
+.dkss-notification-detail .nd-tools form { margin: 0; }
+
+.dkss-notification-detail .nd-secondary,
+.dkss-notification-detail .nd-menu > summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: 1px solid #b7cbef;
+    border-radius: 7px;
+    background: #fff;
+    color: #334e78;
+    font: inherit;
+    cursor: pointer;
+}
+
+.dkss-notification-detail .nd-menu { position: relative; }
+.dkss-notification-detail .nd-menu > summary { list-style: none; }
+.dkss-notification-detail .nd-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.dkss-notification-detail .nd-menu-content {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 10;
+    min-width: 170px;
+    padding: 8px;
+    border: 1px solid var(--nd-line);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgb(23 43 77 / 10%);
+}
+
+.dkss-notification-detail .nd-delete {
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 5px;
+    background: #fff;
+    color: #b54747;
+    font: inherit;
+    cursor: pointer;
+}
+
+.dkss-notification-detail .nd-attachments {
+    padding: 18px 0;
+    border-top: 1px solid var(--nd-line);
+    border-bottom: 1px solid var(--nd-line);
+}
+
+.dkss-notification-detail .nd-attachments > summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.dkss-notification-detail .file-preview-list { margin-top: 16px; }
+.dkss-notification-detail .nd-footer-note { margin: 22px 0 0; }
+
+.dkss-notification-detail .nd-primary:hover,
+.dkss-notification-detail .nd-secondary:hover,
+.dkss-notification-detail .nd-close:hover,
+.dkss-notification-detail .nd-menu > summary:hover {
+    background: #edf3ff;
+}
+
+.dkss-notification-detail .nd-delete:hover { background: #fff1f1; }
+
+.dkss-notification-detail :is(a, button, summary):focus-visible {
+    outline: 3px solid #8fb4ff;
+    outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+    .dkss-notification-detail .nd-header,
+    .dkss-notification-detail .nd-content {
+        padding: 18px;
+    }
+
+    .dkss-notification-detail .nd-title { font-size: 21px; }
+}
+
+.dkss-notification-detail .nd-target {
+    margin: 20px 0;
+    padding: 18px;
+    border: 1px solid #dce7fb;
+    border-radius: 8px;
+    background: #f6f9ff;
+    overflow-wrap: anywhere;
+}
+
+.dkss-notification-detail .nd-target-name,
+.dkss-notification-detail .nd-target-label {
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.dkss-notification-detail .nd-target-label {
+    margin-top: 4px;
+}
+
+.dkss-notification-detail .nd-target-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 8px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+/* 通知一覧：種類別アイコンと独立した状態表示 */
+.notifications-card .notification-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.notifications-card .notification-wrapper {
+    gap: 10px;
+    padding: 14px 0;
+    border-bottom: 1px solid #e2eafb;
+}
+
+.notifications-card .notification-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin: 0;
+    padding: 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    color: #172b4d;
+    text-decoration: none;
+}
+
+.notifications-card .notification-row.unread {
+    background: #f6f9ff;
+    box-shadow: none;
+}
+
+.notifications-card .notification-row:hover {
+    background: #edf4ff;
+}
+
+.notifications-card .notification-kind-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #efedff;
+    color: #7460bd;
+}
+
+.notifications-card .notification-kind-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.notifications-card .notification-kind-vehicle {
+    background: #e8f1ff;
+    color: #2f73f6;
+}
+
+.notifications-card .notification-kind-safety {
+    background: #e6f5ef;
+    color: #278263;
+}
+
+.notifications-card .notification-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.notifications-card .notification-row-top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.notifications-card .notification-title {
+    margin-bottom: 5px;
+    color: #172b4d;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.notifications-card .notification-row .notification-message {
+    margin: 0;
+    color: #526581;
+    font-size: 13px;
+    line-height: 1.7;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.notifications-card .notification-row-states {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.notifications-card .notification-read-tag,
+.notifications-card .notification-state-tag {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: #edf2f9;
+    color: #526581;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.notifications-card .notification-row.unread .notification-read-tag {
+    background: #e7efff;
+    color: #245dc9;
+    font-weight: 700;
+}
+
+.notifications-card .notification-state-tag[data-requires-action="true"] {
+    background: #fff0d8;
+    color: #92530b;
+}
+
+.notifications-card .notification-state-tag[data-workflow-status="completed"] {
+    background: #e4f7ef;
+    color: #187452;
+}
+
+.notifications-card .notification-state-tag[hidden] {
+    display: none;
+}
+
+.notifications-card .notification-select input {
+    accent-color: #2f73f6;
+}
+
+.notifications-card .notification-actions {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.notifications-card .notification-actions .js-notification-open,
+.notifications-card .notification-actions > form > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 112px;
+    min-width: 112px;
+    max-width: 112px;
+    height: 36px;
+    min-height: 36px;
+    padding: 6px 8px;
+    border: 1px solid #abc5f2;
+    border-radius: 6px;
+    background: #fff;
+    color: #245dc9;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.notifications-card .notification-actions .js-notification-open:hover {
+    background: #edf4ff;
+}
+
+@media (max-width: 768px) {
+    .notifications-card .notification-row {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .notifications-card .notification-kind-icon {
+        flex-basis: 36px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .notifications-card .notification-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+}
+
+.notifications-card .notification-selection-controls {
+    padding: 12px 0;
+    border-bottom: 1px solid #e2eafb;
+}
+
+.notifications-card .notification-selection-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    color: #526581;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.notifications-card #notificationSelectAll {
+    accent-color: #2f73f6;
+}
+
+.notifications-card .notification-bulk-toolbar {
+    gap: 10px;
+    margin: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid #dce7fb;
+    background: transparent;
+}
+
+.notifications-card .notification-bulk-toolbar[hidden] {
+    display: none;
+}
+
+.notifications-card #notificationSelectedCount {
+    margin-right: 8px;
+    color: #245dc9;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.notifications-card .notification-bulk-toolbar .btn-small {
+    border: 1px solid #b7cbef;
+    border-radius: 6px;
+    background: #fff;
+    color: #245dc9;
+}
+
+.notifications-card .notification-bulk-toolbar .btn-delete {
+    border-color: #edc8c8;
+    color: #b54747;
+}
+
+.notifications-card .notification-bulk-toolbar .btn-small:hover {
+    background: #edf4ff;
+}
+
+.notifications-card .notification-bulk-toolbar .btn-delete:hover {
+    background: #fff1f1;
+}
+
+.notifications-card .notification-wrapper .notification-actions {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.notifications-card .notification-row-menu {
+    position: relative;
+}
+
+.notifications-card .notification-row-menu > summary {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 32px;
+    min-width: 32px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #2f73f6;
+    line-height: 1;
+    list-style: none;
+    cursor: pointer;
+}
+
+.notifications-card .notification-row-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.notifications-card .notification-row-menu > summary:hover,
+.notifications-card .notification-row-menu[open] > summary {
+    border-color: #dce7fb;
+    background: #edf4ff;
+}
+
+.notifications-card .notification-row-menu-content {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    width: 180px;
+    padding: 6px;
+    border: 1px solid #dce7fb;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgb(23 43 77 / 12%);
+}
+
+.notifications-card .notification-row-menu-content form {
+    margin: 0;
+}
+
+.notifications-card .notification-row-menu-content button {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 5px;
+    background: #fff;
+    color: #334e78;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.notifications-card .notification-row-menu-content button:hover {
+    background: #edf4ff;
+}
+
+.notifications-card .notification-row-menu-content .notification-menu-delete {
+    color: #b54747;
+}
+
+.notifications-card .notification-row-menu-content .notification-menu-delete:hover {
+    background: #fff1f1;
+}
+
+.notifications-card .notification-row-menu > summary:focus-visible {
+    outline: 3px solid #8fb4ff;
+    outline-offset: 2px;
+}
+
+.notification-page-header #notificationReadAllForm {
+    width: auto;
+    margin: 0;
+    padding: 0;
+}
+
+.notification-page-header #notificationReadAllButton {
+    min-height: 44px;
+    padding: 10px 16px;
+    border: 1px solid #abc5f2;
+    border-radius: 7px;
+    background: #fff;
+    color: #245dc9;
+}
+
+.notification-page-header #notificationReadAllButton:hover:not(:disabled) {
+    background: #edf4ff;
+}
+
+.notification-page-header #notificationReadAllButton:disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] {
+    gap: 8px;
+    margin: 0 0 18px;
+    border-bottom: 1px solid #dce7fb;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] > a.btn {
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #526581;
+    box-shadow: none;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] > a.btn:hover {
+    background: #f6f9ff;
+    color: #245dc9;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] > a.btn[aria-current="page"] {
+    border-bottom-color: #2f73f6;
+    background: transparent;
+    color: #245dc9;
+    font-weight: 700;
+}
+
+@media (max-width: 600px) {
+    .notifications-card nav[aria-label="通知の表示切替"] {
+        gap: 0;
+    }
+
+    .notifications-card nav[aria-label="通知の表示切替"] > a.btn {
+        padding: 10px;
+        font-size: 13px;
+    }
+}
+
+.notification-popover {
+    width: min(420px, calc(100vw - 32px));
+    border-color: #dce7fb;
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgb(23 43 77 / 14%);
+}
+
+.notification-popover .notification-popover-header {
+    flex-shrink: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid #dce7fb;
+    background: #f4f8ff;
+}
+
+.notification-popover-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.notification-popover-unread {
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: #e7efff;
+    color: #245dc9;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.notification-popover .notification-popover-close {
+    flex-shrink: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #526581;
+}
+
+.notification-popover .notification-popover-close:hover {
+    background: #e7efff;
+}
+
+.notification-popover .notification-popover-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.notification-popover .notification-popover-day {
+    padding: 8px 18px;
+    background: #f6f9ff;
+    color: #526581;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.notification-popover .notification-popover-item {
+    padding: 16px 18px;
+    border-bottom: 1px solid #e2eafb;
+    background: #fff;
+    box-shadow: none;
+}
+
+.notification-popover .notification-popover-item.unread {
+    background: #f6f9ff;
+    box-shadow: inset 3px 0 #2f73f6;
+}
+
+.notification-popover .notification-popover-item:hover {
+    background: #edf4ff;
+}
+
+.notification-popover .notification-popover-title {
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.notification-popover .notification-popover-message {
+    color: #526581;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.notification-popover .notification-popover-meta {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.notification-popover .notification-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    min-height: 48px;
+    padding: 12px 18px;
+    border-top: 1px solid #dce7fb;
+    background: #fff;
+    color: #245dc9;
+}
+
+.notification-popover .notification-popover-footer:hover {
+    background: #f4f8ff;
+}
+
+.notification-popover .notification-popover-states {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.notification-popover .notification-popover-read,
+.notification-popover .notification-popover-workflow {
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: #edf2f9;
+    color: #526581;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.notification-popover .unread .notification-popover-read {
+    background: #e7efff;
+    color: #245dc9;
+    font-weight: 700;
+}
+
+.notification-popover .notification-popover-workflow[data-requires-action="true"] {
+    background: #fff0d8;
+    color: #92530b;
+}
+
+.notification-popover .notification-popover-workflow[data-workflow-status="completed"] {
+    background: #e4f7ef;
+    color: #187452;
+}
+
+.notifications-card .notification-list-pane {
+    container-name: dkss-notifications;
+    container-type: inline-size;
+}
+
+.notifications-card .notification-filter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 16px;
+    padding: 0 0 16px;
+    border: 0;
+    border-bottom: 1px solid #dce7fb;
+    border-radius: 0;
+    background: transparent;
+}
+
+.notifications-card .notification-filter > .form-group {
+    grid-column: auto;
+    min-width: 0;
+    margin: 0;
+}
+
+.notifications-card .notification-filter > .notification-filter-search {
+    grid-column: 1 / -1;
+}
+
+.notifications-card .notification-filter label {
+    display: block;
+    margin-bottom: 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.notifications-card .notification-filter input[type="search"],
+.notifications-card .notification-filter select {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #b7cbef;
+    border-radius: 7px;
+    background: #fff;
+    color: #172b4d;
+    box-shadow: none;
+}
+
+.notifications-card .notification-filter input[type="search"] {
+    background: #f6f9ff;
+}
+
+.notifications-card .notification-filter input::placeholder {
+    color: #7a8ba8;
+}
+
+.notifications-card .notification-filter input:focus-visible,
+.notifications-card .notification-filter select:focus-visible {
+    border-color: #2f73f6;
+    outline: 2px solid #c9dcff;
+    outline-offset: 1px;
+}
+
+.notifications-card .notification-filter-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.notifications-card .notification-filter-actions .btn-small {
+    border: 1px solid #b7cbef;
+    border-radius: 6px;
+    background: #fff;
+    color: #245dc9;
+}
+
+.notifications-card .notification-filter-actions .btn-small:hover {
+    background: #edf4ff;
+}
+
+@container dkss-notifications (min-width: 720px) {
+    .notifications-card .notification-filter {
+        grid-template-columns:
+            minmax(0, 1fr) 130px 150px;
+    }
+
+    .notifications-card .notification-filter > .notification-filter-search {
+        grid-column: 1;
+    }
+}
+
+@media (max-width: 600px) {
+    .notifications-card .notification-filter {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.notifications-card .notification-target-meta {
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+/* 通知センター：二ペインと余白の調整 */
+.page-header + .card.notifications-card {
+    padding: 16px;
+}
+
+.notifications-card nav[aria-label="通知の表示切替"] {
+    margin: 0 0 12px;
+}
+
+/* 左に一覧、右に詳細 */
+.notifications-card .notification-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+    gap: 0;
+}
+
+.notifications-card .notification-list-pane {
+    min-width: 0;
+    padding-right: 16px;
+}
+
+.notifications-card .notification-detail-pane {
+    display: block;
+    position: sticky;
+    top: 16px;
+    min-width: 0;
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    border-left: 1px solid #dce7fb;
+}
+
+.notifications-card .notification-detail-placeholder {
+    padding: 20px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.notifications-card .notification-detail-placeholder h3 {
+    margin: 0 0 8px;
+    color: #172b4d;
+    font-size: 16px;
+}
+
+/* 詳細を右ペインの中に収める */
+.notifications-card .dkss-notification-detail {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+.notifications-card .dkss-notification-detail .nd-header {
+    padding: 10px 16px;
+    border-radius: 0;
+}
+
+.notifications-card .dkss-notification-detail .nd-content {
+    padding: 16px;
+}
+
+.dkss-notification-detail .nd-title {
+    margin: 12px 0;
+    font-size: 18px;
+    line-height: 1.5;
+}
+
+.dkss-notification-detail .nd-date {
+    margin: 0 0 12px;
+}
+
+.dkss-notification-detail .nd-tools {
+    margin: 16px 0;
+}
+
+/* 検索・選択エリア */
+.notifications-card .notification-filter {
+    margin: 0 0 8px;
+    padding: 0 0 10px;
+    gap: 8px;
+}
+
+.notifications-card .notification-filter label {
+    margin-bottom: 4px;
+}
+
+.notifications-card .notification-selection-controls {
+    padding: 0;
+}
+
+.notifications-card .notification-selection-controls label {
+    min-height: 40px;
+}
+
+/* 通知行の二重の余白を減らす */
+.notifications-card .notification-wrapper {
+    padding: 8px 0;
+    gap: 8px;
+}
+
+.notifications-card .notification-wrapper .notification-row {
+    padding: 8px 6px;
+    gap: 10px;
+}
+
+.notifications-card .notification-kind-icon {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+}
+
+.notifications-card .notification-kind-icon svg {
+    width: 21px;
+    height: 21px;
+}
+
+.notifications-card .notification-title {
+    margin-bottom: 3px;
+}
+
+.notifications-card .notification-row-states {
+    margin-top: 6px;
+}
+
+/* ベル内の通知も余白を揃える */
+.notification-popover .notification-popover-header {
+    padding: 10px 16px;
+}
+
+.notification-popover .notification-popover-item {
+    padding: 12px 16px;
+}
+
+/* 狭い画面では一覧と詳細を切り替える */
+@media (max-width: 1100px) {
+    .notifications-card .notification-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .notifications-card .notification-list-pane {
+        padding-right: 0;
+    }
+
+    .notifications-card .notification-detail-pane {
+        display: none;
+        position: static;
+        max-height: none;
+        overflow: visible;
+        border-left: 0;
+    }
+
+    .notifications-card .is-detail-open .notification-list-pane {
+        display: none;
+    }
+
+    .notifications-card .is-detail-open .notification-detail-pane {
+        display: block;
+    }
+}
+
+/* 右側に詳細を表示している通知 */
+.notifications-card .notification-wrapper.is-detail-selected {
+    background: #edf4ff;
+    box-shadow: inset 3px 0 #2f73f6;
+}
+
+.notifications-card .notification-wrapper.is-detail-selected .notification-row {
+    background: transparent;
+    box-shadow: none;
+}
+
+/* 上部：検索と絞り込みを揃える */
+.notifications-card .notification-list-pane .notification-filter {
+    grid-template-columns: minmax(0, 1fr) 120px 140px;
+    align-items: end;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding: 0 0 8px;
+}
+
+.notifications-card .notification-list-pane .notification-filter > .form-group {
+    grid-column: auto;
+}
+
+.notifications-card .notification-filter label {
+    margin: 0 0 4px;
+}
+
+.notifications-card .notification-filter-actions {
+    margin: 0;
+    gap: 8px;
+}
+
+
+
+/* 文字ボタン：幅136px・高さ44px */
+.notification-page-header #notificationReadAllButton,
+.notification-page-header .header-actions > .btn-back,
+.notifications-card .notification-filter-actions .btn-small,
+.notifications-card .notification-bulk-toolbar .btn-small,
+.dkss-notification-detail .nd-primary,
+.dkss-notification-detail .nd-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 136px;
+    min-width: 136px;
+    max-width: 136px;
+    height: 44px;
+    min-height: 44px;
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.notifications-card .notification-wrapper .notification-actions {
+    flex-wrap: nowrap;
+    gap: 8px;
+}
+
+/* 詳細・閉じるアイコン：44px四方 */
+.dkss-notification-detail .nd-menu > summary,
+.dkss-notification-detail .nd-close,
+.notification-popover .notification-popover-close {
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+}
+
+.notifications-card .notification-list > .notification-date-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 48px;
+    gap: 16px;
+    margin: 0;
+    padding: 0 6px;
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* ベル内の通知：本文・状態・時刻・操作の配置 */
+#notificationPopover .notification-popover-row {
+    position: relative;
+}
+
+#notificationPopover .notification-popover-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 36px;
+    gap: 4px 8px;
+    padding: 12px 44px 12px 16px;
+    min-width: 0;
+}
+
+#notificationPopover .notification-popover-item > .notification-popover-meta:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    font-size: 11px;
+}
+
+#notificationPopover .notification-popover-states {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    margin: 0;
+}
+
+#notificationPopover .notification-popover-read,
+#notificationPopover .notification-popover-workflow {
+    padding: 2px 5px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+#notificationPopover .notification-popover-item > .notification-popover-meta:last-child {
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0;
+    font-size: 11px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+#notificationPopover .notification-popover-title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#notificationPopover .notification-popover-message {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+#notificationPopover .notification-popover-actions {
+    position: absolute;
+    top: 10px;
+    right: 8px;
+}
+
+#notificationPopover .notification-popover-actions > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    color: #526581;
+    background: transparent;
+    list-style: none;
+    cursor: pointer;
+}
+
+#notificationPopover .notification-popover-actions > summary::-webkit-details-marker {
+    display: none;
+}
+
+#notificationPopover .notification-popover-actions > summary:hover {
+    background: #e7eef8;
+}
+
+#notificationPopover .notification-popover-commands {
+    position: fixed;
+    z-index: 1300;
+    box-sizing: border-box;
+    width: 140px;
+    padding: 4px;
+    border: 1px solid #dce7fb;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(23, 43, 77, 0.12);
+}
+
+#notificationPopover .notification-popover-commands > a,
+#notificationPopover .notification-popover-commands > button {
+    display: block;
+    font-weight: 400;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 32px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #172b4d;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#notificationPopover .notification-popover-commands > :hover {
+    background: #f1f6ff;
+}
+
+#notificationPopover .notification-popover-commands > button[data-action="delete"] {
+    color: #c24141;
+}
+
+/* 狭い一覧での配置 */
+@container dkss-notifications (max-width: 600px) {
+    .notifications-card .notification-list-pane .notification-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .notifications-card .notification-list-pane .notification-filter > .notification-filter-search {
+        grid-column: 1 / -1;
+    }
+
+    .notifications-card .notification-wrapper {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .notifications-card .notification-actions {
+        grid-column: 2;
+        justify-content: flex-end;
+    }
+}
+
+/* 上部：検索欄の中に検索・解除を配置 */
+.notifications-card .notification-filter-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.notifications-card .notification-search-control {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-width: 0;
+    height: 44px;
+    border: 1px solid #b7cbef;
+    border-radius: 7px;
+    background: #f6f9ff;
+}
+
+.notifications-card .notification-search-control > input[type="search"] {
+    flex: 1 1 0;
+    box-sizing: border-box;
+    width: 0;
+    min-width: 0;
+    height: 42px;
+    min-height: 0;
+    margin: 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.notifications-card .notification-search-control > input:focus-visible {
+    outline: none;
+    border: 0;
+    box-shadow: none;
+}
+
+.notifications-card .notification-search-control:focus-within {
+    border-color: #2f73f6;
+    outline: 2px solid #c9dcff;
+    outline-offset: 1px;
+}
+
+.notifications-card .notification-search-control > .notification-search-submit,
+.notifications-card .notification-search-control > .notification-filter-reset {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    box-sizing: border-box;
+    width: 44px;
+    height: 42px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #526581;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.notifications-card .notification-search-submit svg {
+    width: 20px;
+    height: 20px;
+}
+
+.notifications-card .notification-filter-reset {
+    font-size: 22px;
+}
+
+.notifications-card .notification-search-submit:hover,
+.notifications-card .notification-filter-reset:hover {
+    background: #e7efff;
+    color: #245dc9;
+}
+
+/* 通知上部：検索欄とプルダウンの高さを揃える */
+.notifications-card .notification-list-pane .notification-filter {
+    align-items: center;
+}
+
+.notifications-card .notification-filter > .form-group {
+    align-self: center;
+    margin: 0;
+    padding: 0;
+}
+
+.notifications-card .notification-filter .notification-filter-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.notifications-card .notification-filter .notification-search-control,
+.notifications-card .notification-filter select {
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    vertical-align: middle;
+}
+
+.notifications-card .notification-filter select {
+    padding: 0 30px 0 12px;
+    font-size: 13px;
+    line-height: normal;
+}
+
+.notifications-card .notification-search-control > input[type="search"] {
+    box-sizing: border-box;
+    height: 42px;
+    min-height: 0;
+    margin: 0;
+}
+
+/* すべて既読：件数まで一行で表示 */
+.notification-page-header #notificationReadAllButton {
+    gap: 0;
+    padding: 0 8px;
+    white-space: nowrap;
+}
+
+.notification-page-header #notificationReadAllButton > span {
+    white-space: nowrap;
+}
+
+/* 通知行：本文・状態・時刻の配置を統合 */
+.notifications-card .notification-row .notification-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content 40px;
+    column-gap: 6px;
+    row-gap: 4px;
+    align-items: center;
+}
+
+.notifications-card .notification-row .notification-row-top {
+    display: contents;
+}
+
+.notifications-card .notification-row .notification-kind-label {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.notifications-card .notification-row .notification-title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+}
+
+.notifications-card .notification-row .notification-target-meta {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    margin: 0;
+}
+
+.notifications-card .notification-row .notification-message {
+    grid-column: 1 / -1;
+    grid-row: auto;
+}
+
+.notifications-card .notification-row .notification-row-states {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    align-self: center;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    margin: 0;
+}
+
+.notifications-card .notification-row .notification-row-time {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+    margin: 0;
+    color: #526581;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: right;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 既読：淡い背景のバッジ */
+.notifications-card .notification-row .notification-read-tag {
+    order: 1;
+    box-sizing: border-box;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 0;
+    border-radius: 5px;
+    background: #e7eef8;
+    color: #526581;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* 未読：丸印＋文字 */
+.notifications-card .notification-row.unread .notification-read-tag {
+    padding: 5px 0;
+    background: transparent;
+    color: #172b4d;
+    font-weight: 700;
+}
+
+.notifications-card .notification-row.unread .notification-read-tag::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #2f73f6;
+}
+
+/* 業務状態 */
+.notifications-card .notification-row .notification-state-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: #eef2f7;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.notifications-card .notification-row .notification-state-tag[data-requires-action="true"] {
+    background: #fff0d6;
+    border-color: #ffe3b0;
+    color: #a95b08;
+}
+
+.notifications-card .notification-row .notification-state-tag[data-workflow-status="completed"] {
+    background: #e4f7ef;
+    border-color: #bcebd8;
+    color: #187452;
+}
+
+.notifications-card .notification-row .notification-state-tag[hidden] {
+    display: none;
+}
+
+/* 狭い画面では本文の下へ配置 */
+@container dkss-notifications (max-width: 600px) {
+    .notifications-card .notification-row .notification-body {
+        grid-template-columns: minmax(0, 1fr) 48px;
+    }
+
+    .notifications-card .notification-row .notification-row-states {
+        grid-column: 1;
+        grid-row: auto;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .notifications-card .notification-row .notification-row-time {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
+/* 通知画面：タイトル領域 */
+.page-header.notification-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    min-height: 56px;
+    gap: 12px;
+    margin: 0 0 8px;
+    padding: 4px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.notification-page-header .notification-heading {
+    min-width: 0;
+    margin: 0;
+}
+
+.notification-page-header .notification-heading h2 {
+    margin: 0;
+    padding: 0;
+    color: #172b4d;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.notification-page-header > .header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0;
+}
+
+.notification-page-header > .header-actions > form {
+    margin: 0;
+}
+
+/* 一覧を囲む角丸カードを解除 */
+.page-header.notification-page-header + .card.notifications-card {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+/* 検索欄と詳細の境目を揃える */
+.notifications-card .notification-list-pane {
+    padding-right: 12px;
+}
+
+.notifications-card .notification-list-pane .notification-filter {
+    margin: 0;
+    padding: 14px 0;
+}
+
+.notifications-card .notification-detail-pane {
+    background: #ffffff;
+}
+
+/* 通知一覧：選択欄と状態表示をコンパクトにする */
+.notifications-card #notificationListPane .notification-wrapper {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.notifications-card #notificationListPane .notification-select input,
+.notifications-card #notificationListPane #notificationSelectAll {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
+    margin: 0;
+}
+
+.notifications-card #notificationListPane .notification-row.unread .notification-kind-icon::before {
+    left: -9px;
+    width: 6px;
+    height: 6px;
+}
+
+.notifications-card #notificationListPane .notification-read-tag,
+.notifications-card #notificationListPane .notification-state-tag {
+    min-height: 0;
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.notifications-card #notificationListPane .notification-row.unread .notification-read-tag {
+    gap: 4px;
+    padding: 2px 0;
+}
+
+.notifications-card #notificationListPane .notification-row.unread .notification-read-tag::before {
+    width: 6px;
+    height: 6px;
+    flex-basis: 6px;
+}
+
+/* 二ペイン表示：折りたたんでも詳細の白い領域を保つ */
+@media (min-width: 1101px) {
+    .notifications-card #notificationDetailPane {
+        min-height: clamp(360px, calc(100dvh - 300px), 720px);
+    }
+}
+
+@media (max-width: 600px) {
+    .main-content:has(.notification-page-header) {
+        padding: 16px;
+    }
+
+    .notification-page-header .notification-heading h2 {
+        font-size: 26px;
+    }
+
+    .notification-page-header .notification-heading p {
+        font-size: 13px;
+    }
+
+    .notifications-card .notification-list-pane {
+        padding-right: 0;
+    }
+}
+
+.notification-page-header .notification-page-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: #526581;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.notification-page-header .notification-page-close svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+}
+
+.notification-page-header .notification-page-close:hover {
+    background: #e7efff;
+    color: #245dc9;
+}
+
+.notification-page-header .notification-page-close:focus-visible {
+    outline: 2px solid #2f73f6;
+    outline-offset: 2px;
+}
+
+/* 検索・絞り込み：幅と文字サイズを調整 */
+.notifications-card .notification-list-pane .notification-filter {
+    grid-template-columns: minmax(0, 1fr) 140px 152px;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 0;
+}
+
+.notifications-card .notification-filter .notification-search-control {
+    height: 44px;
+    border-color: #c5d4ec;
+    border-radius: 6px;
+    background: #f7faff;
+}
+
+.notifications-card .notification-search-control > input[type="search"] {
+    font-size: 14px;
+    color: #172b4d;
+}
+
+.notifications-card .notification-search-control > input::placeholder {
+    color: #7186a5;
+}
+
+#notificationSearch::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+}
+
+.notifications-card .notification-search-submit svg {
+    width: 20px;
+    height: 20px;
+    color: #526581;
+}
+
+.notifications-card .notification-filter select {
+    box-sizing: border-box;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 30px 0 12px;
+    border: 1px solid #b7cbef;
+    border-radius: 6px;
+    background-color: #ffffff;
+    color: #172b4d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* 一覧幅が十分ある場合は検索欄を左に配置 */
+@container dkss-notifications (min-width: 600px) {
+    .notifications-card .notification-list-pane .notification-filter > .notification-filter-search {
+        grid-column: 1;
+    }
+}
+
+/* 狭い画面では検索欄の下に絞り込みを配置 */
+@container dkss-notifications (max-width: 599px) {
+    .notifications-card .notification-list-pane .notification-filter {
+        grid-template-columns: 124px minmax(0, 1fr);
+    }
+
+    .notifications-card .notification-list-pane .notification-filter > .notification-filter-search {
+        grid-column: 1 / -1;
+    }
+}
+
+@container dkss-notifications (max-width: 340px) {
+    .notifications-card .notification-list-pane .notification-filter {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 通知行：参考画像のサイズと余白 */
+.notifications-card .notification-wrapper .notification-row.unread,
+.notifications-card .notification-wrapper .notification-row:hover {
+    background: transparent;
+    box-shadow: none;
+}
+
+.notifications-card .notification-wrapper:hover {
+    background: #f7faff;
+}
+
+/* チェックボックス */
+.notifications-card .notification-select {
+    align-self: center;
+}
+
+.notifications-card .notification-select input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: #2f73f6;
+}
+
+/* 選択した行全体を淡く強調 */
+.notifications-card .notification-wrapper:has(.js-notification-select:checked),
+.notifications-card .notification-wrapper.is-detail-selected {
+    background: linear-gradient(90deg, #f1f6ff, #e7f0ff);
+    box-shadow: inset 3px 0 #2f73f6;
+}
+
+@container dkss-notifications (max-width: 599px) {
+    .notifications-card .notification-wrapper {
+        min-height: 92px;
+        gap: 10px;
+    }
+
+    .notifications-card .notification-wrapper .notification-row {
+        gap: 12px;
+    }
+
+    .notifications-card .notification-kind-icon {
+        flex-basis: 40px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .notifications-card .notification-row .notification-title {
+        font-size: 15px;
+    }
+
+    .notifications-card .notification-row .notification-message {
+        font-size: 13px;
+    }
+}
+
+/* 詳細：白いヘッダーと余白 */
+.notifications-card .dkss-notification-detail .nd-header {
+    box-sizing: border-box;
+    min-height: 56px;
+    padding: 6px 16px;
+    background: #ffffff;
+    border-radius: 0;
+}
+
+.notifications-card .dkss-notification-detail .nd-header h2 {
+    margin: 0;
+    color: #172b4d;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.notifications-card .dkss-notification-detail .nd-content {
+    padding: 16px;
+}
+
+.notifications-card .dkss-notification-detail .nd-meta {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.notifications-card .dkss-notification-detail .nd-title {
+    margin: 12px 0 16px;
+    color: #172b4d;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+/* 対象カード：アイコンを左に配置 */
+.notifications-card .dkss-notification-detail .nd-target {
+    position: relative;
+    margin: 0 0 24px;
+    padding: 16px 16px 16px 60px;
+    border: 1px solid #dce7fb;
+    border-radius: 6px;
+    background: #f7faff;
+}
+
+.dkss-notification-detail .nd-target-icon {
+    position: absolute;
+    top: 18px;
+    left: 16px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 32px;
+    color: #2f73f6;
+}
+
+.dkss-notification-detail .nd-target-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.notifications-card .dkss-notification-detail .nd-target-name,
+.notifications-card .dkss-notification-detail .nd-target-label {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.notifications-card .dkss-notification-detail .nd-target-meta {
+    gap: 4px 8px;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* 日時・本文 */
+.notifications-card .dkss-notification-detail .nd-date {
+    margin: 0 0 16px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.notifications-card .dkss-notification-detail .nd-message {
+    margin: 0 0 16px;
+    color: #172b4d;
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+/* 詳細の主ボタンはペイン幅に合わせる */
+.notifications-card .dkss-notification-detail .nd-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 16px;
+    gap: 12px;
+    border: 1px solid #2f73f6;
+    border-radius: 6px;
+    background: #f7faff;
+    color: #245dc9;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-decoration: none;
+}
+
+.notifications-card .dkss-notification-detail .nd-hint {
+    margin: 8px 0 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.notifications-card .dkss-notification-detail .nd-tools {
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 22px 0;
+}
+
+/* 詳細：閉じる・その他の操作 */
+.notifications-card .dkss-notification-detail .nd-close {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #172b4d;
+}
+
+.notifications-card .dkss-notification-detail .nd-close svg {
+    width: 24px;
+    height: 24px;
+}
+
+.notifications-card .dkss-notification-detail .nd-menu > summary {
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 6px;
+}
+
+.notifications-card .dkss-notification-detail .nd-menu > summary svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* 添付：参考画像の区切り線と開閉矢印 */
+.notifications-card .dkss-notification-detail .nd-attachments {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid #dce7fb;
+    border-bottom: 1px solid #dce7fb;
+}
+
+.notifications-card .dkss-notification-detail .nd-attachments > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 60px;
+    padding: 0;
+    list-style: none;
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.notifications-card .dkss-notification-detail .nd-attachments > summary::-webkit-details-marker {
+    display: none;
+}
+
+.notifications-card .dkss-notification-detail .nd-attachments > summary svg {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    transition: transform 0.15s;
+}
+
+.notifications-card .dkss-notification-detail .nd-attachments[open] > summary svg {
+    transform: rotate(180deg);
+}
+
+.notifications-card .dkss-notification-detail .file-preview-list {
+    margin: 0;
+    padding-bottom: 18px;
+}
+
+.notifications-card .dkss-notification-detail .nd-footer-note {
+    margin: 22px 0 0;
+    color: #7186a5;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+/* 通知画面の上部ヘッダー */
+.top-bar.notification-top-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    box-sizing: border-box;
+    min-height: 48px;
+    margin: 0 0 12px;
+    padding: 4px 0;
+    border-bottom: 0;
+}
+
+.notification-top-bar .notification-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: auto;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.notification-breadcrumb a {
+    color: #526581;
+    text-decoration: none;
+}
+
+.notification-breadcrumb a:hover {
+    color: #245dc9;
+    text-decoration: underline;
+}
+
+.notification-breadcrumb [aria-current="page"] {
+    color: #172b4d;
+    font-weight: 700;
+}
+
+.notification-top-bar .notification-menu {
+    padding-right: 16px;
+    border-right: 0;
+}
+
+.notification-top-bar .top-bar-user-avatar {
+    width: 36px;
+    height: 36px;
+}
+
+.notification-top-bar .top-bar-user-name {
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* 詳細：送信者と日時 */
+.notifications-card .dkss-notification-detail .nd-actor {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 20px;
+}
+
+.notifications-card .dkss-notification-detail .nd-actor-avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e7efff;
+    color: #245dc9;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.notifications-card .dkss-notification-detail .nd-actor-info {
+    min-width: 0;
+}
+
+.notifications-card .dkss-notification-detail .nd-actor-name {
+    margin-bottom: 3px;
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.notifications-card .dkss-notification-detail .nd-actor .nd-date {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* 通知一覧：日付見出しと並び替え・統合 */
+.notifications-card .notification-list > .notification-date-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 36px;
+    gap: 12px;
+    margin: 0;
+    padding: 0 6px;
+    background-color: #f4f7fb;
+    color: #172b4d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.notifications-card .notification-date-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.notifications-card .notification-date-toggle > svg {
+    flex: 0 0 16px;
+    color: #526581;
+}
+
+.notifications-card .notification-date-toggle[aria-expanded="true"] > svg {
+    transform: rotate(90deg);
+}
+
+.notifications-card .notification-date-toggle:focus-visible {
+    outline: 2px solid #2f73f6;
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+.notifications-card .notification-list > .notification-wrapper[hidden] {
+    display: none;
+}
+
+.notifications-card .notification-date-heading > #notificationSort {
+    flex: 0 0 110px;
+    box-sizing: border-box;
+    width: 110px;
+    min-width: 110px;
+    height: 32px;
+    min-height: 32px;
+    margin: 0 0 0 auto;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #526581;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.notifications-card .notification-date-heading > #notificationSort:hover {
+    background-color: #f1f6ff;
+}
+
+.notifications-card .notification-date-heading > #notificationSort:focus-visible {
+    outline: 2px solid #2f73f6;
+    outline-offset: 2px;
+}
+
+/* 通知タブ：統合 */
+.notifications-card nav.notification-tabs {
+    display: flex;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 28px;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    border-bottom: 1px solid #dce7fb;
+}
+
+.notifications-card .notification-tabs > .notification-view-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    min-height: 48px;
+    gap: 8px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #334e76;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.notifications-card .notification-tabs > .notification-view-tab:hover {
+    background: #f3f7ff;
+    color: #245dc9;
+}
+
+.notifications-card .notification-tabs > .notification-view-tab[aria-current="page"] {
+    border-bottom-color: #2f73f6;
+    background: transparent;
+    color: #245dc9;
+    font-weight: 700;
+}
+
+.notifications-card .notification-tabs .notification-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #e7efff;
+    color: #245dc9;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.notifications-card .notification-tabs > [aria-current="page"] .notification-tab-count {
+    background: #dce9ff;
+}
+
+@media (max-width: 600px) {
+    .notifications-card nav.notification-tabs {
+        gap: 8px;
+    }
+
+    .notifications-card .notification-tabs > .notification-view-tab {
+        min-height: 48px;
+        gap: 6px;
+        padding: 10px 8px;
+        font-size: 15px;
+    }
+
+    .notifications-card .notification-tabs .notification-tab-count {
+        min-width: 24px;
+        height: 24px;
+        padding: 0 6px;
+        font-size: 13px;
+    }
+}
+
+/* 通知一覧：一括操作欄・統合 */
+.notifications-card #notificationBulkForm {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 64px;
+    gap: 8px 20px;
+    margin: 0;
+    padding: 8px 6px;
+    border: 0;
+    border-bottom: 1px solid #dce7fb;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.notifications-card #notificationBulkForm .notification-bulk-selection {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    gap: 12px;
+    margin: 0 8px 0 0;
+    color: #172b4d;
+    font-size: 16px;
+    white-space: nowrap;
+}
+
+.notifications-card #notificationSelectAll {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: #2f73f6;
+    cursor: pointer;
+}
+
+.notifications-card #notificationSelectedCount {
+    margin: 0;
+    color: #172b4d;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.notifications-card #notificationBulkForm > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: 44px;
+    min-height: 44px;
+    gap: 8px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #172b4d;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.notifications-card #notificationBulkForm > button > svg {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    color: #2f73f6;
+}
+
+.notifications-card #notificationBulkForm > button:hover:not(:disabled) {
+    background: #f1f6ff;
+}
+
+.notifications-card #notificationBulkForm > button:disabled {
+    background: transparent;
+    color: #94a3b8;
+    opacity: 1;
+    cursor: default;
+}
+
+.notifications-card #notificationBulkForm > button:disabled > svg {
+    color: #a8bad8;
+}
+
+.notifications-card #notificationBulkForm > #notificationClearSelection {
+    margin-left: auto;
+    font-size: 13px;
+}
+
+@media (max-width: 600px) {
+    .notifications-card #notificationBulkForm {
+        gap: 6px 12px;
+    }
+}
+
+/* 通知一覧：文字の強弱とアイコンサイズ */
+.notifications-card .notification-wrapper {
+    box-sizing: border-box;
+    min-height: 84px;
+    gap: 12px;
+    padding: 8px 6px;
+    border-bottom: 1px solid #e2eafb;
+    border-radius: 0;
+}
+
+.notifications-card .notification-wrapper .notification-row {
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.notifications-card .notification-wrapper .notification-kind-icon {
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+}
+
+.notifications-card .notification-wrapper .notification-row.unread .notification-kind-icon::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -12px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2f73f6;
+    transform: translateY(-50%);
+}
+
+.notifications-card .notification-wrapper .notification-kind-icon > svg {
+    width: 24px;
+    height: 24px;
+}
+
+.notifications-card .notification-wrapper .notification-kind-label {
+    color: #526581;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.notifications-card .notification-wrapper .notification-title {
+    margin: 0;
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.notifications-card .notification-wrapper .notification-target-meta {
+    color: #526581;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.notifications-card .notification-wrapper .notification-message {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin: 0;
+    color: #526581;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+@container dkss-notifications (max-width: 599px) {
+    .notifications-card .notification-wrapper {
+        min-height: 84px;
+        padding: 8px 6px;
+        gap: 10px;
+    }
+
+    .notifications-card .notification-wrapper .notification-row {
+        gap: 12px;
+    }
+
+    .notifications-card .notification-wrapper .notification-kind-icon {
+        flex-basis: 44px;
+        width: 44px;
+        height: 44px;
+    }
+
+    .notifications-card .notification-wrapper .notification-kind-icon > svg {
+        width: 24px;
+        height: 24px;
+    }
+}
