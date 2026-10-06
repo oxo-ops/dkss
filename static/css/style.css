@@ -13448,10 +13448,6 @@ nav[aria-label="通知の表示切替"] > a {
     overflow-wrap: anywhere;
 }
 
-.notification-popover-item.unread {
-    background: #eff6ff;
-}
-
 .notification-popover-item:hover {
     background: #e8f0fc;
 }
@@ -13500,15 +13496,11 @@ nav[aria-label="通知の表示切替"] > a {
     flex: 0 0 auto;
     padding: 14px 16px;
     border-top: 1px solid #e2e8f0;
-    color: #2563eb;
+    color: #334155;
     font-size: 14px;
     font-weight: 700;
     text-align: center;
     text-decoration: none;
-}
-
-.notification-popover-footer:hover {
-    background: #eff6ff;
 }
 
 .notification-menu a:focus-visible,
@@ -13559,12 +13551,6 @@ nav[aria-label="通知の表示切替"] > a {
     opacity: 1;
 }
 
-/* 表示切替は下線タブ */
-.notifications-card nav[aria-label="通知の表示切替"] {
-    gap: 4px;
-    border-bottom: 1px solid #e5e7eb;
-}
-
 .notifications-card nav[aria-label="通知の表示切替"] .btn {
     padding: 10px 16px;
     background: transparent;
@@ -13582,13 +13568,6 @@ nav[aria-label="通知の表示切替"] > a {
 .notifications-card nav[aria-label="通知の表示切替"] .btn[aria-current="page"] {
     color: #111827;
     border-bottom-color: #374151;
-}
-
-/* 検索欄・通知 */
-.notifications-card .notification-filter {
-    background: #fafafa;
-    border-color: #e5e7eb;
-    border-radius: 8px;
 }
 
 .notifications-card .notification-item {
@@ -13633,10 +13612,6 @@ nav[aria-label="通知の表示切替"] > a {
 .notification-popover-item:hover,
 .notification-popover-footer:hover {
     background: #f3f4f6;
-}
-
-.notification-popover-footer {
-    color: #334155;
 }
 
 /* 通知詳細：通知センター右ペインと共通の配置 */
@@ -13731,13 +13706,6 @@ nav[aria-label="通知の表示切替"] > a {
     color: #64748b;
 }
 
-.dkss-notification-detail .nd-title {
-    margin: 22px 0 10px;
-    font-size: 24px;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-}
-
 .dkss-notification-detail .nd-date,
 .dkss-notification-detail .nd-hint,
 .dkss-notification-detail .nd-footer-note {
@@ -13745,8 +13713,6 @@ nav[aria-label="通知の表示切替"] > a {
     font-size: 12px;
     line-height: 1.8;
 }
-
-.dkss-notification-detail .nd-date { margin: 0 0 22px; }
 
 .dkss-notification-detail .nd-message {
     margin-bottom: 24px;
@@ -13771,7 +13737,6 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .dkss-notification-detail .nd-hint { margin: 8px 0 0; }
-.dkss-notification-detail .nd-tools { margin: 22px 0; }
 .dkss-notification-detail .nd-tools form { margin: 0; }
 
 .dkss-notification-detail .nd-secondary,
@@ -13852,8 +13817,6 @@ nav[aria-label="通知の表示切替"] > a {
     .dkss-notification-detail .nd-content {
         padding: 18px;
     }
-
-    .dkss-notification-detail .nd-title { font-size: 21px; }
 }
 
 .dkss-notification-detail .nd-target {
@@ -13892,12 +13855,6 @@ nav[aria-label="通知の表示切替"] > a {
     gap: 0;
 }
 
-.notifications-card .notification-wrapper {
-    gap: 10px;
-    padding: 14px 0;
-    border-bottom: 1px solid #e2eafb;
-}
-
 .notifications-card .notification-row {
     display: flex;
     align-items: flex-start;
@@ -13924,17 +13881,12 @@ nav[aria-label="通知の表示切替"] > a {
 .notifications-card .notification-kind-icon {
     display: grid;
     place-items: center;
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: #efedff;
     color: #7460bd;
-}
-
-.notifications-card .notification-kind-icon svg {
-    width: 24px;
-    height: 24px;
 }
 
 .notifications-card .notification-kind-vehicle {
@@ -13964,7 +13916,7 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .notifications-card .notification-title {
-    margin-bottom: 5px;
+    margin-bottom: 3px;
     color: #172b4d;
     font-size: 15px;
     font-weight: 700;
@@ -13985,7 +13937,7 @@ nav[aria-label="通知の表示切替"] > a {
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 .notifications-card .notification-read-tag,
@@ -13997,12 +13949,6 @@ nav[aria-label="通知の表示切替"] > a {
     color: #526581;
     font-size: 12px;
     line-height: 1.5;
-}
-
-.notifications-card .notification-row.unread .notification-read-tag {
-    background: #e7efff;
-    color: #245dc9;
-    font-weight: 700;
 }
 
 .notifications-card .notification-state-tag[data-requires-action="true"] {
@@ -14017,10 +13963,6 @@ nav[aria-label="通知の表示切替"] > a {
 
 .notifications-card .notification-state-tag[hidden] {
     display: none;
-}
-
-.notifications-card .notification-select input {
-    accent-color: #2f73f6;
 }
 
 .notifications-card .notification-actions {
@@ -14061,13 +14003,6 @@ nav[aria-label="通知の表示切替"] > a {
         gap: 10px;
         padding: 10px;
     }
-
-    .notifications-card .notification-kind-icon {
-        flex-basis: 36px;
-        width: 36px;
-        height: 36px;
-    }
-
     .notifications-card .notification-actions {
         flex-direction: row;
         flex-wrap: wrap;
@@ -14076,7 +14011,7 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .notifications-card .notification-selection-controls {
-    padding: 12px 0;
+    padding: 0;
     border-bottom: 1px solid #e2eafb;
 }
 
@@ -14084,14 +14019,10 @@ nav[aria-label="通知の表示切替"] > a {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    min-height: 44px;
+    min-height: 40px;
     color: #526581;
     font-size: 13px;
     cursor: pointer;
-}
-
-.notifications-card #notificationSelectAll {
-    accent-color: #2f73f6;
 }
 
 .notifications-card .notification-bulk-toolbar {
@@ -14104,13 +14035,6 @@ nav[aria-label="通知の表示切替"] > a {
 
 .notifications-card .notification-bulk-toolbar[hidden] {
     display: none;
-}
-
-.notifications-card #notificationSelectedCount {
-    margin-right: 8px;
-    color: #245dc9;
-    font-size: 13px;
-    font-weight: 700;
 }
 
 .notifications-card .notification-bulk-toolbar .btn-small {
@@ -14131,12 +14055,6 @@ nav[aria-label="通知の表示切替"] > a {
 
 .notifications-card .notification-bulk-toolbar .btn-delete:hover {
     background: #fff1f1;
-}
-
-.notifications-card .notification-wrapper .notification-actions {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
 }
 
 .notifications-card .notification-row-menu {
@@ -14246,12 +14164,6 @@ nav[aria-label="通知の表示切替"] > a {
     cursor: not-allowed;
 }
 
-.notifications-card nav[aria-label="通知の表示切替"] {
-    gap: 8px;
-    margin: 0 0 18px;
-    border-bottom: 1px solid #dce7fb;
-}
-
 .notifications-card nav[aria-label="通知の表示切替"] > a.btn {
     padding: 12px 16px;
     border: 0;
@@ -14275,10 +14187,6 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 @media (max-width: 600px) {
-    .notifications-card nav[aria-label="通知の表示切替"] {
-        gap: 0;
-    }
-
     .notifications-card nav[aria-label="通知の表示切替"] > a.btn {
         padding: 10px;
         font-size: 13px;
@@ -14294,7 +14202,7 @@ nav[aria-label="通知の表示切替"] > a {
 
 .notification-popover .notification-popover-header {
     flex-shrink: 0;
-    padding: 14px 18px;
+    padding: 10px 16px;
     border-bottom: 1px solid #dce7fb;
     background: #f4f8ff;
 }
@@ -14342,7 +14250,7 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .notification-popover .notification-popover-item {
-    padding: 16px 18px;
+    padding: 12px 16px;
     border-bottom: 1px solid #e2eafb;
     background: #fff;
     box-shadow: none;
@@ -14424,17 +14332,12 @@ nav[aria-label="通知の表示切替"] > a {
     color: #187452;
 }
 
-.notifications-card .notification-list-pane {
-    container-name: dkss-notifications;
-    container-type: inline-size;
-}
-
 .notifications-card .notification-filter {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin: 0 0 16px;
-    padding: 0 0 16px;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding: 0 0 10px;
     border: 0;
     border-bottom: 1px solid #dce7fb;
     border-radius: 0;
@@ -14444,7 +14347,9 @@ nav[aria-label="通知の表示切替"] > a {
 .notifications-card .notification-filter > .form-group {
     grid-column: auto;
     min-width: 0;
+    align-self: center;
     margin: 0;
+    padding: 0;
 }
 
 .notifications-card .notification-filter > .notification-filter-search {
@@ -14453,7 +14358,7 @@ nav[aria-label="通知の表示切替"] > a {
 
 .notifications-card .notification-filter label {
     display: block;
-    margin-bottom: 6px;
+    margin: 0 0 4px;
     color: #64748b;
     font-size: 12px;
     font-weight: 500;
@@ -14489,6 +14394,7 @@ nav[aria-label="通知の表示切替"] > a {
     grid-column: 1 / -1;
     display: flex;
     justify-content: flex-end;
+    margin: 0;
     gap: 8px;
 }
 
@@ -14532,21 +14438,12 @@ nav[aria-label="通知の表示切替"] > a {
     padding: 16px;
 }
 
-.notifications-card nav[aria-label="通知の表示切替"] {
-    margin: 0 0 12px;
-}
-
 /* 左に一覧、右に詳細 */
 .notifications-card .notification-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
     align-items: start;
     gap: 0;
-}
-
-.notifications-card .notification-list-pane {
-    min-width: 0;
-    padding-right: 16px;
 }
 
 .notifications-card .notification-detail-pane {
@@ -14557,6 +14454,7 @@ nav[aria-label="通知の表示切替"] > a {
     max-height: calc(100dvh - 32px);
     overflow-y: auto;
     border-left: 1px solid #dce7fb;
+    background: #ffffff;
 }
 
 .notifications-card .notification-detail-placeholder {
@@ -14581,19 +14479,11 @@ nav[aria-label="通知の表示切替"] > a {
     box-sizing: border-box;
 }
 
-.notifications-card .dkss-notification-detail .nd-header {
-    padding: 10px 16px;
-    border-radius: 0;
-}
-
-.notifications-card .dkss-notification-detail .nd-content {
-    padding: 16px;
-}
-
 .dkss-notification-detail .nd-title {
     margin: 12px 0;
     font-size: 18px;
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .dkss-notification-detail .nd-date {
@@ -14605,71 +14495,15 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 /* 検索・選択エリア */
-.notifications-card .notification-filter {
-    margin: 0 0 8px;
-    padding: 0 0 10px;
-    gap: 8px;
-}
-
-.notifications-card .notification-filter label {
-    margin-bottom: 4px;
-}
-
-.notifications-card .notification-selection-controls {
-    padding: 0;
-}
-
-.notifications-card .notification-selection-controls label {
-    min-height: 40px;
-}
-
-/* 通知行の二重の余白を減らす */
-.notifications-card .notification-wrapper {
-    padding: 8px 0;
-    gap: 8px;
-}
-
-.notifications-card .notification-wrapper .notification-row {
-    padding: 8px 6px;
-    gap: 10px;
-}
-
-.notifications-card .notification-kind-icon {
-    flex-basis: 36px;
-    width: 36px;
-    height: 36px;
-}
-
 .notifications-card .notification-kind-icon svg {
     width: 21px;
     height: 21px;
-}
-
-.notifications-card .notification-title {
-    margin-bottom: 3px;
-}
-
-.notifications-card .notification-row-states {
-    margin-top: 6px;
-}
-
-/* ベル内の通知も余白を揃える */
-.notification-popover .notification-popover-header {
-    padding: 10px 16px;
-}
-
-.notification-popover .notification-popover-item {
-    padding: 12px 16px;
 }
 
 /* 狭い画面では一覧と詳細を切り替える */
 @media (max-width: 1100px) {
     .notifications-card .notification-layout {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .notifications-card .notification-list-pane {
-        padding-right: 0;
     }
 
     .notifications-card .notification-detail-pane {
@@ -14700,29 +14534,9 @@ nav[aria-label="通知の表示切替"] > a {
     box-shadow: none;
 }
 
-/* 上部：検索と絞り込みを揃える */
-.notifications-card .notification-list-pane .notification-filter {
-    grid-template-columns: minmax(0, 1fr) 120px 140px;
-    align-items: end;
-    gap: 8px;
-    margin: 0 0 8px;
-    padding: 0 0 8px;
-}
-
 .notifications-card .notification-list-pane .notification-filter > .form-group {
     grid-column: auto;
 }
-
-.notifications-card .notification-filter label {
-    margin: 0 0 4px;
-}
-
-.notifications-card .notification-filter-actions {
-    margin: 0;
-    gap: 8px;
-}
-
-
 
 /* 文字ボタン：幅136px・高さ44px */
 .notification-page-header #notificationReadAllButton,
@@ -14751,6 +14565,8 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .notifications-card .notification-wrapper .notification-actions {
+    flex-direction: row;
+    align-items: center;
     flex-wrap: nowrap;
     gap: 8px;
 }
@@ -14765,21 +14581,6 @@ nav[aria-label="通知の表示切替"] > a {
     height: 44px;
     min-height: 44px;
     padding: 0;
-}
-
-.notifications-card .notification-list > .notification-date-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-sizing: border-box;
-    width: 100%;
-    min-height: 48px;
-    gap: 16px;
-    margin: 0;
-    padding: 0 6px;
-    color: #172b4d;
-    font-size: 14px;
-    font-weight: 700;
 }
 
 /* ベル内の通知：本文・状態・時刻・操作の配置 */
@@ -15006,11 +14807,6 @@ nav[aria-label="通知の表示切替"] > a {
     cursor: pointer;
 }
 
-.notifications-card .notification-search-submit svg {
-    width: 20px;
-    height: 20px;
-}
-
 .notifications-card .notification-filter-reset {
     font-size: 22px;
 }
@@ -15019,17 +14815,6 @@ nav[aria-label="通知の表示切替"] > a {
 .notifications-card .notification-filter-reset:hover {
     background: #e7efff;
     color: #245dc9;
-}
-
-/* 通知上部：検索欄とプルダウンの高さを揃える */
-.notifications-card .notification-list-pane .notification-filter {
-    align-items: center;
-}
-
-.notifications-card .notification-filter > .form-group {
-    align-self: center;
-    margin: 0;
-    padding: 0;
 }
 
 .notifications-card .notification-filter .notification-filter-label {
@@ -15044,26 +14829,12 @@ nav[aria-label="通知の表示切替"] > a {
     border: 0;
 }
 
-.notifications-card .notification-filter .notification-search-control,
-.notifications-card .notification-filter select {
+.notifications-card .notification-filter .notification-search-control {
     box-sizing: border-box;
     height: 44px;
     min-height: 44px;
     margin: 0;
     vertical-align: middle;
-}
-
-.notifications-card .notification-filter select {
-    padding: 0 30px 0 12px;
-    font-size: 13px;
-    line-height: normal;
-}
-
-.notifications-card .notification-search-control > input[type="search"] {
-    box-sizing: border-box;
-    height: 42px;
-    min-height: 0;
-    margin: 0;
 }
 
 /* すべて既読：件数まで一行で表示 */
@@ -15282,16 +15053,10 @@ nav[aria-label="通知の表示切替"] > a {
 
 /* 検索欄と詳細の境目を揃える */
 .notifications-card .notification-list-pane {
+    container-name: dkss-notifications;
+    container-type: inline-size;
+    min-width: 0;
     padding-right: 12px;
-}
-
-.notifications-card .notification-list-pane .notification-filter {
-    margin: 0;
-    padding: 14px 0;
-}
-
-.notifications-card .notification-detail-pane {
-    background: #ffffff;
 }
 
 /* 通知一覧：選択欄と状態表示をコンパクトにする */
@@ -15405,7 +15170,6 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 .notifications-card .notification-filter .notification-search-control {
-    height: 44px;
     border-color: #c5d4ec;
     border-radius: 6px;
     background: #f7faff;
@@ -15444,6 +15208,8 @@ nav[aria-label="通知の表示切替"] > a {
     color: #172b4d;
     font-size: 13px;
     font-weight: 600;
+    line-height: normal;
+    vertical-align: middle;
 }
 
 /* 一覧幅が十分ある場合は検索欄を左に配置 */
@@ -15457,10 +15223,6 @@ nav[aria-label="通知の表示切替"] > a {
 @container dkss-notifications (max-width: 599px) {
     .notifications-card .notification-list-pane .notification-filter {
         grid-template-columns: 124px minmax(0, 1fr);
-    }
-
-    .notifications-card .notification-list-pane .notification-filter > .notification-filter-search {
-        grid-column: 1 / -1;
     }
 }
 
@@ -15486,11 +15248,13 @@ nav[aria-label="通知の表示切替"] > a {
     align-self: center;
 }
 
-.notifications-card .notification-select input {
+.notifications-card .notification-select input,
+.notifications-card #notificationSelectAll {
     width: 20px;
     height: 20px;
     margin: 0;
     accent-color: #2f73f6;
+    cursor: pointer;
 }
 
 /* 選択した行全体を淡く強調 */
@@ -15501,27 +15265,10 @@ nav[aria-label="通知の表示切替"] > a {
 }
 
 @container dkss-notifications (max-width: 599px) {
-    .notifications-card .notification-wrapper {
-        min-height: 92px;
-        gap: 10px;
-    }
-
-    .notifications-card .notification-wrapper .notification-row {
-        gap: 12px;
-    }
-
     .notifications-card .notification-kind-icon {
         flex-basis: 40px;
         width: 40px;
         height: 40px;
-    }
-
-    .notifications-card .notification-row .notification-title {
-        font-size: 15px;
-    }
-
-    .notifications-card .notification-row .notification-message {
-        font-size: 13px;
     }
 }
 
@@ -15977,17 +15724,9 @@ nav[aria-label="通知の表示切替"] > a {
     }
 
     .notifications-card .notification-tabs > .notification-view-tab {
-        min-height: 48px;
         gap: 6px;
         padding: 10px 8px;
         font-size: 15px;
-    }
-
-    .notifications-card .notification-tabs .notification-tab-count {
-        min-width: 24px;
-        height: 24px;
-        padding: 0 6px;
-        font-size: 13px;
     }
 }
 
@@ -16018,14 +15757,6 @@ nav[aria-label="通知の表示切替"] > a {
     color: #172b4d;
     font-size: 16px;
     white-space: nowrap;
-}
-
-.notifications-card #notificationSelectAll {
-    width: 20px;
-    height: 20px;
-    margin: 0;
-    accent-color: #2f73f6;
-    cursor: pointer;
 }
 
 .notifications-card #notificationSelectedCount {
@@ -16176,23 +15907,6 @@ nav[aria-label="通知の表示切替"] > a {
 
 @container dkss-notifications (max-width: 599px) {
     .notifications-card .notification-wrapper {
-        min-height: 84px;
-        padding: 8px 6px;
         gap: 10px;
-    }
-
-    .notifications-card .notification-wrapper .notification-row {
-        gap: 12px;
-    }
-
-    .notifications-card .notification-wrapper .notification-kind-icon {
-        flex-basis: 44px;
-        width: 44px;
-        height: 44px;
-    }
-
-    .notifications-card .notification-wrapper .notification-kind-icon > svg {
-        width: 24px;
-        height: 24px;
     }
 }
