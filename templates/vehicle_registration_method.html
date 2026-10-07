@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}車両の登録方法{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両の登録方法</h2>
+
+    <div class="header-actions">
+        <a href="{{ url_for('vehicle_master') }}" class="btn btn-back">
+            ← 一覧へ戻る
+        </a>
+    </div>
+</div>
+
+<div class="card form-card">
+    <p class="help-text">
+        車両情報の登録方法を選択してください。
+    </p>
+
+    <div class="form-group">
+        <h3>AIRIAから取得</h3>
+        <p class="help-text">
+            車台番号をもとに車両情報を取得して登録します。
+        </p>
+        <button type="button" class="btn btn-outline" disabled>
+            準備中
+        </button>
+    </div>
+
+    <div class="form-group">
+        <h3>Excel一括登録</h3>
+        <p class="help-text">
+            Excelから複数の車両情報を取り込み、
+            内容を確認して登録・更新します。
+        </p>
+        <a href="{{ url_for('import_vehicles') }}" class="btn btn-outline">
+            Excelから登録
+        </a>
+    </div>
+
+    <div class="form-group">
+        <h3>車検証を読み取る</h3>
+        <p class="help-text">
+            車検証の画像やPDFを読み取り、
+            内容を確認して登録します。
+        </p>
+        <button type="button" class="btn btn-outline" disabled>
+            準備中
+        </button>
+    </div>
+
+    <div class="form-group">
+        <h3>手入力で登録</h3>
+        <p class="help-text">
+            車両情報を入力して登録します。
+        </p>
+        <a href="{{ url_for('new_vehicle') }}" class="btn btn-outline">
+            手入力で登録
+        </a>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}車両の登録内容確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両の登録内容確認</h2>
+</div>
+
+<div class="card form-card">
+    <p class="help-text">
+        内容を確認し、問題がなければ「この内容で登録」を押してください。
+    </p>
+
+    {% set fields = [
+        ("plate_area", "地域名"),
+        ("plate_class", "分類番号"),
+        ("plate_kana", "ひらがな"),
+        ("plate_number", "一連指定番号"),
+        ("chassis_number", "車台番号"),
+        ("model_code", "型式"),
+        ("first_registration_date", "初年度登録"),
+        ("manufacturer", "メーカー・車名"),
+        ("body_type", "形状"),
+        ("gross_vehicle_weight", "車両総重量（kg）"),
+        ("max_payload", "最大積載量（kg）"),
+        ("type", "車種"),
+        ("office", "営業所"),
+        ("inspection_expiry", "車検満了日"),
+    ] %}
+
+    {% for field_key, field_label in fields %}
+        <div class="form-group">
+            <label>{{ field_label }}</label>
+            <p>
+                {% set value = vehicle.get(field_key) %}
+                {{ value if value is not none and value != "" else "未入力" }}
+            </p>
+        </div>
+    {% endfor %}
+
+    <form
+        method="post"
+        action="{{ url_for('new_vehicle') }}"
+        class="responsive-form"
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        {% for field_key, field_label in fields %}
+            <input
+                type="hidden"
+                name="{{ field_key }}"
+                value="{{ vehicle.get(field_key, '') if vehicle.get(field_key) is not none else '' }}"
+            >
+        {% endfor %}
+
+        <div class="form-actions">
+            <button
+                type="submit"
+                name="vehicle_form_action"
+                value="back"
+                class="btn btn-outline"
+            >
+                入力内容を修正
+            </button>
+
+            <button
+                type="submit"
+                name="vehicle_form_action"
+                value="save"
+                class="btn"
+            >
+                この内容で登録
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

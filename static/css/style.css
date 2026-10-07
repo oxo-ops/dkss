@@ -192,9 +192,9 @@ tr:last-child td {
 button,
 .btn {
     display: inline-block;
-    background: #2f73f6;
-    color: #fff;
-    border: none;
+    background: #fff;
+    color: #2563eb;
+    border: 1px solid #93b4f6;
     padding: 12px 20px;
     border-radius: 10px;
     text-decoration: none;
@@ -204,7 +204,7 @@ button,
 
 button:hover,
 .btn:hover {
-    background: #195ee0;
+    background: #eff6ff;
 }
 
 input,
