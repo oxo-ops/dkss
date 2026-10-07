@@ -15651,16 +15651,31 @@ def import_vehicles():
         excel_file = request.files.get("excel_file")
 
         if not excel_file or not excel_file.filename:
-            return "Excelファイルを選択してください。", 400
+            return return_form_errors([
+                (
+                    "Excelファイルを選択してください。",
+                    "excel_file"
+                )
+            ])
 
         if not excel_file.filename.lower().endswith(".xlsx"):
-            return "xlsx形式のExcelファイルを選択してください。", 400
+            return return_form_errors([
+                (
+                    "xlsx形式のExcelファイルを選択してください。",
+                    "excel_file"
+                )
+            ])
 
         if not is_valid_uploaded_file(
             excel_file,
             ".xlsx"
         ):
-            return "Excelファイルの内容が不正です。", 400
+            return return_form_errors([
+                (
+                    "Excelファイルの内容が不正です。",
+                    "excel_file"
+                )
+            ])
 
         try:
             workbook = load_workbook(
@@ -15668,21 +15683,30 @@ def import_vehicles():
                 data_only=True
             )
         except Exception:
-            return "Excelファイルを読み込めませんでした。", 400
+            return return_form_errors([
+                (
+                    "Excelファイルを読み込めませんでした。",
+                    "excel_file"
+                )
+            ])
 
         sheet = workbook.active
 
         if sheet.max_row > 5000:
-            return (
-                "一度に読み込めるExcelは5000行までです。",
-                400
-            )
+            return return_form_errors([
+                (
+                    "一度に読み込めるExcelは5000行までです。",
+                    "excel_file"
+                )
+            ])
 
         if sheet.max_column > 200:
-            return (
-                "一度に読み込めるExcelは200列までです。",
-                400
-            )
+            return return_form_errors([
+                (
+                    "一度に読み込めるExcelは200列までです。",
+                    "excel_file"
+                )
+            ])
 
         header_row = None
 
@@ -15699,7 +15723,12 @@ def import_vehicles():
                 break
 
         if header_row is None:
-            return "車両台帳の見出し行が見つかりませんでした。", 400
+            return return_form_errors([
+                (
+                    "車両台帳の見出し行が見つかりませんでした。",
+                    "excel_file"
+                )
+            ])
 
         headers = [
             cell.value
@@ -15734,11 +15763,14 @@ def import_vehicles():
         ]
 
         if missing_headers:
-            return (
-                "Excelに必要な見出しがありません："
-                + "、".join(missing_headers),
-                400
-            )
+            return return_form_errors([
+                (
+                    "Excelに必要な見出しがありません："
+                    + "、".join(missing_headers),
+                    "excel_file"
+                )
+            ])
+
         def normalize_excel_date(value):
             if value in (None, ""):
                 return ""
@@ -15828,18 +15860,22 @@ def import_vehicles():
             excel_row = vehicle.get("excel_row")
 
             if office and office not in valid_import_offices:
-                return (
-                    f"{excel_row}行目の営業所「{office}」は"
-                    "営業所マスタに登録されていません。",
-                    400
-                )
+                return return_form_errors([
+                    (
+                        f"{excel_row}行目の営業所「{office}」は"
+                        "営業所マスタに登録されていません。",
+                        "excel_file"
+                    )
+                ])
 
             if active_status not in {"", "有効", "無効"}:
-                return (
-                    f"{excel_row}行目の有効／無効は"
-                    "「有効」または「無効」で入力してください。",
-                    400
-                )
+                return return_form_errors([
+                    (
+                        f"{excel_row}行目の有効／無効は"
+                        "「有効」または「無効」で入力してください。",
+                        "excel_file"
+                    )
+                ])
 
         def clean_preview_text(value):
             return str(value or "").strip()
@@ -15930,10 +15966,12 @@ def import_vehicles():
             )
 
             if not chassis_number:
-                return (
-                    f"{vehicle.get('excel_row')}行目の車台番号を入力してください。",
-                    400
-                )
+                return return_form_errors([
+                    (
+                        f"{vehicle.get('excel_row')}行目の車台番号を入力してください。",
+                        "excel_file"
+                    )
+                ])
 
             import_key = (
                 "chassis",
@@ -16189,25 +16227,31 @@ def confirm_vehicle_import():
     }
 
     if len(form_list_lengths) != 1:
-        return (
-            "取込データの件数が一致しません。"
-            "Excel取込画面からやり直してください。",
-            400
-        )
+        return return_form_errors([
+            (
+                "取込データの件数が一致しません。"
+                "Excel取込画面からやり直してください。",
+                ""
+            )
+        ])
 
     import_count = len(chassis_numbers)
 
     if import_count > 5000:
-        return (
-            "一度に取り込める車両は5000件までです。",
-            400
-        )
+        return return_form_errors([
+            (
+                "一度に取り込める車両は5000件までです。",
+                ""
+            )
+        ])
 
     if import_count == 0:
-        return (
-            "取込対象の車両がありません。",
-            400
-        )
+        return return_form_errors([
+            (
+                "取込対象の車両がありません。",
+                ""
+            )
+        ])
 
     valid_import_offices = {
         office.name
@@ -16228,23 +16272,29 @@ def confirm_vehicle_import():
         active_status = str(active_statuses[i] or "").strip()
 
         if len(office) > 100:
-            return (
-                f"{i + 1}件目の営業所は100文字以内で入力してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"{i + 1}件目の営業所は100文字以内で入力してください。",
+                    "office"
+                )
+            ])
 
         if office and office not in valid_import_offices:
-            return (
-                f"{i + 1}件目の営業所「{escape(office)}」は"
-                "営業所マスタに登録されていません。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"{i + 1}件目の営業所「{office}」は"
+                    "営業所マスタに登録されていません。",
+                    "office"
+                )
+            ])
 
         if active_status not in {"有効", "無効"}:
-            return (
-                f"{i + 1}件目の有効／無効を選択してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"{i + 1}件目の有効／無効を選択してください。",
+                    "active_status"
+                )
+            ])
 
         target_deleted_values.append(active_status == "無効")
 
@@ -16304,10 +16354,12 @@ def confirm_vehicle_import():
         )
 
         if not chassis_number:
-            return (
-                f"{i + 1}行目の車台番号を入力してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"{i + 1}行目の車台番号を入力してください。",
+                    "chassis_number"
+                )
+            ])
 
         import_key = (
             "chassis",
@@ -16342,16 +16394,18 @@ def confirm_vehicle_import():
         )
 
         if projected_active_count > company.vehicle_limit:
-            return (
-                f"登録上限を超えます。"
-                f"現在の有効車両 {current_count} 台、"
-                f"有効車両の新規登録予定 {new_vehicle_count} 台、"
-                f"再有効化予定 {reactivate_vehicle_count} 台、"
-                f"無効化予定 {deactivate_vehicle_count} 台、"
-                f"取込後の有効車両 {projected_active_count} 台、"
-                f"上限 {company.vehicle_limit} 台です。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"登録上限を超えます。"
+                    f"現在の有効車両 {current_count} 台、"
+                    f"有効車両の新規登録予定 {new_vehicle_count} 台、"
+                    f"再有効化予定 {reactivate_vehicle_count} 台、"
+                    f"無効化予定 {deactivate_vehicle_count} 台、"
+                    f"取込後の有効車両 {projected_active_count} 台、"
+                    f"上限 {company.vehicle_limit} 台です。",
+                    ""
+                )
+            ])
     # 今回のExcel内ですでに処理した車両
     processed_import_keys = set()
     processed_row_indexes = set()
@@ -16439,7 +16493,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "chassis_number")
+            ])
 
         plate_area, error = validate_text_length(
             normalize_import_text(
@@ -16451,7 +16507,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "plate_area")
+            ])
 
         plate_class, error = validate_text_length(
             normalize_import_text(
@@ -16463,7 +16521,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "plate_class")
+            ])
 
         plate_kana, error = validate_text_length(
             normalize_import_text(
@@ -16475,7 +16535,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "plate_kana")
+            ])
 
         plate_number, error = validate_text_length(
             normalize_import_text(
@@ -16487,13 +16549,17 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "plate_number")
+            ])
 
         if not chassis_number:
-            return (
-                f"{i + 1}行目の車台番号を入力してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    f"{i + 1}行目の車台番号を入力してください。",
+                    "chassis_number"
+                )
+            ])
 
         import_key = (
             "chassis",
@@ -16520,7 +16586,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "gross_vehicle_weight")
+            ])
 
         max_payload, error = to_nonnegative_int(
             max_payloads[i],
@@ -16529,7 +16597,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "max_payload")
+            ])
 
         first_registration_date, error = validate_import_date(
             first_registration_dates[i],
@@ -16538,7 +16608,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "first_registration_date")
+            ])
 
         inspection_expiry, error = validate_import_date(
             inspection_expiries[i],
@@ -16547,7 +16619,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "inspection_expiry")
+            ])
 
         model_code, error = validate_text_length(
             model_codes[i],
@@ -16557,7 +16631,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "model_code")
+            ])
 
         manufacturer, error = validate_text_length(
             vehicle_names[i],
@@ -16567,7 +16643,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "vehicle_name")
+            ])
 
         body_type, error = validate_text_length(
             body_types[i],
@@ -16577,7 +16655,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "body_type")
+            ])
 
         selected_vehicle_type, error = validate_text_length(
             vehicle_types[i],
@@ -16587,7 +16667,9 @@ def confirm_vehicle_import():
         )
 
         if error:
-            return error, 400
+            return return_form_errors([
+                (error, "vehicle_type")
+            ])
         
         # 車台番号が一致する既存車両を更新
         if existing_vehicle:
@@ -16697,16 +16779,20 @@ def confirm_vehicle_import():
             continue
 
         if len(excel_value) > 100:
-            return (
-                "車種コードは100文字以内で入力してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    "車種コードは100文字以内で入力してください。",
+                    "vehicle_type_code"
+                )
+            ])
 
         if len(vehicle_type_name) > 100:
-            return (
-                "車種は100文字以内で入力してください。",
-                400
-            )
+            return return_form_errors([
+                (
+                    "車種は100文字以内で入力してください。",
+                    "vehicle_type"
+                )
+            ])
 
         mapping_candidates.setdefault(
             excel_value,
