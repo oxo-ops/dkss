@@ -173,9 +173,110 @@
 <section class="card vehicle-karte-inspections-panel">
     <div class="card-title-row">
         <h3>法定・定期点検</h3>
+
+        {% if session.get("role") in ["admin", "itc"] %}
+            <a
+                href="{{ url_for(
+                    'vehicle_data_import',
+                    document_type='inspection'
+                ) }}"
+                class="btn btn-outline"
+            >
+                点検記録を取り込む
+            </a>
+        {% endif %}
     </div>
-    <p class="help-text">3か月点検・12か月点検・車検の記録</p>
-    <p class="ui-empty-value">準備中</p>
+
+    {% if periodic_inspection_page.items %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">点検日</th>
+                        <th scope="col">点検区分</th>
+                        <th scope="col">積算走行距離</th>
+                        <th scope="col">記録内容</th>
+                        <th scope="col">原本</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for record in periodic_inspection_page.items %}
+                        <tr>
+                            <td data-label="点検日">
+                                {{ record.inspection_date }}
+                            </td>
+
+                            <td data-label="点検区分">
+                                {{ {
+                                    "3month": "3か月点検",
+                                    "12month": "12か月点検",
+                                    "other": "その他の点検"
+                                }.get(record.inspection_type, "その他の点検") }}
+                            </td>
+
+                            <td data-label="積算走行距離">
+                                {% if record.mileage is not none %}
+                                    {{ "{:,.2f}".format(record.mileage) }} km
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="記録内容">
+                                {% if record.content %}
+                                    {{ record.content }}
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="原本">
+                                <a
+                                    href="{{ url_for(
+                                        'vehicle_periodic_inspection_source',
+                                        record_id=record.id
+                                    ) }}"
+                                    class="btn btn-outline"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    原本を開く
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="pagination" aria-label="定期点検のページ切替">
+            {% if periodic_inspection_page.has_prev %}
+                <a href="{{ url_for(
+                    'vehicle_karte_inspections',
+                    vehicle_record_id=vehicle.id,
+                    page=inspection_page.page,
+                    periodic_page=periodic_inspection_page.prev_num
+                ) }}">前へ</a>
+            {% endif %}
+
+            <span>
+                {{ periodic_inspection_page.page }}
+                / {{ periodic_inspection_page.pages }}
+            </span>
+
+            {% if periodic_inspection_page.has_next %}
+                <a href="{{ url_for(
+                    'vehicle_karte_inspections',
+                    vehicle_record_id=vehicle.id,
+                    page=inspection_page.page,
+                    periodic_page=periodic_inspection_page.next_num
+                ) }}">次へ</a>
+            {% endif %}
+        </nav>
+    {% else %}
+        <p class="ui-empty-value">定期点検の記録なし</p>
+    {% endif %}
 </section>
 
 {% endblock %}

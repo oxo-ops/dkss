@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}資料・データ取込{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>資料・データ取込</h2>
+
+    <a
+        href="{{ url_for('vehicle_karte_list') }}"
+        class="btn btn-outline"
+    >
+        車両カルテへ戻る
+    </a>
+</div>
+
+{% for category, message in flash_messages %}
+    {% if category in ["success", "info"] %}
+        <div class="card vehicle-search-card" role="status">
+            <p>{{ message }}</p>
+
+            {% if category == "success" %}
+                <a
+                    href="{{ url_for('vehicle_karte_list') }}"
+                    class="btn btn-outline"
+                >
+                    車両カルテを開く
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endfor %}
+
+<div class="card vehicle-search-card">
+    <h3>運行実績</h3>
+
+    <p class="help-text">
+        デジタコから出力したCSVを読み込みます。
+        複数車両・複数日分のデータをまとめて取り込めます。
+        読み込み後に対象車両と内容を確認してから反映します。
+    </p>
+
+    <div class="form-actions vehicle-filter-actions">
+        <a
+            href="{{ url_for('vehicle_operation_import') }}"
+            class="btn btn-outline"
+        >
+            運行実績CSVを取り込む
+        </a>
+    </div>
+</div>
+
+<div class="card form-card vehicle-search-card">
+    <h3>点検記録・日報・整備資料</h3>
+
+    <form
+        method="post"
+        action="{{ url_for('vehicle_data_import') }}"
+        enctype="multipart/form-data"
+        class="responsive-form"
+        novalidate
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <div class="form-group">
+            <label for="document_type">資料の種類</label>
+
+            <select
+                id="document_type"
+                name="document_type"
+                required
+            >
+                {% set selected_type = request.args.get("document_type", "") %}
+
+                <option value="">選択してください</option>
+                <option
+                    value="inspection"
+                    {% if selected_type == "inspection" %}selected{% endif %}
+                >
+                    点検記録（3か月・12か月など）
+                </option>
+                <option
+                    value="driving_report"
+                    {% if selected_type == "driving_report" %}selected{% endif %}
+                >
+                    安全運転日報
+                </option>
+                <option
+                    value="maintenance"
+                    {% if selected_type == "maintenance" %}selected{% endif %}
+                >
+                    請求書・整備資料
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="document_files">PDF・画像</label>
+
+            <input
+                type="file"
+                id="document_files"
+                name="document_files"
+                accept=".pdf,.png,.jpg,.jpeg"
+                aria-describedby="document_files_help"
+                multiple
+                required
+            >
+
+            <p id="document_files_help" class="help-text">
+                同じ種類の資料を複数選択できます。
+                複数車両の資料もまとめて取り込めます。
+                対象車両と内容は、確認画面で確認してから反映します。
+            </p>
+        </div>
+
+        <div class="form-actions vehicle-filter-actions">
+            <button
+                type="submit"
+                class="btn btn-outline"
+            >
+                読み込んで確認
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

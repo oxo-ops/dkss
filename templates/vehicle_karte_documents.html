@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}車両カルテ：書類{% endblock %}
+
+{% block content %}
+
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
+
+<section class="card">
+    <div class="card-title-row">
+        <h3>書類</h3>
+        <span>{{ documents | length }}件</span>
+    </div>
+
+    {% set document_labels = {
+        "inspection": "点検記録",
+        "driving_report": "安全運転日報",
+        "maintenance": "請求書・整備資料",
+        "operation_csv": "運行実績（デジタコCSV）"
+    } %}
+
+    {% if documents %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">種類</th>
+                        <th scope="col">ファイル名</th>
+                        <th scope="col">操作</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for document in documents %}
+                        <tr>
+                            <td data-label="種類">
+                                {{ document_labels.get(
+                                    document.document_type,
+                                    "その他"
+                                ) }}
+                            </td>
+
+                            <td data-label="ファイル名">
+                                {{ document.filename }}
+                            </td>
+
+                            <td data-label="操作">
+                                {% if document.document_type == "operation_csv" %}
+                                    <a
+                                        href="{{ url_for(
+                                            'vehicle_karte_operation_source',
+                                            vehicle_record_id=vehicle.id,
+                                            draft_id=document.draft_id
+                                        ) }}"
+                                    >
+                                        CSVをダウンロード
+                                    </a>
+                                {% else %}
+                                    <a
+                                        href="{{ url_for(
+                                            'vehicle_karte_document_source',
+                                            vehicle_record_id=vehicle.id,
+                                            draft_id=document.draft_id
+                                        ) }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        原本を開く
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="ui-empty-value">書類なし</p>
+    {% endif %}
+</section>
+
+{% endblock %}

@@ -27,6 +27,7 @@ import secrets
 import zipfile
 import re
 import csv
+import hashlib
 from decimal import Decimal, InvalidOperation
 from io import StringIO
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -1505,6 +1506,200 @@ class VehiclePatrol(db.Model):
     repair_time = db.Column(db.String(50))
     parts = db.Column(db.Text)
     cost = db.Column(db.String(50))
+
+class VehicleDrivingReportRecord(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint(
+            "source_draft_id",
+            "source_record_index",
+            name="uq_driving_report_source_record"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False,
+        index=True
+    )
+    operation_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle_operation_record.id"),
+        index=True
+    )
+
+    report_number = db.Column(db.String(100))
+    operation_date = db.Column(
+        db.String(20),
+        nullable=False,
+        index=True
+    )
+    mileage = db.Column(db.Numeric(14, 2))
+    content = db.Column(db.Text)
+
+    details_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+
+    source_draft_id = db.Column(
+        db.String(36),
+        db.ForeignKey("vehicle_document_import_draft.id"),
+        nullable=False
+    )
+    source_record_index = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    created_by_username = db.Column(
+        db.String(50),
+        nullable=False
+    )
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC"))
+    )
+
+
+class VehiclePeriodicInspectionRecord(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint(
+            "source_draft_id",
+            "source_record_index",
+            name="uq_periodic_inspection_source_record"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False,
+        index=True
+    )
+
+    inspection_type = db.Column(
+        db.String(30),
+        nullable=False
+    )
+    inspection_date = db.Column(
+        db.String(20),
+        nullable=False,
+        index=True
+    )
+    completion_date = db.Column(db.String(20))
+    next_inspection_date = db.Column(db.String(20))
+    mileage = db.Column(db.Numeric(14, 2))
+
+    inspection_company = db.Column(db.String(200))
+    inspector_name = db.Column(db.String(100))
+    content = db.Column(db.Text)
+
+    details_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+
+    source_draft_id = db.Column(
+        db.String(36),
+        db.ForeignKey("vehicle_document_import_draft.id"),
+        nullable=False
+    )
+    source_record_index = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    created_by_username = db.Column(
+        db.String(50),
+        nullable=False
+    )
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC"))
+    )
+
+
+class VehicleDocumentImportDraft(db.Model):
+    id = db.Column(db.String(36), primary_key=True)
+
+    batch_id = db.Column(
+        db.String(36),
+        nullable=False,
+        index=True
+    )
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    created_by_username = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+
+    document_type = db.Column(
+        db.String(30),
+        nullable=False
+    )
+    source_filename = db.Column(
+        db.String(255),
+        nullable=False
+    )
+    source_file = db.Column(
+        db.LargeBinary,
+        nullable=False
+    )
+    source_sha256 = db.Column(
+        db.String(64),
+        nullable=False,
+        index=True
+    )
+
+    preview_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+    status = db.Column(
+        db.String(20),
+        nullable=False,
+        default="preview"
+    )
+    result_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC"))
+    )
+    completed_at = db.Column(
+        db.DateTime(timezone=True)
+    )
+
 
 class VehicleOperationImportDraft(db.Model):
     id = db.Column(db.String(36), primary_key=True)
@@ -15673,6 +15868,777 @@ def delete_driver(index):
     db.session.commit()
     return redirect("/master/drivers")
 
+def build_vehicle_document_record(
+    draft,
+    record_index,
+    values
+):
+    mileage = (
+        Decimal(values["mileage"])
+        if values.get("mileage") is not None
+        else None
+    )
+
+    if draft.document_type == "inspection":
+        return VehiclePeriodicInspectionRecord(
+            company_code=draft.company_code,
+            vehicle_record_id=values["vehicle_record_id"],
+            inspection_type=values["inspection_type"],
+            inspection_date=values["record_date"],
+            mileage=mileage,
+            content=values["content"],
+            details_json=json.dumps(
+                values,
+                ensure_ascii=False
+            ),
+            source_draft_id=draft.id,
+            source_record_index=record_index,
+            created_by_username=session.get("username")
+        )
+
+    if draft.document_type == "driving_report":
+        return VehicleDrivingReportRecord(
+            company_code=draft.company_code,
+            vehicle_record_id=values["vehicle_record_id"],
+            operation_date=values["record_date"],
+            mileage=mileage,
+            content=values["content"],
+            details_json=json.dumps(
+                values,
+                ensure_ascii=False
+            ),
+            source_draft_id=draft.id,
+            source_record_index=record_index,
+            created_by_username=session.get("username")
+        )
+
+    if draft.document_type == "maintenance":
+        return VehicleMaintenanceRecord(
+            company_code=draft.company_code,
+            vehicle_record_id=values["vehicle_record_id"],
+            entry_date=values["record_date"],
+            mileage=mileage,
+            content=values["content"],
+            created_by_username=session.get("username"),
+            created_at=datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).isoformat(timespec="seconds")
+        )
+
+    raise ValueError("資料の種類が不正です。")
+
+
+def validate_vehicle_document_record(
+    draft,
+    record_index,
+    original_record,
+    form
+):
+    row_key = f"{draft.id}_{record_index}"
+    values = dict(original_record)
+    errors = []
+
+    vehicle_value = form.get(
+        f"vehicle_{row_key}", ""
+    ).strip()
+    record_date = form.get(
+        f"date_{row_key}", ""
+    ).strip()
+    mileage_text = form.get(
+        f"mileage_{row_key}", ""
+    ).strip()
+    content = form.get(
+        f"content_{row_key}", ""
+    ).strip()
+
+    values.update({
+        "vehicle_record_id": vehicle_value,
+        "record_date": record_date,
+        "mileage": mileage_text or None,
+        "content": content
+    })
+
+    try:
+        vehicle_id = int(vehicle_value)
+
+        if not 0 < vehicle_id <= 9223372036854775807:
+            raise ValueError
+
+        vehicle = Vehicle.query.filter_by(
+            id=vehicle_id,
+            company_code=draft.company_code
+        ).first()
+
+        if vehicle is None:
+            raise ValueError
+
+        values["vehicle_record_id"] = vehicle.id
+    except (ValueError, TypeError):
+        errors.append((
+            "同じ会社の対象車両を選択してください。",
+            f"vehicle_{row_key}"
+        ))
+
+    try:
+        parsed_date = datetime.strptime(
+            record_date, "%Y-%m-%d"
+        )
+
+        if parsed_date.strftime("%Y-%m-%d") != record_date:
+            raise ValueError
+    except ValueError:
+        errors.append((
+            "記録の日付を正しく入力してください。",
+            f"date_{row_key}"
+        ))
+
+    if mileage_text:
+        try:
+            mileage = Decimal(mileage_text)
+
+            if (
+                not mileage.is_finite()
+                or mileage < 0
+                or mileage > Decimal("999999999999.99")
+                or mileage != mileage.quantize(Decimal("0.01"))
+            ):
+                raise ValueError
+
+            values["mileage"] = format(mileage, ".2f")
+        except (InvalidOperation, ValueError):
+            errors.append((
+                "積算走行距離は0以上、小数点以下2桁までで入力してください。",
+                f"mileage_{row_key}"
+            ))
+
+    if len(content) > 5000:
+        errors.append((
+            "記録内容は5000文字以内で入力してください。",
+            f"content_{row_key}"
+        ))
+
+    if draft.document_type == "inspection":
+        inspection_type = form.get(
+            f"inspection_type_{row_key}", ""
+        ).strip()
+        values["inspection_type"] = inspection_type
+
+        if inspection_type not in {
+            "3month", "12month", "other"
+        }:
+            errors.append((
+                "点検区分を選択してください。",
+                f"inspection_type_{row_key}"
+            ))
+
+    return values, errors
+
+
+def prepare_vehicle_document_import(files, document_type):
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return [], [
+            ("ログイン情報を確認してください。", "")
+        ]
+
+    if document_type not in {
+        "inspection",
+        "driving_report",
+        "maintenance"
+    }:
+        return [], [
+            ("資料の種類を選択してください。", "document_type")
+        ]
+
+    uploaded_files = [
+        file
+        for file in files
+        if file and file.filename
+    ]
+
+    if not uploaded_files:
+        return [], [
+            ("ファイルを選択してください。", "document_files")
+        ]
+
+    if len(uploaded_files) > 50:
+        return [], [
+            (
+                "1回に取り込めるファイルは50件までです。",
+                "document_files"
+            )
+        ]
+
+    batch_id = str(uuid4())
+    drafts = []
+    errors = []
+
+    for file in uploaded_files:
+        filename = os.path.basename(
+            file.filename.replace("\\", "/")
+        )
+        extension = os.path.splitext(filename)[1].lower()
+
+        if not filename or len(filename) > 255:
+            errors.append((
+                "ファイル名は1～255文字にしてください。",
+                "document_files"
+            ))
+            continue
+
+        if extension not in {".pdf", ".png", ".jpg", ".jpeg"}:
+            errors.append((
+                f"{filename}：PDF・PNG・JPEGを選択してください。",
+                "document_files"
+            ))
+            continue
+
+        if not is_valid_uploaded_file(file, extension):
+            errors.append((
+                f"{filename}：ファイルの内容が不正です。",
+                "document_files"
+            ))
+            continue
+
+        try:
+            file.stream.seek(0)
+            source_file = file.read()
+        except (OSError, ValueError):
+            errors.append((
+                f"{filename}：ファイルを読み込めませんでした。",
+                "document_files"
+            ))
+            continue
+
+        if not source_file:
+            errors.append((
+                f"{filename}：ファイルが空です。",
+                "document_files"
+            ))
+            continue
+
+        drafts.append(VehicleDocumentImportDraft(
+            id=str(uuid4()),
+            batch_id=batch_id,
+            company_code=company_code,
+            created_by_username=username,
+            document_type=document_type,
+            source_filename=filename,
+            source_file=source_file,
+            source_sha256=hashlib.sha256(
+                source_file
+            ).hexdigest()
+        ))
+
+    if errors:
+        return [], errors
+
+    return drafts, []
+
+
+@app.route(
+    "/vehicle/data-import",
+    methods=["GET", "POST"]
+)
+def vehicle_data_import():
+    if not require_master_admin():
+        return redirect(url_for("vehicle_karte_list"))
+
+    if request.method == "GET":
+        return render_template(
+            "vehicle_data_import.html"
+        )
+
+    drafts, errors = prepare_vehicle_document_import(
+        request.files.getlist("document_files"),
+        request.form.get("document_type", "")
+    )
+
+    if errors:
+        return return_form_errors(errors)
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"ok": True})
+
+    try:
+        db.session.add_all(drafts)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception(
+            "資料取り込みの確認用データを保存できませんでした"
+        )
+        return return_form_errors(
+            [(
+                "資料を保存できませんでした。もう一度お試しください。",
+                "document_files"
+            )],
+            status_code=500
+        )
+
+    return redirect(url_for(
+        "vehicle_document_import_preview",
+        batch_id=drafts[0].batch_id
+    ))
+
+
+@app.route(
+    "/vehicle/data-import/<batch_id>/confirm",
+    methods=["POST"]
+)
+@limiter.limit("10 per minute")
+def vehicle_document_import_confirm(batch_id):
+    if not require_master_admin():
+        return return_form_errors(
+            [("この操作を行う権限がありません。", "")],
+            status_code=403
+        )
+
+    validation_only = (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+    )
+
+    query = VehicleDocumentImportDraft.query.filter_by(
+        batch_id=batch_id,
+        company_code=session.get("company_code"),
+        created_by_username=session.get("username")
+    )
+
+    if not validation_only:
+        query = query.with_for_update()
+
+    drafts = query.order_by(
+        VehicleDocumentImportDraft.id
+    ).all()
+
+    if not drafts:
+        raise NotFound()
+
+    if any(draft.status != "preview" for draft in drafts):
+        return return_form_errors(
+            [(
+                "この資料の取り込み確認は終了しています。",
+                ""
+            )],
+            status_code=409
+        )
+
+    included = set(request.form.getlist("include"))
+    known_keys = set()
+    submissions = []
+    previews = {}
+    errors = []
+
+    for draft in drafts:
+        preview = safe_json_dict(draft.preview_json)
+        original_records = preview.get("records")
+
+        if original_records is None:
+            original_records = [{}]
+
+        if (
+            not isinstance(original_records, list)
+            or not original_records
+            or not all(
+                isinstance(record, dict)
+                for record in original_records
+            )
+        ):
+            errors.append((
+                f"{draft.source_filename}：確認データを取得できませんでした。",
+                ""
+            ))
+            continue
+
+        updated_records = []
+
+        for record_index, original_record in enumerate(
+            original_records
+        ):
+            row_key = f"{draft.id}_{record_index}"
+            known_keys.add(row_key)
+
+            values, row_errors = validate_vehicle_document_record(
+                draft,
+                record_index,
+                original_record,
+                request.form
+            )
+            values["include"] = row_key in included
+            updated_records.append(values)
+
+            if row_key not in included:
+                continue
+
+            errors.extend(row_errors)
+
+            if not row_errors:
+                submissions.append((
+                    draft,
+                    record_index,
+                    values
+                ))
+
+        preview["records"] = updated_records
+        previews[draft.id] = preview
+
+    if included - known_keys:
+        errors.append((
+            "取り込み対象が不正です。画面を再読み込みしてください。",
+            ""
+        ))
+
+    if not included:
+        errors.append((
+            "取り込む記録を選択してください。",
+            ""
+        ))
+
+    if errors:
+        if not validation_only:
+            try:
+                for draft in drafts:
+                    if draft.id in previews:
+                        draft.preview_json = json.dumps(
+                            previews[draft.id],
+                            ensure_ascii=False
+                        )
+
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception(
+                    "資料取り込みの編集内容を保持できませんでした"
+                )
+                return return_form_errors(
+                    [(
+                        "編集内容を保存できませんでした。もう一度お試しください。",
+                        ""
+                    )],
+                    status_code=500
+                )
+
+        return return_form_errors(errors)
+
+    if validation_only:
+        return jsonify({"ok": True})
+
+    try:
+        saved_preview_count = 0
+
+        for draft_id, preview in previews.items():
+            saved_preview_count += (
+                VehicleDocumentImportDraft.query
+                .filter_by(
+                    id=draft_id,
+                    batch_id=batch_id,
+                    company_code=session.get("company_code"),
+                    created_by_username=session.get("username"),
+                    status="preview"
+                )
+                .update(
+                    {
+                        "preview_json": json.dumps(
+                            preview,
+                            ensure_ascii=False
+                        )
+                    },
+                    synchronize_session=False
+                )
+            )
+
+        if saved_preview_count != len(drafts):
+            db.session.rollback()
+            return return_form_errors(
+                [(
+                    "この資料はすでに処理されています。取り込み結果を確認してください。",
+                    ""
+                )],
+                status_code=409
+            )
+
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception(
+            "資料取り込みの編集内容を保存できませんでした"
+        )
+        return return_form_errors(
+            [(
+                "編集内容を保存できませんでした。もう一度お試しください。",
+                ""
+            )],
+            status_code=500
+        )
+
+    try:
+        claimed_count = (
+            VehicleDocumentImportDraft.query
+            .filter(
+                VehicleDocumentImportDraft.id.in_(
+                    [draft.id for draft in drafts]
+                ),
+                VehicleDocumentImportDraft.company_code
+                == session.get("company_code"),
+                VehicleDocumentImportDraft.created_by_username
+                == session.get("username"),
+                VehicleDocumentImportDraft.status == "preview"
+            )
+            .update(
+                {"status": "processing"},
+                synchronize_session=False
+            )
+        )
+
+        if claimed_count != len(drafts):
+            db.session.rollback()
+            return return_form_errors(
+                [(
+                    "この資料はすでに処理されています。取り込み結果を確認してください。",
+                    ""
+                )],
+                status_code=409
+            )
+
+        results = {draft.id: [] for draft in drafts}
+
+        for draft, record_index, values in submissions:
+            record = build_vehicle_document_record(
+                draft,
+                record_index,
+                values
+            )
+            db.session.add(record)
+            db.session.flush()
+
+            results[draft.id].append({
+                "record_id": record.id,
+                "record_index": record_index,
+                "vehicle_record_id": values["vehicle_record_id"],
+                "document_type": draft.document_type
+            })
+
+        completed_at = datetime.now(ZoneInfo("UTC"))
+
+        for draft in drafts:
+            draft.preview_json = json.dumps(
+                previews[draft.id],
+                ensure_ascii=False
+            )
+            draft.result_json = json.dumps(
+                {"records": results[draft.id]},
+                ensure_ascii=False
+            )
+            draft.status = (
+                "completed"
+                if results[draft.id]
+                else "skipped"
+            )
+            draft.completed_at = completed_at
+
+        db.session.commit()
+    except (SQLAlchemyError, ValueError, InvalidOperation):
+        db.session.rollback()
+        app.logger.exception(
+            "資料取り込みの反映に失敗しました"
+        )
+        return return_form_errors(
+            [(
+                "記録を反映できませんでした。入力内容を確認して、もう一度お試しください。",
+                ""
+            )],
+            status_code=500
+        )
+
+    flash(
+        f"資料から{len(submissions)}件の記録を反映しました。",
+        "success"
+    )
+
+    return redirect(url_for("vehicle_data_import"))
+
+
+@app.route(
+    "/vehicle/periodic-inspections/<int:record_id>/source"
+)
+def vehicle_periodic_inspection_source(record_id):
+    record = VehiclePeriodicInspectionRecord.query.filter_by(
+        id=record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    draft = VehicleDocumentImportDraft.query.filter_by(
+        id=record.source_draft_id,
+        company_code=record.company_code,
+        status="completed"
+    ).first_or_404()
+
+    extension = os.path.splitext(
+        draft.source_filename
+    )[1].lower()
+
+    mimetype = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg"
+    }.get(extension)
+
+    if not mimetype:
+        raise NotFound()
+
+    response = send_file(
+        BytesIO(draft.source_file),
+        mimetype=mimetype,
+        download_name=draft.source_filename,
+        as_attachment=False,
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+@app.route(
+    "/vehicle/data-import/files/<draft_id>"
+)
+def vehicle_document_import_source(draft_id):
+    if not require_master_admin():
+        raise NotFound()
+
+    draft = (
+        VehicleDocumentImportDraft.query
+        .filter_by(
+            id=draft_id,
+            company_code=session.get("company_code"),
+            created_by_username=session.get("username")
+        )
+        .first_or_404()
+    )
+
+    extension = os.path.splitext(
+        draft.source_filename
+    )[1].lower()
+
+    mimetype = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg"
+    }.get(extension)
+
+    if not mimetype:
+        raise NotFound()
+
+    response = send_file(
+        BytesIO(draft.source_file),
+        mimetype=mimetype,
+        download_name=draft.source_filename,
+        as_attachment=False,
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+@app.route(
+    "/vehicle/data-import/<batch_id>/preview"
+)
+def vehicle_document_import_preview(batch_id):
+    if not require_master_admin():
+        return redirect(url_for("vehicle_karte_list"))
+
+    drafts = (
+        VehicleDocumentImportDraft.query
+        .filter_by(
+            batch_id=batch_id,
+            company_code=session.get("company_code"),
+            created_by_username=session.get("username")
+        )
+        .order_by(
+            VehicleDocumentImportDraft.created_at,
+            VehicleDocumentImportDraft.id
+        )
+        .all()
+    )
+
+    if not drafts:
+        raise NotFound()
+
+    pending_drafts = [
+        draft
+        for draft in drafts
+        if draft.status == "preview"
+    ]
+
+    if not pending_drafts:
+        flash(
+            "この資料の取り込み確認は終了しています。",
+            "info"
+        )
+        return redirect(url_for("vehicle_data_import"))
+
+    vehicles = (
+        Vehicle.query
+        .filter_by(
+            company_code=session.get("company_code")
+        )
+        .order_by(
+            Vehicle.plate_area,
+            Vehicle.plate_class,
+            Vehicle.plate_kana,
+            Vehicle.plate_number,
+            Vehicle.id
+        )
+        .all()
+    )
+
+    vehicle_choices = [
+        {
+            "id": vehicle.id,
+            "number": " ".join(
+                str(value)
+                for value in [
+                    vehicle.plate_area,
+                    vehicle.plate_class,
+                    vehicle.plate_kana,
+                    vehicle.plate_number
+                ]
+                if value
+            ),
+            "chassis_number": vehicle.chassis_number or "",
+            "deleted": bool(vehicle.deleted)
+        }
+        for vehicle in vehicles
+    ]
+
+    documents = [
+        {
+            "id": draft.id,
+            "filename": draft.source_filename,
+            "document_type": draft.document_type,
+            "preview": safe_json_dict(draft.preview_json)
+        }
+        for draft in pending_drafts
+    ]
+
+    return render_template(
+        "vehicle_document_import_preview.html",
+        batch_id=batch_id,
+        documents=documents,
+        vehicle_choices=vehicle_choices
+    )
+
+
 @app.route(
     "/vehicle/operation-import",
     methods=["GET", "POST"]
@@ -16136,6 +17102,239 @@ def vehicle_karte(vehicle_record_id):
     )
 
 
+@app.route(
+    "/vehicle/karte/<int:vehicle_record_id>/documents/<draft_id>/source"
+)
+def vehicle_karte_document_source(vehicle_record_id, draft_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    draft = VehicleDocumentImportDraft.query.filter_by(
+        id=draft_id,
+        company_code=vehicle.company_code,
+        status="completed"
+    ).first_or_404()
+
+    records = safe_json_dict(
+        draft.result_json
+    ).get("records", [])
+
+    if not isinstance(records, list):
+        raise NotFound()
+
+    belongs_to_vehicle = any(
+        isinstance(record, dict)
+        and str(record.get("vehicle_record_id", ""))
+        == str(vehicle.id)
+        for record in records
+    )
+
+    if not belongs_to_vehicle:
+        raise NotFound()
+
+    extension = os.path.splitext(
+        draft.source_filename
+    )[1].lower()
+
+    mimetype = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg"
+    }.get(extension)
+
+    if not mimetype:
+        raise NotFound()
+
+    response = send_file(
+        BytesIO(draft.source_file),
+        mimetype=mimetype,
+        download_name=draft.source_filename,
+        as_attachment=False,
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+@app.route(
+    "/vehicle/karte/<int:vehicle_record_id>/operation-files/<draft_id>"
+)
+def vehicle_karte_operation_source(vehicle_record_id, draft_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    draft = VehicleOperationImportDraft.query.filter_by(
+        id=draft_id,
+        company_code=vehicle.company_code,
+        status="completed"
+    ).first_or_404()
+
+    selections = safe_json_dict(draft.selection_json)
+
+    belongs_to_vehicle = any(
+        isinstance(selection, dict)
+        and selection.get("include") is True
+        and str(selection.get("vehicle_record_id", ""))
+        == str(vehicle.id)
+        for selection in selections.values()
+    )
+
+    if not belongs_to_vehicle:
+        raise NotFound()
+
+    response = send_file(
+        BytesIO(draft.source_file),
+        mimetype="text/csv",
+        download_name=draft.source_filename,
+        as_attachment=True,
+        conditional=False,
+        etag=False,
+        max_age=0
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/documents")
+def vehicle_karte_documents(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    drafts = (
+        VehicleDocumentImportDraft.query
+        .with_entities(
+            VehicleDocumentImportDraft.id,
+            VehicleDocumentImportDraft.source_filename,
+            VehicleDocumentImportDraft.document_type,
+            VehicleDocumentImportDraft.result_json,
+            VehicleDocumentImportDraft.completed_at
+        )
+        .filter(
+            VehicleDocumentImportDraft.company_code
+            == vehicle.company_code,
+            VehicleDocumentImportDraft.status == "completed"
+        )
+        .order_by(
+            VehicleDocumentImportDraft.completed_at.desc(),
+            VehicleDocumentImportDraft.id.desc()
+        )
+        .all()
+    )
+
+    documents = []
+
+    for draft in drafts:
+        records = safe_json_dict(
+            draft.result_json
+        ).get("records", [])
+
+        if not isinstance(records, list):
+            continue
+
+        vehicle_records = [
+            record
+            for record in records
+            if isinstance(record, dict)
+            and str(record.get("vehicle_record_id", ""))
+            == str(vehicle.id)
+        ]
+
+        if not vehicle_records:
+            continue
+
+        documents.append({
+            "draft_id": draft.id,
+            "filename": draft.source_filename,
+            "document_type": draft.document_type,
+            "completed_at": draft.completed_at,
+            "records": vehicle_records
+        })
+
+    open_defects = get_vehicle_open_inspection_defects(
+        vehicle.company_code,
+        vehicle.id
+    )
+
+    operation_drafts = (
+        VehicleOperationImportDraft.query
+        .with_entities(
+            VehicleOperationImportDraft.id,
+            VehicleOperationImportDraft.source_filename,
+            VehicleOperationImportDraft.selection_json,
+            VehicleOperationImportDraft.completed_at
+        )
+        .filter(
+            VehicleOperationImportDraft.company_code
+            == vehicle.company_code,
+            VehicleOperationImportDraft.status == "completed"
+        )
+        .order_by(
+            VehicleOperationImportDraft.completed_at.desc(),
+            VehicleOperationImportDraft.id.desc()
+        )
+        .all()
+    )
+
+    for draft in operation_drafts:
+        selections = safe_json_dict(draft.selection_json)
+
+        belongs_to_vehicle = any(
+            isinstance(selection, dict)
+            and selection.get("include") is True
+            and str(selection.get("vehicle_record_id", ""))
+            == str(vehicle.id)
+            for selection in selections.values()
+        )
+
+        if not belongs_to_vehicle:
+            continue
+
+        documents.append({
+            "draft_id": draft.id,
+            "filename": draft.source_filename,
+            "document_type": "operation_csv",
+            "completed_at": draft.completed_at,
+            "records": []
+        })
+
+    documents.sort(
+        key=lambda document: (
+            document["completed_at"].isoformat()
+            if document["completed_at"] is not None
+            else ""
+        ),
+        reverse=True
+    )
+
+    return render_template(
+        "vehicle_karte_documents.html",
+        vehicle=vehicle,
+        vehicle_number=number,
+        open_defects=open_defects,
+        documents=documents
+    )
+
+
 @app.route("/vehicle/karte/<int:vehicle_record_id>/inspections")
 def vehicle_karte_inspections(vehicle_record_id):
     vehicle = Vehicle.query.filter_by(
@@ -16186,6 +17385,28 @@ def vehicle_karte_inspections(vehicle_record_id):
         for record in inspection_page.items
     }
 
+    periodic_page_number = max(
+        1,
+        request.args.get("periodic_page", 1, type=int)
+    )
+
+    periodic_inspection_page = (
+        VehiclePeriodicInspectionRecord.query
+        .filter_by(
+            company_code=vehicle.company_code,
+            vehicle_record_id=vehicle.id
+        )
+        .order_by(
+            VehiclePeriodicInspectionRecord.inspection_date.desc(),
+            VehiclePeriodicInspectionRecord.id.desc()
+        )
+        .paginate(
+            page=periodic_page_number,
+            per_page=20,
+            error_out=False
+        )
+    )
+
     return render_template(
         "vehicle_karte_inspections.html",
         vehicle=vehicle,
@@ -16197,6 +17418,7 @@ def vehicle_karte_inspections(vehicle_record_id):
             for record in inspection_page.items
         },
         inspection_links=inspection_links,
+        periodic_inspection_page=periodic_inspection_page,
         open_defects=get_vehicle_open_inspection_defects(
             vehicle.company_code,
             vehicle.id
@@ -16365,6 +17587,28 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
                             active_day=record.day
                         ),
                     })
+
+    driving_reports = VehicleDrivingReportRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id
+    ).all()
+
+    for record in driving_reports:
+        entries.append({
+            "key": f"driving-report:{record.id}",
+            "date": normalize_date(record.operation_date),
+            "kind": "安全運転日報",
+            "content": record.content or "安全運転日報",
+            "files": [],
+            "mileage": record.mileage,
+            "cost": None,
+            "status": "",
+            "actor": "",
+            "link": url_for(
+                "vehicle_driving_report_source",
+                record_id=record.id
+            ),
+        })
 
     maintenance_records = VehicleMaintenanceRecord.query.filter_by(
         company_code=company_code,
@@ -16669,6 +17913,7 @@ def inject_vehicle_karte_choices():
         "vehicle_karte",
         "vehicle_karte_history",
         "vehicle_karte_inspections",
+        "vehicle_karte_documents",
     }:
         return {}
 
