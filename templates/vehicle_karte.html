@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}車両カルテ{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両カルテ</h2>
+
+    <div class="header-actions">
+        <a
+            href="{{ url_for('vehicle_master') }}"
+            class="btn btn-outline"
+        >
+            車両一覧へ戻る
+        </a>
+
+        <a
+            href="{{ url_for('edit_vehicle', index=vehicle.id) }}"
+            class="btn btn-outline"
+        >
+            車両情報を変更
+        </a>
+    </div>
+</div>
+
+<div class="card result-info-card">
+    <h3 class="result-info-title">{{ vehicle_number }}</h3>
+
+    <div class="result-info-grid">
+        <div class="result-info-item">
+            <span>車台番号</span>
+            <strong>{{ vehicle.chassis_number or "未登録" }}</strong>
+        </div>
+
+        <div class="result-info-item">
+            <span>営業所</span>
+            <strong>{{ vehicle.office or "未登録" }}</strong>
+        </div>
+
+        <div class="result-info-item">
+            <span>車種</span>
+            <strong>{{ vehicle.type or "未登録" }}</strong>
+        </div>
+
+        <div class="result-info-item">
+            <span>車検満了日</span>
+            <strong>{{ vehicle.inspection_expiry or "未登録" }}</strong>
+        </div>
+
+        <div class="result-info-item result-info-status">
+            <span>状態</span>
+            <strong>
+                <span class="status-badge">
+                    {{ "無効" if vehicle.deleted else "有効" }}
+                </span>
+            </strong>
+        </div>
+    </div>
+</div>
+
+<div class="card result-info-card">
+    <h3 class="result-info-title">登録情報</h3>
+
+    {% set fields = [
+        ("plate_area", "地域名"),
+        ("plate_class", "分類番号"),
+        ("plate_kana", "ひらがな"),
+        ("plate_number", "一連指定番号"),
+        ("model_code", "型式"),
+        ("first_registration_date", "初年度登録"),
+        ("manufacturer", "メーカー・車名"),
+        ("body_type", "形状"),
+        ("gross_vehicle_weight", "車両総重量（kg）"),
+        ("max_payload", "最大積載量（kg）"),
+    ] %}
+
+    <div class="result-info-grid">
+        {% for field_key, field_label in fields %}
+            {% set value = vehicle | attr(field_key) %}
+
+            <div class="result-info-item">
+                <span>{{ field_label }}</span>
+                <strong>
+                    {{ value if value is not none and value != "" else "未登録" }}
+                </strong>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

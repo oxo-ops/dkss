@@ -15386,6 +15386,27 @@ def delete_driver(index):
     db.session.commit()
     return redirect("/master/drivers")
 
+@app.route("/master/vehicles/<int:vehicle_record_id>/karte")
+def vehicle_karte(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    return render_template(
+        "vehicle_karte.html",
+        vehicle=vehicle,
+        vehicle_number=number
+    )
+
+
 @app.route("/master/vehicles")
 def vehicle_master():
     keyword = request.args.get("keyword", "").strip()
