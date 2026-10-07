@@ -15419,6 +15419,53 @@ def vehicle_karte(vehicle_record_id):
     )
 
 
+@app.route("/master/vehicles/<int:vehicle_record_id>/karte/history")
+def vehicle_karte_history(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    page = max(1, request.args.get("page", 1, type=int))
+
+    history_page = (
+        ChecklistEvent.query
+        .join(
+            VehicleChecklistResult,
+            ChecklistEvent.result_id == VehicleChecklistResult.id
+        )
+        .filter(
+            ChecklistEvent.company_code == vehicle.company_code,
+            ChecklistEvent.result_type == "vehicle",
+            VehicleChecklistResult.company_code == vehicle.company_code,
+            VehicleChecklistResult.vehicle_record_id == vehicle.id
+        )
+        .order_by(
+            ChecklistEvent.created_at.desc(),
+            ChecklistEvent.id.desc()
+        )
+        .paginate(
+            page=page,
+            per_page=100,
+            error_out=False
+        )
+    )
+
+    return render_template(
+        "vehicle_karte_history.html",
+        vehicle=vehicle,
+        vehicle_number=number,
+        history_page=history_page
+    )
+
+
 @app.route("/master/vehicles")
 def vehicle_master():
     keyword = request.args.get("keyword", "").strip()

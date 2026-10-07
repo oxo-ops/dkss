@@ -16,6 +16,13 @@
         </a>
 
         <a
+            href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
+            class="btn btn-outline"
+        >
+            履歴
+        </a>
+
+        <a
             href="{{ url_for('edit_vehicle', index=vehicle.id) }}"
             class="btn btn-outline"
         >

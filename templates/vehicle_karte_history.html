@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}車両カルテ・履歴{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両カルテ・履歴</h2>
+
+    <div class="header-actions">
+        <a
+            href="{{ url_for('vehicle_master') }}"
+            class="btn btn-outline"
+        >
+            車両一覧へ戻る
+        </a>
+
+        <a
+            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+            class="btn btn-outline"
+        >
+            概要
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="result-info-title">{{ vehicle_number }}</h3>
+
+    <p class="help-text">
+        保存された点検・不具合対応・承認・運行判断の履歴を、
+        記録日時の新しい順に表示します。
+    </p>
+
+    <p>履歴：{{ history_page.total }}件</p>
+
+    {% if history_page.items %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">記録日時</th>
+                        <th scope="col">操作・状態</th>
+                        <th scope="col">実施者</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for event in history_page.items %}
+                        <tr>
+                            <td data-label="記録日時">
+                                {{ event.created_at or "未登録" }}
+                            </td>
+
+                            <td data-label="操作・状態">
+                                {{ event.event_type or "未登録" }}
+                            </td>
+
+                            <td data-label="実施者">
+                                {{ event.actor_name or event.actor_username or "未登録" }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="help-text">
+            このページに表示する履歴はありません。
+        </p>
+    {% endif %}
+
+    {% if history_page.pages > 1 %}
+        <nav class="form-actions" aria-label="履歴のページ切替">
+            {% if history_page.has_prev %}
+                <a
+                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.prev_num) }}"
+                    class="btn btn-outline"
+                >
+                    前のページ
+                </a>
+            {% endif %}
+
+            <span>
+                {{ history_page.page }} / {{ history_page.pages }}ページ
+            </span>
+
+            {% if history_page.has_next %}
+                <a
+                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.next_num) }}"
+                    class="btn btn-outline"
+                >
+                    次のページ
+                </a>
+            {% endif %}
+        </nav>
+    {% endif %}
+</div>
+
+{% endblock %}
