@@ -65,10 +65,10 @@
     {% if session.get("role") in ["admin", "itc"] %}
     <div class="vehicle-karte-actions">
     <a
-        href="{{ url_for('vehicle_operation_import') }}"
+        href="{{ url_for('vehicle_data_import') }}"
         class="btn btn-outline"
     >
-        運行実績取込
+        資料・データ取込
     </a>
         <a
             href="{{ url_for('vehicle_master') }}"

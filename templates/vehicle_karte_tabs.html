@@ -67,13 +67,28 @@
         費用
     </span>
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="書類タブは実装中です"
-    >
-        書類
-    </span>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for(
+                'vehicle_karte_documents',
+                vehicle_record_id=vehicle.id
+            ) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_documents" %}
+                aria-current="page"
+            {% endif %}
+        >
+            書類
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            書類
+        </span>
+    {% endif %}
 
     <span
         class="vehicle-karte-tab is-disabled"

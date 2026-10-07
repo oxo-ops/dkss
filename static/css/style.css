@@ -1471,6 +1471,12 @@ body {
     overflow-x: clip;
 }
 
+@media screen and (min-width: 769px) {
+    html:has(body.vehicle-list-ppt) {
+        scrollbar-gutter: stable;
+    }
+}
+
 .app-layout {
     width: 100%;
     max-width: 100vw;

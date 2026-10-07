@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}資料の取込確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>資料の取込確認</h2>
+
+    <a
+        href="{{ url_for('vehicle_data_import') }}"
+        class="btn btn-outline"
+    >
+        資料・データ取込へ戻る
+    </a>
+</div>
+
+<form
+    method="post"
+    action="{{ url_for('vehicle_document_import_confirm', batch_id=batch_id) }}"
+    class="responsive-form"
+    novalidate
+>
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token() }}"
+    >
+
+    {% for document in documents %}
+        {% set records = document.preview.get("records") or [{}] %}
+
+        <section class="card form-card vehicle-search-card">
+            <div class="page-header">
+                <h3>{{ document.filename }}</h3>
+
+                <a
+                    href="{{ url_for('vehicle_document_import_source', draft_id=document.id) }}"
+                    class="btn btn-outline"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    原本を開く
+                </a>
+            </div>
+
+            {% for record in records %}
+                {% set row_key = document.id ~ "_" ~ loop.index0 %}
+
+                <div class="form-group">
+                    <label for="include_{{ row_key }}">
+                        <input
+                            type="checkbox"
+                            id="include_{{ row_key }}"
+                            name="include"
+                            value="{{ row_key }}"
+                            {% if record.get("include", true) %}checked{% endif %}
+                        >
+                        この記録を取り込む
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="vehicle_{{ row_key }}">対象車両</label>
+
+                    <select
+                        id="vehicle_{{ row_key }}"
+                        name="vehicle_{{ row_key }}"
+                    >
+                        <option value="">選択してください</option>
+
+                        {% for choice in vehicle_choices %}
+                            <option
+                                value="{{ choice.id }}"
+                                {% if record.get("vehicle_record_id") | string == choice.id | string %}
+                                    selected
+                                {% endif %}
+                            >
+                                {{ choice.number or choice.chassis_number }}
+                                {% if choice.deleted %}（無効）{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="date_{{ row_key }}">
+                        {% if document.document_type == "inspection" %}
+                            点検日
+                        {% elif document.document_type == "driving_report" %}
+                            運行日
+                        {% else %}
+                            整備日
+                        {% endif %}
+                    </label>
+
+                    <input
+                        type="date"
+                        id="date_{{ row_key }}"
+                        name="date_{{ row_key }}"
+                        value="{{ record.get('record_date') or '' }}"
+                    >
+                </div>
+
+                {% if document.document_type == "inspection" %}
+                    <div class="form-group">
+                        <label for="inspection_type_{{ row_key }}">
+                            点検区分
+                        </label>
+
+                        <select
+                            id="inspection_type_{{ row_key }}"
+                            name="inspection_type_{{ row_key }}"
+                        >
+                            <option value="">選択してください</option>
+                            <option
+                                value="3month"
+                                {% if record.get("inspection_type") == "3month" %}selected{% endif %}
+                            >
+                                3か月点検
+                            </option>
+                            <option
+                                value="12month"
+                                {% if record.get("inspection_type") == "12month" %}selected{% endif %}
+                            >
+                                12か月点検
+                            </option>
+                            <option
+                                value="other"
+                                {% if record.get("inspection_type") == "other" %}selected{% endif %}
+                            >
+                                その他の点検
+                            </option>
+                        </select>
+                    </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label for="mileage_{{ row_key }}">
+                        積算走行距離（km）
+                    </label>
+
+                    <input
+                        type="number"
+                        id="mileage_{{ row_key }}"
+                        name="mileage_{{ row_key }}"
+                        min="0"
+                        step="0.01"
+                        value="{{ record.get('mileage') if record.get('mileage') is not none else '' }}"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="content_{{ row_key }}">記録内容</label>
+
+                    <textarea
+                        id="content_{{ row_key }}"
+                        name="content_{{ row_key }}"
+                        rows="4"
+                    >{{ record.get("content") or "" }}</textarea>
+                </div>
+            {% endfor %}
+        </section>
+    {% endfor %}
+
+    <div class="form-actions vehicle-filter-actions">
+        <button type="submit" class="btn btn-outline">
+            選択した記録を反映
+        </button>
+    </div>
+</form>
+
+{% endblock %}

@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-9') }}">
 </head>
 <body
-    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] else '' }}"
+    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents'] else '' }}"
     data-current-user="{{ session.get('name', '') }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
@@ -203,8 +203,8 @@
 
     <main class="main-content">
 
-        <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}{% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] %} vehicle-karte-top-bar{% endif %}">
-            {% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] %}
+        <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}{% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents'] %} vehicle-karte-top-bar{% endif %}">
+            {% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents'] %}
             <div class="vehicle-karte-search">
                 <label for="karte_vehicle_search">車両検索</label>
 
