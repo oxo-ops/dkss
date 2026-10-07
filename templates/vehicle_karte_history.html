@@ -4,25 +4,8 @@
 
 {% block content %}
 
-<div class="page-header">
-    <h2>車両カルテ・履歴</h2>
-
-    <div class="header-actions">
-        <a
-            href="{{ url_for('vehicle_master') }}"
-            class="btn btn-outline"
-        >
-            車両一覧へ戻る
-        </a>
-
-        <a
-            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
-            class="btn btn-outline"
-        >
-            概要
-        </a>
-    </div>
-</div>
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
 
 <div class="card">
     <h3 class="result-info-title">{{ vehicle_number }}</h3>
@@ -42,11 +25,14 @@
                         <th scope="col">記録日時</th>
                         <th scope="col">操作・状態</th>
                         <th scope="col">実施者</th>
+                        <th scope="col">点検記録</th>
                     </tr>
                 </thead>
 
                 <tbody>
                     {% for event in history_page.items %}
+                        {% set record_link = history_links.get(event.result_id) %}
+
                         <tr>
                             <td data-label="記録日時">
                                 {{ event.created_at or "未登録" }}
@@ -58,6 +44,19 @@
 
                             <td data-label="実施者">
                                 {{ event.actor_name or event.actor_username or "未登録" }}
+                            </td>
+
+                            <td data-label="点検記録">
+                                {% if record_link %}
+                                    <a
+                                        href="{{ record_link }}"
+                                        class="btn btn-outline btn-small"
+                                    >
+                                        点検記録を開く
+                                    </a>
+                                {% else %}
+                                    <span>参照先なし</span>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

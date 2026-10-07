@@ -1,0 +1,83 @@
+<nav class="vehicle-karte-tabs" aria-label="車両カルテの表示切替">
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte" %}
+                aria-current="page"
+            {% endif %}
+        >
+            概要
+        </a>
+
+        <a
+            href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_history" %}
+                aria-current="page"
+            {% endif %}
+        >
+            履歴
+        </a>
+    {% else %}
+        <span class="vehicle-karte-tab" aria-current="page">
+            概要
+        </span>
+
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            履歴
+        </span>
+    {% endif %}
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="点検タブは実装中です"
+    >
+        点検
+    </span>
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="整備・修理タブは実装中です"
+    >
+        整備・修理
+    </span>
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="部品タブは実装中です"
+    >
+        部品
+    </span>
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="費用タブは実装中です"
+    >
+        費用
+    </span>
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="書類タブは実装中です"
+    >
+        書類
+    </span>
+
+    <span
+        class="vehicle-karte-tab is-disabled"
+        aria-disabled="true"
+        title="分析タブは実装中です"
+    >
+        分析
+    </span>
+</nav>

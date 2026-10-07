@@ -16,10 +16,10 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-5') }}">
 </head>
 <body
-    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}"
+    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history'] else '' }}"
     data-current-user="{{ session.get('name', '') }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
@@ -72,7 +72,7 @@
                 </div>
             </div>
 
-            <div class="sidebar-group {% if path.startswith('/vehicle') or path.startswith('/vehicle-patrols') or path.startswith('/master/vehicles') %}open{% endif %}" data-menu-key="vehicle">
+            <div class="sidebar-group {% if path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
                 <button type="button" class="menu-item sidebar-parent">
                     <span class="menu-icon">
                         <img src="{{ url_for('static',
@@ -83,14 +83,12 @@
                 </button>
 
                 <div class="sidebar-submenu">
-                    {% if session.get("role") in ["admin", "itc"] %}
                     <a
-                        href="{{ url_for('vehicle_master') }}"
-                        class="menu-item submenu-item {% if path.startswith('/master/vehicles') %}active{% endif %}"
+                        href="{{ url_for('vehicle_karte_list') }}"
+                        class="menu-item submenu-item {% if path.startswith('/vehicle/karte') %}active{% endif %}"
                     >
-                        <span class="menu-text">車両一覧・カルテ</span>
+                        <span class="menu-text">車両カルテ</span>
                     </a>
-                    {% endif %}
 
                     <a href="/vehicle/checklists" class="menu-item submenu-item {% if path.startswith('/vehicle/checklists') or path.startswith('/vehicle/daily-inspections') %}active{% endif %}">
                         <span class="menu-text">チェックリスト</span>
@@ -99,7 +97,7 @@
             </div>
 
             {% if session.get("role") in ["admin", "itc"] %}
-            <div class="sidebar-group {% if path.startswith('/master') and not path.startswith('/master/vehicles') %}open{% endif %}" data-menu-key="master">
+            <div class="sidebar-group {% if path.startswith('/master') %}open{% endif %}" data-menu-key="master">
                 <button type="button" class="menu-item sidebar-parent">
                     <span class="menu-icon">
                         <img src="{{ url_for('static',
@@ -116,6 +114,13 @@
 
                     <a href="/master/offices" class="menu-item submenu-item {% if path.startswith('/master/offices') %}active{% endif %}">
                         <span class="menu-text">営業所マスタ</span>
+                    </a>
+
+                    <a
+                        href="{{ url_for('vehicle_master') }}"
+                        class="menu-item submenu-item {% if path.startswith('/master/vehicles') %}active{% endif %}"
+                    >
+                        <span class="menu-text">車両マスタ</span>
                     </a>
 
                     <a href="/master/vehicle-types"

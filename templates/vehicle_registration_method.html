@@ -1,65 +1,275 @@
 {% extends "base.html" %}
 
-{% block title %}車両の登録方法{% endblock %}
+{% block title %}車両登録{% endblock %}
 
 {% block content %}
 
-<div class="page-header">
-    <h2>車両の登録方法</h2>
+{% macro method_icon(kind) %}
+<svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+>
+    {% if kind == "airia" %}
+    <ellipse cx="24" cy="11" rx="16" ry="6"></ellipse>
+    <path d="M8 11v12c0 3.3 7.2 6 16 6s16-2.7 16-6V11"></path>
+    <path d="M8 23v12c0 3.3 7.2 6 16 6s16-2.7 16-6V23"></path>
+    {% elif kind == "excel" %}
+    <rect x="13" y="7" width="29" height="34" rx="3"></rect>
+    <path d="M24 7v34M13 18h29M13 29h29"></path>
+    <rect x="4" y="15" width="20" height="21" rx="3" fill="currentColor"></rect>
+    <path d="m10 21 8 9m0-9-8 9" stroke="white"></path>
+    {% elif kind == "certificate" %}
+    <path d="M11 5h18l9 9v29H11z"></path>
+    <path d="M29 5v10h9M17 23h15M17 30h15M17 37h10"></path>
+    {% else %}
+    <path d="m9 33-3 9 9-3L39 15l-6-6z"></path>
+    <path d="m28 14 6 6M9 33l6 6"></path>
+    {% endif %}
+</svg>
+{% endmacro %}
 
-    <div class="header-actions">
-        <a href="{{ url_for('vehicle_master') }}" class="btn btn-back">
-            ← 一覧へ戻る
+<div class="vehicle-registration-page">
+    <nav
+        class="vehicle-registration-breadcrumb"
+        aria-label="現在の位置"
+    >
+        <a href="{{ url_for('vehicle_master') }}">車両一覧</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">新規登録</span>
+    </nav>
+
+    <div class="vehicle-registration-header">
+        <div class="vehicle-registration-title">
+            <span class="vehicle-registration-title-icon" aria-hidden="true">
+                <svg
+                    viewBox="0 0 48 48"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="m10 20 4-10h20l4 10M8 20h32v17H8z"></path>
+                    <path d="M12 37v5M36 37v5M15 28h2M31 28h2"></path>
+                </svg>
+            </span>
+
+            <div>
+                <h2>車両登録</h2>
+                <p>
+                    車両の登録方法を選択してください。
+                    取得した情報を確認し、必要に応じて編集して登録します。
+                </p>
+            </div>
+        </div>
+
+        <a
+            href="{{ url_for('vehicle_master') }}"
+            class="btn btn-outline"
+        >
+            車両一覧に戻る
         </a>
     </div>
-</div>
 
-<div class="card form-card">
-    <p class="help-text">
-        車両情報の登録方法を選択してください。
-    </p>
+    <div class="vehicle-registration-method-grid">
+        <section
+            class="vehicle-registration-method-card vehicle-registration-method-airia"
+            aria-labelledby="registration-airia-title"
+        >
+            <span class="vehicle-registration-recommendation">おすすめ</span>
 
-    <div class="form-group">
-        <h3>AIRIAから取得</h3>
-        <p class="help-text">
-            車台番号をもとに車両情報を取得して登録します。
-        </p>
-        <button type="button" class="btn btn-outline" disabled>
-            準備中
-        </button>
+            <div class="vehicle-registration-method-heading">
+                <span class="vehicle-registration-method-icon">
+                    {{ method_icon("airia") }}
+                </span>
+                <h3 id="registration-airia-title">AIRIAから取得</h3>
+            </div>
+
+            <p class="vehicle-registration-method-lead">
+                登録情報から車両情報を自動取得します。
+            </p>
+
+            <p class="vehicle-registration-method-description">
+                車番・車台番号で検索し、型式・重量・車検情報など
+                公的な車両情報を自動入力できます。
+            </p>
+
+            <ul class="vehicle-registration-method-benefits">
+                <li>最も簡単</li>
+                <li>入力の手間を削減</li>
+                <li>正確な公的情報</li>
+            </ul>
+
+            <div class="vehicle-registration-method-action">
+                <button type="button" class="btn btn-outline" disabled>
+                    準備中
+                </button>
+            </div>
+        </section>
+
+        <section
+            class="vehicle-registration-method-card vehicle-registration-method-excel"
+            aria-labelledby="registration-excel-title"
+        >
+            <div class="vehicle-registration-method-heading">
+                <span class="vehicle-registration-method-icon">
+                    {{ method_icon("excel") }}
+                </span>
+                <h3 id="registration-excel-title">Excelから一括登録</h3>
+            </div>
+
+            <p class="vehicle-registration-method-lead">
+                Excelファイルから複数車両をまとめて登録・更新できます。
+            </p>
+
+            <p class="vehicle-registration-method-description">
+                現在お使いの車両管理Excelをアップロードし、
+                既存データとの照合・新規／更新／重複の判定を行います。
+            </p>
+
+            <ul class="vehicle-registration-method-benefits">
+                <li>複数台を一括処理</li>
+                <li>差分を自動判定</li>
+                <li>既存Excelをそのまま利用</li>
+            </ul>
+
+            <div class="vehicle-registration-method-action">
+                <a
+                    href="{{ url_for('import_vehicles') }}"
+                    class="btn btn-outline"
+                >
+                    Excelから登録
+                    <span aria-hidden="true">›</span>
+                </a>
+            </div>
+        </section>
+
+        <section
+            class="vehicle-registration-method-card vehicle-registration-method-certificate"
+            aria-labelledby="registration-certificate-title"
+        >
+            <div class="vehicle-registration-method-heading">
+                <span class="vehicle-registration-method-icon">
+                    {{ method_icon("certificate") }}
+                </span>
+                <h3 id="registration-certificate-title">車検証を読み取る</h3>
+            </div>
+
+            <p class="vehicle-registration-method-lead">
+                車検証（PDF・画像）からAIが情報を読み取り、
+                車両情報を自動入力します。
+            </p>
+
+            <p class="vehicle-registration-method-description">
+                紙の車検証・電子車検証どちらにも対応します。
+                読み取った内容は確認・編集後に登録できます。
+            </p>
+
+            <ul class="vehicle-registration-method-benefits">
+                <li>AIで自動入力</li>
+                <li>PDF・画像に対応</li>
+                <li>手入力を最小限に</li>
+            </ul>
+
+            <div class="vehicle-registration-method-action">
+                <button type="button" class="btn btn-outline" disabled>
+                    準備中
+                </button>
+            </div>
+        </section>
+
+        <section
+            class="vehicle-registration-method-card vehicle-registration-method-manual"
+            aria-labelledby="registration-manual-title"
+        >
+            <div class="vehicle-registration-method-heading">
+                <span class="vehicle-registration-method-icon">
+                    {{ method_icon("manual") }}
+                </span>
+                <h3 id="registration-manual-title">手入力で登録</h3>
+            </div>
+
+            <p class="vehicle-registration-method-lead">
+                情報が取得できない場合は、手入力で登録します。
+            </p>
+
+            <p class="vehicle-registration-method-description">
+                必要な項目を入力し、車両情報を登録します。
+                後から編集することも可能です。
+            </p>
+
+            <ul class="vehicle-registration-method-benefits">
+                <li>1台ずつ登録</li>
+                <li>柔軟に入力</li>
+                <li>後から編集可能</li>
+            </ul>
+
+            <div class="vehicle-registration-method-action">
+                <a
+                    href="{{ url_for('new_vehicle') }}"
+                    class="btn btn-outline"
+                >
+                    手入力で登録
+                    <span aria-hidden="true">›</span>
+                </a>
+            </div>
+        </section>
     </div>
 
-    <div class="form-group">
-        <h3>Excel一括登録</h3>
-        <p class="help-text">
-            Excelから複数の車両情報を取り込み、
-            内容を確認して登録・更新します。
-        </p>
-        <a href="{{ url_for('import_vehicles') }}" class="btn btn-outline">
-            Excelから登録
-        </a>
-    </div>
+    <section
+        class="vehicle-registration-guide"
+        aria-labelledby="registration-guide-title"
+    >
+        <h3 id="registration-guide-title">登録方法の選び方</h3>
 
-    <div class="form-group">
-        <h3>車検証を読み取る</h3>
-        <p class="help-text">
-            車検証の画像やPDFを読み取り、
-            内容を確認して登録します。
-        </p>
-        <button type="button" class="btn btn-outline" disabled>
-            準備中
-        </button>
-    </div>
+        <div class="vehicle-registration-guide-grid">
+            <div class="vehicle-registration-guide-item vehicle-registration-method-airia">
+                <h4><span>1</span>AIRIAから取得（推奨）</h4>
+                <ul>
+                    <li>登録情報から自動で車両情報を取得</li>
+                    <li>最も入力の手間が少ない</li>
+                    <li>公的な情報のため正確</li>
+                </ul>
+            </div>
 
-    <div class="form-group">
-        <h3>手入力で登録</h3>
-        <p class="help-text">
-            車両情報を入力して登録します。
+            <div class="vehicle-registration-guide-item vehicle-registration-method-excel">
+                <h4><span>2</span>Excelから一括登録</h4>
+                <ul>
+                    <li>複数台をまとめて登録・更新</li>
+                    <li>現在のExcelをそのまま利用可能</li>
+                    <li>新規・更新・重複を自動判定</li>
+                </ul>
+            </div>
+
+            <div class="vehicle-registration-guide-item vehicle-registration-method-certificate">
+                <h4><span>3</span>車検証を読み取る</h4>
+                <ul>
+                    <li>PDF・画像からAIで自動入力</li>
+                    <li>手入力を最小限にできる</li>
+                    <li>紙・電子どちらの車検証にも対応</li>
+                </ul>
+            </div>
+
+            <div class="vehicle-registration-guide-item vehicle-registration-method-manual">
+                <h4><span>4</span>手入力で登録</h4>
+                <ul>
+                    <li>情報が取得できない場合に使用</li>
+                    <li>必要な項目のみ入力</li>
+                    <li>後から編集可能</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="vehicle-registration-availability">
+            AIRIAからの取得・車検証のAI読取は準備中です。
+            現在はExcel一括登録・手入力で登録できます。
         </p>
-        <a href="{{ url_for('new_vehicle') }}" class="btn btn-outline">
-            手入力で登録
-        </a>
-    </div>
+    </section>
 </div>
 
 {% endblock %}

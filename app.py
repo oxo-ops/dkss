@@ -15387,6 +15387,7 @@ def delete_driver(index):
     return redirect("/master/drivers")
 
 @app.route("/master/vehicles/<int:vehicle_record_id>/karte")
+@app.route("/vehicle/karte/<int:vehicle_record_id>")
 def vehicle_karte(vehicle_record_id):
     vehicle = Vehicle.query.filter_by(
         id=vehicle_record_id,
@@ -15410,6 +15411,29 @@ def vehicle_karte(vehicle_record_id):
         vehicle.id
     )
 
+    current_user = User.query.filter_by(
+        company_code=session.get("company_code"),
+        username=session.get("username")
+    ).first()
+
+    if current_user is not None:
+        user_settings = safe_json_dict(
+            current_user.dashboard_settings_json
+        )
+
+        if user_settings.get(
+            "vehicle_karte_last_vehicle_id"
+        ) != vehicle.id:
+            user_settings[
+                "vehicle_karte_last_vehicle_id"
+            ] = vehicle.id
+
+            current_user.dashboard_settings_json = json.dumps(
+                user_settings,
+                ensure_ascii=False
+            )
+            db.session.commit()
+
     return render_template(
         "vehicle_karte.html",
         vehicle=vehicle,
@@ -15420,6 +15444,7 @@ def vehicle_karte(vehicle_record_id):
 
 
 @app.route("/master/vehicles/<int:vehicle_record_id>/karte/history")
+@app.route("/vehicle/karte/<int:vehicle_record_id>/history")
 def vehicle_karte_history(vehicle_record_id):
     vehicle = Vehicle.query.filter_by(
         id=vehicle_record_id,
@@ -15458,16 +15483,251 @@ def vehicle_karte_history(vehicle_record_id):
         )
     )
 
+    result_ids = {
+        event.result_id
+        for event in history_page.items
+    }
+
+    result_records = (
+        VehicleChecklistResult.query.filter(
+            VehicleChecklistResult.company_code == vehicle.company_code,
+            VehicleChecklistResult.vehicle_record_id == vehicle.id,
+            VehicleChecklistResult.id.in_(result_ids)
+        ).all()
+        if result_ids else []
+    )
+
+    history_links = {
+        record.id: url_for(
+            "vehicle_checklist_results",
+            index=record.checklist_id,
+            vehicle_record_id=vehicle.id,
+            year=record.year,
+            month=record.month,
+            active_day=record.day
+        )
+        for record in result_records
+    }
+
+    open_defects = get_vehicle_open_inspection_defects(
+        vehicle.company_code,
+        vehicle.id
+    )
+
     return render_template(
         "vehicle_karte_history.html",
         vehicle=vehicle,
         vehicle_number=number,
-        history_page=history_page
+        history_page=history_page,
+        history_links=history_links,
+        open_defects=open_defects
+    )
+
+
+def get_vehicle_karte_usage_vehicles():
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return []
+
+    current_driver = Driver.query.filter_by(
+        company_code=company_code,
+        employee_id=username
+    ).first()
+
+    if current_driver is None:
+        return []
+
+    vehicle_ids = []
+    for value in safe_json_str_list(
+        current_driver.vehicles_json
+    ):
+        if not value.isdigit() or len(value) > 18:
+            continue
+
+        vehicle_id = int(value)
+        if vehicle_id > 0 and vehicle_id not in vehicle_ids:
+            vehicle_ids.append(vehicle_id)
+
+    if not vehicle_ids:
+        return []
+
+    records = Vehicle.query.filter(
+        Vehicle.company_code == company_code,
+        Vehicle.deleted == False,
+        Vehicle.id.in_(vehicle_ids)
+    ).all()
+
+    record_map = {
+        record.id: record
+        for record in records
+    }
+
+    return [
+        record_map[vehicle_id]
+        for vehicle_id in vehicle_ids
+        if vehicle_id in record_map
+    ]
+
+
+@app.context_processor
+def inject_vehicle_karte_choices():
+    if request.endpoint not in {
+        "vehicle_karte_list",
+        "vehicle_karte",
+        "vehicle_karte_history",
+    }:
+        return {}
+
+    company_code = session.get("company_code")
+    if not company_code:
+        return {"karte_vehicle_choices": []}
+
+    vehicles = Vehicle.query.filter_by(
+        company_code=company_code
+    ).order_by(Vehicle.id.asc()).all()
+
+    driver_names_by_vehicle = {
+        str(record.id): []
+        for record in vehicles
+    }
+
+    drivers = Driver.query.filter_by(
+        company_code=company_code
+    ).order_by(Driver.id.asc()).all()
+
+    for driver in drivers:
+        driver_name = (driver.name or "").strip()
+        if not driver_name:
+            continue
+
+        for vehicle_id in safe_json_str_list(
+            driver.vehicles_json
+        ):
+            names = driver_names_by_vehicle.get(
+                vehicle_id
+            )
+            if names is not None and driver_name not in names:
+                names.append(driver_name)
+
+    choices = []
+    for record in vehicles:
+        number = vehicle_number({
+            "plate_area": record.plate_area or "",
+            "plate_class": record.plate_class or "",
+            "plate_kana": record.plate_kana or "",
+            "plate_number": record.plate_number or "",
+        })
+
+        choices.append({
+            "id": record.id,
+            "number": number,
+            "chassis_number": record.chassis_number or "",
+            "driver_names": "、".join(
+                driver_names_by_vehicle.get(
+                    str(record.id),
+                    []
+                )
+            ),
+        })
+
+    return {
+        "karte_vehicle_choices": choices,
+        "karte_usage_vehicles": get_vehicle_karte_usage_vehicles(),
+    }
+
+
+@app.route("/vehicle/karte")
+def vehicle_karte_list():
+    selected_value = request.args.get(
+        "vehicle_record_id",
+        ""
+    ).strip()
+
+    if selected_value:
+        selected_id = request.args.get(
+            "vehicle_record_id",
+            type=int
+        )
+
+        if (
+            selected_id is None
+            or selected_id <= 0
+            or selected_id > 9223372036854775807
+        ):
+            flash(
+                "表示する車両を選択し直してください。",
+                "error:karte_vehicle_search"
+            )
+            return render_template(
+                "vehicle_karte.html",
+                vehicle=None
+            ), 400
+
+        selected_vehicle = Vehicle.query.filter_by(
+            id=selected_id,
+            company_code=session.get("company_code")
+        ).first()
+
+        if selected_vehicle is None:
+            flash(
+                "選択した車両を表示できません。車両を選択し直してください。",
+                "error:karte_vehicle_search"
+            )
+            return render_template(
+                "vehicle_karte.html",
+                vehicle=None
+            ), 404
+
+        return redirect(url_for(
+            "vehicle_karte",
+            vehicle_record_id=selected_vehicle.id
+        ))
+
+    usage_vehicles = get_vehicle_karte_usage_vehicles()
+
+    if usage_vehicles:
+        current_user = User.query.filter_by(
+            company_code=session.get("company_code"),
+            username=session.get("username")
+        ).first()
+
+        user_settings = safe_json_dict(
+            current_user.dashboard_settings_json
+        ) if current_user is not None else {}
+
+        last_vehicle_id = str(user_settings.get(
+            "vehicle_karte_last_vehicle_id",
+            ""
+        ))
+
+        default_vehicle = next(
+            (
+                record
+                for record in usage_vehicles
+                if str(record.id) == last_vehicle_id
+            ),
+            usage_vehicles[0]
+        )
+
+        return redirect(url_for(
+            "vehicle_karte",
+            vehicle_record_id=default_vehicle.id
+        ))
+
+    return render_template(
+        "vehicle_karte.html",
+        vehicle=None
     )
 
 
 @app.route("/master/vehicles")
 def vehicle_master():
+    return render_vehicle_list("vehicle_master.html")
+
+
+def render_vehicle_list(template_name):
     keyword = request.args.get("keyword", "").strip()
     office = request.args.get("office", "").strip()
     vehicle_type = request.args.get("vehicle_type", "").strip()
@@ -15530,6 +15790,62 @@ def vehicle_master():
         company_code=company_code
     )
 
+    plate_number_search = request.args.get(
+        "plate_number_search", ""
+    ).strip()
+    chassis_number_search = request.args.get(
+        "chassis_number_search", ""
+    ).strip()
+
+    search_errors = []
+
+    if len(plate_number_search) > 100:
+        search_errors.append((
+            "車番の検索条件は100文字以内で入力してください。",
+            "vehicle_search_plate_number"
+        ))
+
+    if len(chassis_number_search) > 100:
+        search_errors.append((
+            "車台番号の検索条件は100文字以内で入力してください。",
+            "vehicle_search_chassis_number"
+        ))
+
+    if search_errors:
+        return return_form_errors(search_errors)
+
+    if plate_number_search:
+        normalized_plate_number = "".join(
+            plate_number_search.split()
+        ).replace("-", "").replace("－", "")
+
+        if normalized_plate_number:
+            plate_number_expression = (
+                db.func.coalesce(Vehicle.plate_area, "")
+                + db.func.coalesce(Vehicle.plate_class, "")
+                + db.func.coalesce(Vehicle.plate_kana, "")
+                + db.func.coalesce(Vehicle.plate_number, "")
+            )
+
+            for separator in (" ", "　", "-", "－"):
+                plate_number_expression = db.func.replace(
+                    plate_number_expression,
+                    separator,
+                    ""
+                )
+
+            query = query.filter(
+                plate_number_expression.ilike(
+                    f"%{normalized_plate_number}%"
+                )
+            )
+
+    if chassis_number_search:
+        query = query.filter(
+            Vehicle.chassis_number.ilike(
+                f"%{chassis_number_search}%"
+            )
+        )
 
     # キーワード検索
     if keyword:
@@ -15622,7 +15938,7 @@ def vehicle_master():
 
     # ページ分割
     page = request.args.get("page", 1, type=int)
-    per_page = 100
+    per_page = 10
 
     total_count = query.count()
 
@@ -15679,6 +15995,14 @@ def vehicle_master():
 
         item["number"] = vehicle_number(item)
 
+        if template_name == "vehicle_master.html":
+            item["open_defect_count"] = len(
+                get_vehicle_open_inspection_defects(
+                    company_code,
+                    vehicle.id
+                )
+            )
+
         filtered_vehicles.append(item)
 
     company = Company.query.filter_by(
@@ -15699,7 +16023,7 @@ def vehicle_master():
         remaining_vehicles = vehicle_limit - vehicle_count
 
     return render_template(
-        "vehicle_master.html",
+        template_name,
         vehicles=filtered_vehicles,
         offices=offices_for_current_company(),
         vehicle_types=vehicle_types_for_current_company(),

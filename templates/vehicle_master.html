@@ -5,130 +5,142 @@
 {% block content %}
 
 <div class="page-header vehicle-master-page-header">
-    <h2>車両マスタ</h2>
+    <div class="vehicle-list-title-group">
+        <h2>車両一覧</h2>
+        <p>
+            登録されている車両の一覧です。車両を選択すると車両カルテを確認できます。
+        </p>
+    </div>
 
     <div class="header-actions">
-
-        <a href="/master/vehicles/import" class="btn">
-            Excel一括登録
-        </a>
-
-        <a href="{{ url_for('vehicle_registration_method') }}" class="btn">
-            新規登録
+        <a href="{{ url_for('vehicle_registration_method') }}" class="btn btn-outline">
+            車両追加
         </a>
 
     </div>
 </div>
 
-<div class="dashboard-summary">
+<div class="card vehicle-master-filter-card vehicle-search-card">
+    <h3 class="vehicle-search-heading">検索条件</h3>
 
-    <div class="summary-card">
-        <div class="summary-title">契約上限</div>
-        <div class="summary-value">
-            {{ vehicle_limit }}
+    <form method="get" class="vehicle-master-filter-form vehicle-search-form">
+        <div class="vehicle-search-field">
+            <label for="vehicle_search_plate_number">車番</label>
+            <input
+                type="text"
+                id="vehicle_search_plate_number"
+                name="plate_number_search"
+                value="{{ request.args.get('plate_number_search', '') }}"
+                placeholder="例：大和100か1234"
+                maxlength="100"
+            >
         </div>
-        <div class="summary-unit">台</div>
-    </div>
 
-    <div class="summary-card">
-        <div class="summary-title">登録済み</div>
-        <div class="summary-value">
-            {{ vehicle_count }}
+        <div class="vehicle-search-field">
+            <label for="vehicle_search_chassis_number">車台番号</label>
+            <input
+                type="text"
+                id="vehicle_search_chassis_number"
+                name="chassis_number_search"
+                value="{{ request.args.get('chassis_number_search', '') }}"
+                placeholder="車台番号を入力"
+                maxlength="100"
+            >
         </div>
-        <div class="summary-unit">台</div>
-    </div>
 
-    <div class="summary-card">
-        <div class="summary-title">残り登録可能</div>
-        <div class="summary-value good">
-            {{ remaining_vehicles }}
+        <div class="vehicle-search-field">
+            <label for="master_vehicle_manufacturer">メーカー・車名</label>
+            <select id="master_vehicle_manufacturer" name="manufacturer">
+                <option value="">すべて</option>
+                {% for manufacturer_item in manufacturers %}
+                    <option
+                        value="{{ manufacturer_item }}"
+                        {% if manufacturer == manufacturer_item %}selected{% endif %}
+                    >
+                        {{ manufacturer_item }}
+                    </option>
+                {% endfor %}
+            </select>
         </div>
-        <div class="summary-unit">台</div>
-    </div>
 
-</div>
+        <div class="vehicle-search-field">
+            <label for="master_vehicle_model_code">型式</label>
+            <select id="master_vehicle_model_code" name="model_code">
+                <option value="">すべて</option>
+                {% for model_code_item in model_codes %}
+                    <option
+                        value="{{ model_code_item }}"
+                        {% if model_code == model_code_item %}selected{% endif %}
+                    >
+                        {{ model_code_item }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-<div class="card vehicle-master-filter-card">
-    <form method="get" class="vehicle-master-filter-form">
+        <div class="vehicle-search-field">
+            <label for="master_vehicle_type">車種</label>
+            <select id="master_vehicle_type" name="vehicle_type">
+                <option value="">すべて</option>
+                {% for vehicle_type_item in vehicle_types %}
+                    <option
+                        value="{{ vehicle_type_item.name }}"
+                        {% if vehicle_type == vehicle_type_item.name %}selected{% endif %}
+                    >
+                        {{ vehicle_type_item.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <label>キーワード検索</label>
+        <div class="vehicle-search-field">
+            <label for="master_vehicle_office">営業所</label>
+            <select id="master_vehicle_office" name="office">
+                <option value="">すべて</option>
+                {% for office_item in offices %}
+                    <option
+                        value="{{ office_item.name }}"
+                        {% if office == office_item.name %}selected{% endif %}
+                    >
+                        {{ office_item.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <input
-            type="text"
-            name="keyword"
-            value="{{ keyword }}"
-            placeholder="車番・車台番号・型式・メーカーなど"
-        >
-
-        <label>状態</label>
-        <select name="status">
-            <option value="">すべて</option>
-            <option value="active" {% if status == "active" %}selected{% endif %}>
-                有効
-            </option>
-            <option value="inactive" {% if status == "inactive" %}selected{% endif %}>
-                無効
-            </option>
-        </select>
-
-        <label>メーカー・車名</label>
-        <select name="manufacturer">
-            <option value="">すべて</option>
-            {% for manufacturer_item in manufacturers %}
+        <div class="vehicle-search-field">
+            <label for="master_vehicle_status">状態</label>
+            <select id="master_vehicle_status" name="status">
+                <option value="">すべて</option>
                 <option
-                    value="{{ manufacturer_item }}"
-                    {% if manufacturer == manufacturer_item %}selected{% endif %}
+                    value="active"
+                    {% if status == "active" %}selected{% endif %}
                 >
-                    {{ manufacturer_item }}
+                    有効
                 </option>
-            {% endfor %}
-        </select>
-
-        <label>型式</label>
-        <select name="model_code">
-            <option value="">すべて</option>
-            {% for model_code_item in model_codes %}
                 <option
-                    value="{{ model_code_item }}"
-                    {% if model_code == model_code_item %}selected{% endif %}
+                    value="inactive"
+                    {% if status == "inactive" %}selected{% endif %}
                 >
-                    {{ model_code_item }}
+                    無効
                 </option>
-            {% endfor %}
-        </select>
-
-        <label>営業所</label>
-        <select name="office">
-            <option value="">すべて</option>
-            {% for office_item in offices %}
-                <option value="{{ office_item.name }}" {% if office == office_item.name %}selected{% endif %}>
-                    {{ office_item.name }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <label>車種</label>
-        <select name="vehicle_type">
-            <option value="">すべて</option>
-            {% for vehicle_type_item in vehicle_types %}
-                <option
-                    value="{{ vehicle_type_item.name }}"
-                    {% if vehicle_type == vehicle_type_item.name %}selected{% endif %}
-                >
-                    {{ vehicle_type_item.name }}
-                </option>
-            {% endfor %}
-        </select>
+            </select>
+        </div>
 
         <div class="vehicle-filter-actions">
-            <button type="submit" class="btn">検索</button>
-            <a href="/master/vehicles" class="btn btn-back">クリア</a>
+            <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline">
+                クリア
+            </a>
+            <button type="submit" class="btn btn-outline">検索</button>
         </div>
-
     </form>
 </div>
 
 <div class="vehicle-bulk-actions">
+    <h3 class="result-info-title">
+        検索結果 <strong>{{ total_count }}</strong> 件
+    </h3>
+
     <strong id="selected-count">0件選択中</strong>
 
     <button
@@ -187,11 +199,12 @@
 
         <th>ナンバープレート</th>
         <th>車台番号</th>
-        <th>型式</th>
         <th>メーカー・車名</th>
+        <th>型式</th>
         <th>車種</th>
         <th>営業所</th>
         <th>車検満了日</th>
+        <th title="日常点検で確認された未解消の不具合件数">未解消不具合</th>
         <th>無効</th>
         <th class="col-actions">操作</th>
     </tr>
@@ -211,19 +224,27 @@
         </td>
 
         <td>
-            {{ vehicle.plate_area }}
-            {{ vehicle.plate_class }}
-            {{ vehicle.plate_kana }}
-            {{ vehicle.plate_number }}
+            <a
+                href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                class="vehicle-list-number-link"
+            >{{ vehicle.number }}</a>
         </td>
 
         <td>{{ vehicle.chassis_number or "-" }}</td>
-        <td>{{ vehicle.model_code or "-" }}</td>
         <td>{{ vehicle.manufacturer or "-" }}</td>
+        <td>{{ vehicle.model_code or "-" }}</td>
 
         <td>{{ vehicle.type }}</td>
         <td>{{ vehicle.office }}</td>
         <td>{{ vehicle.inspection_expiry or "-" }}</td>
+        <td>
+            <a
+                href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                class="vehicle-list-defect-badge{% if vehicle.open_defect_count > 0 %} has-defects{% endif %}"
+                aria-label="日常点検の未解消不具合 {{ vehicle.open_defect_count }}件。車両カルテを開く"
+                title="車両カルテで日常点検の未解消不具合を確認"
+            >{{ vehicle.open_defect_count }}</a>
+        </td>
         <td>
             <form
                 method="post"
@@ -274,56 +295,91 @@
 </table>
 </div>
 
-{% if total_pages > 1 %}
+{% macro vehicle_master_page_url(target_page) -%}
+{{ url_for(
+    'vehicle_master',
+    page=target_page,
+    keyword=keyword,
+    plate_number_search=request.args.get('plate_number_search', ''),
+    chassis_number_search=request.args.get('chassis_number_search', ''),
+    status=status,
+    manufacturer=manufacturer,
+    model_code=model_code,
+    office=office,
+    vehicle_type=vehicle_type
+) }}
+{%- endmacro %}
 
-<div class="vehicle-pagination">
+<div class="vehicle-list-footer">
+    <p class="vehicle-list-range">
+        全{{ total_count }}件中
+        {% if total_count %}
+            {{ (page - 1) * 10 + 1 }}〜{{ (page - 1) * 10 + vehicles|length }}件を表示
+        {% else %}
+            0件を表示
+        {% endif %}
+        <br>
+        <small>
+            契約上限 {{ vehicle_limit }}台 ／
+            登録済み {{ vehicle_count }}台 ／
+            残り登録可能 {{ remaining_vehicles }}台
+        </small>
+    </p>
 
-    {% if page > 1 %}
-        <a
-            class="btn btn-back"
-            href="{{ url_for(
-                'vehicle_master',
-                page=page - 1,
-                keyword=keyword,
-                status=status,
-                manufacturer=manufacturer,
-                model_code=model_code,
-                office=office,
-                vehicle_type=vehicle_type
-            ) }}"
-        >
-            ← 前へ
-        </a>
+    {% if total_pages > 1 %}
+        {% set first_page = [1, page - 2]|max %}
+        {% set last_page = [total_pages, first_page + 4]|min %}
+        {% set first_page = [1, last_page - 4]|max %}
+
+        <nav class="vehicle-list-pagination" aria-label="車両一覧のページ切り替え">
+            {% if page > 1 %}
+                <a
+                    class="btn btn-outline"
+                    href="{{ vehicle_master_page_url(page - 1) }}"
+                    aria-label="前のページ"
+                >‹</a>
+            {% endif %}
+
+            {% if first_page > 1 %}
+                <a class="btn btn-outline" href="{{ vehicle_master_page_url(1) }}">1</a>
+                {% if first_page > 2 %}
+                    <span aria-hidden="true">…</span>
+                {% endif %}
+            {% endif %}
+
+            {% for page_number in range(first_page, last_page + 1) %}
+                {% if page_number == page %}
+                    <span class="vehicle-list-current-page" aria-current="page">
+                        {{ page_number }}
+                    </span>
+                {% else %}
+                    <a
+                        class="btn btn-outline"
+                        href="{{ vehicle_master_page_url(page_number) }}"
+                    >{{ page_number }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if last_page < total_pages %}
+                {% if last_page < total_pages - 1 %}
+                    <span aria-hidden="true">…</span>
+                {% endif %}
+                <a
+                    class="btn btn-outline"
+                    href="{{ vehicle_master_page_url(total_pages) }}"
+                >{{ total_pages }}</a>
+            {% endif %}
+
+            {% if page < total_pages %}
+                <a
+                    class="btn btn-outline"
+                    href="{{ vehicle_master_page_url(page + 1) }}"
+                    aria-label="次のページ"
+                >›</a>
+            {% endif %}
+        </nav>
     {% endif %}
-
-
-    <strong>
-        {{ page }} / {{ total_pages }} ページ
-        （{{ total_count }}台）
-    </strong>
-
-
-    {% if page < total_pages %}
-        <a
-            class="btn"
-            href="{{ url_for(
-                'vehicle_master',
-                page=page + 1,
-                keyword=keyword,
-                status=status,
-                manufacturer=manufacturer,
-                model_code=model_code,
-                office=office,
-                vehicle_type=vehicle_type
-            ) }}"
-        >
-            次へ →
-        </a>
-    {% endif %}
-
 </div>
-
-{% endif %}
 
 <div class="mobile-card-list vehicle-master-mobile-list">
     {% for vehicle in vehicles %}
@@ -367,6 +423,13 @@
             <div class="mobile-card-row">
                 <span>車検満了日</span>
                 <strong>{{ vehicle.inspection_expiry or "-" }}</strong>
+            </div>
+
+            <div class="mobile-card-row">
+                <span>未解消不具合（日常点検）</span>
+                <a
+                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                >{{ vehicle.open_defect_count }}件</a>
             </div>
 
             <div class="mobile-card-row">
