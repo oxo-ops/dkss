@@ -978,7 +978,10 @@
     <h3>{{ year }}/{{ month }}/{{ active_day }}の点検を保存しました</h3>
 
     {% if flow.repair + flow.recheck %}
-    <p>次は不具合の対応です。整備・再確認が {{ flow.repair + flow.recheck }} 件残っています。</p>
+    <p>整備・再確認が {{ flow.repair + flow.recheck }} 件残っています。整備管理者は、点検結果と不具合の対応状況を確認して運行可否を判断してください。</p>
+    <a class="btn btn-outline js-vehicle-flow-link" href="#vehicle-flow-judgment">
+        運行判断を確認・入力する
+    </a>
     <a class="btn btn-outline js-vehicle-flow-link" href="{{ flow.repair_link if flow.repair else flow.recheck_link }}">
         {{ "整備内容を入力する" if flow.repair else "再確認結果を登録する" }}
     </a>
@@ -1042,7 +1045,7 @@
                     <span>再確認<small>{{ '再確認待ち：' ~ flow.recheck ~ '件' if flow.recheck else '再確認待ちなし' }}</small></span>
                 </a>
             </li>
-            <li class="{{ 'is-done' if decision in ['運行可', '運行不可'] else 'is-active' if point_done and not (flow.repair + flow.recheck) else '' }}">
+            <li class="{{ 'is-done' if decision in ['運行可', '運行不可'] else 'is-active' if point_done else '' }}">
                 <a class="js-vehicle-flow-link" href="#vehicle-flow-judgment">
                     <span class="vehicle-flow-dot" aria-hidden="true">{{ '✓' if decision in ['運行可', '運行不可'] else '4' }}</span>
                     <span>運行判断<small>{{ decision }}／整備管理者が判断</small></span>
@@ -1413,7 +1416,7 @@
             {% if flow.repair + flow.recheck %}
             <p class="vehicle-judgment-pending">
                 対応が必要な不具合が{{ flow.repair + flow.recheck }}件あります。
-                運行可にするには、整備・再確認を完了してください。
+                未対応の不具合があります。点検結果と対応状況を確認して、運行可否を判断してください。運行可を登録しても、不具合の記録は残ります。
             </p>
             {% endif %}
         </div>
@@ -1445,8 +1448,7 @@
         <div id="decision" class="vehicle-judgment-options" role="group"
             aria-labelledby="vehicle_decision_label" tabindex="-1">
             <label>
-                <input type="radio" name="decision" value="運行可" required
-                    {% if flow.repair + flow.recheck %}disabled{% endif %}>
+                <input type="radio" name="decision" value="運行可" required>
                 <span>運行可</span>
             </label>
             <label>
@@ -1917,7 +1919,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261006-1'
+        v='20261007-1'
     ) }}"
 ></script>
 

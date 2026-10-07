@@ -22065,14 +22065,6 @@ def save_vehicle_operation_judgment(result_index):
                 ("この車両の点検・不具合対応が更新されています。再読み込みして確認してください。", "")
             ], 409)
 
-        if get_vehicle_open_inspection_defects(
-            result_record.company_code,
-            result_record.vehicle_record_id
-        ):
-            return return_form_errors([
-                ("未解消の不具合があります。整備・再確認を完了してから判断してください。", "decision")
-            ], 409)
-
         answers_by_no = {
             str(answer.get("item_no", "")): answer
             for answer in safe_json_dict_list(result_record.answers_json)
