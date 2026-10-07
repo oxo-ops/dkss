@@ -15878,7 +15878,9 @@ def import_vehicles():
                 ])
 
         def clean_preview_text(value):
-            return str(value or "").strip()
+            return str(
+                "" if value is None else value
+            ).strip()
 
         def preview_int(value):
             cleaned_value = clean_preview_text(

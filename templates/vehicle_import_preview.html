@@ -341,7 +341,7 @@
                                 type="number"
                                 name="gross_vehicle_weight"
                                 class="bulk-gross_vehicle_weight"
-                                value="{{ vehicle.gross_vehicle_weight or '' }}"
+                                value="{{ vehicle.gross_vehicle_weight if vehicle.gross_vehicle_weight is not none else '' }}"
                             >
                         </td>
 
@@ -415,7 +415,7 @@
                                 type="number"
                                 name="max_payload"
                                 class="bulk-max_payload"
-                                value="{{ vehicle.max_payload or '' }}"
+                                value="{{ vehicle.max_payload if vehicle.max_payload is not none else '' }}"
                             >
                         </td>
 
