@@ -4,60 +4,228 @@
 
 {% block content %}
 
-<div class="page-header">
-    <h2>車両カルテ・履歴</h2>
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
 
-    <div class="header-actions">
-        <a
-            href="{{ url_for('vehicle_master') }}"
-            class="btn btn-outline"
-        >
-            車両一覧へ戻る
-        </a>
+<div class="card vehicle-karte-history-panel">
+    <div class="vehicle-karte-history-heading">
+        <h3>
+            <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M12 7v5l3 2"></path>
+            </svg>
+            車両履歴
+        </h3>
 
-        <a
-            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
-            class="btn btn-outline"
+        <p>
+            この車両に関するすべての出来事を時系列で表示します。
+        </p>
+
+        <form
+            method="get"
+            action="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-history-filters"
         >
-            概要
-        </a>
+            <select name="event_type" aria-label="履歴の種別">
+                <option value="">すべての種別</option>
+                {% for event_type in history_event_types %}
+                    <option
+                        value="{{ event_type }}"
+                        {% if selected_event_type == event_type %}selected{% endif %}
+                    >
+                        {{ event_type }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <select name="status" aria-label="履歴の状態">
+                <option value="">すべての状態</option>
+                {% for status in history_statuses %}
+                    <option
+                        value="{{ status }}"
+                        {% if selected_status == status %}selected{% endif %}
+                    >
+                        {{ status }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <input
+                type="date"
+                id="history_start_date"
+                name="start_date"
+                value="{{ selected_start_date }}"
+                aria-label="履歴の開始日"
+            >
+
+            <span aria-hidden="true">～</span>
+
+            <input
+                type="date"
+                id="history_end_date"
+                name="end_date"
+                value="{{ selected_end_date }}"
+                aria-label="履歴の終了日"
+            >
+
+            <button type="submit" class="btn btn-outline">
+                絞り込み
+            </button>
+        </form>
+
+        <span class="vehicle-karte-history-count">
+            {{ history_page.total }}件
+        </span>
     </div>
-</div>
-
-<div class="card">
-    <h3 class="result-info-title">{{ vehicle_number }}</h3>
-
-    <p class="help-text">
-        保存された点検・不具合対応・承認・運行判断の履歴を、
-        記録日時の新しい順に表示します。
-    </p>
-
-    <p>履歴：{{ history_page.total }}件</p>
 
     {% if history_page.items %}
         <div class="table-scroll">
-            <table class="checklist-table responsive-table">
+            <table class="checklist-table responsive-table vehicle-karte-history-table">
                 <thead>
                     <tr>
-                        <th scope="col">記録日時</th>
-                        <th scope="col">操作・状態</th>
-                        <th scope="col">実施者</th>
+                        <th scope="col">日付</th>
+                        <th scope="col">種別</th>
+                        <th scope="col">内容</th>
+                        <th scope="col">走行距離</th>
+                        <th scope="col">費用</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">担当者／整備会社</th>
+                        <th scope="col">関連資料</th>
                     </tr>
                 </thead>
 
                 <tbody>
-                    {% for event in history_page.items %}
+                    {% for entry in history_page.items %}
                         <tr>
-                            <td data-label="記録日時">
-                                {{ event.created_at or "未登録" }}
+                            <td data-label="日付" class="vehicle-history-date">
+                                <span class="vehicle-history-date-text">
+                                    {{ entry.date | replace("-", "/") if entry.date else "—" }}
+                                </span>
                             </td>
 
-                            <td data-label="操作・状態">
-                                {{ event.event_type or "未登録" }}
+                            <td data-label="種別">
+                                <span class="vehicle-history-kind" data-kind="{{ entry.kind }}">
+                                    <svg
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        aria-hidden="true"
+                                        focusable="false"
+                                    >
+                                        {% if entry.kind in ["異常・指摘", "故障"] %}
+                                    <path d="M10.3 3.8 2.4 17.5A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.5L13.7 3.8a2 2 0 0 0-3.4 0Z"></path>
+                                    <path d="M12 9v4"></path>
+                                    <path d="M12 16h.01"></path>
+                                {% elif entry.kind in ["整備", "修理"] %}
+                                            <path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4Z"></path>
+                                        {% else %}
+                                            <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+                                            <path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"></path>
+                                        {% endif %}
+                                    </svg>
+
+                                    <span>{{ entry.kind }}</span>
+                                </span>
                             </td>
 
-                            <td data-label="実施者">
-                                {{ event.actor_name or event.actor_username or "未登録" }}
+                            <td data-label="内容" class="vehicle-history-content">
+                                {{ entry.content or "—" }}
+                            </td>
+
+                            <td data-label="走行距離">
+                                {% if entry.mileage is not none %}
+                                    {{ "{:,.2f}".format(entry.mileage) }} km
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td data-label="費用">
+                                {% if entry.cost is not none %}
+                                    {{ "{:,.0f}".format(entry.cost) }}円
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td data-label="状態">
+                                {% if entry.status %}
+                                    <span class="vehicle-history-status" data-status="{{ entry.status }}">
+                                        {{ entry.status }}
+                                    </span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td data-label="担当者／整備会社">
+                                {{ entry.actor or "—" }}
+                            </td>
+
+                            <td data-label="関連資料">
+                                <div class="vehicle-history-materials">
+                                    {% for filename in entry.get("files", []) %}
+                                        {% set extension = filename.rsplit(".", 1)[-1] | lower %}
+                                        <a
+                                            href="{{ url_for('uploaded_file', folder='uploads', filename=filename) }}"
+                                            class="vehicle-history-file"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            aria-label="添付資料を開く：{{ filename }}"
+                                            title="{{ filename }}"
+                                        >
+                                            {% if extension in ["jpg", "jpeg", "png", "gif", "webp"] %}
+                                                <img
+                                                    src="{{ url_for('uploaded_file', folder='uploads', filename=filename) }}"
+                                                    alt="添付写真"
+                                                    width="40"
+                                                    height="32"
+                                                    loading="lazy"
+                                                >
+                                            {% else %}
+                                                <svg
+                                                    width="24"
+                                                    height="24"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.8"
+                                                    aria-hidden="true"
+                                                    focusable="false"
+                                                >
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+                                                    <path d="M14 2v6h6M8 13h8M8 17h6"></path>
+                                                </svg>
+                                                <span>{{ extension | upper }}</span>
+                                            {% endif %}
+                                        </a>
+                                    {% endfor %}
+
+                                    {% if entry.link %}
+                                        <a
+                                            href="{{ entry.link }}"
+                                            class="vehicle-history-record-link"
+                                            aria-label="この履歴の記録を開く"
+                                            title="記録を開く"
+                                        >
+                                            <span aria-hidden="true">›</span>
+                                        </a>
+                                    {% elif not entry.get("files", []) %}
+                                        —
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -74,7 +242,7 @@
         <nav class="form-actions" aria-label="履歴のページ切替">
             {% if history_page.has_prev %}
                 <a
-                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.prev_num) }}"
+                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.prev_num, event_type=selected_event_type, status=selected_status, start_date=selected_start_date, end_date=selected_end_date) }}"
                     class="btn btn-outline"
                 >
                     前のページ
@@ -87,7 +255,7 @@
 
             {% if history_page.has_next %}
                 <a
-                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.next_num) }}"
+                    href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id, page=history_page.next_num, event_type=selected_event_type, status=selected_status, start_date=selected_start_date, end_date=selected_end_date) }}"
                     class="btn btn-outline"
                 >
                     次のページ

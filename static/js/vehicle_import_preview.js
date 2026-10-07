@@ -540,7 +540,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const response = await fetch(importForm.action, {
                 method: "POST",
-                body: new FormData(importForm),
+                body: new URLSearchParams(new FormData(importForm)),
                 headers: {
                     "Accept": "application/json",
                     "X-DKSS-Final-Submit": "1"
@@ -625,6 +625,921 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    const masterSection = document.getElementById(
+        "vehicle-import-master-resolution"
+    );
+    const masterItems = document.getElementById(
+        "vehicle-import-master-items"
+    );
+    const masterStatus = document.getElementById(
+        "vehicle-import-master-status"
+    );
+    const masterDataElement = document.getElementById(
+        "vehicle-import-master-data"
+    );
+
+    const importMasters = masterDataElement
+        ? JSON.parse(masterDataElement.textContent)
+        : { offices: [], vehicle_types: [] };
+
+    function collectUnresolvedImportMasters() {
+        const groups = new Map();
+        const officeNames = new Set(
+            importMasters.offices.map((item) => item.name)
+        );
+        const typeNames = new Set(
+            importMasters.vehicle_types.map((item) => item.name)
+        );
+
+        document.querySelectorAll(".import-row").forEach((row) => {
+            const excelRow = row.querySelector(
+                '[name="excel_row"]'
+            )?.value || "";
+
+            const officeInput = row.querySelector(
+                '[name="office"]'
+            );
+            const typeInput = row.querySelector(
+                '[name="vehicle_type"]'
+            );
+            const typeCode = String(row.querySelector(
+                '[name="vehicle_type_code"]'
+            )?.value || "").trim();
+
+            const officeValue = String(
+                officeInput?.value || ""
+            ).trim();
+            const typeValue = String(
+                typeInput?.value || ""
+            ).trim();
+
+            const unresolved = [];
+
+            if (officeValue && !officeNames.has(officeValue)) {
+                unresolved.push({
+                    kind: "office",
+                    value: officeValue,
+                    input: officeInput
+                });
+            }
+
+            if (
+                (typeValue && !typeNames.has(typeValue))
+                || (!typeValue && typeCode)
+            ) {
+                unresolved.push({
+                    kind: "vehicle_type",
+                    value: typeCode || typeValue,
+                    input: typeInput
+                });
+            }
+
+            unresolved.forEach((item) => {
+                const key = JSON.stringify([
+                    item.kind,
+                    item.value
+                ]);
+
+                if (!groups.has(key)) {
+                    groups.set(key, {
+                        key,
+                        kind: item.kind,
+                        value: item.value,
+                        rows: [],
+                        inputs: []
+                    });
+                }
+
+                const group = groups.get(key);
+                group.rows.push(excelRow);
+                group.inputs.push(item.input);
+            });
+        });
+
+        return Array.from(groups.values());
+    }
+
+    const masterResolutionGroups = new Map();
+
+    function refreshImportMasterResolution() {
+        if (!masterSection || !masterItems || !masterStatus) {
+            return;
+        }
+
+        const pendingSelections = new Map();
+
+        masterItems.querySelectorAll("[data-master-kind]").forEach(
+            (item) => {
+                const key = JSON.stringify([
+                    item.dataset.masterKind,
+                    item.dataset.masterValue
+                ]);
+
+                pendingSelections.set(key, {
+                    mode: item.querySelector(
+                        '[data-master-field="mode"]'
+                    )?.value || "",
+                    existing: item.querySelector(
+                        '[data-master-field="existing"]'
+                    )?.value || "",
+                    name: item.querySelector(
+                        '[data-master-field="name"]'
+                    )?.value || ""
+                });
+            }
+        );
+
+        const unresolvedGroups = collectUnresolvedImportMasters();
+        const unresolvedKeys = new Set(
+            unresolvedGroups.map((group) => group.key)
+        );
+
+        unresolvedGroups.forEach((group) => {
+            masterResolutionGroups.set(group.key, {
+                ...group,
+                resolvedName: "",
+                resolvedMode: ""
+            });
+        });
+
+        masterResolutionGroups.forEach((group, key) => {
+            if (unresolvedKeys.has(key)) {
+                return;
+            }
+
+            const choices = group.kind === "office"
+                ? importMasters.offices
+                : importMasters.vehicle_types;
+
+            const names = group.inputs.map((input) =>
+                String(input?.value || "").trim()
+            );
+            const name = names[0] || "";
+
+            const resolved = name
+                && names.every((value) => value === name)
+                && choices.some((choice) => choice.name === name);
+
+            if (!resolved) {
+                masterResolutionGroups.delete(key);
+                return;
+            }
+
+            group.resolvedName = name;
+            group.resolvedMode = pendingSelections.get(key)?.mode
+                || group.resolvedMode
+                || "existing";
+        });
+
+        const groups = Array.from(masterResolutionGroups.values());
+        masterItems.replaceChildren();
+        masterSection.hidden = groups.length === 0;
+
+        if (groups.some((group) => !group.resolvedName)) {
+            window.clearTimeout(masterCompletionTimer);
+            masterCompletionTimer = null;
+            masterCompletionController?.abort();
+
+            if (masterComplete) {
+                masterComplete.hidden = true;
+            }
+
+            setMasterDetailsExpanded(true);
+
+            Array.from(masterSection.children).forEach((element) => {
+                if (element.matches("p.help-text")) {
+                    element.hidden = false;
+                }
+            });
+
+            if (masterApplyAll) {
+                masterApplyAll.hidden = false;
+            }
+        }
+
+        groups.forEach((group) => {
+            const item = document.createElement("tr");
+            item.className = "vehicle-import-master-row";
+            item.dataset.masterKind = group.kind;
+            item.dataset.masterValue = group.value;
+
+            const label = group.kind === "office"
+                ? "営業所"
+                : "車種";
+
+            const affectedRows = document.createElement("details");
+            affectedRows.className = "help-text";
+
+            const rowSummary = document.createElement("summary");
+            rowSummary.textContent =
+                `対象：${group.rows.length}行（行番号を確認）`;
+
+            const rowNumbers = document.createElement("p");
+            rowNumbers.textContent = group.rows.join("、");
+
+            affectedRows.append(rowSummary, rowNumbers);
+
+            const mode = document.createElement("select");
+            mode.dataset.masterField = "mode";
+            mode.add(new Option(
+                `登録済みの${label}を使う`,
+                "existing"
+            ));
+            mode.add(new Option(
+                `${label}を新規登録する`,
+                "new"
+            ));
+
+            const existingLabel = document.createElement("label");
+            existingLabel.textContent = "割り当て先";
+            existingLabel.hidden = true;
+
+            const existingSelect = document.createElement("select");
+            existingSelect.dataset.masterField = "existing";
+            existingSelect.add(new Option("選択してください", ""));
+
+            const choices = group.kind === "office"
+                ? importMasters.offices
+                : importMasters.vehicle_types;
+
+            choices.forEach((choice) => {
+                existingSelect.add(new Option(
+                    choice.name,
+                    choice.name
+                ));
+            });
+
+            existingLabel.append(existingSelect);
+
+            const nameLabel = document.createElement("label");
+            nameLabel.textContent = group.kind === "office"
+                ? "新しい営業所名"
+                : "新しい車種名";
+            nameLabel.hidden = true;
+
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.maxLength = 100;
+            nameInput.autocomplete = "off";
+            nameInput.dataset.masterField = "name";
+            nameInput.value = group.value;
+            nameLabel.append(nameInput);
+
+            const applyButton = document.createElement("button");
+            applyButton.type = "button";
+            applyButton.className = "btn btn-outline";
+            applyButton.dataset.masterAction = "apply";
+            applyButton.textContent = "反映";
+            applyButton.disabled = true;
+
+            mode.addEventListener("change", () => {
+                existingLabel.hidden = mode.value !== "existing";
+                nameLabel.hidden = mode.value !== "new";
+                existingSelect.disabled = mode.value !== "existing";
+                nameInput.disabled = mode.value !== "new";
+                applyButton.disabled = !mode.value;
+                applyButton.textContent = mode.value === "new"
+                    ? "新規登録して適用"
+                    : "割り当てを適用";
+            });
+
+            existingSelect.disabled = true;
+            nameInput.disabled = true;
+
+            const pending = pendingSelections.get(group.key);
+
+            if (pending) {
+                mode.value = pending.mode || "new";
+                existingSelect.value = pending.existing;
+                nameInput.value = pending.name;
+            } else {
+                const existingMatch = choices.find(
+                    (choice) => choice.name === group.value
+                );
+
+                if (existingMatch) {
+                    mode.value = "existing";
+                    existingSelect.value = existingMatch.name;
+                } else {
+                    mode.value = "new";
+                }
+            }
+
+            mode.dispatchEvent(new Event("change"));
+
+            const kindCell = document.createElement("td");
+            kindCell.textContent = group.kind === "office"
+                ? "営業所"
+                : "車種";
+
+            const sourceCell = document.createElement("td");
+            sourceCell.className = "vehicle-import-master-source";
+            sourceCell.textContent = group.value;
+
+            const rowsCell = document.createElement("td");
+            rowsCell.append(affectedRows);
+
+            const modeCell = document.createElement("td");
+            mode.setAttribute(
+                "aria-label",
+                `${group.value}の登録方法`
+            );
+            modeCell.append(mode);
+
+            const valueCell = document.createElement("td");
+            valueCell.className = "vehicle-import-master-value";
+
+            existingSelect.setAttribute(
+                "aria-label",
+                `${group.value}に使用する登録済みの名称`
+            );
+            nameInput.setAttribute(
+                "aria-label",
+                `${group.value}の新規登録名`
+            );
+
+            existingLabel.replaceChildren(existingSelect);
+            nameLabel.replaceChildren(nameInput);
+
+            const placeholder = document.createElement("span");
+            placeholder.className = "vehicle-import-master-placeholder";
+            placeholder.textContent = "—";
+            placeholder.hidden = Boolean(mode.value);
+
+            valueCell.append(
+                placeholder,
+                existingLabel,
+                nameLabel
+            );
+
+            const actionCell = document.createElement("td");
+            actionCell.className = "vehicle-import-master-action";
+
+            const updateActionLabel = () => {
+                placeholder.hidden = Boolean(mode.value);
+                applyButton.textContent = mode.value === "new"
+                    ? "登録して反映"
+                    : "反映";
+            };
+
+            mode.addEventListener("change", updateActionLabel);
+            updateActionLabel();
+
+            if (group.resolvedName) {
+                mode.value = group.resolvedMode;
+                existingSelect.value = group.resolvedName;
+                nameInput.value = group.resolvedName;
+                mode.dispatchEvent(new Event("change"));
+
+                mode.disabled = true;
+                existingSelect.disabled = true;
+                nameInput.disabled = true;
+
+                const confirmed = document.createElement("span");
+                confirmed.className = "vehicle-import-master-confirmed";
+                confirmed.textContent = "✓ 確認済み";
+                actionCell.append(confirmed);
+                item.classList.add("is-confirmed");
+            } else {
+                actionCell.append(applyButton);
+            }
+
+            item.append(
+                kindCell,
+                sourceCell,
+                rowsCell,
+                modeCell,
+                valueCell,
+                actionCell
+            );
+            masterItems.append(item);
+        });
+
+        masterStatus.textContent = "";
+
+        if (masterApplyAll) {
+            masterApplyAll.disabled = masterBatchPending
+                || unresolvedGroups.length === 0;
+        }
+    }
+
+    let masterRegistrationPending = false;
+    let masterBatchPending = false;
+
+    const masterApplyAll = document.getElementById(
+        "vehicle-import-master-apply-all"
+    );
+
+    const masterComplete = document.getElementById(
+        "vehicle-import-master-complete"
+    );
+    const masterDetails = document.getElementById(
+        "vehicle-import-master-details"
+    );
+    const masterToggle = document.getElementById(
+        "vehicle-import-master-toggle"
+    );
+
+    let masterCompletionTimer = null;
+    let masterCompletionController = null;
+
+    function setMasterDetailsExpanded(expanded) {
+        if (!masterDetails || !masterToggle) {
+            return;
+        }
+
+        masterDetails.hidden = !expanded;
+        masterToggle.setAttribute(
+            "aria-expanded",
+            String(expanded)
+        );
+        masterToggle.textContent = expanded
+            ? "反映内容を閉じる"
+            : "反映内容を見る";
+    }
+
+    masterToggle?.addEventListener("click", () => {
+        setMasterDetailsExpanded(masterDetails.hidden);
+    });
+
+    function showImportMasterCompletion() {
+        if (
+            !masterComplete
+            || !masterDetails
+            || !masterToggle
+            || collectUnresolvedImportMasters().length
+        ) {
+            return;
+        }
+
+        window.clearTimeout(masterCompletionTimer);
+        masterCompletionController?.abort();
+
+        masterComplete.hidden = false;
+        setMasterDetailsExpanded(true);
+
+        let scrollCancelled = false;
+        const controller = new AbortController();
+        masterCompletionController = controller;
+
+        const cancelScroll = () => {
+            scrollCancelled = true;
+        };
+
+        ["wheel", "touchstart", "pointerdown", "keydown", "input"]
+            .forEach((eventName) => {
+                document.addEventListener(
+                    eventName,
+                    cancelScroll,
+                    {
+                        capture: true,
+                        passive: true,
+                        signal: controller.signal
+                    }
+                );
+            });
+
+        window.addEventListener("scroll", cancelScroll, {
+            passive: true,
+            signal: controller.signal
+        });
+
+        masterCompletionTimer = window.setTimeout(() => {
+            masterCompletionTimer = null;
+            controller.abort();
+
+            if (collectUnresolvedImportMasters().length) {
+                masterComplete.hidden = true;
+                return;
+            }
+
+            setMasterDetailsExpanded(false);
+
+            Array.from(masterSection.children).forEach((element) => {
+                if (element.matches("p.help-text")) {
+                    element.hidden = true;
+                }
+            });
+
+            if (masterApplyAll) {
+                masterApplyAll.hidden = true;
+            }
+
+            const heading = document.getElementById(
+                "vehicle-import-target-heading"
+            );
+
+            if (!scrollCancelled && heading) {
+                const reduceMotion = window.matchMedia(
+                    "(prefers-reduced-motion: reduce)"
+                ).matches;
+
+                heading.focus({ preventScroll: true });
+                heading.scrollIntoView({
+                    behavior: reduceMotion ? "instant" : "smooth",
+                    block: "start"
+                });
+            }
+        }, 1000);
+    }
+
+    async function applyImportMaster(button) {
+        if (!button || masterRegistrationPending) {
+            return false;
+        }
+
+        const item = button.closest("[data-master-kind]");
+        if (!item) {
+            return;
+        }
+
+        const kind = item.dataset.masterKind;
+        const sourceValue = item.dataset.masterValue;
+        const mode = item.querySelector(
+            '[data-master-field="mode"]'
+        )?.value;
+
+        const target = item.querySelector(
+            mode === "new"
+                ? '[data-master-field="name"]'
+                : '[data-master-field="existing"]'
+        );
+
+        if (!target || !["existing", "new"].includes(mode)) {
+            return;
+        }
+
+        if (!target.id) {
+            target.id = `vehicle-import-master-field-${
+                Array.from(masterItems.children).indexOf(item)
+            }-${mode}`;
+        }
+
+        const name = String(target.value || "").trim();
+        clearCommonErrors();
+
+        if (!name) {
+            showCommonError(
+                mode === "new"
+                    ? "新規登録する名称を入力してください。"
+                    : "割り当て先を選択してください。",
+                target.id
+            );
+            return;
+        }
+
+        if (name.length > 100) {
+            showCommonError(
+                "名称は100文字以内で入力してください。",
+                target.id
+            );
+            return;
+        }
+
+        const choices = kind === "office"
+            ? importMasters.offices
+            : importMasters.vehicle_types;
+
+        if (
+            mode === "existing"
+            && !choices.some((choice) => choice.name === name)
+        ) {
+            showCommonError(
+                "割り当て先を一覧から選択してください。",
+                target.id
+            );
+            return;
+        }
+
+        const originalText = button.textContent;
+        masterRegistrationPending = true;
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+
+        try {
+            if (mode === "new") {
+                button.textContent = "登録中...";
+
+                const csrfToken = document.querySelector(
+                    '#vehicle-import-form [name="csrf_token"]'
+                )?.value;
+
+                if (!csrfToken) {
+                    showCommonError(
+                        "登録に必要な情報を確認できませんでした。",
+                        target.id
+                    );
+                    return;
+                }
+
+                const data = new FormData();
+                data.append("csrf_token", csrfToken);
+                data.append("master_kind", kind);
+                data.append("name", name);
+                data.append("confirmed", "1");
+
+                let response;
+
+                do {
+                    response = await fetch(
+                        masterSection.dataset.registerUrl,
+                        {
+                            method: "POST",
+                            body: data,
+                            headers: {
+                                "Accept": "application/json",
+                                "X-DKSS-Final-Submit": "1"
+                            }
+                        }
+                    );
+
+                    if (
+                        response.status === 429
+                        && masterBatchPending
+                    ) {
+                        const retryAfter = response.headers.get(
+                            "Retry-After"
+                        );
+                        const retrySeconds = Number(retryAfter);
+                        const retryDate = retryAfter
+                            ? Date.parse(retryAfter)
+                            : NaN;
+
+                        let waitMs = 61000;
+
+                        if (
+                            Number.isFinite(retrySeconds)
+                            && retrySeconds > 0
+                        ) {
+                            waitMs = (retrySeconds + 1) * 1000;
+                        } else if (
+                            Number.isFinite(retryDate)
+                            && retryDate > Date.now()
+                        ) {
+                            waitMs = retryDate - Date.now() + 1000;
+                        }
+
+                        masterApplyAll.textContent =
+                            `待機中（${Math.ceil(waitMs / 1000)}秒）`;
+                        masterStatus.textContent =
+                            "登録回数の制限に達しました。"
+                            + "入力内容を保持したまま、自動で再開します。";
+
+                        await new Promise((resolve) => {
+                            window.setTimeout(resolve, waitMs);
+                        });
+
+                        masterApplyAll.textContent = "処理を再開しています";
+                    }
+                } while (
+                    response.status === 429
+                    && masterBatchPending
+                );
+
+                const result = await response.json().catch(() => null);
+
+                if (!response.ok || !result?.ok) {
+                    const errors = Array.isArray(result?.errors)
+                        && result.errors.length
+                        ? result.errors
+                        : [{
+                            message:
+                                "登録できませんでした。入力内容は保持されています。"
+                        }];
+
+                    errors.forEach((error, index) => {
+                        showCommonError(
+                            String(error.message || "登録できませんでした。"),
+                            target.id,
+                            index === 0
+                        );
+                    });
+                    return;
+                }
+
+                if (
+                    result.master_kind !== kind
+                    || result.master?.name !== name
+                ) {
+                    showCommonError(
+                        "登録結果を確認できませんでした。",
+                        target.id
+                    );
+                    return;
+                }
+
+                if (!choices.some((choice) => choice.name === name)) {
+                    choices.push(result.master);
+                }
+            }
+
+            if (kind === "vehicle_type") {
+                document.querySelectorAll(
+                    'select[name="vehicle_type"],'
+                    + '#bulk-old-vehicle-type,'
+                    + '#bulk-new-vehicle-type'
+                ).forEach((select) => {
+                    if (
+                        !Array.from(select.options).some(
+                            (option) => option.value === name
+                        )
+                    ) {
+                        select.add(new Option(name, name));
+                    }
+                });
+            }
+
+            const currentGroup = collectUnresolvedImportMasters().find(
+                (group) => (
+                    group.kind === kind
+                    && group.value === sourceValue
+                )
+            );
+
+            currentGroup?.inputs.forEach((input) => {
+                input.value = name;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+
+            updateImportStatuses();
+            refreshImportMasterResolution();
+            return true;
+        } catch (error) {
+            showCommonError(
+                "登録結果を確認できませんでした。"
+                + "入力内容は保持されています。"
+                + "登録済みか確認してから再度操作してください。",
+                target.id
+            );
+        } finally {
+            masterRegistrationPending = false;
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+            button.textContent = originalText;
+        }
+    }
+
+    masterItems?.addEventListener("click", async (event) => {
+        if (masterBatchPending) {
+            return;
+        }
+
+        const button = event.target.closest(
+            '[data-master-action="apply"]'
+        );
+
+        if (button) {
+            const succeeded = await applyImportMaster(button);
+
+            if (
+                succeeded
+                && collectUnresolvedImportMasters().length === 0
+            ) {
+                showImportMasterCompletion();
+            }
+        }
+    });
+
+    masterApplyAll?.addEventListener("click", async () => {
+        if (masterBatchPending || masterRegistrationPending) {
+            return;
+        }
+
+        const keys = collectUnresolvedImportMasters().map(
+            (group) => group.key
+        );
+
+        if (!keys.length) {
+            return;
+        }
+
+        const originalText = masterApplyAll.textContent;
+        let completed = 0;
+
+        masterBatchPending = true;
+        masterApplyAll.disabled = true;
+        masterApplyAll.setAttribute("aria-busy", "true");
+        clearCommonErrors();
+
+        try {
+            for (const key of keys) {
+                masterApplyAll.textContent =
+                    `処理中（${completed}/${keys.length}）`;
+
+                const item = Array.from(
+                    masterItems.querySelectorAll("[data-master-kind]")
+                ).find((row) => JSON.stringify([
+                    row.dataset.masterKind,
+                    row.dataset.masterValue
+                ]) === key);
+
+                const button = item?.querySelector(
+                    '[data-master-action="apply"]'
+                );
+
+                if (!button) {
+                    continue;
+                }
+
+                const succeeded = await applyImportMaster(button);
+
+                if (!succeeded) {
+                    break;
+                }
+
+                completed += 1;
+            }
+        } finally {
+            masterBatchPending = false;
+            masterApplyAll.removeAttribute("aria-busy");
+            masterApplyAll.textContent = originalText;
+            masterApplyAll.disabled =
+                collectUnresolvedImportMasters().length === 0;
+        }
+
+        if (
+            completed === keys.length
+            && collectUnresolvedImportMasters().length === 0
+        ) {
+            showImportMasterCompletion();
+        }
+    });
+
+    importForm?.addEventListener("submit", (event) => {
+        const groups = collectUnresolvedImportMasters();
+
+        if (
+            !masterRegistrationPending
+            && !masterBatchPending
+            && !groups.length
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeImportConfirm();
+        clearCommonErrors();
+
+        if (masterRegistrationPending || masterBatchPending) {
+            showCommonError("マスタ登録の完了を待ってください。");
+            return;
+        }
+
+        refreshImportMasterResolution();
+
+        groups.forEach((group, index) => {
+            const label = group.kind === "office" ? "営業所" : "車種";
+            showCommonError(
+                `${label}「${group.value}」の確認が必要です。`
+                + `対象のExcel行：${group.rows.join("、")}。`
+                + "既存マスタへの割り当て、または新規登録を行ってください。",
+                "",
+                index === 0
+            );
+        });
+    }, true);
+
+    let masterResolutionRefreshTimer = null;
+
+    function scheduleImportMasterRefresh() {
+        window.clearTimeout(masterResolutionRefreshTimer);
+
+        masterResolutionRefreshTimer = window.setTimeout(() => {
+            if (!masterRegistrationPending) {
+                refreshImportMasterResolution();
+            }
+        }, 200);
+    }
+
+    importForm?.addEventListener("input", (event) => {
+        if (
+            event.target.matches(
+                '[name="office"], [name="vehicle_type"]'
+            )
+        ) {
+            scheduleImportMasterRefresh();
+        }
+    });
+
+    importForm?.addEventListener("change", (event) => {
+        if (
+            event.target.matches(
+                '[name="office"], [name="vehicle_type"]'
+            )
+        ) {
+            scheduleImportMasterRefresh();
+        }
+    });
+
+    document.addEventListener("click", (event) => {
+        if (event.target.closest(".js-bulk-replace")) {
+            scheduleImportMasterRefresh();
+        }
+    });
+
     toggleBulkVehicleTypeInputs();
     updateImportStatuses();
+    refreshImportMasterResolution();
 });

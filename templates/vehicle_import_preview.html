@@ -15,7 +15,99 @@
 </div>
 
 
-<div class="card">
+<section
+    id="vehicle-import-master-resolution"
+    class="card vehicle-import-preview-card"
+    data-register-url="{{ url_for('register_vehicle_import_master') }}"
+    aria-labelledby="vehicle-import-master-heading"
+    hidden
+>
+    <div class="vehicle-import-master-header">
+        <h3 id="vehicle-import-master-heading">
+            営業所・車種の確認
+        </h3>
+
+        <div class="vehicle-import-master-header-actions">
+            <p
+                id="vehicle-import-master-status"
+                class="help-text"
+                role="status"
+                aria-live="polite"
+            ></p>
+
+            <button
+                type="button"
+                id="vehicle-import-master-apply-all"
+                class="btn btn-outline"
+                disabled
+            >
+                まとめて登録・反映
+            </button>
+        </div>
+    </div>
+
+    <p class="help-text">
+        会社に未登録の名称です。登録済みの名称を選ぶか、新規登録してください。
+    </p>
+
+    <p class="help-text">
+        新規登録名はExcelの名称を初期入力しています。必要に応じて編集してください。
+        登録・反映後も、読み込んだExcelと車両の編集内容は保持されます。
+    </p>
+
+    <div
+        id="vehicle-import-master-complete"
+        class="vehicle-import-master-complete"
+        hidden
+    >
+        <p class="help-text" role="status" aria-live="polite">
+            ✓ 営業所・車種を反映しました。
+            続いて、車両の登録・更新内容を確認してください。
+        </p>
+
+        <button
+            type="button"
+            id="vehicle-import-master-toggle"
+            class="btn btn-outline"
+            aria-expanded="false"
+            aria-controls="vehicle-import-master-details"
+        >
+            反映内容を見る
+        </button>
+    </div>
+
+    <div
+        id="vehicle-import-master-details"
+        class="vehicle-import-master-table-scroll"
+    >
+        <table class="vehicle-import-master-table">
+            <thead>
+                <tr>
+                    <th scope="col">種類</th>
+                    <th scope="col">Excelの名称</th>
+                    <th scope="col">対象</th>
+                    <th scope="col">登録方法</th>
+                    <th scope="col">使用する名称</th>
+                    <th scope="col">操作</th>
+                </tr>
+            </thead>
+            <tbody id="vehicle-import-master-items"></tbody>
+        </table>
+    </div>
+
+</section>
+
+<script
+    id="vehicle-import-master-data"
+    type="application/json"
+>
+    {{ {
+        "offices": offices,
+        "vehicle_types": vehicle_types
+    } | tojson }}
+</script>
+
+<div class="card vehicle-import-preview-card">
 
     <h3>一括編集</h3>
 
@@ -126,9 +218,11 @@
 
 {% endfor %}
 
-<div class="card">
+<div class="card vehicle-import-preview-card">
 
-    <h3>取込対象車両</h3>
+    <h3 id="vehicle-import-target-heading" tabindex="-1">
+        取込対象車両
+    </h3>
 
 <p class="help-text">
     {{ vehicles|length }}台読み込みました。
@@ -507,6 +601,6 @@
 </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261007-1') }}"></script>
+<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261007-7') }}"></script>
 
 {% endblock %}

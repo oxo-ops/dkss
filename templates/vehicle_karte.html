@@ -4,66 +4,88 @@
 
 {% block content %}
 
-<div class="page-header">
-    <h2>車両カルテ</h2>
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
 
-    <div class="header-actions">
-        <a
-            href="{{ url_for('vehicle_master') }}"
-            class="btn btn-outline"
-        >
-            車両一覧へ戻る
-        </a>
+{% if vehicle is defined and vehicle %}
 
-        <a
-            href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
-            class="btn btn-outline"
-        >
-            履歴
-        </a>
+<div class="vehicle-karte-overview-row">
+    <section class="card vehicle-karte-mileage-panel">
+        <h3 class="result-info-title">走行距離の推移</h3>
 
-        <a
-            href="{{ url_for('edit_vehicle', index=vehicle.id) }}"
-            class="btn btn-outline"
-        >
-            車両情報を変更
-        </a>
+        {% if karte_mileage_points %}
+            <div class="vehicle-karte-mileage-chart">
+                <canvas
+                    id="vehicle_karte_mileage_chart"
+                    role="img"
+                    aria-label="日付ごとの累積走行距離の推移"
+                >
+                    走行距離の推移を表示します。
+                </canvas>
+            </div>
+
+            <script
+                type="application/json"
+                id="vehicle_karte_mileage_data"
+            >{{ karte_mileage_points | tojson }}</script>
+        {% else %}
+            <div class="vehicle-karte-chart-empty">
+                <p class="help-text">
+                    表示できる走行距離の記録がありません。
+                </p>
+            </div>
+        {% endif %}
+    </section>
+
+    <div class="card">
+        <h3 class="result-info-title">直近の整備履歴</h3>
+    <div class="vehicle-karte-chart-empty">
+        <p class="ui-empty-value">準備中</p>
     </div>
 </div>
 
-<div class="card result-info-card">
-    <h3 class="result-info-title">{{ vehicle_number }}</h3>
+</div>
 
-    <div class="result-info-grid">
-        <div class="result-info-item">
-            <span>車台番号</span>
-            <strong>{{ vehicle.chassis_number or "未登録" }}</strong>
+<div class="vehicle-karte-analysis-row">
+    <section class="card">
+        <h3 class="result-info-title">年間整備費の推移</h3>
+        <div class="vehicle-karte-analysis-empty">
+            <p class="ui-empty-value">準備中</p>
         </div>
+    </section>
 
-        <div class="result-info-item">
-            <span>営業所</span>
-            <strong>{{ vehicle.office or "未登録" }}</strong>
+    <section class="card">
+        <h3 class="result-info-title">整備費の内訳（累計）</h3>
+        <div class="vehicle-karte-analysis-empty">
+            <p class="ui-empty-value">準備中</p>
         </div>
+    </section>
 
-        <div class="result-info-item">
-            <span>車種</span>
-            <strong>{{ vehicle.type or "未登録" }}</strong>
+    <section class="card">
+        <h3 class="result-info-title">部品交換の回数（主な部品）</h3>
+        <div class="vehicle-karte-analysis-empty">
+            <p>部品交換記録との連携は未実装です。</p>
         </div>
+    </section>
+</div>
 
-        <div class="result-info-item">
-            <span>車検満了日</span>
-            <strong>{{ vehicle.inspection_expiry or "未登録" }}</strong>
+<div class="vehicle-karte-notes-row">
+    <section class="card">
+        <h3 class="result-info-title">車両メモ</h3>
+        <p class="vehicle-karte-section-description">
+            特記事項や車両に関するメモを管理します。
+        </p>
+        <div class="vehicle-karte-notes-empty">
+            <p>メモの保存・表示機能は未実装です。</p>
         </div>
+    </section>
 
-        <div class="result-info-item result-info-status">
-            <span>状態</span>
-            <strong>
-                <span class="status-badge">
-                    {{ "無効" if vehicle.deleted else "有効" }}
-                </span>
-            </strong>
+    <section class="card">
+        <h3 class="result-info-title">関連ファイル</h3>
+        <div class="vehicle-karte-notes-empty">
+            <p>車両に紐づく書類・写真の管理機能は未実装です。</p>
         </div>
-    </div>
+    </section>
 </div>
 
 <div class="card">
@@ -128,68 +150,6 @@
     {% endif %}
 </div>
 
-<div class="card">
-    <h3 class="result-info-title">最近登録された整備</h3>
-
-    <p class="help-text">
-        日常点検の不具合対応で登録された整備を、登録日時の新しい順に最大5件表示します。
-        状態は整備登録時点のものです。
-    </p>
-
-    {% if recent_repairs %}
-        <div class="table-scroll">
-            <table class="checklist-table responsive-table">
-                <thead>
-                    <tr>
-                        <th scope="col">整備実施日時</th>
-                        <th scope="col">項目</th>
-                        <th scope="col">整備内容</th>
-                        <th scope="col">実施者</th>
-                        <th scope="col">登録時の状態</th>
-                        <th scope="col">登録日時</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {% for repair in recent_repairs %}
-                        <tr>
-                            <td data-label="整備実施日時">
-                                {{ repair.get("performed_at") or "未登録" }}
-                            </td>
-
-                            <td data-label="項目">
-                                {{ repair.get("item_name") or "項目名未登録" }}
-                            </td>
-
-                            <td data-label="整備内容">
-                                {{ repair.get("note") or "未登録" }}
-                            </td>
-
-                            <td data-label="実施者">
-                                {{ repair.get("performed_by") or "未登録" }}
-                            </td>
-
-                            <td data-label="登録時の状態">
-                                <span class="status-badge">
-                                    {{ repair.get("status") or "未登録" }}
-                                </span>
-                            </td>
-
-                            <td data-label="登録日時">
-                                {{ repair.get("recorded_at") or "未登録" }}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="help-text">
-            日常点検の不具合対応に整備の登録履歴はありません。
-        </p>
-    {% endif %}
-</div>
-
 <div class="card result-info-card">
     <h3 class="result-info-title">登録情報</h3>
 
@@ -219,5 +179,12 @@
         {% endfor %}
     </div>
 </div>
+
+{% endif %}
+
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_mileage.js', v='20261007-1') }}"
+    defer
+></script>
 
 {% endblock %}

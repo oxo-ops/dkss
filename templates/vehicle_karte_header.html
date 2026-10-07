@@ -1,0 +1,225 @@
+{% if karte_usage_vehicles %}
+<div class="vehicle-karte-usage">
+    <h3 class="vehicle-karte-usage-heading">使用車両</h3>
+
+    <div class="vehicle-karte-usage-cards">
+        {% for usage_vehicle in karte_usage_vehicles %}
+            {% set usage_icon = (
+                usage_vehicle.type or ""
+            ) | vehicle_icon(usage_vehicle.body_type or "") %}
+
+            {% set usage_is_selected = (
+                vehicle is defined and vehicle
+                and vehicle.id == usage_vehicle.id
+            ) %}
+
+            <a
+                href="{{ url_for('vehicle_karte', vehicle_record_id=usage_vehicle.id) }}"
+                class="btn btn-outline vehicle-karte-usage-card{% if usage_is_selected %} is-selected{% endif %}"
+                {% if usage_is_selected %}
+                    aria-current="true"
+                {% endif %}
+            >
+                <img
+                    src="{{ url_for('static', filename='icons/' ~ usage_icon) }}"
+                    alt=""
+                    width="40"
+                    height="40"
+                >
+
+                <span class="vehicle-karte-usage-card-info">
+                    <strong>
+                        {{ usage_vehicle.plate_area or "" }}
+                        {{ usage_vehicle.plate_class or "" }}
+                        {{ usage_vehicle.plate_kana or "" }}
+                        {{ usage_vehicle.plate_number or "" }}
+                    </strong>
+                    <span>
+                        {{ usage_vehicle.type or "車種未登録" }}
+                    </span>
+                </span>
+
+                {% if usage_is_selected %}
+                    <span class="vehicle-karte-usage-current">
+                        表示中
+                    </span>
+                {% endif %}
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261007-3') }}"
+    defer
+></script>
+
+{% if vehicle is defined and vehicle %}
+
+<div class="vehicle-karte-toolbar">
+    <nav class="vehicle-karte-breadcrumb" aria-label="現在の位置">
+        <span aria-current="page">車両カルテ</span>
+    </nav>
+
+    {% if session.get("role") in ["admin", "itc"] %}
+    <div class="vehicle-karte-actions">
+    <a
+        href="{{ url_for('vehicle_operation_import') }}"
+        class="btn btn-outline"
+    >
+        運行実績取込
+    </a>
+        <a
+            href="{{ url_for('vehicle_master') }}"
+            class="btn btn-outline"
+        >
+            車両一覧
+        </a>
+
+        <a
+            href="{{ url_for('edit_vehicle', index=vehicle.id) }}"
+            class="btn btn-outline"
+        >
+            編集
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="vehicle-karte-header">
+    <div class="vehicle-karte-photo-area">
+        {% set vehicle_icon = (
+            vehicle.type or ""
+        ) | vehicle_icon(vehicle.body_type or "") %}
+
+        <div class="vehicle-karte-photo-empty">
+            <img
+                src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                alt="{{ vehicle.type or '車両' }}の車種アイコン"
+                class="vehicle-karte-type-image"
+            >
+        </div>
+    </div>
+
+    <div class="vehicle-karte-basic-info">
+        <div class="vehicle-karte-number-row">
+            <h2>{{ vehicle_number }}</h2>
+            <span class="status-badge">
+                {{ "無効" if vehicle.deleted else "有効" }}
+            </span>
+        </div>
+
+        <p class="vehicle-karte-model">
+            {{ vehicle.manufacturer or "メーカー・車名未登録" }}
+            {% if vehicle.model_code %}
+                （{{ vehicle.model_code }}）
+            {% endif %}
+        </p>
+
+        <dl class="vehicle-karte-basic-grid">
+            <div>
+                <dt>車台番号</dt>
+                <dd>{{ vehicle.chassis_number or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>形状</dt>
+                <dd>{{ vehicle.body_type or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>メーカー・車名</dt>
+                <dd>{{ vehicle.manufacturer or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>車種</dt>
+                <dd>{{ vehicle.type or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>型式</dt>
+                <dd>{{ vehicle.model_code or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>所属営業所</dt>
+                <dd>{{ vehicle.office or "未登録" }}</dd>
+            </div>
+            <div>
+                <dt>初年度登録</dt>
+                <dd>{{ vehicle.first_registration_date or "未登録" }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    <div class="vehicle-karte-summary">
+        <div class="vehicle-karte-metrics">
+            <div class="vehicle-karte-metric">
+                <span>現在走行距離</span>
+                {% set operation_summary = karte_operation_summary | default({}) %}
+                {% if operation_summary.get("current_mileage") is not none %}
+                    <strong title="{{ operation_summary.get('mileage_date') or '' }}">
+                        {{ "{:,.2f}".format(operation_summary.get("current_mileage")) }} km
+                    </strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
+            </div>
+
+            <div class="vehicle-karte-metric">
+                <span>前回整備時走行距離</span>
+                <span class="ui-empty-value">—</span>
+            </div>
+
+            <div class="vehicle-karte-metric">
+                <span>前回整備からの走行距離</span>
+                <span class="ui-empty-value">—</span>
+            </div>
+
+            <div class="vehicle-karte-metric">
+                <span>累計整備費</span>
+                <span class="ui-empty-value">—</span>
+            </div>
+        </div>
+
+        <div class="vehicle-karte-deadlines">
+            <div class="vehicle-karte-deadline">
+                <span>車検満了日</span>
+                {% if vehicle.inspection_expiry %}
+                    <strong>{{ vehicle.inspection_expiry }}</strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
+            </div>
+
+            <div class="vehicle-karte-deadline">
+                <span>次回3か月点検</span>
+                <span class="ui-empty-value">—</span>
+            </div>
+
+            <div class="vehicle-karte-deadline">
+                <span>次回12か月点検</span>
+                <span class="ui-empty-value">—</span>
+            </div>
+
+            <div class="vehicle-karte-deadline vehicle-karte-defect-count">
+                <span>未対応不具合</span>
+                {% if open_defects is defined %}
+                    <strong>{{ open_defects | length }}件</strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+
+<div class="vehicle-karte-basic-info">
+    <div class="vehicle-karte-number-row">
+        <h2>車両カルテ</h2>
+    </div>
+    <p class="vehicle-karte-model">
+        上部の車両選択欄から、表示する車両を選択してください。
+    </p>
+</div>
+
+{% endif %}
