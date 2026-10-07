@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}車両の変更内容確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>車両の変更内容確認</h2>
+</div>
+
+<div class="card">
+    <p class="help-text">
+        変更前・変更後の内容を確認し、
+        問題がなければ「この内容で更新」を押してください。
+    </p>
+
+    {% set fields = [
+        ("plate_area", "地域名"),
+        ("plate_class", "分類番号"),
+        ("plate_kana", "ひらがな"),
+        ("plate_number", "一連指定番号"),
+        ("chassis_number", "車台番号"),
+        ("model_code", "型式"),
+        ("first_registration_date", "初年度登録"),
+        ("manufacturer", "メーカー・車名"),
+        ("body_type", "形状"),
+        ("gross_vehicle_weight", "車両総重量（kg）"),
+        ("max_payload", "最大積載量（kg）"),
+        ("type", "車種"),
+        ("office", "営業所"),
+        ("inspection_expiry", "車検満了日"),
+    ] %}
+
+    <div class="table-scroll">
+        <table class="checklist-table responsive-table">
+            <thead>
+                <tr>
+                    <th scope="col">項目</th>
+                    <th scope="col">変更前</th>
+                    <th scope="col">変更後</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field_key, field_label in fields %}
+                    {% set old_value = previous_vehicle.get(field_key) %}
+                    {% set new_value = vehicle.get(field_key) %}
+                    {% set old_text = old_value | string if old_value is not none else "" %}
+                    {% set new_text = new_value | string if new_value is not none else "" %}
+
+                    <tr>
+                        <th scope="row">{{ field_label }}</th>
+                        <td data-label="変更前">
+                            {{ old_text if old_text != "" else "未入力" }}
+                        </td>
+                        <td data-label="変更後">
+                            {% if old_text != new_text %}
+                                <strong>
+                                    {{ new_text if new_text != "" else "未入力" }}
+                                </strong>
+                                <span class="status-badge">変更</span>
+                            {% else %}
+                                {{ new_text if new_text != "" else "未入力" }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form
+        method="post"
+        action="{{ url_for('edit_vehicle', index=index) }}"
+        class="responsive-form"
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        {% for field_key, field_label in fields %}
+            <input
+                type="hidden"
+                name="{{ field_key }}"
+                value="{{ vehicle.get(field_key, '') if vehicle.get(field_key) is not none else '' }}"
+            >
+        {% endfor %}
+
+        <div class="form-actions">
+            <button
+                type="submit"
+                name="vehicle_form_action"
+                value="back"
+                class="btn btn-outline"
+            >
+                入力内容を修正
+            </button>
+
+            <button
+                type="submit"
+                name="vehicle_form_action"
+                value="save"
+                class="btn"
+            >
+                この内容で更新
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

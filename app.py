@@ -16754,10 +16754,169 @@ def confirm_vehicle_import():
         duplicate_skip_count=duplicate_skip_count,
     )
 
+def apply_vehicle_form_values(
+    vehicle,
+    form_data,
+    validated_values
+):
+    for field_key in [
+        "plate_area",
+        "plate_class",
+        "plate_kana",
+        "plate_number",
+        "model_code",
+        "manufacturer",
+        "body_type",
+    ]:
+        setattr(
+            vehicle,
+            field_key,
+            form_data.get(field_key)
+        )
+
+    for field_key in [
+        "chassis_number",
+        "first_registration_date",
+        "inspection_expiry",
+        "gross_vehicle_weight",
+        "max_payload",
+        "type",
+        "office",
+    ]:
+        setattr(
+            vehicle,
+            field_key,
+            validated_values[field_key]
+        )
+
+
+def validate_vehicle_master_values(
+    vehicle_type,
+    office,
+    company_code
+):
+    errors = []
+
+    for value, model, field_name, field_key in [
+        (vehicle_type, VehicleType, "車種", "type"),
+        (office, Office, "営業所", "office"),
+    ]:
+        if value:
+            valid_value = model.query.filter_by(
+                company_code=company_code,
+                name=value
+            ).first()
+
+            if not valid_value:
+                errors.append((
+                    f"{field_name}が不正です。",
+                    field_key
+                ))
+
+    return errors
+
+
+def parse_vehicle_weights(form_data):
+    values = {
+        "gross_vehicle_weight": 0,
+        "max_payload": 0,
+    }
+    errors = []
+
+    for field_key, field_name in [
+        ("gross_vehicle_weight", "車両総重量"),
+        ("max_payload", "最大積載量"),
+    ]:
+        try:
+            values[field_key] = parse_nonnegative_int(
+                form_data.get(field_key),
+                field_name
+            )
+        except UploadValidationError:
+            errors.append((
+                f"{field_name}の入力内容を確認してください。",
+                field_key
+            ))
+
+    return values, errors
+
+
+def validate_vehicle_dates(
+    first_registration_date,
+    inspection_expiry
+):
+    errors = []
+
+    for value, field_name, field_key in [
+        (
+            first_registration_date,
+            "初年度登録日",
+            "first_registration_date"
+        ),
+        (
+            inspection_expiry,
+            "車検満了日",
+            "inspection_expiry"
+        ),
+    ]:
+        if value:
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+            except ValueError:
+                errors.append((
+                    f"{field_name}が不正です。",
+                    field_key
+                ))
+
+    return errors
+
+def validate_vehicle_text_fields(form_data):
+    field_settings = [
+        ("plate_area", "車番・地域名", 50),
+        ("plate_class", "車番・分類", 50),
+        ("plate_kana", "車番・ひらがな", 10),
+        ("plate_number", "車番", 50),
+        ("chassis_number", "車台番号", 100),
+        ("model_code", "車体型式", 100),
+        ("manufacturer", "車両メーカー", 100),
+        ("body_type", "車両形状", 100),
+    ]
+
+    errors = []
+
+    for field_key, field_name, max_length in field_settings:
+        value = form_data.get(field_key, "").strip()
+
+        if len(value) > max_length:
+            errors.append((
+                f"{field_name}は"
+                f"{max_length}文字以内で入力してください。",
+                field_key
+            ))
+
+    return errors
+
+
+@app.route("/master/vehicles/register")
+def vehicle_registration_method():
+    return render_template(
+        "vehicle_registration_method.html"
+    )
+
+
 @app.route("/master/vehicles/new", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
 def new_vehicle():
     if request.method == "POST":
+        if request.form.get("vehicle_form_action") == "back":
+            return render_template(
+                "vehicle_form.html",
+                vehicle=request.form.to_dict(flat=True),
+                offices=offices_for_current_company(),
+                vehicle_types=vehicle_types_for_current_company(),
+                mode="new"
+            )
+
         form_errors = []
 
         company_code = session.get("company_code")
@@ -16773,7 +16932,9 @@ def new_vehicle():
 
         if company:
             if vehicle_count >= company.vehicle_limit:
-                return "登録可能台数の上限に達しています。", 409
+                return return_form_errors([
+                    ("登録可能台数の上限に達しています。", "")
+                ], 409)
 
         first_registration_date = (
             request.form.get(
@@ -16789,31 +16950,13 @@ def new_vehicle():
             ).strip()
         )
 
-        for value, field_name in [
-            (
+        form_errors.extend(
+            validate_vehicle_dates(
                 first_registration_date,
-                "初年度登録日"
-            ),
-            (
-                inspection_expiry,
-                "車検満了日"
+                inspection_expiry
             )
-        ]:
-            if value:
-                try:
-                    datetime.strptime(
-                        value,
-                        "%Y-%m-%d"
-                    )
-                except ValueError:
-                    form_errors.append((
-                        f"{field_name}が不正です。",
-                        (
-                            "first_registration_date"
-                            if field_name == "初年度登録日"
-                            else "inspection_expiry"
-                        )
-                    ))
+        )
+
         vehicle_type = (
             request.form.get("type", "").strip()
         )
@@ -16838,118 +16981,53 @@ def new_vehicle():
 
         if duplicate_vehicle:
             if not duplicate_vehicle.deleted:
-                return "同じ車台番号の車両が既に登録されています。", 409
+                return return_form_errors([
+                    (
+                        "同じ車台番号の車両が既に登録されています。",
+                        "chassis_number"
+                    )
+                ], 409)
 
-        text_fields = [
-            (
-                request.form.get("plate_area", "").strip(),
-                "車番・地域名",
-                50
-            ),
-            (
-                request.form.get("plate_class", "").strip(),
-                "車番・分類",
-                50
-            ),
-            (
-                request.form.get("plate_kana", "").strip(),
-                "車番・ひらがな",
-                10
-            ),
-            (
-                request.form.get("plate_number", "").strip(),
-                "車番",
-                50
-            ),
-            (
-                request.form.get("chassis_number", "").strip(),
-                "車台番号",
-                100
-            ),
-            (
-                request.form.get("model_code", "").strip(),
-                "車体型式",
-                100
-            ),
-            (
-                request.form.get("manufacturer", "").strip(),
-                "車両メーカー",
-                100
-            ),
-            (
-                request.form.get("body_type", "").strip(),
-                "車両形状",
-                100
-            ),
-        ]
+        form_errors.extend(
+            validate_vehicle_text_fields(request.form)
+        )
 
-        for value, field_name, max_length in text_fields:
-            if len(value) > max_length:
-                form_errors.append((
-                    f"{field_name}は"
-                    f"{max_length}文字以内で入力してください。",
-                    {
-                        "車番・地域名": "plate_area",
-                        "車番・分類": "plate_class",
-                        "車番・ひらがな": "plate_kana",
-                        "車番": "plate_number",
-                        "車台番号": "chassis_number",
-                        "車体型式": "model_code",
-                        "車両メーカー": "manufacturer",
-                        "車両形状": "body_type"
-                    }.get(field_name, "")
-                ))
-
-        if vehicle_type:
-            valid_vehicle_type = VehicleType.query.filter_by(
-                company_code=company_code,
-                name=vehicle_type
-            ).first()
-
-            if not valid_vehicle_type:
-                form_errors.append((
-                    "車種が不正です。",
-                    "type"
-                ))
-
-        if office:
-            valid_office = Office.query.filter_by(
-                company_code=company_code,
-                name=office
-            ).first()
-
-            if not valid_office:
-                form_errors.append((
-                    "営業所が不正です。",
-                    "office"
-                ))
-        gross_vehicle_weight = 0
-        max_payload = 0
-
-        try:
-            gross_vehicle_weight = parse_nonnegative_int(
-                request.form.get("gross_vehicle_weight"),
-                "車両総重量"
+        form_errors.extend(
+            validate_vehicle_master_values(
+                vehicle_type,
+                office,
+                company_code
             )
-        except UploadValidationError:
-            form_errors.append((
-                "車両総重量の入力内容を確認してください。",
-                "gross_vehicle_weight"
-            ))
+        )
+        weight_values, weight_errors = parse_vehicle_weights(
+            request.form
+        )
+        form_errors.extend(weight_errors)
 
-        try:
-            max_payload = parse_nonnegative_int(
-                request.form.get("max_payload"),
-                "最大積載量"
-            )
-        except UploadValidationError:
-            form_errors.append((
-                "最大積載量の入力内容を確認してください。",
-                "max_payload"
-            ))
+        gross_vehicle_weight = weight_values["gross_vehicle_weight"]
+        max_payload = weight_values["max_payload"]
 
         if form_errors:
             return return_form_errors(form_errors)
+
+        if request.form.get("vehicle_form_action") != "save":
+            confirmation_values = request.form.to_dict(
+                flat=True
+            )
+            confirmation_values.update({
+                "chassis_number": chassis_number,
+                "first_registration_date": first_registration_date,
+                "inspection_expiry": inspection_expiry,
+                "gross_vehicle_weight": gross_vehicle_weight,
+                "max_payload": max_payload,
+                "type": vehicle_type,
+                "office": office,
+            })
+
+            return render_template(
+                "vehicle_registration_confirm.html",
+                vehicle=confirmation_values
+            )
 
         vehicle = duplicate_vehicle or Vehicle(
             company_code=company_code,
@@ -16957,23 +17035,19 @@ def new_vehicle():
         )
 
         vehicle.deleted = False
-        vehicle.plate_area = request.form.get("plate_area")
-        vehicle.plate_class = request.form.get("plate_class")
-        vehicle.plate_kana = request.form.get("plate_kana")
-        vehicle.plate_number = request.form.get("plate_number")
-
-        vehicle.chassis_number = chassis_number
-        vehicle.model_code = request.form.get("model_code")
-        vehicle.first_registration_date = first_registration_date
-        vehicle.manufacturer = request.form.get("manufacturer")
-        vehicle.body_type = request.form.get("body_type")
-
-        vehicle.gross_vehicle_weight = gross_vehicle_weight
-        vehicle.max_payload = max_payload
-
-        vehicle.type = vehicle_type
-        vehicle.office = office
-        vehicle.inspection_expiry = inspection_expiry
+        apply_vehicle_form_values(
+            vehicle,
+            request.form,
+            {
+                "chassis_number": chassis_number,
+                "first_registration_date": first_registration_date,
+                "inspection_expiry": inspection_expiry,
+                "gross_vehicle_weight": gross_vehicle_weight,
+                "max_payload": max_payload,
+                "type": vehicle_type,
+                "office": office,
+            }
+        )
 
         if not duplicate_vehicle:
             db.session.add(vehicle)
@@ -17005,6 +17079,19 @@ def edit_vehicle(index):
         return redirect("/master/vehicles")
 
     if request.method == "POST":
+        if request.form.get("vehicle_form_action") == "back":
+            form_values = request.form.to_dict(flat=True)
+            form_values["vehicle_record_id"] = vehicle.id
+
+            return render_template(
+                "vehicle_form.html",
+                vehicle=form_values,
+                index=vehicle.id,
+                offices=offices_for_current_company(),
+                vehicle_types=vehicle_types_for_current_company(),
+                mode="edit"
+            )
+
         form_errors = []
 
         chassis_number = (
@@ -17024,7 +17111,12 @@ def edit_vehicle(index):
         ).first()
 
         if duplicate_vehicle:
-            return "同じ車台番号の車両が既に登録されています。", 409
+            return return_form_errors([
+                (
+                    "同じ車台番号の車両が既に登録されています。",
+                    "chassis_number"
+                )
+            ], 409)
 
         first_registration_date = (
             request.form.get(
@@ -17040,31 +17132,12 @@ def edit_vehicle(index):
             ).strip()
         )
 
-        for value, field_name in [
-            (
+        form_errors.extend(
+            validate_vehicle_dates(
                 first_registration_date,
-                "初年度登録日"
-            ),
-            (
-                inspection_expiry,
-                "車検満了日"
+                inspection_expiry
             )
-        ]:
-            if value:
-                try:
-                    datetime.strptime(
-                        value,
-                        "%Y-%m-%d"
-                    )
-                except ValueError:
-                    form_errors.append((
-                        f"{field_name}が不正です。",
-                        (
-                            "first_registration_date"
-                            if field_name == "初年度登録日"
-                            else "inspection_expiry"
-                        )
-                    ))
+        )
 
         vehicle_type = (
             request.form.get("type", "").strip()
@@ -17074,134 +17147,83 @@ def edit_vehicle(index):
             request.form.get("office", "").strip()
         )
 
-        text_fields = [
-            (
-                request.form.get("plate_area", "").strip(),
-                "車番・地域名",
-                50
-            ),
-            (
-                request.form.get("plate_class", "").strip(),
-                "車番・分類",
-                50
-            ),
-            (
-                request.form.get("plate_kana", "").strip(),
-                "車番・ひらがな",
-                10
-            ),
-            (
-                request.form.get("plate_number", "").strip(),
-                "車番",
-                50
-            ),
-            (
-                request.form.get("chassis_number", "").strip(),
-                "車台番号",
-                100
-            ),
-            (
-                request.form.get("model_code", "").strip(),
-                "車体型式",
-                100
-            ),
-            (
-                request.form.get("manufacturer", "").strip(),
-                "車両メーカー",
-                100
-            ),
-            (
-                request.form.get("body_type", "").strip(),
-                "車両形状",
-                100
-            ),
-        ]
+        form_errors.extend(
+            validate_vehicle_text_fields(request.form)
+        )
 
-        for value, field_name, max_length in text_fields:
-            if len(value) > max_length:
-                form_errors.append((
-                    f"{field_name}は"
-                    f"{max_length}文字以内で入力してください。",
-                    {
-                        "車番・地域名": "plate_area",
-                        "車番・分類": "plate_class",
-                        "車番・ひらがな": "plate_kana",
-                        "車番": "plate_number",
-                        "車台番号": "chassis_number",
-                        "車体型式": "model_code",
-                        "車両メーカー": "manufacturer",
-                        "車両形状": "body_type"
-                    }.get(field_name, "")
-                ))
 
-        if vehicle_type:
-            valid_vehicle_type = VehicleType.query.filter_by(
-                company_code=vehicle.company_code,
-                name=vehicle_type
-            ).first()
-
-            if not valid_vehicle_type:
-                form_errors.append((
-                    "車種が不正です。",
-                    "type"
-                ))
-
-        if office:
-            valid_office = Office.query.filter_by(
-                company_code=vehicle.company_code,
-                name=office
-            ).first()
-
-            if not valid_office:
-                form_errors.append((
-                    "営業所が不正です。",
-                    "office"
-                ))
-        gross_vehicle_weight = 0
-        max_payload = 0
-
-        try:
-            gross_vehicle_weight = parse_nonnegative_int(
-                request.form.get("gross_vehicle_weight"),
-                "車両総重量"
+        form_errors.extend(
+            validate_vehicle_master_values(
+                vehicle_type,
+                office,
+                vehicle.company_code
             )
-        except UploadValidationError:
-            form_errors.append((
-                "車両総重量の入力内容を確認してください。",
-                "gross_vehicle_weight"
-            ))
+        )
+        weight_values, weight_errors = parse_vehicle_weights(
+            request.form
+        )
+        form_errors.extend(weight_errors)
 
-        try:
-            max_payload = parse_nonnegative_int(
-                request.form.get("max_payload"),
-                "最大積載量"
-            )
-        except UploadValidationError:
-            form_errors.append((
-                "最大積載量の入力内容を確認してください。",
-                "max_payload"
-            ))
+        gross_vehicle_weight = weight_values["gross_vehicle_weight"]
+        max_payload = weight_values["max_payload"]
 
         if form_errors:
             return return_form_errors(form_errors)
 
-        vehicle.plate_area = request.form.get("plate_area")
-        vehicle.plate_class = request.form.get("plate_class")
-        vehicle.plate_kana = request.form.get("plate_kana")
-        vehicle.plate_number = request.form.get("plate_number")
+        if request.form.get("vehicle_form_action") != "save":
+            confirmation_values = request.form.to_dict(
+                flat=True
+            )
+            confirmation_values.update({
+                "chassis_number": chassis_number,
+                "first_registration_date": first_registration_date,
+                "inspection_expiry": inspection_expiry,
+                "gross_vehicle_weight": gross_vehicle_weight,
+                "max_payload": max_payload,
+                "type": vehicle_type,
+                "office": office,
+            })
 
-        vehicle.chassis_number = chassis_number
-        vehicle.model_code = request.form.get("model_code")
-        vehicle.first_registration_date = first_registration_date
-        vehicle.manufacturer = request.form.get("manufacturer")
-        vehicle.body_type = request.form.get("body_type")
+            previous_values = {
+                field_key: getattr(vehicle, field_key)
+                for field_key in [
+                    "plate_area",
+                    "plate_class",
+                    "plate_kana",
+                    "plate_number",
+                    "chassis_number",
+                    "model_code",
+                    "first_registration_date",
+                    "manufacturer",
+                    "body_type",
+                    "gross_vehicle_weight",
+                    "max_payload",
+                    "type",
+                    "office",
+                    "inspection_expiry",
+                ]
+            }
 
-        vehicle.gross_vehicle_weight = gross_vehicle_weight
-        vehicle.max_payload = max_payload
+            return render_template(
+                "vehicle_edit_confirm.html",
+                vehicle=confirmation_values,
+                previous_vehicle=previous_values,
+                index=vehicle.id
+            )
 
-        vehicle.type = vehicle_type
-        vehicle.office = office
-        vehicle.inspection_expiry = inspection_expiry
+        apply_vehicle_form_values(
+            vehicle,
+            request.form,
+            {
+                "chassis_number": chassis_number,
+                "first_registration_date": first_registration_date,
+                "inspection_expiry": inspection_expiry,
+                "gross_vehicle_weight": gross_vehicle_weight,
+                "max_payload": max_payload,
+                "type": vehicle_type,
+                "office": office,
+            }
+        )
 
         db.session.commit()
 
