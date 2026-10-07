@@ -15400,10 +15400,22 @@ def vehicle_karte(vehicle_record_id):
         "plate_number": vehicle.plate_number or ""
     })
 
+    open_defects = get_vehicle_open_inspection_defects(
+        vehicle.company_code,
+        vehicle.id
+    )
+
+    recent_repairs = get_vehicle_recent_inspection_repairs(
+        vehicle.company_code,
+        vehicle.id
+    )
+
     return render_template(
         "vehicle_karte.html",
         vehicle=vehicle,
-        vehicle_number=number
+        vehicle_number=number,
+        open_defects=open_defects,
+        recent_repairs=recent_repairs
     )
 
 
@@ -24497,6 +24509,52 @@ def get_vehicle_open_inspection_defects(company_code, vehicle_record_id):
             })
 
     return open_defects
+
+
+def get_vehicle_recent_inspection_repairs(company_code, vehicle_record_id):
+    events = (
+        ChecklistEvent.query
+        .join(
+            VehicleChecklistResult,
+            ChecklistEvent.result_id == VehicleChecklistResult.id
+        )
+        .filter(
+            ChecklistEvent.company_code == company_code,
+            ChecklistEvent.result_type == "vehicle",
+            ChecklistEvent.event_type.in_(["整備中", "再確認待ち"]),
+            VehicleChecklistResult.company_code == company_code,
+            VehicleChecklistResult.vehicle_record_id == vehicle_record_id
+        )
+        .order_by(
+            ChecklistEvent.created_at.desc(),
+            ChecklistEvent.id.desc()
+        )
+        .limit(5)
+        .all()
+    )
+
+    repairs = []
+
+    for event in events:
+        detail = safe_json_dict(event.detail_json)
+        repair = detail.get("repair") or {}
+
+        if not repair:
+            continue
+
+        defect = detail.get("defect") or {}
+        answer = defect.get("reported_answer") or {}
+
+        repairs.append({
+            "item_name": answer.get("content") or "",
+            "note": repair.get("note") or "",
+            "performed_by": repair.get("performed_by") or "",
+            "performed_at": repair.get("performed_at") or "",
+            "recorded_at": event.created_at,
+            "status": repair.get("status") or "",
+        })
+
+    return repairs
 
 
 def invalidate_other_vehicle_operation_judgments(result_record):

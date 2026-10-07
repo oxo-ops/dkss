@@ -59,6 +59,130 @@
     </div>
 </div>
 
+<div class="card">
+    <h3 class="result-info-title">
+        未解消の不具合（{{ open_defects | length }}件）
+    </h3>
+
+    {% if open_defects %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">点検日</th>
+                        <th scope="col">項目</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">コメント</th>
+                        <th scope="col">点検記録</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for entry in open_defects %}
+                        {% set defect = entry.get("defect") or {} %}
+                        {% set answer = defect.get("reported_answer") or {} %}
+
+                        <tr>
+                            <td data-label="点検日">
+                                {{ entry.get("inspection_date") or "未登録" }}
+                            </td>
+
+                            <td data-label="項目">
+                                {{ answer.get("content") or "項目名未登録" }}
+                            </td>
+
+                            <td data-label="状態">
+                                <span class="status-badge">
+                                    {{ defect.get("status") or "対応待ち" }}
+                                </span>
+                            </td>
+
+                            <td data-label="コメント">
+                                {{ answer.get("comment") or "なし" }}
+                            </td>
+
+                            <td data-label="点検記録">
+                                <a
+                                    href="{{ entry.get('link') }}"
+                                    class="btn btn-outline btn-small"
+                                >
+                                    点検記録を開く
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="help-text">
+            日常点検に記録された未解消の不具合はありません。
+        </p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 class="result-info-title">最近登録された整備</h3>
+
+    <p class="help-text">
+        日常点検の不具合対応で登録された整備を、登録日時の新しい順に最大5件表示します。
+        状態は整備登録時点のものです。
+    </p>
+
+    {% if recent_repairs %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">整備実施日時</th>
+                        <th scope="col">項目</th>
+                        <th scope="col">整備内容</th>
+                        <th scope="col">実施者</th>
+                        <th scope="col">登録時の状態</th>
+                        <th scope="col">登録日時</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for repair in recent_repairs %}
+                        <tr>
+                            <td data-label="整備実施日時">
+                                {{ repair.get("performed_at") or "未登録" }}
+                            </td>
+
+                            <td data-label="項目">
+                                {{ repair.get("item_name") or "項目名未登録" }}
+                            </td>
+
+                            <td data-label="整備内容">
+                                {{ repair.get("note") or "未登録" }}
+                            </td>
+
+                            <td data-label="実施者">
+                                {{ repair.get("performed_by") or "未登録" }}
+                            </td>
+
+                            <td data-label="登録時の状態">
+                                <span class="status-badge">
+                                    {{ repair.get("status") or "未登録" }}
+                                </span>
+                            </td>
+
+                            <td data-label="登録日時">
+                                {{ repair.get("recorded_at") or "未登録" }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="help-text">
+            日常点検の不具合対応に整備の登録履歴はありません。
+        </p>
+    {% endif %}
+</div>
+
 <div class="card result-info-card">
     <h3 class="result-info-title">登録情報</h3>
 
