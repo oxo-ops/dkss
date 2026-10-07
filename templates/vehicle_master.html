@@ -244,6 +244,13 @@
         <td class="action-cell vehicle-action-cell">
             <div class="action-buttons vehicle-action-buttons">
                 <a
+                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                    class="btn btn-outline btn-small"
+                >
+                    カルテ
+                </a>
+
+                <a
                     href="/master/vehicles/{{ vehicle.index }}/edit"
                     class="btn-small btn-edit"
                 >
@@ -385,6 +392,13 @@
             </div>
 
             <div class="mobile-card-actions">
+                <a
+                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                    class="btn btn-outline btn-small"
+                >
+                    カルテ
+                </a>
+
                 <a
                     href="/master/vehicles/{{ vehicle.index }}/edit"
                     class="btn-small btn-edit"
