@@ -513,6 +513,118 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
 
+    const importForm =
+        document.getElementById("vehicle-import-form");
+
+    let importSubmitting = false;
+
+    importForm?.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        if (importSubmitting) {
+            return;
+        }
+
+        importSubmitting = true;
+        clearCommonErrors();
+
+        const submitButton = event.submitter;
+        const originalText = submitButton?.textContent;
+
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.setAttribute("aria-busy", "true");
+            submitButton.textContent = "処理中...";
+        }
+
+        try {
+            const response = await fetch(importForm.action, {
+                method: "POST",
+                body: new FormData(importForm),
+                headers: {
+                    "Accept": "application/json",
+                    "X-DKSS-Final-Submit": "1"
+                }
+            });
+
+            if (response.redirected) {
+                window.location.assign(response.url);
+                return;
+            }
+
+            if (!response.ok) {
+                closeImportConfirm();
+
+                const data = await response.json().catch(() => null);
+
+                if (Array.isArray(data?.errors) && data.errors.length) {
+                    data.errors.forEach(function (error, index) {
+                        const message = String(
+                            error.message || "入力内容を確認してください。"
+                        );
+
+                        const rowMatch =
+                            message.match(/^(\d+)(?:行目|件目)/);
+
+                        const row = rowMatch
+                            ? importForm.querySelectorAll(".import-row")[
+                                Number(rowMatch[1]) - 1
+                            ]
+                            : null;
+
+                        const target = row && error.field
+                            ? Array.from(
+                                row.querySelectorAll("input, select")
+                            ).find(function (input) {
+                                return (
+                                    input.name === error.field
+                                    && input.type !== "hidden"
+                                );
+                            })
+                            : null;
+
+                        if (target && !target.id) {
+                            target.id =
+                                `vehicle-import-${rowMatch[1]}-${error.field}`;
+                        }
+
+                        showCommonError(
+                            message,
+                            target?.id || "",
+                            index === 0
+                        );
+                    });
+                } else {
+                    showCommonError(
+                        "取込を完了できませんでした。入力内容を確認してください。"
+                    );
+                }
+
+                return;
+            }
+
+            const html = await response.text();
+
+            document.open();
+            document.write(html);
+            document.close();
+        } catch (error) {
+            closeImportConfirm();
+
+            showCommonError(
+                "取込結果を確認できませんでした。車両一覧で反映状況を確認してから、再度操作してください。"
+            );
+        } finally {
+            importSubmitting = false;
+
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.removeAttribute("aria-busy");
+                submitButton.textContent = originalText;
+            }
+        }
+    });
+
     toggleBulkVehicleTypeInputs();
     updateImportStatuses();
 });
