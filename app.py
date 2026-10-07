@@ -16427,12 +16427,14 @@ def confirm_vehicle_import():
     ):
         value = clean_text(value)
 
-        if len(value) > max_length:
-            return (
-                None,
-                f"{row_number}行目の{field_name}は"
-                f"{max_length}文字以内で入力してください。"
-            )
+        error = get_vehicle_text_length_error(
+            value,
+            field_name,
+            max_length
+        )
+
+        if error:
+            return None, f"{row_number}行目の{error}"
 
         return value, None
 
@@ -16443,43 +16445,25 @@ def confirm_vehicle_import():
             return None, None
 
         try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            return None, (
-                f"{row_number}行目の"
-                f"{field_name}は整数で入力してください。"
+            parsed = parse_nonnegative_int(
+                value,
+                field_name
             )
-
-        if parsed < 0:
-            return None, (
-                f"{row_number}行目の"
-                f"{field_name}は0以上で入力してください。"
-            )
-
-        if parsed > 2147483647:
-            return None, (
-                f"{row_number}行目の"
-                f"{field_name}の値が大きすぎます。"
-            )
+        except UploadValidationError as error:
+            return None, f"{row_number}行目の{error}"
 
         return parsed, None
 
     def validate_import_date(value, field_name, row_number):
         value = clean_text(value)
 
-        if not value:
-            return "", None
+        error = get_vehicle_date_error(
+            value,
+            field_name
+        )
 
-        try:
-            datetime.strptime(
-                value,
-                "%Y-%m-%d"
-            )
-        except ValueError:
-            return "", (
-                f"{row_number}行目の"
-                f"{field_name}が不正です。"
-            )
+        if error:
+            return "", f"{row_number}行目の{error}"
 
         return value, None
 
@@ -16929,6 +16913,32 @@ def parse_vehicle_weights(form_data):
     return values, errors
 
 
+def get_vehicle_text_length_error(
+    value,
+    field_name,
+    max_length
+):
+    if len(value) > max_length:
+        return (
+            f"{field_name}は"
+            f"{max_length}文字以内で入力してください。"
+        )
+
+    return None
+
+
+def get_vehicle_date_error(value, field_name):
+    if not value:
+        return None
+
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return f"{field_name}が不正です。"
+
+    return None
+
+
 def validate_vehicle_dates(
     first_registration_date,
     inspection_expiry
@@ -16947,14 +16957,16 @@ def validate_vehicle_dates(
             "inspection_expiry"
         ),
     ]:
-        if value:
-            try:
-                datetime.strptime(value, "%Y-%m-%d")
-            except ValueError:
-                errors.append((
-                    f"{field_name}が不正です。",
-                    field_key
-                ))
+        error = get_vehicle_date_error(
+            value,
+            field_name
+        )
+
+        if error:
+            errors.append((
+                error,
+                field_key
+            ))
 
     return errors
 
@@ -16975,10 +16987,15 @@ def validate_vehicle_text_fields(form_data):
     for field_key, field_name, max_length in field_settings:
         value = form_data.get(field_key, "").strip()
 
-        if len(value) > max_length:
+        error = get_vehicle_text_length_error(
+            value,
+            field_name,
+            max_length
+        )
+
+        if error:
             errors.append((
-                f"{field_name}は"
-                f"{max_length}文字以内で入力してください。",
+                error,
                 field_key
             ))
 
