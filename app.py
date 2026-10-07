@@ -26,6 +26,9 @@ from pywebpush import webpush, WebPushException
 import secrets
 import zipfile
 import re
+import csv
+from decimal import Decimal, InvalidOperation
+from io import StringIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import NotFound, HTTPException
 from botocore.exceptions import ClientError
@@ -1503,6 +1506,168 @@ class VehiclePatrol(db.Model):
     parts = db.Column(db.Text)
     cost = db.Column(db.String(50))
 
+class VehicleOperationImportDraft(db.Model):
+    id = db.Column(db.String(36), primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    created_by_username = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+
+    source_filename = db.Column(
+        db.String(255),
+        nullable=False
+    )
+    source_file = db.Column(
+        db.LargeBinary,
+        nullable=False
+    )
+    selection_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+
+    status = db.Column(
+        db.String(20),
+        nullable=False,
+        default="preview"
+    )
+    result_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC"))
+    )
+    completed_at = db.Column(
+        db.DateTime(timezone=True)
+    )
+
+
+class VehicleOperationRecord(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_code",
+            "report_number",
+            name="uq_vehicle_operation_company_report"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False,
+        index=True
+    )
+
+    report_number = db.Column(
+        db.String(100),
+        nullable=False
+    )
+    operation_date = db.Column(
+        db.String(20),
+        nullable=False,
+        index=True
+    )
+
+    source_vehicle_code = db.Column(db.String(100))
+    source_vehicle_number = db.Column(db.String(100))
+
+    departure_at = db.Column(db.String(30))
+    arrival_at = db.Column(db.String(30))
+
+    departure_meter = db.Column(db.Numeric(14, 2))
+    arrival_meter = db.Column(db.Numeric(14, 2))
+    distance = db.Column(db.Numeric(14, 2))
+
+    source_row_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="{}"
+    )
+    source_filename = db.Column(db.String(255))
+
+    imported_by_username = db.Column(db.String(50))
+    imported_at = db.Column(db.String(30))
+
+
+class VehicleMaintenanceRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False,
+        index=True
+    )
+
+    category = db.Column(db.String(50))
+    status = db.Column(db.String(50))
+
+    entry_date = db.Column(db.String(20))
+    completion_date = db.Column(db.String(20))
+    mileage = db.Column(db.Numeric(14, 2))
+
+    content = db.Column(db.Text)
+    symptom = db.Column(db.Text)
+    cause = db.Column(db.Text)
+    temporary_action = db.Column(db.Text)
+    repair_content = db.Column(db.Text)
+
+    maintenance_company = db.Column(db.String(200))
+    maintenance_person = db.Column(db.String(100))
+    repair_hours = db.Column(db.Numeric(10, 2))
+
+    invoice_number = db.Column(db.String(100))
+    invoice_date = db.Column(db.String(20))
+
+    labor_cost = db.Column(db.Numeric(14, 2))
+    parts_cost = db.Column(db.Numeric(14, 2))
+    other_cost = db.Column(db.Numeric(14, 2))
+    tax_amount = db.Column(db.Numeric(14, 2))
+    total_cost = db.Column(db.Numeric(14, 2))
+
+    line_items_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="[]"
+    )
+    files_json = db.Column(
+        db.Text,
+        nullable=False,
+        default="[]"
+    )
+    notes = db.Column(db.Text)
+
+    created_by_username = db.Column(db.String(50))
+    created_at = db.Column(db.String(30))
+    updated_by_username = db.Column(db.String(50))
+    updated_at = db.Column(db.String(30))
+
+
 class Checklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -2422,6 +2587,34 @@ def file_belongs_to_current_company(filename, folder="uploads"):
                 []
             ):
                 return True
+
+        judgment = safe_json_dict(result.operation_judgment_json)
+        defects = judgment.get("defects") or []
+        if not isinstance(defects, list):
+            continue
+
+        for defect in defects:
+            if not isinstance(defect, dict):
+                continue
+
+            reported_answer = defect.get("reported_answer") or {}
+            if not isinstance(reported_answer, dict):
+                continue
+
+            reported_files = reported_answer.get("files") or []
+            if (
+                isinstance(reported_files, list)
+                and filename in reported_files
+            ):
+                return True
+
+    maintenance_records = VehicleMaintenanceRecord.query.filter_by(
+        company_code=company_code
+    ).all()
+
+    for record in maintenance_records:
+        if filename in safe_json_str_list(record.files_json):
+            return True
 
     return False
 
@@ -4572,6 +4765,100 @@ def vehicles_with_numbers(include_inactive=False):
         vehicles.append(item)
 
     return vehicles
+
+@app.template_filter("vehicle_icon")
+def vehicle_icon(vehicle_type="", body_type=""):
+    import unicodedata
+
+    def normalize(value):
+        text = unicodedata.normalize(
+            "NFKC",
+            str(value or "")
+        ).casefold()
+
+        text = "".join(
+            chr(ord(char) + 0x60)
+            if "\u3041" <= char <= "\u3096"
+            else char
+            for char in text
+        )
+
+        return "".join(
+            char
+            for char in text
+            if char.isalnum()
+        )
+
+    rules = [
+        (
+            "tractor.png",
+            (
+                "トラクタ",
+                "トレーラーヘッド",
+                "トレーラヘッド",
+                "ヘッド",
+                "tractor",
+                "prime mover",
+            )
+        ),
+        (
+            "trailer.png",
+            (
+                "トレーラ",
+                "トレイラ",
+                "被牽引",
+                "被けん引",
+                "trailer",
+            )
+        ),
+        (
+            "crane.png",
+            (
+                "クレーン",
+                "ユニック",
+                "crane",
+                "unic",
+            )
+        ),
+        (
+            "flatbed.png",
+            (
+                "平ボディ",
+                "平ボデー",
+                "平車",
+                "フラットベッド",
+                "flatbed",
+            )
+        ),
+        (
+            "car.png",
+            (
+                "乗用",
+                "普通車",
+                "軽乗用",
+                "セダン",
+                "passenger car",
+                "sedan",
+                "suv",
+            )
+        ),
+    ]
+
+    for value in (vehicle_type, body_type):
+        text = normalize(value)
+
+        if not text:
+            continue
+
+        for filename, aliases in rules:
+            if any(
+                normalize(alias) in text
+                for alias in aliases
+            ):
+                return filename
+
+    return "truck.png"
+
 
 def vehicle_types_for_current_company():
     query = VehicleType.query.filter_by(
@@ -15386,6 +15673,382 @@ def delete_driver(index):
     db.session.commit()
     return redirect("/master/drivers")
 
+@app.route(
+    "/vehicle/operation-import",
+    methods=["GET", "POST"]
+)
+def vehicle_operation_import():
+    if request.method == "GET":
+        return render_template(
+            "vehicle_operation_import.html"
+        )
+
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    if not company_code or not username:
+        return return_form_errors(
+            [("ログイン情報を確認してください。", "")],
+            status_code=403
+        )
+
+    csv_file = request.files.get("csv_file")
+
+    if not csv_file or not csv_file.filename:
+        return return_form_errors([
+            ("CSVファイルを選択してください。", "csv_file")
+        ])
+
+    filename = os.path.basename(
+        csv_file.filename.replace("\\", "/")
+    )
+
+    if not filename.lower().endswith(".csv"):
+        return return_form_errors([
+            ("CSV形式のファイルを選択してください。", "csv_file")
+        ])
+
+    if len(filename) > 255:
+        return return_form_errors([
+            ("ファイル名は255文字以内にしてください。", "csv_file")
+        ])
+
+    try:
+        csv_file.stream.seek(0)
+        file_bytes = csv_file.read()
+        read_vehicle_operation_csv(file_bytes)
+    except UploadValidationError as error:
+        return return_form_errors([
+            (str(error), "csv_file")
+        ])
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"ok": True})
+
+    draft = VehicleOperationImportDraft(
+        id=str(uuid4()),
+        company_code=company_code,
+        created_by_username=username,
+        source_filename=filename,
+        source_file=file_bytes,
+    )
+
+    try:
+        db.session.add(draft)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception(
+            "デジタコCSVの一時保存に失敗しました。"
+        )
+        return return_form_errors(
+            [(
+                "CSVを保存できませんでした。もう一度お試しください。",
+                "csv_file"
+            )],
+            status_code=500
+        )
+
+    return redirect(url_for(
+        "vehicle_operation_import_preview",
+        draft_id=draft.id
+    ))
+
+
+@app.route("/vehicle/operation-import/<draft_id>/preview")
+def vehicle_operation_import_preview(draft_id):
+    draft = (
+        VehicleOperationImportDraft.query
+        .filter_by(
+            id=draft_id,
+            company_code=session.get("company_code"),
+            created_by_username=session.get("username")
+        )
+        .first_or_404()
+    )
+
+    if draft.status != "preview":
+        flash(
+            "このCSVの取込確認は終了しています。",
+            "info"
+        )
+        return redirect(url_for(
+            "vehicle_operation_import"
+        ))
+
+    try:
+        csv_rows = read_vehicle_operation_csv(
+            draft.source_file
+        )
+        vehicles, preview_rows = (
+            build_vehicle_operation_import_preview(
+                csv_rows,
+                draft.company_code
+            )
+        )
+    except UploadValidationError as error:
+        flash(str(error), "error:csv_file")
+        return redirect(url_for(
+            "vehicle_operation_import"
+        ))
+
+    vehicle_ids = {vehicle.id for vehicle in vehicles}
+    saved_selections = safe_json_dict(
+        draft.selection_json
+    )
+
+    for row in preview_rows:
+        row["include"] = bool(
+            not row["errors"]
+            and not row["duplicate_in_file"]
+            and row["existing_record_id"] is None
+        )
+
+        selection = saved_selections.get(
+            str(row["line_number"])
+        )
+
+        if not isinstance(selection, dict):
+            continue
+
+        selected_id = selection.get("vehicle_record_id")
+
+        if selected_id is None:
+            row["vehicle_record_id"] = None
+        elif (
+            isinstance(selected_id, int)
+            and not isinstance(selected_id, bool)
+            and selected_id in vehicle_ids
+        ):
+            row["vehicle_record_id"] = selected_id
+        else:
+            row["vehicle_record_id"] = None
+
+        row["include"] = bool(
+            selection.get("include") is True
+            and not row["errors"]
+            and row["existing_record_id"] is None
+        )
+
+    vehicle_choices = [
+        {
+            "id": vehicle.id,
+            "number": vehicle_number({
+                "plate_area": vehicle.plate_area or "",
+                "plate_class": vehicle.plate_class or "",
+                "plate_kana": vehicle.plate_kana or "",
+                "plate_number": vehicle.plate_number or "",
+            }),
+        }
+        for vehicle in vehicles
+    ]
+
+    return render_template(
+        "vehicle_operation_import_preview.html",
+        draft=draft,
+        preview_rows=preview_rows,
+        vehicle_choices=vehicle_choices,
+    )
+
+
+@app.route(
+    "/vehicle/operation-import/<draft_id>/confirm",
+    methods=["POST"]
+)
+@limiter.limit("10 per minute")
+def vehicle_operation_import_confirm(draft_id):
+    company_code = session.get("company_code")
+    username = session.get("username")
+
+    draft = (
+        VehicleOperationImportDraft.query
+        .filter_by(
+            id=draft_id,
+            company_code=company_code,
+            created_by_username=username
+        )
+        .first_or_404()
+    )
+
+    if draft.status != "preview":
+        flash(
+            "このCSVの取込確認は終了しています。",
+            "info"
+        )
+        return redirect(url_for(
+            "vehicle_operation_import"
+        ))
+
+    validation_only = (
+        request.headers.get("X-DKSS-Validation-Only") == "1"
+    )
+
+    try:
+        csv_rows = read_vehicle_operation_csv(
+            draft.source_file
+        )
+        selections, records, errors = (
+            get_vehicle_operation_import_submission(
+                csv_rows,
+                company_code,
+                request.form
+            )
+        )
+    except UploadValidationError as error:
+        return return_form_errors([
+            (str(error), "")
+        ])
+
+    if errors:
+        if not validation_only:
+            try:
+                draft.selection_json = json.dumps(
+                    selections,
+                    ensure_ascii=False
+                )
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception(
+                    "デジタコCSVの選択内容を保存できませんでした。"
+                )
+                return return_form_errors(
+                    [(
+                        "選択内容を保存できませんでした。"
+                        "もう一度お試しください。",
+                        ""
+                    )],
+                    status_code=500
+                )
+
+        return return_form_errors(errors)
+
+    if validation_only:
+        return jsonify({"ok": True})
+
+    try:
+        claimed = (
+            VehicleOperationImportDraft.query
+            .filter_by(
+                id=draft_id,
+                company_code=company_code,
+                created_by_username=username,
+                status="preview"
+            )
+            .update(
+                {"status": "processing"},
+                synchronize_session=False
+            )
+        )
+
+        if claimed != 1:
+            db.session.rollback()
+            flash(
+                "このCSVはすでに処理されています。",
+                "info"
+            )
+            return redirect(url_for(
+                "vehicle_operation_import"
+            ))
+
+        report_numbers = [
+            record["values"]["report_number"]
+            for record in records
+        ]
+        existing_reports = set()
+
+        for start in range(0, len(report_numbers), 400):
+            existing_records = (
+                VehicleOperationRecord.query
+                .filter(
+                    VehicleOperationRecord.company_code == company_code,
+                    VehicleOperationRecord.report_number.in_(
+                        report_numbers[start:start + 400]
+                    )
+                )
+                .all()
+            )
+
+            existing_reports.update(
+                record.report_number
+                for record in existing_records
+            )
+
+        imported_at = datetime.now(
+            ZoneInfo("Asia/Tokyo")
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
+        added_count = 0
+        skipped_count = 0
+
+        for record in records:
+            values = record["values"]
+
+            if values["report_number"] in existing_reports:
+                skipped_count += 1
+                continue
+
+            db.session.add(VehicleOperationRecord(
+                company_code=company_code,
+                vehicle_record_id=record["vehicle_record_id"],
+                source_filename=draft.source_filename,
+                imported_by_username=username,
+                imported_at=imported_at,
+                **values
+            ))
+            added_count += 1
+
+        draft.selection_json = json.dumps(
+            selections,
+            ensure_ascii=False
+        )
+        draft.result_json = json.dumps({
+            "added_count": added_count,
+            "skipped_count": skipped_count,
+        })
+        draft.status = "completed"
+        draft.completed_at = datetime.now(
+            ZoneInfo("UTC")
+        )
+
+        db.session.commit()
+
+    except IntegrityError:
+        db.session.rollback()
+        return return_form_errors(
+            [(
+                "他の取込で同じ日報が登録された可能性があります。"
+                "確認画面を更新して、もう一度お試しください。",
+                ""
+            )],
+            status_code=409
+        )
+
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception(
+            "デジタコCSVの登録に失敗しました。"
+        )
+        return return_form_errors(
+            [(
+                "運行実績を登録できませんでした。"
+                "もう一度お試しください。",
+                ""
+            )],
+            status_code=500
+        )
+
+    flash(
+        f"運行実績を{added_count}件登録しました。"
+        f"登録済みの{skipped_count}件は取り込みませんでした。",
+        "success"
+    )
+
+    return redirect(url_for(
+        "vehicle_operation_import"
+    ))
+
+
 @app.route("/master/vehicles/<int:vehicle_record_id>/karte")
 @app.route("/vehicle/karte/<int:vehicle_record_id>")
 def vehicle_karte(vehicle_record_id):
@@ -15402,11 +16065,6 @@ def vehicle_karte(vehicle_record_id):
     })
 
     open_defects = get_vehicle_open_inspection_defects(
-        vehicle.company_code,
-        vehicle.id
-    )
-
-    recent_repairs = get_vehicle_recent_inspection_repairs(
         vehicle.company_code,
         vehicle.id
     )
@@ -15434,13 +16092,388 @@ def vehicle_karte(vehicle_record_id):
             )
             db.session.commit()
 
+    mileage_records = (
+        VehicleOperationRecord.query
+        .filter(
+            VehicleOperationRecord.company_code == vehicle.company_code,
+            VehicleOperationRecord.vehicle_record_id == vehicle.id,
+            VehicleOperationRecord.arrival_meter.isnot(None)
+        )
+        .order_by(
+            VehicleOperationRecord.operation_date.asc(),
+            db.func.coalesce(
+                VehicleOperationRecord.arrival_at,
+                VehicleOperationRecord.operation_date
+            ).asc(),
+            VehicleOperationRecord.id.asc()
+        )
+        .all()
+    )
+
+    mileage_by_date = {}
+
+    for record in mileage_records:
+        mileage_by_date[record.operation_date] = float(
+            record.arrival_meter
+        )
+
+    karte_mileage_points = [
+        {
+            "date": operation_date,
+            "mileage": mileage
+        }
+        for operation_date, mileage in sorted(
+            mileage_by_date.items()
+        )
+    ]
+
     return render_template(
         "vehicle_karte.html",
         vehicle=vehicle,
         vehicle_number=number,
         open_defects=open_defects,
-        recent_repairs=recent_repairs
+        karte_mileage_points=karte_mileage_points
     )
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/inspections")
+def vehicle_karte_inspections(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    page = max(1, request.args.get("page", 1, type=int))
+
+    inspection_page = (
+        VehicleChecklistResult.query
+        .filter_by(
+            company_code=vehicle.company_code,
+            vehicle_record_id=vehicle.id
+        )
+        .order_by(
+            VehicleChecklistResult.checked_date.desc(),
+            VehicleChecklistResult.id.desc()
+        )
+        .paginate(
+            page=page,
+            per_page=20,
+            error_out=False
+        )
+    )
+
+    inspection_snapshots = {
+        record.id: safe_json_dict(record.checklist_snapshot_json)
+        for record in inspection_page.items
+    }
+
+    inspection_links = {
+        record.id: url_for(
+            "vehicle_checklist_results",
+            index=record.checklist_id,
+            vehicle_record_id=vehicle.id,
+            year=record.year,
+            month=record.month,
+            active_day=record.day
+        )
+        for record in inspection_page.items
+    }
+
+    return render_template(
+        "vehicle_karte_inspections.html",
+        vehicle=vehicle,
+        vehicle_number=number,
+        inspection_page=inspection_page,
+        inspection_snapshots=inspection_snapshots,
+        inspection_results={
+            record.id: vehicle_checklist_result_to_dict(record)
+            for record in inspection_page.items
+        },
+        inspection_links=inspection_links,
+        open_defects=get_vehicle_open_inspection_defects(
+            vehicle.company_code,
+            vehicle.id
+        )
+    )
+
+
+def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
+    entries = []
+
+    def normalize_date(value):
+        text = str(value or "").strip()[:10]
+
+        for date_format in ("%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(
+                    text,
+                    date_format
+                ).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+
+        return ""
+
+    inspection_records = VehicleChecklistResult.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id
+    ).all()
+
+    for record in inspection_records:
+        snapshot = safe_json_dict(record.checklist_snapshot_json)
+        items = safe_json_dict_list(
+            json.dumps(snapshot.get("items") or [])
+        )
+        is_daily_inspection = any(
+            item.get("fixed_template_code")
+            == "daily_inspection_truck_trailer"
+            for item in items
+        )
+
+        inspection_date = normalize_date(
+            f"{record.year}-"
+            f"{str(record.month).zfill(2)}-"
+            f"{str(record.day).zfill(2)}"
+        )
+
+        entries.append({
+            "key": f"inspection:{record.id}",
+            "date": inspection_date,
+            "kind": "日常点検" if is_daily_inspection else "点検",
+            "content": snapshot.get("name") or "車両チェックリスト",
+            "files": list(dict.fromkeys(
+                filename
+                for answer in safe_json_dict_list(record.answers_json)
+                for filename in (
+                    answer.get("files")
+                    if isinstance(answer.get("files"), list)
+                    else []
+                )
+                if isinstance(filename, str) and filename.strip()
+            )),
+            "mileage": None,
+            "cost": None,
+            "status": record.status or "",
+            "actor": record.checked_by or record.checked_by_username or "",
+            "link": url_for(
+                "vehicle_checklist_results",
+                index=record.checklist_id,
+                vehicle_record_id=vehicle_record_id,
+                year=record.year,
+                month=record.month,
+                active_day=record.day
+            ),
+        })
+
+        if is_daily_inspection:
+            judgment = safe_json_dict(record.operation_judgment_json)
+            stored_defects = judgment.get("defects") or []
+            defects = [
+                dict(defect)
+                for defect in stored_defects
+                if isinstance(defect, dict)
+            ] if isinstance(stored_defects, list) else []
+
+            for answer in safe_json_dict_list(record.answers_json):
+                if str(answer.get("value") or "").strip() != "×":
+                    continue
+
+                item_no = str(answer.get("item_no", ""))
+                accounted_for = False
+
+                for defect in defects:
+                    if str(defect.get("item_no", "")) != item_no:
+                        continue
+
+                    rechecked_answer = defect.get("rechecked_answer") or {}
+                    if not isinstance(rechecked_answer, dict):
+                        rechecked_answer = {}
+
+                    if (
+                        defect.get("status") != "解消"
+                        or all(
+                            rechecked_answer.get(field) == answer.get(field)
+                            for field in ("value", "comment", "files")
+                        )
+                    ):
+                        accounted_for = True
+                        break
+
+                if not accounted_for:
+                    defects.append({
+                        "item_no": item_no,
+                        "status": "対応待ち",
+                        "reported_answer": dict(answer),
+                    })
+
+            if isinstance(defects, list):
+                for defect_index, defect in enumerate(defects):
+                    if not isinstance(defect, dict):
+                        continue
+
+                    answer = defect.get("reported_answer") or {}
+                    if not isinstance(answer, dict):
+                        answer = {}
+
+                    item_name = str(answer.get("content") or "").strip()
+                    comment = str(answer.get("comment") or "").strip()
+                    content = " / ".join(
+                        value for value in (item_name, comment) if value
+                    )
+
+                    entries.append({
+                        "key": (
+                            f"defect:{record.id}:{defect_index}"
+                        ),
+                        "date": (
+                            normalize_date(defect.get("reported_at"))
+                            or inspection_date
+                        ),
+                        "kind": "異常・指摘",
+                        "content": content or "日常点検の不具合",
+                        "files": list(dict.fromkeys(
+                            filename
+                            for filename in (
+                                answer.get("files")
+                                if isinstance(answer.get("files"), list)
+                                else []
+                            )
+                            if isinstance(filename, str) and filename.strip()
+                        )),
+                        "mileage": None,
+                        "cost": None,
+                        "status": defect.get("status") or "",
+                        "actor": (
+                            defect.get("reported_by")
+                            or record.checked_by
+                            or record.checked_by_username
+                            or ""
+                        ),
+                        "link": url_for(
+                            "vehicle_checklist_results",
+                            index=record.checklist_id,
+                            vehicle_record_id=vehicle_record_id,
+                            year=record.year,
+                            month=record.month,
+                            active_day=record.day
+                        ),
+                    })
+
+    maintenance_records = VehicleMaintenanceRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id
+    ).all()
+
+    for record in maintenance_records:
+        entries.append({
+            "key": f"maintenance:{record.id}",
+            "date": (
+                normalize_date(record.completion_date)
+                or normalize_date(record.entry_date)
+            ),
+            "kind": record.category or "整備",
+            "content": (
+                record.content
+                or record.repair_content
+                or record.symptom
+                or ""
+            ),
+            "files": list(dict.fromkeys(
+                safe_json_str_list(record.files_json)
+            )),
+            "mileage": record.mileage,
+            "cost": record.total_cost,
+            "status": record.status or "",
+            "actor": " / ".join(
+                value
+                for value in (
+                    record.maintenance_company,
+                    record.maintenance_person
+                )
+                if value
+            ),
+            "link": None,
+        })
+
+    repair_events = (
+        ChecklistEvent.query
+        .join(
+            VehicleChecklistResult,
+            ChecklistEvent.result_id == VehicleChecklistResult.id
+        )
+        .filter(
+            ChecklistEvent.company_code == company_code,
+            ChecklistEvent.result_type == "vehicle",
+            ChecklistEvent.event_type.in_(["整備中", "再確認待ち"]),
+            VehicleChecklistResult.company_code == company_code,
+            VehicleChecklistResult.vehicle_record_id == vehicle_record_id
+        )
+        .all()
+    )
+
+    for event in repair_events:
+        detail = safe_json_dict(event.detail_json)
+        repair = detail.get("repair") or {}
+        if not isinstance(repair, dict) or not repair:
+            continue
+
+        defect = detail.get("defect") or {}
+        if not isinstance(defect, dict):
+            defect = {}
+
+        answer = defect.get("reported_answer") or {}
+        if not isinstance(answer, dict):
+            answer = {}
+
+        item_name = str(answer.get("content") or "").strip()
+        note = str(repair.get("note") or "").strip()
+        content = " / ".join(
+            value for value in (item_name, note) if value
+        )
+
+        result_record = db.session.get(
+            VehicleChecklistResult,
+            event.result_id
+        )
+        if not result_record:
+            continue
+
+        entries.append({
+            "key": f"inspection-repair:{event.id}",
+            "date": normalize_date(repair.get("performed_at")),
+            "kind": "整備",
+            "content": content or "日常点検の不具合対応",
+            "mileage": None,
+            "cost": None,
+            "status": repair.get("status") or event.event_type or "",
+            "actor": (
+                repair.get("performed_by")
+                or event.actor_name
+                or ""
+            ),
+            "link": url_for(
+                "vehicle_checklist_results",
+                index=result_record.checklist_id,
+                vehicle_record_id=vehicle_record_id,
+                year=result_record.year,
+                month=result_record.month,
+                active_day=result_record.day
+            ),
+        })
+
+    entries.sort(
+        key=lambda entry: (entry["date"], entry["key"]),
+        reverse=True
+    )
+
+    return entries
 
 
 @app.route("/master/vehicles/<int:vehicle_record_id>/karte/history")
@@ -15459,59 +16492,107 @@ def vehicle_karte_history(vehicle_record_id):
     })
 
     page = max(1, request.args.get("page", 1, type=int))
+    selected_event_type = request.args.get("event_type", "").strip()
+    selected_start_date = request.args.get("start_date", "").strip()
+    selected_end_date = request.args.get("end_date", "").strip()
 
-    history_page = (
-        ChecklistEvent.query
-        .join(
-            VehicleChecklistResult,
-            ChecklistEvent.result_id == VehicleChecklistResult.id
-        )
-        .filter(
-            ChecklistEvent.company_code == vehicle.company_code,
-            ChecklistEvent.result_type == "vehicle",
-            VehicleChecklistResult.company_code == vehicle.company_code,
-            VehicleChecklistResult.vehicle_record_id == vehicle.id
-        )
-        .order_by(
-            ChecklistEvent.created_at.desc(),
-            ChecklistEvent.id.desc()
-        )
-        .paginate(
-            page=page,
-            per_page=100,
-            error_out=False
-        )
-    )
+    history_date_errors = []
 
-    result_ids = {
-        event.result_id
-        for event in history_page.items
-    }
+    for field_id, label, value in [
+        ("history_start_date", "開始日", selected_start_date),
+        ("history_end_date", "終了日", selected_end_date),
+    ]:
+        if not value:
+            continue
 
-    result_records = (
-        VehicleChecklistResult.query.filter(
-            VehicleChecklistResult.company_code == vehicle.company_code,
-            VehicleChecklistResult.vehicle_record_id == vehicle.id,
-            VehicleChecklistResult.id.in_(result_ids)
-        ).all()
-        if result_ids else []
-    )
+        try:
+            parsed_date = datetime.strptime(value, "%Y-%m-%d")
+            if parsed_date.strftime("%Y-%m-%d") != value:
+                raise ValueError
+        except ValueError:
+            history_date_errors.append((
+                field_id,
+                label + "を正しい日付で入力してください。",
+            ))
 
-    history_links = {
-        record.id: url_for(
-            "vehicle_checklist_results",
-            index=record.checklist_id,
-            vehicle_record_id=vehicle.id,
-            year=record.year,
-            month=record.month,
-            active_day=record.day
-        )
-        for record in result_records
-    }
+    if (
+        not history_date_errors
+        and selected_start_date
+        and selected_end_date
+        and selected_start_date > selected_end_date
+    ):
+        history_date_errors.append((
+            "history_end_date",
+            "終了日は開始日以降の日付を選択してください。",
+        ))
 
-    open_defects = get_vehicle_open_inspection_defects(
+    for field_id, message in history_date_errors:
+        flash(message, "error:" + field_id)
+
+    from types import SimpleNamespace
+
+    history_entries = get_vehicle_karte_history_entries(
         vehicle.company_code,
         vehicle.id
+    )
+
+    history_event_types = sorted({
+        entry["kind"]
+        for entry in history_entries
+        if entry["kind"]
+    })
+
+    history_statuses = sorted({
+        entry["status"]
+        for entry in history_entries
+        if entry["status"]
+    })
+
+    selected_status = request.args.get("status", "").strip()
+
+    if history_date_errors:
+        history_entries = []
+    else:
+        history_entries = [
+            entry
+            for entry in history_entries
+            if (
+                (
+                    not selected_event_type
+                    or entry["kind"] == selected_event_type
+                )
+                and (
+                    not selected_status
+                    or entry["status"] == selected_status
+                )
+                and (
+                    not selected_start_date
+                    or entry["date"] >= selected_start_date
+                )
+                and (
+                    not selected_end_date
+                    or (
+                        entry["date"]
+                        and entry["date"] <= selected_end_date
+                    )
+                )
+            )
+        ]
+
+    per_page = 100
+    total = len(history_entries)
+    pages = (total + per_page - 1) // per_page
+    offset = (page - 1) * per_page
+
+    history_page = SimpleNamespace(
+        items=history_entries[offset:offset + per_page],
+        total=total,
+        page=page,
+        pages=pages,
+        has_prev=page > 1,
+        has_next=page < pages,
+        prev_num=page - 1 if page > 1 else None,
+        next_num=page + 1 if page < pages else None
     )
 
     return render_template(
@@ -15519,9 +16600,19 @@ def vehicle_karte_history(vehicle_record_id):
         vehicle=vehicle,
         vehicle_number=number,
         history_page=history_page,
-        history_links=history_links,
-        open_defects=open_defects
-    )
+        history_links={},
+        history_details={},
+        history_event_types=history_event_types,
+        history_statuses=history_statuses,
+        selected_event_type=selected_event_type,
+        selected_status=selected_status,
+        selected_start_date=selected_start_date,
+        selected_end_date=selected_end_date,
+        open_defects=get_vehicle_open_inspection_defects(
+            vehicle.company_code,
+            vehicle.id
+        )
+    ), (400 if history_date_errors else 200)
 
 
 def get_vehicle_karte_usage_vehicles():
@@ -15577,6 +16668,7 @@ def inject_vehicle_karte_choices():
         "vehicle_karte_list",
         "vehicle_karte",
         "vehicle_karte_history",
+        "vehicle_karte_inspections",
     }:
         return {}
 
@@ -15632,9 +16724,28 @@ def inject_vehicle_karte_choices():
             ),
         })
 
+    operation_summary = {
+        "current_mileage": None,
+        "mileage_date": None,
+    }
+
+    vehicle_record_id = (
+        request.view_args or {}
+    ).get("vehicle_record_id")
+
+    if any(
+        record.id == vehicle_record_id
+        for record in vehicles
+    ):
+        operation_summary = get_vehicle_operation_summary(
+            company_code,
+            vehicle_record_id
+        )
+
     return {
         "karte_vehicle_choices": choices,
         "karte_usage_vehicles": get_vehicle_karte_usage_vehicles(),
+        "karte_operation_summary": operation_summary,
     }
 
 
@@ -16046,6 +17157,92 @@ def render_vehicle_list(template_name):
         total_count=total_count,
     )
 
+@app.route("/master/vehicles/import/master", methods=["POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+def register_vehicle_import_master():
+    company_code = session.get("company_code")
+
+    if not company_code or not require_master_admin():
+        return return_form_errors([
+            ("管理者権限が必要です。", "")
+        ], status_code=403)
+
+    master_kind = request.form.get("master_kind", "").strip()
+    name = request.form.get("name", "").strip()
+
+    master_models = {
+        "office": (Office, "営業所"),
+        "vehicle_type": (VehicleType, "車種"),
+    }
+
+    if master_kind not in master_models:
+        return return_form_errors([
+            ("登録するマスタの種類を確認してください。", "")
+        ])
+
+    model, label = master_models[master_kind]
+
+    if not name:
+        return return_form_errors([
+            (f"{label}名を入力してください。", "name")
+        ])
+
+    if len(name) > 100:
+        return return_form_errors([
+            (f"{label}名は100文字以内で入力してください。", "name")
+        ])
+
+    existing = model.query.filter_by(
+        company_code=company_code,
+        name=name
+    ).first()
+
+    if existing:
+        return return_form_errors([
+            (
+                f"{label}「{name}」はすでに登録されています。"
+                "既存マスタへの割り当てを選択してください。",
+                "name"
+            )
+        ], status_code=409)
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"ok": True})
+
+    if request.form.get("confirmed") != "1":
+        return return_form_errors([
+            ("新規登録する内容を確認してください。", "")
+        ])
+
+    master = model(
+        company_code=company_code,
+        name=name
+    )
+
+    try:
+        db.session.add(master)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("車両Excel取込のマスタ登録に失敗しました。")
+        return return_form_errors([
+            (
+                f"{label}を登録できませんでした。"
+                "入力内容を保持したまま、もう一度お試しください。",
+                "name"
+            )
+        ], status_code=500)
+
+    return jsonify({
+        "ok": True,
+        "master_kind": master_kind,
+        "master": {
+            "id": master.id,
+            "name": master.name,
+        },
+    })
+
+
 @app.route("/master/vehicles/import", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
 def import_vehicles():
@@ -16356,12 +17553,22 @@ def import_vehicles():
         }
 
         for vehicle in vehicles_data:
-            vehicle["mapped_vehicle_type"] = (
-                vehicle_type_mapping_dict.get(
-                    vehicle.get("vehicle_type_code", ""),
-                    ""
-                )
+            excel_vehicle_type = str(
+                vehicle.get("vehicle_type_code", "") or ""
+            ).strip()
+
+            mapped_vehicle_type = vehicle_type_mapping_dict.get(
+                excel_vehicle_type,
+                ""
             )
+
+            if (
+                not mapped_vehicle_type
+                and excel_vehicle_type in valid_vehicle_type_names
+            ):
+                mapped_vehicle_type = excel_vehicle_type
+
+            vehicle["mapped_vehicle_type"] = mapped_vehicle_type
             
         processed_import_keys = set()
 
@@ -16548,6 +17755,7 @@ def import_vehicles():
         return render_template(
             "vehicle_import_preview.html",
             vehicles=vehicles_data,
+            offices=offices_for_current_company(),
             vehicle_types=vehicle_types_for_current_company(),
             vehicle_type_mapping_dict=vehicle_type_mapping_dict,
         )
@@ -16579,10 +17787,19 @@ def confirm_vehicle_import():
 
     vehicle_types = [
         str(value or "").strip()
-        if str(value or "").strip() in valid_vehicle_type_names
-        else ""
         for value in vehicle_types
     ]
+
+    for i, vehicle_type in enumerate(vehicle_types):
+        if vehicle_type and vehicle_type not in valid_vehicle_type_names:
+            return return_form_errors([
+                (
+                    f"{i + 1}件目の車種「{vehicle_type}」は"
+                    "車種マスタに登録されていません。"
+                    "既存の車種への割り当て、または新規登録を確認してください。",
+                    "vehicle_type"
+                )
+            ])
     
     plate_areas = request.form.getlist("plate_area")
     plate_classes = request.form.getlist("plate_class")
@@ -16676,6 +17893,17 @@ def confirm_vehicle_import():
     for i in range(import_count):
         office = offices[i]
         active_status = str(active_statuses[i] or "").strip()
+        vehicle_type_code = str(vehicle_type_codes[i] or "").strip()
+
+        if vehicle_type_code and not vehicle_types[i]:
+            return return_form_errors([
+                (
+                    f"{i + 1}件目の車種コード「{vehicle_type_code}」の"
+                    "割り当てが未解決です。"
+                    "既存の車種への割り当て、または新規登録を確認してください。",
+                    "vehicle_type"
+                )
+            ])
 
         if len(office) > 100:
             return return_form_errors([
@@ -17290,6 +18518,540 @@ def validate_vehicle_master_values(
                 ))
 
     return errors
+
+
+def get_vehicle_operation_import_submission(
+    csv_rows,
+    company_code,
+    form_data
+):
+    selected_lines = set(form_data.getlist("include"))
+    known_lines = {
+        str(row["line_number"])
+        for row in csv_rows
+    }
+
+    errors = []
+    selections = {}
+    records = []
+    selected_reports = {}
+
+    if not selected_lines:
+        errors.append((
+            "取り込む行にチェックを付けてください。",
+            ""
+        ))
+
+    if not selected_lines.issubset(known_lines):
+        errors.append((
+            "取込対象の行を確認してください。",
+            ""
+        ))
+
+    valid_vehicle_ids = {
+        vehicle.id
+        for vehicle in Vehicle.query.filter_by(
+            company_code=company_code,
+            deleted=False
+        ).all()
+    }
+
+    for csv_row in csv_rows:
+        line_number = csv_row["line_number"]
+        line_key = str(line_number)
+        field_name = f"vehicle_{line_number}"
+        selected = line_key in selected_lines
+
+        vehicle_id_text = str(
+            form_data.get(field_name, "")
+        ).strip()
+
+        vehicle_id = None
+
+        if re.fullmatch(r"[1-9][0-9]{0,17}", vehicle_id_text):
+            candidate_id = int(vehicle_id_text)
+
+            if candidate_id in valid_vehicle_ids:
+                vehicle_id = candidate_id
+
+        selections[line_key] = {
+            "include": selected,
+            "vehicle_record_id": vehicle_id,
+        }
+
+        if not selected:
+            continue
+
+        if vehicle_id is None:
+            errors.append((
+                f"{line_number}行目の登録先車両を選択してください。",
+                field_name
+            ))
+            continue
+
+        try:
+            values = parse_vehicle_operation_csv_row(
+                csv_row["source_row"],
+                line_number
+            )
+        except UploadValidationError as error:
+            errors.append((
+                str(error),
+                f"include_{line_number}"
+            ))
+            continue
+
+        report_number = values["report_number"]
+
+        if report_number in selected_reports:
+            errors.append((
+                f"{line_number}行目の日報番号は"
+                f"{selected_reports[report_number]}行目と重複しています。"
+                "取り込む行を1つだけ選択してください。",
+                f"include_{line_number}"
+            ))
+            continue
+
+        selected_reports[report_number] = line_number
+
+        records.append({
+            "line_number": line_number,
+            "vehicle_record_id": vehicle_id,
+            "values": values,
+        })
+
+    return selections, records, errors
+
+
+def build_vehicle_operation_import_preview(csv_rows, company_code):
+    if not company_code:
+        raise UploadValidationError(
+            "会社情報を確認できませんでした。"
+        )
+
+    vehicles, plate_candidates = (
+        get_vehicle_operation_plate_candidates(company_code)
+    )
+
+    report_counts = {}
+
+    for csv_row in csv_rows:
+        report_number = (
+            csv_row["source_row"]
+            .get("日報番号", "")
+            .strip()
+        )
+
+        if report_number:
+            report_counts[report_number] = (
+                report_counts.get(report_number, 0) + 1
+            )
+
+    report_numbers = sorted(report_counts)
+    existing_records = {}
+
+    for start in range(0, len(report_numbers), 400):
+        records = (
+            VehicleOperationRecord.query
+            .filter(
+                VehicleOperationRecord.company_code == company_code,
+                VehicleOperationRecord.report_number.in_(
+                    report_numbers[start:start + 400]
+                )
+            )
+            .all()
+        )
+
+        for record in records:
+            existing_records[record.report_number] = record.id
+
+    preview_rows = []
+
+    for csv_row in csv_rows:
+        source_row = csv_row["source_row"]
+        line_number = csv_row["line_number"]
+        report_number = source_row.get("日報番号", "").strip()
+
+        preview_row = {
+            "line_number": line_number,
+            "source_row": source_row,
+            "values": {},
+            "vehicle_record_id": None,
+            "candidate_vehicle_ids": [],
+            "duplicate_in_file": (
+                report_counts.get(report_number, 0) > 1
+            ),
+            "existing_record_id": existing_records.get(
+                report_number
+            ),
+            "errors": [],
+        }
+
+        try:
+            values = parse_vehicle_operation_csv_row(
+                source_row,
+                line_number
+            )
+        except UploadValidationError as error:
+            preview_row["errors"].append(str(error))
+        else:
+            values.pop("source_row_json", None)
+
+            for field_name in (
+                "departure_meter",
+                "arrival_meter",
+                "distance",
+            ):
+                if values[field_name] is not None:
+                    values[field_name] = str(values[field_name])
+
+            preview_row["values"] = values
+
+            plate = normalize_vehicle_operation_plate(
+                values.get("source_vehicle_number")
+            )
+            candidate_ids = plate_candidates.get(plate, [])
+
+            preview_row["candidate_vehicle_ids"] = list(
+                candidate_ids
+            )
+
+            if len(candidate_ids) == 1:
+                preview_row["vehicle_record_id"] = (
+                    candidate_ids[0]
+                )
+
+        preview_rows.append(preview_row)
+
+    return vehicles, preview_rows
+
+
+def get_vehicle_operation_summary(company_code, vehicle_record_id):
+    latest_meter_record = (
+        VehicleOperationRecord.query
+        .filter(
+            VehicleOperationRecord.company_code == company_code,
+            VehicleOperationRecord.vehicle_record_id == vehicle_record_id,
+            VehicleOperationRecord.arrival_meter.isnot(None)
+        )
+        .order_by(
+            db.func.coalesce(
+                VehicleOperationRecord.arrival_at,
+                VehicleOperationRecord.operation_date
+            ).desc(),
+            VehicleOperationRecord.operation_date.desc(),
+            VehicleOperationRecord.id.desc()
+        )
+        .first()
+    )
+
+    if latest_meter_record is None:
+        return {
+            "current_mileage": None,
+            "mileage_date": None,
+        }
+
+    return {
+        "current_mileage": latest_meter_record.arrival_meter,
+        "mileage_date": (
+            latest_meter_record.arrival_at
+            or latest_meter_record.operation_date
+        ),
+    }
+
+
+def normalize_vehicle_operation_plate(value):
+    import unicodedata
+
+    text = unicodedata.normalize(
+        "NFKC",
+        "" if value is None else str(value)
+    ).strip()
+
+    return re.sub(
+        r"[\s\-‐‑‒–—―−・･.]+",
+        "",
+        text
+    ).casefold()
+
+
+def get_vehicle_operation_plate_candidates(company_code):
+    vehicles = (
+        Vehicle.query
+        .filter_by(
+            company_code=company_code,
+            deleted=False
+        )
+        .order_by(Vehicle.id.asc())
+        .all()
+    )
+
+    plate_candidates = {}
+
+    for vehicle in vehicles:
+        if not all((
+            vehicle.plate_area,
+            vehicle.plate_class,
+            vehicle.plate_kana,
+            vehicle.plate_number,
+        )):
+            continue
+
+        plate = normalize_vehicle_operation_plate(
+            vehicle_number({
+                "plate_area": vehicle.plate_area,
+                "plate_class": vehicle.plate_class,
+                "plate_kana": vehicle.plate_kana,
+                "plate_number": vehicle.plate_number,
+            })
+        )
+
+        if plate:
+            plate_candidates.setdefault(
+                plate,
+                []
+            ).append(vehicle.id)
+
+    return vehicles, plate_candidates
+
+
+def parse_vehicle_operation_csv_row(source_row, line_number):
+    try:
+        report_number = source_row.get("日報番号", "").strip()
+
+        if not report_number:
+            raise UploadValidationError(
+                "日報番号がありません。"
+            )
+
+        if len(report_number) > 100:
+            raise UploadValidationError(
+                "日報番号は100文字以内にしてください。"
+            )
+
+        operation_date = parse_vehicle_operation_date(
+            source_row.get("運行日"),
+            "運行日"
+        )
+
+        if operation_date is None:
+            raise UploadValidationError(
+                "運行日がありません。"
+            )
+
+        values = {
+            "report_number": report_number,
+            "operation_date": operation_date,
+            "source_row_json": json.dumps(
+                source_row,
+                ensure_ascii=False
+            ),
+        }
+
+        for csv_name, field_name in (
+            ("車両コード", "source_vehicle_code"),
+            ("車両", "source_vehicle_number"),
+        ):
+            text = source_row.get(csv_name, "").strip()
+
+            if len(text) > 100:
+                raise UploadValidationError(
+                    f"{csv_name}は100文字以内にしてください。"
+                )
+
+            values[field_name] = text or None
+
+        for csv_name, field_name in (
+            ("出庫日時", "departure_at"),
+            ("入庫日時", "arrival_at"),
+        ):
+            values[field_name] = parse_vehicle_operation_date(
+                source_row.get(csv_name),
+                csv_name,
+                with_time=True
+            )
+
+        for csv_name, field_name in (
+            ("出庫メータ", "departure_meter"),
+            ("入庫メータ", "arrival_meter"),
+            ("走行距離", "distance"),
+        ):
+            values[field_name] = parse_vehicle_operation_decimal(
+                source_row.get(csv_name),
+                csv_name
+            )
+
+        return values
+
+    except UploadValidationError as error:
+        raise UploadValidationError(
+            f"CSVの{line_number}行目：{error}"
+        ) from error
+
+
+def read_vehicle_operation_csv(file_bytes):
+    csv_text = None
+
+    for encoding in ("utf-8-sig", "cp932"):
+        try:
+            csv_text = file_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if csv_text is None:
+        raise UploadValidationError(
+            "CSVの文字コードを確認してください。"
+        )
+
+    if "\x00" in csv_text:
+        raise UploadValidationError(
+            "CSVファイルの内容が不正です。"
+        )
+
+    rows = []
+
+    try:
+        reader = csv.reader(
+            StringIO(csv_text, newline=""),
+            strict=True
+        )
+        headers = [
+            value.strip()
+            for value in next(reader, [])
+        ]
+
+        if not headers or any(not value for value in headers):
+            raise UploadValidationError(
+                "CSVの先頭行に項目名を設定してください。"
+            )
+
+        if len(headers) != len(set(headers)):
+            raise UploadValidationError(
+                "CSVの項目名が重複しています。"
+            )
+
+        missing_headers = [
+            name
+            for name in ("日報番号", "運行日")
+            if name not in headers
+        ]
+
+        if missing_headers:
+            raise UploadValidationError(
+                "CSVに必要な項目がありません："
+                + "、".join(missing_headers)
+            )
+
+        if not any(
+            name in headers
+            for name in ("車両コード", "車両")
+        ):
+            raise UploadValidationError(
+                "CSVに車両コードまたは車両の項目が必要です。"
+            )
+
+        for values in reader:
+            if not any(value.strip() for value in values):
+                continue
+
+            if len(values) != len(headers):
+                raise UploadValidationError(
+                    f"CSVの{reader.line_num}行目の列数が"
+                    "項目名の列数と一致していません。"
+                )
+
+            rows.append({
+                "line_number": reader.line_num,
+                "source_row": dict(zip(headers, values)),
+            })
+
+    except csv.Error:
+        raise UploadValidationError(
+            "CSVの区切り文字・引用符を確認してください。"
+        )
+
+    if not rows:
+        raise UploadValidationError(
+            "CSVに運行実績のデータがありません。"
+        )
+
+    return rows
+
+
+def parse_vehicle_operation_date(value, field_name, with_time=False):
+    text = "" if value is None else str(value).strip()
+
+    if not text:
+        return None
+
+    if with_time:
+        formats = (
+            "%Y/%m/%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y/%m/%d %H:%M",
+            "%Y-%m-%d %H:%M",
+        )
+        output_format = "%Y-%m-%d %H:%M:%S"
+    else:
+        formats = (
+            "%Y/%m/%d",
+            "%Y-%m-%d",
+        )
+        output_format = "%Y-%m-%d"
+
+    for date_format in formats:
+        try:
+            parsed = datetime.strptime(text, date_format)
+        except ValueError:
+            continue
+
+        return parsed.strftime(output_format)
+
+    raise UploadValidationError(
+        f"{field_name}の日付・時刻を確認してください。"
+    )
+
+
+def parse_vehicle_operation_decimal(value, field_name):
+    text = "" if value is None else str(value).strip()
+
+    if not text:
+        return None
+
+    if not re.fullmatch(
+        r"(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?",
+        text
+    ):
+        raise UploadValidationError(
+            f"{field_name}は0以上の数値で入力してください。"
+        )
+
+    try:
+        parsed = Decimal(text.replace(",", ""))
+    except InvalidOperation:
+        raise UploadValidationError(
+            f"{field_name}の数値を確認してください。"
+        )
+
+    if not parsed.is_finite() or parsed > Decimal("999999999999.99"):
+        raise UploadValidationError(
+            f"{field_name}の値が大きすぎます。"
+        )
+
+    try:
+        rounded = parsed.quantize(Decimal("0.01"))
+    except InvalidOperation:
+        raise UploadValidationError(
+            f"{field_name}の数値を確認してください。"
+        )
+
+    if parsed != rounded:
+        raise UploadValidationError(
+            f"{field_name}は小数点以下2桁までで入力してください。"
+        )
+
+    return rounded
 
 
 def parse_vehicle_weights(form_data):

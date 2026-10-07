@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}車両カルテ{% endblock %}
+
+{% block content %}
+
+<div class="page-header vehicle-master-page-header">
+    <div>
+        <h2>車両一覧</h2>
+        <p class="page-lead">
+            登録されている車両の一覧です。車両を選択すると車両カルテを確認できます。
+        </p>
+    </div>
+
+    {% if session.get("role") in ["admin", "itc"] %}
+        <div class="header-actions">
+            <a
+                href="{{ url_for('import_vehicles') }}"
+                class="btn btn-outline"
+            >
+                一括登録（Excel）
+            </a>
+
+            <a
+                href="{{ url_for('vehicle_registration_method') }}"
+                class="btn btn-outline"
+            >
+                車両を追加
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<div class="card vehicle-master-filter-card vehicle-search-card">
+    <h3 class="vehicle-search-heading">検索条件</h3>
+
+    <form
+        method="get"
+        action="{{ url_for('vehicle_karte_list') }}"
+        class="vehicle-master-filter-form vehicle-search-form"
+    >
+        <div class="vehicle-search-field">
+            <label for="vehicle_search_plate_number">車番</label>
+            <input
+                type="text"
+                id="vehicle_search_plate_number"
+                name="plate_number_search"
+                value="{{ request.args.get('plate_number_search', '') }}"
+                maxlength="100"
+                placeholder="例）大和100か1234"
+            >
+        </div>
+
+        <div class="vehicle-search-field">
+            <label for="vehicle_search_chassis_number">車台番号</label>
+            <input
+                type="text"
+                id="vehicle_search_chassis_number"
+                name="chassis_number_search"
+                value="{{ request.args.get('chassis_number_search', '') }}"
+                maxlength="100"
+                placeholder="例）XYZ1234567890"
+            >
+        </div>
+
+        {% set filters = [
+            ("manufacturer", "メーカー・車名", manufacturer, manufacturers),
+            ("model_code", "型式", model_code, model_codes),
+            ("vehicle_type", "車種", vehicle_type, vehicle_types | map(attribute="name") | list),
+            ("office", "営業所", office, offices | map(attribute="name") | list),
+        ] %}
+
+        {% for field_name, field_label, selected_value, choices in filters %}
+            <div class="vehicle-search-field">
+                <label for="karte_{{ field_name }}">{{ field_label }}</label>
+
+                <select id="karte_{{ field_name }}" name="{{ field_name }}">
+                    <option value="">すべて</option>
+
+                    {% for choice in choices %}
+                        <option
+                            value="{{ choice }}"
+                            {% if selected_value == choice %}selected{% endif %}
+                        >
+                            {{ choice }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endfor %}
+
+        <div class="vehicle-search-field">
+            <label for="karte_status">状態</label>
+            <select id="karte_status" name="status">
+                <option value="">すべて</option>
+                <option
+                    value="active"
+                    {% if status == "active" %}selected{% endif %}
+                >
+                    有効
+                </option>
+                <option
+                    value="inactive"
+                    {% if status == "inactive" %}selected{% endif %}
+                >
+                    無効
+                </option>
+            </select>
+        </div>
+
+        <div class="vehicle-filter-actions">
+            <a
+                href="{{ url_for('vehicle_karte_list') }}"
+                class="btn btn-outline"
+            >
+                クリア
+            </a>
+
+            <button type="submit" class="btn btn-outline">検索</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h3 class="result-info-title">検索結果（{{ total_count }}台）</h3>
+
+    {% if vehicles %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">ナンバープレート</th>
+                        <th scope="col">車台番号</th>
+                        <th scope="col">メーカー・車名</th>
+                        <th scope="col">型式</th>
+                        <th scope="col">車種</th>
+                        <th scope="col">営業所</th>
+                        <th scope="col">車検満了日</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">カルテ</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for vehicle in vehicles %}
+                        <tr>
+                            <td data-label="ナンバープレート">
+                                {{ vehicle.number }}
+                            </td>
+                            <td data-label="車台番号">
+                                {{ vehicle.chassis_number or "未登録" }}
+                            </td>
+                            <td data-label="メーカー・車名">
+                                {{ vehicle.manufacturer or "未登録" }}
+                            </td>
+                            <td data-label="型式">
+                                {{ vehicle.model_code or "未登録" }}
+                            </td>
+                            <td data-label="車種">
+                                {{ vehicle.type or "未登録" }}
+                            </td>
+                            <td data-label="営業所">
+                                {{ vehicle.office or "未登録" }}
+                            </td>
+                            <td data-label="車検満了日">
+                                {{ vehicle.inspection_expiry or "未登録" }}
+                            </td>
+                            <td data-label="状態">
+                                <span class="status-badge">
+                                    {{ "無効" if vehicle.deleted else "有効" }}
+                                </span>
+                            </td>
+                            <td data-label="カルテ">
+                                <a
+                                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+                                    class="btn btn-outline btn-small"
+                                >
+                                    カルテを開く
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="help-text">条件に一致する車両はありません。</p>
+    {% endif %}
+
+    <div class="vehicle-list-footer">
+        <p class="vehicle-list-range">
+            {% if total_count > 0 %}
+                {{ total_count }}件中
+                {{ (page - 1) * 10 + 1 }}–{{ (page - 1) * 10 + vehicles | length }}件を表示
+            {% else %}
+                0件
+            {% endif %}
+        </p>
+
+        {% if total_pages > 1 %}
+            {% macro page_link(target_page, label) %}
+                <a
+                    href="{{ url_for('vehicle_karte_list', page=target_page, keyword=keyword, plate_number_search=request.args.get('plate_number_search', ''), chassis_number_search=request.args.get('chassis_number_search', ''), status=status, manufacturer=manufacturer, model_code=model_code, office=office, vehicle_type=vehicle_type) }}"
+                    class="btn btn-outline"
+                    aria-label="{{ target_page }}ページへ"
+                >
+                    {{ label }}
+                </a>
+            {% endmacro %}
+
+            {% set first_page = [1, page - 2] | max %}
+            {% set last_page = [total_pages, first_page + 4] | min %}
+            {% set first_page = [1, last_page - 4] | max %}
+
+            <nav class="vehicle-list-pagination" aria-label="車両のページ切替">
+                {% if page > 1 %}
+                    {{ page_link(page - 1, "‹") }}
+                {% endif %}
+
+                {% if first_page > 1 %}
+                    {{ page_link(1, "1") }}
+                    {% if first_page > 2 %}
+                        <span class="vehicle-list-pagination-gap">…</span>
+                    {% endif %}
+                {% endif %}
+
+                {% for page_number in range(first_page, last_page + 1) %}
+                    {% if page_number == page %}
+                        <span
+                            class="vehicle-list-current-page"
+                            aria-current="page"
+                            aria-label="{{ page_number }}ページ、現在のページ"
+                        >
+                            {{ page_number }}
+                        </span>
+                    {% else %}
+                        {{ page_link(page_number, page_number) }}
+                    {% endif %}
+                {% endfor %}
+
+                {% if last_page < total_pages %}
+                    {% if last_page < total_pages - 1 %}
+                        <span class="vehicle-list-pagination-gap">…</span>
+                    {% endif %}
+                    {{ page_link(total_pages, total_pages) }}
+                {% endif %}
+
+                {% if page < total_pages %}
+                    {{ page_link(page + 1, "›") }}
+                {% endif %}
+            </nav>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

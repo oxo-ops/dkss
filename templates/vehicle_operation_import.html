@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}運行実績取込{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>運行実績取込</h2>
+
+    <a
+        href="{{ url_for('vehicle_karte_list') }}"
+        class="btn btn-outline"
+    >
+        車両カルテへ戻る
+    </a>
+</div>
+
+{% for category, message in flash_messages %}
+    {% if category in ["success", "info"] %}
+        <div class="card vehicle-search-card" role="status">
+            <p>{{ message }}</p>
+        </div>
+    {% endif %}
+{% endfor %}
+
+<div class="card form-card vehicle-search-card">
+    <form
+        method="post"
+        action="{{ url_for('vehicle_operation_import') }}"
+        enctype="multipart/form-data"
+        class="responsive-form"
+        novalidate
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <div class="form-group">
+            <label for="csv_file">運行実績CSV</label>
+
+            <input
+                type="file"
+                id="csv_file"
+                name="csv_file"
+                accept=".csv"
+                aria-describedby="csv_file_help"
+                required
+            >
+
+            <p id="csv_file_help" class="help-text">
+                運行実績のCSVファイルを選択してください。
+                読み込んだ後に、対象車両と取込内容を確認します。
+            </p>
+        </div>
+
+        <div class="form-actions vehicle-filter-actions">
+            <button type="submit" class="btn btn-outline">
+                読み込んで確認
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

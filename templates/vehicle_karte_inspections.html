@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}車両カルテ：点検{% endblock %}
+
+{% block content %}
+
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
+
+<section class="card vehicle-karte-inspections-panel">
+    <div class="card-title-row">
+        <h3>日常点検・車両チェックリスト</h3>
+        <span>{{ inspection_page.total }}件</span>
+    </div>
+
+    {% if inspection_page.items %}
+        <div class="table-scroll">
+            <table class="checklist-table responsive-table">
+                <thead>
+                    <tr>
+                        <th scope="col">実施日</th>
+                        <th scope="col">実施者</th>
+                        <th scope="col">結果</th>
+                        <th scope="col">指摘・備考</th>
+                        <th scope="col">修理対応</th>
+                        <th scope="col">承認状態</th>
+                        <th scope="col">添付</th>
+                        <th scope="col">操作</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for record in inspection_page.items %}
+                        {% set result = inspection_results.get(record.id, {}) %}
+                        {% set summary = namespace(
+                            has_answer=false,
+                            has_failure=false,
+                            comments=[],
+                            file_count=0
+                        ) %}
+
+                        {% for answer in result.get("answers", []) %}
+                            {% set value = (answer.get("value") or "") | string | trim %}
+                            {% if value %}
+                                {% set summary.has_answer = true %}
+                            {% endif %}
+                            {% if value == "×" %}
+                                {% set summary.has_failure = true %}
+                            {% endif %}
+
+                            {% if answer.get("comment") %}
+                                {% set summary.comments = summary.comments + [
+                                    answer.get("comment")
+                                ] %}
+                            {% endif %}
+
+                            {% set files = answer.get("files") %}
+                            {% if files is sequence and files is not string and files is not mapping %}
+                                {% set summary.file_count = summary.file_count + (files | length) %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% set defects = open_defects
+                            | selectattr("result_id", "equalto", record.id)
+                            | list
+                        %}
+
+                        <tr>
+                            <td data-label="実施日">
+                                {{ record.checked_date or "—" }}
+                                {% set snapshot = inspection_snapshots.get(record.id, {}) %}
+                                {% if snapshot.get("name") %}
+                                    <div class="help-text">
+                                        {{ snapshot.get("name") }}
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="実施者">
+                                {{ record.checked_by or record.checked_by_username or "—" }}
+                            </td>
+
+                            <td data-label="結果">
+                                {% if summary.has_failure %}
+                                    <span class="status-badge">×あり</span>
+                                {% elif summary.has_answer %}
+                                    <span>回答あり</span>
+                                {% else %}
+                                    <span class="ui-empty-value">回答なし</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="指摘・備考">
+                                {% if summary.comments %}
+                                    {% for comment in summary.comments %}
+                                        <div>{{ comment }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="修理対応">
+                                {% if defects %}
+                                    <span class="status-badge">
+                                        要対応 {{ defects | length }}件
+                                    </span>
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="承認状態">
+                                {% if record.status %}
+                                    <span class="status-badge">
+                                        {{ record.status }}
+                                    </span>
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="添付">
+                                {% if summary.file_count %}
+                                    <a href="{{ inspection_links.get(record.id) }}">
+                                        {{ summary.file_count }}件
+                                    </a>
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="操作">
+                                <a
+                                    href="{{ inspection_links.get(record.id) }}"
+                                    class="vehicle-history-record-link"
+                                    aria-label="点検結果を開く"
+                                    title="点検結果を開く"
+                                >›</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="pagination" aria-label="点検結果のページ切替">
+            {% if inspection_page.has_prev %}
+                <a href="{{ url_for(
+                    'vehicle_karte_inspections',
+                    vehicle_record_id=vehicle.id,
+                    page=inspection_page.prev_num
+                ) }}">前へ</a>
+            {% endif %}
+
+            <span>
+                {{ inspection_page.page }} / {{ inspection_page.pages }}
+            </span>
+
+            {% if inspection_page.has_next %}
+                <a href="{{ url_for(
+                    'vehicle_karte_inspections',
+                    vehicle_record_id=vehicle.id,
+                    page=inspection_page.next_num
+                ) }}">次へ</a>
+            {% endif %}
+        </nav>
+    {% else %}
+        <p class="ui-empty-value">点検の記録なし</p>
+    {% endif %}
+</section>
+
+<section class="card vehicle-karte-inspections-panel">
+    <div class="card-title-row">
+        <h3>法定・定期点検</h3>
+    </div>
+    <p class="help-text">3か月点検・12か月点検・車検の記録</p>
+    <p class="ui-empty-value">準備中</p>
+</section>
+
+{% endblock %}

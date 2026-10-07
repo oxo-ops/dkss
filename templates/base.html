@@ -16,10 +16,10 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-5') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-9') }}">
 </head>
 <body
-    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history'] else '' }}"
+    class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] else '' }}"
     data-current-user="{{ session.get('name', '') }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
@@ -203,7 +203,43 @@
 
     <main class="main-content">
 
-        <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}">
+        <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}{% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] %} vehicle-karte-top-bar{% endif %}">
+            {% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections'] %}
+            <div class="vehicle-karte-search">
+                <label for="karte_vehicle_search">車両検索</label>
+
+                <input
+                    type="search"
+                    id="karte_vehicle_search"
+                    placeholder="車番・車台番号で検索"
+                    aria-label="車番・車台番号で検索"
+                    aria-controls="karte_vehicle_search_results"
+                    autocomplete="off"
+                >
+
+                <p
+                    id="karte_vehicle_search_status"
+                    class="help-text"
+                    role="status"
+                    aria-live="polite"
+                    hidden
+                ></p>
+
+                <div
+                    id="karte_vehicle_search_results"
+                    class="vehicle-karte-search-results"
+                    data-karte-url="{{ url_for('vehicle_karte_list') }}"
+                    hidden
+                ></div>
+            </div>
+
+            <script
+                type="application/json"
+                id="karte_vehicle_search_data"
+            >
+                {{ karte_vehicle_choices | tojson }}
+            </script>
+            {% endif %}
             <div class="notification-menu" id="notificationMenu">
                 <a
                     href="{{ url_for('notifications') }}"

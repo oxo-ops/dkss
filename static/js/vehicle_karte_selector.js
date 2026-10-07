@@ -28,8 +28,7 @@
         choice,
         searchText: normalize([
             choice.number,
-            choice.chassis_number,
-            choice.driver_names
+            choice.chassis_number
         ].join(" "))
     }));
 
@@ -74,18 +73,6 @@
             const number = document.createElement("strong");
             number.textContent = choice.number || "車番未登録";
             link.append(number);
-
-            const details = [
-                choice.chassis_number,
-                choice.driver_names
-            ].filter(Boolean);
-
-            if (details.length) {
-                const detail = document.createElement("span");
-                detail.textContent = details.join(" ／ ");
-                link.append(detail);
-            }
-
             fragment.append(link);
         }
 

@@ -33,13 +33,15 @@
         </span>
     {% endif %}
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="点検タブは実装中です"
+    <a
+        href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
+        class="vehicle-karte-tab"
+        {% if request.endpoint == "vehicle_karte_inspections" %}
+            aria-current="page"
+        {% endif %}
     >
         点検
-    </span>
+    </a>
 
     <span
         class="vehicle-karte-tab is-disabled"

@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}運行実績取込確認{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>運行実績取込確認</h2>
+</div>
+
+<div class="card vehicle-search-card vehicle-operation-import-preview">
+    {% set counts = namespace(
+        candidates=0,
+        registered=0,
+        excluded=0
+    ) %}
+
+    {% for row in preview_rows %}
+        {% if row.existing_record_id is not none %}
+            {% set counts.registered = counts.registered + 1 %}
+        {% elif row.errors or row.duplicate_in_file %}
+            {% set counts.excluded = counts.excluded + 1 %}
+        {% else %}
+            {% set counts.candidates = counts.candidates + 1 %}
+        {% endif %}
+    {% endfor %}
+
+    <p class="help-text">
+        {{ draft.source_filename }} ／ {{ preview_rows | length }}件
+    </p>
+
+    <p class="help-text" role="status">
+        登録候補：{{ counts.candidates }}件 ／
+        登録済み：{{ counts.registered }}件 ／
+        エラー・CSV内重複：{{ counts.excluded }}件
+    </p>
+
+    {% if preview_rows and counts.registered == preview_rows | length %}
+        <p class="help-text">
+            このCSVの運行実績はすべて登録済みです。
+            再度取り込む必要はありません。
+        </p>
+    {% else %}
+        <p class="help-text">
+            登録候補は初期状態でチェックされています。
+            対象車両を確認し、不要な行はチェックを外してください。
+            車両が未選択の行は、登録先の車両を選択してください。
+            登録済みの日報は再登録・上書きしません。
+        </p>
+    {% endif %}
+
+    <template id="vehicle-operation-choice-options">
+        <option value="">車両を選択</option>
+        {% for choice in vehicle_choices %}
+            <option value="{{ choice.id }}">
+                {{ choice.number }}
+            </option>
+        {% endfor %}
+    </template>
+
+    <form
+        method="post"
+        action="{{ url_for('vehicle_operation_import_confirm', draft_id=draft.id) }}"
+        class="responsive-form"
+        novalidate
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <div class="vehicle-operation-import-table-wrap">
+            <table class="checklist-table vehicle-operation-import-table">
+                <thead>
+                    <tr>
+                        <th>取込</th>
+                        <th>行</th>
+                        <th>日報番号</th>
+                        <th>運行日</th>
+                        <th>CSVの車両</th>
+                        <th>登録先の車両</th>
+                        <th>走行距離（km）</th>
+                        <th>確認事項</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_rows %}
+                        {% set values = row["values"] %}
+                        <tr>
+                            <td data-label="取込">
+                                <input
+                                    type="checkbox"
+                                    id="include_{{ row.line_number }}"
+                                    name="include"
+                                    value="{{ row.line_number }}"
+                                    aria-label="{{ row.line_number }}行目を取り込む"
+                                    {% if row.include %}checked{% endif %}
+                                    {% if row.errors or row.existing_record_id is not none %}disabled{% endif %}
+                                >
+                            </td>
+
+                            <td data-label="行">
+                                {{ row.line_number }}
+                            </td>
+
+                            <td data-label="日報番号">
+                                {{ row.source_row.get("日報番号", "") }}
+                            </td>
+
+                            <td data-label="運行日">
+                                {{ values.get("operation_date") or row.source_row.get("運行日", "") }}
+                            </td>
+
+                            <td data-label="CSVの車両">
+                                {{ row.source_row.get("車両") or "—" }}
+                                {% if row.source_row.get("車両コード") %}
+                                    <div class="help-text">
+                                        コード：{{ row.source_row.get("車両コード") }}
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="登録先の車両">
+                                <select
+                                    id="vehicle_{{ row.line_number }}"
+                                    name="vehicle_{{ row.line_number }}"
+                                    class="vehicle-operation-vehicle-select"
+                                    aria-label="{{ row.line_number }}行目の登録先車両"
+                                    {% if row.errors or row.existing_record_id is not none %}disabled{% endif %}
+                                >
+                                    <option value="">車両を選択</option>
+                                    {% for choice in vehicle_choices %}
+                                        {% if choice.id == row.vehicle_record_id %}
+                                            <option value="{{ choice.id }}" selected>
+                                                {{ choice.number }}
+                                            </option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </td>
+
+                            <td data-label="走行距離（km）">
+                                {% if values.get("distance") is not none %}
+                                    {{ values.get("distance") }}
+                                {% else %}
+                                    <span class="ui-empty-value">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td data-label="確認事項">
+                                {% for error in row.errors %}
+                                    <div class="field-error-message">
+                                        {{ error }}
+                                    </div>
+                                {% endfor %}
+
+                                {% if row.existing_record_id is not none %}
+                                    <div class="help-text">登録済み</div>
+                                {% endif %}
+
+                                {% if row.duplicate_in_file %}
+                                    <div class="help-text">
+                                        CSV内で日報番号が重複しています
+                                    </div>
+                                {% endif %}
+
+                                {% if not row.errors and row.existing_record_id is none %}
+                                    {% if row.candidate_vehicle_ids | length > 1 %}
+                                        <div class="help-text">
+                                            車両候補が複数あります
+                                        </div>
+                                    {% elif row.vehicle_record_id is none %}
+                                        <div class="help-text">
+                                            登録先の車両を選択してください
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-actions vehicle-filter-actions">
+            <a
+                href="{{ url_for('vehicle_operation_import') }}"
+                class="btn btn-outline"
+            >
+                ファイルを選び直す
+            </a>
+
+            <button type="submit" class="btn btn-outline">
+                選択した実績を登録
+            </button>
+        </div>
+    </form>
+</div>
+
+<script
+    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261007-1"
+    defer
+></script>
+
+{% endblock %}

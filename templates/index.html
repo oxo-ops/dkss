@@ -553,13 +553,19 @@
             <div class="dashboard-my-checklist-score-row">
 
                 <div>
-                    <span class="dashboard-my-checklist-score">
-                        {% if item.average_score is not none %}
+                    {% if item.average_score is not none %}
+                        <span class="dashboard-my-checklist-score">
                             {{ item.average_score }}
-                        {% else %}
-                            未実施
-                        {% endif %}
-                    </span>
+                        </span>
+                    {% else %}
+                        <span class="ui-empty-value">
+                            {% if item.result_count %}
+                                集計対象の記録なし
+                            {% else %}
+                                記録なし
+                            {% endif %}
+                        </span>
+                    {% endif %}
 
                     {% if item.average_score is not none %}
                     <span class="dashboard-my-checklist-max-score">

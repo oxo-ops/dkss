@@ -13,71 +13,35 @@
     <section class="card vehicle-karte-mileage-panel">
         <h3 class="result-info-title">走行距離の推移</h3>
 
-        <div class="vehicle-karte-chart-empty">
-            <p>走行距離未登録</p>
-        </div>
+        {% if karte_mileage_points %}
+            <div class="vehicle-karte-mileage-chart">
+                <canvas
+                    id="vehicle_karte_mileage_chart"
+                    role="img"
+                    aria-label="日付ごとの累積走行距離の推移"
+                >
+                    走行距離の推移を表示します。
+                </canvas>
+            </div>
+
+            <script
+                type="application/json"
+                id="vehicle_karte_mileage_data"
+            >{{ karte_mileage_points | tojson }}</script>
+        {% else %}
+            <div class="vehicle-karte-chart-empty">
+                <p class="help-text">
+                    表示できる走行距離の記録がありません。
+                </p>
+            </div>
+        {% endif %}
     </section>
 
     <div class="card">
         <h3 class="result-info-title">直近の整備履歴</h3>
-
-    <p class="help-text">
-        日常点検の不具合対応で登録された整備を、登録日時の新しい順に最大5件表示します。
-        状態は整備登録時点のものです。
-    </p>
-
-    {% if recent_repairs %}
-        <div class="table-scroll">
-            <table class="checklist-table responsive-table">
-                <thead>
-                    <tr>
-                        <th scope="col">整備実施日時</th>
-                        <th scope="col">項目</th>
-                        <th scope="col">整備内容</th>
-                        <th scope="col">実施者</th>
-                        <th scope="col">登録時の状態</th>
-                        <th scope="col">登録日時</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {% for repair in recent_repairs %}
-                        <tr>
-                            <td data-label="整備実施日時">
-                                {{ repair.get("performed_at") or "未登録" }}
-                            </td>
-
-                            <td data-label="項目">
-                                {{ repair.get("item_name") or "項目名未登録" }}
-                            </td>
-
-                            <td data-label="整備内容">
-                                {{ repair.get("note") or "未登録" }}
-                            </td>
-
-                            <td data-label="実施者">
-                                {{ repair.get("performed_by") or "未登録" }}
-                            </td>
-
-                            <td data-label="登録時の状態">
-                                <span class="status-badge">
-                                    {{ repair.get("status") or "未登録" }}
-                                </span>
-                            </td>
-
-                            <td data-label="登録日時">
-                                {{ repair.get("recorded_at") or "未登録" }}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="help-text">
-            日常点検の不具合対応に整備の登録履歴はありません。
-        </p>
-    {% endif %}
+    <div class="vehicle-karte-chart-empty">
+        <p class="ui-empty-value">準備中</p>
+    </div>
 </div>
 
 </div>
@@ -86,14 +50,14 @@
     <section class="card">
         <h3 class="result-info-title">年間整備費の推移</h3>
         <div class="vehicle-karte-analysis-empty">
-            <p>整備費データとの連携は未実装です。</p>
+            <p class="ui-empty-value">準備中</p>
         </div>
     </section>
 
     <section class="card">
         <h3 class="result-info-title">整備費の内訳（累計）</h3>
         <div class="vehicle-karte-analysis-empty">
-            <p>整備費データとの連携は未実装です。</p>
+            <p class="ui-empty-value">準備中</p>
         </div>
     </section>
 
@@ -217,5 +181,10 @@
 </div>
 
 {% endif %}
+
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_mileage.js', v='20261007-1') }}"
+    defer
+></script>
 
 {% endblock %}
