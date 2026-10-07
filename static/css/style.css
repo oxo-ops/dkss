@@ -15661,3 +15661,22 @@ nav[aria-label="通知の表示切替"] > a {
         gap: 10px;
     }
 }
+
+/* 運行不可時の通知先選択 */
+.vehicle-approval-card .js-vehicle-operation-judgment > .vehicle-operation-notify {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+#operation_notify_users[hidden] {
+    display: none;
+}
+
+#operation_notify_users > h4 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+#operation_notify_users .approval-candidate-users .vehicle-select-item {
+    padding-right: 14px;
+}

@@ -479,11 +479,22 @@ document.addEventListener("DOMContentLoaded", function () {
             const checks = form.querySelector('[name="checks_confirmed"]');
             const checksGroup = form.querySelector("#vehicle_judgment_checks");
             const help = form.querySelector("#vehicle_judgment_reason_help");
+            const notifyArea = form.querySelector("#operation_notify_users");
 
             function updateJudgmentFields() {
                 const choice = form.querySelector('[name="decision"]:checked');
                 const decision = choice ? choice.value : "";
                 const allowed = decision === "運行可";
+                const notifyRequired = decision === "運行不可";
+
+                if (notifyArea) {
+                    notifyArea.hidden = !notifyRequired;
+                    notifyArea.style.display = notifyRequired ? "" : "none";
+
+                    notifyArea.querySelectorAll("input").forEach(function (input) {
+                        input.disabled = !notifyRequired;
+                    });
+                }
 
                 if (reason) {
                     reason.required = ["運行不可", "判定保留"].includes(decision);
