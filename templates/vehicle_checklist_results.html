@@ -1468,7 +1468,63 @@
             </label>
         </div>
 
-        <label for="reason">補足・判断理由</label>
+        <div
+            id="operation_notify_users"
+            class="checklist-result-approval-row vehicle-operation-notify"
+            hidden
+        >
+            <h4>運行管理者への通知</h4>
+
+            <div
+                class="notify-user-selector"
+                data-approval-index="operation"
+            >
+                <div class="approval-candidate-area">
+                    <div class="approval-candidate-label">
+                        選択した運行管理者に、保存後に運行不可を通知します。
+                    </div>
+
+                    <div
+                        class="approval-candidate-users"
+                        data-approval-index="operation"
+                    ></div>
+                </div>
+
+                <div class="approval-user-search-heading">
+                    運行管理者を追加
+                </div>
+
+                <input
+                    type="text"
+                    id="operation_notify_user_search"
+                    class="approval-user-search"
+                    data-approval-index="operation"
+                    data-allow-general="0"
+                    placeholder="名前で検索"
+                    autocomplete="off"
+                    aria-label="通知する運行管理者を名前で検索"
+                >
+
+                <div
+                    class="approval-user-search-results vehicle-select-box is-hidden"
+                    data-approval-index="operation"
+                ></div>
+
+                <div
+                    class="selected-approval-users-heading"
+                    data-approval-index="operation"
+                >
+                    選択済み（0人）
+                </div>
+
+                <div
+                    class="selected-approval-users selected-vehicle-tags"
+                    data-approval-index="operation"
+                    data-saved-usernames="{{ judgment.get('operation_notify_usernames', []) | tojson | forceescape }}"
+                ></div>
+            </div>
+        </div>
+        <label for="reason">補足・判断理由</label>        
         <textarea id="reason" name="reason" rows="2" maxlength="5000"
             aria-describedby="vehicle_judgment_reason_help"></textarea>
         <p id="vehicle_judgment_reason_help" class="vehicle-judgment-help">
@@ -1861,7 +1917,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261005-4'
+        v='20261006-1'
     ) }}"
 ></script>
 

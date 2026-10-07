@@ -22091,6 +22091,53 @@ def save_vehicle_operation_judgment(result_index):
                     ("必須の点検項目に未回答があります。確認してから判断してください。", "decision")
                 ])
 
+    operation_notify_usernames = []
+    operation_notify_targets = []
+
+    if decision == "運行不可":
+        submitted_usernames = [
+            username.strip()
+            for username in request.form.getlist(
+                "approval_notify_users_operation"
+            )
+            if username.strip()
+        ]
+
+        if len(submitted_usernames) > 500:
+            return return_form_errors([
+                (
+                    "運行管理者の通知先は500人以内で選択してください。",
+                    "operation_notify_users"
+                )
+            ], 400)
+
+        operation_notify_usernames = list(
+            dict.fromkeys(submitted_usernames)
+        )
+
+        if operation_notify_usernames:
+            operation_notify_targets = User.query.filter(
+                User.company_code == result_record.company_code,
+                User.role == "admin",
+                User.username.in_(operation_notify_usernames)
+            ).all()
+
+            valid_usernames = {
+                user.username
+                for user in operation_notify_targets
+            }
+
+            if any(
+                username not in valid_usernames
+                for username in operation_notify_usernames
+            ):
+                return return_form_errors([
+                    (
+                        "通知先は同じ会社の管理者ユーザーから選択してください。",
+                        "operation_notify_users"
+                    )
+                ], 400)
+
     if request.headers.get("X-DKSS-Validation-Only") == "1":
         return jsonify({"success": True})
 
@@ -22109,6 +22156,7 @@ def save_vehicle_operation_judgment(result_index):
         "authority_confirmed": True,
         "checks_confirmed": decision == "運行可",
         "checks_evidence": checks_evidence,
+        "operation_notify_usernames": operation_notify_usernames,
         "version": current_version + 1
     }
 
@@ -22205,6 +22253,41 @@ def save_vehicle_operation_judgment(result_index):
                 }, ensure_ascii=False)
             )
             db.session.add(notification)
+        operation_notifications = []
+
+        for target in operation_notify_targets:
+            if (
+                notification_target
+                and target.username == notification_target.username
+            ):
+                continue
+
+            operation_notification = Notification(
+                company_code=result_record.company_code,
+                target_user=(
+                    (target.last_name or "") + (target.first_name or "")
+                    or target.username
+                ),
+                target_username=target.username,
+                title=notification_title,
+                message=notification_message,
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=datetime.now(ZoneInfo("UTC")).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+                workflow_context_json=json.dumps({
+                    "result_type": "vehicle",
+                    "result_id": result_record.id,
+                    "event_id": judgment_event.id,
+                    "action": "operation_result",
+                }, ensure_ascii=False)
+            )
+            db.session.add(operation_notification)
+            operation_notifications.append(
+                (target, operation_notification)
+            )
 
         db.session.commit()
     except Exception:
@@ -22223,6 +22306,20 @@ def save_vehicle_operation_judgment(result_index):
             )
         except Exception:
             app.logger.exception("運行判断の外部通知に失敗しました。")
+
+    for target, operation_notification in operation_notifications:
+        try:
+            dispatch_external_notification(
+                target,
+                operation_notification.title,
+                operation_notification.message,
+                operation_notification.link,
+                notification_id=operation_notification.id
+            )
+        except Exception:
+            app.logger.exception(
+                "運行不可の追加通知の外部配信に失敗しました。"
+            )
 
     redirect_url = url_for(
         "vehicle_checklist_results",
