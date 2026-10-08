@@ -16809,6 +16809,57 @@ def vehicle_operation_import_preview(draft_id):
         for vehicle in vehicles
     ]
 
+    vehicle_choices_by_id = {
+        choice["id"]: choice
+        for choice in vehicle_choices
+    }
+
+    for row in preview_rows:
+        row["selected_vehicle_choice"] = (
+            vehicle_choices_by_id.get(
+                row["vehicle_record_id"]
+            )
+        )
+
+    saved_errors = safe_json_dict(
+        draft.result_json
+    ).get("form_errors", [])
+
+    errors_by_field = {}
+
+    if isinstance(saved_errors, list):
+        for error in saved_errors:
+            if (
+                not isinstance(error, (list, tuple))
+                or len(error) != 2
+            ):
+                continue
+
+            message, field = error
+
+            if not isinstance(message, str):
+                continue
+
+            if not isinstance(field, str) or not field:
+                continue
+
+            errors_by_field.setdefault(field, []).append(
+                message
+            )
+
+    for row in preview_rows:
+        line_number = row["line_number"]
+        row["submission_errors"] = list(dict.fromkeys(
+            errors_by_field.get(
+                f"vehicle_{line_number}",
+                []
+            )
+            + errors_by_field.get(
+                f"include_{line_number}",
+                []
+            )
+        ))
+
     return render_template(
         "vehicle_operation_import_preview.html",
         draft=draft,
@@ -16872,6 +16923,10 @@ def vehicle_operation_import_confirm(draft_id):
                     selections,
                     ensure_ascii=False
                 )
+                draft.result_json = json.dumps(
+                    {"form_errors": errors},
+                    ensure_ascii=False
+                )
                 db.session.commit()
             except SQLAlchemyError:
                 db.session.rollback()
@@ -16887,7 +16942,20 @@ def vehicle_operation_import_confirm(draft_id):
                     status_code=500
                 )
 
-        return return_form_errors(errors)
+        if (
+            validation_only
+            or request.headers.get("X-DKSS-Final-Submit") == "1"
+        ):
+            return return_form_errors(errors)
+
+        return return_form_errors([
+            (
+                f"確認が必要な項目が{len(errors)}件あります。"
+                "表の確認事項を確認してください。"
+                "選択内容は保存されています。",
+                ""
+            )
+        ])
 
     if validation_only:
         return jsonify({"ok": True})

@@ -130,13 +130,11 @@
                                     {% if row.errors or row.existing_record_id is not none %}disabled{% endif %}
                                 >
                                     <option value="">車両を選択</option>
-                                    {% for choice in vehicle_choices %}
-                                        {% if choice.id == row.vehicle_record_id %}
-                                            <option value="{{ choice.id }}" selected>
-                                                {{ choice.number }}
-                                            </option>
-                                        {% endif %}
-                                    {% endfor %}
+                                    {% if row.selected_vehicle_choice %}
+                                        <option value="{{ row.selected_vehicle_choice.id }}" selected>
+                                            {{ row.selected_vehicle_choice.number }}
+                                        </option>
+                                    {% endif %}
                                 </select>
                             </td>
 
@@ -153,6 +151,14 @@
                                     <div class="field-error-message">
                                         {{ error }}
                                     </div>
+                                {% endfor %}
+
+                                {% for error in row.submission_errors | default([]) %}
+                                    {% if error not in row.errors %}
+                                        <div class="field-error-message">
+                                            {{ error }}
+                                        </div>
+                                    {% endif %}
                                 {% endfor %}
 
                                 {% if row.existing_record_id is not none %}
