@@ -52,8 +52,16 @@
     <template id="vehicle-operation-choice-options">
         <option value="">車両を選択</option>
         {% for choice in vehicle_choices %}
-            <option value="{{ choice.id }}">
+            <option
+                value="{{ choice.id }}"
+                data-number="{{ choice.number }}"
+                data-chassis-number="{{ choice.chassis_number }}"
+                data-office="{{ choice.office }}"
+            >
                 {{ choice.number }}
+                ／ 車台番号：{{ choice.chassis_number or "記載なし" }}
+                ／ {{ choice.office or "営業所未設定" }}
+                ／ 車検満了：{{ choice.inspection_expiry or "未設定" }}
             </option>
         {% endfor %}
     </template>
@@ -69,6 +77,106 @@
             name="csrf_token"
             value="{{ csrf_token() }}"
         >
+
+        {% if vehicle_resolution_groups %}
+            <section id="vehicle-operation-resolution">
+                <h3>登録先の車両を確認</h3>
+                <p class="help-text">
+                    CSVの車両ごとに登録先を選び、対象の実績へまとめて反映します。
+                </p>
+
+                <details open id="vehicle-operation-resolution-details">
+                    <summary>車両の対応付けを見る</summary>
+
+                    <div class="vehicle-operation-import-table-wrap">
+                        <table class="checklist-table">
+                            <thead>
+                                <tr>
+                                    <th>CSVの車両</th>
+                                    <th>対象</th>
+                                    <th>登録先の車両</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for group in vehicle_resolution_groups %}
+                                    <tr
+                                        class="vehicle-operation-resolution-row"
+                                        data-line-numbers="{{ group.line_numbers | tojson | forceescape }}"
+                                    >
+                                        <td data-label="CSVの車両">
+                                            <div>{{ group.source_number }}</div>
+                                            <div class="help-text">
+                                                コード：{{ group.source_code or "記載なし" }}
+                                                ／ {{ group.source_office or "営業所の記載なし" }}
+                                            </div>
+                                        </td>
+
+                                        <td data-label="対象">
+                                            {{ group.row_count }}件
+                                        </td>
+
+                                        <td data-label="登録先の車両">
+                                            <label
+                                                for="operation_resolution_search_{{ group.index }}"
+                                                class="help-text"
+                                            >
+                                                ナンバー・車台番号・営業所で検索
+                                            </label>
+                                            <input
+                                                type="search"
+                                                id="operation_resolution_search_{{ group.index }}"
+                                                class="vehicle-operation-resolution-search"
+                                                placeholder="登録済み車両から検索"
+                                                autocomplete="off"
+                                            >
+
+                                            <select
+                                                class="vehicle-operation-resolution-select"
+                                                aria-label="{{ group.source_number }}の登録先車両"
+                                            >
+                                                <option value="">登録先を選択</option>
+                                                {% for choice in group.candidate_choices %}
+                                                    <option value="{{ choice.id }}">
+                                                        {{ choice.number }}
+                                                        ／ 車台番号：{{ choice.chassis_number or "記載なし" }}
+                                                        ／ {{ choice.office or "営業所未設定" }}
+                                                        ／ 車検満了：{{ choice.inspection_expiry or "未設定" }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+
+                                            <div
+                                                class="vehicle-operation-resolution-message help-text"
+                                                role="status"
+                                            ></div>
+                                        </td>
+
+                                        <td data-label="操作">
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline vehicle-operation-resolution-apply"
+                                            >
+                                                {{ group.row_count }}件に反映
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <p
+                    id="vehicle-operation-resolution-status"
+                    class="help-text"
+                    role="status"
+                    hidden
+                >
+                    車両の対応付けを反映しました。
+                </p>
+            </section>
+        {% endif %}
 
         <div class="vehicle-operation-import-table-wrap">
             <table class="checklist-table vehicle-operation-import-table">
@@ -205,7 +313,7 @@
 </div>
 
 <script
-    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261007-1"
+    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261008-1"
     defer
 ></script>
 
