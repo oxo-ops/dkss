@@ -1701,6 +1701,48 @@ class VehicleDocumentImportDraft(db.Model):
     )
 
 
+class VehicleOperationVehicleMapping(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_code",
+            "source_vehicle_code",
+            "source_vehicle_number",
+            name="uq_operation_vehicle_mapping"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_code = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+    source_vehicle_code = db.Column(
+        db.String(100),
+        nullable=False
+    )
+    source_vehicle_number = db.Column(
+        db.String(100),
+        nullable=False
+    )
+    vehicle_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vehicle.id"),
+        nullable=False,
+        index=True
+    )
+    confirmed_by_username = db.Column(
+        db.String(50),
+        nullable=False
+    )
+    confirmed_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC"))
+    )
+
+
 class VehicleOperationImportDraft(db.Model):
     id = db.Column(db.String(36), primary_key=True)
 
@@ -16805,6 +16847,9 @@ def vehicle_operation_import_preview(draft_id):
                 "plate_kana": vehicle.plate_kana or "",
                 "plate_number": vehicle.plate_number or "",
             }),
+            "chassis_number": vehicle.chassis_number or "",
+            "office": vehicle.office or "",
+            "inspection_expiry": vehicle.inspection_expiry or "",
         }
         for vehicle in vehicles
     ]
@@ -16820,6 +16865,85 @@ def vehicle_operation_import_preview(draft_id):
                 row["vehicle_record_id"]
             )
         )
+
+    grouped_vehicle_rows = {}
+
+    for row in preview_rows:
+        if (
+            row["errors"]
+            or row["existing_record_id"] is not None
+            or not row["include"]
+        ):
+            continue
+
+        source_row = row["source_row"]
+        source_code = str(
+            source_row.get("車両コード") or ""
+        ).strip()
+        source_number = str(
+            source_row.get("車両") or ""
+        ).strip()
+
+        group_key = (
+            source_code,
+            normalize_vehicle_operation_plate(
+                source_number
+            ),
+        )
+
+        group = grouped_vehicle_rows.setdefault(
+            group_key,
+            {
+                "index": len(grouped_vehicle_rows),
+                "source_code": source_code,
+                "source_number": source_number,
+                "source_office": str(
+                    source_row.get("車両：事業所") or ""
+                ).strip(),
+                "line_numbers": [],
+                "candidate_vehicle_ids": set(),
+                "selected_vehicle_ids": set(),
+                "has_unselected": False,
+            },
+        )
+
+        group["line_numbers"].append(
+            row["line_number"]
+        )
+        group["candidate_vehicle_ids"].update(
+            row["candidate_vehicle_ids"]
+        )
+
+        selected_id = row["vehicle_record_id"]
+
+        if selected_id is None:
+            group["has_unselected"] = True
+        else:
+            group["selected_vehicle_ids"].add(
+                selected_id
+            )
+
+    vehicle_resolution_groups = []
+
+    for group in grouped_vehicle_rows.values():
+        if (
+            not group["has_unselected"]
+            and len(group["selected_vehicle_ids"]) == 1
+        ):
+            continue
+
+        group["candidate_choices"] = [
+            vehicle_choices_by_id[vehicle_id]
+            for vehicle_id in sorted(
+                group["candidate_vehicle_ids"]
+            )
+            if vehicle_id in vehicle_choices_by_id
+        ]
+        group["row_count"] = len(
+            group["line_numbers"]
+        )
+
+        vehicle_resolution_groups.append(group)
 
     saved_errors = safe_json_dict(
         draft.result_json
@@ -16865,6 +16989,7 @@ def vehicle_operation_import_preview(draft_id):
         draft=draft,
         preview_rows=preview_rows,
         vehicle_choices=vehicle_choices,
+        vehicle_resolution_groups=vehicle_resolution_groups,
     )
 
 
@@ -16911,6 +17036,41 @@ def vehicle_operation_import_confirm(draft_id):
                 request.form
             )
         )
+
+        submitted_confirmations = set(
+            request.form.getlist(
+                "confirmed_vehicle_mapping"
+            )
+        )
+        previous_selections = safe_json_dict(
+            draft.selection_json
+        )
+
+        for line_number, selection in selections.items():
+            selected_id = selection.get(
+                "vehicle_record_id"
+            )
+            previous = previous_selections.get(
+                str(line_number),
+                {}
+            )
+
+            if not isinstance(previous, dict):
+                previous = {}
+
+            selection["mapping_confirmed"] = bool(
+                selection.get("include") is True
+                and selected_id is not None
+                and (
+                    f"{line_number}:{selected_id}"
+                    in submitted_confirmations
+                    or (
+                        previous.get("mapping_confirmed") is True
+                        and previous.get("vehicle_record_id")
+                        == selected_id
+                    )
+                )
+            )
     except UploadValidationError as error:
         return return_form_errors([
             (str(error), "")
@@ -17031,6 +17191,92 @@ def vehicle_operation_import_confirm(draft_id):
                 **values
             ))
             added_count += 1
+
+        confirmed_pairs = {
+            f"{line_number}:{selection['vehicle_record_id']}"
+            for line_number, selection in selections.items()
+            if (
+                selection.get("mapping_confirmed") is True
+                and selection.get("include") is True
+                and selection.get("vehicle_record_id") is not None
+            )
+        }
+        selected_ids_by_key = {}
+        confirmed_mapping_keys = set()
+
+        for record in records:
+            values = record["values"]
+            vehicle_id = record["vehicle_record_id"]
+
+            mapping_key = (
+                str(
+                    values.get("source_vehicle_code") or ""
+                ).strip(),
+                normalize_vehicle_operation_plate(
+                    values.get("source_vehicle_number")
+                ),
+            )
+
+            selected_ids_by_key.setdefault(
+                mapping_key,
+                set()
+            ).add(vehicle_id)
+
+            confirmation = (
+                f"{record['line_number']}:{vehicle_id}"
+            )
+
+            if confirmation in confirmed_pairs:
+                confirmed_mapping_keys.add(
+                    mapping_key
+                )
+
+        existing_mappings = {
+            (
+                mapping.source_vehicle_code,
+                mapping.source_vehicle_number,
+            ): mapping
+            for mapping in (
+                VehicleOperationVehicleMapping.query
+                .filter_by(company_code=company_code)
+                .all()
+            )
+        }
+
+        for mapping_key in confirmed_mapping_keys:
+            selected_ids = selected_ids_by_key[
+                mapping_key
+            ]
+
+            if len(selected_ids) != 1:
+                continue
+
+            source_code, source_number = mapping_key
+
+            if not source_number:
+                continue
+
+            vehicle_id = next(iter(selected_ids))
+            mapping = existing_mappings.get(
+                mapping_key
+            )
+
+            if mapping is None:
+                mapping = VehicleOperationVehicleMapping(
+                    company_code=company_code,
+                    source_vehicle_code=source_code,
+                    source_vehicle_number=source_number,
+                    vehicle_record_id=vehicle_id,
+                    confirmed_by_username=username,
+                )
+                db.session.add(mapping)
+            else:
+                mapping.vehicle_record_id = vehicle_id
+                mapping.confirmed_by_username = username
+
+            mapping.confirmed_at = datetime.now(
+                ZoneInfo("UTC")
+            )
 
         draft.selection_json = json.dumps(
             selections,
@@ -19946,6 +20192,32 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
         get_vehicle_operation_plate_candidates(company_code)
     )
 
+    saved_vehicle_mappings = {}
+
+    mappings = (
+        VehicleOperationVehicleMapping.query
+        .filter_by(company_code=company_code)
+        .all()
+    )
+
+    for mapping in mappings:
+        source_number = normalize_vehicle_operation_plate(
+            mapping.source_vehicle_number
+        )
+
+        if mapping.vehicle_record_id not in (
+            plate_candidates.get(source_number, [])
+        ):
+            continue
+
+        mapping_key = (
+            (mapping.source_vehicle_code or "").strip(),
+            source_number,
+        )
+        saved_vehicle_mappings[mapping_key] = (
+            mapping.vehicle_record_id
+        )
+
     report_counts = {}
 
     for csv_row in csv_rows:
@@ -20029,7 +20301,21 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
                 candidate_ids
             )
 
-            if len(candidate_ids) == 1:
+            mapping_key = (
+                str(
+                    values.get("source_vehicle_code") or ""
+                ).strip(),
+                plate,
+            )
+            mapped_vehicle_id = saved_vehicle_mappings.get(
+                mapping_key
+            )
+
+            if mapped_vehicle_id is not None:
+                preview_row["vehicle_record_id"] = (
+                    mapped_vehicle_id
+                )
+            elif len(candidate_ids) == 1:
                 preview_row["vehicle_record_id"] = (
                     candidate_ids[0]
                 )
