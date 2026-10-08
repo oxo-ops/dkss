@@ -18806,6 +18806,8 @@ def register_vehicle_import_master():
 @limiter.limit("10 per minute", methods=["POST"])
 def import_vehicles():
 
+    company_code = session.get("company_code")
+
     if request.method == "POST":
 
         excel_file = request.files.get("excel_file")
@@ -19311,12 +19313,111 @@ def import_vehicles():
 
 
 
+        company_vehicles = Vehicle.query.filter_by(
+            company_code=company_code
+        ).order_by(Vehicle.id.asc()).all()
+
+        excel_plate_rows = {}
+
+        for row_number, vehicle_data in enumerate(
+            vehicles_data, start=1
+        ):
+            plate_key = tuple(
+                normalize_vehicle_operation_plate(
+                    vehicle_data.get(field_name)
+                )
+                for field_name in (
+                    "plate_area",
+                    "plate_class",
+                    "plate_kana",
+                    "plate_number",
+                )
+            )
+
+            if all(plate_key):
+                excel_plate_rows.setdefault(
+                    plate_key, []
+                ).append((
+                    row_number,
+                    str(
+                        vehicle_data.get("chassis_number") or ""
+                    ).strip(),
+                ))
+
+        for row_number, vehicle_data in enumerate(
+            vehicles_data, start=1
+        ):
+            chassis_number = str(
+                vehicle_data.get("chassis_number") or ""
+            ).strip()
+
+            vehicle_data["plate_conflicts"] = (
+                get_vehicle_registration_plate_conflicts(
+                    company_code,
+                    vehicle_data.get("plate_area"),
+                    vehicle_data.get("plate_class"),
+                    vehicle_data.get("plate_kana"),
+                    vehicle_data.get("plate_number"),
+                    chassis_number,
+                    existing_vehicles=company_vehicles,
+                )
+            )
+
+            plate_key = tuple(
+                normalize_vehicle_operation_plate(
+                    vehicle_data.get(field_name)
+                )
+                for field_name in (
+                    "plate_area",
+                    "plate_class",
+                    "plate_kana",
+                    "plate_number",
+                )
+            )
+
+            vehicle_data["excel_plate_conflicts"] = [
+                {
+                    "row_number": other_row,
+                    "chassis_number": other_chassis,
+                }
+                for other_row, other_chassis in (
+                    excel_plate_rows.get(plate_key, [])
+                )
+                if other_row != row_number
+                and other_chassis
+                and chassis_number
+                and other_chassis != chassis_number
+            ]
+
         return render_template(
             "vehicle_import_preview.html",
             vehicles=vehicles_data,
             offices=offices_for_current_company(),
             vehicle_types=vehicle_types_for_current_company(),
             vehicle_type_mapping_dict=vehicle_type_mapping_dict,
+            vehicle_plate_candidates=[
+                {
+                    "id": vehicle.id,
+                    "chassis_number": str(
+                        vehicle.chassis_number or ""
+                    ).strip(),
+                    "plate_area": vehicle.plate_area or "",
+                    "plate_class": vehicle.plate_class or "",
+                    "plate_kana": vehicle.plate_kana or "",
+                    "plate_number": vehicle.plate_number or "",
+                    "office": vehicle.office or "",
+                    "inactive": bool(vehicle.deleted),
+                    "vehicle_type": vehicle.type or "",
+                    "gross_vehicle_weight": vehicle.gross_vehicle_weight,
+                    "model_code": vehicle.model_code or "",
+                    "first_registration_date": vehicle.first_registration_date or "",
+                    "inspection_expiry": vehicle.inspection_expiry or "",
+                    "vehicle_name": vehicle.manufacturer or "",
+                    "body_type": vehicle.body_type or "",
+                    "max_payload": vehicle.max_payload,
+                }
+                for vehicle in company_vehicles
+            ],
         )
     
     return render_template(
@@ -19534,6 +19635,155 @@ def confirm_vehicle_import():
             existing_vehicles_by_chassis[
                 existing_chassis
             ] = existing_vehicle
+
+    company_vehicles = Vehicle.query.filter_by(
+        company_code=company_code
+    ).order_by(Vehicle.id.asc()).all()
+
+    excel_plate_chassis = {}
+
+    for i in range(import_count):
+        plate_key = tuple(
+            normalize_vehicle_operation_plate(value)
+            for value in (
+                plate_areas[i],
+                plate_classes[i],
+                plate_kanas[i],
+                plate_numbers[i],
+            )
+        )
+        if all(plate_key):
+            excel_plate_chassis.setdefault(
+                plate_key, set()
+            ).add(normalize_import_text(chassis_numbers[i]))
+
+    vehicle_chassis_corrections = {}
+    correction_target_ids = set()
+    checked_chassis_numbers = set()
+    resolution_errors = []
+
+    for i in range(import_count):
+        chassis_number = normalize_import_text(
+            chassis_numbers[i]
+        )
+
+        if not chassis_number:
+            continue
+
+        if chassis_number in checked_chassis_numbers:
+            continue
+
+        checked_chassis_numbers.add(chassis_number)
+
+        field_name = f"vehicle_plate_resolution_{i}"
+        choice = request.form.get(
+            field_name, ""
+        ).strip()
+
+        existing_vehicle = existing_vehicles_by_chassis.get(
+            chassis_number
+        )
+
+        conflicts = get_vehicle_registration_plate_conflicts(
+            company_code,
+            plate_areas[i],
+            plate_classes[i],
+            plate_kanas[i],
+            plate_numbers[i],
+            chassis_number,
+            existing_vehicles=company_vehicles,
+        )
+
+        plate_key = tuple(
+            normalize_vehicle_operation_plate(value)
+            for value in (
+                plate_areas[i],
+                plate_classes[i],
+                plate_kanas[i],
+                plate_numbers[i],
+            )
+        )
+
+        excel_conflict = any(
+            other_chassis
+            and other_chassis != chassis_number
+            for other_chassis in (
+                excel_plate_chassis.get(plate_key, set())
+            )
+        )
+
+        if not conflicts and not excel_conflict:
+            if choice.startswith("update:"):
+                resolution_errors.append((
+                    f"No.{i + 1}の車両情報が変更されています。"
+                    "車台番号の訂正対象を確認してください。",
+                    field_name,
+                ))
+            continue
+
+        allowed_choices = {}
+
+        if existing_vehicle:
+            allowed_choices["existing_chassis"] = (
+                existing_vehicle
+            )
+        else:
+            allowed_choices["new"] = None
+
+            conflict_ids = {
+                candidate["id"]
+                for candidate in conflicts
+            }
+
+            for candidate in company_vehicles:
+                if candidate.id in conflict_ids:
+                    allowed_choices[
+                        f"update:{candidate.id}"
+                    ] = candidate
+
+        if choice not in allowed_choices:
+            resolution_errors.append((
+                f"No.{i + 1}は同じナンバーで異なる"
+                "車台番号の車両があります。"
+                "登録・更新方法を選択してください。",
+                field_name,
+            ))
+            continue
+
+        if not choice.startswith("update:"):
+            continue
+
+        target_vehicle = allowed_choices[choice]
+        old_chassis = normalize_import_text(
+            target_vehicle.chassis_number
+        )
+
+        if (
+            target_vehicle.id in correction_target_ids
+            or old_chassis in import_chassis_numbers
+        ):
+            resolution_errors.append((
+                f"No.{i + 1}の訂正対象車両は、"
+                "今回のExcel内の別の行でも使用されています。"
+                "取り込む車台番号を確認してください。",
+                field_name,
+            ))
+            continue
+
+        correction_target_ids.add(target_vehicle.id)
+        vehicle_chassis_corrections[chassis_number] = (
+            target_vehicle
+        )
+
+    if resolution_errors:
+        return return_form_errors(resolution_errors)
+
+    for corrected_chassis, target_vehicle in (
+        vehicle_chassis_corrections.items()
+    ):
+        existing_vehicles_by_chassis[
+            corrected_chassis
+        ] = target_vehicle
 
     counted_import_keys = set()
     new_vehicle_count = 0
@@ -19848,9 +20098,10 @@ def confirm_vehicle_import():
                 (error, "vehicle_type")
             ])
         
-        # 車台番号が一致する既存車両を更新
+        # 車台番号が一致する車両、または確認済みの訂正対象を更新
         if existing_vehicle:
             update_values = {
+                "chassis_number": chassis_number,
                 "plate_area": clean_text(plate_areas[i]),
                 "plate_class": clean_text(plate_classes[i]),
                 "plate_kana": clean_text(plate_kanas[i]),
@@ -20357,6 +20608,73 @@ def get_vehicle_operation_summary(company_code, vehicle_record_id):
             or latest_meter_record.operation_date
         ),
     }
+
+
+def get_vehicle_registration_plate_conflicts(
+    company_code,
+    plate_area,
+    plate_class,
+    plate_kana,
+    plate_number,
+    chassis_number,
+    exclude_vehicle_id=None,
+    existing_vehicles=None
+):
+    plate_parts = (
+        plate_area,
+        plate_class,
+        plate_kana,
+        plate_number,
+    )
+    normalized_parts = tuple(
+        normalize_vehicle_operation_plate(value)
+        for value in plate_parts
+    )
+
+    # 不完全なナンバーから同一車両と判断しない
+    if not all(normalized_parts):
+        return []
+
+    if existing_vehicles is None:
+        existing_vehicles = Vehicle.query.filter_by(
+            company_code=company_code
+        ).order_by(Vehicle.id.asc()).all()
+
+    conflicts = []
+
+    for vehicle in existing_vehicles:
+        if vehicle.company_code != company_code:
+            continue
+
+        if vehicle.id == exclude_vehicle_id:
+            continue
+        existing_parts = tuple(
+            normalize_vehicle_operation_plate(value)
+            for value in (
+                vehicle.plate_area,
+                vehicle.plate_class,
+                vehicle.plate_kana,
+                vehicle.plate_number,
+            )
+        )
+
+        if existing_parts != normalized_parts:
+            continue
+
+        if (
+            str(vehicle.chassis_number or "").strip()
+            == str(chassis_number or "").strip()
+        ):
+            continue
+
+        conflicts.append({
+            "id": vehicle.id,
+            "chassis_number": vehicle.chassis_number or "",
+            "office": vehicle.office or "",
+            "inactive": bool(vehicle.deleted),
+        })
+
+    return conflicts
 
 
 def normalize_vehicle_operation_plate(value):
