@@ -6957,6 +6957,107 @@ input:checked
     font-size: 16px;
 }
 
+#vehicle-plate-resolution-area {
+    margin: 12px 0;
+}
+
+#vehicle-plate-resolution-area:empty {
+    display: none;
+}
+
+#vehicle-plate-resolution-area > .card {
+    padding: 12px 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+#vehicle-plate-resolution-area h4 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+#vehicle-plate-resolution-area .help-text {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: #64748b;
+}
+
+#vehicle-plate-resolution-area table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #334155;
+}
+
+#vehicle-plate-resolution-area th {
+    padding: 8px 10px;
+    background: #f3f6fa;
+    border: 1px solid #dce3eb;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#vehicle-plate-resolution-area td {
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+#vehicle-plate-resolution-area th:nth-child(1) {
+    width: 18%;
+}
+
+#vehicle-plate-resolution-area th:nth-child(2) {
+    width: 22%;
+}
+
+#vehicle-plate-resolution-area th:nth-child(3) {
+    width: 30%;
+}
+
+#vehicle-plate-resolution-area th:nth-child(4) {
+    width: 30%;
+}
+
+#vehicle-plate-resolution-area td > div + div {
+    margin-top: 4px;
+}
+
+#vehicle-plate-resolution-area select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+}
+
+#vehicle-plate-resolution-area select:focus {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
+}
+
+#vehicle-plate-resolution-area > .help-text {
+    margin: 4px 0 0;
+}
+
 #vehicle-import-master-resolution .vehicle-import-master-header {
     display: flex;
     align-items: baseline;

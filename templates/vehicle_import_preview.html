@@ -107,6 +107,238 @@
     } | tojson }}
 </script>
 
+
+
+{% set import_counts = namespace(
+    new=0,
+    update=0,
+    unchanged=0,
+    duplicate=0
+) %}
+
+{% for vehicle in vehicles %}
+
+    {% if vehicle.import_status == "新規" %}
+        {% set import_counts.new = import_counts.new + 1 %}
+
+    {% elif vehicle.import_status == "更新" %}
+        {% set import_counts.update = import_counts.update + 1 %}
+
+    {% elif vehicle.import_status == "変更なし" %}
+        {% set import_counts.unchanged =
+            import_counts.unchanged + 1 %}
+
+    {% elif vehicle.import_status == "Excel内重複" %}
+        {% set import_counts.duplicate =
+            import_counts.duplicate + 1 %}
+    {% endif %}
+
+{% endfor %}
+
+<div class="card vehicle-import-preview-card">
+
+    <h3 id="vehicle-import-target-heading" tabindex="-1">
+        取込対象車両
+    </h3>
+
+<p class="help-text">
+    {{ vehicles|length }}台読み込みました。
+    登録前にすべての項目を修正できます。
+</p>
+
+<div class="vehicle-import-summary-row">
+    <div class="vehicle-import-summary-counts">
+        <strong class="vehicle-import-status-new">
+            新規：<span id="count-new">{{ import_counts.new }}</span>件
+        </strong>
+
+        <strong class="vehicle-import-status-update">
+            更新：<span id="count-update">{{ import_counts.update }}</span>件
+        </strong>
+
+        <strong class="vehicle-import-status-unchanged">
+            変更なし：<span id="count-unchanged">{{ import_counts.unchanged }}</span>件
+        </strong>
+
+        <strong class="vehicle-import-status-duplicate">
+            Excel内重複（取込対象外）：
+            <span id="count-duplicate">{{ import_counts.duplicate }}</span>件
+        </strong>
+    </div>
+
+    <button
+        type="button"
+        class="btn vehicle-import-confirm-button js-open-import-confirm"
+    >
+        登録・更新内容を確認
+    </button>
+</div>
+
+<form
+    id="vehicle-import-form"
+    method="post"
+    action="/master/vehicles/import/confirm"
+    novalidate
+>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <script type="application/json" id="vehicle-plate-candidates">
+        {{ vehicle_plate_candidates | tojson }}
+    </script>
+
+    <div id="vehicle-plate-resolution-area">
+        {% set resolution = namespace(items=[]) %}
+
+        {% for vehicle in vehicles %}
+            {% set plate_conflicts = vehicle.get('plate_conflicts', []) %}
+            {% set excel_conflicts = vehicle.get('excel_plate_conflicts', []) %}
+
+            {% if (plate_conflicts or excel_conflicts)
+                and vehicle.import_status != 'Excel内重複' %}
+                {% set resolution.items = resolution.items + [{
+                    'index': loop.index0,
+                    'vehicle': vehicle,
+                    'plate_conflicts': plate_conflicts,
+                    'excel_conflicts': excel_conflicts
+                }] %}
+            {% endif %}
+        {% endfor %}
+
+        {% set groups = [
+            {
+                'kind': 'existing',
+                'title': '車台番号が一致する登録済み車両',
+                'description': '車台番号が一致する車両とは別に、同じナンバーの登録済み車両があります。既存データの重複を解消してから取り込んでください。'
+            },
+            {
+                'kind': 'registered_conflict',
+                'title': '登録方法を確認する車両',
+                'description': '同じナンバーの登録済み車両があります。同じ車両の車台番号を訂正する場合は反映先を選択し、ナンバーの誤記の場合は下の取込対象表で訂正してください。'
+            },
+            {
+                'kind': 'excel_conflict',
+                'title': 'Excel内で同じナンバーを持つ車両',
+                'description': 'Excel内に同じナンバーで異なる車台番号があります。下の取込対象表で車台番号またはナンバープレートを訂正してください。'
+            }
+        ] %}
+
+        {% for group in groups %}
+            {% set grouped = namespace(items=[]) %}
+
+            {% for item in resolution.items %}
+                {% set is_new = item.vehicle.base_import_status == '新規' or item.vehicle.recommended_update_id %}
+
+                {% if
+                    (group.kind == 'existing' and not is_new)
+                    or (
+                        group.kind == 'registered_conflict'
+                        and is_new
+                        and item.plate_conflicts
+                    )
+                    or (
+                        group.kind == 'excel_conflict'
+                        and is_new
+                        and not item.plate_conflicts
+                    )
+                %}
+                    {% set grouped.items = grouped.items + [item] %}
+                {% endif %}
+            {% endfor %}
+
+            {% if grouped.items %}
+                <section class="card vehicle-import-preview-card">
+                    <h4>{{ group.title }}</h4>
+                    <p class="help-text">{{ group.description }}</p>
+
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>ナンバープレート</th>
+                                    <th>Excel行・車台番号</th>
+                                    <th>同じナンバーの車両</th>
+                                    <th>反映先・登録方法</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in grouped.items %}
+                                    {% set vehicle = item.vehicle %}
+                                    {% set row_index = item.index %}
+
+                                    <tr>
+                                        <td>
+                                            {{ vehicle.plate_area or '' }}
+                                            {{ vehicle.plate_class or '' }}
+                                            {{ vehicle.plate_kana or '' }}
+                                            {{ vehicle.plate_number or '' }}
+                                        </td>
+                                        <td>
+                                            <div>No.{{ row_index + 1 }}</div>
+                                            <div>{{ vehicle.chassis_number }}</div>
+                                        </td>
+                                        <td>
+                                            {% for candidate in item.plate_conflicts %}
+                                                <div>
+                                                    {{ candidate.chassis_number }}
+                                                    （{{ '無効' if candidate.inactive else '有効' }}
+                                                    {% if candidate.office %}
+                                                        ／{{ candidate.office }}
+                                                    {% endif %}
+                                                    ）
+                                                </div>
+                                            {% endfor %}
+
+                                            {% for candidate in item.excel_conflicts %}
+                                                <div>
+                                                    {{ candidate.chassis_number }}
+                                                    （Excel No.{{ candidate.row_number }}）
+                                                </div>
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                            {% if item.excel_conflicts %}
+                                                Excel内の車台番号・ナンバーを訂正してください。
+                                            {% elif group.kind == 'existing' %}
+                                                登録済み車両のナンバー重複を解消してください。
+                                            {% else %}
+                                                <select
+                                                    id="vehicle_plate_resolution_{{ row_index }}"
+                                                    name="vehicle_plate_resolution_{{ row_index }}"
+                                                    aria-label="No.{{ row_index + 1 }}の車台番号訂正対象"
+                                                    required
+                                                >
+                                                    <option value="">
+                                                        訂正する車両を選択してください
+                                                    </option>
+                                                    {% for candidate in item.plate_conflicts %}
+                                                        <option value="update:{{ candidate.id }}"
+                                                            {% if vehicle.recommended_update_id == candidate.id %}selected{% endif %}>
+                                                            車台番号を訂正：
+                                                            {{ candidate.chassis_number }}
+                                                            → {{ vehicle.chassis_number }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {% endif %}
+        {% endfor %}
+
+        {% if resolution.items %}
+            <p class="help-text">
+                車台番号の訂正は既存車両の履歴を引き継ぎます。
+                同じナンバーの別車両は、重複を解消するまで登録できません。
+                登録済み車両同士の統合・削除は行いません。
+            </p>
+        {% endif %}
+    </div>
+
 <div class="card vehicle-import-preview-card">
 
     <h3>一括編集</h3>
@@ -191,79 +423,6 @@
     </div>
 
 </div>
-
-{% set import_counts = namespace(
-    new=0,
-    update=0,
-    unchanged=0,
-    duplicate=0
-) %}
-
-{% for vehicle in vehicles %}
-
-    {% if vehicle.import_status == "新規" %}
-        {% set import_counts.new = import_counts.new + 1 %}
-
-    {% elif vehicle.import_status == "更新" %}
-        {% set import_counts.update = import_counts.update + 1 %}
-
-    {% elif vehicle.import_status == "変更なし" %}
-        {% set import_counts.unchanged =
-            import_counts.unchanged + 1 %}
-
-    {% elif vehicle.import_status == "Excel内重複" %}
-        {% set import_counts.duplicate =
-            import_counts.duplicate + 1 %}
-    {% endif %}
-
-{% endfor %}
-
-<div class="card vehicle-import-preview-card">
-
-    <h3 id="vehicle-import-target-heading" tabindex="-1">
-        取込対象車両
-    </h3>
-
-<p class="help-text">
-    {{ vehicles|length }}台読み込みました。
-    登録前にすべての項目を修正できます。
-</p>
-
-<div class="vehicle-import-summary-row">
-    <div class="vehicle-import-summary-counts">
-        <strong class="vehicle-import-status-new">
-            新規：<span id="count-new">{{ import_counts.new }}</span>件
-        </strong>
-
-        <strong class="vehicle-import-status-update">
-            更新：<span id="count-update">{{ import_counts.update }}</span>件
-        </strong>
-
-        <strong class="vehicle-import-status-unchanged">
-            変更なし：<span id="count-unchanged">{{ import_counts.unchanged }}</span>件
-        </strong>
-
-        <strong class="vehicle-import-status-duplicate">
-            Excel内重複（取込対象外）：
-            <span id="count-duplicate">{{ import_counts.duplicate }}</span>件
-        </strong>
-    </div>
-
-    <button
-        type="button"
-        class="btn vehicle-import-confirm-button js-open-import-confirm"
-    >
-        登録・更新内容を確認
-    </button>
-</div>
-
-<form
-    id="vehicle-import-form"
-    method="post"
-    action="/master/vehicles/import/confirm"
-    novalidate
->
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="table-scroll">
 
             <table class="checklist-table">
@@ -601,6 +760,6 @@
 </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261007-7') }}"></script>
+<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261009-1') }}"></script>
 
 {% endblock %}

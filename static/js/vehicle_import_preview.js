@@ -150,7 +150,388 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    const vehiclePlateCandidates = JSON.parse(
+        document.getElementById("vehicle-plate-candidates")
+            ?.textContent || "[]"
+    );
+
+    function normalizeImportPlate(value) {
+        return String(value || "")
+            .normalize("NFKC")
+            .trim()
+            .replace(/[\s\-‐‑‒–—―−・･.]+/gu, "")
+            .toLowerCase();
+    }
+
+    function getImportPlateKey(parts) {
+        const normalized = parts.map(normalizeImportPlate);
+        return normalized.every(Boolean)
+            ? JSON.stringify(normalized)
+            : "";
+    }
+
+    function refreshVehiclePlateResolutions() {
+        const area = document.getElementById(
+            "vehicle-plate-resolution-area"
+        );
+        if (!area) {
+            return;
+        }
+
+        const plateFields = [
+            "plate_area",
+            "plate_class",
+            "plate_kana",
+            "plate_number"
+        ];
+        const candidatesByPlate = new Map();
+        const existingChassis = new Set();
+
+        vehiclePlateCandidates.forEach(function (vehicle) {
+            existingChassis.add(vehicle.chassis_number);
+            const key = getImportPlateKey(
+                plateFields.map(function (field) {
+                    return vehicle[field];
+                })
+            );
+            if (key) {
+                if (!candidatesByPlate.has(key)) {
+                    candidatesByPlate.set(key, []);
+                }
+                candidatesByPlate.get(key).push(vehicle);
+            }
+        });
+
+        const rows = Array.from(
+            document.querySelectorAll(".import-row")
+        ).map(function (row, index) {
+            function value(field) {
+                return String(
+                    row.querySelector(
+                        `[name="${field}"]`
+                    )?.value || ""
+                ).trim();
+            }
+            const parts = plateFields.map(value);
+            return {
+                index: index,
+                parts: parts,
+                plateKey: getImportPlateKey(parts),
+                chassis: value("chassis_number")
+            };
+        });
+
+        const rowsByPlate = new Map();
+        rows.forEach(function (row) {
+            if (row.plateKey && row.chassis) {
+                if (!rowsByPlate.has(row.plateKey)) {
+                    rowsByPlate.set(row.plateKey, []);
+                }
+                rowsByPlate.get(row.plateKey).push(row);
+            }
+        });
+
+        const previousChoices = new Map();
+        area.querySelectorAll("select").forEach(function (field) {
+            previousChoices.set(field.name, {
+                fingerprint: field.dataset.fingerprint,
+                value: field.value
+            });
+        });
+
+        const seenChassis = new Set();
+        const confirmations = [];
+
+        rows.forEach(function (row) {
+            if (!row.chassis || seenChassis.has(row.chassis)) {
+                return;
+            }
+            seenChassis.add(row.chassis);
+
+            const conflicts = (
+                candidatesByPlate.get(row.plateKey) || []
+            ).filter(function (vehicle) {
+                return vehicle.chassis_number !== row.chassis;
+            });
+            const excelConflicts = (
+                rowsByPlate.get(row.plateKey) || []
+            ).filter(function (other) {
+                return other.chassis !== row.chassis;
+            });
+
+            if (conflicts.length || excelConflicts.length) {
+                const complete = normalizeImportPlate(row.chassis);
+                const corrections = conflicts.filter(function (candidate) {
+                    const shortened = normalizeImportPlate(
+                        candidate.chassis_number
+                    );
+
+                    return shortened
+                        && shortened.length < complete.length
+                        && complete.startsWith(shortened)
+                        && !rows.some(function (other) {
+                            return other.chassis
+                                === candidate.chassis_number;
+                        });
+                });
+
+                confirmations.push({
+                    recommendedUpdateId:
+                        !existingChassis.has(row.chassis)
+                        && !excelConflicts.length
+                        && corrections.length === 1
+                            ? corrections[0].id
+                            : null,
+                    row: row,
+                    conflicts: conflicts,
+                    excelConflicts: excelConflicts,
+                    existing: existingChassis.has(row.chassis)
+                });
+            }
+        });
+
+        const signature = JSON.stringify(confirmations);
+        if (area.dataset.signature === signature) {
+            return;
+        }
+        area.dataset.signature = signature;
+
+        const fragment = document.createDocumentFragment();
+
+        function makeElement(tag, text, className) {
+            const element = document.createElement(tag);
+            if (text !== undefined) {
+                element.textContent = text;
+            }
+            if (className) {
+                element.className = className;
+            }
+            return element;
+        }
+
+        const groups = [
+            {
+                title: "車台番号が一致する登録済み車両",
+                description: "車台番号が一致する車両とは別に、同じナンバーの登録済み車両があります。既存データの重複を解消してから取り込んでください。",
+                items: confirmations.filter(function (item) {
+                    return item.existing;
+                })
+            },
+            {
+                title: "登録方法を確認する車両",
+                description: "同じナンバーの登録済み車両があります。同じ車両の車台番号を訂正する場合は反映先を選択し、ナンバーの誤記の場合は下の取込対象表で訂正してください。",
+                items: confirmations.filter(function (item) {
+                    return !item.existing && item.conflicts.length;
+                })
+            },
+            {
+                title: "Excel内で同じナンバーを持つ車両",
+                description: "Excel内に同じナンバーで異なる車台番号があります。下の取込対象表で車台番号またはナンバープレートを訂正してください。",
+                items: confirmations.filter(function (item) {
+                    return !item.existing && !item.conflicts.length;
+                })
+            }
+        ];
+
+        groups.forEach(function (group) {
+            if (!group.items.length) {
+                return;
+            }
+
+            const section = makeElement(
+                "section", undefined,
+                "card vehicle-import-preview-card"
+            );
+            section.appendChild(makeElement("h4", group.title));
+            section.appendChild(makeElement(
+                "p", group.description, "help-text"
+            ));
+
+            const wrapper = makeElement("div");
+            wrapper.style.overflowX = "auto";
+
+            const table = makeElement("table");
+            table.style.width = "100%";
+
+            const head = makeElement("thead");
+            const heading = makeElement("tr");
+
+            [
+                "ナンバープレート",
+                "Excel行・車台番号",
+                "同じナンバーの車両",
+                "反映先・登録方法"
+            ].forEach(function (text) {
+                heading.appendChild(makeElement("th", text));
+            });
+
+            head.appendChild(heading);
+            table.appendChild(head);
+
+            const body = makeElement("tbody");
+            const plateGroups = new Map();
+
+            group.items.forEach(function (item) {
+                const key = item.row.plateKey;
+                if (!plateGroups.has(key)) {
+                    plateGroups.set(key, []);
+                }
+                plateGroups.get(key).push(item);
+            });
+
+            plateGroups.forEach(function (items) {
+                items.forEach(function (confirmation, position) {
+                    const row = confirmation.row;
+                    const tr = makeElement("tr");
+
+                    if (position === 0) {
+                        const plateCell = makeElement(
+                            "td", row.parts.join(" ")
+                        );
+                        plateCell.rowSpan = items.length;
+                        tr.appendChild(plateCell);
+                    }
+
+                    const sourceCell = makeElement("td");
+                    sourceCell.appendChild(makeElement(
+                        "div", `No.${row.index + 1}`
+                    ));
+                    sourceCell.appendChild(makeElement(
+                        "div", row.chassis
+                    ));
+                    tr.appendChild(sourceCell);
+
+                    const candidatesCell = makeElement("td");
+                    const related = new Map();
+
+                    confirmation.conflicts.forEach(function (vehicle) {
+                        related.set(vehicle.chassis_number, {
+                            vehicle: vehicle,
+                            rows: []
+                        });
+                    });
+
+                    confirmation.excelConflicts.forEach(function (other) {
+                        if (!related.has(other.chassis)) {
+                            related.set(other.chassis, {
+                                vehicle: null,
+                                rows: []
+                            });
+                        }
+                        related.get(other.chassis).rows.push(
+                            `No.${other.index + 1}`
+                        );
+                    });
+
+                    related.forEach(function (entry, chassis) {
+                        const details = [];
+
+                        if (entry.vehicle) {
+                            details.push(
+                                entry.vehicle.inactive ? "無効" : "有効"
+                            );
+                            if (entry.vehicle.office) {
+                                details.push(entry.vehicle.office);
+                            }
+                        }
+
+                        if (entry.rows.length) {
+                            details.push(
+                                `Excel ${entry.rows.join("・")}`
+                            );
+                        }
+
+                        candidatesCell.appendChild(makeElement(
+                            "div",
+                            `${chassis}（${details.join("／")}）`
+                        ));
+                    });
+
+                    tr.appendChild(candidatesCell);
+                    const actionCell = makeElement("td");
+                    const fieldName =
+                        `vehicle_plate_resolution_${row.index}`;
+
+                    if (confirmation.excelConflicts.length) {
+                        actionCell.appendChild(makeElement(
+                            "span", "Excel内の車台番号・ナンバーを訂正してください。"
+                        ));
+                    } else if (confirmation.existing) {
+                        actionCell.appendChild(makeElement(
+                            "span", "登録済み車両のナンバー重複を解消してください。"
+                        ));
+                    } else {
+                        const field = makeElement("select");
+                        field.id = fieldName;
+                        field.name = fieldName;
+                        field.required = true;
+                        field.setAttribute(
+                            "aria-label",
+                            `No.${row.index + 1}の登録・更新方法`
+                        );
+                        field.dataset.fingerprint =
+                            JSON.stringify(confirmation);
+
+                        field.add(new Option(
+                            "訂正する車両を選択してください", ""
+                        ));
+
+                        confirmation.conflicts.forEach(function (vehicle) {
+                            field.add(new Option(
+                                `車台番号を訂正：${vehicle.chassis_number} → ${row.chassis}`,
+                                `update:${vehicle.id}`
+                            ));
+                        });
+
+                        if (confirmation.recommendedUpdateId) {
+                            field.value =
+                                `update:${confirmation.recommendedUpdateId}`;
+                        }
+
+                        const previous =
+                            previousChoices.get(fieldName);
+
+                        if (
+                            previous
+                            && previous.fingerprint
+                                === field.dataset.fingerprint
+                            && Array.from(field.options).some(
+                                function (option) {
+                                    return option.value
+                                        === previous.value;
+                                }
+                            )
+                        ) {
+                            field.value = previous.value;
+                        }
+
+                        actionCell.appendChild(field);
+                    }
+
+                    tr.appendChild(actionCell);
+                    body.appendChild(tr);
+                });
+            });
+
+            table.appendChild(body);
+            wrapper.appendChild(table);
+            section.appendChild(wrapper);
+            fragment.appendChild(section);
+        });
+
+        if (confirmations.length) {
+            fragment.appendChild(makeElement(
+                "p",
+                "車台番号の訂正は既存車両の履歴を引き継ぎます。同じナンバーの別車両は、重複を解消するまで登録できません。登録済み車両同士の統合・削除は行いません。",
+                "help-text"
+            ));
+        }
+
+        area.replaceChildren(fragment);
+    }
+
     function updateImportStatuses() {
+        refreshVehiclePlateResolutions();
         let newCount = 0;
         let updateCount = 0;
         let unchangedCount = 0;
@@ -161,60 +542,89 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document
             .querySelectorAll(".import-row")
-            .forEach(function (row) {
-                const baseStatus =
-                    row.dataset.baseStatus;
-
-                const statusCell =
+            .forEach(function (row, rowIndex) {
+                const statusCell = row.querySelector(
+                    ".import-status-cell"
+                );
+                const read = (name) => String(
                     row.querySelector(
-                        ".import-status-cell"
-                    );
+                        '[name="' + name + '"]'
+                    )?.value ?? ""
+                ).trim();
 
-                let currentStatus =
-                    baseStatus;
+                const chassis = read("chassis_number");
+                const importKey = getImportKey(row);
+                let currentStatus;
 
-                const importKey =
-                    getImportKey(row);
-
-                if (
-                    seenImportKeys.has(
-                        importKey
-                    )
-                ) {
-                    currentStatus =
-                        "Excel内重複";
-
+                if (seenImportKeys.has(importKey)) {
+                    currentStatus = "Excel内重複";
                 } else {
-                    seenImportKeys.add(
-                        importKey
+                    seenImportKeys.add(importKey);
+
+                    const resolution = document.getElementById(
+                        `vehicle_plate_resolution_${rowIndex}`
+                    )?.value || "";
+
+                    const existing = vehiclePlateCandidates.find(
+                        (vehicle) => vehicle.chassis_number === chassis
                     );
 
-                    if (
-                        baseStatus ===
-                        "変更なし"
-                    ) {
-                        const currentValues =
-                            getRowEditableValues(
-                                row
-                            );
+                    if (resolution.startsWith("update:")) {
+                        currentStatus = "更新";
+                    } else if (!existing) {
+                        currentStatus = "新規";
+                    } else {
+                        const fields = [
+                            "office",
+                            "plate_area",
+                            "plate_class",
+                            "plate_kana",
+                            "plate_number",
+                            "model_code",
+                            "first_registration_date",
+                            "inspection_expiry",
+                            "vehicle_name",
+                            "body_type",
+                            "gross_vehicle_weight",
+                            "max_payload"
+                        ];
 
-                        const initialValues =
-                            JSON.parse(
-                                row.dataset
-                                    .initialValues ||
-                                "[]"
-                            );
+                        const numericFields = new Set([
+                            "gross_vehicle_weight",
+                            "max_payload"
+                        ]);
 
-                        const changed =
-                            JSON.stringify(
-                                currentValues
-                            ) !==
-                            JSON.stringify(
-                                initialValues
-                            );
+                        const changed = fields.some((name) => {
+                            const value = read(name);
+
+                            // 保存処理と同じく、空欄は既存値を保持する。
+                            if (value === "") {
+                                return false;
+                            }
+
+                            const oldValue = existing[name];
+
+                            if (numericFields.has(name)) {
+                                return oldValue == null
+                                    || Number(value.replaceAll(",", ""))
+                                        !== Number(oldValue);
+                            }
+
+                            return value !== String(oldValue ?? "");
+                        });
+
+                        const typeChanged = read("vehicle_type")
+                            !== String(
+                                existing.vehicle_type ?? ""
+                            ).trim();
+
+                        const inactive =
+                            read("active_status") === "無効";
 
                         currentStatus =
                             changed
+                            || typeChanged
+                            || inactive !== Boolean(existing.inactive)
                                 ? "更新"
                                 : "変更なし";
                     }
@@ -410,8 +820,46 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    function validateVehiclePlateResolutions() {
+        refreshVehiclePlateResolutions();
+
+        const fields = document.querySelectorAll(
+            '#vehicle-import-form select[name^="vehicle_plate_resolution_"]'
+        );
+
+        let valid = true;
+
+        fields.forEach(function (field) {
+            if (field.value) {
+                return;
+            }
+
+            const rowNumber = Number(
+                field.name.replace(
+                    "vehicle_plate_resolution_", ""
+                )
+            ) + 1;
+
+            showCommonError(
+                `No.${rowNumber}の登録・更新方法を選択してください。`,
+                field.id,
+                valid
+            );
+
+            valid = false;
+        });
+
+        return valid;
+    }
+
     function openImportConfirm() {
         if (!importModal) {
+            return;
+        }
+
+        clearCommonErrors();
+
+        if (!validateVehiclePlateResolutions()) {
             return;
         }
 
@@ -513,6 +961,16 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
 
+    document.addEventListener("change", function (event) {
+        if (
+            event.target.matches(
+                'select[name^="vehicle_plate_resolution_"]'
+            )
+        ) {
+            updateImportStatuses();
+        }
+    });
+
     const importForm =
         document.getElementById("vehicle-import-form");
 
@@ -525,8 +983,14 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        importSubmitting = true;
         clearCommonErrors();
+
+        if (!validateVehiclePlateResolutions()) {
+            closeImportConfirm();
+            return;
+        }
+
+        importSubmitting = true;
 
         const submitButton = event.submitter;
         const originalText = submitButton?.textContent;
@@ -572,7 +1036,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             ]
                             : null;
 
-                        const target = row && error.field
+                        const rowTarget = row && error.field
                             ? Array.from(
                                 row.querySelectorAll("input, select")
                             ).find(function (input) {
@@ -582,6 +1046,16 @@ document.addEventListener("DOMContentLoaded", function () {
                                 );
                             })
                             : null;
+
+                        const resolutionTarget =
+                            /^vehicle_plate_resolution_\d+$/.test(
+                                String(error.field || "")
+                            )
+                                ? document.getElementById(error.field)
+                                : null;
+
+                        const target =
+                            rowTarget || resolutionTarget;
 
                         if (target && !target.id) {
                             target.id =
