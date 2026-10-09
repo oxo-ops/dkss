@@ -8,7 +8,12 @@
 
 <h2>ログイン</h2>
 
-<form method="post">
+<form
+    method="post"
+    action="{{ url_for('login') }}"
+    id="dkss-login-form"
+    data-csrf-url="{{ url_for('login_csrf_token') }}"
+>
     <input
         type="hidden"
         name="csrf_token"
@@ -18,6 +23,13 @@
     {% if error %}
         <p class="error-text">{{ error }}</p>
     {% endif %}
+
+    <p
+        id="login-submit-error"
+        class="error-text"
+        role="alert"
+        hidden
+    ></p>
 
     <div>
         <label>会社コード</label>
@@ -30,12 +42,21 @@
 
     <div>
         <label>ユーザーID</label>
-        <input type="text" name="username">
+        <input
+            type="text"
+            name="username"
+            value="{{ request.form.get('username', '') }}"
+            autocomplete="username"
+        >
     </div>
 
     <div>
         <label>パスワード</label>
-        <input type="password" name="password">
+        <input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+        >
     </div>
 
     <button type="submit">ログイン</button>
@@ -45,7 +66,11 @@
             初回登録はこちら
         </a>
     </div>
-    
 </form>
+
+<script
+    src="{{ url_for('static', filename='js/login.js', v='20261009-1') }}"
+    defer
+></script>
 
 {% endblock %}

@@ -3220,6 +3220,7 @@ def require_login():
     if (
         request.endpoint in {
             "login",
+            "login_csrf_token",
             "mfa",
             "register",
             "static",
@@ -5336,6 +5337,17 @@ def create_mfa_code(user):
     db.session.commit()
 
     return code
+
+@app.route("/login/csrf-token", methods=["GET"])
+def login_csrf_token():
+    from flask_wtf.csrf import generate_csrf
+
+    response = jsonify({
+        "csrf_token": generate_csrf()
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
