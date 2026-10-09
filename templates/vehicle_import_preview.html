@@ -208,17 +208,17 @@
             {
                 'kind': 'existing',
                 'title': '車台番号が一致する登録済み車両',
-                'description': '各行の車台番号が一致する車両に反映します。変更した項目だけを更新します。'
+                'description': '車台番号が一致する車両とは別に、同じナンバーの登録済み車両があります。既存データの重複を解消してから取り込んでください。'
             },
             {
                 'kind': 'registered_conflict',
                 'title': '登録方法を確認する車両',
-                'description': '同じナンバーの登録済み車両があります。車台番号を訂正するか、別車両として新規登録するかを選択してください。'
+                'description': '同じナンバーの登録済み車両があります。同じ車両の車台番号を訂正する場合は反映先を選択し、ナンバーの誤記の場合は下の取込対象表で訂正してください。'
             },
             {
                 'kind': 'excel_conflict',
                 'title': 'Excel内で同じナンバーを持つ車両',
-                'description': 'Excel内に同じナンバーで異なる車台番号があります。別車両として新規登録する内容か、下の取込対象表で確認してください。'
+                'description': 'Excel内に同じナンバーで異なる車台番号があります。下の取込対象表で車台番号またはナンバープレートを訂正してください。'
             }
         ] %}
 
@@ -226,7 +226,7 @@
             {% set grouped = namespace(items=[]) %}
 
             {% for item in resolution.items %}
-                {% set is_new = item.vehicle.base_import_status == '新規' %}
+                {% set is_new = item.vehicle.base_import_status == '新規' or item.vehicle.recommended_update_id %}
 
                 {% if
                     (group.kind == 'existing' and not is_new)
@@ -296,38 +296,28 @@
                                             {% endfor %}
                                         </td>
                                         <td>
-                                            {% if group.kind == 'existing' %}
-                                                <input
-                                                    type="hidden"
-                                                    id="vehicle_plate_resolution_{{ row_index }}"
-                                                    name="vehicle_plate_resolution_{{ row_index }}"
-                                                    value="existing_chassis"
-                                                >
-                                                今回の車台番号と一致する車両
+                                            {% if item.excel_conflicts %}
+                                                Excel内の車台番号・ナンバーを訂正してください。
+                                            {% elif group.kind == 'existing' %}
+                                                登録済み車両のナンバー重複を解消してください。
                                             {% else %}
                                                 <select
                                                     id="vehicle_plate_resolution_{{ row_index }}"
                                                     name="vehicle_plate_resolution_{{ row_index }}"
-                                                    aria-label="No.{{ row_index + 1 }}の登録・更新方法"
+                                                    aria-label="No.{{ row_index + 1 }}の車台番号訂正対象"
                                                     required
                                                 >
-                                                    {% if item.plate_conflicts %}
-                                                        <option value="">
-                                                            選択してください
-                                                        </option>
-                                                    {% endif %}
-
+                                                    <option value="">
+                                                        訂正する車両を選択してください
+                                                    </option>
                                                     {% for candidate in item.plate_conflicts %}
-                                                        <option value="update:{{ candidate.id }}">
+                                                        <option value="update:{{ candidate.id }}"
+                                                            {% if vehicle.recommended_update_id == candidate.id %}selected{% endif %}>
                                                             車台番号を訂正：
                                                             {{ candidate.chassis_number }}
                                                             → {{ vehicle.chassis_number }}
                                                         </option>
                                                     {% endfor %}
-
-                                                    <option value="new">
-                                                        別車両として新規登録
-                                                    </option>
                                                 </select>
                                             {% endif %}
                                         </td>
@@ -343,7 +333,7 @@
         {% if resolution.items %}
             <p class="help-text">
                 車台番号の訂正は既存車両の履歴を引き継ぎます。
-                別車両として新規登録する場合は引き継ぎません。
+                同じナンバーの別車両は、重複を解消するまで登録できません。
                 登録済み車両同士の統合・削除は行いません。
             </p>
         {% endif %}
@@ -770,6 +760,6 @@
 </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261008-5') }}"></script>
+<script src="{{ url_for('static', filename='js/vehicle_import_preview.js', v='20261009-1') }}"></script>
 
 {% endblock %}

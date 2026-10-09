@@ -260,7 +260,28 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             if (conflicts.length || excelConflicts.length) {
+                const complete = normalizeImportPlate(row.chassis);
+                const corrections = conflicts.filter(function (candidate) {
+                    const shortened = normalizeImportPlate(
+                        candidate.chassis_number
+                    );
+
+                    return shortened
+                        && shortened.length < complete.length
+                        && complete.startsWith(shortened)
+                        && !rows.some(function (other) {
+                            return other.chassis
+                                === candidate.chassis_number;
+                        });
+                });
+
                 confirmations.push({
+                    recommendedUpdateId:
+                        !existingChassis.has(row.chassis)
+                        && !excelConflicts.length
+                        && corrections.length === 1
+                            ? corrections[0].id
+                            : null,
                     row: row,
                     conflicts: conflicts,
                     excelConflicts: excelConflicts,
@@ -291,21 +312,21 @@ document.addEventListener("DOMContentLoaded", function () {
         const groups = [
             {
                 title: "車台番号が一致する登録済み車両",
-                description: "各行の車台番号が一致する車両に反映します。変更した項目だけを更新します。",
+                description: "車台番号が一致する車両とは別に、同じナンバーの登録済み車両があります。既存データの重複を解消してから取り込んでください。",
                 items: confirmations.filter(function (item) {
                     return item.existing;
                 })
             },
             {
                 title: "登録方法を確認する車両",
-                description: "同じナンバーの登録済み車両があります。車台番号を訂正するか、別車両として新規登録するかを選択してください。",
+                description: "同じナンバーの登録済み車両があります。同じ車両の車台番号を訂正する場合は反映先を選択し、ナンバーの誤記の場合は下の取込対象表で訂正してください。",
                 items: confirmations.filter(function (item) {
                     return !item.existing && item.conflicts.length;
                 })
             },
             {
                 title: "Excel内で同じナンバーを持つ車両",
-                description: "Excel内に同じナンバーで異なる車台番号があります。別車両として新規登録する内容か、下の取込対象表で確認してください。",
+                description: "Excel内に同じナンバーで異なる車台番号があります。下の取込対象表で車台番号またはナンバープレートを訂正してください。",
                 items: confirmations.filter(function (item) {
                     return !item.existing && !item.conflicts.length;
                 })
@@ -431,15 +452,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     const fieldName =
                         `vehicle_plate_resolution_${row.index}`;
 
-                    if (confirmation.existing) {
-                        const field = makeElement("input");
-                        field.type = "hidden";
-                        field.id = fieldName;
-                        field.name = fieldName;
-                        field.value = "existing_chassis";
-                        actionCell.appendChild(field);
+                    if (confirmation.excelConflicts.length) {
                         actionCell.appendChild(makeElement(
-                            "span", "今回の車台番号と一致する車両"
+                            "span", "Excel内の車台番号・ナンバーを訂正してください。"
+                        ));
+                    } else if (confirmation.existing) {
+                        actionCell.appendChild(makeElement(
+                            "span", "登録済み車両のナンバー重複を解消してください。"
                         ));
                     } else {
                         const field = makeElement("select");
@@ -453,11 +472,9 @@ document.addEventListener("DOMContentLoaded", function () {
                         field.dataset.fingerprint =
                             JSON.stringify(confirmation);
 
-                        if (confirmation.conflicts.length) {
-                            field.add(new Option(
-                                "選択してください", ""
-                            ));
-                        }
+                        field.add(new Option(
+                            "訂正する車両を選択してください", ""
+                        ));
 
                         confirmation.conflicts.forEach(function (vehicle) {
                             field.add(new Option(
@@ -466,9 +483,10 @@ document.addEventListener("DOMContentLoaded", function () {
                             ));
                         });
 
-                        field.add(new Option(
-                            "別車両として新規登録", "new"
-                        ));
+                        if (confirmation.recommendedUpdateId) {
+                            field.value =
+                                `update:${confirmation.recommendedUpdateId}`;
+                        }
 
                         const previous =
                             previousChoices.get(fieldName);
@@ -504,7 +522,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (confirmations.length) {
             fragment.appendChild(makeElement(
                 "p",
-                "車台番号の訂正は既存車両の履歴を引き継ぎます。別車両として新規登録する場合は引き継ぎません。登録済み車両同士の統合・削除は行いません。",
+                "車台番号の訂正は既存車両の履歴を引き継ぎます。同じナンバーの別車両は、重複を解消するまで登録できません。登録済み車両同士の統合・削除は行いません。",
                 "help-text"
             ));
         }

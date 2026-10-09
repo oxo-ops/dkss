@@ -19158,6 +19158,45 @@ def import_vehicles():
                 )
             )
 
+            vehicle["recommended_update_id"] = None
+
+            if not existing_vehicle:
+                candidates = get_vehicle_registration_plate_conflicts(
+                    company_code,
+                    vehicle.get("plate_area"),
+                    vehicle.get("plate_class"),
+                    vehicle.get("plate_kana"),
+                    vehicle.get("plate_number"),
+                    chassis_number,
+                )
+                complete_chassis = normalize_vehicle_operation_plate(
+                    chassis_number
+                )
+                correction_candidates = []
+
+                for candidate in candidates:
+                    shortened_chassis = normalize_vehicle_operation_plate(
+                        candidate["chassis_number"]
+                    )
+
+                    if (
+                        shortened_chassis
+                        and len(shortened_chassis) < len(complete_chassis)
+                        and complete_chassis.startswith(shortened_chassis)
+                        and clean_preview_text(candidate["chassis_number"])
+                        not in incoming_chassis_numbers
+                    ):
+                        correction_candidates.append(candidate)
+
+                if len(correction_candidates) == 1:
+                    vehicle["recommended_update_id"] = (
+                        correction_candidates[0]["id"]
+                    )
+                    existing_vehicle = Vehicle.query.filter_by(
+                        id=vehicle["recommended_update_id"],
+                        company_code=company_code,
+                    ).first()
+
             is_excel_duplicate = (
                 import_key in processed_import_keys
             )
@@ -19246,7 +19285,8 @@ def import_vehicles():
                 }
 
                 vehicle_changed = (
-                    bool(vehicle.get("state_changed"))
+                    bool(vehicle.get("recommended_update_id"))
+                    or bool(vehicle.get("state_changed"))
                     or clean_preview_text(existing_vehicle.office)
                     != clean_preview_text(vehicle.get("office"))
                 )
@@ -19721,25 +19761,34 @@ def confirm_vehicle_import():
                 ))
             continue
 
-        allowed_choices = {}
+        if excel_conflict:
+            resolution_errors.append((
+                f"No.{i + 1}はExcel内に同じナンバーで異なる"
+                "車台番号の行があります。"
+                "車台番号またはナンバープレートを確認・訂正してください。",
+                field_name,
+            ))
+            continue
 
         if existing_vehicle:
-            allowed_choices["existing_chassis"] = (
-                existing_vehicle
-            )
-        else:
-            allowed_choices["new"] = None
+            resolution_errors.append((
+                f"No.{i + 1}は登録済み車両同士でナンバーが重複しています。"
+                "既存車両の重複を解消してから取り込んでください。",
+                field_name,
+            ))
+            continue
 
-            conflict_ids = {
-                candidate["id"]
-                for candidate in conflicts
-            }
+        allowed_choices = {}
+        conflict_ids = {
+            candidate["id"]
+            for candidate in conflicts
+        }
 
-            for candidate in company_vehicles:
-                if candidate.id in conflict_ids:
-                    allowed_choices[
-                        f"update:{candidate.id}"
-                    ] = candidate
+        for candidate in company_vehicles:
+            if candidate.id in conflict_ids:
+                allowed_choices[
+                    f"update:{candidate.id}"
+                ] = candidate
 
         if choice not in allowed_choices:
             resolution_errors.append((
@@ -20115,6 +20164,33 @@ def confirm_vehicle_import():
                 "max_payload": max_payload,
                 "office": offices[i],
             }
+
+            comparison_values = dict(update_values)
+            comparison_values["type"] = selected_vehicle_type
+            comparison_values["deleted"] = target_deleted_values[i]
+
+            comparison_differences = {
+                key: {
+                    "before": getattr(existing_vehicle, key),
+                    "submitted": value,
+                    "blank_preserved": (
+                        key in update_values and value in ("", None)
+                    ),
+                }
+                for key, value in comparison_values.items()
+                if getattr(existing_vehicle, key) != value
+            }
+
+            if comparison_differences or clean_text(plate_numbers[i]) in (
+                "1594", "4624", "71", "553"
+            ):
+                app.logger.warning(
+                    "VEHICLE_IMPORT_COMPARE row=%s id=%s chassis=%s differences=%s",
+                    i + 1,
+                    existing_vehicle.id,
+                    chassis_number,
+                    json.dumps(comparison_differences, ensure_ascii=False),
+                )
 
             vehicle_changed = False
             target_deleted = target_deleted_values[i]
@@ -21529,37 +21605,34 @@ def bulk_delete_vehicles():
         for vehicle in vehicles_to_delete
     }
 
-    vehicle_patrol_in_use = VehiclePatrol.query.filter(
-        VehiclePatrol.company_code == company_code,
-        VehiclePatrol.vehicle_record_id.in_(
-            vehicle_record_ids_to_delete
-        )
-    ).first()
+    related_records = (
+        (VehiclePatrol, "vehicle_record_id"),
+        (VehicleChecklistResult, "vehicle_record_id"),
+        (ChecklistResult, "target_vehicle_record_id"),
+        (VehicleDrivingReportRecord, "vehicle_record_id"),
+        (VehiclePeriodicInspectionRecord, "vehicle_record_id"),
+        (VehicleOperationRecord, "vehicle_record_id"),
+        (VehicleMaintenanceRecord, "vehicle_record_id"),
+        (VehicleOperationVehicleMapping, "vehicle_record_id"),
+    )
 
-    vehicle_checklist_in_use = VehicleChecklistResult.query.filter(
-        VehicleChecklistResult.company_code == company_code,
-        VehicleChecklistResult.vehicle_record_id.in_(
-            vehicle_record_ids_to_delete
-        )
-    ).first()
+    for model, vehicle_field in related_records:
+        related_record = model.query.filter(
+            model.company_code == company_code,
+            getattr(model, vehicle_field).in_(
+                vehicle_record_ids_to_delete
+            )
+        ).first()
 
-    checklist_in_use = ChecklistResult.query.filter(
-        ChecklistResult.company_code == company_code,
-        ChecklistResult.target_vehicle_record_id.in_(
-            vehicle_record_ids_to_delete
-        )
-    ).first()
-
-    if (
-        vehicle_patrol_in_use
-        or vehicle_checklist_in_use
-        or checklist_in_use
-    ):
-        return (
-            "履歴がある車両を含むため完全削除できません。"
-            "対象車両は無効化してください。",
-            409
-        )
+        if related_record:
+            return return_form_errors([
+                (
+                    "履歴または運行実績の対応付けがある車両を"
+                    "含むため完全削除できません。"
+                    "対象車両は無効化してください。",
+                    ""
+                )
+            ], status_code=409)
 
     delete_vehicle_patterns = [
         f'"{vehicle_record_id}"'
@@ -21738,31 +21811,31 @@ def delete_vehicle(index):
 
     vehicle_record_id = vehicle.id
 
-    vehicle_patrol_in_use = VehiclePatrol.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle_record_id
-    ).first()
+    related_records = (
+        (VehiclePatrol, "vehicle_record_id"),
+        (VehicleChecklistResult, "vehicle_record_id"),
+        (ChecklistResult, "target_vehicle_record_id"),
+        (VehicleDrivingReportRecord, "vehicle_record_id"),
+        (VehiclePeriodicInspectionRecord, "vehicle_record_id"),
+        (VehicleOperationRecord, "vehicle_record_id"),
+        (VehicleMaintenanceRecord, "vehicle_record_id"),
+        (VehicleOperationVehicleMapping, "vehicle_record_id"),
+    )
 
-    vehicle_checklist_in_use = VehicleChecklistResult.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle_record_id
-    ).first()
+    for model, vehicle_field in related_records:
+        related_record = model.query.filter_by(
+            company_code=vehicle.company_code,
+            **{vehicle_field: vehicle_record_id}
+        ).first()
 
-    checklist_in_use = ChecklistResult.query.filter_by(
-        company_code=vehicle.company_code,
-        target_vehicle_record_id=vehicle_record_id
-    ).first()
-
-    if (
-        vehicle_patrol_in_use
-        or vehicle_checklist_in_use
-        or checklist_in_use
-    ):
-        return (
-            "履歴がある車両は完全削除できません。"
-            "無効化してください。",
-            409
-        )
+        if related_record:
+            return return_form_errors([
+                (
+                    "履歴または運行実績の対応付けがある車両は"
+                    "完全削除できません。無効化してください。",
+                    ""
+                )
+            ], status_code=409)
 
     vehicle_record_id_str = str(vehicle_record_id)
 
