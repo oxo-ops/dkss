@@ -1,0 +1,99 @@
+{% if session.get('role') in ['admin', 'itc'] %}
+<dialog
+    id="operation-add-vehicle-dialog"
+    class="vehicle-operation-add-dialog"
+    aria-labelledby="operation-add-vehicle-title"
+>
+    <div class="modal-bg is-open">
+        <div class="modal-box">
+            <h3 id="operation-add-vehicle-title">車両を追加</h3>
+            <p id="operation-add-vehicle-source" class="help-text"></p>
+
+            <form
+                id="operation-add-vehicle-form"
+                class="responsive-form"
+                action="{{ url_for('vehicle_operation_import_add_vehicle', draft_id=draft.id) }}"
+                novalidate
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <div class="vehicle-operation-add-fields">
+                    <label for="operation_new_chassis_number">車台番号（必須）</label>
+                    <input
+                        id="operation_new_chassis_number"
+                        name="chassis_number"
+                        maxlength="100"
+                        required
+                    >
+
+                    <label for="operation_new_plate_area">地域名</label>
+                    <input
+                        id="operation_new_plate_area"
+                        name="plate_area"
+                        maxlength="50"
+                    >
+
+                    <label for="operation_new_plate_class">分類番号</label>
+                    <input
+                        id="operation_new_plate_class"
+                        name="plate_class"
+                        maxlength="50"
+                    >
+
+                    <label for="operation_new_plate_kana">ひらがな等</label>
+                    <input
+                        id="operation_new_plate_kana"
+                        name="plate_kana"
+                        maxlength="10"
+                    >
+
+                    <label for="operation_new_plate_number">一連番号</label>
+                    <input
+                        id="operation_new_plate_number"
+                        name="plate_number"
+                        maxlength="50"
+                    >
+
+                    <label for="operation_new_office">営業所</label>
+                    <select id="operation_new_office" name="office">
+                        <option value="">未設定</option>
+                        {% for office in offices %}
+                            <option value="{{ office.name }}">{{ office.name }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="operation_new_type">車種</label>
+                    <select id="operation_new_type" name="type">
+                        <option value="">未設定</option>
+                        {% for vehicle_type in vehicle_types %}
+                            <option value="{{ vehicle_type.name }}">{{ vehicle_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <label class="vehicle-operation-add-inactive">
+                    <input type="checkbox" name="inactive" value="1">
+                    無効車両として登録（過去の実績を取り込む場合）
+                </label>
+
+                <div class="form-actions vehicle-filter-actions">
+                    <button
+                        type="button"
+                        class="btn btn-outline"
+                        id="operation-add-vehicle-cancel"
+                    >
+                        キャンセル
+                    </button>
+                    <button type="submit" class="btn btn-outline">
+                        追加して登録先に設定
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</dialog>
+{% endif %}

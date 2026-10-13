@@ -18566,11 +18566,168 @@ body.vehicle-list-ppt .vehicle-list-pagination-gap {
     font-size: 12px;
 }
 
+.vehicle-operation-add-dialog {
+    box-sizing: border-box;
+    width: min(520px, calc(100% - 24px));
+    max-width: none;
+    max-height: 90dvh;
+    padding: 20px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0;
+    color: #334155;
+}
+
+.vehicle-operation-add-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.35);
+}
+
+.vehicle-operation-add-dialog .modal-bg {
+    position: static;
+    display: block;
+    background: none;
+}
+
+.vehicle-operation-add-dialog .modal-box {
+    width: auto;
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.vehicle-operation-add-fields {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.vehicle-operation-add-fields label {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.vehicle-operation-add-fields input,
+.vehicle-operation-add-fields select {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.vehicle-operation-add-dialog .help-text {
+    margin: 8px 0 16px;
+}
+
+.vehicle-operation-add-inactive {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.vehicle-operation-add-inactive input {
+    width: auto;
+    margin: 0;
+}
+
+.vehicle-operation-add-fields .field-error-message {
+    grid-column: 2;
+}
+
+@media (max-width: 480px) {
+    .vehicle-operation-add-fields {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .vehicle-operation-add-fields .field-error-message {
+        grid-column: 1;
+    }
+}
+
+.vehicle-operation-import-preview [hidden] {
+    display: none !important;
+}
+
 .vehicle-operation-import-preview .help-text {
+    margin: 0;
     color: #64748b;
     font-size: 12px;
     font-weight: 400;
     line-height: 1.5;
+}
+
+#vehicle-operation-resolution label.help-text {
+    display: block;
+    margin: 0 0 5px;
+    text-align: left;
+}
+
+#vehicle-operation-resolution input[type="search"],
+#vehicle-operation-resolution select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 36px;
+    margin: 0 0 8px;
+    font-size: 12px;
+}
+
+#vehicle-operation-resolution .vehicle-operation-resolution-message {
+    margin: 2px 0 0;
+    text-align: left;
+}
+
+#vehicle-operation-resolution .vehicle-operation-resolution-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+#vehicle-operation-resolution button {
+    width: auto;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+@media (min-width: 1025px) {
+    #vehicle-operation-resolution .checklist-table {
+        width: 100%;
+        min-width: 900px;
+        table-layout: fixed;
+    }
+
+    #vehicle-operation-resolution .checklist-table th,
+    #vehicle-operation-resolution .checklist-table td {
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+
+    #vehicle-operation-resolution .checklist-table th:nth-child(1) {
+        width: 20%;
+    }
+
+    #vehicle-operation-resolution .checklist-table th:nth-child(2) {
+        width: 64px;
+    }
+
+    #vehicle-operation-resolution .checklist-table th:nth-child(4) {
+        width: 110px;
+    }
 }
 
 .vehicle-operation-import-table .help-text {

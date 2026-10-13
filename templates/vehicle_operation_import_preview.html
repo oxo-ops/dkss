@@ -29,11 +29,25 @@
         {{ draft.source_filename }} ／ {{ preview_rows | length }}件
     </p>
 
-    <p class="help-text" role="status">
-        登録候補：{{ counts.candidates }}件 ／
-        登録済み：{{ counts.registered }}件 ／
-        エラー・CSV内重複：{{ counts.excluded }}件
+    <p
+        id="vehicle-operation-import-summary"
+        class="help-text"
+        role="status"
+    >
+        登録対象を確認してください。
     </p>
+
+    {% if counts.registered or counts.excluded %}
+        <p class="help-text">
+            {% if counts.registered %}
+                登録済み：{{ counts.registered }}件
+            {% endif %}
+            {% if counts.registered and counts.excluded %} ／ {% endif %}
+            {% if counts.excluded %}
+                エラー・CSV内重複：{{ counts.excluded }}件
+            {% endif %}
+        </p>
+    {% endif %}
 
     {% if preview_rows and counts.registered == preview_rows | length %}
         <p class="help-text">
@@ -42,10 +56,9 @@
         </p>
     {% else %}
         <p class="help-text">
-            登録候補は初期状態でチェックされています。
-            対象車両を確認し、不要な行はチェックを外してください。
-            車両が未選択の行は、登録先の車両を選択してください。
-            登録済みの日報は再登録・上書きしません。
+            登録先が決まった実績をまとめて登録します。
+            未設定の実績は残し、後から続けられます。
+            不要な実績は「運行実績の明細を見る」でチェックを外してください。
         </p>
     {% endif %}
 
@@ -84,6 +97,23 @@
                 <p class="help-text">
                     CSVの車両ごとに登録先を選び、対象の実績へまとめて反映します。
                 </p>
+
+                <div class="vehicle-operation-resolution-actions">
+                    <button
+                        type="button"
+                        id="vehicle-operation-resolution-apply-all"
+                        class="btn btn-outline"
+                    >
+                        選択済みの車両をまとめて反映
+                    </button>
+                </div>
+
+                <p
+                    id="vehicle-operation-resolution-all-status"
+                    class="help-text"
+                    role="status"
+                    hidden
+                ></p>
 
                 <details open id="vehicle-operation-resolution-details">
                     <summary>車両の対応付けを見る</summary>
@@ -146,6 +176,17 @@
                                                 {% endfor %}
                                             </select>
 
+                                            {% if session.get("role") in ["admin", "itc"] %}
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-outline vehicle-operation-add-vehicle"
+                                                    data-source-number="{{ group.source_number }}"
+                                                    data-source-office="{{ group.source_office }}"
+                                                >
+                                                    車両を追加
+                                                </button>
+                                            {% endif %}
+
                                             <div
                                                 class="vehicle-operation-resolution-message help-text"
                                                 role="status"
@@ -178,6 +219,8 @@
             </section>
         {% endif %}
 
+        <details class="vehicle-operation-record-details">
+            <summary>運行実績の明細を見る（{{ preview_rows | length }}件）</summary>
         <div class="vehicle-operation-import-table-wrap">
             <table class="checklist-table vehicle-operation-import-table">
                 <thead>
@@ -296,6 +339,7 @@
                 </tbody>
             </table>
         </div>
+        </details>
 
         <div class="form-actions vehicle-filter-actions">
             <a
@@ -312,8 +356,10 @@
     </form>
 </div>
 
+{% include "vehicle_operation_add_vehicle.html" %}
+
 <script
-    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261008-1"
+    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261009-6"
     defer
 ></script>
 

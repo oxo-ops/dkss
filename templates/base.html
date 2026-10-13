@@ -16,7 +16,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261007-9') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261009-3') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents'] else '' }}"

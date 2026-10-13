@@ -1,370 +1,412 @@
 (() => {
     "use strict";
 
-    const preview = document.querySelector(
-        ".vehicle-operation-import-preview"
+    const preview = document.querySelector(".vehicle-operation-import-preview");
+    const template = document.getElementById("vehicle-operation-choice-options");
+    if (!preview || !template) return;
+
+    const options = Array.from(template.content.querySelectorAll("option"))
+        .filter((option) => option.value);
+    const labelOf = (option) => option.textContent.replace(/\s+/g, " ").trim();
+    const rows = Array.from(
+        preview.querySelectorAll(".vehicle-operation-resolution-row")
     );
-    const optionTemplate = document.getElementById(
-        "vehicle-operation-choice-options"
+    const details = document.getElementById("vehicle-operation-resolution-details");
+    const status = document.getElementById("vehicle-operation-resolution-status");
+    const list = document.createElement("datalist");
+
+    list.id = "vehicle-operation-search-choices";
+    options.forEach((option) => {
+        list.append(new Option(labelOf(option), labelOf(option)));
+    });
+    preview.append(list);
+
+    const header = details?.querySelector("thead th:last-child");
+    if (header) header.hidden = true;
+
+    const actions = preview.querySelector(".vehicle-operation-resolution-actions");
+    if (actions) actions.hidden = true;
+
+    const importForm = preview.querySelector("form");
+    const importButton = importForm?.querySelector('button[type="submit"]');
+    const importSummary = document.getElementById(
+        "vehicle-operation-import-summary"
     );
 
-    if (!preview || !optionTemplate) {
-        return;
-    }
+    const updateImportCount = () => {
+        let ready = 0;
+        let pending = 0;
+        const validIds = new Set(options.map((option) => option.value));
 
-    const populateVehicleOptions = (event) => {
-        const select = event.target;
-
-        if (
-            !(select instanceof HTMLSelectElement)
-            || !select.classList.contains(
-                "vehicle-operation-vehicle-select"
-            )
-            || select.dataset.optionsLoaded === "1"
-        ) {
-            return;
-        }
-
-        const selectedValue = select.value;
-
-        select.replaceChildren(
-            optionTemplate.content.cloneNode(true)
-        );
-        select.value = selectedValue;
-        select.dataset.optionsLoaded = "1";
-    };
-
-    const resolutionRows = Array.from(
         preview.querySelectorAll(
-            ".vehicle-operation-resolution-row"
-        )
-    );
-
-    const normalizeSearchText = (value) => (
-        String(value || "")
-            .normalize("NFKC")
-            .toLowerCase()
-            .replace(/\s+/g, "")
-    );
-
-    const searchableOptions = Array.from(
-        optionTemplate.content.querySelectorAll(
-            "option[value]"
-        )
-    ).filter((option) => option.value !== "");
-
-    resolutionRows.forEach((row) => {
-        const search = row.querySelector(
-            ".vehicle-operation-resolution-search"
-        );
-        const select = row.querySelector(
-            ".vehicle-operation-resolution-select"
-        );
-        const message = row.querySelector(
-            ".vehicle-operation-resolution-message"
-        );
-
-        if (!search || !select || !message) {
-            return;
-        }
-
-        const initialOptions = Array.from(
-            select.options
-        ).map((option) => option.cloneNode(true));
-
-        search.addEventListener("input", () => {
-            const keyword = normalizeSearchText(
-                search.value
-            );
-            const selectedValue = select.value;
-
-            if (!keyword) {
-                const restoredOptions = initialOptions.map(
-                    (option) => option.cloneNode(true)
-                );
-                const selectedOption = searchableOptions.find(
-                    (option) => option.value === selectedValue
-                );
-
-                if (
-                    selectedOption
-                    && !restoredOptions.some(
-                        (option) => option.value === selectedValue
-                    )
-                ) {
-                    restoredOptions.push(
-                        selectedOption.cloneNode(true)
-                    );
-                }
-
-                select.replaceChildren(...restoredOptions);
-                select.value = selectedValue;
-                message.textContent = "";
-                return;
-            }
-
-            const matches = searchableOptions.filter(
-                (option) => normalizeSearchText(
-                    option.textContent
-                ).includes(keyword)
-            );
-
-            const placeholder = document.createElement(
-                "option"
-            );
-            placeholder.value = "";
-            placeholder.textContent = "登録先を選択";
-
-            const displayedOptions = matches.slice(0, 50).map(
-                (option) => option.cloneNode(true)
-            );
-            const selectedOption = searchableOptions.find(
-                (option) => option.value === selectedValue
-            );
+            ".vehicle-operation-vehicle-select"
+        ).forEach((select) => {
+            const line = select.id.replace(/^vehicle_/, "");
+            const checkbox = document.getElementById(`include_${line}`);
 
             if (
-                selectedOption
-                && !displayedOptions.some(
-                    (option) => option.value === selectedValue
-                )
-            ) {
-                displayedOptions.unshift(
-                    selectedOption.cloneNode(true)
-                );
+                select.disabled
+                || !checkbox
+                || checkbox.disabled
+                || !checkbox.checked
+            ) return;
+
+            if (validIds.has(select.value)) {
+                ready += 1;
+            } else {
+                pending += 1;
             }
-
-            select.replaceChildren(
-                placeholder,
-                ...displayedOptions
-            );
-            select.value = selectedValue;
-
-            message.textContent = matches.length > 50
-                ? `${matches.length}台あります。検索条件を追加してください。`
-                : matches.length === 0
-                    ? "一致する車両がありません。検索条件を変えてください。"
-                    : `${matches.length}台見つかりました。登録先を選択してください。`;
         });
-    });
 
-    const resolutionDetails = document.getElementById(
-        "vehicle-operation-resolution-details"
-    );
-    const resolutionStatus = document.getElementById(
-        "vehicle-operation-resolution-status"
-    );
-
-    const refreshResolutionStatus = () => {
-        const completed = (
-            resolutionRows.length > 0
-            && resolutionRows.every(
-                (row) => row.dataset.applied === "1"
-            )
-        );
-
-        if (resolutionStatus) {
-            resolutionStatus.hidden = !completed;
+        if (importSummary) {
+            importSummary.textContent = ready > 0
+                ? `登録できる実績：${ready}件`
+                    + (pending
+                        ? ` ／ 登録先未設定の${pending}件は残します。`
+                        : "")
+                : pending > 0
+                    ? `登録先が未設定です（実績${pending}件）。車両を選択するか追加してください。`
+                    : "今回の登録対象はありません。";
         }
 
-        if (completed && resolutionDetails) {
-            resolutionDetails.open = false;
+        if (importButton) {
+            importButton.disabled = ready === 0;
+            importButton.textContent = ready > 0
+                ? `${ready}件の実績を登録`
+                : "実績を登録";
         }
     };
 
-    resolutionRows.forEach((row) => {
-        const select = row.querySelector(
-            ".vehicle-operation-resolution-select"
-        );
-        const search = row.querySelector(
-            ".vehicle-operation-resolution-search"
-        );
-        const button = row.querySelector(
-            ".vehicle-operation-resolution-apply"
-        );
-        const message = row.querySelector(
-            ".vehicle-operation-resolution-message"
-        );
+    preview.addEventListener("change", updateImportCount);
+    updateImportCount();
 
-        if (!select || !button || !message) {
-            return;
+    const refresh = () => {
+        updateImportCount();
+        const complete = rows.length > 0
+            && rows.every((row) => row.dataset.applied === "1");
+
+        if (status) {
+            status.hidden = !complete;
+            status.textContent =
+                "登録先を設定しました。内容を確認して実績を登録してください。";
         }
 
-        const markUnapplied = () => {
+        if (complete && details) details.open = false;
+    };
+
+    const targetsOf = (row) => {
+        try {
+            const numbers = JSON.parse(row.dataset.lineNumbers || "[]");
+            return Array.isArray(numbers)
+                ? numbers.map((number) => ({
+                    number,
+                    select: document.getElementById(`vehicle_${number}`)
+                })).filter((target) => target.select && !target.select.disabled)
+                : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const setTargets = (row, option) => {
+        const targets = targetsOf(row);
+
+        targets.forEach(({ number, select }) => {
+            const id = `mapping_confirmation_vehicle_${number}`;
+            document.getElementById(id)?.remove();
+
+            if (!option) {
+                select.value = "";
+                return;
+            }
+
+            if (!Array.from(select.options).some(
+                (item) => item.value === option.value
+            )) {
+                select.append(option.cloneNode(true));
+            }
+
+            select.value = option.value;
+
+            const confirmation = document.createElement("input");
+            confirmation.type = "hidden";
+            confirmation.id = id;
+            confirmation.name = "confirmed_vehicle_mapping";
+            confirmation.value = `${number}:${option.value}`;
+            select.closest("form").append(confirmation);
+        });
+
+        if (option && targets.length) {
+            row.dataset.applied = "1";
+        } else {
             delete row.dataset.applied;
-            refreshResolutionStatus();
-        };
-
-        select.addEventListener("change", markUnapplied);
-
-        if (search) {
-            search.addEventListener("input", markUnapplied);
         }
 
-        button.addEventListener("click", () => {
-            const selectedOption = searchableOptions.find(
-                (option) => option.value === select.value
+        refresh();
+    };
+
+    rows.forEach((row) => {
+        const input = row.querySelector(".vehicle-operation-resolution-search");
+        const select = row.querySelector(".vehicle-operation-resolution-select");
+        const message = row.querySelector(".vehicle-operation-resolution-message");
+        const button = row.querySelector(".vehicle-operation-resolution-apply");
+
+        if (!input || !select || !message) return;
+
+        if (button) button.closest("td").hidden = true;
+
+        select.hidden = true;
+        input.type = "text";
+        input.setAttribute("list", list.id);
+        input.placeholder = "ナンバー・車台番号・営業所で検索して選択";
+
+        const label = row.querySelector(`label[for="${input.id}"]`);
+        if (label) label.textContent = "登録先の車両";
+
+        input.addEventListener("input", () => {
+            const matches = options.filter(
+                (option) => labelOf(option) === input.value.trim()
             );
 
-            if (!selectedOption) {
-                message.textContent = "登録先の車両を選択してください。";
-                select.focus();
-                return;
+            select.hidden = matches.length <= 1;
+
+            if (matches.length > 1) {
+                select.replaceChildren(
+                    new Option("登録先を選択", ""),
+                    ...matches.map((option) => option.cloneNode(true))
+                );
             }
 
-            let lineNumbers;
+            const option = matches.length === 1 ? matches[0] : null;
 
-            try {
-                lineNumbers = JSON.parse(
-                    row.dataset.lineNumbers || "[]"
-                );
-            } catch {
-                message.textContent = "対象行を確認できません。画面を再読み込みしてください。";
-                return;
+            if (option && !Array.from(select.options).some(
+                (item) => item.value === option.value
+            )) {
+                select.append(option.cloneNode(true));
             }
 
-            if (!Array.isArray(lineNumbers)) {
-                return;
-            }
+            select.value = option ? option.value : "";
+            setTargets(row, option);
 
-            const targets = lineNumbers.map((lineNumber) => ({
-                checkbox: document.getElementById(
-                    `include_${lineNumber}`
-                ),
-                select: document.getElementById(
-                    `vehicle_${lineNumber}`
-                ),
-            })).filter((target) => (
-                target.checkbox
-                && target.checkbox.checked
-                && !target.checkbox.disabled
-                && target.select
-                && !target.select.disabled
-            ));
+            message.textContent = option
+                ? ""
+                : matches.length > 1
+                    ? "同じ表示の車両が複数あります。登録先を確認してください。"
+                    : input.value
+                        ? "候補から登録先の車両を選択してください。"
+                        : "";
+        });
 
-            targets.forEach((target) => {
-                if (!Array.from(target.select.options).some(
-                    (option) => option.value === selectedOption.value
-                )) {
-                    target.select.append(
-                        selectedOption.cloneNode(true)
-                    );
-                }
+        select.addEventListener("change", () => {
+            const option = options.find((item) => item.value === select.value);
+            if (option) input.value = labelOf(option);
 
-                target.select.value = selectedOption.value;
-                target.select.dispatchEvent(
-                    new Event("change", { bubbles: true })
-                );
-
-                const form = target.select.closest("form");
-                const confirmationId = (
-                    `mapping_confirmation_${target.select.id}`
-                );
-                let confirmation = document.getElementById(
-                    confirmationId
-                );
-
-                if (form && !confirmation) {
-                    confirmation = document.createElement("input");
-                    confirmation.type = "hidden";
-                    confirmation.id = confirmationId;
-                    confirmation.name = "confirmed_vehicle_mapping";
-                    form.append(confirmation);
-                }
-
-                if (confirmation) {
-                    const lineNumber = target.select.id.replace(
-                        /^vehicle_/,
-                        ""
-                    );
-                    confirmation.value = (
-                        `${lineNumber}:${selectedOption.value}`
-                    );
-                }
-            });
-
-            row.dataset.applied = "1";
-            message.textContent = targets.length > 0
-                ? `${targets.length}件に反映しました。実績の登録は画面下のボタンで行います。`
-                : "対象行のチェックが外れているため、反映対象はありません。";
-
-            refreshResolutionStatus();
+            setTargets(row, option);
+            message.textContent = "";
         });
     });
 
     preview.addEventListener("change", (event) => {
-        const target = event.target;
+        if (!event.target.classList.contains(
+            "vehicle-operation-vehicle-select"
+        )) return;
 
-        if (
-            !(target instanceof HTMLSelectElement)
-            && !(target instanceof HTMLInputElement)
-        ) {
-            return;
-        }
+        document.getElementById(
+            `mapping_confirmation_${event.target.id}`
+        )?.remove();
 
-        const matched = target.id.match(
-            /^(?:vehicle|include)_(\d+)$/
-        );
-
-        if (!matched) {
-            return;
-        }
-
-        const lineNumber = Number(matched[1]);
-        let changed = false;
-
-        resolutionRows.forEach((row) => {
-            if (row.dataset.applied !== "1") {
-                return;
-            }
-
-            let lineNumbers;
-
-            try {
-                lineNumbers = JSON.parse(
-                    row.dataset.lineNumbers || "[]"
-                );
-            } catch {
-                return;
-            }
-
-            if (
-                !Array.isArray(lineNumbers)
-                || !lineNumbers.some(
-                    (number) => Number(number) === lineNumber
-                )
-            ) {
-                return;
-            }
+        rows.forEach((row) => {
+            if (!targetsOf(row).some(
+                (target) => target.select === event.target
+            )) return;
 
             delete row.dataset.applied;
-            changed = true;
-
-            const message = row.querySelector(
+            row.querySelector(
                 ".vehicle-operation-resolution-message"
-            );
+            ).textContent = "明細で登録先を変更しました。";
+        });
 
-            if (message) {
-                message.textContent =
-                    "明細の選択内容を変更しました。登録先を確認してください。";
+        refresh();
+    });
+
+    const dialog = document.getElementById("operation-add-vehicle-dialog");
+    const addForm = document.getElementById("operation-add-vehicle-form");
+
+    if (dialog && addForm) {
+        let activeRow = null;
+        let opener = null;
+        let busy = false;
+
+        const cancel = document.getElementById("operation-add-vehicle-cancel");
+        const submit = addForm.querySelector('button[type="submit"]');
+
+        const showError = (message, field = "", focus = true) => {
+            showCommonError(
+                message,
+                field ? `operation_new_${field}` : "",
+                focus
+            );
+        };
+
+        rows.forEach((row) => {
+            const button = row.querySelector(".vehicle-operation-add-vehicle");
+            if (!button) return;
+
+            button.addEventListener("click", () => {
+                activeRow = row;
+                opener = button;
+                addForm.reset();
+                clearCommonErrors();
+
+                const source = button.dataset.sourceNumber || "";
+                document.getElementById(
+                    "operation-add-vehicle-source"
+                ).textContent = `CSVの車両：${source || "記載なし"}`;
+
+                const parts = source.replace(/\s+/g, "").match(
+                    /^(.+?)([0-9A-Z]{3})([ぁ-んァ-ヶA-Z])([0-9]{1,4})$/u
+                );
+
+                if (parts) {
+                    [
+                        "plate_area",
+                        "plate_class",
+                        "plate_kana",
+                        "plate_number"
+                    ].forEach((key, index) => {
+                        addForm.elements.namedItem(key).value = parts[index + 1];
+                    });
+                }
+
+                const office = addForm.elements.namedItem("office");
+                if (Array.from(office.options).some(
+                    (option) => option.value === button.dataset.sourceOffice
+                )) {
+                    office.value = button.dataset.sourceOffice;
+                }
+
+                dialog.showModal();
+                document.getElementById(
+                    "operation_new_chassis_number"
+                ).focus();
+            });
+        });
+
+        cancel.addEventListener("click", () => {
+            if (!busy) dialog.close();
+        });
+
+        dialog.addEventListener("cancel", (event) => {
+            if (busy) event.preventDefault();
+        });
+
+        dialog.addEventListener("close", () => {
+            clearCommonErrors();
+
+            if (details && !details.open) {
+                preview.querySelector(
+                    'form button[type="submit"]'
+                )?.focus();
+            } else {
+                opener?.focus();
             }
         });
 
-        if (changed) {
-            refreshResolutionStatus();
+        addForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (busy || !activeRow) return;
 
-            if (resolutionDetails) {
-                resolutionDetails.open = true;
+            clearCommonErrors();
+            busy = true;
+            submit.disabled = true;
+            cancel.disabled = true;
+            submit.textContent = "追加中…";
+
+            try {
+                const response = await fetch(addForm.action, {
+                    method: "POST",
+                    body: new FormData(addForm),
+                    headers: { "X-DKSS-Final-Submit": "1" }
+                });
+
+                if (response.redirected) {
+                    showError(
+                        "ログイン状態を確認できません。入力内容を残したまま、別タブでログインしてください。"
+                    );
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!response.ok || !data.ok) {
+                    const errors = Array.isArray(data.errors)
+                        ? data.errors
+                        : [];
+
+                    if (!errors.length) {
+                        showError(data.message || "車両を追加できませんでした。");
+                    }
+
+                    errors.forEach((error, index) => {
+                        showError(
+                            error.message,
+                            error.field,
+                            index === 0
+                        );
+                    });
+                    return;
+                }
+
+                const vehicle = data.vehicle;
+                const label =
+                    `${vehicle.number} ／ 車台番号：${vehicle.chassis_number}`
+                    + ` ／ ${vehicle.office || "営業所未設定"}`
+                    + ` ／ 車検満了：${vehicle.inspection_expiry || "未設定"}`;
+
+                const option = new Option(label, String(vehicle.id));
+
+                options.push(option);
+                template.content.append(option.cloneNode(true));
+                list.append(new Option(label, label));
+
+                preview.querySelectorAll(
+                    '.vehicle-operation-vehicle-select[data-options-loaded="1"]'
+                ).forEach((select) => {
+                    select.append(option.cloneNode(true));
+                });
+
+                const input = activeRow.querySelector(
+                    ".vehicle-operation-resolution-search"
+                );
+                input.value = label;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+
+                dialog.close();
+            } catch {
+                showError(
+                    "車両の追加結果を確認できませんでした。入力内容は保持しています。通信状態を確認してください。"
+                );
+            } finally {
+                busy = false;
+                submit.disabled = false;
+                cancel.disabled = false;
+                submit.textContent = "追加して登録先に設定";
             }
-        }
-    });
+        });
+    }
 
-    preview.addEventListener(
-        "pointerdown",
-        populateVehicleOptions,
-        true
-    );
-    preview.addEventListener(
-        "focusin",
-        populateVehicleOptions
-    );
+    const populate = (event) => {
+        const select = event.target;
+
+        if (!select.classList.contains("vehicle-operation-vehicle-select")
+            || select.dataset.optionsLoaded === "1") return;
+
+        const value = select.value;
+        select.replaceChildren(template.content.cloneNode(true));
+        select.value = value;
+        select.dataset.optionsLoaded = "1";
+    };
+
+    preview.addEventListener("pointerdown", populate, true);
+    preview.addEventListener("focusin", populate);
 })();
