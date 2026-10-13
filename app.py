@@ -16699,27 +16699,7 @@ def vehicle_document_import_preview(batch_id):
 )
 def vehicle_operation_import():
     if request.method == "GET":
-        unfinished_imports = (
-            VehicleOperationImportDraft.query
-            .with_entities(
-                VehicleOperationImportDraft.id,
-                VehicleOperationImportDraft.source_filename
-            )
-            .filter_by(
-                company_code=session.get("company_code"),
-                created_by_username=session.get("username"),
-                status="preview"
-            )
-            .order_by(
-                VehicleOperationImportDraft.created_at.desc(),
-                VehicleOperationImportDraft.id.desc()
-            )
-            .all()
-        )
-        return render_template(
-            "vehicle_operation_import.html",
-            unfinished_imports=unfinished_imports
-        )
+        return render_template("vehicle_operation_import.html")
 
     company_code = session.get("company_code")
     username = session.get("username")
@@ -16762,6 +16742,28 @@ def vehicle_operation_import():
 
     if request.headers.get("X-DKSS-Validation-Only") == "1":
         return jsonify({"ok": True})
+
+    file_digest = hashlib.sha256(file_bytes).digest()
+
+    previous_drafts = (
+        VehicleOperationImportDraft.query
+        .filter_by(
+            company_code=company_code,
+            created_by_username=username,
+            status="preview"
+        )
+        .order_by(
+            VehicleOperationImportDraft.created_at.desc()
+        )
+        .all()
+    )
+
+    for previous in previous_drafts:
+        if hashlib.sha256(previous.source_file).digest() == file_digest:
+            return redirect(url_for(
+                "vehicle_operation_import_preview",
+                draft_id=previous.id
+            ))
 
     draft = VehicleOperationImportDraft(
         id=str(uuid4()),
@@ -17035,7 +17037,12 @@ def vehicle_operation_import_preview(draft_id):
                 "plate_kana": vehicle.plate_kana or "",
                 "plate_number": vehicle.plate_number or "",
             }) + ("（無効）" if vehicle.deleted else ""),
-            "chassis_number": vehicle.chassis_number or "",
+            "chassis_number": (
+                ""
+                if str(vehicle.chassis_number or "").strip().casefold()
+                in {"none", "null"}
+                else str(vehicle.chassis_number or "").strip()
+            ),
             "office": vehicle.office or "",
             "inspection_expiry": vehicle.inspection_expiry or "",
         }
@@ -17224,7 +17231,7 @@ def vehicle_operation_import_confirm(draft_id):
                 csv_rows,
                 company_code,
                 request.form,
-                allow_pending=True
+                allow_pending=False
             )
         )
 
@@ -17267,81 +17274,28 @@ def vehicle_operation_import_confirm(draft_id):
             (str(error), "")
         ])
 
-    if request.form.get("operation_import_action") == "save":
-        save_errors = []
+    _, checked_rows = build_vehicle_operation_import_preview(
+        csv_rows,
+        company_code
+    )
 
-        if not set(request.form.getlist("include")).issubset(selections):
-            save_errors.append((
-                "取込対象の行を確認してください。",
-                ""
-            ))
+    selected_lines = set(request.form.getlist("include"))
 
-        for line_number, selection in selections.items():
-            field = f"vehicle_{line_number}"
-            if (
-                str(request.form.get(field, "")).strip()
-                and selection.get("vehicle_record_id") is None
-            ):
-                save_errors.append((
-                    f"{line_number}行目の登録先車両を確認してください。",
-                    field
-                ))
+    excluded_error_count = sum(
+        1 for row in checked_rows
+        if row["existing_record_id"] is None
+        and (row["errors"] or row["duplicate_in_file"])
+        and str(row["line_number"]) not in selected_lines
+    )
 
-        if save_errors:
-            return return_form_errors(save_errors)
-
-        if validation_only:
-            return jsonify({"ok": True})
-
-        try:
-            saved = (
-                VehicleOperationImportDraft.query
-                .filter_by(
-                    id=draft_id,
-                    company_code=company_code,
-                    created_by_username=username,
-                    status="preview"
-                )
-                .update({
-                    "selection_json": json.dumps(
-                        selections,
-                        ensure_ascii=False
-                    ),
-                    "result_json": json.dumps({
-                        key: value
-                        for key, value in safe_json_dict(draft.result_json).items()
-                        if key != "form_errors"
-                    }, ensure_ascii=False),
-                }, synchronize_session=False)
-            )
-
-            if saved != 1:
-                db.session.rollback()
-                return return_form_errors([
-                    (
-                        "この取込はすでに処理されています。画面を更新してください。",
-                        ""
-                    )
-                ], 409)
-
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            app.logger.exception(
-                "運行実績の選択内容を保存できませんでした。"
-            )
-            return return_form_errors([
-                (
-                    "選択内容を保存できませんでした。もう一度お試しください。",
-                    ""
-                )
-            ], 500)
-
-        flash(
-            "選択内容を保存しました。「続きから再開」で開けます。",
-            "success"
-        )
-        return redirect(url_for("vehicle_operation_import"))
+    if (
+        excluded_error_count
+        and request.form.get("acknowledge_excluded_errors") != "1"
+    ):
+        errors.append((
+            "エラー・重複の実績を今回は取り込まないことを確認してください。",
+            "acknowledge_excluded_errors"
+        ))
 
     if errors:
         if not validation_only:
@@ -17387,10 +17341,16 @@ def vehicle_operation_import_confirm(draft_id):
     if validation_only:
         return jsonify({"ok": True})
 
-    pending_count = sum(
-        1 for selection in selections.values()
-        if selection.get("include") is True
-        and selection.get("vehicle_record_id") is None
+    registered_count = sum(
+        row["existing_record_id"] is not None
+        and str(row["line_number"]) not in selected_lines
+        for row in checked_rows
+    )
+
+    excluded_count = sum(
+        row["existing_record_id"] is None
+        and not selections[str(row["line_number"])]["include"]
+        for row in checked_rows
     )
 
     try:
@@ -17560,15 +17520,15 @@ def vehicle_operation_import_confirm(draft_id):
         draft.result_json = json.dumps({
             "added_count": added_count,
             "skipped_count": skipped_count,
-            "pending_count": pending_count,
+            "total_count": len(csv_rows),
+            "registered_count": registered_count,
+            "excluded_count": excluded_count,
             "imported_vehicle_ids": sorted(imported_vehicle_ids),
         })
 
         db.session.refresh(draft, ["status"])
-        draft.status = "preview" if pending_count else "completed"
-        draft.completed_at = (
-            None if pending_count else datetime.now(ZoneInfo("UTC"))
-        )
+        draft.status = "completed"
+        draft.completed_at = datetime.now(ZoneInfo("UTC"))
 
         db.session.commit()
 
@@ -17597,27 +17557,26 @@ def vehicle_operation_import_confirm(draft_id):
             status_code=500
         )
 
-    if pending_count:
-        flash(
-            f"運行実績を{added_count}件登録しました。"
-            f"登録先未設定の{pending_count}件は残しています。"
-            "登録先を設定して続けられます。",
-            "success"
-        )
-        return redirect(url_for(
-            "vehicle_operation_import_preview",
-            draft_id=draft.id
-        ))
-
-    flash(
-        f"運行実績を{added_count}件登録しました。"
-        f"登録済みの{skipped_count}件は取り込みませんでした。",
-        "success"
-    )
-
     return redirect(url_for(
-        "vehicle_operation_import"
+        "vehicle_operation_import_result",
+        draft_id=draft.id
     ))
+
+
+@app.route("/vehicle/operation-import/<draft_id>/result")
+def vehicle_operation_import_result(draft_id):
+    draft = VehicleOperationImportDraft.query.filter_by(
+        id=draft_id,
+        company_code=session.get("company_code"),
+        created_by_username=session.get("username"),
+        status="completed"
+    ).first_or_404()
+
+    return render_template(
+        "vehicle_operation_import_result.html",
+        draft=draft,
+        result=safe_json_dict(draft.result_json)
+    )
 
 
 @app.route("/master/vehicles/<int:vehicle_record_id>/karte")

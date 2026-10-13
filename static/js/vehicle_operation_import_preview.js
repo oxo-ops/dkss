@@ -14,12 +14,227 @@
     const details = document.getElementById("vehicle-operation-resolution-details");
     const status = document.getElementById("vehicle-operation-resolution-status");
     const list = document.createElement("datalist");
-
     list.id = "vehicle-operation-search-choices";
-    options.forEach((option) => {
-        list.append(new Option(labelOf(option), labelOf(option)));
+
+    const candidateList = document.createElement("div");
+    candidateList.className = "operation-import-candidates";
+    candidateList.id = "operation-import-candidates";
+    candidateList.setAttribute("role", "listbox");
+    candidateList.hidden = true;
+    document.body.append(candidateList);
+
+    let activeInput = null;
+    let activeIndex = -1;
+
+    const hideCandidates = () => {
+        candidateList.hidden = true;
+
+        if (activeInput) {
+            activeInput.setAttribute("aria-expanded", "false");
+            activeInput.removeAttribute("aria-activedescendant");
+        }
+    };
+
+    const normalizeSearch = (value) => String(value || "")
+        .normalize("NFKC")
+        .toLocaleLowerCase()
+        .replace(/[\s-]/g, "");
+
+    rows.forEach((row) => {
+        const input = row.querySelector(
+            ".vehicle-operation-resolution-search"
+        );
+        const select = row.querySelector(
+            ".vehicle-operation-resolution-select"
+        );
+
+        if (!input || !select) return;
+
+        input.setAttribute("role", "combobox");
+        input.setAttribute("aria-autocomplete", "list");
+        input.setAttribute("aria-controls", candidateList.id);
+        input.setAttribute("aria-expanded", "false");
+
+        const showCandidates = () => {
+            if (input.disabled) return;
+
+            if (activeInput && activeInput !== input) {
+                hideCandidates();
+            }
+
+            activeInput = input;
+            activeIndex = -1;
+            input.removeAttribute("aria-activedescendant");
+
+            const query = normalizeSearch(input.value);
+            const suggestedIds = new Set(
+                Array.from(select.options)
+                    .filter((option) => option.value)
+                    .map((option) => option.value)
+            );
+
+            const matches = options.filter((option) => {
+                return query
+                    ? normalizeSearch(labelOf(option)).includes(query)
+                    : suggestedIds.has(option.value);
+            });
+
+            candidateList.replaceChildren();
+
+            matches.slice(0, 40).forEach((option, index) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.id = `operation-import-candidate-${index}`;
+                button.setAttribute("role", "option");
+                button.setAttribute("aria-selected", "false");
+
+                const parts = labelOf(option).split("／");
+                const title = document.createElement("strong");
+                title.textContent = option.dataset.number
+                    || parts[0].trim();
+
+                const information = document.createElement("span");
+                const chassis = option.dataset.chassisNumber
+                    || (parts[1] || "")
+                        .replace("車台番号：", "")
+                        .trim()
+                    || "記載なし";
+                const office = option.dataset.office
+                    || (parts[2] || "").trim()
+                    || "営業所未設定";
+
+                information.textContent =
+                    `車台番号：${chassis} ／ ${office}`;
+
+                button.append(title, information);
+
+                button.addEventListener("mousedown", (event) => {
+                    event.preventDefault();
+                });
+
+                button.addEventListener("click", () => {
+                    input.value = labelOf(option);
+                    input.dispatchEvent(
+                        new Event("input", { bubbles: true })
+                    );
+                    hideCandidates();
+                });
+
+                candidateList.append(button);
+            });
+
+            if (!matches.length || matches.length > 40) {
+                const message = document.createElement("p");
+
+                message.textContent = !matches.length
+                    ? query
+                        ? "該当する車両はありません。検索を変えるか、車両を追加してください。"
+                        : "ナンバー・車台番号・営業所を入力してください。"
+                    : `${matches.length}台中40台を表示。検索語を追加して絞り込めます。`;
+
+                candidateList.append(message);
+            }
+
+            candidateList.hidden = false;
+            input.setAttribute("aria-expanded", "true");
+
+            const rect = input.getBoundingClientRect();
+            const width = Math.min(
+                rect.width,
+                window.innerWidth - 24
+            );
+            const below = window.innerHeight - rect.bottom - 12;
+            const above = rect.top - 12;
+            const placeAbove = below < 180 && above > below;
+            const height = Math.min(
+                280,
+                Math.max(80, placeAbove ? above : below)
+            );
+
+            candidateList.style.width = `${width}px`;
+            candidateList.style.left = `${Math.max(
+                12,
+                Math.min(rect.left, window.innerWidth - width - 12)
+            )}px`;
+            candidateList.style.maxHeight = `${height}px`;
+            candidateList.style.top = `${placeAbove
+                ? Math.max(
+                    12,
+                    rect.top - Math.min(height, candidateList.scrollHeight)
+                )
+                : rect.bottom + 4
+            }px`;
+        };
+
+        input.addEventListener("focus", showCandidates);
+        input.addEventListener("input", showCandidates);
+
+        input.addEventListener("blur", () => {
+            window.setTimeout(() => {
+                if (activeInput === input) hideCandidates();
+            }, 150);
+        });
+
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                hideCandidates();
+                return;
+            }
+
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+
+                if (candidateList.hidden) showCandidates();
+
+                const buttons = Array.from(
+                    candidateList.querySelectorAll("button")
+                );
+
+                if (!buttons.length) return;
+
+                activeIndex = (
+                    activeIndex
+                    + (event.key === "ArrowDown" ? 1 : -1)
+                    + buttons.length
+                ) % buttons.length;
+
+                buttons.forEach((button, index) => {
+                    button.setAttribute(
+                        "aria-selected",
+                        String(index === activeIndex)
+                    );
+                });
+
+                input.setAttribute(
+                    "aria-activedescendant",
+                    buttons[activeIndex].id
+                );
+
+                buttons[activeIndex].scrollIntoView({
+                    block: "nearest"
+                });
+            } else if (event.key === "Enter" && !candidateList.hidden) {
+                event.preventDefault();
+
+                const buttons = Array.from(
+                    candidateList.querySelectorAll("button")
+                );
+
+                if (activeIndex >= 0) {
+                    buttons[activeIndex]?.click();
+                } else if (buttons.length === 1) {
+                    buttons[0].click();
+                }
+            }
+        });
     });
-    preview.append(list);
+
+    window.addEventListener("resize", hideCandidates);
+    window.addEventListener("scroll", (event) => {
+        if (!candidateList.contains(event.target)) {
+            hideCandidates();
+        }
+    }, true);
 
     const header = details?.querySelector("thead th:last-child");
     if (header) header.hidden = true;
@@ -58,22 +273,31 @@
             }
         });
 
+        const excludedConfirmation = document.getElementById(
+            "acknowledge_excluded_errors"
+        );
+        const needsExcludedConfirmation = Boolean(
+            excludedConfirmation && !excludedConfirmation.checked
+        );
+
         if (importSummary) {
-            importSummary.textContent = ready > 0
-                ? `登録できる実績：${ready}件`
-                    + (pending
-                        ? ` ／ 登録先未設定の${pending}件は残します。`
-                        : "")
-                : pending > 0
-                    ? `登録先が未設定です（実績${pending}件）。車両を選択するか追加してください。`
-                    : "今回の登録対象はありません。";
+            importSummary.textContent = pending > 0
+                ? `車両未確認：${pending}件。登録先を選択するか、車両を追加してください。対象外の車両は「今回は取り込まない」を選んでください。`
+                : ready === 0
+                    ? "今回の取込対象はありません。登録済み・対象外の明細を確認するか、CSVの選択へ戻ってください。"
+                    : needsExcludedConfirmation
+                        ? "明細でエラー・重複の行を確認し、「今回は取り込まない」の確認欄にチェックしてください。"
+                        : `確認できました。${ready}件の実績を取り込みます。下の取込ボタンを押してください。`;
         }
 
         if (importButton) {
-            importButton.disabled = ready === 0;
+            importButton.disabled = ready === 0
+                || pending > 0
+                || needsExcludedConfirmation;
+
             importButton.textContent = ready > 0
-                ? `${ready}件の実績を登録`
-                : "実績を登録";
+                ? `${ready}件の運行実績を取り込む`
+                : "運行実績を取り込む";
         }
     };
 
@@ -154,6 +378,37 @@
         if (!input || !select || !message) return;
 
         if (button) button.closest("td").hidden = true;
+
+        const skip = row.querySelector(".operation-import-skip-group");
+        const addVehicleButton = row.querySelector(
+            ".vehicle-operation-add-vehicle"
+        );
+
+        if (skip) {
+            skip.addEventListener("change", () => {
+                targetsOf(row).forEach(({ number }) => {
+                    const checkbox = document.getElementById(
+                        `include_${number}`
+                    );
+
+                    if (checkbox && !checkbox.disabled) {
+                        checkbox.checked = !skip.checked;
+                    }
+                });
+
+                input.disabled = skip.checked;
+
+                if (addVehicleButton) {
+                    addVehicleButton.disabled = skip.checked;
+                }
+
+                message.textContent = skip.checked
+                    ? "この車両の実績は今回は取り込みません。"
+                    : "登録先の車両を選択するか、追加してください。";
+
+                refresh();
+            });
+        }
 
         select.hidden = true;
         input.type = "text";
