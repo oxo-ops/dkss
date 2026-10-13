@@ -16699,8 +16699,26 @@ def vehicle_document_import_preview(batch_id):
 )
 def vehicle_operation_import():
     if request.method == "GET":
+        unfinished_imports = (
+            VehicleOperationImportDraft.query
+            .with_entities(
+                VehicleOperationImportDraft.id,
+                VehicleOperationImportDraft.source_filename
+            )
+            .filter_by(
+                company_code=session.get("company_code"),
+                created_by_username=session.get("username"),
+                status="preview"
+            )
+            .order_by(
+                VehicleOperationImportDraft.created_at.desc(),
+                VehicleOperationImportDraft.id.desc()
+            )
+            .all()
+        )
         return render_template(
-            "vehicle_operation_import.html"
+            "vehicle_operation_import.html",
+            unfinished_imports=unfinished_imports
         )
 
     company_code = session.get("company_code")
@@ -17248,6 +17266,78 @@ def vehicle_operation_import_confirm(draft_id):
         return return_form_errors([
             (str(error), "")
         ])
+
+    if request.form.get("operation_import_action") == "save":
+        save_errors = []
+
+        if not set(request.form.getlist("include")).issubset(selections):
+            save_errors.append((
+                "取込対象の行を確認してください。",
+                ""
+            ))
+
+        for line_number, selection in selections.items():
+            field = f"vehicle_{line_number}"
+            if (
+                str(request.form.get(field, "")).strip()
+                and selection.get("vehicle_record_id") is None
+            ):
+                save_errors.append((
+                    f"{line_number}行目の登録先車両を確認してください。",
+                    field
+                ))
+
+        if save_errors:
+            return return_form_errors(save_errors)
+
+        if validation_only:
+            return jsonify({"ok": True})
+
+        try:
+            saved = (
+                VehicleOperationImportDraft.query
+                .filter_by(
+                    id=draft_id,
+                    company_code=company_code,
+                    created_by_username=username,
+                    status="preview"
+                )
+                .update({
+                    "selection_json": json.dumps(
+                        selections,
+                        ensure_ascii=False
+                    ),
+                    "result_json": "{}",
+                }, synchronize_session=False)
+            )
+
+            if saved != 1:
+                db.session.rollback()
+                return return_form_errors([
+                    (
+                        "この取込はすでに処理されています。画面を更新してください。",
+                        ""
+                    )
+                ], 409)
+
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception(
+                "運行実績の選択内容を保存できませんでした。"
+            )
+            return return_form_errors([
+                (
+                    "選択内容を保存できませんでした。もう一度お試しください。",
+                    ""
+                )
+            ], 500)
+
+        flash(
+            "選択内容を保存しました。「続きから再開」で開けます。",
+            "success"
+        )
+        return redirect(url_for("vehicle_operation_import"))
 
     if errors:
         if not validation_only:
