@@ -15,6 +15,12 @@
     </a>
 </div>
 
+<ol class="operation-import-steps" aria-label="取込の手順">
+    <li aria-current="step">1. CSVを選択</li>
+    <li>2. 車両・取込内容を確認</li>
+    <li>3. 取込完了</li>
+</ol>
+
 {% for category, message in flash_messages %}
     {% if category in ["success", "info"] %}
         <div class="card vehicle-search-card" role="status">
@@ -91,7 +97,7 @@
 
         <div class="form-actions vehicle-filter-actions">
             <button type="submit" class="btn btn-outline">
-                読み込んで確認
+                次へ：車両・取込内容を確認
             </button>
         </div>
     </form>

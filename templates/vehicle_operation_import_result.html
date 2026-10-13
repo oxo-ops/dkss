@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}運行実績取込完了{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>運行実績の取込が完了しました</h2>
+</div>
+
+<ol class="operation-import-steps" aria-label="取込の手順">
+    <li>1. CSVを選択</li>
+    <li>2. 車両・取込内容を確認</li>
+    <li aria-current="step">3. 取込完了</li>
+</ol>
+
+<section class="card vehicle-search-card">
+    <h3>{{ draft.source_filename }}</h3>
+
+    <table class="checklist-table">
+        <thead>
+            <tr>
+                <th>処理結果</th>
+                <th>件数</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td data-label="処理結果">今回登録</td>
+                <td data-label="件数">
+                    {{ result.get("added_count", 0) }}件
+                </td>
+            </tr>
+            <tr>
+                <td data-label="処理結果">登録済みのためスキップ</td>
+                <td data-label="件数">
+                    {{ result.get("registered_count", 0) + result.get("skipped_count", 0) }}件
+                </td>
+            </tr>
+            <tr>
+                <td data-label="処理結果">今回の取込対象外</td>
+                <td data-label="件数">
+                    {{ result.get("excluded_count", 0) }}件
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>登録した実績は車両カルテに反映されています。</p>
+
+    {% if result.get("excluded_count", 0) %}
+        <p class="help-text">
+            対象外の実績は登録していません。
+            後で取り込む場合は、車両情報やCSVを整えて再度読み込んでください。
+            登録済みの日報は重複登録されません。
+        </p>
+    {% endif %}
+
+    <div class="form-actions vehicle-filter-actions">
+        <a
+            href="{{ url_for('vehicle_karte_list') }}"
+            class="btn btn-outline"
+        >
+            車両カルテで確認
+        </a>
+
+        <a
+            href="{{ url_for('vehicle_operation_import') }}"
+            class="btn btn-outline"
+        >
+            別のCSVを取り込む
+        </a>
+    </div>
+</section>
+
+{% endblock %}

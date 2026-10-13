@@ -18552,6 +18552,147 @@ body.vehicle-list-ppt .vehicle-list-pagination-gap {
     margin: 0 0 8px;
 }
 
+.vehicle-operation-import-preview .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 14px 0;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+}
+
+.operation-import-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.operation-import-steps [aria-current="step"] {
+    color: #1e3a5f;
+    font-weight: 700;
+}
+
+#vehicle-operation-resolution .operation-import-skip {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 12px 0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+#vehicle-operation-resolution .operation-import-skip input[type="checkbox"] {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: 0 0 16px;
+}
+
+.vehicle-operation-import-preview .operation-import-excluded-errors {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 16px 0 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    cursor: pointer;
+}
+
+.vehicle-operation-import-preview .operation-import-excluded-errors input[type="checkbox"] {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    margin: 3px 0 0;
+    flex: 0 0 16px;
+}
+
+.operation-import-candidates {
+    position: fixed;
+    z-index: 1100;
+    box-sizing: border-box;
+    max-height: 280px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px #0f172a1a;
+}
+
+.operation-import-candidates[hidden] {
+    display: none;
+}
+
+.operation-import-candidates button {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    border: 0;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 0;
+    background: #fff;
+    color: #1e293b;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.operation-import-candidates strong,
+.operation-import-candidates span {
+    display: block;
+}
+
+.operation-import-candidates span {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.operation-import-candidates button:hover,
+.operation-import-candidates button[aria-selected="true"] {
+    background: #edf4fc;
+}
+
+.operation-import-candidates p {
+    margin: 0;
+    padding: 12px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+@media (max-width: 1024px) {
+    #vehicle-operation-resolution .checklist-table td {
+        display: block;
+        width: auto;
+        text-align: left;
+    }
+
+    #vehicle-operation-resolution .checklist-table td::before {
+        display: block;
+        width: auto;
+        margin-bottom: 6px;
+    }
+
+    #vehicle-operation-resolution .vehicle-operation-resolution-search {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
 .vehicle-operation-import-table-wrap {
     margin: 12px 0;
     overflow: auto;

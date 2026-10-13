@@ -5,8 +5,14 @@
 {% block content %}
 
 <div class="page-header">
-    <h2>運行実績取込確認</h2>
+    <h2>車両・取込内容を確認</h2>
 </div>
+
+<ol class="operation-import-steps" aria-label="取込の手順">
+    <li>1. CSVを選択</li>
+    <li aria-current="step">2. 車両・取込内容を確認</li>
+    <li>3. 取込完了</li>
+</ol>
 
 {% for category, message in flash_messages %}
     {% if category in ["success", "info"] %}
@@ -64,9 +70,10 @@
         </p>
     {% else %}
         <p class="help-text">
-            登録先が決まった実績をまとめて登録します。
-            未設定の実績は残し、後から続けられます。
-            不要な実績は「運行実績の明細を見る」でチェックを外してください。
+            確認が必要な車両の登録先を選択してください。
+            登録済みの車両がなければ「車両を追加」から登録できます。
+            今回取り込まない実績は「運行実績の明細を見る」でチェックを外してください。
+            確認が終わったら、下の「運行実績を取り込む」ボタンを押してください。
         </p>
     {% endif %}
 
@@ -99,11 +106,28 @@
             value="{{ csrf_token() }}"
         >
 
+        {% if counts.excluded %}
+            <label class="operation-import-excluded-errors">
+                <input
+                    type="checkbox"
+                    id="acknowledge_excluded_errors"
+                    name="acknowledge_excluded_errors"
+                    value="1"
+                >
+                エラー・CSV内重複の対象外行は、今回は取り込まない
+            </label>
+            <p class="help-text">
+                下の「運行実績の明細を見る」で対象の行と理由を確認してください。
+            </p>
+        {% endif %}
+
         {% if vehicle_resolution_groups %}
             <section id="vehicle-operation-resolution">
-                <h3>登録先の車両を確認</h3>
+                <h3>確認が必要な車両（{{ vehicle_resolution_groups | length }}台）</h3>
                 <p class="help-text">
-                    CSVの車両ごとに登録先を選び、対象の実績へまとめて反映します。
+                    自動照合できた車両は設定済みです。下の車両だけ確認してください。
+                    「登録済み車両を選択」「車両を追加」「今回は取り込まない」のいずれかを選んでください。
+                    選択内容は、その車両の実績すべてに反映されます。
                 </p>
 
                 <div class="vehicle-operation-resolution-actions">
@@ -194,6 +218,14 @@
                                                     車両を追加
                                                 </button>
                                             {% endif %}
+
+                                            <label class="operation-import-skip">
+                                                <input
+                                                    type="checkbox"
+                                                    class="operation-import-skip-group"
+                                                >
+                                                今回は取り込まない
+                                            </label>
 
                                             <div
                                                 class="vehicle-operation-resolution-message help-text"
@@ -354,20 +386,11 @@
                 href="{{ url_for('vehicle_operation_import') }}"
                 class="btn btn-outline"
             >
-                ファイルを選び直す
+                CSVの選択へ戻る
             </a>
 
             <button type="submit" class="btn btn-outline">
-                選択した実績を登録
-            </button>
-
-            <button
-                type="submit"
-                name="operation_import_action"
-                value="save"
-                class="btn btn-outline"
-            >
-                保存して後で続ける
+                運行実績を取り込む
             </button>
         </div>
     </form>
@@ -376,7 +399,7 @@
 {% include "vehicle_operation_add_vehicle.html" %}
 
 <script
-    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261013-1"
+    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261013-2"
     defer
 ></script>
 
