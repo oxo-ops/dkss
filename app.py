@@ -16775,6 +16775,164 @@ def vehicle_operation_import():
     ))
 
 
+@app.route(
+    "/api/vehicle/operation-import/<draft_id>/vehicles",
+    methods=["POST"]
+)
+@limiter.limit("10 per minute")
+def vehicle_operation_import_add_vehicle(draft_id):
+    if not require_master_admin():
+        return return_form_errors([
+            ("車両の追加には管理者権限が必要です。", "")
+        ], 403)
+
+    company_code = session.get("company_code")
+    draft = VehicleOperationImportDraft.query.filter_by(
+        id=draft_id,
+        company_code=company_code,
+        created_by_username=session.get("username")
+    ).first_or_404()
+
+    if draft.status != "preview":
+        return return_form_errors([
+            ("このCSVの取込確認は終了しています。", "")
+        ], 409)
+
+    values = {
+        key: request.form.get(key, "").strip()
+        for key in (
+            "plate_area", "plate_class", "plate_kana", "plate_number",
+            "chassis_number", "model_code", "manufacturer", "body_type",
+            "first_registration_date", "inspection_expiry", "type", "office"
+        )
+    }
+    inactive = request.form.get("inactive") == "1"
+
+    errors = validate_vehicle_text_fields(values)
+    errors.extend(validate_vehicle_dates(
+        values["first_registration_date"],
+        values["inspection_expiry"]
+    ))
+    errors.extend(validate_vehicle_master_values(
+        values["type"],
+        values["office"],
+        company_code
+    ))
+    weights, weight_errors = parse_vehicle_weights(request.form)
+    errors.extend(weight_errors)
+
+    if not values["chassis_number"]:
+        errors.append((
+            "車台番号を入力してください。",
+            "chassis_number"
+        ))
+
+    duplicate = Vehicle.query.filter_by(
+        company_code=company_code,
+        chassis_number=values["chassis_number"]
+    ).first()
+
+    if duplicate:
+        errors.append((
+            "同じ車台番号の車両が登録済みです。登録先から選択してください。",
+            "chassis_number"
+        ))
+
+    plate_keys = (
+        "plate_area",
+        "plate_class",
+        "plate_kana",
+        "plate_number"
+    )
+    if all(values[key] for key in plate_keys):
+        plate = normalize_vehicle_operation_plate(
+            vehicle_number(values)
+        )
+        company_vehicles = Vehicle.query.filter_by(
+            company_code=company_code
+        ).all()
+
+        if any(
+            all(getattr(vehicle, key) for key in plate_keys)
+            and normalize_vehicle_operation_plate(vehicle_number({
+                key: getattr(vehicle, key) for key in plate_keys
+            })) == plate
+            for vehicle in company_vehicles
+        ):
+            errors.append((
+                "同じナンバープレートの車両が登録済みです。登録先を確認してください。",
+                "plate_number"
+            ))
+
+    company = Company.query.filter_by(
+        company_code=company_code
+    ).first()
+
+    if company and not inactive:
+        active_count = Vehicle.query.filter_by(
+            company_code=company_code,
+            deleted=False
+        ).count()
+
+        if active_count >= company.vehicle_limit:
+            errors.append((
+                "登録可能台数の上限に達しています。",
+                ""
+            ))
+
+    if errors:
+        return return_form_errors(errors)
+
+    if request.headers.get("X-DKSS-Validation-Only") == "1":
+        return jsonify({"ok": True})
+
+    vehicle = Vehicle(
+        company_code=company_code,
+        chassis_number=values["chassis_number"],
+        deleted=inactive
+    )
+    apply_vehicle_form_values(
+        vehicle,
+        values,
+        {**values, **weights}
+    )
+    db.session.add(vehicle)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return return_form_errors([
+            (
+                "同じ車台番号の車両が登録済みです。登録先を確認してください。",
+                "chassis_number"
+            )
+        ], 409)
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception(
+            "運行実績取込画面からの車両追加に失敗しました。"
+        )
+        return return_form_errors([
+            (
+                "車両を追加できませんでした。入力内容を保持したまま再度お試しください。",
+                ""
+            )
+        ], 500)
+
+    return jsonify({
+        "ok": True,
+        "vehicle": {
+            "id": vehicle.id,
+            "number": vehicle_number(values)
+                + ("（無効）" if inactive else ""),
+            "chassis_number": vehicle.chassis_number,
+            "office": vehicle.office or "",
+            "inspection_expiry": vehicle.inspection_expiry or ""
+        }
+    }), 201
+
+
 @app.route("/vehicle/operation-import/<draft_id>/preview")
 def vehicle_operation_import_preview(draft_id):
     draft = (
@@ -16858,7 +17016,7 @@ def vehicle_operation_import_preview(draft_id):
                 "plate_class": vehicle.plate_class or "",
                 "plate_kana": vehicle.plate_kana or "",
                 "plate_number": vehicle.plate_number or "",
-            }),
+            }) + ("（無効）" if vehicle.deleted else ""),
             "chassis_number": vehicle.chassis_number or "",
             "office": vehicle.office or "",
             "inspection_expiry": vehicle.inspection_expiry or "",
@@ -17002,6 +17160,8 @@ def vehicle_operation_import_preview(draft_id):
         preview_rows=preview_rows,
         vehicle_choices=vehicle_choices,
         vehicle_resolution_groups=vehicle_resolution_groups,
+        offices=offices_for_current_company(),
+        vehicle_types=vehicle_types_for_current_company(),
     )
 
 
@@ -17045,7 +17205,8 @@ def vehicle_operation_import_confirm(draft_id):
             get_vehicle_operation_import_submission(
                 csv_rows,
                 company_code,
-                request.form
+                request.form,
+                allow_pending=True
             )
         )
 
@@ -17131,6 +17292,12 @@ def vehicle_operation_import_confirm(draft_id):
 
     if validation_only:
         return jsonify({"ok": True})
+
+    pending_count = sum(
+        1 for selection in selections.values()
+        if selection.get("include") is True
+        and selection.get("vehicle_record_id") is None
+    )
 
     try:
         claimed = (
@@ -17297,10 +17464,13 @@ def vehicle_operation_import_confirm(draft_id):
         draft.result_json = json.dumps({
             "added_count": added_count,
             "skipped_count": skipped_count,
+            "pending_count": pending_count,
         })
-        draft.status = "completed"
-        draft.completed_at = datetime.now(
-            ZoneInfo("UTC")
+
+        db.session.refresh(draft, ["status"])
+        draft.status = "preview" if pending_count else "completed"
+        draft.completed_at = (
+            None if pending_count else datetime.now(ZoneInfo("UTC"))
         )
 
         db.session.commit()
@@ -17329,6 +17499,18 @@ def vehicle_operation_import_confirm(draft_id):
             )],
             status_code=500
         )
+
+    if pending_count:
+        flash(
+            f"運行実績を{added_count}件登録しました。"
+            f"登録先未設定の{pending_count}件は残しています。"
+            "登録先を設定して続けられます。",
+            "success"
+        )
+        return redirect(url_for(
+            "vehicle_operation_import_preview",
+            draft_id=draft.id
+        ))
 
     flash(
         f"運行実績を{added_count}件登録しました。"
@@ -20421,7 +20603,8 @@ def validate_vehicle_master_values(
 def get_vehicle_operation_import_submission(
     csv_rows,
     company_code,
-    form_data
+    form_data,
+    allow_pending=False
 ):
     selected_lines = set(form_data.getlist("include"))
     known_lines = {
@@ -20449,8 +20632,7 @@ def get_vehicle_operation_import_submission(
     valid_vehicle_ids = {
         vehicle.id
         for vehicle in Vehicle.query.filter_by(
-            company_code=company_code,
-            deleted=False
+            company_code=company_code
         ).all()
     }
 
@@ -20481,6 +20663,9 @@ def get_vehicle_operation_import_submission(
             continue
 
         if vehicle_id is None:
+            if allow_pending and not vehicle_id_text:
+                continue
+
             errors.append((
                 f"{line_number}行目の登録先車両を選択してください。",
                 field_name
@@ -20517,6 +20702,12 @@ def get_vehicle_operation_import_submission(
             "vehicle_record_id": vehicle_id,
             "values": values,
         })
+
+    if allow_pending and not records and not errors:
+        errors.append((
+            "登録先が決まった実績がありません。登録先を選択するか、車両を追加してください。",
+            ""
+        ))
 
     return selections, records, errors
 
@@ -20784,8 +20975,7 @@ def get_vehicle_operation_plate_candidates(company_code):
     vehicles = (
         Vehicle.query
         .filter_by(
-            company_code=company_code,
-            deleted=False
+            company_code=company_code
         )
         .order_by(Vehicle.id.asc())
         .all()
