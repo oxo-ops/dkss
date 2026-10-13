@@ -285,6 +285,7 @@
                     office.value = button.dataset.sourceOffice;
                 }
 
+                dialog.querySelector(".modal-bg").classList.add("is-open");
                 dialog.showModal();
                 document.getElementById(
                     "operation_new_chassis_number"
@@ -301,6 +302,7 @@
         });
 
         dialog.addEventListener("close", () => {
+            dialog.querySelector(".modal-bg").classList.remove("is-open");
             clearCommonErrors();
 
             if (details && !details.open) {
