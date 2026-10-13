@@ -20723,6 +20723,7 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
     )
 
     saved_vehicle_mappings = {}
+    valid_vehicle_ids = {vehicle.id for vehicle in vehicles}
 
     mappings = (
         VehicleOperationVehicleMapping.query
@@ -20735,9 +20736,7 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
             mapping.source_vehicle_number
         )
 
-        if mapping.vehicle_record_id not in (
-            plate_candidates.get(source_number, [])
-        ):
+        if mapping.vehicle_record_id not in valid_vehicle_ids:
             continue
 
         mapping_key = (
