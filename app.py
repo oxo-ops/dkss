@@ -17307,7 +17307,11 @@ def vehicle_operation_import_confirm(draft_id):
                         selections,
                         ensure_ascii=False
                     ),
-                    "result_json": "{}",
+                    "result_json": json.dumps({
+                        key: value
+                        for key, value in safe_json_dict(draft.result_json).items()
+                        if key != "form_errors"
+                    }, ensure_ascii=False),
                 }, synchronize_session=False)
             )
 
@@ -17347,7 +17351,7 @@ def vehicle_operation_import_confirm(draft_id):
                     ensure_ascii=False
                 )
                 draft.result_json = json.dumps(
-                    {"form_errors": errors},
+                    {**safe_json_dict(draft.result_json), "form_errors": errors},
                     ensure_ascii=False
                 )
                 db.session.commit()
@@ -17443,6 +17447,7 @@ def vehicle_operation_import_confirm(draft_id):
 
         added_count = 0
         skipped_count = 0
+        imported_vehicle_ids = get_vehicle_operation_imported_vehicle_ids(draft)
 
         for record in records:
             values = record["values"]
@@ -17460,6 +17465,7 @@ def vehicle_operation_import_confirm(draft_id):
                 **values
             ))
             added_count += 1
+            imported_vehicle_ids.add(record["vehicle_record_id"])
 
         confirmed_pairs = {
             f"{line_number}:{selection['vehicle_record_id']}"
@@ -17555,6 +17561,7 @@ def vehicle_operation_import_confirm(draft_id):
             "added_count": added_count,
             "skipped_count": skipped_count,
             "pending_count": pending_count,
+            "imported_vehicle_ids": sorted(imported_vehicle_ids),
         })
 
         db.session.refresh(draft, ["status"])
@@ -17761,6 +17768,31 @@ def vehicle_karte_document_source(vehicle_record_id, draft_id):
     return response
 
 
+def get_vehicle_operation_imported_vehicle_ids(draft):
+    result = safe_json_dict(draft.result_json)
+    vehicle_ids = result.get("imported_vehicle_ids")
+
+    if isinstance(vehicle_ids, list):
+        return {
+            value for value in vehicle_ids
+            if isinstance(value, int) and not isinstance(value, bool)
+        }
+
+    # 従来の完了済みCSVは既存の表示・ダウンロード権限を維持する。
+    if draft.status != "completed":
+        return set()
+
+    selections = safe_json_dict(draft.selection_json)
+    return {
+        selection["vehicle_record_id"]
+        for selection in selections.values()
+        if isinstance(selection, dict)
+        and selection.get("include") is True
+        and isinstance(selection.get("vehicle_record_id"), int)
+        and not isinstance(selection.get("vehicle_record_id"), bool)
+    }
+
+
 @app.route(
     "/vehicle/karte/<int:vehicle_record_id>/operation-files/<draft_id>"
 )
@@ -17770,23 +17802,13 @@ def vehicle_karte_operation_source(vehicle_record_id, draft_id):
         company_code=session.get("company_code")
     ).first_or_404()
 
-    draft = VehicleOperationImportDraft.query.filter_by(
-        id=draft_id,
-        company_code=vehicle.company_code,
-        status="completed"
+    draft = VehicleOperationImportDraft.query.filter(
+        VehicleOperationImportDraft.id == draft_id,
+        VehicleOperationImportDraft.company_code == vehicle.company_code,
+        VehicleOperationImportDraft.status.in_(["preview", "completed"])
     ).first_or_404()
 
-    selections = safe_json_dict(draft.selection_json)
-
-    belongs_to_vehicle = any(
-        isinstance(selection, dict)
-        and selection.get("include") is True
-        and str(selection.get("vehicle_record_id", ""))
-        == str(vehicle.id)
-        for selection in selections.values()
-    )
-
-    if not belongs_to_vehicle:
+    if vehicle.id not in get_vehicle_operation_imported_vehicle_ids(draft):
         raise NotFound()
 
     response = send_file(
@@ -17879,12 +17901,15 @@ def vehicle_karte_documents(vehicle_record_id):
             VehicleOperationImportDraft.id,
             VehicleOperationImportDraft.source_filename,
             VehicleOperationImportDraft.selection_json,
+            VehicleOperationImportDraft.result_json,
+            VehicleOperationImportDraft.status,
+            VehicleOperationImportDraft.created_at,
             VehicleOperationImportDraft.completed_at
         )
         .filter(
             VehicleOperationImportDraft.company_code
             == vehicle.company_code,
-            VehicleOperationImportDraft.status == "completed"
+            VehicleOperationImportDraft.status.in_(["preview", "completed"])
         )
         .order_by(
             VehicleOperationImportDraft.completed_at.desc(),
@@ -17894,24 +17919,14 @@ def vehicle_karte_documents(vehicle_record_id):
     )
 
     for draft in operation_drafts:
-        selections = safe_json_dict(draft.selection_json)
-
-        belongs_to_vehicle = any(
-            isinstance(selection, dict)
-            and selection.get("include") is True
-            and str(selection.get("vehicle_record_id", ""))
-            == str(vehicle.id)
-            for selection in selections.values()
-        )
-
-        if not belongs_to_vehicle:
+        if vehicle.id not in get_vehicle_operation_imported_vehicle_ids(draft):
             continue
 
         documents.append({
             "draft_id": draft.id,
             "filename": draft.source_filename,
             "document_type": "operation_csv",
-            "completed_at": draft.completed_at,
+            "completed_at": draft.completed_at or draft.created_at,
             "records": []
         })
 
