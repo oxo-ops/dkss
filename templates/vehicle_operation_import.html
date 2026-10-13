@@ -23,6 +23,40 @@
     {% endif %}
 {% endfor %}
 
+{% if unfinished_imports %}
+<section class="card vehicle-search-card">
+    <h3>途中の取込を再開</h3>
+
+    <div class="vehicle-operation-import-table-wrap">
+        <table class="checklist-table">
+            <thead>
+                <tr>
+                    <th>ファイル</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in unfinished_imports %}
+                    <tr>
+                        <td data-label="ファイル">
+                            {{ item.source_filename }}
+                        </td>
+                        <td data-label="操作">
+                            <a
+                                href="{{ url_for('vehicle_operation_import_preview', draft_id=item.id) }}"
+                                class="btn btn-outline"
+                            >
+                                続きから再開
+                            </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
 <div class="card form-card vehicle-search-card">
     <form
         method="post"

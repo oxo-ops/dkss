@@ -8,6 +8,14 @@
     <h2>運行実績取込確認</h2>
 </div>
 
+{% for category, message in flash_messages %}
+    {% if category in ["success", "info"] %}
+        <div class="card vehicle-search-card" role="status">
+            <p>{{ message }}</p>
+        </div>
+    {% endif %}
+{% endfor %}
+
 <div class="card vehicle-search-card vehicle-operation-import-preview">
     {% set counts = namespace(
         candidates=0,
@@ -351,6 +359,15 @@
 
             <button type="submit" class="btn btn-outline">
                 選択した実績を登録
+            </button>
+
+            <button
+                type="submit"
+                name="operation_import_action"
+                value="save"
+                class="btn btn-outline"
+            >
+                保存して後で続ける
             </button>
         </div>
     </form>
