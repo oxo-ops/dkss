@@ -981,6 +981,10 @@ async function urlBase64ToUint8Array(base64String) {
 }
 
 async function registerPushNotifications() {
+    if (document.body.dataset.authenticated !== "true") {
+        return;
+    }
+
     if (
         !("serviceWorker" in navigator)
         || !("PushManager" in window)
@@ -1574,6 +1578,10 @@ document.addEventListener("submit", async function (event) {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
+    if (document.body.dataset.authenticated !== "true") {
+        return;
+    }
+
     let refreshing = false;
     let refreshAgain = false;
 
