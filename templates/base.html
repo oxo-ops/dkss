@@ -16,7 +16,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261009-3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261015-13') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if request.endpoint == 'vehicle_checklist_results' else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents'] else '' }}"
@@ -424,7 +424,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js', v='20261015-1') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', v='20261015-2') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

@@ -26086,19 +26086,26 @@ def save_vehicle_inspection_repair(result_index, defect_no):
         ])
 
     local_now = get_user_local_now(company_code, current_user.username)
+    date_only = "repair_performed_date" in request.form
     try:
-        performed_at = datetime.strptime(
-            request.form.get("repair_performed_at", ""),
-            "%Y-%m-%dT%H:%M"
-        )
+        if date_only:
+            performed_at = datetime.strptime(
+                request.form.get("repair_performed_date", ""),
+                "%Y-%m-%d"
+            )
+        else:
+            performed_at = datetime.strptime(
+                request.form.get("repair_performed_at", ""),
+                "%Y-%m-%dT%H:%M"
+            )
     except ValueError:
         return return_form_errors([
-            ("整備実施日時を入力してください。", f"repair_performed_at_{defect_no}")
+            ("実施日を入力してください。", f"repair_performed_at_{defect_no}")
         ])
 
     if performed_at > local_now.replace(tzinfo=None):
         return return_form_errors([
-            ("整備実施日時に未来の日時は指定できません。", f"repair_performed_at_{defect_no}")
+            ("実施日に未来の日付は指定できません。", f"repair_performed_at_{defect_no}")
         ])
 
     repair = {
@@ -26106,7 +26113,9 @@ def save_vehicle_inspection_repair(result_index, defect_no):
         "note": note,
         "performed_by": (current_user.last_name or "") + (current_user.first_name or ""),
         "performed_by_username": current_user.username,
-        "performed_at": performed_at.strftime("%Y-%m-%d %H:%M"),
+        "performed_at": performed_at.strftime(
+            "%Y-%m-%d" if date_only else "%Y-%m-%d %H:%M"
+        ),
         "recorded_at": local_now.strftime("%Y-%m-%d %H:%M:%S"),
         "notification_created_at": local_now.astimezone(
             ZoneInfo("UTC")
@@ -26119,9 +26128,8 @@ def save_vehicle_inspection_repair(result_index, defect_no):
     if is_recheck:
         try:
             previous_repair = defect.get("repair") or {}
-            repair_completed_at = datetime.strptime(
-                previous_repair.get("performed_at", ""),
-                "%Y-%m-%d %H:%M"
+            repair_completed_at = datetime.fromisoformat(
+                previous_repair.get("performed_at", "")
             ).replace(
                 tzinfo=ZoneInfo(
                     previous_repair.get("timezone") or "Asia/Tokyo"
@@ -26132,10 +26140,21 @@ def save_vehicle_inspection_repair(result_index, defect_no):
                 ("整備実施日時を確認できません。整備記録を確認してください。", "")
             ], 409)
 
-        if performed_at.replace(tzinfo=local_now.tzinfo) < repair_completed_at:
+        if date_only:
+            recheck_before_repair = (
+                performed_at.date()
+                < repair_completed_at.astimezone(local_now.tzinfo).date()
+            )
+        else:
+            recheck_before_repair = (
+                performed_at.replace(tzinfo=local_now.tzinfo)
+                < repair_completed_at
+            )
+
+        if recheck_before_repair:
             return return_form_errors([
                 (
-                    "再確認日時は整備実施日時以降を指定してください。",
+                    "再確認日は整備実施日以降を指定してください。",
                     f"repair_performed_at_{defect_no}"
                 )
             ])
@@ -27296,8 +27315,28 @@ def reject_vehicle_checklist_result(result_index):
     if not result_record:
         return redirect("/vehicle/checklists")
 
-    if result_record.status != "承認待ち":
-        return redirect("/vehicle/checklists")
+    if result_record.status not in {"承認待ち", "承認済み"}:
+        return return_form_errors([
+            ("現在の状態では差し戻せません。画面を再読み込みしてください。", "")
+        ], 409)
+
+    if result_record.status == "承認済み":
+        rejection_snapshot = safe_json_dict(
+            result_record.checklist_snapshot_json
+        )
+        if not rejection_snapshot:
+            return return_form_errors([
+                ("点検様式を確認できないため差し戻せません。", "")
+            ], 409)
+
+        if any(
+            item.get("fixed_template_code")
+            == "daily_inspection_truck_trailer"
+            for item in rejection_snapshot.get("items", [])
+        ):
+            return return_form_errors([
+                ("標準の日常点検表は運行判断の画面で操作してください。", "")
+            ], 409)
 
     approvals = safe_json_dict_list(
         result_record.approvals_json
@@ -27338,20 +27377,46 @@ def reject_vehicle_checklist_result(result_index):
                 "approved_date": "",
             })
 
-    current_approval = next(
-        (
-            approval
-            for approval in approvals
-            if not (
-                approval.get("approved_by")
-                or approval.get("approved_by_username")
-            )
-        ),
-        None
-    )
+    if result_record.status == "承認済み":
+        rejection_approval_index = request.form.get(
+            "approval_index",
+            type=int
+        )
+        if (
+            rejection_approval_index is None
+            or rejection_approval_index < 0
+            or rejection_approval_index >= len(approvals)
+        ):
+            return return_form_errors([
+                ("差し戻す承認欄を確認してください。", "")
+            ], 400)
+
+        current_approval = approvals[rejection_approval_index]
+
+        if not (
+            current_approval.get("approved_by")
+            or current_approval.get("approved_by_username")
+        ):
+            return return_form_errors([
+                ("承認状況が更新されています。画面を再読み込みしてください。", "")
+            ], 409)
+    else:
+        current_approval = next(
+            (
+                approval
+                for approval in approvals
+                if not (
+                    approval.get("approved_by")
+                    or approval.get("approved_by_username")
+                )
+            ),
+            None
+        )
 
     if not current_approval:
-        return redirect("/vehicle/checklists")
+        return return_form_errors([
+            ("差し戻せる承認欄がありません。画面を再読み込みしてください。", "")
+        ], 409)
 
     if "allow_general" not in current_approval:
         approval_checklist = {}
@@ -27541,19 +27606,23 @@ def reject_vehicle_checklist_result(result_index):
                 )
             )
 
+    destination = url_for(
+        "vehicle_checklist_results",
+        index=result_record.checklist_id,
+        vehicle_record_id=result_record.vehicle_record_id,
+        year=result_record.year,
+        month=result_record.month,
+        active_day=active_value
+    )
+
     if request.headers.get("X-DKSS-Validation-Only") == "1":
         return jsonify({
             "success": True,
-            "status": "差し戻し"
+            "status": "差し戻し",
+            "redirect_url": destination
         })
 
-    return redirect(
-        f"/vehicle/checklists/{result_record.checklist_id}"
-        f"?vehicle_record_id={result_record.vehicle_record_id}"
-        f"&year={result_record.year}"
-        f"&month={result_record.month}"
-        f"&active_day={active_value}"
-    )
+    return redirect(destination)
 
 
 @app.route("/vehicle/checklist-results/<int:result_index>/excel")
@@ -31039,7 +31108,7 @@ def complete_vehicle_checklist(index):
     )
     notification_usernames = set(approval_usernames)
 
-    if was_rejected:
+    if was_rejected and not has_system_approval:
         latest_rejection = ChecklistEvent.query.filter_by(
             company_code=company_code,
             result_type="vehicle",

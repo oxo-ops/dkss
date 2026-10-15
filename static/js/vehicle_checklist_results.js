@@ -2,6 +2,132 @@ document.addEventListener("DOMContentLoaded", function () {
     const responsePanel = document.getElementById("vehicle-inspection-response");
     const flowPanel = document.querySelector(".vehicle-flow-panel");
 
+    const workspaceDate = document.getElementById(
+        "vehicle_workspace_date"
+    );
+
+    if (workspaceDate) {
+        workspaceDate.addEventListener("change", function () {
+            if (!workspaceDate.value || !workspaceDate.checkValidity()) {
+                return;
+            }
+
+            const parts = workspaceDate.value.split("-");
+            if (parts.length !== 3) return;
+
+            const vehicleField = document.getElementById(
+                "vehicle_record_id"
+            );
+            if (!vehicleField?.value) return;
+
+            const destination = new URL(
+                window.location.pathname,
+                window.location.origin
+            );
+            destination.searchParams.set(
+                "vehicle_record_id", vehicleField.value
+            );
+            destination.searchParams.set("year", parts[0]);
+            destination.searchParams.set("month", parts[1]);
+            destination.searchParams.set("active_day", parts[2]);
+
+            window.location.assign(destination.href);
+        });
+    }
+
+    const workspaceHeader = document.querySelector(
+        ".vehicle-workspace-header"
+    );
+    const workspaceTools = document.getElementById(
+        "vehicle-workspace-tools"
+    );
+
+    if (workspaceHeader && workspaceTools) {
+        const heading = workspaceHeader.querySelector(
+            ".vehicle-workspace-heading"
+        );
+        const backLink = workspaceHeader.querySelector(
+            ".vehicle-workspace-back"
+        );
+        const vehicleButton = workspaceTools.querySelector(
+            '[data-vehicle-open-details="vehicle-target-settings"]'
+        );
+        const subtitle = heading?.querySelector(
+            ".vehicle-workspace-subtitle"
+        );
+        const dateField = subtitle?.querySelector(
+            ".vehicle-workspace-date"
+        );
+
+        if (backLink && heading) {
+            workspaceHeader.insertBefore(backLink, heading);
+        }
+
+        if (vehicleButton && subtitle) {
+            subtitle.insertBefore(vehicleButton, dateField || null);
+        }
+
+        if (workspaceTools.children.length) {
+            workspaceHeader.appendChild(workspaceTools);
+        } else {
+            workspaceTools.remove();
+        }
+
+        const recordDetails = document.getElementById(
+            "vehicle-inspection-record"
+        );
+        if (recordDetails) {
+            recordDetails.classList.add("vehicle-controlled-details");
+        }
+
+        const detailButtons = workspaceHeader.querySelectorAll(
+            "[data-vehicle-open-details]"
+        );
+
+        detailButtons.forEach(function (button) {
+            const details = document.getElementById(
+                button.dataset.vehicleOpenDetails
+            );
+            if (!details || details.tagName !== "DETAILS") return;
+
+            details.classList.add("vehicle-controlled-details");
+            button.setAttribute("aria-controls", details.id);
+
+            function updateExpandedState() {
+                button.setAttribute(
+                    "aria-expanded",
+                    String(details.open)
+                );
+            }
+
+            details.addEventListener("toggle", updateExpandedState);
+            updateExpandedState();
+
+            button.addEventListener("click", function () {
+                const opening = !details.open;
+                details.open = opening;
+                updateExpandedState();
+
+                if (
+                    !opening
+                    || details.id === "vehicle-target-settings"
+                ) return;
+
+                requestAnimationFrame(function () {
+                    const summary = details.querySelector("summary");
+                    if (summary) {
+                        summary.focus({preventScroll: true});
+                    }
+
+                    details.scrollIntoView({
+                        block: "start",
+                        behavior: "auto"
+                    });
+                });
+            });
+        });
+    }
+
     if (responsePanel?.querySelector(".js-vehicle-judgment-completed")) {
         responsePanel.querySelectorAll(".vehicle-judgment-heading")
             .forEach(function (heading) {
@@ -16,16 +142,182 @@ document.addEventListener("DOMContentLoaded", function () {
         const checks = document.querySelector(".vehicle-check-table-scroll");
         if (checks) checks.id = "vehicle-flow-checks";
 
-        const overview = responsePanel.querySelector("h3");
-        if (overview) overview.id = "vehicle-flow-overview";
+        const overview = responsePanel.querySelector(".vehicle-defect-details");
+        const operationPanel = document.getElementById("vehicle-operation-panel");
+        const layout = responsePanel.closest(".vehicle-response-layout");
+        const viewButtons = document.querySelectorAll(
+            "[data-vehicle-response-view]"
+        );
+        const issuePanel = overview || document.createElement("div");
+
+        if (!overview) {
+            issuePanel.className = "vehicle-defect-details";
+            issuePanel.textContent = flowPanel.querySelector(
+                ".vehicle-issue-link"
+            )
+                ? "対応する不具合を選択してください。"
+                : "未解消の不具合はありません。";
+            responsePanel.appendChild(issuePanel);
+        }
+        issuePanel.id = "vehicle-flow-overview";
+
+        function setResponseView(view) {
+            if (!operationPanel || !layout) return;
+
+            const showingDefects = view === "defects";
+            flowPanel.hidden = !showingDefects;
+            layout.classList.toggle("is-operation-view", !showingDefects);
+
+            Array.from(responsePanel.children).forEach(function (child) {
+                child.hidden = showingDefects
+                    ? child !== issuePanel
+                    : child === issuePanel;
+            });
+
+            viewButtons.forEach(function (button) {
+                const selected = button.dataset.vehicleResponseView === view;
+                button.setAttribute("aria-pressed", String(selected));
+            });
+        }
+
+        viewButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                const view = button.dataset.vehicleResponseView;
+
+                if (view === "defects") {
+                    const selectedLink = flowPanel.querySelector(
+                        '.vehicle-issue-link[aria-current="true"]'
+                    ) || flowPanel.querySelector(".vehicle-issue-link");
+
+                    if (selectedLink) {
+                        const destination = new URL(
+                            selectedLink.href,
+                            window.location.href
+                        );
+                        const current = new URL(window.location.href);
+                        const samePage =
+                            destination.origin === current.origin
+                            && destination.pathname === current.pathname
+                            && destination.search === current.search;
+
+                        if (!samePage) {
+                            window.location.assign(destination.href);
+                            return;
+                        }
+
+                        setResponseView("defects");
+                        window.history.replaceState(
+                            null, "", destination.href
+                        );
+                        showFlowTarget(destination.hash);
+                        return;
+                    }
+                }
+
+                setResponseView(view);
+
+                const url = new URL(window.location.href);
+                url.hash = view === "defects"
+                    ? "vehicle-flow-overview"
+                    : "vehicle-flow-judgment";
+                window.history.replaceState(null, "", url.href);
+            });
+        });
+
+        const requestedDefect = /^#vehicle-flow-(defect-|overview)/.test(
+            window.location.hash
+        );
+        const requestedJudgment = window.location.hash === "#vehicle-flow-judgment";
+        const canJudge = Boolean(
+            responsePanel.querySelector(
+                ".js-vehicle-operation-judgment, .js-vehicle-operation-manager"
+            )
+        );
+        const hasPendingDefects = Boolean(
+            flowPanel.querySelector(".vehicle-issue-link")
+        );
+
+        setResponseView(
+            !hasPendingDefects ? "operation"
+                : requestedDefect ? "defects"
+                : requestedJudgment || canJudge ? "operation"
+                : "defects"
+        );
+
+        const judgmentEditor = responsePanel.querySelector(
+            ".vehicle-operation-details"
+        );
+        const judgmentResult = responsePanel.querySelector(
+            ".js-vehicle-judgment-completed"
+        );
+
+        if (judgmentEditor && judgmentResult) {
+            const resultLabel = judgmentResult.querySelector(
+                ".vehicle-judgment-result-label"
+            );
+
+            function updateJudgmentEditingView() {
+                const editing = judgmentEditor.open;
+                judgmentResult.classList.toggle("is-editing", editing);
+
+                if (resultLabel) {
+                    resultLabel.textContent = editing
+                        ? "現在の判断"
+                        : "運行可否の判断結果";
+                }
+            }
+
+            judgmentEditor.addEventListener(
+                "toggle",
+                updateJudgmentEditingView
+            );
+            updateJudgmentEditingView();
+        }
 
         const judgmentTarget =
             responsePanel.querySelector(".js-vehicle-judgment-completed")
             || responsePanel.querySelector(".js-vehicle-operation-judgment, .js-vehicle-operation-manager")
-            || responsePanel.querySelector("h3 + p");
+            || responsePanel.querySelector(".vehicle-judgment-heading");
 
         if (judgmentTarget) {
             judgmentTarget.id = "vehicle-flow-judgment";
+        }
+
+        const defectCards = Array.from(
+            responsePanel.querySelectorAll(
+                '.vehicle-defect-details [id^="vehicle-flow-defect-"]'
+            )
+        );
+
+        function selectDefectCard(selectedCard) {
+            if (!defectCards.includes(selectedCard)) return;
+
+            defectCards.forEach(function (card) {
+                card.hidden = (
+                    card !== selectedCard
+                    && card.dataset.defectStatus !== "解消"
+                );
+            });
+
+            flowPanel.querySelectorAll(".vehicle-issue-link")
+                .forEach(function (link) {
+                    const url = new URL(link.href, window.location.href);
+                    const selected = url.hash === "#" + selectedCard.id;
+                    link.classList.toggle("is-selected", selected);
+
+                    if (selected) {
+                        link.setAttribute("aria-current", "true");
+                    } else {
+                        link.removeAttribute("aria-current");
+                    }
+                });
+        }
+
+        const firstPendingCard = defectCards.find(function (card) {
+            return card.dataset.defectStatus !== "解消";
+        });
+        if (firstPendingCard) {
+            selectDefectCard(firstPendingCard);
         }
 
         function showFlowTarget(hash) {
@@ -33,6 +325,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const container = document.getElementById(hash.slice(1));
             if (!container) return;
+
+            if (/^#vehicle-flow-(defect-|overview)/.test(hash)) {
+                setResponseView("defects");
+            } else if (hash === "#vehicle-flow-judgment") {
+                setResponseView("operation");
+            }
 
             if (container.dataset.defectStatus === "解消") {
                 const nextLink = Array.from(
@@ -64,6 +362,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
                 return;
             }
+
+            selectDefectCard(container);
 
             const target =
                 container.querySelector(".js-vehicle-inspection-repair")
@@ -155,8 +455,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     : target.matches(
                     ".js-vehicle-inspection-repair, .js-vehicle-operation-judgment"
                 )
-                    ? "入力欄を開きました。青枠の箇所で対応してください。"
-                    : "青枠の箇所を表示しました。入力欄がない場合は閲覧のみです。";
+                    ? "入力欄を開きました。箇所で対応してください。"
+                    : "箇所を表示しました。入力欄がない場合は閲覧のみです。";
             }
         }
 
@@ -282,17 +582,32 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             form.dataset.submitting = "1";
-            const button = form.querySelector('button[type="submit"]');
-            if (button) {
+            const submitButtons = Array.from(
+                form.querySelectorAll('button[type="submit"]')
+            );
+            const buttonStates = submitButtons.map(function (button) {
+                return button.disabled;
+            });
+            submitButtons.forEach(function (button) {
                 button.disabled = true;
-            }
+            });
             clearCommonErrors();
 
             try {
+                const formData = new FormData(form);
+                const submitter = event.submitter;
+
+                if (
+                    form.matches(".js-vehicle-inspection-repair")
+                    && submitter?.name === "repair_status"
+                ) {
+                    formData.set("repair_status", submitter.value);
+                }
+
                 const response = await fetch(form.action, {
                     method: "POST",
                     headers: {"X-DKSS-Final-Submit": "1"},
-                    body: new FormData(form)
+                    body: formData
                 });
 
                 if (!response.ok) {
@@ -337,141 +652,34 @@ document.addEventListener("DOMContentLoaded", function () {
                 );
             } finally {
                 delete form.dataset.submitting;
-                if (button) {
-                    button.disabled = false;
-                }
+                submitButtons.forEach(function (button, index) {
+                    button.disabled = buttonStates[index];
+                });
             }
         });
     });
 
     document.querySelectorAll(".js-vehicle-inspection-repair")
         .forEach(function (form) {
-            const status = form.querySelector('[name="repair_status"]');
-            const button = form.querySelector('button[type="submit"]');
-            const heading = form.querySelector(".vehicle-defect-form-heading");
-            if (!status || !button || !heading) return;
-
-            const help = document.createElement("p");
-            help.setAttribute("aria-live", "polite");
-            heading.appendChild(help);
-
-            function updateRepairAction() {
-                const completed = status.value === "再確認待ち";
-                help.textContent = completed
-                    ? "整備が完了したら保存してください。保存後は、異常が解消したか再確認します。"
-                    : "作業途中の内容を保存できます。整備が終わったら「整備完了（再確認待ち）」を選んで保存してください。";
-                button.textContent = completed
-                    ? "整備完了を記録して再確認へ"
-                    : "作業途中の内容を保存";
-            }
-
-            status.addEventListener("change", updateRepairAction);
-            updateRepairAction();
-        });
-
-    document.querySelectorAll(".js-vehicle-inspection-repair")
-        .forEach(function (form) {
             const result = form.querySelector('[name="recheck_result"]');
             const button = form.querySelector('button[type="submit"]');
-            const heading = form.querySelector(".vehicle-defect-form-heading");
-            if (!result || !button || !heading) return;
-
-            const help = document.createElement("p");
-            help.setAttribute("aria-live", "polite");
-            heading.appendChild(help);
+            if (!result || !button) return;
 
             function updateRecheckAction() {
-                if (result.value === "異常なし") {
-                    help.textContent = "この不具合を解消として記録します。ほかの不具合への対応が済んだら、整備管理者が運行可否を判断します。";
-                    button.textContent = "不具合の解消を記録";
-                } else if (result.value === "異常あり") {
-                    help.textContent = "この不具合を対応待ちに戻します。再度、整備が必要です。";
-                    button.textContent = "再整備が必要として記録";
-                } else {
-                    help.textContent = "整備後に対象箇所を確認し、結果・確認内容・実施日時を入力してください。";
-                    button.textContent = "再確認結果を保存";
-                }
+                const value = form.querySelector(
+                    'select[name="recheck_result"], input[name="recheck_result"]:checked'
+                )?.value || "";
+
+                button.textContent = value === "異常なし"
+                    ? "不具合の解消を記録"
+                    : value === "異常あり"
+                        ? "再整備が必要として記録"
+                        : "再確認結果を保存";
             }
 
-            result.addEventListener("change", updateRecheckAction);
+            form.addEventListener("change", updateRecheckAction);
             updateRecheckAction();
         });
-
-    document.querySelectorAll(
-        ".js-vehicle-inspection-repair, .js-vehicle-operation-judgment, .js-vehicle-operation-manager"
-    ).forEach(function (form) {
-        const heading = form.querySelector(
-            ".vehicle-defect-form-heading, .vehicle-judgment-heading"
-        ) || form;
-        const help = heading.querySelector('p[aria-live="polite"]')
-            || document.createElement("p");
-        help.classList.add("vehicle-next-action");
-        help.setAttribute("aria-live", "polite");
-        heading.prepend(help);
-
-        function updateNextAction() {
-            form.querySelectorAll(".vehicle-next-input").forEach(function (item) {
-                item.classList.remove("vehicle-next-input");
-            });
-
-            const status = form.querySelector('[name="repair_status"]');
-            const result = form.querySelector('[name="recheck_result"]');
-            const button = form.querySelector('button[type="submit"]');
-            let next = form.querySelector(":invalid") || button;
-            let message;
-
-            if (status && status.value !== "再確認待ち") {
-                next = status;
-                message = "次にする操作：整備が終わったら、青枠の「整備状況」を「整備完了（再確認待ち）」に変更して保存してください。作業途中なら、途中保存できます。";
-            } else if (status) {
-                message = next === button
-                    ? "次にする操作：青枠の「整備完了を記録して再確認へ」を押してください。再確認の依頼通知が送られます。"
-                    : "次にする操作：青枠の未入力欄を入力し、「整備完了を記録して再確認へ」を押してください。";
-            } else if (result) {
-                if (!result.value) {
-                    next = result;
-                    message = "次にする操作：整備後の状態を確認し、青枠の「再確認結果」を選択してください。";
-                } else if (next !== button) {
-                    message = "次にする操作：青枠の確認内容・実施日時を入力して保存してください。異常なしは解消、異常ありは再整備として記録します。";
-                } else {
-                    message = result.value === "異常なし"
-                        ? "次にする操作：青枠の「不具合の解消を記録」を押してください。整備管理者は、残っている不具合と対応状況を確認して運行可否を判断できます。"
-                        : "次にする操作：青枠の「再整備が必要として記録」を押してください。この不具合を再び整備する段階へ戻します。";
-                }
-            } else if (form.matches(".js-vehicle-operation-manager")) {
-                message = next === button
-                    ? "次にする操作：青枠の「整備管理者を設定」を押してください。選んだ人へ運行判断の依頼を通知します。"
-                    : "次にする操作：青枠の選択欄で、運行判断を行う整備管理者を選んでください。";
-            } else {
-                const instructions = {
-                    authority_role: "判断者の役割を選択してください。",
-                    authority_confirmed: "運行判断を行う権限の確認にチェックしてください。",
-                    decision: "運行可・運行不可・判断保留を選択してください。",
-                    reason: "判断理由を入力してください。",
-                    checks_confirmed: "点検記録の確認にチェックしてください。"
-                };
-                message = next === button
-                    ? "次にする操作：青枠の保存ボタンを押して、点検確認・運行判断を記録してください。"
-                    : "次にする操作：青枠で" + (
-                        instructions[next.name]
-                        || "必要な内容を入力・確認してください。"
-                    );
-            }
-
-            help.textContent = message;
-
-            if (next) {
-                const target = next.closest('[role="group"]')
-                    || next.closest(".vehicle-judgment-confirmation")
-                    || next;
-                target.classList.add("vehicle-next-input");
-            }
-        }
-
-        form.addEventListener("input", updateNextAction);
-        form.addEventListener("change", updateNextAction);
-        updateNextAction();
-    });
 
     document.querySelectorAll(".js-vehicle-operation-judgment")
         .forEach(function (form) {
@@ -484,6 +692,7 @@ document.addEventListener("DOMContentLoaded", function () {
             function updateJudgmentFields() {
                 const choice = form.querySelector('[name="decision"]:checked');
                 const decision = choice ? choice.value : "";
+                form.classList.toggle("has-judgment-selection", Boolean(choice));
                 const allowed = decision === "運行可";
                 const notifyRequired = decision === "運行不可";
 
@@ -528,9 +737,36 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
 
+            let selectedDecision = form.querySelector(
+                '[name="decision"]:checked'
+            );
+
             form.querySelectorAll('[name="decision"]')
                 .forEach(function (input) {
-                    input.addEventListener("change", updateJudgmentFields);
+                    input.addEventListener("change", function () {
+                        selectedDecision = form.querySelector(
+                            '[name="decision"]:checked'
+                        );
+                        updateJudgmentFields();
+                    });
+
+                    input.addEventListener("click", function (event) {
+                        if (
+                            input.disabled
+                            || selectedDecision !== input
+                        ) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        window.setTimeout(function () {
+                            input.checked = false;
+                            input.dispatchEvent(new Event("change", {
+                                bubbles: true
+                            }));
+                        }, 0);
+                    });
                 });
 
             updateJudgmentFields();
@@ -1204,14 +1440,24 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 const unansweredCount = unansweredForms.length;
+                const isResubmission =
+                    completeForm.dataset.resubmission === "true";
+                const submitQuestion = isResubmission
+                    ? "再申請しますか？"
+                    : "点検を完了しますか？";
+
                 const confirmationMessage =
                     checkForms.length > 0 && unansweredCount === checkForms.length
-                        ? "すべての点検項目が未回答です。全件未回答のまま点検を完了しますか？"
+                        ? "すべての点検項目が未回答です。全件未回答のまま"
+                            + submitQuestion
                         : unansweredCount > 0
                             ? "任意項目に未回答が"
                                 + unansweredCount
-                                + "件あります。未回答のまま点検を完了しますか？"
-                            : "この日の点検を完了しますか？";
+                                + "件あります。未回答のまま"
+                                + submitQuestion
+                            : isResubmission
+                                ? "修正した内容で再申請しますか？"
+                                : "この日の点検を完了しますか？";
 
                 if (
                     !window.confirm(
@@ -1434,6 +1680,21 @@ document.addEventListener("DOMContentLoaded", function () {
                     + resultIndex
                     + "/reject";
 
+                let approvalIndexField = vehicleRejectForm.querySelector(
+                    'input[name="approval_index"]'
+                );
+
+                if (!approvalIndexField) {
+                    approvalIndexField = document.createElement("input");
+                    approvalIndexField.type = "hidden";
+                    approvalIndexField.name = "approval_index";
+                    vehicleRejectForm.appendChild(approvalIndexField);
+                }
+
+                const approvalIndex = button.dataset.approvalIndex;
+                approvalIndexField.value = approvalIndex ?? "";
+                approvalIndexField.disabled = approvalIndex === undefined;
+
                 if (vehicleRejectReason) {
                     vehicleRejectReason.value = "";
                 }
@@ -1465,6 +1726,22 @@ document.addEventListener("DOMContentLoaded", function () {
             "submit",
             async function (event) {
                 event.preventDefault();
+
+                if (vehicleRejectForm.dataset.submitting === "1") {
+                    return;
+                }
+
+                vehicleRejectForm.dataset.submitting = "1";
+
+                const rejectSubmitButtons = Array.from(
+                    vehicleRejectForm.querySelectorAll('button[type="submit"]')
+                );
+                const rejectButtonStates = rejectSubmitButtons.map(
+                    button => button.disabled
+                );
+                rejectSubmitButtons.forEach(button => {
+                    button.disabled = true;
+                });
 
                 clearCommonErrors();
 
@@ -1536,6 +1813,26 @@ document.addEventListener("DOMContentLoaded", function () {
                         vehicleRejectReason.value = "";
                     }
 
+                    const destination = new URL(
+                        data.redirect_url,
+                        window.location.origin
+                    );
+
+                    if (
+                        !data.redirect_url
+                        || destination.origin !== window.location.origin
+                        || destination.pathname !== window.location.pathname
+                    ) {
+                        throw new Error(
+                            "差し戻し後の移動先を確認できませんでした。"
+                        );
+                    }
+
+                    sessionStorage.removeItem(
+                        "vehicleChecklistReturnPosition"
+                    );
+                    window.location.assign(destination.href);
+
                 } catch (error) {
                     console.error(
                         "差し戻しエラー:",
@@ -1546,6 +1843,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         "差し戻しできませんでした。通信状態を確認して、もう一度操作してください。",
                         "vehicleRejectReason"
                     );
+                } finally {
+                    delete vehicleRejectForm.dataset.submitting;
+                    rejectSubmitButtons.forEach((button, index) => {
+                        button.disabled = rejectButtonStates[index];
+                    });
                 }
             }
         );
@@ -3955,6 +4257,58 @@ async function loadSavedReminderNotifyUsers() {
                 );
             }
         });
+    }
+
+    const inspectionRecord = document.getElementById(
+        "vehicle-inspection-record"
+    );
+
+    if (inspectionRecord) {
+        document.querySelectorAll("[data-vehicle-record-link]")
+            .forEach(function (link) {
+                link.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    inspectionRecord.open = true;
+
+                    const url = new URL(window.location.href);
+                    url.hash = "vehicle-inspection-record";
+                    window.history.replaceState(null, "", url.href);
+
+                    requestAnimationFrame(function () {
+                        moveToActiveDay();
+
+                        const summary = inspectionRecord.querySelector(
+                            "summary"
+                        );
+                        if (summary) {
+                            summary.focus({preventScroll: true});
+                        }
+
+                        inspectionRecord.scrollIntoView({
+                            block: "start",
+                            behavior: "auto"
+                        });
+                    });
+                });
+            });
+
+        inspectionRecord.addEventListener("toggle", function () {
+            if (inspectionRecord.open) {
+                requestAnimationFrame(moveToActiveDay);
+            }
+        });
+
+        try {
+            if (
+                sessionStorage.getItem(
+                    "vehicleChecklistReturnPosition"
+                )
+            ) {
+                inspectionRecord.open = true;
+            }
+        } catch (error) {
+            inspectionRecord.open = true;
+        }
     }
 
     markMobilePreviousDate();

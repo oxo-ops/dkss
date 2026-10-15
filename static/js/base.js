@@ -1551,20 +1551,28 @@ document.addEventListener("submit", async function (event) {
             return;
         }
 
-        const approvedBy =
-            document.body.dataset.currentUser || "";
+        const destination = new URL(
+            response.url,
+            window.location.href
+        );
 
-        const badge =
-            document.createElement("span");
+        if (
+            destination.origin !== window.location.origin
+            || destination.pathname !== window.location.pathname
+        ) {
+            if (button) {
+                button.disabled = false;
+            }
+            showCommonError(
+                "承認結果を確認できません。画面を再読み込みして確認してください。"
+            );
+            return;
+        }
 
-        badge.className =
-            "status-badge status-approved";
-
-        badge.title = approvedBy;
-        badge.textContent =
-            approvedBy.slice(0, 1) || "済";
-
-        form.replaceWith(badge);
+        window.history.replaceState(
+            null, "", destination.href
+        );
+        window.location.reload();
 
     } catch (error) {
         if (button) {
