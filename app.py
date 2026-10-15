@@ -5354,6 +5354,12 @@ def login_csrf_token():
 def login():
     error = None
 
+    if request.method == "GET" and session.get("username"):
+        if session.get("role") == "itc":
+            return redirect("/itc")
+
+        return redirect("/")
+
     if request.method == "POST":
         company_code = request.form.get(
             "company_code",
@@ -5381,6 +5387,29 @@ def login():
                 "login.html",
                 error=error
             )
+
+        matching_company_codes = (
+            db.session.query(User.company_code)
+            .filter(
+                db.func.lower(User.company_code)
+                == company_code.lower()
+            )
+            .distinct()
+            .limit(2)
+            .all()
+        )
+
+        if len(matching_company_codes) > 1:
+            return render_template(
+                "login.html",
+                error=(
+                    "会社コードを特定できません。"
+                    "管理者へお問い合わせください。"
+                )
+            )
+
+        if matching_company_codes:
+            company_code = matching_company_codes[0][0]
 
         user = User.query.filter_by(
             company_code=company_code,
@@ -11120,8 +11149,9 @@ def itc_new_company():
                 "company_name"
             ))
 
-        duplicate_company = Company.query.filter_by(
-            company_code=company_code
+        duplicate_company = Company.query.filter(
+            db.func.lower(Company.company_code)
+            == company_code.lower()
         ).first()
 
         if duplicate_company:
