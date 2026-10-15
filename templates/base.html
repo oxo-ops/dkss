@@ -42,6 +42,7 @@
             </button>
         </div>
 
+        {% if session.get('username') %}
         <nav class="sidebar-nav">
 
             <a href="/" class="menu-item {% if path == '/' %}active{% endif %}">
@@ -160,7 +161,9 @@
             {% endif %}
 
         </nav>
+        {% endif %}
 
+        {% if session.get('username') %}
         <div class="sidebar-footer">
             <a
                 href="/settings"
@@ -193,6 +196,7 @@
                 </button>
             </form>
         </div>
+        {% endif %}
 
     </aside>
 
