@@ -5354,6 +5354,12 @@ def login_csrf_token():
 def login():
     error = None
 
+    if request.method == "GET" and session.get("username"):
+        if session.get("role") == "itc":
+            return redirect("/itc")
+
+        return redirect("/")
+
     if request.method == "POST":
         company_code = request.form.get(
             "company_code",
@@ -11143,8 +11149,9 @@ def itc_new_company():
                 "company_name"
             ))
 
-        duplicate_company = Company.query.filter_by(
-            company_code=company_code
+        duplicate_company = Company.query.filter(
+            db.func.lower(Company.company_code)
+            == company_code.lower()
         ).first()
 
         if duplicate_company:
