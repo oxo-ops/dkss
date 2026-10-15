@@ -2,6 +2,42 @@
     const form = document.getElementById("dkss-login-form");
     if (!form) return;
 
+    const companyInput = form.querySelector(
+        'input[name="company_code"]'
+    );
+    const companyStorageKey = "dkss.login.company_code";
+
+    if (companyInput) {
+        try {
+            if (!companyInput.value.trim()) {
+                companyInput.value =
+                    localStorage.getItem(companyStorageKey) || "";
+            }
+        } catch {
+            // 保存できない環境でもログインは利用可能にする。
+        }
+
+        companyInput.setAttribute("autocapitalize", "none");
+        companyInput.setAttribute("spellcheck", "false");
+
+        form.addEventListener("submit", () => {
+            try {
+                const companyCode = companyInput.value.trim();
+
+                if (companyCode) {
+                    localStorage.setItem(
+                        companyStorageKey,
+                        companyCode
+                    );
+                } else {
+                    localStorage.removeItem(companyStorageKey);
+                }
+            } catch {
+                // 保存に失敗してもログインを続行する。
+            }
+        });
+    }
+
     const button = form.querySelector('button[type="submit"]');
     const token = form.querySelector('input[name="csrf_token"]');
     const error = document.getElementById("login-submit-error");

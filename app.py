@@ -5382,6 +5382,29 @@ def login():
                 error=error
             )
 
+        matching_company_codes = (
+            db.session.query(User.company_code)
+            .filter(
+                db.func.lower(User.company_code)
+                == company_code.lower()
+            )
+            .distinct()
+            .limit(2)
+            .all()
+        )
+
+        if len(matching_company_codes) > 1:
+            return render_template(
+                "login.html",
+                error=(
+                    "会社コードを特定できません。"
+                    "管理者へお問い合わせください。"
+                )
+            )
+
+        if matching_company_codes:
+            company_code = matching_company_codes[0][0]
+
         user = User.query.filter_by(
             company_code=company_code,
             username=username
