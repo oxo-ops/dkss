@@ -4,6 +4,10 @@
 
 {% block content %}
 
+{% set vehicle_return_year = request.args.get('vehicle_return_year') or year %}
+{% set vehicle_return_month = request.args.get('vehicle_return_month') or month %}
+{% set vehicle_return_day = request.args.get('vehicle_return_day') or active_day %}
+
 <div class="page-header">
     <h2>{{ checklist.name }} </h2>
 {% set export_ns = namespace(result=None) %}
@@ -937,7 +941,7 @@
                 {{ reported_answer.get("content") or "" }}
             </div>
 
-            <a class="btn btn-outline js-vehicle-flow-link" href="{{ entry.get('link').split('#')[0] }}#vehicle-flow-defect-{{ entry.get('result_id') }}-{{ defect.get('defect_no') }}">
+            <a class="btn btn-outline js-vehicle-flow-link" href="{{ entry.get('link').split('#')[0] }}&amp;{{ {'vehicle_return_year': vehicle_return_year, 'vehicle_return_month': vehicle_return_month, 'vehicle_return_day': vehicle_return_day}|urlencode }}#vehicle-flow-defect-{{ entry.get('result_id') }}-{{ defect.get('defect_no') }}">
                 {{ entry.get("inspection_date") }}の不具合対応へ
             </a>
         </div>
@@ -961,7 +965,8 @@
 {% endfor %}
 {% for entry in other_vehicle_inspection_defects %}
     {% set defect = entry.get("defect", {}) %}
-    {% set target_link = entry.get('link').split('#')[0] ~ '#vehicle-flow-defect-' ~ entry.get('result_id') ~ '-' ~ defect.get('defect_no') %}
+    {% set return_query = {'vehicle_return_year': vehicle_return_year, 'vehicle_return_month': vehicle_return_month, 'vehicle_return_day': vehicle_return_day}|urlencode %}
+    {% set target_link = entry.get('link').split('#')[0] ~ '&' ~ return_query ~ '#vehicle-flow-defect-' ~ entry.get('result_id') ~ '-' ~ defect.get('defect_no') %}
     {% if defect.get("status") == "再確認待ち" %}
         {% set flow.recheck = flow.recheck + 1 %}
         {% if not flow.recheck_link %}{% set flow.recheck_link = target_link %}{% endif %}
@@ -1170,6 +1175,9 @@
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
+                <input type="hidden" name="vehicle_return_year" value="{{ vehicle_return_year }}">
+                <input type="hidden" name="vehicle_return_month" value="{{ vehicle_return_month }}">
+                <input type="hidden" name="vehicle_return_day" value="{{ vehicle_return_day }}">
 
                 <div class="vehicle-defect-form-heading">
                     <h4>整備内容を登録</h4>
@@ -1231,6 +1239,9 @@
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
+                <input type="hidden" name="vehicle_return_year" value="{{ vehicle_return_year }}">
+                <input type="hidden" name="vehicle_return_month" value="{{ vehicle_return_month }}">
+                <input type="hidden" name="vehicle_return_day" value="{{ vehicle_return_day }}">
 
                 <div class="vehicle-defect-form-heading">
                     <h4>再確認結果を登録</h4>

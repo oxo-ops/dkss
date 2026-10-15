@@ -26336,13 +26336,32 @@ def save_vehicle_inspection_repair(result_index, defect_no):
 
     from urllib.parse import parse_qsl, urlencode, urlunparse
 
+    return_year = result_record.year
+    return_month = result_record.month
+    return_day = result_record.day
+
+    try:
+        return_date = datetime(
+            int(request.form.get("vehicle_return_year", "")),
+            int(request.form.get("vehicle_return_month", "")),
+            int(request.form.get("vehicle_return_day", ""))
+        )
+        if not 2000 <= return_date.year <= 2100:
+            raise ValueError("戻り先の年が範囲外です")
+
+        return_year = str(return_date.year)
+        return_month = return_date.strftime("%m")
+        return_day = return_date.strftime("%d")
+    except (TypeError, ValueError):
+        pass
+
     destination = url_for(
         "vehicle_checklist_results",
         index=result_record.checklist_id,
         vehicle_record_id=result_record.vehicle_record_id,
-        year=result_record.year,
-        month=result_record.month,
-        active_day=result_record.day
+        year=return_year,
+        month=return_month,
+        active_day=return_day
     )
     target = "vehicle-flow-judgment"
     saved_result_id = result_record.id
@@ -26386,6 +26405,9 @@ def save_vehicle_inspection_repair(result_index, defect_no):
         "vehicle_saved": "recheck" if is_recheck else "repair",
         "vehicle_saved_item": str(saved_item_no),
         "vehicle_saved_date": saved_date,
+        "vehicle_return_year": str(return_year),
+        "vehicle_return_month": str(return_month).zfill(2),
+        "vehicle_return_day": str(return_day).zfill(2),
     })
     redirect_url = urlunparse(parts._replace(
         query=urlencode(params),
