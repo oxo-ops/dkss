@@ -43,29 +43,65 @@
         点検
     </a>
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="整備・修理タブは実装中です"
-    >
-        整備・修理
-    </span>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_maintenance" %}
+                aria-current="page"
+            {% endif %}
+        >
+            整備・修理
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            整備・修理
+        </span>
+    {% endif %}
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="部品タブは実装中です"
-    >
-        部品
-    </span>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_parts" %}
+                aria-current="page"
+            {% endif %}
+        >
+            部品
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            部品
+        </span>
+    {% endif %}
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="費用タブは実装中です"
-    >
-        費用
-    </span>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_costs" %}
+                aria-current="page"
+            {% endif %}
+        >
+            費用
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            費用
+        </span>
+    {% endif %}
 
     {% if vehicle is defined and vehicle %}
         <a

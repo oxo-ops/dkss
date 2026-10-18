@@ -43,7 +43,7 @@
 
     canvas.style.display = "block";
     canvas.style.width = "100%";
-    canvas.style.height = "220px";
+    canvas.style.height = "160px";
     canvas.setAttribute(
         "aria-label",
         `累積走行距離の推移。${latest.date}時点で`
@@ -52,7 +52,7 @@
 
     function draw() {
         const width = canvas.parentElement.clientWidth;
-        const height = 220;
+        const height = 160;
 
         if (width < 120) {
             return;
@@ -160,6 +160,150 @@
 
     draw();
 
+    if ("ResizeObserver" in window) {
+        new ResizeObserver(draw).observe(canvas.parentElement);
+    } else {
+        window.addEventListener("resize", draw);
+    }
+})();
+(() => {
+    "use strict";
+
+    const canvas = document.getElementById("vehicle_karte_annual_cost_chart");
+    const dataElement = document.getElementById("vehicle_karte_annual_cost_data");
+    if (!canvas || !dataElement) return;
+
+    let points;
+    try {
+        const data = JSON.parse(dataElement.textContent);
+        if (!Array.isArray(data)) throw new Error("Invalid annual data");
+
+        points = data.map((point) => ({
+            year: Number(point.year),
+            amount: point.amount === null ? null : Number(point.amount),
+            count: Number(point.count)
+        }));
+
+        if (points.some((point) => (
+            !Number.isInteger(point.year)
+            || (point.amount !== null && !Number.isFinite(point.amount))
+        ))) {
+            throw new Error("Invalid annual amount");
+        }
+    } catch (error) {
+        canvas.replaceWith(document.createTextNode(
+            "年間整備費のグラフを表示できませんでした。"
+        ));
+        console.error("Annual maintenance chart failed", error);
+        return;
+    }
+
+    if (!points.length) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const number = (value) => value.toLocaleString("ja-JP", {
+        maximumFractionDigits: 2
+    });
+
+    canvas.style.display = "block";
+    canvas.style.width = "100%";
+    canvas.style.height = "160px";
+    canvas.setAttribute("aria-label", "年間整備費。"
+        + points.map((point) => (
+            `${point.year}年：`
+            + (point.amount === null
+                ? "未登録"
+                : `${number(point.amount)}円、${point.count}件`)
+        )).join("。"));
+
+    function draw() {
+        const width = canvas.parentElement.clientWidth;
+        const height = 160;
+        if (width < 120) return;
+
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        context.clearRect(0, 0, width, height);
+
+        const left = 44;
+        const right = width - 12;
+        const top = 30;
+        const bottom = height - 32;
+        const amounts = points.filter((point) => point.amount !== null)
+            .map((point) => point.amount / 10000);
+        const minimum = Math.min(0, ...amounts);
+        const maximum = Math.max(0, ...amounts);
+        const roughStep = (maximum - minimum || 1) / 4;
+        const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+        const step = Math.ceil(roughStep / magnitude) * magnitude;
+        const floor = Math.floor(minimum / step) * step;
+        const ceiling = Math.max(
+            Math.ceil(maximum / step) * step,
+            floor + step
+        );
+        const y = (value) => bottom
+            - (value - floor) / (ceiling - floor) * (bottom - top);
+        const zero = y(0);
+
+        context.font = "11px sans-serif";
+        context.textBaseline = "middle";
+        context.textAlign = "right";
+        context.lineWidth = 1;
+
+        const ticks = Math.round((ceiling - floor) / step);
+        for (let index = 0; index <= ticks; index += 1) {
+            const value = floor + step * index;
+            const position = y(value);
+            context.strokeStyle = "#e4edf6";
+            context.beginPath();
+            context.moveTo(left, position);
+            context.lineTo(right, position);
+            context.stroke();
+            context.fillStyle = "#64748b";
+            context.fillText(number(value), left - 6, position);
+        }
+
+        context.textAlign = "left";
+        context.fillText("万円", left, 12);
+
+        const slot = (right - left) / points.length;
+        const barWidth = Math.min(34, slot * 0.6);
+
+        points.forEach((point, index) => {
+            const center = left + slot * (index + 0.5);
+            context.textAlign = "center";
+            context.fillStyle = "#64748b";
+            context.fillText(String(point.year), center, bottom + 18);
+
+            if (point.amount === null) {
+                context.font = "10px sans-serif";
+                context.fillText("未登録", center, zero - 10);
+                context.font = "11px sans-serif";
+                return;
+            }
+
+            const value = point.amount / 10000;
+            const position = y(value);
+            const barTop = Math.min(zero, position);
+            const barHeight = Math.max(1, Math.abs(zero - position));
+
+            context.fillStyle = "#75a7ee";
+            context.fillRect(
+                center - barWidth / 2, barTop, barWidth, barHeight
+            );
+            context.fillStyle = "#235b8e";
+            context.fillText(
+                number(value),
+                center,
+                value < 0 ? position + 10 : position - 10
+            );
+        });
+    }
+
+    draw();
     if ("ResizeObserver" in window) {
         new ResizeObserver(draw).observe(canvas.parentElement);
     } else {

@@ -1,173 +1,162 @@
 {% extends "base.html" %}
-
 {% block title %}資料の取込確認{% endblock %}
-
 {% block content %}
-
-<div class="page-header">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261016-review-3') }}">
+<div class="invoice-review-page">
+<nav class="page-breadcrumb" aria-label="パンくずリスト">
+    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <span class="breadcrumb-separator">›</span>
+    <span>車両管理</span>
+    <span class="breadcrumb-separator">›</span>
+    <a href="{{ url_for('vehicle_data_import') }}">資料・データ取込</a>
+    <span class="breadcrumb-separator">›</span>
+    <span aria-current="page">取込確認</span>
+</nav>
+<div class="invoice-page-heading">
     <h2>資料の取込確認</h2>
-
-    <a
-        href="{{ url_for('vehicle_data_import') }}"
-        class="btn btn-outline"
-    >
-        資料・データ取込へ戻る
-    </a>
 </div>
+<form method="post" action="{{ url_for('vehicle_document_import_confirm', batch_id=batch_id) }}" class="responsive-form vehicle-document-import-preview" novalidate>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-<form
-    method="post"
-    action="{{ url_for('vehicle_document_import_confirm', batch_id=batch_id) }}"
-    class="responsive-form"
-    novalidate
->
-    <input
-        type="hidden"
-        name="csrf_token"
-        value="{{ csrf_token() }}"
-    >
-
-    {% for document in documents %}
-        {% set records = document.preview.get("records") or [{}] %}
-
-        <section class="card form-card vehicle-search-card">
-            <div class="page-header">
-                <h3>{{ document.filename }}</h3>
-
-                <a
-                    href="{{ url_for('vehicle_document_import_source', draft_id=document.id) }}"
-                    class="btn btn-outline"
-                    target="_blank"
-                    rel="noopener"
-                >
-                    原本を開く
-                </a>
-            </div>
-
-            {% for record in records %}
-                {% set row_key = document.id ~ "_" ~ loop.index0 %}
-
-                <div class="form-group">
-                    <label for="include_{{ row_key }}">
-                        <input
-                            type="checkbox"
-                            id="include_{{ row_key }}"
-                            name="include"
-                            value="{{ row_key }}"
-                            {% if record.get("include", true) %}checked{% endif %}
-                        >
-                        この記録を取り込む
-                    </label>
-                </div>
-
-                <div class="form-group">
-                    <label for="vehicle_{{ row_key }}">対象車両</label>
-
-                    <select
-                        id="vehicle_{{ row_key }}"
-                        name="vehicle_{{ row_key }}"
-                    >
-                        <option value="">選択してください</option>
-
-                        {% for choice in vehicle_choices %}
-                            <option
-                                value="{{ choice.id }}"
-                                {% if record.get("vehicle_record_id") | string == choice.id | string %}
-                                    selected
-                                {% endif %}
-                            >
-                                {{ choice.number or choice.chassis_number }}
-                                {% if choice.deleted %}（無効）{% endif %}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="date_{{ row_key }}">
-                        {% if document.document_type == "inspection" %}
-                            点検日
-                        {% elif document.document_type == "driving_report" %}
-                            運行日
-                        {% else %}
-                            整備日
-                        {% endif %}
-                    </label>
-
-                    <input
-                        type="date"
-                        id="date_{{ row_key }}"
-                        name="date_{{ row_key }}"
-                        value="{{ record.get('record_date') or '' }}"
-                    >
-                </div>
-
-                {% if document.document_type == "inspection" %}
-                    <div class="form-group">
-                        <label for="inspection_type_{{ row_key }}">
-                            点検区分
-                        </label>
-
-                        <select
-                            id="inspection_type_{{ row_key }}"
-                            name="inspection_type_{{ row_key }}"
-                        >
-                            <option value="">選択してください</option>
-                            <option
-                                value="3month"
-                                {% if record.get("inspection_type") == "3month" %}selected{% endif %}
-                            >
-                                3か月点検
-                            </option>
-                            <option
-                                value="12month"
-                                {% if record.get("inspection_type") == "12month" %}selected{% endif %}
-                            >
-                                12か月点検
-                            </option>
-                            <option
-                                value="other"
-                                {% if record.get("inspection_type") == "other" %}selected{% endif %}
-                            >
-                                その他の点検
-                            </option>
-                        </select>
-                    </div>
-                {% endif %}
-
-                <div class="form-group">
-                    <label for="mileage_{{ row_key }}">
-                        積算走行距離（km）
-                    </label>
-
-                    <input
-                        type="number"
-                        id="mileage_{{ row_key }}"
-                        name="mileage_{{ row_key }}"
-                        min="0"
-                        step="0.01"
-                        value="{{ record.get('mileage') if record.get('mileage') is not none else '' }}"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label for="content_{{ row_key }}">記録内容</label>
-
-                    <textarea
-                        id="content_{{ row_key }}"
-                        name="content_{{ row_key }}"
-                        rows="4"
-                    >{{ record.get("content") or "" }}</textarea>
-                </div>
-            {% endfor %}
-        </section>
-    {% endfor %}
-
-    <div class="form-actions vehicle-filter-actions">
-        <button type="submit" class="btn btn-outline">
-            選択した記録を反映
-        </button>
+{% for document in documents %}
+{% set records = document.preview.get('records') or [{}] %}
+{% if document.document_type == 'maintenance' %}
+<section class="invoice-document" data-invoice-document>
+    <div class="invoice-document-heading">
+        <span>{{ document.filename }}</span>
+        <div class="invoice-document-tools">
+            <div class="invoice-view-switch" data-view-switch role="group" aria-label="表示方法">
+    <button type="button" data-document-view="source" aria-pressed="true">原本と照合</button>
+    <button type="button" data-document-view="focus" aria-pressed="false">明細に集中</button>
+</div>
+        </div>
     </div>
-</form>
+    <div class="invoice-mobile-views" aria-label="原本と読取結果の表示切替">
+        <button type="button" data-review-view="source" aria-pressed="true">原本</button>
+        <button type="button" data-review-view="results" aria-pressed="false">読取結果</button>
+    </div>
+    <div class="invoice-switcher" aria-label="確認する請求書">
+        {% for record in records %}
+        {% set row_key = document.id ~ '_' ~ loop.index0 %}
+        <button type="button" class="invoice-switch" data-record-target="{{ row_key }}" aria-controls="record_{{ row_key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
+            <span>{{ loop.index }}. {{ record.get('registration_number') or '車両未確認' }}</span>
+            <small>{{ record.get('invoice_number') or '伝票番号なし' }}</small>
+        </button>
+        {% endfor %}
+    </div>
 
+    <div class="invoice-review-layout">
+        <aside class="invoice-source-panel">
+            <details class="invoice-source-disclosure" open>
+                <summary>原本 <span data-source-page-label></span></summary>
+                <section class="invoice-pdf-viewer" data-invoice-source data-source-base="{{ url_for('vehicle_document_import_source', draft_id=document.id) }}" data-filename="{{ document.filename }}" aria-label="原本プレビュー">
+                    <div class="invoice-sync-bar">
+                        <label class="invoice-sync-toggle">
+                            <input type="checkbox" data-source-sync checked>
+                            原本と連動
+                        </label>
+                        <span data-sync-status role="status">表示中の原本に合わせて請求書を切替</span>
+                    </div>
+                    <div class="invoice-pdf-toolbar">
+                        <div class="invoice-pdf-pages">
+                            <button type="button" data-pdf-prev aria-label="前のページ">前</button>
+                            <label>
+                                <span class="invoice-sr-only">原本のページ番号</span>
+                                <input type="number" min="1" value="1" data-pdf-page aria-label="原本のページ番号">
+                            </label>
+                            <span>/ <span data-pdf-count>—</span>頁</span>
+                            <button type="button" data-pdf-next aria-label="次のページ">次</button>
+                        </div>
+                        <div class="invoice-pdf-zoom">
+                            <button type="button" data-pdf-minus aria-label="縮小">−</button>
+                            <output data-pdf-zoom>—</output>
+                            <button type="button" data-pdf-plus aria-label="拡大">＋</button>
+                            <button type="button" data-pdf-fit>幅に合わせる</button>
+                        </div>
+                    </div>
+                    <div class="invoice-pdf-scroll" data-pdf-scroll tabindex="0" aria-label="原本。スクロールでページ移動、Ctrlとホイールで拡大縮小">
+                        <div class="invoice-pdf-stage" data-pdf-stage></div>
+                    </div>
+                    <p class="invoice-pdf-status" data-pdf-status role="status">原本を読み込み中…</p>
+                </section>
+            </details>
+        </aside>
+
+        <button type="button" class="invoice-splitter" role="separator" aria-label="原本と確認内容の幅を調整。左右キーで調整、Homeで初期幅に戻す" aria-orientation="vertical" aria-valuemin="20" aria-valuemax="80" aria-valuenow="55" title="ドラッグで幅を調整・ダブルクリックで初期幅に戻す"></button>
+        <div class="invoice-records">
+            {% for record in records %}
+            {% set row_key = document.id ~ '_' ~ loop.index0 %}
+            <section class="invoice-record" id="record_{{ row_key }}" data-record-key="{{ row_key }}" data-first-page="{{ (record.get('source_pages') or [1])[0] }}" data-source-pages="{{ (record.get('source_pages') or [1])|tojson|forceescape }}" {% if not loop.first %}hidden{% endif %}>
+                {% include 'maintenance_invoice_fields.html' %}
+            </section>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+{% else %}
+<section class="card form-card vehicle-search-card">
+    <div class="page-header">
+        <h3>{{ document.filename }}</h3>
+        <a class="btn btn-outline" target="_blank" rel="noopener" href="{{ url_for('vehicle_document_import_source', draft_id=document.id) }}">原本を開く</a>
+    </div>
+    {% for record in records %}
+    {% set row_key = document.id ~ '_' ~ loop.index0 %}
+    <div class="form-group">
+        <label for="include_{{ row_key }}">
+            <input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("include", true) %}checked{% endif %}>
+            この記録を取り込む
+        </label>
+    </div>
+    <div class="form-group">
+        <label for="vehicle_{{ row_key }}">対象車両</label>
+        <select id="vehicle_{{ row_key }}" name="vehicle_{{ row_key }}">
+            <option value="">選択してください</option>
+            {% for choice in vehicle_choices %}
+            <option value="{{ choice.id }}" {% if record.get("vehicle_record_id") | string == choice.id | string %}selected{% endif %}>
+                {{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="date_{{ row_key }}">
+            {% if document.document_type == "inspection" %}点検日
+            {% elif document.document_type == "driving_report" %}運行日
+            {% else %}入庫日{% endif %}
+        </label>
+        <input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}">
+    </div>
+    {% if document.document_type == "inspection" %}
+    <div class="form-group">
+        <label for="inspection_type_{{ row_key }}">点検区分</label>
+        <select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
+            <option value="">選択してください</option>
+            <option value="3month" {% if record.get("inspection_type") == "3month" %}selected{% endif %}>3か月点検</option>
+            <option value="12month" {% if record.get("inspection_type") == "12month" %}selected{% endif %}>12か月点検</option>
+            <option value="other" {% if record.get("inspection_type") == "other" %}selected{% endif %}>その他の点検</option>
+        </select>
+    </div>
+    {% endif %}
+    <div class="form-group">
+        <label for="mileage_{{ row_key }}">積算走行距離（km）</label>
+        <input type="number" id="mileage_{{ row_key }}" name="mileage_{{ row_key }}" min="0" step="0.01" value="{{ record.get('mileage') if record.get('mileage') is not none else '' }}">
+    </div>
+    <div class="form-group">
+        <label for="content_{{ row_key }}">記録内容</label>
+        <textarea id="content_{{ row_key }}" name="content_{{ row_key }}" rows="4">{{ record.get("content") or "" }}</textarea>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+{% endfor %}
+
+<div class="form-actions vehicle-filter-actions invoice-submit-actions">
+    <button type="submit" class="btn invoice-primary-action">選択した記録を登録</button>
+    <span data-invoice-selection-count role="status">チェックした記録をまとめて登録します</span>
+</div>
+</form>
+</div>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261017-parts-category-1') }}" defer></script>
+<script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', pdf_fix='20261016-2', v='20261016-review-3') }}"></script>
 {% endblock %}

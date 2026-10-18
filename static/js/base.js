@@ -48,8 +48,11 @@ window.addEventListener("DOMContentLoaded", function () {
     const isVehicleInputPage =
         /^\/vehicle\/checklists\/\d+\/?$/.test(currentPath);
 
+    const isDocumentImportPreviewPage =
+        /^\/vehicle\/data-import\/[^/]+\/preview\/?$/.test(currentPath);
+
     if (
-        (isSafetyInputPage || isVehicleInputPage) &&
+        (isSafetyInputPage || isVehicleInputPage || isDocumentImportPreviewPage) &&
         window.innerWidth > 900
     ) {
         document.body.classList.add("sidebar-collapsed");

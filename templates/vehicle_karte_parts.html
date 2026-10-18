@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+{% block title %}車両カルテ・部品{% endblock %}
+
+{% block content %}
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
+
+<script src="{{ url_for('static', filename='js/vehicle_karte_parts.js', v='20261017-ppt-1') }}" defer></script>
+
+{% macro parts_url(page=1, scope=selected_parts_scope) -%}
+{{ url_for(
+    'vehicle_karte_parts',
+    vehicle_record_id=vehicle.id,
+    page=page,
+    q=part_search_query,
+    part_category=selected_part_category,
+    part_status=selected_part_status,
+    per_page=part_page.per_page,
+    parts_scope=scope
+) }}
+{%- endmacro %}
+
+{% macro mark(kind) -%}
+<span class="kp-icon" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">
+        {% if kind == 'tool' %}
+        <path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4 3-3Z"/>
+        {% elif kind == 'state' %}
+        <rect x="5" y="3" width="14" height="18" rx="2"/>
+        <path d="M9 8h6M9 12h6M9 16h4"/>
+        {% else %}
+        <path d="M4 3v17h17M8 16v-5M13 16V7M18 16v-8"/>
+        {% endif %}
+    </svg>
+</span>
+{%- endmacro %}
+
+<div class="karte-maintenance karte-parts">
+    <div class="kp-workspace">
+        <section class="km-panel kp-history"
+                 aria-labelledby="kp-history-title">
+            <header class="kp-heading">
+                <div class="kp-heading-title">
+                    {{ mark('tool') }}
+                    <h3 id="kp-history-title" data-karte-icon="tool">部品交換履歴</h3>
+                </div>
+            </header>
+
+            <form id="kp-filter-form" class="kp-filters"
+                  method="get"
+                  action="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}">
+                <input type="hidden" name="parts_scope"
+                       value="{{ selected_parts_scope }}">
+                <input type="search" name="q" maxlength="200"
+                       value="{{ part_search_query }}"
+                       placeholder="部品名・品番で検索…"
+                       aria-label="部品名・品番で検索">
+                <select name="part_category"
+                        aria-label="部品分類" data-parts-submit>
+                    <option value="">すべての部品分類</option>
+                    {% for value in part_categories %}
+                    <option value="{{ value }}"
+                            {% if selected_part_category == value %}selected{% endif %}>
+                        {{ value }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <select name="part_status"
+                        aria-label="整備の状態" data-parts-submit>
+                    <option value="">すべての状態</option>
+                    {% for value in part_statuses %}
+                    <option value="{{ value }}"
+                            {% if selected_part_status == value %}selected{% endif %}>
+                        {{ value }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button class="kp-search-button" type="submit">検索</button>
+            </form>
+
+            {% macro filter_url(q=part_search_query, category=selected_part_category, status=selected_part_status) -%}
+            {{ url_for(
+                'vehicle_karte_parts',
+                vehicle_record_id=vehicle.id,
+                q=q,
+                part_category=category,
+                part_status=status,
+                parts_scope=selected_parts_scope,
+                per_page=part_page.per_page,
+                page=1
+            ) }}
+            {%- endmacro %}
+
+            {% set is_filtered = part_search_query or selected_part_category or selected_part_status %}
+
+            <div class="kp-results-bar">
+                <div class="kp-results-info">
+                    <span class="kp-results-count" role="status">
+                        {{ '検索結果' if is_filtered else '交換履歴' }}
+                        <strong>{{ part_page.total }}</strong>件
+                    </span>
+
+                    {% if is_filtered %}
+                    <div class="kp-filter-chips" aria-label="適用中の検索条件">
+                        {% if part_search_query %}
+                        <a class="kp-filter-chip"
+                           href="{{ filter_url(q='') }}"
+                           aria-label="部品名・品番の検索条件を外す">
+                            <span>検索：{{ part_search_query }}</span>
+                            <span aria-hidden="true">×</span>
+                        </a>
+                        {% endif %}
+
+                        {% if selected_part_category %}
+                        <a class="kp-filter-chip"
+                           href="{{ filter_url(category='') }}"
+                           aria-label="部品分類の検索条件を外す">
+                            <span>分類：{{ selected_part_category }}</span>
+                            <span aria-hidden="true">×</span>
+                        </a>
+                        {% endif %}
+
+                        {% if selected_part_status %}
+                        <a class="kp-filter-chip"
+                           href="{{ filter_url(status='') }}"
+                           aria-label="状態の検索条件を外す">
+                            <span>状態：{{ selected_part_status }}</span>
+                            <span aria-hidden="true">×</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if is_filtered %}
+                <a class="kp-clear-button"
+                   href="{{ filter_url(q='', category='', status='') }}">
+                    条件をクリア
+                </a>
+                {% endif %}
+            </div>
+
+            {% if pending_part_lines %}
+            <details class="kp-pending">
+                <summary>
+                    交換部品の判定待ち
+                    <strong>{{ pending_part_lines|length }}明細</strong>
+                </summary>
+                <ul>
+                    {% for line in pending_part_lines %}
+                    <li>
+                        <a href="{{ url_for(
+                            'vehicle_karte_maintenance',
+                            vehicle_record_id=vehicle.id,
+                            record_id=line.maintenance_record_id
+                        ) }}">{{ line.description }}</a>
+                        <span>
+                            請求書 {{ line.invoice_number or '番号未登録' }}
+                            · 明細{{ line.line_index + 1 }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+
+
+            <div class="kp-table-scroll">
+                <table class="kp-table">
+                    <colgroup>
+                        <col class="kp-col-name">
+                        <col class="kp-col-category">
+                        <col class="kp-col-date">
+                        <col class="kp-col-mileage">
+                        <col class="kp-col-count">
+                        <col class="kp-col-cost">
+                        <col class="kp-col-status">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">部品名</th>
+                            <th scope="col">部品分類</th>
+                            <th scope="col">交換日</th>
+                            <th scope="col" class="kp-number">交換時走行距離<br>／前回交換から</th>
+                            <th scope="col" class="kp-number">交換回数</th>
+                            <th scope="col" class="kp-number">費用</th>
+                            <th scope="col">状態</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in part_rows %}
+                        {% set part = row.part %}
+                        <tr>
+                            <td>
+                                <a class="kp-part-link"
+                                   href="{{ url_for(
+                                       'vehicle_karte_maintenance',
+                                       vehicle_record_id=vehicle.id,
+                                       record_id=part.maintenance_record_id
+                                   ) }}"
+                                   title="{{ part.part_name }}{% if part.part_number %} / {{ part.part_number }}{% endif %} / 数量 {{ format_part_number(part.quantity) }}">
+                                    {{ part.part_name }}
+                                </a>
+                            </td>
+                            <td title="{{ row.category }}">{{ row.category }}</td>
+                            <td>{{ part.replacement_date|replace('-', '/') }}</td>
+                            <td class="kp-number">
+                                <span class="kp-mileage-value">
+                                    {{ format_part_number(part.mileage) }}
+                                    {% if part.mileage is not none %}<small> km</small>{% endif %}
+                                </span>
+                                <span class="kp-mileage-detail">
+                                    {% if row.distance is not none %}
+                                    前回から {{ format_part_number(row.distance) }} km
+                                    {% else %}
+                                    前回記録なし
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="kp-number">
+                                {{ row.replacement_count }}<small> 回</small>
+                            </td>
+                            <td class="kp-number">
+                                {{ format_part_number(part.cost) }}
+                                {% if part.cost is not none %}<small> 円</small>{% endif %}
+                            </td>
+                            <td>
+                                <span class="kp-status{% if row.status == '完了' %} is-complete{% endif %}"
+                                      title="{{ row.status }}">
+                                    {{ row.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="kp-empty">
+                                {{ '該当する交換履歴はありません。'
+                                   if part_search_query or selected_part_category or selected_part_status
+                                   else '交換部品の登録はありません。' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="kp-footer">
+                <span>
+                    全{{ part_page.total }}件中
+                    {{ part_page.first }}–{{ part_page.last }}件
+                </span>
+                <nav class="kp-pagination" aria-label="交換履歴のページ">
+                    {% if part_page.page > 1 %}
+                    <a href="{{ parts_url(part_page.page - 1) }}"
+                       aria-label="前のページ">‹</a>
+                    {% endif %}
+
+                    {% for number in range(1, part_page.pages + 1) %}
+                    {% if number == 1 or number == part_page.pages
+                          or (number - part_page.page)|abs <= 1 %}
+                    <a href="{{ parts_url(number) }}"
+                       {% if number == part_page.page %}aria-current="page"{% endif %}>
+                        {{ number }}
+                    </a>
+                    {% elif number == 2 or number == part_page.pages - 1 %}
+                    <span>…</span>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if part_page.page < part_page.pages %}
+                    <a href="{{ parts_url(part_page.page + 1) }}"
+                       aria-label="次のページ">›</a>
+                    {% endif %}
+                </nav>
+                <label>
+                    表示件数
+                    <select name="per_page" form="kp-filter-form"
+                            aria-label="表示件数" data-parts-submit>
+                        {% for count in [10,20,50] %}
+                        <option value="{{ count }}"
+                                {% if part_page.per_page == count %}selected{% endif %}>
+                            {{ count }}件
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </footer>
+
+
+        </section>
+
+        <div class="kp-side">
+            <section class="km-panel kp-current"
+                     aria-labelledby="kp-current-title">
+                <header class="kp-heading">
+                    <div class="kp-heading-title">
+                        {{ mark('state') }}
+                        <h3 id="kp-current-title" data-karte-icon="parts">この車両の部品状態</h3>
+                    </div>
+                    <form method="get"
+                          action="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}"
+                          class="kp-scope-form">
+                        <input type="hidden" name="q" value="{{ part_search_query }}">
+                        <input type="hidden" name="part_category" value="{{ selected_part_category }}">
+                        <input type="hidden" name="part_status" value="{{ selected_part_status }}">
+                        <input type="hidden" name="per_page" value="{{ part_page.per_page }}">
+                        <input type="hidden" name="page" value="{{ part_page.page }}">
+                        <select name="parts_scope"
+                                aria-label="現在状態に表示する部品"
+                                data-parts-submit>
+                            <option value="major"
+                                    {% if selected_parts_scope == 'major' %}selected{% endif %}>
+                                主要部品のみ表示
+                            </option>
+                            <option value="all"
+                                    {% if selected_parts_scope == 'all' %}selected{% endif %}>
+                                すべての部品
+                            </option>
+                        </select>
+                    </form>
+                </header>
+
+                {% set operation = karte_operation_summary|default({}) %}
+                {% set current_mileage = operation.get('current_mileage') %}
+                {% set mileage_date = operation.get('mileage_date') or '' %}
+
+                <div class="kp-current-list{% if selected_parts_scope == 'all' %} is-all{% endif %}">
+                    {% for group in part_state_groups %}
+                    {% set part = group.latest %}
+                    {% set elapsed = none %}
+
+                    {% if current_mileage is not none
+                          and part.mileage is not none
+                          and current_mileage >= part.mileage
+                          and mileage_date
+                          and mileage_date[:10] >= part.replacement_date %}
+                        {% set elapsed = current_mileage - part.mileage %}
+                    {% endif %}
+
+                    <a class="kp-current-row"
+                       href="{{ url_for(
+                           'vehicle_karte_maintenance',
+                           vehicle_record_id=vehicle.id,
+                           record_id=part.maintenance_record_id
+                       ) }}"
+                       title="{{ group.part_name }} · 最終交換 {{ part.replacement_date }}">
+                        <strong>{{ group.part_name }}</strong>
+                        <span class="kp-current-meter">
+                            <span class="kp-current-distance">
+                                {% if elapsed is not none %}
+                                交換後 <b>{{ format_part_number(elapsed) }}</b> km
+                                {% else %}
+                                交換後の距離：—
+                                {% endif %}
+                            </span>
+                            <small>
+                                最終交換 {{ part.replacement_date|replace('-', '/') }}
+                            </small>
+                        </span>
+                        <span class="kp-interval-label">交換目安：未設定</span>
+                    </a>
+                    {% else %}
+                    <p class="kp-empty">
+                        {{ '主要部品の交換記録はありません。「すべての部品」で確認できます。'
+                           if selected_parts_scope == 'major'
+                           else '交換部品の登録はありません。' }}
+                    </p>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <details class="km-panel kp-ranking">
+                <summary class="kp-heading">
+                    <span class="kp-heading-title">
+                        {{ mark('chart') }}
+                        <span class="kp-ranking-caption" data-karte-icon="chart">
+                            部品交換回数 <small>（上位5種類）</small>
+                        </span>
+                    </span>
+                    <span class="kp-ranking-toggle" aria-hidden="true"></span>
+                </summary>
+                <ol class="kp-ranking-list">
+                    {% for group in part_ranking %}
+                    <li>
+                        <a href="{{ url_for(
+                            'vehicle_karte_maintenance',
+                            vehicle_record_id=vehicle.id,
+                            record_id=group.latest.maintenance_record_id
+                        ) }}" title="{{ group.part_name }}">
+                            {{ group.part_name }}
+                        </a>
+                        <span class="kp-ranking-value">
+                            <span>{{ group.replacement_count }}回</span>
+                            <meter min="0"
+                                   max="{{ part_ranking[0].replacement_count }}"
+                                   value="{{ group.replacement_count }}"
+                                   aria-label="{{ group.part_name }}の交換回数">
+                                {{ group.replacement_count }}回
+                            </meter>
+                        </span>
+                    </li>
+                    {% else %}
+                    <li>交換部品の登録はありません。</li>
+                    {% endfor %}
+                </ol>
+            </details>
+        </div>
+    </div>
+</div>
+{% endblock %}

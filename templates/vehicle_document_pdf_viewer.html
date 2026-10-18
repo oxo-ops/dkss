@@ -1,0 +1,40 @@
+<section
+    class="invoice-pdf-viewer"
+    data-source-base="{{ pdf_source_url }}"
+    data-filename="{{ pdf_filename }}"
+    data-requested-page="{{ pdf_initial_page|default(1) }}"
+    data-requested-record-key="{{ pdf_record_key }}"
+    aria-label="原本プレビュー"
+>
+    <div class="invoice-pdf-toolbar">
+        <div class="invoice-pdf-pages">
+            <button type="button" data-pdf-prev aria-label="前のページ">前</button>
+            <input
+                type="number"
+                min="1"
+                value="{{ pdf_initial_page|default(1) }}"
+                data-pdf-page
+                aria-label="原本のページ番号"
+            >
+            <span>/ <span data-pdf-count>—</span>頁</span>
+            <button type="button" data-pdf-next aria-label="次のページ">次</button>
+        </div>
+        <div class="invoice-pdf-zoom">
+            <button type="button" data-pdf-minus aria-label="縮小">−</button>
+            <output data-pdf-zoom>—</output>
+            <button type="button" data-pdf-plus aria-label="拡大">＋</button>
+            <button type="button" data-pdf-fit>幅に合わせる</button>
+        </div>
+    </div>
+    <div
+        class="invoice-pdf-scroll"
+        data-pdf-scroll
+        tabindex="0"
+        aria-label="原本。ドラッグで移動、Ctrlとホイールで拡大縮小"
+    >
+        <div class="invoice-pdf-stage" data-pdf-stage></div>
+    </div>
+    <p class="invoice-pdf-status" data-pdf-status role="status">
+        原本を読み込み中…
+    </p>
+</section>

@@ -1,91 +1,82 @@
-{% if karte_usage_vehicles %}
-<div class="vehicle-karte-usage">
-    <h3 class="vehicle-karte-usage-heading">使用車両</h3>
+<div class="karte-vehicle-top-controls">
+    {% if karte_usage_vehicles %}
+    <nav class="karte-vehicle-switcher" aria-label="使用車両の切替">
+        <span class="karte-vehicle-switcher-label">
+            使用車両
+            <small>{{ karte_usage_vehicles|length }}台</small>
+        </span>
 
-    <div class="vehicle-karte-usage-cards">
-        {% for usage_vehicle in karte_usage_vehicles %}
-            {% set usage_icon = (
-                usage_vehicle.type or ""
-            ) | vehicle_icon(usage_vehicle.body_type or "") %}
-
-            {% set usage_is_selected = (
-                vehicle is defined and vehicle
-                and vehicle.id == usage_vehicle.id
-            ) %}
-
-            <a
-                href="{{ url_for('vehicle_karte', vehicle_record_id=usage_vehicle.id) }}"
-                class="btn btn-outline vehicle-karte-usage-card{% if usage_is_selected %} is-selected{% endif %}"
-                {% if usage_is_selected %}
-                    aria-current="true"
-                {% endif %}
-            >
-                <img
-                    src="{{ url_for('static', filename='icons/' ~ usage_icon) }}"
-                    alt=""
-                    width="40"
-                    height="40"
+        <div class="karte-vehicle-switcher-list">
+            {% for usage_vehicle in karte_usage_vehicles %}
+                {% set usage_is_selected = (
+                    vehicle is defined and vehicle
+                    and vehicle.id == usage_vehicle.id
+                ) %}
+                {% set switch_endpoint = (
+                    request.endpoint
+                    if request.endpoint in [
+                        'vehicle_karte',
+                        'vehicle_karte_history',
+                        'vehicle_karte_inspections',
+                        'vehicle_karte_maintenance',
+                        'vehicle_karte_parts',
+                        'vehicle_karte_costs',
+                        'vehicle_karte_documents'
+                    ]
+                    else 'vehicle_karte'
+                ) %}
+                {% set usage_icon = (
+                    usage_vehicle.type or ""
+                ) | vehicle_icon(usage_vehicle.body_type or "") %}
+                <a
+                    href="{{ url_for(switch_endpoint, vehicle_record_id=usage_vehicle.id) }}"
+                    class="karte-vehicle-switcher-link{% if usage_is_selected %} is-selected{% endif %}"
+                    {% if usage_is_selected %}aria-current="true"{% endif %}
                 >
-
-                <span class="vehicle-karte-usage-card-info">
-                    <strong>
-                        {{ usage_vehicle.plate_area or "" }}
-                        {{ usage_vehicle.plate_class or "" }}
-                        {{ usage_vehicle.plate_kana or "" }}
-                        {{ usage_vehicle.plate_number or "" }}
-                    </strong>
-                    <span>
-                        {{ usage_vehicle.type or "車種未登録" }}
+                    <img
+                        src="{{ url_for('static', filename='icons/' ~ usage_icon) }}"
+                        alt=""
+                        width="28"
+                        height="28"
+                    >
+                    <span class="karte-vehicle-switcher-info">
+                        <span>
+                            {{ usage_vehicle.plate_area or "" }}
+                            {{ usage_vehicle.plate_class or "" }}
+                            {{ usage_vehicle.plate_kana or "" }}
+                            {{ usage_vehicle.plate_number or "" }}
+                        </span>
+                        <span>{{ usage_vehicle.type or "車種未登録" }}</span>
                     </span>
-                </span>
+                    {% if usage_is_selected %}
+                        <small>表示中</small>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </div>
+    </nav>
+    {% endif %}
 
-                {% if usage_is_selected %}
-                    <span class="vehicle-karte-usage-current">
-                        表示中
-                    </span>
-                {% endif %}
-            </a>
-        {% endfor %}
+    {% if vehicle is defined and vehicle and session.get("role") in ["admin", "itc"] %}
+    <div class="vehicle-karte-actions">
+        <a href="{{ url_for('vehicle_data_import') }}" class="btn btn-outline">資料・データ取込</a>
+        <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline">車両一覧</a>
+        <a href="{{ url_for('edit_vehicle', index=vehicle.id) }}" class="btn btn-outline">編集</a>
     </div>
+    {% endif %}
 </div>
-{% endif %}
 
 <script
     src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261007-3') }}"
     defer
 ></script>
 
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_layout.js', v='20261017-layout-1') }}"
+    defer
+></script>
+
 {% if vehicle is defined and vehicle %}
-
-<div class="vehicle-karte-toolbar">
-    <nav class="vehicle-karte-breadcrumb" aria-label="現在の位置">
-        <span aria-current="page">車両カルテ</span>
-    </nav>
-
-    {% if session.get("role") in ["admin", "itc"] %}
-    <div class="vehicle-karte-actions">
-    <a
-        href="{{ url_for('vehicle_data_import') }}"
-        class="btn btn-outline"
-    >
-        資料・データ取込
-    </a>
-        <a
-            href="{{ url_for('vehicle_master') }}"
-            class="btn btn-outline"
-        >
-            車両一覧
-        </a>
-
-        <a
-            href="{{ url_for('edit_vehicle', index=vehicle.id) }}"
-            class="btn btn-outline"
-        >
-            編集
-        </a>
-    </div>
-    {% endif %}
-</div>
 
 <div class="vehicle-karte-header">
     <div class="vehicle-karte-photo-area">
@@ -163,19 +154,38 @@
                 {% endif %}
             </div>
 
+            {% set maintenance_summary = karte_maintenance_summary | default({}) %}
             <div class="vehicle-karte-metric">
                 <span>前回整備時走行距離</span>
-                <span class="ui-empty-value">—</span>
+                {% if maintenance_summary.get("last_mileage") is not none %}
+                    <strong title="{{ maintenance_summary.get('last_date') or '' }}">
+                        {{ "{:,.2f}".format(maintenance_summary["last_mileage"]).rstrip("0").rstrip(".") }} km
+                    </strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
             </div>
 
             <div class="vehicle-karte-metric">
                 <span>前回整備からの走行距離</span>
-                <span class="ui-empty-value">—</span>
+                {% if maintenance_summary.get("distance_since") is not none %}
+                    <strong>
+                        {{ "{:,.2f}".format(maintenance_summary["distance_since"]).rstrip("0").rstrip(".") }} km
+                    </strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
             </div>
 
             <div class="vehicle-karte-metric">
                 <span>累計整備費</span>
-                <span class="ui-empty-value">—</span>
+                {% if maintenance_summary.get("total_cost") is not none %}
+                    <strong>
+                        {{ "{:,.2f}".format(maintenance_summary["total_cost"]).rstrip("0").rstrip(".") }} 円
+                    </strong>
+                {% else %}
+                    <span class="ui-empty-value">—</span>
+                {% endif %}
             </div>
         </div>
 
