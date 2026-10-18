@@ -1,0 +1,352 @@
+{% macro invoice_number(value) -%}
+    {%- if value is none or value == '' -%}—
+    {%- else -%}
+        {%- set pieces = (value|string).replace(',', '').split('.') -%}
+        {%- if pieces|length <= 2 and pieces[0].lstrip('+-').isdigit() -%}
+            {{- '{:,}'.format(pieces[0]|int) -}}
+            {%- if pieces|length == 2 and pieces[1].rstrip('0') -%}.{{- pieces[1].rstrip('0') -}}{%- endif -%}
+        {%- else -%}{{- value -}}{%- endif -%}
+    {%- endif -%}
+{%- endmacro %}
+
+{% set selected_vehicle = namespace(label='対象車両を選択してください') %}
+{% for choice in vehicle_choices %}
+    {% if record.get('vehicle_record_id')|string == choice.id|string %}
+        {% set selected_vehicle.label = choice.number or choice.chassis_number %}
+    {% endif %}
+{% endfor %}
+{% set needs_input = not record.get('vehicle_record_id') or not record.get('record_date') %}
+
+{% set record_index = row_key.rsplit('_', 1)[1]|int %}
+{% set original_records = document.preview.get('original_records') or [] %}
+{% set original_record = original_records[record_index] if record_index < original_records|length else record %}
+<div class="invoice-overview">
+<div class="invoice-record-heading" data-invoice-original="{{ original_record|tojson|forceescape }}">
+    <div>
+        <p class="invoice-eyebrow">伝票 {{ record.get('invoice_number') or '番号記載なし' }}</p>
+        <h3 data-invoice-vehicle-label>{{ selected_vehicle.label }}</h3>
+        <p class="invoice-key-facts">
+            <span>入庫 <span data-fact="record_date">{{ record.get('record_date') or '未入力' }}</span></span>
+            <span><span data-fact="mileage">{{ invoice_number(record.get('mileage')) }}</span> km</span>
+        </p>
+    </div>
+    <div class="invoice-total">
+        <span>請求総額</span>
+        <strong><span data-fact="total_cost">{{ invoice_number(record.get('total_cost')) }}</span><small> 円</small></strong>
+    </div>
+</div>
+
+<div class="invoice-record-actions">
+    <label class="invoice-include">
+        <input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get('include', true) %}checked{% endif %}>
+        この記録を取り込む
+    </label>
+    <button type="button" class="invoice-button" data-toggle-info aria-controls="invoice_info_{{ row_key }}" aria-expanded="{{ 'true' if needs_input else 'false' }}">{{ '修正を閉じる' if needs_input else '情報を修正' }}</button>
+</div>
+
+{% if record.get('vehicle_match_status') in ['unmatched', 'ambiguous', 'conflict'] %}
+<p class="invoice-attention">原本の車両と対象車両を確認してください。</p>
+{% endif %}
+
+<details class="invoice-overview-details" open>
+    <summary>整備内容・費用内訳・請求書情報</summary>
+<p class="invoice-content-summary" data-fact="content">{{ record.get('content') or '記録内容の記載なし' }}</p>
+
+<div class="invoice-cost-summary">
+    {% for field, label in [('labor_cost','工賃'), ('parts_cost','部品代'), ('other_cost','その他費用'), ('tax_amount','消費税')] %}
+    <span data-cost-summary="{{ field }}" {% if record.get(field) is none or record.get(field) == '' %}hidden{% endif %}>{{ label }} <b data-fact="{{ field }}">{{ invoice_number(record.get(field)) }}</b>円</span>
+    {% endfor %}
+</div>
+
+<details class="invoice-metadata">
+    <summary>請求書情報・備考</summary>
+    <dl>
+        {% for field, label in [('registration_number','原本の車両'),('chassis_number','車台番号'),('issuer_name','発行元'),('maintenance_company','整備会社・工場'),('completion_date','出庫日'),('invoice_date','請求日'),('sales_date','売上日'),('notes','備考')] %}
+        <div data-metadata-field="{{ field }}" {% if not record.get(field) %}hidden{% endif %}>
+            <dt>{{ label }}</dt>
+            <dd data-fact="{{ field }}">{{ record.get(field) or '' }}</dd>
+        </div>
+        {% endfor %}
+        {% for fee in record.get('fees') or [] %}
+        <div>
+            <dt>{{ fee.get('name') or '諸費用' }}</dt>
+            <dd>{{ invoice_number(fee.get('amount')) }}{% if fee.get('amount') is not none %}円{% endif %}</dd>
+        </div>
+        {% endfor %}
+    </dl>
+</details>
+
+</details>
+
+<div class="invoice-info-editor" id="invoice_info_{{ row_key }}" {% if not needs_input %}hidden{% endif %}>
+    <div class="invoice-section-heading">
+        <strong>基本情報を修正</strong>
+        <span class="invoice-change-label" data-info-change hidden>修正済み</span>
+    </div>
+    <div class="invoice-input-grid">
+        <label class="invoice-input-wide">
+            対象車両
+            <select id="vehicle_{{ row_key }}" name="vehicle_{{ row_key }}">
+                <option value="">選択してください</option>
+                {% for choice in vehicle_choices %}
+                <option value="{{ choice.id }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            入庫日
+            <input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}">
+        </label>
+        <label>
+            積算走行距離（km）
+            <input type="text" inputmode="decimal" data-invoice-money id="mileage_{{ row_key }}" name="mileage_{{ row_key }}" value="{{ record.get('mileage') if record.get('mileage') is not none else '' }}">
+        </label>
+        <label class="invoice-input-wide">
+            記録内容
+            <textarea id="content_{{ row_key }}" name="content_{{ row_key }}" rows="2" maxlength="5000">{{ record.get('content') or '' }}</textarea>
+        </label>
+
+        <label class="invoice-input-wide invoice-total-input">
+            請求総額（円）
+            <input type="text" inputmode="decimal" data-invoice-money id="total_cost_{{ row_key }}" name="total_cost_{{ row_key }}" value="{{ record.get('total_cost') if record.get('total_cost') is not none else '' }}">
+        </label>
+    </div>
+
+    <details class="invoice-editor-details">
+        <summary>費用の内訳</summary>
+        <div class="invoice-input-grid">
+            {% for field, label in [('labor_cost','工賃'),('parts_cost','部品代'),('other_cost','その他費用'),('tax_amount','消費税')] %}
+            <label>
+                {{ label }}（円）
+                <input type="text" inputmode="decimal" data-invoice-money id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" value="{{ record.get(field) if record.get(field) is not none else '' }}">
+            </label>
+            {% endfor %}
+        </div>
+    </details>
+
+    <details class="invoice-editor-details">
+        <summary>請求書情報・備考</summary>
+        <div class="invoice-input-grid">
+            {% for field, label, limit in [('invoice_number','伝票番号',100),('issuer_name','請求書発行元',200),('maintenance_company','整備会社・工場',200)] %}
+            <label>
+                {{ label }}
+                <input type="text" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" maxlength="{{ limit }}" value="{{ record.get(field) or '' }}">
+            </label>
+            {% endfor %}
+
+            {% for field, label in [('completion_date','出庫日'),('invoice_date','請求日'),('sales_date','売上日')] %}
+            <label>
+                {{ label }}
+                <input type="date" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" value="{{ record.get(field) or '' }}">
+            </label>
+            {% endfor %}
+
+            <label class="invoice-input-wide">
+                備考
+                <textarea id="notes_{{ row_key }}" name="notes_{{ row_key }}" rows="2" maxlength="5000">{{ record.get('notes') or '' }}</textarea>
+            </label>
+        </div>
+    </details>
+
+    <div class="invoice-editor-footer">
+        <button type="button" class="invoice-reset-link" data-reset-info disabled>↶ 基本情報を読取値に戻す</button>
+        <button type="button" class="invoice-button" data-close-info>閉じて確認</button>
+    </div>
+</div>
+
+</div>
+
+<div class="invoice-detail-content">
+{% if record.get('line_items') %}
+<section class="invoice-lines-section">
+    <div class="invoice-section-heading">
+        <h4>明細 <span>{{ record.get('line_items')|length }}件</span></h4>
+        <span class="invoice-edit-caption">項目名を選ぶと修正</span>
+    </div>
+    <div class="invoice-line-tools">
+        <label>
+            <span class="invoice-sr-only">明細を検索</span>
+            <input type="search" data-line-search
+                placeholder="項目・品番・備考を検索">
+        </label>
+        <select data-line-filter aria-label="明細の表示条件">
+            <option value="all">すべて</option>
+            <option value="modified">修正済み</option>
+            <option value="replacement_review">交換部品：要確認</option>
+            <option value="amount">金額あり</option>
+        </select>
+        <button type="button" class="invoice-button"
+            data-clear-line-filter disabled>解除</button>
+        <span data-line-filter-count role="status"></span>
+    </div>
+    <p class="invoice-line-empty" data-line-filter-empty hidden>
+        条件に一致する明細はありません。「解除」で全件を表示できます。
+    </p>
+    <p class="invoice-edit-hint" hidden>修正する項目名を選択してください。</p>
+
+    <table class="invoice-lines">
+        <thead>
+            <tr>
+                <th scope="col">項目</th>
+                <th scope="col">金額（円）</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in record.get('line_items') %}
+            {% set prefix = 'invoice_line_' ~ row_key ~ '_' ~ loop.index0 ~ '_' %}
+            {% set replacement_action = line.get('replacement_action') if line.get('replacement_action') in ['replace', 'not_replace', 'review'] else 'review' %}
+            <tr class="invoice-line" data-line-prefix="{{ prefix }}" data-source-page="{{ line.get('source_page') or '' }}">
+                <td>
+                    <button type="button" class="invoice-line-name" data-edit-line aria-controls="editor_{{ prefix }}" aria-expanded="false">{{ line.get('description') or '記載なし' }}</button>
+                    <span class="invoice-change-label"
+                          data-replacement-summary
+                          {% if replacement_action == 'not_replace' %}hidden{% endif %}>
+                        {{ '交換部品' if replacement_action == 'replace' else '要確認' }}
+                    </span>
+                    <div class="invoice-line-supplement">
+                        {% if line.get('quantity') is not none %}数量 {{ invoice_number(line.get('quantity')) }} {% endif %}
+                        {% if line.get('unit_price') is not none %}単価 {{ invoice_number(line.get('unit_price')) }}円{% endif %}
+                        {% if line.get('part_number') %} 品番 {{ line.get('part_number') }}{% endif %}
+                    </div>
+                </td>
+                <td class="invoice-line-money">
+                    {% for field, label in [('labor_amount','工賃'),('parts_amount','部品代')] %}
+                        {% if line.get(field) is not none and line.get(field) != '' %}
+                        <div><span>{{ label }}</span> {{ invoice_number(line.get(field)) }}</div>
+                        {% endif %}
+                    {% endfor %}
+                    {% if line.get('labor_amount') is none and line.get('parts_amount') is none %}
+                        {{ invoice_number(line.get('amount')) }}
+                    {% endif %}
+                </td>
+            </tr>
+<tr class="invoice-line-editor-row" id="editor_{{ prefix }}" hidden>
+    <td colspan="2">
+        <div class="invoice-line-editor">
+            <div class="invoice-section-heading">
+                <strong>明細 {{ loop.index }} の修正</strong>
+            </div>
+            <div class="invoice-input-grid">
+                <label class="invoice-input-wide">
+                    項目
+                    <textarea id="{{ prefix }}description" name="{{ prefix }}description" rows="2" maxlength="1000">{{ line.get('description') or '' }}</textarea>
+                </label>
+                {% set part_category = line.get('replacement_category') or '未分類' %}
+                <label>
+                    部品分類
+                    <select id="{{ prefix }}replacement_category"
+                            name="{{ prefix }}replacement_category"
+                            data-invoice-empty-default="未分類">
+                        {% for value in ['未分類', '消耗品', '電装系', '駆動系', '冷却系', '足回り', 'その他'] %}
+                        <option value="{{ value }}" {% if part_category == value %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    交換部品の判定
+                    <select id="{{ prefix }}replacement_action"
+                            name="{{ prefix }}replacement_action">
+                        <option value="replace" {% if replacement_action == 'replace' %}selected{% endif %}>交換部品として登録</option>
+                        <option value="not_replace" {% if replacement_action == 'not_replace' %}selected{% endif %}>交換部品ではない（作業・工賃など）</option>
+                        <option value="review" {% if replacement_action == 'review' %}selected{% endif %}>要確認</option>
+                    </select>
+                </label>
+                <label>
+                    交換部品名（交換として登録する場合）
+                    <input type="text"
+                           id="{{ prefix }}replacement_part_name"
+                           name="{{ prefix }}replacement_part_name"
+                           maxlength="200"
+                           value="{{ line.get('replacement_part_name') or '' }}">
+                </label>
+                {% set money_fields = [('labor_amount','工賃'), ('parts_amount','部品代'), ('amount','原本の行合計')] %}
+                {% set missing_money = namespace(fields=[]) %}
+                {% for field, label in money_fields %}
+                    {% if line.get(field) is not none and line.get(field) != '' %}
+                    <label>
+                        {{ label }}（円）
+                        <input type="text" inputmode="decimal" data-invoice-money id="{{ prefix }}{{ field }}" name="{{ prefix }}{{ field }}" maxlength="50" value="{{ line.get(field) }}">
+                    </label>
+                    {% else %}
+                        {% set missing_money.fields = missing_money.fields + [(field, label)] %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% if missing_money.fields %}
+            <details class="invoice-editor-details invoice-extra-money">
+                <summary>金額項目を追加</summary>
+                <div class="invoice-input-grid">
+                    {% for field, label in missing_money.fields %}
+                    <label>
+                        {{ label }}（円）
+                        <input type="text" inputmode="decimal" data-invoice-money id="{{ prefix }}{{ field }}" name="{{ prefix }}{{ field }}" maxlength="50" value="">
+                    </label>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+            <details class="invoice-editor-details">
+                <summary>詳細項目（数量・単価・品番・備考など）</summary>
+                <div class="invoice-input-grid">
+                    <label>
+                        数量
+                        <input type="text" inputmode="decimal" id="{{ prefix }}quantity" name="{{ prefix }}quantity" maxlength="50" value="{{ line.get('quantity') if line.get('quantity') is not none else '' }}">
+                    </label>
+                    <label>
+                        単価（円）
+                        <input type="text" inputmode="decimal" data-invoice-money id="{{ prefix }}unit_price" name="{{ prefix }}unit_price" maxlength="50" value="{{ line.get('unit_price') if line.get('unit_price') is not none else '' }}">
+                    </label>
+                    <label>
+                        品番
+                        <input type="text" id="{{ prefix }}part_number" name="{{ prefix }}part_number" maxlength="200" value="{{ line.get('part_number') or '' }}">
+                    </label>
+                    <label>
+                        単位
+                        <input type="text" id="{{ prefix }}unit" name="{{ prefix }}unit" maxlength="50" value="{{ line.get('unit') or '' }}">
+                    </label>
+                    <label>
+                        区分
+                        <select id="{{ prefix }}category" name="{{ prefix }}category">
+                            <option value="">未設定</option>
+                            {% for category in ['部品','工賃','その他','不明'] %}
+                            <option value="{{ category }}" {% if line.get('category') == category %}selected{% endif %}>{{ category }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="invoice-input-wide">
+                        明細備考
+                        <textarea id="{{ prefix }}notes" name="{{ prefix }}notes" rows="2" maxlength="1000">{{ line.get('notes') or '' }}</textarea>
+                    </label>
+                </div>
+            </details>
+            {% if line.get('source_page') %}
+            <p class="invoice-editor-source">
+                原本 {{ line.get('source_page') }}頁
+                <button type="button" class="invoice-button" data-show-source="{{ line.get('source_page') }}">このページを見る</button>
+            </p>
+            {% endif %}
+            <div class="invoice-editor-footer">
+                <button type="button" class="invoice-reset-link" data-reset-line disabled>↶ この明細を読取値に戻す</button>
+                <button type="button" class="invoice-button" data-close-line>閉じる</button>
+            </div>
+        </div>
+    </td>
+</tr>
+
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+{% if record.get('warnings') %}
+<details class="invoice-reading-notes">
+    <summary>読取メモ（{{ record.get('warnings')|length }}件）</summary>
+    <ul>
+        {% for warning in record.get('warnings') %}
+        <li>{{ warning }}</li>
+        {% endfor %}
+    </ul>
+</details>
+{% endif %}
+</div>

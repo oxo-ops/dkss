@@ -1,83 +1,324 @@
 {% extends "base.html" %}
 
-{% block title %}車両カルテ：書類{% endblock %}
+{% block title %}車両カルテ・書類{% endblock %}
 
 {% block content %}
-
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 
-<section class="card">
-    <div class="card-title-row">
-        <h3>書類</h3>
-        <span>{{ documents | length }}件</span>
-    </div>
+{% macro document_url(document=none, page=1, kind=document_filters.kind) -%}
+{{ url_for(
+    'vehicle_karte_documents',
+    vehicle_record_id=vehicle.id,
+    document=document,
+    page=page,
+    kind=kind,
+    q=document_filters.q,
+    period=document_filters.period,
+    uploader=document_filters.uploader,
+    per_page=document_page.per_page
+) }}
+{%- endmacro %}
 
-    {% set document_labels = {
-        "inspection": "点検記録",
-        "driving_report": "安全運転日報",
-        "maintenance": "請求書・整備資料",
-        "operation_csv": "運行実績（デジタコCSV）"
-    } %}
+{% macro file_icon(extension) %}
+<svg
+    class="kd-file-icon"
+    data-extension="{{ extension }}"
+    width="22"
+    height="26"
+    viewBox="0 0 24 28"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    aria-hidden="true"
+    focusable="false"
+>
+    <path d="M14 2H5a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9Z"></path>
+    <path d="M14 2v7h7"></path>
+    <text
+        x="12"
+        y="20"
+        text-anchor="middle"
+        fill="currentColor"
+        stroke="none"
+        font-size="6"
+        font-weight="700"
+    >{{ extension|upper if extension in ['pdf', 'csv', 'png', 'jpg', 'jpeg'] else 'FILE' }}</text>
+</svg>
+{% endmacro %}
 
-    {% if documents %}
-        <div class="table-scroll">
-            <table class="checklist-table responsive-table">
-                <thead>
-                    <tr>
-                        <th scope="col">種類</th>
-                        <th scope="col">ファイル名</th>
-                        <th scope="col">操作</th>
-                    </tr>
-                </thead>
+<div class="karte-maintenance vehicle-karte-documents">
+    <div class="km-workspace{% if not selected_document %} kd-preview-closed{% endif %}">
 
-                <tbody>
-                    {% for document in documents %}
+        <section class="km-panel vehicle-karte-documents-panel">
+            <header class="km-panel-heading">
+                <div class="km-heading-label">
+                    <h3>書類</h3>
+                    <span class="km-count">この車両に紐づく各種書類を管理します。</span>
+                </div>
+                {% if session.get('role') in ['admin', 'itc'] %}
+                <a href="{{ url_for('vehicle_data_import') }}" class="btn btn-outline">
+                    ＋ ファイルを登録
+                </a>
+                {% endif %}
+            </header>
+
+            <nav class="kd-type-tabs" aria-label="書類の種類">
+                {% for category in document_categories %}
+                <a
+                    href="{{ document_url(kind=category.key) }}"
+                    data-kind="{{ category.key or 'all' }}"
+                    {% if document_filters.kind == category.key %}aria-current="page"{% endif %}
+                >
+                    {{ category.label }}（{{ category.count }}）
+                </a>
+                {% endfor %}
+            </nav>
+
+            <form
+                id="document_filters"
+                method="get"
+                action="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}"
+                class="kd-filters"
+            >
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ document_filters.q }}"
+                    placeholder="ファイル名・備考で検索…"
+                    maxlength="200"
+                    aria-label="ファイル名・備考で検索"
+                >
+                <select name="kind" aria-label="資料種別">
+                    {% for category in document_categories %}
+                    <option
+                        value="{{ category.key }}"
+                        {% if document_filters.kind == category.key %}selected{% endif %}
+                    >
+                        {{ 'すべての資料種別' if not category.key else category.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <select name="period" aria-label="登録期間">
+                    {% for value, label in [
+                        ('', 'すべての登録期間'),
+                        ('30', '直近30日'),
+                        ('90', '直近90日'),
+                        ('365', '直近1年')
+                    ] %}
+                    <option
+                        value="{{ value }}"
+                        {% if document_filters.period == value %}selected{% endif %}
+                    >{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="uploader" aria-label="登録者">
+                    <option value="">すべての登録者</option>
+                    {% for uploader in document_uploaders %}
+                    <option
+                        value="{{ uploader.username }}"
+                        {% if document_filters.uploader == uploader.username %}selected{% endif %}
+                    >{{ uploader.label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-outline">検索</button>
+                <a
+                    href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}"
+                    class="btn btn-outline"
+                >クリア</a>
+            </form>
+
+            {% if document_page.items %}
+            <div class="table-scroll">
+                <table class="kd-document-table">
+                    <thead>
                         <tr>
-                            <td data-label="種類">
-                                {{ document_labels.get(
-                                    document.document_type,
-                                    "その他"
-                                ) }}
+                            <th scope="col">
+                                <input type="checkbox" data-document-check-all aria-label="表示中の書類をすべて選択">
+                            </th>
+                            <th scope="col">日付</th>
+                            <th scope="col">資料種別</th>
+                            <th scope="col">ファイル名</th>
+                            <th scope="col">備考</th>
+                            <th scope="col">登録者</th>
+                            <th scope="col">登録日時</th>
+                            <th scope="col">ダウンロード</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for document in document_page.items %}
+                        <tr{% if selected_document and selected_document.key == document.key %} class="kd-selected"{% endif %}>
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    data-document-check
+                                    value="{{ document.key }}"
+                                    aria-label="{{ document.filename }}を選択"
+                                >
                             </td>
-
-                            <td data-label="ファイル名">
-                                {{ document.filename }}
+                            <td title="登録日">{{ document.date_label }}</td>
+                            <td>
+                                <span class="kd-kind" data-kind="{{ document.kind }}">
+                                    {{ document.kind_label }}
+                                </span>
                             </td>
-
-                            <td data-label="操作">
-                                {% if document.document_type == "operation_csv" %}
-                                    <a
-                                        href="{{ url_for(
-                                            'vehicle_karte_operation_source',
-                                            vehicle_record_id=vehicle.id,
-                                            draft_id=document.draft_id
-                                        ) }}"
-                                    >
-                                        CSVをダウンロード
-                                    </a>
-                                {% else %}
-                                    <a
-                                        href="{{ url_for(
-                                            'vehicle_karte_document_source',
-                                            vehicle_record_id=vehicle.id,
-                                            draft_id=document.draft_id
-                                        ) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        原本を開く
-                                    </a>
-                                {% endif %}
+                            <td>
+                                <a
+                                    href="{{ document_url(document=document.key, page=document_page.page) }}#document_preview"
+                                    class="kd-filename"
+                                    {% if selected_document and selected_document.key == document.key %}aria-current="true"{% endif %}
+                                >
+                                    {{ file_icon(document.extension) }}
+                                    <span>{{ document.filename }}</span>
+                                </a>
+                            </td>
+                            <td title="{{ document.notes or document.related_content }}">
+                                {{ (document.notes or document.related_content or '—')|truncate(38) }}
+                            </td>
+                            <td>{{ document.uploader_label }}</td>
+                            <td>{{ document.registered_label }}</td>
+                            <td>
+                                <a
+                                    href="{{ document.download_url }}"
+                                    download="{{ document.filename }}"
+                                    class="kd-download"
+                                    title="{{ document.filename }}をダウンロード"
+                                    aria-label="{{ document.filename }}をダウンロード"
+                                >{{ file_icon(document.extension) }}</a>
                             </td>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="ui-empty-value">書類なし</p>
-    {% endif %}
-</section>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
+            <footer class="kp-footer">
+                <span>
+                    全{{ document_page.total }}件中
+                    {{ (document_page.page - 1) * document_page.per_page + 1 }}–{{ (document_page.page - 1) * document_page.per_page + document_page.items|length }}件
+                </span>
+
+                <nav class="kp-pagination" aria-label="書類のページ">
+                    {% if document_page.has_prev %}
+                        <a href="{{ document_url(page=document_page.prev_num) }}"
+                           aria-label="前のページ">‹</a>
+                    {% endif %}
+
+                    {% for number in range(1, document_page.pages + 1) %}
+                        {% if number == 1 or number == document_page.pages
+                              or (number - document_page.page)|abs <= 1 %}
+                            <a href="{{ document_url(page=number) }}"
+                               {% if number == document_page.page %}aria-current="page"{% endif %}>
+                                {{ number }}
+                            </a>
+                        {% elif number == 2 or number == document_page.pages - 1 %}
+                            <span>…</span>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if document_page.has_next %}
+                        <a href="{{ document_url(page=document_page.next_num) }}"
+                           aria-label="次のページ">›</a>
+                    {% endif %}
+                </nav>
+
+                <label class="kd-page-size">
+                    表示件数
+                    <select name="per_page"
+                            form="document_filters"
+                            aria-label="書類の表示件数">
+                        {% for count in [10, 20, 50] %}
+                            <option value="{{ count }}"
+                                    {% if document_page.per_page == count %}selected{% endif %}>
+                                {{ count }}件
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </footer>
+            {% else %}
+            <p class="km-empty">条件に一致する書類はありません。</p>
+            {% endif %}
+        </section>
+
+        {% if selected_document %}
+        <aside
+            id="document_preview"
+            class="km-panel km-selection-panel kd-preview"
+            tabindex="-1"
+            aria-label="選択した書類"
+        >
+            <header class="km-panel-heading">
+                <div class="km-heading-label">
+                    {{ file_icon(selected_document.extension) }}
+                    <h3>{{ selected_document.filename }}</h3>
+                </div>
+                <a
+                    href="{{ document_url(document='closed', page=document_page.page) }}"
+                    class="kd-preview-close"
+                    aria-label="原本プレビューを閉じる"
+                >×</a>
+            </header>
+
+            {% if selected_document.extension == 'pdf' %}
+                {% with
+                    pdf_source_url=selected_document.source_url,
+                    pdf_filename=selected_document.filename,
+                    pdf_record_key=selected_document.key,
+                    pdf_initial_page=1
+                %}
+                    {% include "vehicle_document_pdf_viewer.html" %}
+                {% endwith %}
+            {% elif selected_document.extension in ['png', 'jpg', 'jpeg', 'webp', 'gif'] %}
+                <div class="kd-image-preview">
+                    <img src="{{ selected_document.source_url }}" alt="{{ selected_document.filename }}">
+                </div>
+            {% else %}
+                <div class="kd-file-preview">
+                    {{ file_icon(selected_document.extension) }}
+                    <p>{{ selected_document.filename }}</p>
+                    <a
+                        href="{{ selected_document.download_url }}"
+                        download="{{ selected_document.filename }}"
+                        class="btn btn-outline"
+                    >ダウンロード</a>
+                </div>
+            {% endif %}
+
+            <dl class="km-detail-facts">
+                {% for label, value in [
+                    ('資料種別', selected_document.kind_label),
+                    ('登録日', selected_document.date_label),
+                    ('登録者', selected_document.uploader_label),
+                    ('関連内容', selected_document.related_content),
+                    ('備考', selected_document.notes)
+                ] %}
+                <div class="km-fact-wide">
+                    <dt>{{ label }}</dt>
+                    <dd>
+                        {% if value and value|length > 100 %}
+                        <details>
+                            <summary>{{ value|truncate(45) }}</summary>
+                            <p class="km-preserve-lines">{{ value }}</p>
+                        </details>
+                        {% else %}
+                        {{ value or '—' }}
+                        {% endif %}
+                    </dd>
+                </div>
+                {% endfor %}
+            </dl>
+        </aside>
+        {% endif %}
+    </div>
+</div>
+
+<script
+    type="module"
+    src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261017-pdf-fix-1') }}"
+></script>
+<script
+    defer
+    src="{{ url_for('static', filename='js/vehicle_karte_documents.js', v='20261017-1') }}"
+></script>
 {% endblock %}

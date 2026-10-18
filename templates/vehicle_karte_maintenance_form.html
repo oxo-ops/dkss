@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}
+整備記録の{{ '編集' if maintenance_record else '登録' }}
+{% endblock %}
+
+{% block content %}
+{% set editing = maintenance_record is not none %}
+{% set error_fields = form_errors|map(attribute=1)|list %}
+{% set back_url = url_for(
+    'vehicle_karte_maintenance',
+    vehicle_record_id=vehicle.id,
+    record_id=maintenance_record.id if editing else none
+) %}
+
+{% macro field(name, label, kind='text', required=false, limit=none, decimal=false, choices=none) %}
+{% set value = form_values.get(name) %}
+<div class="form-group">
+    <label for="{{ name }}">
+        {{ label }}{% if required %}（必須）{% endif %}
+    </label>
+
+    {% if kind == 'textarea' %}
+    <textarea
+        id="{{ name }}"
+        name="{{ name }}"
+        rows="3"
+        {% if required %}required{% endif %}
+        {% if limit %}maxlength="{{ limit }}"{% endif %}
+        {% if name in error_fields %}
+        class="form-control-error"
+        aria-invalid="true"
+        aria-describedby="error_{{ name }}"
+        {% endif %}
+    >{{ value if value is not none else '' }}</textarea>
+    {% else %}
+    <input
+        id="{{ name }}"
+        name="{{ name }}"
+        type="{{ kind }}"
+        value="{% if decimal and value is number %}{{ '{:,}'.format(value) }}{% else %}{{ value if value is not none else '' }}{% endif %}"
+        {% if required %}required{% endif %}
+        {% if limit %}maxlength="{{ limit }}"{% endif %}
+        {% if decimal %}inputmode="decimal"{% endif %}
+        {% if choices %}list="{{ name }}_choices"{% endif %}
+        {% if name in error_fields %}
+        class="form-control-error"
+        aria-invalid="true"
+        aria-describedby="error_{{ name }}"
+        {% endif %}
+    >
+    {% endif %}
+
+    {% if choices %}
+    <datalist id="{{ name }}_choices">
+        {% for choice in choices %}
+        <option value="{{ choice }}"></option>
+        {% endfor %}
+    </datalist>
+    {% endif %}
+
+    {% if name in error_fields %}
+    <div id="error_{{ name }}" class="field-error-message">
+        {% for message, error_field in form_errors %}
+        {% if error_field == name %}
+        <p>{{ message }}</p>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+<div class="karte-maintenance">
+    <nav class="page-breadcrumb km-form-breadcrumb" aria-label="パンくずリスト">
+        <a href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}">
+            {{ vehicle_number }}
+        </a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="{{ back_url }}">整備・修理</a>
+        <span class="breadcrumb-separator">›</span>
+        <span>{{ '編集' if editing else '新規登録' }}</span>
+    </nav>
+
+    <div class="page-header form-page-header">
+        <h2>整備記録の{{ '編集' if editing else '登録' }}</h2>
+        <div class="header-actions">
+            <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
+            <button type="submit" form="maintenance_form" class="btn">
+                {{ '変更を保存' if editing else '登録する' }}
+            </button>
+        </div>
+    </div>
+
+    {% if form_errors %}
+    <section class="error-summary" role="alert" aria-labelledby="maintenance_errors">
+        <h2 id="maintenance_errors">入力内容を確認してください</h2>
+        <ul>
+            {% for message, error_field in form_errors %}
+            <li>
+                {% if error_field and error_field != 'record_version' %}
+                <a href="#{{ error_field }}">{{ message }}</a>
+                {% else %}
+                {{ message }}
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if 'record_version' in error_fields %}
+        <a href="{{ back_url }}">最新の記録を確認する</a>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <form
+        id="maintenance_form"
+        method="post"
+        action="{{ url_for(
+            'vehicle_karte_maintenance_form',
+            vehicle_record_id=vehicle.id,
+            record_id=maintenance_record.id if editing else none
+        ) }}"
+        class="card form-page-card km-form"
+    >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="record_version" value="{{ record_version }}">
+
+        <section class="km-form-section">
+            <h3>基本情報</h3>
+            <p class="help-text">対象車両：{{ vehicle_number }}</p>
+
+            {{ field('content', '整備内容', kind='textarea', required=true, limit=5000) }}
+
+            <div class="km-form-grid">
+                {{ field('entry_date', '入庫日', kind='date', required=true) }}
+                {{ field('completion_date', '完了日', kind='date') }}
+                {{ field('mileage', '走行距離（km）', decimal=true, limit=100) }}
+                {{ field('category', '分類', limit=50, choices=[
+                    '整備', '修理', '故障', '部品交換',
+                    '定期点検', '車検', '応急処置'
+                ]) }}
+                {{ field('status', '状態', limit=50, choices=[
+                    '未対応', '対応待ち', '対応中', '整備中', '完了'
+                ]) }}
+                {{ field('repair_hours', '作業時間（時間）', decimal=true, limit=100) }}
+            </div>
+
+            <div class="km-form-grid km-form-grid-two">
+                {{ field('maintenance_company', '整備会社', limit=200) }}
+                {{ field('maintenance_person', '整備担当', limit=100) }}
+            </div>
+        </section>
+
+        <section class="km-form-section">
+            <h3>症状・修理内容</h3>
+            <div class="km-form-grid km-form-grid-two">
+                {{ field('symptom', '症状', kind='textarea', limit=5000) }}
+                {{ field('cause', '原因', kind='textarea', limit=5000) }}
+                {{ field('temporary_action', '応急処置', kind='textarea', limit=5000) }}
+                {{ field('repair_content', '修理内容', kind='textarea', limit=5000) }}
+            </div>
+        </section>
+
+        <section class="km-form-section">
+            <h3>費用</h3>
+            <div class="km-form-grid">
+                {{ field('parts_cost', '部品代（円）', decimal=true, limit=100) }}
+                {{ field('labor_cost', '工賃（円）', decimal=true, limit=100) }}
+                {{ field('other_cost', 'その他費用（円）', decimal=true, limit=100) }}
+                {{ field('tax_amount', '消費税（円）', decimal=true, limit=100) }}
+                {{ field('total_cost', '合計金額（円）', decimal=true, limit=100) }}
+            </div>
+        </section>
+
+        <section class="km-form-section">
+            <h3>請求書情報・備考</h3>
+            <div class="km-form-grid km-form-grid-two">
+                {{ field('invoice_number', '請求書番号', limit=100) }}
+                {{ field('invoice_date', '請求日', kind='date') }}
+            </div>
+            {{ field('notes', '備考', kind='textarea', limit=10000) }}
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">
+                {{ '変更を保存' if editing else '登録する' }}
+            </button>
+            <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

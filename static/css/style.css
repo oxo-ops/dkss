@@ -2263,8 +2263,12 @@ body {
 }
 
 .sidebar-nav {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     padding: 18px 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
 }
 
 .sidebar-group {
@@ -2408,6 +2412,7 @@ body {
 }
 
 .sidebar-footer {
+    flex: 0 0 auto;
     padding: 18px 16px;
     font-size: 13px;
     border-top: 1px solid rgba(255,255,255,0.12);
@@ -17906,121 +17911,173 @@ body.vehicle-list-ppt .vehicle-karte-selector > button:hover {
         margin: 4px 0 0;
     }
 }
-
 /* 車両カルテ：使用車両 */
-.vehicle-karte-usage {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    margin-bottom: 10px;
+
+.karte-vehicle-top-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin: -8px 0 10px;
 }
 
-.vehicle-karte-usage-heading {
-    flex-shrink: 0;
+.karte-vehicle-top-controls > .vehicle-karte-actions {
     margin: 0;
-    padding-top: 18px;
-    color: #172b4d;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.4;
 }
 
-.vehicle-karte-usage-cards {
-    display: flex;
-    flex: 1 1 180px;
-    min-width: 0;
-    flex-wrap: wrap;
-    gap: 8px;
+.karte-vehicle-top-controls > .vehicle-karte-actions:first-child {
+    grid-column: 1 / -1;
 }
 
-@media (max-width: 600px) {
-    .vehicle-karte-usage-heading {
-        width: 100%;
-        padding-top: 0;
-    }
-}
-
-.vehicle-karte-usage-cards > .vehicle-karte-usage-card {
+.karte-vehicle-switcher {
     display: flex;
     align-items: center;
     gap: 10px;
-    box-sizing: border-box;
-    min-width: 180px;
-    max-width: 100%;
+    min-width: 0;
     margin: 0;
-    padding: 8px 12px;
-    border: 1px solid #cbdaf0;
-    border-radius: 6px;
-    background: #fff;
-    color: #172b4d;
-    text-align: left;
-    text-decoration: none;
-    white-space: normal;
-    box-shadow: none;
+    padding: 0;
 }
 
-.vehicle-karte-usage-card > img {
-    flex: 0 0 40px;
-    width: 40px;
-    height: 40px;
+@media (max-width: 900px) {
+    .karte-vehicle-top-controls {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+}
+
+.karte-vehicle-switcher-label {
+    display: inline-flex;
+    align-items: baseline;
+    flex-shrink: 0;
+    gap: 5px;
+    color: #526681;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.karte-vehicle-switcher-label small {
+    display: inline;
+    margin: 0;
+    color: #718096;
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.karte-vehicle-switcher-list {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.karte-vehicle-switcher-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 0 0 auto;
+    gap: 7px;
+    box-sizing: border-box;
+    min-height: 46px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid #cbdaf0;
+    border-radius: 5px;
+    background: #fff;
+    color: #345578;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.karte-vehicle-switcher-link > img {
+    display: block;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
 }
 
-.vehicle-karte-usage-card-info {
+.karte-vehicle-switcher-info {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     min-width: 0;
 }
 
-.vehicle-karte-usage-card-info > strong {
-    font-size: 13px;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
+.karte-vehicle-switcher-info > span:first-child {
+    font-size: 12px;
 }
 
-.vehicle-karte-usage-card-info > span {
-    color: #526681;
-    font-size: 11px;
-    line-height: 1.4;
-}
-
-.vehicle-karte-usage-cards > .vehicle-karte-usage-card:hover,
-.vehicle-karte-usage-cards > .vehicle-karte-usage-card:focus-visible {
-    border-color: #7ca5e9;
-    background: #edf4ff;
-    color: #172b4d;
-}
-
-.vehicle-karte-usage-cards > .vehicle-karte-usage-card:focus-visible {
-    outline: 2px solid #2f73f6;
-    outline-offset: 2px;
-}
-
-.vehicle-karte-usage-cards > .vehicle-karte-usage-card.is-selected {
-    border-color: #7ca5e9;
-    background: #f5f9ff;
-    color: #172b4d;
-}
-
-.vehicle-karte-usage-current {
-    flex-shrink: 0;
-    margin-left: auto;
-    padding: 3px 6px;
-    border: 1px solid #b8cef5;
-    border-radius: 4px;
-    background: #fff;
-    color: #2459b8;
+.karte-vehicle-switcher-info > span:last-child {
+    color: #718096;
     font-size: 10px;
+    font-weight: 400;
+}
+
+.karte-vehicle-switcher-link:hover {
+    border-color: #7ca5d9;
+    background: #f0f6ff;
+    color: #20569c;
+    text-decoration: none;
+}
+
+.karte-vehicle-switcher-link.is-selected {
+    border-color: #6b9bd7;
+    background: #eaf3ff;
+    color: #194e92;
     font-weight: 700;
 }
 
+.karte-vehicle-switcher-link small {
+    display: inline;
+    margin: 0;
+    color: #386696;
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.karte-vehicle-switcher-link:focus-visible {
+    outline: 2px solid #397dea;
+    outline-offset: 2px;
+}
+
+
+
+
+
+
+
 @media (max-width: 600px) {
-    .vehicle-karte-usage-cards > .vehicle-karte-usage-card {
-        flex: 1 1 180px;
-        min-width: 0;
-    }
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@media (max-width: 600px) {
+
+
 }
 
 /* 車両カルテ：メモと関連ファイル */
@@ -18032,7 +18089,7 @@ body.vehicle-list-ppt .vehicle-karte-selector > button:hover {
     margin-bottom: 12px;
 }
 
-body.vehicle-list-ppt .vehicle-karte-notes-row > .card {
+body.vehicle-list-ppt .main-content .vehicle-karte-notes-row > .card {
     min-width: 0;
     margin: 0;
     padding: 12px;
@@ -18080,10 +18137,10 @@ body.vehicle-list-ppt .vehicle-karte-notes-row > .card {
     margin-bottom: 12px;
 }
 
-body.vehicle-list-ppt .vehicle-karte-analysis-row > .card {
+body.vehicle-list-ppt .main-content .vehicle-karte-analysis-row > .card {
     min-width: 0;
     margin: 0;
-    padding: 12px;
+    padding: 14px;
 }
 
 .vehicle-karte-analysis-empty {
@@ -18118,20 +18175,223 @@ body.vehicle-list-ppt .vehicle-karte-analysis-row > .card {
     margin-bottom: 12px;
 }
 
-body.vehicle-list-ppt .vehicle-karte-overview-row > .card {
+body.vehicle-list-ppt .main-content .vehicle-karte-overview-row > .card {
     min-width: 0;
     margin: 0;
-    padding: 10px;
+    padding: 14px;
 }
 
 body.vehicle-list-ppt .vehicle-karte-overview-row .result-info-title,
 body.vehicle-list-ppt .vehicle-karte-analysis-row .result-info-title,
 body.vehicle-list-ppt .vehicle-karte-notes-row .result-info-title {
-    margin: 0 0 8px;
-    color: #101b3f;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.4;
+    margin: 0 0 10px;
+}
+
+/* 車両カルテ全タブの共通フォント */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs),
+.main-content:has(.km-form) {
+    --karte-text: #23364d;
+    --karte-muted: #63758a;
+    --karte-border: #dce4ed;
+    --karte-soft: #f5f8fc;
+    --karte-blue: #285f9e;
+    --karte-title-size: 15px;
+    --karte-body-size: 13px;
+    --karte-caption-size: 11px;
+    font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
+    font-size: var(--karte-body-size);
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--karte-text);
+    background: #f5f7fb;
+}
+
+/* 車両カルテ全タブの見出し */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(h2, h3, .kp-ranking-caption):where(:not(.vehicle-karte-number-row > h2)),
+.main-content:has(.km-form) h3 {
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--karte-text);
+}
+
+/* 車両カルテ全タブのカード */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .card {
+    border: 1px solid var(--karte-border);
+    border-radius: 6px;
+    box-shadow: none;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.vehicle-karte-overview-row, .vehicle-karte-analysis-row, .vehicle-karte-notes-row) > .card {
+    margin: 0;
+    padding: 14px;
+}
+
+/* タブの両端の枠 */
+.vehicle-karte-tabs .vehicle-karte-tab:first-child {
+    border-left: 1px solid #dce4ed;
+}
+
+/* カード見出しのアイコンを共通化 */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.km-heading-icon, .kp-heading-title > .kp-icon, .km-heading-label > .kd-file-icon),
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(h2, h3) > svg {
+    display: none;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(h2, h3, .kp-ranking-caption):where(:not(.vehicle-karte-number-row > h2)) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    text-align: left;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) {
+    --karte-icon-file: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6'/%3E%3C/svg%3E");
+    --karte-icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
+    --karte-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='M9 4V2h6v2M8 12l3 3 5-6'/%3E%3C/svg%3E");
+    --karte-icon-tool: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4 3-3Z'/%3E%3C/svg%3E");
+    --karte-icon-parts: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5'/%3E%3C/svg%3E");
+    --karte-icon-chart: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 3v17h17M8 16v-5M13 16V7M18 16v-8'/%3E%3C/svg%3E");
+}
+
+[data-karte-icon="chart"] {
+    --karte-heading-icon: var(--karte-icon-chart);
+}
+
+[data-karte-icon="tool"] {
+    --karte-heading-icon: var(--karte-icon-tool);
+}
+
+[data-karte-icon="parts"] {
+    --karte-heading-icon: var(--karte-icon-parts);
+}
+
+[data-karte-icon="history"] {
+    --karte-heading-icon: var(--karte-icon-history);
+}
+
+[data-karte-icon="file"] {
+    --karte-heading-icon: var(--karte-icon-file);
+}
+
+[data-karte-icon="money"] {
+    --karte-heading-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 7 4 5 4-5M12 12v6M8 12h8M8 15h8'/%3E%3C/svg%3E");
+}
+
+[data-karte-icon="note"] {
+    --karte-heading-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 3 5 5-12 12-6 1 1-6L16 3ZM13 6l5 5M4 15l5 5'/%3E%3C/svg%3E");
+}
+
+.vehicle-karte-history-panel {
+    --karte-heading-icon: var(--karte-icon-history);
+}
+
+.vehicle-karte-inspections-panel {
+    --karte-heading-icon: var(--karte-icon-check);
+}
+
+.karte-maintenance {
+    --karte-heading-icon: var(--karte-icon-tool);
+}
+
+.karte-maintenance.karte-parts {
+    --karte-heading-icon: var(--karte-icon-parts);
+}
+
+.karte-costs {
+    --karte-heading-icon: var(--karte-icon-chart);
+}
+
+.vehicle-karte-documents {
+    --karte-heading-icon: var(--karte-icon-file);
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(h2, h3, .kp-ranking-caption):where(:not(.vehicle-karte-number-row > h2))::before {
+    content: "";
+    display: block;
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    background-color: #285f9e;
+    -webkit-mask-image: var(--karte-heading-icon, var(--karte-icon-file));
+    mask-image: var(--karte-heading-icon, var(--karte-icon-file));
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.km-heading-label, .kp-heading-title) {
+    gap: 12px;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.km-panel-heading, .kp-heading) h3 {
+    margin: 0;
+}
+
+/* 車両カルテの表は直線的に揃える */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.vehicle-karte-overview-row, .vehicle-karte-history-panel, .vehicle-karte-inspections-panel) .table-scroll {
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.vehicle-karte-recent-table, .vehicle-karte-history-table, .checklist-table) {
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* 車両カルテ全タブの操作欄 */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(input, select, button, textarea) {
+    font-family: inherit;
+    font-size: 12px;
+}
+
+/* 車両カルテの表見出し */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.checklist-table, .kp-table, .km-record-table, .kd-document-table, .vehicle-karte-recent-table) th {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+/* 車両カルテの表本文 */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.checklist-table, .kp-table, .km-record-table, .kd-document-table, .vehicle-karte-recent-table) td {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+/* 詳細内の小見出し */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.km-section-heading > h4, .km-disclosure > summary) {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.55;
+}
+
+/* 一覧内の名称は強い太字にしない */
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+:is(.km-record-content > a > strong, .kp-current-row > strong) {
+    font-size: var(--karte-body-size);
+    font-weight: 500;
+    line-height: 1.55;
 }
 
 .vehicle-karte-chart-empty {
@@ -18210,21 +18470,101 @@ body.vehicle-list-ppt .vehicle-karte-notes-row .result-info-title {
 
 /* 車両カルテ：履歴 */
 body.vehicle-list-ppt .vehicle-karte-history-panel {
-    padding: 12px;
+    padding: 14px;
+}
+
+@media (min-width: 961px) {
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-history-panel {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        height: var(--karte-workspace-height, auto);
+        min-height: 0;
+        margin-bottom: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-history-panel > .vehicle-karte-history-heading {
+        flex-shrink: 0;
+        margin: 14px 14px 12px;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-history-panel > .table-scroll {
+        flex: 0 1 auto;
+        min-height: 0;
+        width: auto;
+        margin: 0 12px;
+        overflow: auto;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-history-panel > .kp-footer {
+        margin-top: auto;
+    }
 }
 
 body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     margin: 0 0 12px;
-    padding: 12px;
+    padding: 14px;
+}
+
+@media (min-width: 961px) {
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-inspections-primary {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        height: var(--karte-workspace-height, auto);
+        min-height: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-inspections-primary > .card-title-row {
+        flex-shrink: 0;
+        margin: 14px 14px 12px;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-inspections-primary > .table-scroll {
+        flex: 0 1 auto;
+        min-height: 0;
+        width: auto;
+        margin: 0 12px;
+        overflow: auto;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-inspections-primary > .kp-footer {
+        margin-top: auto;
+    }
 }
 
 .vehicle-karte-inspections-panel .card-title-row {
-    margin-bottom: 10px;
+    align-items: flex-start;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.vehicle-karte-inspections-panel .checklist-table td > .help-text {
+    display: block;
+    margin: 4px 0 0;
+    color: var(--karte-muted);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
 }
 
 .vehicle-karte-inspections-panel .card-title-row h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
 }
 
 @media screen and (min-width: 769px) {
@@ -18280,7 +18620,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 .vehicle-karte-history-heading {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     flex-wrap: wrap;
     gap: 8px 14px;
     margin-bottom: 12px;
@@ -18291,10 +18631,10 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     align-items: center;
     gap: 8px;
     margin: 0;
-    color: #101b3f;
-    font-size: 22px;
-    font-weight: 700;
-    line-height: 1.4;
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
 }
 
 .vehicle-karte-history-heading > h3 > svg {
@@ -18532,7 +18872,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(2) {
-        width: 14%;
+        width: 11%;
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(3) {
@@ -18540,7 +18880,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(4) {
-        width: 8%;
+        width: 11%;
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(5) {
@@ -18637,6 +18977,2424 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     color: #245dc9;
 }
 
+/* 車両カルテ：整備記録の登録・編集 */
+.karte-maintenance .km-form-breadcrumb a {
+    font-weight: 400;
+}
+
+.karte-maintenance .km-form-section + .km-form-section {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--km-border);
+}
+
+.karte-maintenance .km-form-section > h3 {
+    margin-bottom: 10px;
+}
+
+.karte-maintenance .km-form .help-text {
+    margin: 0 0 12px;
+}
+
+.karte-maintenance .km-form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 12px;
+}
+
+.karte-maintenance .km-form-grid-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.karte-maintenance .km-form .form-group {
+    min-width: 0;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.karte-maintenance .km-form label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.karte-maintenance .km-form input:not([type="hidden"]),
+.karte-maintenance .km-form textarea {
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 9px;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 13px;
+}
+
+.karte-maintenance .km-form textarea {
+    min-height: 76px;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.karte-maintenance .km-form .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--km-border);
+}
+
+@media (max-width: 700px) {
+    .karte-maintenance .km-form-grid,
+    .karte-maintenance .km-form-grid-two {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 車両カルテ：整備記録の対応履歴 */
+.karte-maintenance .km-event-list {
+    margin: 0;
+    padding: 4px 14px 14px 23px;
+    list-style: none;
+}
+
+.karte-maintenance .km-event-list > li {
+    position: relative;
+    padding: 0 0 16px 14px;
+    border-left: 1px solid #cbd9e8;
+}
+
+.karte-maintenance .km-event-list > li:last-child {
+    padding-bottom: 0;
+    border-left-color: transparent;
+}
+
+.karte-maintenance .km-event-list > li::before {
+    content: "";
+    position: absolute;
+    top: 4px;
+    left: -4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #397ba9;
+}
+
+.karte-maintenance .km-event-date {
+    margin-bottom: 3px;
+    color: var(--km-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.karte-maintenance .km-event-title {
+    font-size: 12px;
+}
+
+.karte-maintenance .km-event-actor {
+    margin-left: 6px;
+    color: var(--km-muted);
+    font-size: 11px;
+}
+
+.karte-maintenance .km-event-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 6px;
+}
+
+.karte-maintenance .km-event-changes {
+    margin-top: 7px;
+    font-size: 12px;
+}
+
+.karte-maintenance .km-event-changes > summary {
+    color: var(--km-blue);
+    cursor: pointer;
+}
+
+.karte-maintenance .km-event-changes dl > div {
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid var(--km-border);
+    border-radius: 4px;
+    background: #f8fafc;
+}
+
+.karte-maintenance .km-event-changes dt {
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.karte-maintenance .km-event-changes dd p {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
+    margin-top: 4px;
+    line-height: 1.6;
+}
+
+.karte-maintenance .km-event-changes small {
+    color: var(--km-muted);
+    font-size: 11px;
+}
+
+/* 車両カルテ：費用 */
+.karte-costs {
+    color:#253f65;
+}
+.karte-costs .kc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    min-height: 52px;
+    gap: 8px 16px;
+    margin: 0 0 12px;
+    padding: 8px 14px;
+    border: 1px solid var(--karte-border);
+    border-radius: 6px;
+    background: #ffffff;
+}
+.karte-costs .kc-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    min-width: 0;
+}
+.karte-costs .kc-title h2 {
+    margin: 0;
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.karte-costs .kc-title>span {
+    color:#64748b;
+    font-size:12px;
+}
+.karte-costs .kc-year-form {
+    display:flex;
+    align-items:center;
+    flex-wrap:nowrap;
+    flex-shrink:0;
+    gap:6px;
+    margin:0;
+}
+.karte-costs .kc-year-form>* {
+    flex-shrink:0;
+    white-space:nowrap;
+}
+.karte-costs .kc-year-label {
+    margin:0 2px 0 0;
+    color:#53698a;
+    font-size:12px;
+}
+.karte-costs .kc-year-form select,
+.karte-costs .kc-year-button {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    box-sizing:border-box;
+    height:32px;
+    margin:0;
+    padding:4px 10px;
+    border:1px solid #c8d9ee;
+    border-radius:5px;
+    background:#fff;
+    color:#24548d;
+    font-size:12px;
+    text-decoration:none;
+}
+.karte-costs .kc-toolbar .kc-year-form {
+    width:auto;
+    max-width:100%;
+}
+.karte-costs .kc-toolbar .kc-year-form select {
+    flex:0 0 100px;
+    width:100px;
+    min-width:100px;
+    max-width:100px;
+}
+.karte-costs .kc-toolbar .kc-year-button {
+    width:auto;
+    min-width:32px;
+}
+.karte-costs .kc-year-button {
+    min-width:32px;
+    cursor:pointer;
+}
+.karte-costs .kc-year-button:hover {
+    border-color:#7ba5df;
+    background:#edf5ff;
+}
+.karte-costs a:focus-visible,
+.karte-costs button:focus-visible,
+.karte-costs select:focus-visible,
+.karte-costs summary:focus-visible {
+    outline:2px solid #1765e8;
+    outline-offset:2px;
+}
+.karte-costs .kc-summary-grid {
+    display:grid;
+    grid-template-columns:1fr 1.1fr 1.5fr 1fr;
+    align-items:stretch;
+    gap:10px;
+    margin-bottom:10px;
+}
+.karte-costs .kc-summary-grid>section,
+.karte-costs .kc-chart-panel,
+.karte-costs .kc-detail-panel {
+    min-width:0;
+    padding:10px;
+}
+.karte-costs h3 {
+    margin: 0 0 10px;
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.karte-costs h3 small {
+    margin-left:4px;
+    color:#64748b;
+    font-size:11px;
+    font-weight:400;
+    line-height:1.5;
+}
+.karte-costs .kc-metric-value {
+    margin:6px 0 4px;
+    color:#243b53;
+    font-size:18px;
+    font-weight:500;
+    line-height:1.5;
+    font-variant-numeric:tabular-nums;
+}
+.karte-costs .kc-metric-value small {
+    font-size:12px;
+    font-weight:500;
+}
+.karte-costs .kc-muted,
+.karte-costs .kc-comparison {
+    margin:4px 0 0;
+    color:#64748b;
+    font-size:11px;
+    line-height:1.5;
+}
+.karte-costs .kc-comparison strong {
+    margin-left:5px;
+    font-variant-numeric:tabular-nums;
+}
+.karte-costs .is-increase {
+    color:#b94a48;
+}
+.karte-costs .is-decrease {
+    color:#237454;
+}
+.karte-costs .kc-unset {
+    color:#8290a3;
+}
+.karte-costs .kc-breakdown-content {
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+.karte-costs #kc-category-chart {
+    flex:0 0 94px;
+    width:94px;
+    height:94px;
+}
+.karte-costs .kc-category-list {
+    display:grid;
+    flex:1;
+    gap:7px;
+    min-width:0;
+    margin:0;
+    padding:0;
+    list-style:none;
+}
+.karte-costs .kc-category-list li {
+    display:flex;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:3px 8px;
+    font-size:11px;
+}
+.karte-costs .kc-category-list li>span {
+    flex:1;
+    min-width:45px;
+    overflow-wrap:anywhere;
+}
+.karte-costs .kc-category-list strong,
+.karte-costs .kc-category-list small {
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+}
+.karte-costs .kc-category-list strong {
+    font-weight:500;
+}
+.karte-costs .kc-category-list small {
+    color:#64748b;
+    font-size:10px;
+}
+.karte-costs .kc-chart-grid {
+    display:grid;
+    grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+    gap:10px;
+    margin-bottom:10px;
+}
+.karte-costs .kc-chart-panel>canvas {
+    width:100%;
+    height:140px;
+}
+.karte-costs canvas[hidden] {
+    display:none;
+}
+.karte-costs .kc-chart-data {
+    margin-top:6px;
+    font-size:11px;
+}
+.karte-costs .kc-chart-data>summary {
+    width:fit-content;
+    color:#3265a5;
+    cursor:pointer;
+}
+.karte-costs .kc-chart-data[open]>.kc-table-scroll {
+    margin-top:8px;
+}
+.karte-costs .kc-yearly-values {
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:4px 10px;
+    margin-top:6px;
+    color:#64748b;
+    font-size:10px;
+}
+.karte-costs .kc-detail-grid {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.2fr);
+    align-items:start;
+    gap:10px;
+}
+.karte-costs .kc-table-scroll {
+    overflow-x:auto;
+}
+.karte-costs .kc-table {
+    width:100%;
+    margin:0;
+    border-collapse:collapse;
+    color:#253f65;
+    font-size:11px;
+}
+.karte-costs .kc-table th,
+.karte-costs .kc-table td {
+    padding:6px;
+    border-bottom:1px solid #e5edf8;
+    text-align:left;
+    vertical-align:top;
+    line-height:1.5;
+}
+.karte-costs .kc-table th {
+    background:#edf5ff;
+    color:#36557c;
+    font-size:10px;
+    font-weight:600;
+    white-space:nowrap;
+}
+.karte-costs .kc-table tbody tr:last-child td {
+    border-bottom:0;
+}
+.karte-costs .kc-table tbody tr:hover {
+    background:#f5f9ff;
+}
+.karte-costs .kc-table a {
+    color:#205daf;
+    text-decoration:none;
+    overflow-wrap:anywhere;
+}
+.karte-costs .kc-table a:hover {
+    text-decoration:underline;
+}
+.karte-costs .kc-table .kc-number {
+    text-align:right;
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+}
+.karte-costs .kc-table .kc-number small {
+    display:inline;
+    margin:0;
+    font-size:10px;
+    line-height:inherit;
+}
+.karte-costs .kc-date {
+    white-space:nowrap;
+}
+.karte-costs .kc-empty {
+    padding:18px 8px!important;
+    color:#6b7c90;
+    text-align:center!important;
+}
+.karte-costs .kc-data-note {
+    margin:0 0 10px;
+    padding:7px 10px;
+    border-left:3px solid #d8af62;
+    background:#fffaf0;
+    color:#795b27;
+    font-size:11px;
+    line-height:1.5;
+}
+.karte-costs .kc-footnote {
+    margin:8px 0 0;
+    color:#64748b;
+    font-size:10px;
+    line-height:1.5;
+}
+@media(max-width:1200px) {
+    .karte-costs .kc-summary-grid {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .karte-costs .kc-detail-grid {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .karte-costs .kc-detail-panel:last-child {
+        grid-column:1/-1;
+    }
+}
+@media(max-width:760px) {
+    .karte-costs .kc-chart-grid,
+    .karte-costs .kc-detail-grid {
+        grid-template-columns:1fr;
+    }
+    .karte-costs .kc-detail-panel:last-child {
+        grid-column:auto;
+    }
+}
+@media(max-width:480px) {
+    .karte-costs .kc-summary-grid {
+        grid-template-columns:1fr;
+    }
+}
+
+/* 車両カルテ：部品 */
+.karte-maintenance .kp-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(340px, 1fr);
+    align-items: start;
+    gap: 12px;
+}
+.karte-maintenance .kp-side {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+@media (min-width: 961px) {
+    .karte-maintenance .kp-workspace,
+    .karte-maintenance .km-workspace:has(> .km-list-panel) {
+        height: var(--karte-workspace-height, auto);
+        min-height: 0;
+    }
+
+    .karte-maintenance .kp-workspace > .kp-history,
+    .karte-maintenance .km-workspace > .km-list-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .karte-maintenance .kp-history > .kp-table-scroll,
+    .karte-maintenance .km-list-panel > .table-scroll {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .karte-maintenance .kp-history > .kp-footer,
+    .karte-maintenance .km-list-panel > .kp-footer {
+        margin-top: auto;
+    }
+
+    .karte-maintenance .kp-table,
+    .karte-maintenance .km-record-table {
+        box-shadow: none;
+    }
+
+    .karte-maintenance .kp-history > :not(.kp-table-scroll),
+    .karte-maintenance .km-list-panel > :not(.table-scroll) {
+        flex-shrink: 0;
+    }
+
+    .karte-maintenance .kp-workspace > .kp-side {
+        height: 100%;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .karte-maintenance .kp-side > .kp-current {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .karte-maintenance .kp-side .kp-current > .kp-current-list {
+        flex: 1;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+    }
+
+    .karte-maintenance .kp-side > .kp-ranking {
+        max-height: calc(var(--karte-workspace-height, 600px) * 0.45);
+        overflow-y: auto;
+    }
+
+    .karte-maintenance .km-workspace > .km-selection-panel {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .karte-maintenance .km-selection-panel > .km-detail-panel {
+        box-sizing: border-box;
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+.karte-maintenance .kp-heading,
+.karte-maintenance .kp-heading-title {
+    display:flex; align-items:center; gap:8px;
+}
+.karte-maintenance .kp-heading {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    height: auto;
+    min-height: 50px;
+    padding: 12px 14px;
+    gap: 8px;
+}
+.karte-maintenance .kp-heading h3 {
+    margin: 0;
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.karte-maintenance .kp-heading h3 small {
+    color:#53698a; font-size:11px; font-weight:500;
+}
+.karte-maintenance .kp-icon {
+    display:grid; place-items:center;
+    width:24px; height:24px;
+    border-radius:5px; background:#1765e8; color:#fff;
+}
+
+.karte-maintenance .kp-filters {
+    display:grid;
+    grid-template-columns:minmax(130px,1.4fr) minmax(100px,1fr) minmax(90px,1fr) auto;
+    align-items:center; gap:8px;
+    margin:0; padding:0 12px 10px;
+}
+.karte-parts input,
+.karte-parts select,
+.karte-maintenance .km-filters input,
+.karte-maintenance .km-filters select,
+.karte-maintenance .kp-search-button {
+    box-sizing:border-box; min-width:0; height:30px;
+    margin:0; padding:4px 8px;
+    border:1px solid #d3e2f5; border-radius:5px;
+    background:#fff; color:#304b73; font-size:11px;
+}
+.karte-maintenance .kp-filters input,
+.karte-maintenance .kp-filters select { width:100%; }
+.karte-maintenance .kp-search-button {
+    min-width:64px;
+    border-color:#1765e8;
+    background:#1765e8;
+    color:#fff;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+}
+.karte-maintenance .kp-search-button:hover {
+    border-color:#1253c1;
+    background:#1253c1;
+}
+.karte-maintenance .kp-results-bar {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    margin:0 12px 12px;
+}
+.karte-maintenance .kp-results-info {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px 12px;
+    min-width:0;
+    flex:1;
+}
+.karte-maintenance .kp-results-count {
+    color:#53698a;
+    font-size:12px;
+    white-space:nowrap;
+}
+.karte-maintenance .kp-results-count strong {
+    margin:0 3px;
+    color:#203b60;
+    font-size:15px;
+    font-weight:700;
+}
+.karte-maintenance .kp-filter-chips {
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    min-width:0;
+    max-width:100%;
+}
+.karte-maintenance .kp-filter-chip {
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    max-width:100%;
+    min-height:30px;
+    box-sizing:border-box;
+    padding:4px 9px;
+    border:1px solid #b9d3f5;
+    border-radius:6px;
+    background:#edf5ff;
+    color:#24548d;
+    font-size:12px;
+    text-decoration:none;
+}
+.karte-maintenance .kp-filter-chip>span:first-child {
+    min-width:0;
+    overflow-wrap:anywhere;
+}
+.karte-maintenance .kp-filter-chip>span:last-child {
+    flex-shrink:0;
+    font-size:18px;
+    line-height:1;
+}
+.karte-maintenance .kp-filter-chip:hover {
+    border-color:#699de1;
+    background:#deedff;
+}
+.karte-maintenance .kp-clear-button {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:34px;
+    box-sizing:border-box;
+    padding:6px 12px;
+    border:1px solid #9eb9dc;
+    border-radius:6px;
+    background:#f5f8fc;
+    color:#294e7b;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:none;
+    white-space:nowrap;
+}
+.karte-maintenance .kp-clear-button:hover {
+    border-color:#5689cd;
+    background:#e8f1fd;
+    color:#174d94;
+}
+.karte-maintenance .kp-search-button:focus-visible,
+.karte-maintenance .kp-filter-chip:focus-visible,
+.karte-maintenance .kp-clear-button:focus-visible {
+    outline:2px solid #1765e8;
+    outline-offset:2px;
+}
+.karte-maintenance .kp-scope-form { margin:0; padding:0; }
+.karte-maintenance .kp-scope-form select { max-width:160px; }
+.karte-maintenance .kp-pending {
+    margin:0 12px 8px;
+    border:1px solid #ecdcba; border-radius:5px;
+    background:#fffaf0; font-size:11px;
+}
+.karte-maintenance .kp-pending summary {
+    padding:6px 9px; color:#835b17; cursor:pointer;
+}
+.karte-maintenance .kp-pending strong { margin-left:6px; }
+.karte-maintenance .kp-pending ul { margin:0; padding:0 12px 8px 28px; }
+.karte-maintenance .kp-pending li { padding:4px 0; }
+.karte-maintenance .kp-pending li span {
+    display:block; color:#6b7c90; font-size:10px;
+}
+.karte-maintenance .kp-table-scroll {
+    margin:0 12px;
+    overflow-x:auto;
+    border:1px solid #dce8f8;
+    border-radius:4px;
+}
+.karte-maintenance .kp-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: collapse;
+    color: var(--karte-text);
+    font-size: 13px;
+}
+.karte-maintenance .kp-col-name { width: 29%; }
+.karte-maintenance .kp-col-category { width: 10%; }
+.karte-maintenance .kp-col-date { width: 14%; }
+.karte-maintenance .kp-col-mileage { width: 20%; }
+.karte-maintenance .kp-col-count { width: 7%; }
+.karte-maintenance .kp-col-cost { width: 12%; }
+.karte-maintenance .kp-col-status { width: 8%; }
+.karte-maintenance .kp-table th,
+.karte-maintenance .kp-table td {
+    box-sizing:border-box; height:32px; padding:3px 5px;
+    border-right:1px solid #e5edf8;
+    border-bottom:1px solid #e5edf8;
+    text-align:left; vertical-align:middle;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.karte-maintenance .kp-table th {
+    height:36px; background:#eaf4ff; color:#344e69;
+    font-size:11px; font-weight:500;
+    line-height:1.5; white-space:normal;
+}
+.karte-maintenance .kp-table tbody tr:nth-child(even) { background:#f8fbff; }
+.karte-maintenance .kp-table tbody tr:hover { background:#eaf3ff; }
+.karte-maintenance .kp-table tr:last-child td { border-bottom:0; }
+.karte-maintenance .kp-table th:last-child,
+.karte-maintenance .kp-table td:last-child { border-right:0; }
+.karte-maintenance .kp-table .kp-number {
+    text-align:right;
+    font-variant-numeric:tabular-nums;
+}
+.karte-maintenance .kp-mileage-value {
+    display:block;
+    color:#253f65;
+    line-height:1.25;
+}
+.karte-maintenance .kp-mileage-detail {
+    display:block;
+    margin-top:0;
+    color:#6b7c90;
+    font-size:11px;
+    font-weight:400;
+    line-height:1.5;
+}
+.karte-maintenance .kp-table td small {
+    display:inline;
+    margin:0;
+    color:inherit;
+    font-size:11px;
+    font-weight:400;
+    line-height:inherit;
+}
+.karte-maintenance .kp-part-link {
+    display:block;
+    padding:0;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    color:#205daf;
+    font-size:12px;
+    line-height:1.6;
+    text-decoration:none;
+    font-weight:500;
+}
+.karte-maintenance .kp-part-link:hover { text-decoration:underline; }
+.karte-maintenance .kp-status {
+    display:inline-block; max-width:100%; padding:2px 4px;
+    border-radius:4px; background:#edf1f7; color:#63738a;
+    font-size:10px; overflow:hidden; text-overflow:ellipsis;
+    vertical-align:middle;
+}
+.karte-maintenance .kp-status.is-complete { background:#d9f5e8; color:#237454; }
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    flex-shrink: 0;
+    gap: 8px 12px;
+    margin-top: auto;
+    padding: 8px 12px;
+    border-top: 1px solid #e4eaf1;
+    background: #ffffff;
+    color: #53698a;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer > span {
+    justify-self: start;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer > nav {
+    justify-self: center;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer > label {
+    justify-self: end;
+}
+
+@media (max-width: 600px) {
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer > nav {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+}
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-footer select {
+    box-sizing: border-box;
+    width: auto;
+    min-width: 64px;
+    height: 30px;
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid #d3e2f5;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #2863b9;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 0;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-pagination a {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border: 1px solid #d3e2f5;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #2863b9;
+    font-size: 12px;
+    line-height: 1;
+    text-decoration: none;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-pagination a:hover {
+    background: #eef4fc;
+}
+
+body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-pagination a[aria-current="page"] {
+    border-color: #1765e8;
+    background: #1765e8;
+    color: #ffffff;
+}
+.karte-maintenance .kp-current-list {
+    padding:0 12px 8px;
+}
+.karte-maintenance .kp-current-list.is-all {
+    max-height:420px;
+    overflow-y:auto;
+    scrollbar-gutter:stable;
+}
+.karte-maintenance .kp-current-row {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:start;
+    gap:2px 8px;
+    padding:5px 0;
+    border-bottom:1px solid #e5edf8;
+    color:#253f65;
+    text-decoration:none;
+}
+.karte-maintenance .kp-current-row:last-child {
+    border-bottom:0;
+}
+.karte-maintenance .kp-current-row:hover {
+    background:#f3f8ff;
+}
+.karte-maintenance .kp-current-row>strong {
+    grid-column:1/-1;
+    overflow-wrap:anywhere;
+    color:#24548d;
+    font-size:12px;
+    font-weight:600;
+    line-height:1.5;
+}
+.karte-maintenance .kp-current-meter {
+    display:grid;
+    gap:3px;
+    min-width:0;
+    font-variant-numeric:tabular-nums;
+}
+.karte-maintenance .kp-current-distance {
+    color:#405978;
+    font-size:11px;
+    line-height:1.5;
+}
+.karte-maintenance .kp-current-distance b {
+    color:#203b60;
+    font-size:13px;
+    font-weight:600;
+}
+.karte-maintenance .kp-current-meter small {
+    color:#6b7c90;
+    font-size:10px;
+    line-height:1.5;
+}
+.karte-maintenance .kp-interval-label {
+    align-self:end;
+    padding-bottom:1px;
+    color:#77869a;
+    font-size:10px;
+    white-space:nowrap;
+}
+.karte-maintenance .kp-ranking>summary {
+    list-style:none;
+    cursor:pointer;
+    border-radius:6px;
+}
+.karte-maintenance .kp-ranking>summary::-webkit-details-marker {
+    display:none;
+}
+.karte-maintenance .kp-ranking>summary:hover {
+    background:#f0f6ff;
+}
+.karte-maintenance .kp-ranking>summary:focus-visible {
+    outline:2px solid #1765e8;
+    outline-offset:2px;
+}
+.karte-maintenance .kp-ranking-caption {
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.karte-maintenance .kp-ranking-caption small {
+    color:#53698a;
+    font-size:10px;
+    font-weight:400;
+}
+.karte-maintenance .kp-ranking-toggle {
+    display:grid;
+    place-items:center;
+    width:24px;
+    height:24px;
+    border:1px solid #c8d9ee;
+    border-radius:5px;
+    background:#f4f8fd;
+    color:#315b91;
+}
+.karte-maintenance .kp-ranking-toggle::before {
+    content:"+";
+    font-size:18px;
+    line-height:1;
+}
+.karte-maintenance .kp-ranking[open] .kp-ranking-toggle::before {
+    content:"−";
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-list {
+    display:grid; gap:10px; margin:0;
+    padding:6px 12px 14px; list-style:none;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-list li {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(110px,1.2fr);
+    align-items:center; gap:10px; min-height:20px; font-size:11px;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-list a {
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    color:#253f65; text-decoration:none;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-list a:hover {
+    color:#1765e8; text-decoration:underline;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value { display:flex; align-items:center; gap:8px; }
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value>span {
+    min-width:25px; text-align:right;
+    font-variant-numeric:tabular-nums;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value meter {
+    display:block; flex:1; width:100%; min-width:0; height:16px;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value meter::-webkit-meter-bar {
+    height:14px; border:0; border-radius:2px; background:#edf3fa;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value meter::-webkit-meter-optimum-value {
+    border-radius:2px; background:#609afa;
+}
+:is(.karte-maintenance, .karte-parts) .kp-ranking-value meter::-moz-meter-bar {
+    border-radius:2px; background:#609afa;
+}
+.karte-maintenance .kp-empty {
+    padding:25px 12px!important;
+    color:#6b7c90; font-size:12px;
+    text-align:center!important; white-space:normal!important;
+}
+
+
+
+
+
+
+@media(max-width:1180px) {
+    .karte-maintenance .kp-workspace {
+        grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+    }
+}
+@media(max-width:960px) {
+    .karte-maintenance .kp-workspace { grid-template-columns:1fr; }
+    .karte-maintenance .kp-side { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:620px) {
+    .karte-maintenance .kp-side { grid-template-columns:1fr; }
+    .karte-maintenance .kp-filters { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+    .karte-maintenance .kp-filters input { grid-column:1/-1; }
+}
+
+/* 車両カルテ：整備・修理 */
+.karte-maintenance {
+    --km-border: #dce4ed;
+    --km-muted: #5c6b7c;
+    --km-blue: #235b8e;
+    margin-top: 0;
+    color: #24354a;
+    min-width: 0;
+}
+.karte-maintenance h3,
+.karte-maintenance h4,
+.karte-maintenance p,
+.karte-maintenance dl,
+.karte-maintenance dd {
+    margin: 0;
+}
+.karte-maintenance h3 { font-size: 16px; line-height: 1.5; }
+.karte-maintenance h4 { font-size: 14px; line-height: 1.6; }
+.karte-maintenance a:focus-visible,
+.karte-maintenance button:focus-visible,
+.karte-maintenance summary:focus-visible,
+.karte-maintenance input:focus-visible,
+.karte-maintenance select:focus-visible {
+    outline: 3px solid #468ec3;
+    outline-offset: 2px;
+}
+.karte-maintenance .km-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(340px, 1fr);
+    align-items: start;
+    gap: 12px;
+}
+.karte-maintenance .km-panel {
+    min-width: 0;
+    background: #fff;
+    border: 1px solid var(--km-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.karte-maintenance .km-selection-panel { min-width: 0; }
+.karte-maintenance .km-panel-heading,
+.karte-maintenance .km-heading-label,
+.karte-maintenance .km-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.karte-maintenance .km-panel-heading {
+    box-sizing: border-box;
+    height: auto;
+    min-height: 50px;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--km-border);
+}
+
+body.vehicle-list-ppt .main-content
+.karte-maintenance .km-panel-heading .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0 10px;
+    line-height: 1;
+}
+.karte-maintenance .km-heading-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    background: #1765e8;
+    color: #fff;
+}
+
+.karte-maintenance .km-count {
+    color: var(--km-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.karte-maintenance .km-import-result {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: #f0f8f4;
+    border: 1px solid #b9d9c9;
+    border-radius: 8px;
+}
+.karte-maintenance .km-import-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+.karte-maintenance .km-success-mark {
+    display: grid;
+    place-items: center;
+    flex: 0 0 23px;
+    height: 23px;
+    background: #287351;
+    color: #fff;
+    border-radius: 50%;
+}
+.karte-maintenance .km-import-message strong {
+    display: block;
+    font-size: 14px;
+    line-height: 1.6;
+}
+.karte-maintenance .km-import-message div > span {
+    color: var(--km-muted);
+    font-size: 12px;
+}
+.karte-maintenance .km-import-vehicles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 8px;
+}
+.karte-maintenance .km-vehicle-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    min-height: 34px;
+    border: 1px solid #bbcec4;
+    border-radius: 5px;
+    background: #fff;
+    color: #315545;
+    text-decoration: none;
+    font-size: 13px;
+}
+.karte-maintenance .km-vehicle-link[aria-current="page"] {
+    border-color: #287351;
+    background: #dfefe6;
+    box-shadow: inset 0 0 0 1px #287351;
+}
+.karte-maintenance .km-scope {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px 12px 0;
+}
+.karte-maintenance .km-scope a {
+    padding: 6px 9px;
+    border-radius: 5px;
+    border: 1px solid var(--km-border);
+    color: var(--km-muted);
+    text-decoration: none;
+    font-size: 12px;
+}
+.karte-maintenance .km-scope a[aria-current="page"] {
+    border-color: #8faec9;
+    background: #eaf3fc;
+    color: #204f77;
+    font-weight: 600;
+}
+.karte-maintenance .km-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+}
+.karte-maintenance .km-filters label:has(input[type="date"]) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+}
+.karte-maintenance .km-filters label:has(input[type="date"]) > span {
+    white-space: nowrap;
+    font-size: 10px;
+}
+.karte-maintenance .km-filters input[type="date"] {
+    padding-right: 3px;
+    padding-left: 3px;
+    font-size: 11px;
+}
+
+@media (max-width: 650px) {
+    .karte-maintenance .km-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+.karte-maintenance .km-filters label {
+    display: flex;
+    flex: 1 1 110px;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.karte-maintenance .km-filters label > span {
+    color: var(--km-muted);
+    font-size: 11px;
+}
+
+.karte-maintenance table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    border-radius: 0;
+    font-size: 12px;
+}
+.karte-maintenance .km-record-table {
+    width: 100%;
+    min-width: 620px;
+    table-layout: fixed;
+}
+.karte-maintenance .km-record-table th {
+    white-space: nowrap;
+}
+.karte-maintenance .km-record-table th:nth-child(1) {
+    width: 102px;
+}
+.karte-maintenance .km-record-table th:nth-child(2) {
+    width: 84px;
+}
+.karte-maintenance .km-record-table th:nth-child(4) {
+    width: 92px;
+}
+.karte-maintenance .km-record-table th:nth-child(5) {
+    width: 84px;
+}
+.karte-maintenance .km-record-table th:nth-child(6) {
+    width: 64px;
+}
+.karte-maintenance th {
+    padding: 8px;
+    background: #eef4fa;
+    border-bottom: 1px solid var(--km-border);
+    text-align: left;
+    color: #475c73;
+    font-size: 11px;
+    font-weight: 600;
+}
+.karte-maintenance td {
+    padding: 9px 8px;
+    border-bottom: 1px solid #e6ecf2;
+    vertical-align: top;
+    line-height: 1.6;
+}
+.karte-maintenance tbody tr:last-child td {
+    border-bottom: 0;
+}
+.karte-maintenance .km-list-panel > .table-scroll {
+    box-sizing: border-box;
+    width: auto;
+    max-width: none;
+    margin: 0 12px;
+    border: 1px solid #dce8f8;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+.karte-maintenance .km-record-table th {
+    padding: 7px 6px;
+    background: #eaf4ff;
+    color: #344e69;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+.karte-maintenance .km-record-table th:first-child {
+    padding-left: 26px;
+}
+.karte-maintenance .km-record-table td {
+    height: 46px;
+    box-sizing: border-box;
+    padding: 6px;
+    vertical-align: middle;
+    border-bottom: 1px solid #e1eafa;
+    color: #263d64;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.karte-maintenance .km-record-table tbody tr:nth-child(even) {
+    background: #f6f9ff;
+}
+.karte-maintenance .km-record-table tbody tr:hover {
+    background: #edf5ff;
+}
+.karte-maintenance .km-record-table tbody tr.km-selected-record {
+    background: #dfedff;
+}
+.karte-maintenance .km-record-table .km-record-date {
+    position: relative;
+    padding-left: 26px;
+    white-space: nowrap;
+    box-shadow: none;
+    font-variant-numeric: tabular-nums;
+}
+.karte-maintenance .km-record-date::before {
+    content: "";
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    box-sizing: border-box;
+    border: 3px solid #1670f8;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateY(-50%);
+}
+.karte-maintenance .km-selected-record .km-record-date::before {
+    background: #1670f8;
+    box-shadow: inset 0 0 0 1px #fff;
+}
+.karte-maintenance .km-new-record:not(.km-selected-record) .km-record-date::before {
+    border-color: #278565;
+}
+.karte-maintenance .km-record-date > span {
+    display: block;
+}
+.karte-maintenance td small {
+    display: block;
+    margin-top: 2px;
+    color: var(--km-muted);
+    font-size: 11px;
+}
+.karte-maintenance .km-record-table .km-record-date small {
+    margin-top: 1px;
+    font-size: 10px;
+}
+.karte-maintenance .km-record-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.karte-maintenance .km-record-content > a {
+    display: block;
+    min-width: 0;
+    padding: 2px 0;
+    color: #193c66;
+    font-weight: 400;
+    line-height: 1.45;
+    text-decoration: none;
+}
+.karte-maintenance .km-record-content > a > strong {
+    display: block;
+    overflow: hidden;
+    color: #142c54;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.karte-maintenance .km-record-content > a > small {
+    display: block;
+    overflow: hidden;
+    margin-top: 3px;
+    color: #607392;
+    font-size: 11px;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.karte-maintenance .km-record-content > a:hover > strong {
+    color: #0866ff;
+    text-decoration: underline;
+}
+.karte-maintenance .km-number {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.karte-maintenance .km-record-cost { font-weight: 600; }
+.karte-maintenance .km-unit {
+    margin-left: 2px;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--km-muted);
+}
+.karte-maintenance .km-new-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.karte-maintenance .km-category {
+    --category-color: #72849b;
+    --category-background: #edf2f7;
+    --category-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M6 2h8l4 4v16H6V2Zm8 0v5h4M9 12h6m-6 4h6'/%3E%3C/svg%3E");
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 2px 5px 2px 2px;
+    border-radius: 4px;
+    background: var(--category-background);
+    color: var(--category-color);
+    font-size: 10px;
+    line-height: 1.4;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.karte-maintenance .km-category::before {
+    content: "";
+    display: block;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--category-color);
+    background-image: var(--category-icon);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+}
+
+.karte-maintenance .km-category[data-category="修理"] {
+    --category-color: #1475ee;
+    --category-background: #e0eeff;
+    --category-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 4a6 6 0 0 1-8 8l-8 8a2 2 0 0 1-3-3l8-8a6 6 0 0 1 8-7l-4 4 4 4 3-6Z'/%3E%3C/svg%3E");
+}
+
+.karte-maintenance .km-category[data-category="整備"] {
+    --category-color: #8747d7;
+    --category-background: #efe5ff;
+    --category-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='m10 3-1 3-3 1-3 3 2 2-1 4 4 1 2 4 3-2 4 1 1-4 3-2-2-3 1-4-4-1-2-3-4 1Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+
+.karte-maintenance .km-category[data-category="定期点検"],
+.karte-maintenance .km-category[data-category="点検"],
+.karte-maintenance .km-category[data-category="車検"] {
+    --category-color: #1475ee;
+    --category-background: #e0eeff;
+    --category-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='18' rx='2'/%3E%3Cpath d='M9 2h6v5H9zm0 10 2 2 4-4m-6 8h6'/%3E%3C/svg%3E");
+}
+
+.karte-maintenance .km-category[data-category="車検"] {
+    --category-color: #8747d7;
+    --category-background: #efe5ff;
+}
+
+.karte-maintenance .km-category[data-category="故障"],
+.karte-maintenance .km-category[data-category="応急処置"] {
+    --category-color: #e54861;
+    --category-background: #ffe5eb;
+    --category-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 2 21h20L12 3Zm0 6v5m0 3h.01'/%3E%3C/svg%3E");
+}
+
+.karte-maintenance .km-category[data-category="応急処置"] {
+    --category-color: #d99a17;
+    --category-background: #fff1cd;
+}
+.karte-maintenance .km-new-badge {
+    background: #e1f2e8;
+    color: #22674b;
+}
+.karte-maintenance .km-record-content .km-new-badge { margin-top: 4px; }
+.karte-maintenance .km-list-footer,
+.karte-maintenance .km-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.karte-maintenance .km-list-footer {
+    padding: 10px 12px;
+    border-top: 1px solid var(--km-border);
+}
+.karte-maintenance .km-pagination { font-size: 12px; }
+.karte-maintenance .km-pagination a {
+    padding: 5px 8px;
+    border: 1px solid var(--km-border);
+    border-radius: 4px;
+    color: var(--km-blue);
+}
+.karte-maintenance .km-empty {
+    padding: 20px 12px;
+    color: var(--km-muted);
+    font-size: 13px;
+}
+.karte-maintenance .km-detail-heading {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 12px 14px;
+}
+.karte-maintenance .km-detail-heading > .km-category {
+    padding: 0;
+    background: transparent;
+}
+.karte-maintenance .km-detail-heading > .km-category::before {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+    background-size: 19px 19px;
+}
+.karte-maintenance .km-detail-heading > .km-detail-label {
+    min-width: 0;
+    align-items: center;
+}
+.karte-maintenance .km-detail-heading h4 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    color: var(--karte-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+}
+.karte-maintenance .km-detail-heading > .km-registration-info {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px 10px;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    grid-column: 2;
+}
+@media (max-width: 600px) {
+    .karte-maintenance .km-detail-heading {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+    .karte-maintenance .km-detail-heading > .km-registration-info {
+        grid-column: 2;
+        justify-content: flex-start;
+        max-width: none;
+    }
+}
+.karte-maintenance .km-detail-label {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.karte-maintenance .km-detail-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 12px 12px;
+    border-top: 1px solid #e1eafa;
+    border-left: 1px solid #e1eafa;
+}
+.karte-maintenance .km-detail-facts > div {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    min-width: 0;
+    border-right: 1px solid #e4eaf1;
+    border-bottom: 1px solid #e4eaf1;
+    font-size: 12px;
+    line-height: 1.55;
+}
+.karte-maintenance .km-detail-facts dt {
+    padding: 6px 7px;
+    border-right: 0;
+    background: #f5f8fc;
+    color: #63758a;
+    font-weight: 400;
+}
+.karte-maintenance .km-detail-facts dd {
+    min-width: 0;
+    padding: 6px 8px;
+    background: #fff;
+    color: #23364d;
+    overflow-wrap: break-word;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    font-weight: 400;
+}
+.karte-maintenance .km-fact-wide { grid-column: 1 / -1; }
+.karte-maintenance .km-detail-section,
+.karte-maintenance .km-disclosure {
+    border-top: 1px solid var(--km-border);
+}
+.karte-maintenance .km-section-heading {
+    padding: 9px 12px;
+}
+.karte-maintenance .km-detail-panel > .km-panel-heading .km-heading-icon {
+    flex-basis: 24px;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+}
+.karte-maintenance .km-detail-section > .km-section-heading .km-heading-icon {
+    flex-basis: 18px;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+}
+.karte-maintenance .km-detail-panel > .km-panel-heading h3 {
+    color: var(--karte-text);
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.karte-maintenance .km-detail-section > .km-section-heading h4 {
+    margin: 0;
+    color: var(--karte-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.55;
+}
+.karte-maintenance .km-line-description { overflow-wrap: anywhere; }
+.karte-maintenance .km-line-amount { width: 130px; }
+.karte-maintenance .km-money-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+.karte-maintenance .km-money-item + .km-money-item { margin-top: 3px; }
+.karte-maintenance .km-money-label {
+    color: var(--km-muted);
+    font-size: 10px;
+}
+.karte-maintenance .km-cost-breakdown { padding: 0 12px 12px; }
+.karte-maintenance .km-cost-breakdown > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 5px 0;
+    font-size: 12px;
+}
+.karte-maintenance .km-cost-breakdown dt { color: var(--km-muted); }
+.karte-maintenance .km-cost-breakdown dd {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.karte-maintenance .km-cost-breakdown .km-total-row {
+    margin-top: 5px;
+    padding-top: 9px;
+    border-top: 1px solid var(--km-border);
+}
+.karte-maintenance .km-total-row dt { color: #24354a; font-weight: 600; }
+.karte-maintenance .km-total-row dd {
+    color: #174c78;
+    font-size: 20px;
+    font-weight: 700;
+}
+.karte-maintenance .km-disclosure > summary {
+    padding: 10px 12px;
+    color: #344e69;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.karte-maintenance .km-detail-note {
+    padding: 0 12px 12px;
+    font-size: 12px;
+    line-height: 1.7;
+}
+.karte-maintenance .km-original {
+    display: inline-block;
+    max-width: calc(100% - 24px);
+    margin: 0 12px 12px;
+    vertical-align: top;
+}
+.karte-maintenance .km-original[open] {
+    display: block;
+    max-width: none;
+}
+.karte-maintenance .km-file-card {
+    display: inline-grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: start;
+    gap: 6px;
+    box-sizing: border-box;
+    width: 88px;
+    max-width: calc(100% - 24px);
+    margin: 0 0 10px 12px;
+    padding: 0;
+    color: #24354a;
+    text-decoration: none;
+    vertical-align: top;
+}
+.karte-maintenance .km-file-card > svg {
+    box-sizing: border-box;
+    width: 100%;
+    height: 60px;
+    padding: 10px;
+    border: 1px solid #d3e2f5;
+    border-radius: 4px;
+    background: #fff;
+    color: #e44355;
+}
+.karte-maintenance .km-file-card > span {
+    display: -webkit-box;
+    width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+    color: #263d64;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.karte-maintenance .km-file-card > small {
+    justify-self: start;
+    color: #235b8e;
+    font-size: 10px;
+}
+.karte-maintenance .km-file-card:hover > svg {
+    border-color: #8fb3dc;
+    background: #f5f9ff;
+}
+.karte-maintenance .km-original summary {
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #bdcad8;
+    border-radius: 4px;
+    background: #fff;
+    color: #235b8e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.karte-maintenance .km-original-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-top: 8px;
+}
+
+.karte-maintenance .invoice-pdf-viewer {
+    display: flex;
+    flex-direction: column;
+    height: 520px;
+    min-width: 0;
+    margin-top: 8px;
+    border: 1px solid var(--km-border);
+    border-radius: 5px;
+    overflow: hidden;
+    background: #edf0f4;
+}
+
+.karte-maintenance .invoice-pdf-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 7px;
+    border-bottom: 1px solid var(--km-border);
+    background: #f5f8fb;
+}
+
+.karte-maintenance .invoice-pdf-pages,
+.karte-maintenance .invoice-pdf-zoom {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #52677e;
+    font-size: 12px;
+}
+
+.karte-maintenance .invoice-pdf-toolbar button {
+    width: auto;
+    margin: 0;
+    padding: 5px 7px;
+    white-space: nowrap;
+}
+
+.karte-maintenance .invoice-pdf-toolbar input {
+    width: 46px;
+    min-height: 34px;
+    margin: 0;
+    padding: 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.karte-maintenance .invoice-pdf-toolbar output {
+    min-width: 38px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.karte-maintenance .invoice-pdf-scroll {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    cursor: grab;
+    user-select: none;
+}
+
+.karte-maintenance .invoice-pdf-scroll.is-panning,
+.karte-maintenance .invoice-pdf-scroll.is-panning * {
+    cursor: grabbing;
+}
+
+.karte-maintenance .invoice-pdf-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: max-content;
+    min-width: 100%;
+    padding: 12px;
+}
+
+.karte-maintenance .invoice-pdf-page {
+    position: relative;
+    flex: 0 0 auto;
+    background: #fff;
+    box-shadow: 0 1px 5px #23375026;
+}
+
+.karte-maintenance .invoice-pdf-page canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+.karte-maintenance .invoice-pdf-page-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    color: #607188;
+    font-size: 12px;
+}
+
+.karte-maintenance .invoice-pdf-status {
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    background: #f5f8fb;
+    color: #607188;
+    font-size: 11px;
+}
+
+.karte-maintenance .km-selection-panel {
+    scroll-margin-top: 16px;
+    outline: none;
+}
+.karte-maintenance .km-registration-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--km-border);
+    color: var(--km-muted);
+    font-size: 11px;
+}
+.karte-maintenance .km-muted { color: var(--km-muted); }
+.karte-maintenance .km-preserve-lines {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.karte-maintenance .km-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+@media (max-width: 1180px) {
+    .karte-maintenance .km-workspace {
+        grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+    }
+    .karte-maintenance .km-detail-facts {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 960px) {
+    .karte-maintenance .km-workspace { grid-template-columns: 1fr; }
+    .karte-maintenance .km-detail-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 480px) {
+    .karte-maintenance .km-detail-facts { grid-template-columns: 1fr; }
+}
+
+/* 車両カルテ：書類 */
+.vehicle-karte-documents .km-workspace {
+    grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr);
+}
+
+.vehicle-karte-documents .km-workspace.kd-preview-closed {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1001px) {
+    .vehicle-karte-documents .km-workspace {
+        height: var(--karte-workspace-height, auto);
+        min-height: 0;
+    }
+
+    .vehicle-karte-documents .vehicle-karte-documents-panel {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .vehicle-karte-documents .vehicle-karte-documents-panel > :not(.table-scroll) {
+        flex-shrink: 0;
+    }
+
+    .vehicle-karte-documents .vehicle-karte-documents-panel > .table-scroll {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .vehicle-karte-documents .vehicle-karte-documents-panel > .kp-footer {
+        margin-top: auto;
+    }
+
+    .vehicle-karte-documents .kd-preview {
+        box-sizing: border-box;
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
+.vehicle-karte-documents .kd-type-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 10px 10px 0;
+}
+
+.vehicle-karte-documents .kd-type-tabs a,
+.vehicle-karte-documents .kd-kind {
+    display: inline-block;
+    max-width: 100%;
+    padding: 4px 7px;
+    border-radius: 4px;
+    background: #edf1f7;
+    color: #526581;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vehicle-karte-documents [data-kind="invoice"] {
+    background: #fff0f0;
+    color: #c43838;
+}
+
+.vehicle-karte-documents [data-kind="maintenance"],
+.vehicle-karte-documents [data-kind="inspection_3"],
+.vehicle-karte-documents [data-kind="operation_csv"] {
+    background: #e6f5ee;
+    color: #23754b;
+}
+
+.vehicle-karte-documents [data-kind="inspection_12"] {
+    background: #eaf2ff;
+    color: #235fbd;
+}
+
+.vehicle-karte-documents [data-kind="vehicle_inspection"] {
+    background: #f0eaff;
+    color: #7645bd;
+}
+
+.vehicle-karte-documents [data-kind="photo"] {
+    background: #fff4d9;
+    color: #a36c12;
+}
+
+.vehicle-karte-documents .kd-type-tabs a[aria-current="page"] {
+    background: #075bea;
+    color: #fff;
+}
+
+.vehicle-karte-documents .kd-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 9px 10px;
+}
+
+.vehicle-karte-documents .kd-filters input,
+.vehicle-karte-documents .kd-filters select,
+.vehicle-karte-documents .kd-page-size select {
+    width: auto;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 5px 7px;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11px;
+}
+
+.vehicle-karte-documents .kd-filters input {
+    flex: 1 1 150px;
+}
+
+.vehicle-karte-documents .kd-filters select {
+    flex: 1 1 90px;
+    max-width: 150px;
+}
+
+.vehicle-karte-documents .kd-filters .btn {
+    white-space: nowrap;
+}
+
+.vehicle-karte-documents.kd-enhanced .kd-filters > button[type="submit"] {
+    display: none;
+}
+
+.vehicle-karte-documents .kd-document-table {
+    min-width: 720px;
+    table-layout: fixed;
+}
+
+.vehicle-karte-documents .kd-document-table th,
+.vehicle-karte-documents .kd-document-table td {
+    padding: 7px 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    vertical-align: middle;
+}
+
+.vehicle-karte-documents .kd-document-table th:nth-child(1) { width: 4%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(2) { width: 10%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(3) { width: 10%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(4) { width: 26%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(5) { width: 14%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(6) { width: 9%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(7) { width: 17%; }
+.vehicle-karte-documents .kd-document-table th:nth-child(8) { width: 10%; }
+
+.vehicle-karte-documents .kd-document-table td:nth-child(2),
+.vehicle-karte-documents .kd-document-table td:nth-child(7) {
+    white-space: nowrap;
+}
+
+.vehicle-karte-documents .kd-document-table td:nth-child(5) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vehicle-karte-documents .kd-document-table td:last-child,
+.vehicle-karte-documents .kd-document-table th:last-child {
+    text-align: center;
+}
+
+.vehicle-karte-documents .kd-document-table input[type="checkbox"] {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin: 0 auto;
+    padding: 0;
+    cursor: pointer;
+}
+
+.vehicle-karte-documents .kd-document-table tbody tr:hover {
+    background: #f2f7fe;
+}
+
+.vehicle-karte-documents .kd-checked {
+    background: #f1f6fc;
+}
+
+.vehicle-karte-documents .kd-document-table .kd-selected {
+    background: #e5efff;
+}
+
+.vehicle-karte-documents .kd-filename {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: #075bea;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-karte-documents .kd-filename:hover {
+    text-decoration: underline;
+}
+
+.vehicle-karte-documents .kd-file-icon {
+    flex: 0 0 auto;
+    color: #075bea;
+}
+
+.vehicle-karte-documents .kd-file-icon[data-extension="pdf"] {
+    color: #d23d45;
+}
+
+.vehicle-karte-documents .kd-file-icon[data-extension="csv"] {
+    color: #23754b;
+}
+
+.vehicle-karte-documents .kd-filename .kd-file-icon {
+    width: 16px;
+    height: 20px;
+}
+
+.vehicle-karte-documents .kd-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    min-height: 34px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.vehicle-karte-documents .kd-download:hover {
+    background: #eaf2ff;
+}
+
+.vehicle-karte-documents .kd-page-size {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #526581;
+    font-size: 11px;
+}
+
+.vehicle-karte-documents .kd-preview > .km-panel-heading {
+    flex-wrap: nowrap;
+}
+
+.vehicle-karte-documents .kd-preview .km-heading-label {
+    min-width: 0;
+}
+
+.vehicle-karte-documents .kd-preview h3 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--karte-title-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.vehicle-karte-documents .kd-preview-close {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    color: #526581;
+    text-decoration: none;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.vehicle-karte-documents .kd-preview .invoice-pdf-viewer {
+    height: 360px;
+    margin: 10px;
+}
+
+.vehicle-karte-documents .kd-preview .km-detail-facts {
+    margin-top: 10px;
+}
+
+.vehicle-karte-documents .kd-image-preview {
+    max-height: 420px;
+    margin: 10px;
+    overflow: auto;
+    background: #edf1f5;
+}
+
+.vehicle-karte-documents .kd-image-preview img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.vehicle-karte-documents .kd-file-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 30px 14px;
+    text-align: center;
+}
+
+.vehicle-karte-documents .kd-file-preview > .kd-file-icon {
+    width: 48px;
+    height: 56px;
+}
+
+.vehicle-karte-documents .kd-file-preview p {
+    overflow-wrap: anywhere;
+    font-size: 13px;
+}
+
+@media (max-width: 1000px) {
+    .vehicle-karte-documents .km-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 車両カルテ：概要の直近整備履歴 */
+.vehicle-karte-recent-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.vehicle-karte-recent-table th,
+.vehicle-karte-recent-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e3eaf2;
+    text-align: left;
+    vertical-align: top;
+    line-height: 1.6;
+}
+
+.vehicle-karte-recent-table th {
+    background: #edf4fc;
+    color: #405976;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.vehicle-karte-recent-table th:first-child,
+.vehicle-karte-recent-table td:first-child {
+    width: 84px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.vehicle-karte-recent-table th:last-child,
+.vehicle-karte-recent-table td:last-child {
+    width: 92px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.vehicle-karte-recent-table td:nth-child(2),
+.vehicle-karte-recent-table td:nth-child(2) a {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-karte-recent-table td a {
+    color: #235b8e;
+    text-decoration: none;
+}
+
+.vehicle-karte-recent-table td a:hover,
+.vehicle-karte-recent-table td a:focus-visible {
+    text-decoration: underline;
+}
+
+.vehicle-karte-recent-table tbody tr:hover {
+    background: #f5f9fe;
+}
+
+/* 車両カルテ：整備費の内訳 */
+.vehicle-karte-cost-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.vehicle-karte-cost-ring {
+    display: block;
+    width: 140px;
+    height: 140px;
+    flex: 0 0 140px;
+}
+
+.vehicle-karte-cost-legend {
+    flex: 1 1 130px;
+    min-width: 0;
+    margin: 0;
+    font-size: 12px;
+}
+
+.vehicle-karte-cost-legend > div {
+    padding: 7px 0;
+    border-bottom: 1px solid #e3eaf2;
+}
+
+.vehicle-karte-cost-legend dt {
+    color: #405976;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-karte-cost-legend dd {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 8px;
+    margin: 3px 0 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.vehicle-karte-cost-legend dd span {
+    color: #64748b;
+}
+
+.vehicle-karte-cost-legend strong {
+    color: #101b3f;
+    font-weight: 600;
+}
+
 /* 車両カルテ：共通ヘッダーとタブ */
 .vehicle-karte-toolbar {
     display: flex;
@@ -18698,13 +21456,14 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 .vehicle-karte-header {
     display: grid;
-    grid-template-columns:
-        minmax(130px, 0.18fr)
-        minmax(0, 0.35fr)
-        minmax(0, 0.47fr);
+    grid-template-columns: 112px minmax(280px, 1fr) minmax(340px, 1.25fr);
     align-items: start;
-    gap: 10px;
+    gap: 16px;
     margin-bottom: 12px;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid var(--karte-border, #dce4ed);
+    border-radius: 6px;
 }
 
 .vehicle-karte-header > div {
@@ -18719,14 +21478,14 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     gap: 12px;
     width: 100%;
     min-height: 0;
-    aspect-ratio: 6 / 5;
+    aspect-ratio: 1 / 1;
     box-sizing: border-box;
-    padding: 12px;
-    border: 1px solid #dce7f5;
-    border-radius: 6px;
-    background: #edf3fa;
-    color: #7186a5;
-    font-size: 12px;
+    padding: 10px;
+    border: 1px solid #e7edf3;
+    border-radius: 5px;
+    background: #f4f7fb;
+    color: #63758a;
+    font-size: 13px;
     text-align: center;
 }
 
@@ -18748,9 +21507,10 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 .vehicle-karte-number-row h2 {
     margin: 0;
-    color: #101b3f;
-    font-size: 28px;
-    line-height: 1.3;
+    color: var(--karte-text, #23364d);
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.35;
     overflow-wrap: anywhere;
 }
 
@@ -18763,8 +21523,8 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 }
 
 .vehicle-karte-model {
-    margin: 0 0 10px;
-    color: #334e76;
+    margin: 0 0 8px;
+    color: #63758a;
     font-size: 12px;
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -18779,15 +21539,15 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 .vehicle-karte-basic-grid > div {
     display: grid;
-    grid-template-columns: minmax(70px, 0.85fr) minmax(0, 1.15fr);
+    grid-template-columns: 80px minmax(0, 1fr);
     min-width: 0;
-    border-right: 1px solid #e2eafb;
-    border-bottom: 1px solid #e2eafb;
-    border-left: 1px solid #e2eafb;
+    border-right: 0;
+    border-bottom: 1px solid #e7edf3;
+    border-left: 0;
 }
 
 .vehicle-karte-basic-grid > div:nth-child(-n + 2) {
-    border-top: 1px solid #e2eafb;
+    border-top: 0;
 }
 
 .vehicle-karte-basic-grid dt,
@@ -18795,24 +21555,24 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     display: flex;
     align-items: center;
     min-width: 0;
-    min-height: 32px;
+    min-height: 27px;
     box-sizing: border-box;
     margin: 0;
-    padding: 6px 8px;
-    font-size: 11px;
+    padding: 4px 6px;
+    font-size: 12px;
     line-height: 1.5;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .vehicle-karte-basic-grid dt {
-    background: #edf4ff;
-    color: #334e76;
-    font-weight: 500;
+    background: transparent;
+    color: #63758a;
+    font-weight: 400;
 }
 
 .vehicle-karte-basic-grid dd {
     background: #ffffff;
-    color: #172b4d;
+    color: #23364d;
 }
 
 .vehicle-karte-summary {
@@ -18831,26 +21591,28 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 8px;
+    gap: 4px;
     min-width: 0;
-    padding: 10px;
-    border: 1px solid #dce7f5;
-    border-radius: 6px;
-    background: #ffffff;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: #f5f8fc;
 }
 
 .vehicle-karte-metric > span,
 .vehicle-karte-deadline > span {
-    color: #172b4d;
+    color: #63758a;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1.5;
 }
 
 .vehicle-karte-metric > strong {
-    color: #101b3f;
-    font-size: 19px;
-    line-height: 1.4;
+    color: #23364d;
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
 }
 
 .ui-empty-value,
@@ -18873,10 +21635,12 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 }
 
 .vehicle-karte-deadline > strong {
-    color: #172b4d;
+    color: #23364d;
     font-size: 12px;
     line-height: 1.5;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
 .vehicle-karte-defect-count > span,
@@ -18890,44 +21654,47 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     gap: 0;
     margin: 0;
     padding: 0;
-    border-bottom: 1px solid #dce7f5;
+    border-bottom: 1px solid #dce4ed;
+    background: transparent;
 }
 
 .vehicle-karte-tabs .vehicle-karte-tab {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
     min-width: 0;
-    min-height: 38px;
+    min-height: 40px;
     margin: 0;
-    padding: 8px 4px;
-    border: 1px solid #dce7f5;
+    padding: 8px 6px;
+    border: 1px solid #dce4ed;
     border-bottom: 0;
     border-radius: 5px 5px 0 0;
     background: #ffffff;
-    color: #334e76;
-    font-size: 12px;
-    font-weight: 600;
+    color: #405872;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.5;
     text-align: center;
     text-decoration: none;
 }
 
 .vehicle-karte-tabs a.vehicle-karte-tab:hover {
-    background: #eff6ff;
-    color: #245dc9;
+    background: #f0f4f9;
+    color: #285f9e;
 }
 
 .vehicle-karte-tabs .vehicle-karte-tab[aria-current="page"] {
-    border-color: #93b4f6;
+    border-color: #9ab8df;
     background: #eaf3ff;
-    color: #075bea;
-    box-shadow: inset 0 -3px 0 #2563eb;
+    color: #205b9f;
+    box-shadow: inset 0 -3px 0 #3274c5;
+    font-weight: 600;
 }
 
 .vehicle-karte-tabs .vehicle-karte-tab.is-disabled {
-    background: #f8fafc;
-    color: #7186a5;
+    background: transparent;
+    color: #718096;
     cursor: default;
 }
 
@@ -18939,7 +21706,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 @media (max-width: 1100px) {
     .vehicle-karte-header {
-        grid-template-columns: 130px minmax(0, 1fr);
+        grid-template-columns: 112px minmax(0, 1fr);
     }
 
     .vehicle-karte-summary {
@@ -19029,7 +21796,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     body.vehicle-list-ppt .main-content {
         min-width: 0;
         margin: 0;
-        padding: 0 20px 20px;
+        padding: 0 20px var(--karte-bottom-gap, 20px);
         border-radius: 0;
         background: #f4f8fd;
         box-shadow: none;

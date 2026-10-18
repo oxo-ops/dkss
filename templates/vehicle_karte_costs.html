@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}車両カルテ・費用{% endblock %}
+
+{% block content %}
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
+
+{% set details = cost_details %}
+{% set year = details.selected_year %}
+{% set annual = details.selected_summary %}
+{% set cumulative = details.all_time_summary %}
+
+{% macro money(value) -%}
+    {% if value is not none %}
+        {{ format_cost_number(value) }}<small> 円</small>
+    {% else %}
+        <span class="kc-unset">—</span>
+    {% endif %}
+{%- endmacro %}
+
+{% macro history_table(records, mileage=false) -%}
+<div class="kc-table-scroll">
+    <table class="kc-table">
+        <thead>
+            <tr>
+                <th scope="col">入庫日</th>
+                <th scope="col">内容</th>
+                <th scope="col" class="kc-number">費用</th>
+                {% if mileage %}
+                <th scope="col" class="kc-number">走行距離</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr>
+                <td class="kc-date">
+                    {{ (record.entry_date or record.completion_date or '—')|replace('-', '/') }}
+                </td>
+                <td>
+                    <a href="{{ url_for(
+                        'vehicle_karte_maintenance',
+                        vehicle_record_id=vehicle.id,
+                        record_id=record.id
+                    ) }}">
+                        {{ record.content or '内容未登録' }}
+                    </a>
+                </td>
+                <td class="kc-number">{{ money(record.total_cost) }}</td>
+                {% if mileage %}
+                <td class="kc-number">
+                    {{ format_cost_number(record.mileage) }}
+                    {% if record.mileage is not none %}<small> km</small>{% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="{{ 4 if mileage else 3 }}" class="kc-empty">
+                    対象年の記録はありません。
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{%- endmacro %}
+
+<div class="karte-maintenance karte-costs">
+    <header class="kc-toolbar">
+        <div class="kc-title">
+            <h2 data-karte-icon="money">整備費用</h2>
+            <span>登録済みの整備・修理費用</span>
+        </div>
+
+        <form method="get"
+              action="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}"
+              class="kc-year-form">
+            {% if year > 1900 %}
+            <a class="kc-year-button"
+               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year-1) }}"
+               aria-label="前年を表示">‹</a>
+            {% endif %}
+
+            <label for="kc-year" class="kc-year-label">集計年</label>
+            <select id="kc-year" name="year">
+                {% for value in details.available_years %}
+                <option value="{{ value }}"
+                        {% if value == year %}selected{% endif %}>
+                    {{ value }}年
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="kc-year-button">表示</button>
+
+            {% if year < cost_current_year + 1 %}
+            <a class="kc-year-button"
+               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year+1) }}"
+               aria-label="翌年を表示">›</a>
+            {% endif %}
+        </form>
+    </header>
+
+    {% if details.undated_record_count or details.missing_amount_count %}
+    <p class="kc-data-note">
+        {% if details.undated_record_count %}
+        日付不明 {{ details.undated_record_count }}件は年・月別集計から除外。
+        {% endif %}
+        {% if details.missing_amount_count %}
+        対象年の金額未入力 {{ details.missing_amount_count }}件は金額集計から除外。
+        {% endif %}
+    </p>
+    {% endif %}
+
+    <div class="kc-summary-grid">
+        <section class="km-panel kc-metric">
+            <h3 data-karte-icon="money">累計整備費 <small>全期間</small></h3>
+            <p class="kc-metric-value">{{ money(cumulative.total_cost) }}</p>
+        </section>
+
+        <section class="km-panel kc-metric">
+            <h3 data-karte-icon="money">{{ year }}年 年間整備費</h3>
+            <p class="kc-metric-value">{{ money(annual.total_cost) }}</p>
+            <p class="kc-comparison">
+                前年通年比
+                {% if details.change_percentage is not none %}
+                <strong class="{{ 'is-increase' if details.change_percentage > 0 else 'is-decrease' if details.change_percentage < 0 else '' }}">
+                    {{ '+' if details.change_percentage > 0 else '' }}{{ "%.1f"|format(details.change_percentage) }}%
+                </strong>
+                {% else %}
+                <span>—</span>
+                {% endif %}
+            </p>
+            <p class="kc-muted">
+                {{ year - 1 }}年：{{ money(details.previous_total) }}
+            </p>
+        </section>
+
+        <section class="km-panel kc-breakdown-summary">
+            <h3>費用内訳 <small>全期間</small></h3>
+            <div class="kc-breakdown-content">
+                <canvas id="kc-category-chart" width="140" height="140"
+                        aria-label="全期間の整備区分別費用内訳" hidden></canvas>
+                <ul class="kc-category-list">
+                    {% for item in cumulative.category_costs %}
+                    <li>
+                        <span>{{ item.label }}</span>
+                        <strong>{{ money(item.amount) }}</strong>
+                        {% if item.percentage is not none %}
+                        <small>{{ "%.1f"|format(item.percentage) }}%</small>
+                        {% endif %}
+                    </li>
+                    {% else %}
+                    <li class="kc-muted">費用の記録はありません。</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+
+        <section class="km-panel kc-metric">
+            <h3 data-karte-icon="money">月平均 <small>直近12か月</small></h3>
+            <p class="kc-metric-value">
+                {% if details.rolling_average is not none %}
+                {{ money(details.rolling_average|round(0)) }}
+                {% else %}
+                {{ money(none) }}
+                {% endif %}
+            </p>
+            <p class="kc-muted">
+                {{ details.average_start[:7]|replace('-', '/') }}
+                ～{{ details.average_last_month }}
+            </p>
+            <p class="kc-muted">期間内の登録済み費用合計 ÷ 12</p>
+            {% if details.rolling_missing_amount_count %}
+            <p class="kc-muted">
+                金額未入力 {{ details.rolling_missing_amount_count }}件を除外
+            </p>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="kc-chart-grid">
+        <section class="km-panel kc-chart-panel">
+            <h3>月別整備費の推移 <small>{{ year }}年</small></h3>
+            <canvas id="kc-monthly-chart"
+                    aria-label="{{ year }}年の月別整備費" hidden></canvas>
+            <details class="kc-chart-data">
+                <summary>月別の金額を確認</summary>
+                <div class="kc-table-scroll">
+                    <table class="kc-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">月</th>
+                                <th scope="col" class="kc-number">費用</th>
+                                <th scope="col" class="kc-number">記録件数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in details.monthly_costs %}
+                            <tr>
+                                <td>{{ item.month }}月</td>
+                                <td class="kc-number">{{ money(item.amount) }}</td>
+                                <td class="kc-number">{{ item.record_count }}件</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </section>
+
+        <section class="km-panel kc-chart-panel">
+            <h3>年別整備費の比較</h3>
+            <canvas id="kc-yearly-chart"
+                    aria-label="直近3年の整備費比較" hidden></canvas>
+            <div class="kc-yearly-values">
+                {% for item in details.yearly_costs %}
+                <span>{{ item.year }}年：{{ money(item.amount) }}</span>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <div class="kc-detail-grid">
+        <section class="km-panel kc-detail-panel">
+            <h3>費用内訳 <small>{{ year }}年</small></h3>
+            <div class="kc-table-scroll">
+                <table class="kc-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">整備区分</th>
+                            <th scope="col" class="kc-number">金額</th>
+                            <th scope="col" class="kc-number">構成比</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in annual.category_costs %}
+                        <tr>
+                            <td>{{ item.label }}</td>
+                            <td class="kc-number">{{ money(item.amount) }}</td>
+                            <td class="kc-number">
+                                {% if item.percentage is not none %}
+                                {{ "%.1f"|format(item.percentage) }}%
+                                {% else %}—{% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="kc-empty">
+                                対象年の費用はありません。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="km-panel kc-detail-panel">
+            <h3 data-karte-icon="tool">高額整備履歴 <small>{{ year }}年・上位5件</small></h3>
+            {{ history_table(details.high_cost_records, mileage=true) }}
+        </section>
+
+        <section class="km-panel kc-detail-panel">
+            <h3 data-karte-icon="history">最近の費用発生 <small>{{ year }}年</small></h3>
+            {{ history_table(details.recent_records) }}
+        </section>
+    </div>
+
+    <p class="kc-footnote">
+        入庫日を優先し、未入力の場合は出庫日で集計。
+        内訳は整備区分別の請求総額です。金額未入力を0円として扱いません。
+    </p>
+</div>
+
+<script src="{{ url_for('static', filename='js/vehicle_karte_costs.js', v='20261017-2') }}" defer></script>
+<script id="kc-chart-data" type="application/json">
+{{ {
+    "monthly": details.monthly_costs,
+    "yearly": details.yearly_costs,
+    "categories": cumulative.category_costs,
+    "showRing": cumulative.show_cost_ring
+}|tojson }}
+</script>
+{% endblock %}

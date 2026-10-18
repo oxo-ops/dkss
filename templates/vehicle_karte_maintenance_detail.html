@@ -1,0 +1,382 @@
+{% set record = maintenance_record %}
+
+{% macro fact(label, value, wide=false) -%}
+<div{% if wide %} class="km-fact-wide"{% endif %}>
+    <dt>{{ label }}</dt>
+    <dd class="km-preserve-lines">{{ value }}</dd>
+</div>
+{%- endmacro %}
+
+<section class="km-panel km-detail-panel" aria-labelledby="km-detail-title">
+    <header class="km-panel-heading">
+        <div class="km-heading-label">
+            <span class="km-heading-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9 12 3l9 6M5 8v13h14V8M9 21v-8h6v8M9 16h6M9 19h6"/>
+                </svg>
+            </span>
+            <h3 id="km-detail-title">整備・修理詳細</h3>
+        </div>
+        <div class="km-heading-label">
+            {% if record.id in imported_record_ids %}
+            <span class="km-new-badge">今回追加</span>
+            {% endif %}
+            {% if session.get('role') in ['admin', 'itc'] %}
+            <a
+                class="btn btn-outline"
+                href="{{ url_for('vehicle_karte_maintenance_form', vehicle_record_id=vehicle.id, record_id=record.id) }}"
+            >編集</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="km-detail-heading">
+        <span
+            class="km-category"
+            data-category="{{ record.category or '' }}"
+            aria-hidden="true"
+        ></span>
+
+        <div class="km-detail-label">
+            {% set detail_text = (record.content or record.repair_content or record.symptom or '整備記録')|trim %}
+            {% set detail_title = detail_text.split('、', 1)[0]|trim %}
+            <h4>{{ detail_title }}</h4>
+            {% if record.status %}
+            <span class="vehicle-history-status" data-status="{{ record.status }}">
+                {{ record.status }}
+            </span>
+            {% endif %}
+        </div>
+
+        {% if record.created_at or record.created_by_username %}
+        <div class="km-registration-info">
+            {% if record.created_at %}
+            <span>登録日<br>{{ record.created_at[:16]|replace('T', ' ')|replace('-', '/') }}</span>
+            {% endif %}
+            {% if record.created_by_username %}
+            <span>登録者<br>{{ record.created_by_username }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <dl class="km-detail-facts">
+        {{ fact('入庫日', (record.entry_date or '—')|replace('-', '/')) }}
+        {{ fact('完了日', (record.completion_date or '—')|replace('-', '/')) }}
+        {{ fact('走行距離', maintenance_number(record.mileage) ~ (' km' if record.mileage is not none else '')) }}
+        {{ fact('分類', record.category or '未分類') }}
+
+        {% for label, value in [
+            ('症状', record.symptom),
+            ('原因', record.cause),
+            ('応急処置', record.temporary_action),
+            (
+                '修理内容' if record.repair_content else '整備内容',
+                record.repair_content or (
+                    record.content
+                    if record.content and record.content|trim != detail_title
+                    else none
+                )
+            )
+        ] %}
+            {% if value %}
+                {{ fact(label, value, true) }}
+            {% endif %}
+        {% endfor %}
+
+        {% set parts = namespace(items=[]) %}
+        {% for line in maintenance_lines or [] %}
+            {% if line.get('replacement_action') == 'replace' %}
+                {% set parts.items = parts.items + [line] %}
+            {% endif %}
+        {% endfor %}
+
+        {% if parts.items %}
+        <div class="km-fact-wide">
+            <dt>使用部品</dt>
+            <dd>
+                {% for line in parts.items[:3] %}
+                    {{ line.get('replacement_part_name') or line.get('description') or '部品名未登録' }}
+                    {% if line.get('quantity') is not none and line.get('quantity') != '' %}
+                        × {{ maintenance_number(line.get('quantity')) }}
+                    {% endif %}
+                    {% if not loop.last %}、{% endif %}
+                {% endfor %}
+                {% if parts.items|length > 3 %}
+                    ほか{{ parts.items|length - 3 }}件
+                {% endif %}
+            </dd>
+        </div>
+        {% endif %}
+
+        {% for label, value in [
+            ('整備会社', record.maintenance_company),
+            ('整備担当', record.maintenance_person)
+        ] %}
+            {% if value %}
+                {{ fact(label, value, true) }}
+            {% endif %}
+        {% endfor %}
+
+        {% if record.repair_hours is not none %}
+            {{ fact('作業時間', maintenance_number(record.repair_hours) ~ '時間') }}
+        {% endif %}
+        {{ fact('費用', maintenance_number(record.total_cost) ~ (' 円' if record.total_cost is not none else ''), record.repair_hours is none) }}
+    </dl>
+
+    {% if source_url %}
+    {% set source_meta = invoice_details.get('source') %}
+    {% set source_filename = (source_meta.get('filename') or 'original.pdf') if source_meta is mapping else 'original.pdf' %}
+    {% set is_image = source_filename.lower().endswith(('.png', '.jpg', '.jpeg')) %}
+
+    <section class="km-detail-section">
+        <div class="km-section-heading">
+            <span class="km-heading-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 2h8l4 4v16H6V2Zm8 0v5h4M9 12h6M9 16h6"/>
+                </svg>
+            </span>
+            <h4>関連資料</h4>
+        </div>
+
+        <a
+            class="km-file-card"
+            href="{{ source_url }}"
+            download="{{ source_filename }}"
+            title="{{ source_filename }}"
+            aria-label="原本をダウンロード：{{ source_filename }}"
+        >
+            <svg width="28" height="34" viewBox="0 0 28 34" fill="none" aria-hidden="true">
+                <path d="M5 1h12l7 7v25H5V1Z" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M17 1v8h7" stroke="currentColor" stroke-width="1.5"/>
+                <text x="14" y="23" text-anchor="middle" fill="currentColor" font-size="8" font-family="sans-serif">{{ '画像' if is_image else 'PDF' }}</text>
+            </svg>
+            <span>{{ source_filename }}</span>
+            <small>ダウンロード</small>
+        </a>
+
+        <details class="km-original">
+            <summary>原本プレビュー</summary>
+
+            {% if is_image %}
+            <img
+                class="km-original-image"
+                src="{{ source_url }}"
+                alt="整備記録の原本"
+                loading="lazy"
+            >
+            {% else %}
+            <section
+                class="invoice-pdf-viewer"
+                data-source-base="{{ source_url }}"
+                data-filename="{{ source_filename }}"
+                data-requested-page="{{ source_page }}"
+                data-requested-record-key="maintenance_{{ record.id }}"
+                aria-label="原本プレビュー"
+            >
+                <div class="invoice-pdf-toolbar">
+                    <div class="invoice-pdf-pages">
+                        <button type="button" data-pdf-prev aria-label="前のページ">前</button>
+                        <input type="number" min="1" value="{{ source_page }}" data-pdf-page aria-label="原本のページ番号">
+                        <span>/ <span data-pdf-count>—</span>頁</span>
+                        <button type="button" data-pdf-next aria-label="次のページ">次</button>
+                    </div>
+                    <div class="invoice-pdf-zoom">
+                        <button type="button" data-pdf-minus aria-label="縮小">−</button>
+                        <output data-pdf-zoom>—</output>
+                        <button type="button" data-pdf-plus aria-label="拡大">＋</button>
+                        <button type="button" data-pdf-fit>幅に合わせる</button>
+                    </div>
+                </div>
+                <div
+                    class="invoice-pdf-scroll"
+                    data-pdf-scroll
+                    tabindex="0"
+                    aria-label="原本。ドラッグで移動、Ctrlとホイールで拡大縮小"
+                >
+                    <div class="invoice-pdf-stage" data-pdf-stage></div>
+                </div>
+                <p class="invoice-pdf-status" data-pdf-status role="status">原本を読み込み中…</p>
+            </section>
+            {% endif %}
+        </details>
+    </section>
+    {% endif %}
+
+    {% set has_invoice_information =
+        record.invoice_number or record.invoice_date
+        or invoice_details.get('sales_date')
+        or invoice_details.get('issuer_name')
+        or invoice_details.get('customer_name')
+        or record.parts_cost is not none
+        or record.labor_cost is not none
+        or record.other_cost is not none
+        or record.tax_amount is not none
+        or invoice_details.get('fees')
+        or record.notes
+        or maintenance_lines
+    %}
+    {% if has_invoice_information %}
+    <details class="km-disclosure">
+        <summary>請求書情報・費用内訳・明細</summary>
+
+    {% if record.invoice_number or record.invoice_date
+        or invoice_details.get('sales_date')
+        or invoice_details.get('issuer_name')
+        or invoice_details.get('customer_name') %}
+    <section class="km-detail-section">
+        <div class="km-section-heading"><h4>請求書情報</h4></div>
+        <dl class="km-detail-facts">
+            {% for label, value in [
+                ('請求書番号', record.invoice_number),
+                ('請求日', record.invoice_date),
+                ('売上日', invoice_details.get('sales_date')),
+                ('発行元', invoice_details.get('issuer_name')),
+                ('宛先', invoice_details.get('customer_name'))
+            ] %}
+                {% if value is not none and value != '' %}
+                    {{ fact(label, value, true) }}
+                {% endif %}
+            {% endfor %}
+        </dl>
+    </section>
+    {% endif %}
+
+    {% if record.parts_cost is not none
+        or record.labor_cost is not none
+        or record.other_cost is not none
+        or record.tax_amount is not none
+        or invoice_details.get('fees') %}
+    <section class="km-detail-section">
+        <div class="km-section-heading"><h4>費用内訳</h4></div>
+        <dl class="km-cost-breakdown">
+            {% for label, value in [
+                ('部品代', record.parts_cost),
+                ('工賃', record.labor_cost),
+                ('その他', record.other_cost),
+                ('消費税', record.tax_amount)
+            ] %}
+                {% if value is not none %}
+                <div><dt>{{ label }}</dt><dd>{{ maintenance_number(value) }}円</dd></div>
+                {% endif %}
+            {% endfor %}
+            {% for fee in invoice_details.get('fees') or [] %}
+                {% if fee is mapping %}
+                <div>
+                    <dt>{{ fee.get('name') or '諸費用' }}</dt>
+                    <dd>
+                        {{ maintenance_number(fee.get('amount')) }}
+                        {% if fee.get('amount') is not none and fee.get('amount') != '' %}円{% endif %}
+                    </dd>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </dl>
+    </section>
+    {% endif %}
+
+    {% if record.notes %}
+    <section class="km-detail-section">
+        <div class="km-section-heading"><h4>備考</h4></div>
+        <p class="km-detail-note km-preserve-lines">{{ record.notes }}</p>
+    </section>
+    {% endif %}
+
+    {% if maintenance_lines %}
+    <section class="km-detail-section">
+        <div class="km-section-heading">
+            <h4>請求書明細 <span class="km-count">{{ maintenance_lines|length }}件</span></h4>
+        </div>
+        <table class="km-line-table">
+            <thead>
+                <tr><th scope="col">項目</th><th scope="col" class="km-number">金額</th></tr>
+            </thead>
+            <tbody>
+                {% for line in maintenance_lines %}
+                <tr>
+                    <td class="km-line-description">
+                        <span>{{ line.get('description') or '記載なし' }}</span>
+                        {% if line.get('part_number') %}
+                        <small>品番：{{ line.get('part_number') }}</small>
+                        {% endif %}
+                        {% set quantity = line.get('quantity') %}
+                        {% set unit_price = line.get('unit_price') %}
+                        {% if quantity is not none and quantity != '' %}
+                        <small>数量：{{ maintenance_number(quantity) }} {{ line.get('unit') or '' }}</small>
+                        {% endif %}
+                        {% if unit_price is not none and unit_price != '' %}
+                        <small>単価：{{ maintenance_number(unit_price) }}円</small>
+                        {% endif %}
+                        {% if line.get('category') %}
+                        <small>{{ line.get('category') }}</small>
+                        {% endif %}
+                        {% if line.get('notes') %}
+                        <small class="km-preserve-lines">{{ line.get('notes') }}</small>
+                        {% endif %}
+                    </td>
+                    <td class="km-number km-line-amount">
+                        {% set money = namespace(found=false) %}
+                        {% for key, label in [
+                            ('parts_amount', '部品'),
+                            ('labor_amount', '工賃'),
+                            ('amount', '金額')
+                        ] %}
+                            {% set value = line.get(key) %}
+                            {% if value is not none and value != '' %}
+                            {% set money.found = true %}
+                            <div class="km-money-item">
+                                <span class="km-money-label">{{ label }}</span>
+                                <span>{{ maintenance_number(value) }}円</span>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if not money.found %}<span class="km-muted">—</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    </details>
+    {% endif %}
+
+    {% if maintenance_events %}
+    <details class="km-disclosure">
+        <summary>変更履歴（{{ maintenance_events|length }}件）</summary>
+        <ol class="km-event-list" aria-label="対応履歴・新しい順">
+            {% for event in maintenance_events %}
+            <li>
+                <div class="km-event-date">{{ event.date }}</div>
+                <strong class="km-event-title">{{ event.label }}</strong>
+                <span class="km-event-actor">{{ event.actor }}</span>
+                {% if event.status_changed %}
+                <div class="km-event-status">
+                    <span class="vehicle-history-status" data-status="{{ event.status_before or '' }}">{{ event.status_before or '未設定' }}</span>
+                    <span aria-label="から">→</span>
+                    <span class="vehicle-history-status" data-status="{{ event.status_after or '' }}">{{ event.status_after or '未設定' }}</span>
+                </div>
+                {% endif %}
+                {% if event.changes %}
+                <details class="km-event-changes">
+                    <summary>変更内容（{{ event.changes|length }}項目）</summary>
+                    <dl>
+                        {% for change in event.changes %}
+                        <div>
+                            <dt>{{ change.label }}</dt>
+                            <dd>
+                                <p><small>変更前</small><span class="km-preserve-lines">{{ change.before }}</span></p>
+                                <p><small>変更後</small><span class="km-preserve-lines">{{ change.after }}</span></p>
+                            </dd>
+                        </div>
+                        {% endfor %}
+                    </dl>
+                </details>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </details>
+    {% endif %}
+</section>
