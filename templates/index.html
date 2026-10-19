@@ -113,38 +113,17 @@
                         <div class="dashboard-vehicle-toolbar">
                             {% if dashboard_settings.get("show_my_checklists", True) %}
                                 {% set vehicle_lists = my_checklist_summaries|default([], true)|selectattr('vehicle_record_id', 'equalto', vehicle.id)|list %}
-                                {% set daily_lists = vehicle_lists|selectattr('is_standard_daily')|list %}
-                                {% set custom_lists = vehicle_lists|rejectattr('is_standard_daily')|list %}
 
-                                {% if daily_lists %}
-                                <a class="dashboard-vehicle-action dashboard-vehicle-action-primary"
-                                   href="/vehicle/checklists/{{ daily_lists[0].id }}?vehicle_record_id={{ vehicle.id }}">
-                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/></svg>
-                                    日常点検
+                                {% for item in vehicle_lists if item.target == "車両管理" %}
+                                <a
+                                    class="dashboard-vehicle-action{% if item.is_standard_daily %} dashboard-vehicle-action-primary{% endif %}"
+                                    href="/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ vehicle.id }}"
+                                    title="{{ item.name }}"
+                                >
+                                    {{ item.name }}
                                 </a>
-                                {% else %}
-                                <a class="dashboard-vehicle-action dashboard-vehicle-action-primary" href="/vehicle/checklists">点検表一覧</a>
-                                {% endif %}
-
-                                {% if custom_lists or daily_lists|length > 1 %}
-                                <details class="dashboard-vehicle-checklists">
-                                    <summary class="dashboard-vehicle-action">独自チェックリスト</summary>
-                                    <div class="dashboard-vehicle-checklist-menu">
-                                        {% for item in custom_lists + daily_lists[1:] %}
-                                        <a href="/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ vehicle.id }}">{{ item.name }}</a>
-                                        {% endfor %}
-                                    </div>
-                                </details>
-                                {% else %}
-                                <span class="dashboard-vehicle-action dashboard-vehicle-action-unavailable" aria-disabled="true" title="利用できる独自チェックリストはありません">独自チェックリスト</span>
-                                {% endif %}
+                                {% endfor %}
                             {% endif %}
-
-                            <a class="dashboard-vehicle-action"
-                               href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/></svg>
-                                車両カルテ
-                            </a>
                         </div>
                     </div>
 
