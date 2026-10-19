@@ -16,10 +16,10 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261017-vehicle-switch-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261019-dashboard-mineral-1') }}">
 </head>
 <body
-    class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs'] else '' }}"
+    class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
     data-authenticated="{{ 'true' if session.get('username') else 'false' }}"
     data-current-user="{{ session.get('name') or '' }}"
     data-unread-notification-count="{{ unread_notification_count }}"
@@ -99,16 +99,14 @@
             </div>
 
             {% if session.get("role") in ["admin", "itc"] %}
-            <div class="sidebar-group {% if path.startswith('/master') %}open{% endif %}" data-menu-key="master">
-                <button type="button" class="menu-item sidebar-parent">
-                    <span class="menu-icon">
-                        <img src="{{ url_for('static',
-                            filename='icons/master.png') }}">
-                    </span>
-                    <span class="menu-text">マスタ管理</span>
-                    <span class="menu-arrow">▼</span>
-                </button>
-
+            <a href="{{ url_for('master') }}"
+   class="menu-item {% if path.startswith('/master') %}active{% endif %}"
+   {% if path.startswith('/master') %}aria-current="page"{% endif %}>
+    <span class="menu-icon">
+        <img src="{{ url_for('static', filename='icons/master.png') }}" alt="">
+    </span>
+    <span class="menu-text">マスタ管理</span>
+</a>
                 <div class="sidebar-submenu">
                     <a href="/master/drivers" class="menu-item submenu-item {% if path.startswith('/master/drivers') %}active{% endif %}">
                         <span class="menu-text">ドライバーマスタ</span>
@@ -151,13 +149,6 @@
                     <a href="/master/checklists" class="menu-item submenu-item {% if path.startswith('/master/checklists') %}active{% endif %}">
                         <span class="menu-text">チェックリストマスタ</span>
                     </a>
-                    {% if session.get("role") == "itc" %}
-                    <a href="/itc" class="menu-item submenu-item {% if path.startswith('/itc') %}active{% endif %}">
-                        <span class="menu-text">ITC管理</span>
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
             {% endif %}
 
         </nav>
@@ -418,13 +409,40 @@
             </div>
         {% endif %}
 
+        {% if request.path in [
+            '/master/drivers',
+            '/master/offices',
+            '/master/vehicles',
+            '/master/vehicle-types',
+            '/master/license-types',
+            '/master/delivery-places'
+        ] %}
+        {% set master_tabs = [
+            ('/master/drivers', 'ドライバーマスタ'),
+            ('/master/offices', '営業所マスタ'),
+            ('/master/vehicles', '車両マスタ'),
+            ('/master/vehicle-types', '車種マスタ'),
+            ('/master/license-types', '免許種別マスタ'),
+            ('/master/delivery-places', '納入先マスタ')
+        ] %}
+        <nav class="master-unified-tabs" aria-label="マスタ管理の切替">
+            {% for href, label in master_tabs %}
+            <a href="{{ href }}"
+               class="master-unified-tab{% if request.path == href %} is-current{% endif %}"
+               {% if request.path == href %}aria-current="page"{% endif %}>
+                {{ label }}
+            </a>
+            {% endfor %}
+        </nav>
+        {% endif %}
+
         {% block content %}
         {% endblock %}
     </main>
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js', v='20261016-3') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261019-stream-1', v='20261019-import-progress-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

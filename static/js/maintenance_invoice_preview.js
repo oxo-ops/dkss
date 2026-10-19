@@ -54,9 +54,13 @@
                     return;
                 }
 
-                const top = layout.getBoundingClientRect().top + window.scrollY;
+                const block = layout.closest(".invoice-document");
+                const top = layout.getBoundingClientRect().top
+                    - block.getBoundingClientRect().top;
+                const headingHeight = pageHeading?.getBoundingClientRect().height || 0;
+                const gap = parseFloat(getComputedStyle(form).rowGap) || 0;
                 const height = Math.max(240, Math.floor(
-                    window.innerHeight - top - 32
+                    form.clientHeight - headingHeight - gap - top - 32
                 ));
                 const value = height + "px";
 
@@ -317,6 +321,73 @@
             if (!cell.childElementCount) cell.textContent = "—";
         }
 
+        function showVehicleCandidates(record) {
+            const vehicle = inputFor(record, "vehicle");
+            const holder = record.querySelector("[data-invoice-original]");
+            if (!vehicle || !holder || vehicle.disabled) return;
+
+            let original;
+            try {
+                original = JSON.parse(holder.dataset.invoiceOriginal);
+            } catch {
+                return;
+            }
+
+            const normalize = value => String(value || "")
+                .normalize("NFKC").toUpperCase().replace(/[\s\-‐‑‒–—―−]/g, "");
+            const plate = normalize(original.registration_number);
+            if (!plate) return;
+
+            const candidates = Array.from(vehicle.options).filter(option =>
+                option.value && !option.disabled
+                && option.dataset.vehicleDeleted !== "true"
+                && normalize(option.dataset.vehicleNumber) === plate
+            );
+            if (!candidates.length) return;
+
+            const box = document.createElement("div");
+            box.className = "invoice-vehicle-candidates";
+            box.dataset.vehicleCandidates = "";
+            const title = document.createElement("strong");
+            title.textContent = "車番が一致する候補";
+            box.append(title);
+
+            for (const option of candidates) {
+                const card = document.createElement("div");
+                const name = document.createElement("b");
+                name.textContent = option.dataset.vehicleNumber;
+
+                const comparison = document.createElement("p");
+                comparison.textContent = "車台番号　AI読取："
+                    + (original.chassis_number || "読取なし")
+                    + " ／ 台帳："
+                    + (option.dataset.vehicleChassis || "未登録");
+
+                const note = document.createElement("p");
+                note.textContent = normalize(original.chassis_number)
+                    === normalize(option.dataset.vehicleChassis)
+                    ? "車番・車台番号が一致しています。"
+                    : "車台番号に違い、または空欄があります。原本と照合して選択してください。";
+
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "invoice-button";
+                button.textContent = "この車両を選択";
+                button.addEventListener("click", () => {
+                    vehicle.value = option.value;
+                    vehicle.dispatchEvent(new Event("change", { bubbles: true }));
+                    const label = record.querySelector("[data-invoice-vehicle-label]");
+                    label.tabIndex = -1;
+                    label.focus({ preventScroll: true });
+                });
+
+                card.append(name, comparison, note, button);
+                box.append(card);
+            }
+
+            record.querySelector(".invoice-record-actions").after(box);
+        }
+
         function updateFacts(record) {
             const raw = field => inputFor(record, field)?.value.trim() ?? "";
 
@@ -367,8 +438,15 @@
             const vehicle = inputFor(record, "vehicle");
             if (vehicle) {
                 record.querySelector("[data-invoice-vehicle-label]").textContent =
-                    vehicle.selectedOptions[0]?.textContent.trim()
-                    || "対象車両を選択してください";
+                    vehicle.value
+                        ? vehicle.selectedOptions[0]?.textContent.trim()
+                            || "選択した車両"
+                        : "登録先の車両が未確定です";
+
+                const warning = record.querySelector("[data-vehicle-match-warning]");
+                const candidates = record.querySelector("[data-vehicle-candidates]");
+                if (warning) warning.hidden = Boolean(vehicle.value) || Boolean(candidates);
+                if (candidates) candidates.hidden = Boolean(vehicle.value);
             }
 
             const invoiceNumber = raw("invoice_number");
@@ -749,6 +827,7 @@
         });
 
         form.querySelectorAll(".invoice-line").forEach(updateLine);
+        form.querySelectorAll(".invoice-record").forEach(showVehicleCandidates);
         form.querySelectorAll(".invoice-record").forEach(updateFacts);
 
         form.querySelectorAll("[data-invoice-document]").forEach(block => {

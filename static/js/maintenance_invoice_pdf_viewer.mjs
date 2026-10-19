@@ -216,8 +216,10 @@ class InvoicePdfViewer {
                 throw new Error("Source must be same-origin");
             }
 
-            if (!/\.pdf$/i.test(this.root.dataset.filename || "")) {
-                this.showSourceFallback("この原本はPDFではありません。");
+            if (/\.(png|jpe?g)$/i.test(this.root.dataset.filename || "")) {
+                url.searchParams.set("preview", "pdf");
+            } else if (!/\.pdf$/i.test(this.root.dataset.filename || "")) {
+                this.showSourceFallback("この原本の形式には対応していません。");
                 return;
             }
 

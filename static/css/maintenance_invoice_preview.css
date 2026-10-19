@@ -1,9 +1,91 @@
+@media screen and (min-width: 1001px) {
+    html:has(.invoice-review-page),
+    body:has(.invoice-review-page) {
+        height: 100%;
+        overflow: hidden;
+    }
+
+    body:has(.invoice-review-page) .app-layout {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    body:has(.invoice-review-page) .main-content {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    body:has(.invoice-review-page) .main-content > :not(.invoice-review-page) {
+        flex-shrink: 0;
+    }
+
+    .invoice-review-page {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .invoice-review-page > .page-breadcrumb {
+        flex-shrink: 0;
+    }
+
+    .invoice-review-page .vehicle-document-import-preview {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+
+    .invoice-review-page .invoice-page-heading {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        flex-shrink: 0;
+        background: #f4f7fc;
+    }
+
+    .invoice-review-page .invoice-document {
+        flex-shrink: 0;
+    }
+}
+
 .invoice-review-page {
     color: #202b39;
     font-size: 14px;
     line-height: 1.6;
 }
 .invoice-review-page [hidden] { display: none !important; }
+
+.invoice-review-page .invoice-vehicle-candidates {
+    margin: 10px 0;
+    padding: 12px;
+    border: 1px solid #b8cfdf;
+    border-radius: 8px;
+    background: #f1f7fc;
+    color: #29465d;
+}
+
+.invoice-review-page .invoice-vehicle-candidates > strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.invoice-review-page .invoice-vehicle-candidates > div + div {
+    border-top: 1px solid #cbdce9;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.invoice-review-page .invoice-vehicle-candidates p {
+    margin: 5px 0;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
 .invoice-review-page .page-breadcrumb,
 .invoice-review-page .page-breadcrumb a,
 .invoice-review-page .page-breadcrumb span {

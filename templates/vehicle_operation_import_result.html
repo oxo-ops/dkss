@@ -26,9 +26,15 @@
         </thead>
         <tbody>
             <tr>
-                <td data-label="処理結果">今回登録</td>
+                <td data-label="処理結果">カルテへ登録</td>
                 <td data-label="件数">
                     {{ result.get("added_count", 0) }}件
+                </td>
+            </tr>
+            <tr>
+                <td data-label="処理結果">登録待ちとして保存</td>
+                <td data-label="件数">
+                    {{ result.get("pending_count", 0) }}件
                 </td>
             </tr>
             <tr>
@@ -46,7 +52,16 @@
         </tbody>
     </table>
 
-    <p>登録した実績は車両カルテに反映されています。</p>
+    {% if result.get("added_count", 0) %}
+        <p>登録した実績は車両カルテに反映されています。</p>
+    {% endif %}
+
+    {% if result.get("pending_count", 0) %}
+        <p class="help-text">
+            車両未選択の実績は、原本CSVとともに登録待ちとして保存しました。
+            車両へ紐付けるための再アップロードは不要です。
+        </p>
+    {% endif %}
 
     {% if result.get("excluded_count", 0) %}
         <p class="help-text">

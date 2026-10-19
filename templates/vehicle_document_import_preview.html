@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}資料の取込確認{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261016-review-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261019-vehicle-match-2') }}">
 <div class="invoice-review-page">
 <nav class="page-breadcrumb" aria-label="パンくずリスト">
     <a href="{{ url_for('dashboard') }}">ホーム</a>
@@ -17,6 +17,19 @@
 </div>
 <form method="post" action="{{ url_for('vehicle_document_import_confirm', batch_id=batch_id) }}" class="responsive-form vehicle-document-import-preview" novalidate>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+{% set import_failures = documents[0].preview.get('import_failures', []) if documents else [] %}
+{% if import_failures %}
+<section class="card vehicle-search-card" role="status">
+    <h3>一部の資料を読み取れませんでした</h3>
+    <p>成功した資料は、このまま確認・登録できます。以下の資料は取り込まれていません。</p>
+    <ul>
+        {% for failure in import_failures %}
+        <li><strong>{{ failure.filename }}</strong>：{{ failure.reason }}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
 
 {% for document in documents %}
 {% set records = document.preview.get('records') or [{}] %}
@@ -39,7 +52,7 @@
         {% for record in records %}
         {% set row_key = document.id ~ '_' ~ loop.index0 %}
         <button type="button" class="invoice-switch" data-record-target="{{ row_key }}" aria-controls="record_{{ row_key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
-            <span>{{ loop.index }}. {{ record.get('registration_number') or '車両未確認' }}</span>
+            <span>{{ loop.index }}. 原本：{{ record.get('registration_number') or '車番読取なし' }}</span>
             <small>{{ record.get('invoice_number') or '伝票番号なし' }}</small>
         </button>
         {% endfor %}
@@ -157,6 +170,6 @@
 </div>
 </form>
 </div>
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261017-parts-category-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261019-vehicle-match-2') }}" defer></script>
 <script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', pdf_fix='20261016-2', v='20261016-review-3') }}"></script>
 {% endblock %}

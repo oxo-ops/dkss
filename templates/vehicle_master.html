@@ -20,6 +20,591 @@
     </div>
 </div>
 
+{% set invoice_review_view = invoice_review_rows is defined %}
+{% set pending_view = pending_detail is defined or request.args.get('view') == 'pending' %}
+<nav class="form-actions vehicle-filter-actions vehicle-workflow-tabs" aria-label="車両一覧の切替">
+    <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline"
+       {% if not pending_view and not invoice_review_view %}aria-current="page"{% endif %}>
+        登録済み
+    </a>
+    <a href="{{ url_for('vehicle_master', view='pending') }}" class="btn btn-outline"
+       {% if pending_view %}aria-current="page"{% endif %}>
+        登録待ち（{{ pending_vehicle_count }}件）
+    </a>
+    <a href="{{ url_for('vehicle_maintenance_document_reviews') }}" class="btn btn-outline"
+       {% if invoice_review_view %}aria-current="page"{% endif %}>
+        請求書の確認
+    </a>
+</nav>
+
+{% if invoice_review_view %}
+<section class="card">
+    <h3>確認待ちの請求書（{{ invoice_review_count }}件）</h3>
+    <p class="help-text">
+        原本は車両に紐付け済みです。
+        確認待ちの請求額・交換部品は、既存の費用・交換回数に追加していません。
+    </p>
+
+    {% for item in invoice_review_rows %}
+        <article class="card">
+            <h3>{{ item.vehicle_number }} ／ {{ item.office }}</h3>
+            <p>
+                {{ item.filename }} ／ 明細 {{ item.record_index + 1 }}<br>
+                費用：{{ item.financial_label }}
+                ／ 部品：{{ '確認待ち' if item.parts_pending else '確認済み・対象外' }}
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>登録済み</th>
+                        <th>今回の請求書</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>作業日</th>
+                        <td>{{ item.target_date or '記載なし' }}</td>
+                        <td>{{ item.payload.get('record_date') or '記載なし' }}</td>
+                    </tr>
+                    <tr>
+                        <th>内容</th>
+                        <td>{{ item.target_kind }}：{{ item.target_content }}</td>
+                        <td>{{ item.payload.get('content') or '記載なし' }}</td>
+                    </tr>
+                    <tr>
+                        <th>金額</th>
+                        <td>{{ item.existing_total if item.existing_total is not none else '記載なし' }}</td>
+                        <td>{{ item.payload.get('total_cost') if item.payload.get('total_cost') is not none else '記載なし' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                請求日：{{ item.payload.get('invoice_date') or '記載なし' }}
+                ／ 伝票番号：{{ item.payload.get('invoice_number') or '記載なし' }}
+            </p>
+            <div class="form-actions">
+                <a class="btn btn-outline"
+                   href="{{ url_for('vehicle_karte_document_source', vehicle_record_id=item.vehicle_id, draft_id=item.draft_id) }}"
+                   target="_blank" rel="noopener">原本を開く</a>
+                <a class="btn btn-outline"
+                   href="{{ url_for('vehicle_karte', vehicle_record_id=item.vehicle_id) }}">車両カルテを開く</a>
+            </div>
+            {% if item.correction_candidates %}
+                <details>
+                    <summary>訂正版で請求額を差し替える</summary>
+                    <p class="help-text">訂正前の請求額だけを置き換えます。ほかの請求額と原本は残ります。</p>
+                    <ul>
+                        {% for previous in item.correction_candidates %}
+                            <li><a href="{{ url_for('vehicle_karte_document_source', vehicle_record_id=item.vehicle_id, draft_id=previous.draft_id) }}" target="_blank" rel="noopener">訂正前の原本（候補{{ loop.index }}）：{{ previous.invoice_number }} ／ {{ previous.total_cost }} 円</a></li>
+                        {% endfor %}
+                    </ul>
+                    <form method="post" action="{{ url_for('vehicle_maintenance_document_correction', document_id=item.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="expected_total" value="{{ item.existing_total }}">
+                        <label>差し替える請求書
+                            <select name="replaces_document_id" required>
+                                <option value="">訂正前の請求書を選択</option>
+                                {% for previous in item.correction_candidates %}
+                                    <option value="{{ previous.id }}">候補{{ loop.index }}：{{ previous.invoice_number }} ／ {{ previous.total_cost }} 円</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <p><label>
+                            <input type="checkbox" name="confirm_correction" value="1" required>
+                            今回の請求額は、選択した請求書の訂正後の全額です
+                        </label></p>
+                        <button type="submit" class="btn btn-outline">請求額を差し替える</button>
+                    </form>
+                </details>
+            {% endif %}
+            {% if item.can_additional_cost %}
+                <details>
+                    <summary>重複しない追加請求を反映する</summary>
+                    <form method="post" action="{{ url_for('vehicle_maintenance_document_additional_cost', document_id=item.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="expected_total" value="{{ item.existing_total }}">
+                        <p>登録済み {{ item.existing_total }} 円に、今回の {{ item.payload.get('total_cost') }} 円を加算します。</p>
+                        <p><label>
+                            <input type="checkbox" name="confirm_additional_cost" value="1" required>
+                            今回の金額は未登録の追加請求分だけです。再発行・訂正・累計額ではありません
+                        </label></p>
+                        <p class="help-text">原本で確認してください。交換部品は別に確認します。内訳が不足する場合、その費目の合計は空欄になります。</p>
+                        <button type="submit" class="btn btn-outline">追加請求分を加算する</button>
+                    </form>
+                </details>
+            {% endif %}
+            {% if item.parts_review_available %}
+                {% set invoice_lines = item.payload.get('line_items') or [] %}
+                <details>
+                    <summary>交換部品を確認する（明細{{ invoice_lines|length }}件）</summary>
+                    <p class="help-text">同じ交換が登録済みなら、その履歴を選びます。購入・見積・工賃は交換対象外です。</p>
+                    <form method="post" action="{{ url_for('vehicle_maintenance_document_parts', document_id=item.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="parts_version" value="{{ item.parts_version }}">
+                        <p><label>新規登録する部品の交換日
+                            <input type="date" name="replacement_date" value="{{ item.payload.get('completion_date') or item.payload.get('record_date') or '' }}">
+                        </label>
+                        <label>交換時の走行距離（不明なら空欄）
+                            <input type="number" name="replacement_mileage" min="0" step="0.01" value="{{ item.payload.get('mileage') if item.payload.get('mileage') is not none else '' }}">
+                        </label></p>
+                        {% for line in invoice_lines %}
+                            {% set line_index = loop.index0 %}
+                            <p><strong>明細{{ loop.index }}：{{ line.get('description') or line.get('replacement_part_name') or '記載なし' }}</strong></p>
+                            <select name="part_choice_{{ line_index }}" aria-label="明細{{ loop.index }}の交換確認" required>
+                                <option value="">選択してください</option>
+                                {% for previous in item.replacement_parts %}
+                                    <option value="existing:{{ previous.id }}">登録済み：{{ previous.part_name }} ／ 数量{{ previous.quantity }} ／ {{ previous.replacement_date }}</option>
+                                {% endfor %}
+                                <option value="new">実際に交換した部品として新規登録</option>
+                                <option value="none" {% if line.get('replacement_action') == 'not_replace' %}selected{% endif %}>交換対象外（購入・見積・工賃など）</option>
+                            </select>
+                            <details>
+                                <summary>新規登録する場合の部品情報</summary>
+                                <label>部品名<input name="part_name_{{ line_index }}" maxlength="200" value="{{ line.get('replacement_part_name') or '' }}"></label>
+                                <label>品番<input name="part_number_{{ line_index }}" maxlength="100" value="{{ line.get('part_number') or '' }}"></label>
+                                <label>数量<input type="number" name="part_quantity_{{ line_index }}" min="0.01" step="0.01" value="{{ line.get('quantity') if line.get('quantity') is not none else '' }}"></label>
+                            </details>
+                        {% else %}
+                            <p>部品明細がありません。交換部品がある場合は、カルテで登録してから確認してください。</p>
+                        {% endfor %}
+                        <p><label><input type="checkbox" name="confirm_parts" value="1" required>
+                            {{ '原本と交換履歴を確認し、明細ごとの選択に間違いがありません' if invoice_lines else 'この資料から追加する交換部品がないことを確認しました' }}
+                        </label></p>
+                        <button type="submit" class="btn btn-outline">交換部品の確認を保存</button>
+                    </form>
+                </details>
+            {% endif %}
+            {% if item.can_initial_cost %}
+                <form method="post" action="{{ url_for('vehicle_maintenance_document_initial_cost', document_id=item.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <p><label>
+                        <input type="checkbox" name="confirm_initial_cost" value="1" required>
+                        この請求額を、この整備の初回の確定費用として反映します
+                    </label></p>
+                    <p class="help-text">交換部品は別に確認します。見積書・追加請求・訂正には、この操作を使わないでください。</p>
+                    <button type="submit" class="btn btn-primary">請求額を確定する</button>
+                </form>
+            {% endif %}
+            {% if item.financial_pending %}
+                <details>
+                    <summary>費用・交換内容がすべて登録済みの場合</summary>
+                    <form method="post" action="{{ url_for('vehicle_maintenance_document_duplicate', document_id=item.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <p>
+                            <label>
+                                <input type="checkbox" name="already_recorded" value="1" required>
+                                この請求書の費用・交換内容は、すべて登録済みです
+                            </label>
+                        </p>
+                        <p class="help-text">
+                            追加請求や訂正版の場合は、この操作を選ばず確認待ちのまま残してください。
+                        </p>
+                        <button type="submit" class="btn btn-outline">原本だけ残して確認を完了</button>
+                    </form>
+                </details>
+            {% endif %}
+        </article>
+    {% else %}
+        <p>確認待ちの請求書はありません。</p>
+    {% endfor %}
+
+    {% if invoice_review_total_pages > 1 %}
+        <nav class="form-actions" aria-label="請求書のページ切替">
+            {% if invoice_review_page > 1 %}
+                <a class="btn btn-outline"
+                   href="{{ url_for('vehicle_maintenance_document_reviews', page=invoice_review_page - 1) }}">前へ</a>
+            {% endif %}
+            <span>{{ invoice_review_page }} / {{ invoice_review_total_pages }}</span>
+            {% if invoice_review_page < invoice_review_total_pages %}
+                <a class="btn btn-outline"
+                   href="{{ url_for('vehicle_maintenance_document_reviews', page=invoice_review_page + 1) }}">次へ</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+</section>
+{% elif pending_view %}
+<section class="pending-workspace">
+    <header class="pw-heading">
+        <span class="pw-heading-icon" aria-hidden="true">▤</span>
+        <div>
+            <h3>登録待ち車両の確認</h3>
+            <p>資料は保存済みです。登録先を確認して、車両カルテへ紐付けます。</p>
+        </div>
+    </header>
+
+    <div class="pw-layout">
+        <aside class="pw-queue" aria-label="登録待ち車両の一覧">
+            <h3>登録待ち <strong>{{ pending_workspace.total }}台</strong></h3>
+
+            <form method="get" action="{{ url_for('vehicle_master') }}" class="pw-search">
+                <input type="hidden" name="view" value="pending">
+                <label class="pw-search-label" for="pending_queue_search">ナンバー・車両コードで検索</label>
+                <div>
+                    <input id="pending_queue_search" type="search" name="q"
+                           maxlength="100" value="{{ pending_workspace.keyword }}"
+                           placeholder="ナンバー・車両コード">
+                    <button type="submit" class="btn btn-outline">検索</button>
+                </div>
+            </form>
+
+            <nav class="pw-queue-list" aria-label="登録待ち車両を選択">
+                {% for item in pending_workspace.rows %}
+                    <a class="pw-queue-item"
+                       href="{{ url_for('vehicle_import_pending_review', pending_id=item.id, q=pending_workspace.keyword) }}"
+                       {% if pending_detail is defined and item.id == pending_detail.id %}aria-current="page"{% endif %}>
+                        <span class="pw-queue-icon" aria-hidden="true">▤</span>
+                        <span class="pw-queue-copy">
+                            <strong>{{ item.title }}</strong>
+                            <small>{{ item.summary }}</small>
+                        </span>
+                        <span class="pw-status pw-status-{{ item.tone }}">{{ item.label }}</span>
+                        <span aria-hidden="true">›</span>
+                    </a>
+                {% else %}
+                    <p class="help-text">
+                        {% if pending_workspace.keyword %}
+                            一致する登録待ちはありません。
+                        {% else %}
+                            登録待ちの車両はありません。
+                        {% endif %}
+                    </p>
+                {% endfor %}
+            </nav>
+
+            <footer class="pw-queue-footer">
+                <span>
+                    {{ pending_workspace.filtered_count }}台{% if pending_workspace.keyword %}が一致{% endif %}
+                    ／ {{ pending_workspace.page }} / {{ pending_workspace.pages }}ページ
+                </span>
+                {% if pending_workspace.pages > 1 %}
+                    <div class="pw-pagination">
+                        {% if pending_workspace.page > 1 %}
+                            <a class="btn btn-outline"
+                               href="{{ url_for('vehicle_master', view='pending', q=pending_workspace.keyword, page=pending_workspace.page-1) }}">前の20台</a>
+                        {% endif %}
+                        {% if pending_workspace.page < pending_workspace.pages %}
+                            <a class="btn btn-outline"
+                               href="{{ url_for('vehicle_master', view='pending', q=pending_workspace.keyword, page=pending_workspace.page+1) }}">次の20台</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {% if pending_workspace.keyword %}
+                    <a href="{{ url_for('vehicle_master', view='pending') }}">検索を解除</a>
+                {% endif %}
+            </footer>
+        </aside>
+
+        <div class="pw-detail">
+            {% if pending_detail is defined %}
+                <nav class="pw-detail-nav" aria-label="車両の確認順">
+                    <strong>{{ pending_workspace.position }} / {{ pending_workspace.filtered_count }}台</strong>
+                    <div>
+                        {% if pending_workspace.previous_id %}
+                            <a class="btn btn-outline"
+                               href="{{ url_for('vehicle_import_pending_review', pending_id=pending_workspace.previous_id, q=pending_workspace.keyword) }}">‹ 前へ</a>
+                        {% endif %}
+                        {% if pending_workspace.next_id %}
+                            <a class="btn btn-outline"
+                               href="{{ url_for('vehicle_import_pending_review', pending_id=pending_workspace.next_id, q=pending_workspace.keyword) }}">次へ ›</a>
+                        {% endif %}
+                    </div>
+                </nav>
+            {% endif %}
+
+            {% if pending_invoice_questions %}
+                <section class="pw-detail-card">
+                    <h3>この整備に対応する請求書ですか？</h3>
+                    <p class="help-text">
+                        同じ車両で作業日が一致する候補です。原本と作業内容を確認してください。
+                    </p>
+                    <form method="post"
+                          action="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, q=pending_workspace.keyword) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="queue_continue" value="1">
+                        <input type="hidden" name="queue_next" value="{{ pending_workspace.next_id or '' }}">
+                        <input type="hidden" name="vehicle_record_id" value="{{ pending_invoice_vehicle_id }}">
+
+                        {% for question in pending_invoice_questions %}
+                            <fieldset>
+                                <legend>
+                                    請求書 {{ loop.index }}：{{ question.filename }}
+                                    ／ 明細 {{ question.record_index + 1 }}
+                                </legend>
+                                <p>
+                                    作業日：{{ question.record_date or '記載なし' }}
+                                    ／ 出庫日：{{ question.completion_date or '記載なし' }}<br>
+                                    請求日：{{ question.invoice_date or '記載なし' }}
+                                    ／ 伝票番号：{{ question.invoice_number or '記載なし' }}<br>
+                                    {{ question.content }}<br>
+                                    合計：{{ question.total_cost if question.total_cost is not none else '記載なし' }}
+                                    <a href="{{ url_for('vehicle_import_pending_document_source', pending_id=pending_detail.id, draft_id=question.draft_id) }}"
+                                       target="_blank" rel="noopener">原本を開く</a>
+                                </p>
+
+                                {% for candidate in question.candidates %}
+                                    <p>
+                                        <label>
+                                            <input type="radio"
+                                                   name="invoice_choice_{{ question.pending_record_id }}"
+                                                   value="{{ candidate.kind }}:{{ candidate.record_id }}"
+                                                   required>
+                                            同じ整備です{% if question.candidates | length > 1 %}（候補 {{ loop.index }}）{% endif %}
+                                        </label><br>
+                                        {{ '整備記録' if candidate.kind == 'maintenance' else '点検記録' }}
+                                        ／ 作業日：{{ candidate.record_date or '記載なし' }}
+                                        ／ 出庫日：{{ candidate.completion_date or '記載なし' }}<br>
+                                        {{ candidate.maintenance_company or '整備会社未設定' }}
+                                        ／ {{ candidate.content }}
+                                        {% if candidate.has_invoice %}
+                                            <br>
+                                            <span class="help-text">
+                                                請求情報・費用が登録済みです。同じ整備の場合は上書きせず確認が必要です。
+                                            </span>
+                                        {% endif %}
+                                    </p>
+                                {% endfor %}
+
+                                <p>
+                                    <label>
+                                        <input type="radio"
+                                               name="invoice_choice_{{ question.pending_record_id }}"
+                                               value="new" required>
+                                        別の整備です（新しい整備記録として登録）
+                                    </label>
+                                </p>
+                            </fieldset>
+                        {% endfor %}
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-outline">回答して資料を反映</button>
+                            <a class="btn btn-outline"
+                               href="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, q=pending_workspace.keyword) }}">車両を選び直す</a>
+                            <a href="{{ url_for('vehicle_master', view='pending') }}">後で確認</a>
+                        </div>
+                    </form>
+                </section>
+
+            {% elif pending_detail is defined %}
+                <section class="pw-detail-card pending-review-panel">
+                    <h3>登録待ち車両の確認</h3>
+                    <p class="help-text">資料は保存済みです。登録先を確認すると、この車両のカルテへ紐付けます。</p>
+
+                    <div class="pw-stats">
+                        <div>
+                            <span>取込元のナンバー</span>
+                            <strong>{{ pending_detail.identity.get('source_vehicle_number') or '記載なし' }}</strong>
+                        </div>
+                        <div>
+                            <span>保存済みのデータ</span>
+                            <strong>{{ pending_detail.record_count }}件</strong>
+                            <small>
+                                {% for item in pending_record_counts %}
+                                    {{ item.label }}{% if not loop.last %} ／ {% endif %}
+                                {% endfor %}
+                            </small>
+                        </div>
+                        <div>
+                            <span>実績・記録の期間</span>
+                            <strong>{{ pending_detail.date_from or '記載なし' }}</strong>
+                            {% if pending_detail.date_to and pending_detail.date_to != pending_detail.date_from %}
+                                <small>～ {{ pending_detail.date_to }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% set source_links = namespace(all_in_cards=true) %}
+                    {% set card_draft_ids = pending_documents | default([], true) | map(attribute='draft_id') | list %}
+                    {% for source in pending_sources %}
+                        {% if source.kind == 'operation' or source.id not in card_draft_ids %}
+                            {% set source_links.all_in_cards = false %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if pending_sources and (not pending_suggested or pending_choose or not source_links.all_in_cards or pending_detail.record_count > 10) %}
+                        <details>
+                            <summary>取込元の原本を確認（{{ pending_sources | length }}ファイル）</summary>
+                            <dl class="pw-source-meta">
+                                <div>
+                                    <dt>車台番号（取込元）</dt>
+                                    <dd>{{ pending_detail.identity.get('chassis_number') or '記載なし' }}</dd>
+                                </div>
+                                <div>
+                                    <dt>車両コード</dt>
+                                    <dd>{{ pending_detail.identity.get('source_vehicle_code') or '記載なし' }}</dd>
+                                </div>
+                            </dl>
+                            <ul>
+                                {% for source in pending_sources %}
+                                    <li>
+                                        {% if source.kind == 'operation' %}
+                                            <a href="{{ url_for('vehicle_import_pending_operation_source', pending_id=pending_detail.id, draft_id=source.id) }}">
+                                                {{ source.filename }}（原本CSVをダウンロード）
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ url_for('vehicle_import_pending_document_source', pending_id=pending_detail.id, draft_id=source.id) }}"
+                                               target="_blank" rel="noopener">
+                                                {{ source.filename }}（原本を開く）
+                                            </a>
+                                        {% endif %}
+                                        <span class="help-text">取込日時：{{ source.created_at }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            <p class="help-text">
+                                原本CSVには、同時に取り込んだ他の車両の明細が含まれる場合があります。
+                            </p>
+                        </details>
+                    {% endif %}
+
+                    {% if pending_suggested and not pending_choose %}
+                        <h3>この車両のデータですか？</h3>
+                        <p class="help-text">{{ pending_match_reason }}</p>
+
+                        <div class="pr-candidate">
+                            <div class="pr-candidate-title">
+                                <strong class="pr-plate">{{ pending_suggested.number }}</strong>
+                                <span class="pr-badge">登録済み車両の候補</span>
+                                {% if pending_suggested.deleted %}
+                                    <span class="pr-badge">無効車両</span>
+                                {% endif %}
+                            </div>
+                            <dl>
+                                <div>
+                                    <dt>営業所</dt>
+                                    <dd>{{ pending_suggested.office or '未設定' }}</dd>
+                                </div>
+                                <div>
+                                    <dt>車台番号（車両マスタ）</dt>
+                                    <dd>{{ pending_suggested.chassis_number or '記載なし' }}</dd>
+                                </div>
+                            </dl>
+                        </div>
+
+                        {% if pending_documents %}
+                            <div class="pw-documents">
+                                <h4>取り込み済みの資料</h4>
+                                {% for document in pending_documents %}
+                                    <article class="pw-document">
+                                        <div class="pw-document-heading">
+                                            <strong>
+                                                {{ document.filename }}
+                                                <small>
+                                                    明細 {{ document.record_index + 1 }}
+                                                    ／ {{ document.record_date or '日付記載なし' }}
+                                                </small>
+                                            </strong>
+                                            <a class="btn btn-outline"
+                                               href="{{ url_for('vehicle_import_pending_document_source', pending_id=pending_detail.id, draft_id=document.draft_id) }}"
+                                               target="_blank" rel="noopener">原本を開く</a>
+                                        </div>
+                                        <p>{{ document.payload.get('content') or '作業内容の記載なし' }}</p>
+                                        {% if document.payload.get('total_cost') is not none %}
+                                            <p class="pw-document-amount">請求額 {{ document.payload.get('total_cost') }}円</p>
+                                        {% endif %}
+                                    </article>
+                                {% endfor %}
+                                {% if pending_detail.record_count > 10 %}
+                                    <p class="help-text">
+                                        資料の明細は最大10件を表示しています。すべての原本は上の「取込元の原本を確認」から確認できます。
+                                    </p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <form method="post"
+                              action="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, q=pending_workspace.keyword) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="queue_continue" value="1">
+                            <input type="hidden" name="queue_next" value="{{ pending_workspace.next_id or '' }}">
+                            <input type="hidden" name="vehicle_record_id" value="{{ pending_suggested.id }}">
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-outline">この車両です・資料を反映</button>
+                                <a class="btn btn-outline"
+                                   href="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, choose='1', q=pending_workspace.keyword) }}">別の車両です</a>
+                            </div>
+                        </form>
+
+                    {% elif pending_new_plate and not pending_choose %}
+                        <h3>この内容で車両を登録しますか？</h3>
+                        <p>
+                            {{ pending_new_plate.plate_area }} {{ pending_new_plate.plate_class }}
+                            {{ pending_new_plate.plate_kana }} {{ pending_new_plate.plate_number }}
+                        </p>
+                        <p class="help-text">
+                            ナンバーと、資料に記載があれば車台番号を登録します。
+                            型式・営業所など不明な項目は空欄で登録します。
+                            保存済みの運行実績と原本も、この車両へ紐付けます。
+                        </p>
+                        <form method="post"
+                              action="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, q=pending_workspace.keyword) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="queue_continue" value="1">
+                            <input type="hidden" name="queue_next" value="{{ pending_workspace.next_id or '' }}">
+                            <input type="hidden" name="pending_action" value="create">
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-outline">登録して資料を反映</button>
+                                <a class="btn btn-outline"
+                                   href="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, choose='1', q=pending_workspace.keyword) }}">登録済み車両を探す</a>
+                            </div>
+                        </form>
+
+                    {% else %}
+                        {% if pending_identity_conflict %}
+                            <p class="help-text" role="alert">
+                                原本のナンバー・車台番号と、登録済み車両の情報が食い違っています。
+                                原本を確認して、正しい登録先を選択してください。
+                            </p>
+                        {% endif %}
+                        <h3>登録先の車両を選択してください</h3>
+                        <form method="post"
+                              action="{{ url_for('vehicle_import_pending_review', pending_id=pending_detail.id, q=pending_workspace.keyword) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="queue_continue" value="1">
+                            <input type="hidden" name="queue_next" value="{{ pending_workspace.next_id or '' }}">
+                            <label for="pending_vehicle_record_id">登録済み車両</label>
+                            <select id="pending_vehicle_record_id" name="vehicle_record_id" required>
+                                <option value="">車両を選択</option>
+                                {% for vehicle in pending_choices %}
+                                    <option value="{{ vehicle.id }}">
+                                        {{ vehicle.number }} ／ {{ vehicle.office or '営業所未設定' }}
+                                        ／ 車台番号：{{ vehicle.chassis_number or '記載なし' }}
+                                        {% if vehicle.deleted %} ／ 無効車両{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <p class="help-text">選択した車両へ、保存済みの実績と原本を紐付けます。</p>
+                            <button type="submit" class="btn btn-outline">この車両へ紐付ける</button>
+                        </form>
+                    {% endif %}
+
+                    <p>
+                        <a href="{{ url_for('vehicle_master', view='pending') }}">後で確認・一覧へ戻る</a>
+                    </p>
+                </section>
+
+                <p class="pw-next-note">
+                    反映後は次の登録待ち車両を表示します。判断できない車両は後で確認できます。
+                </p>
+            {% else %}
+                <div class="pw-empty">
+                    <h3>
+                        {% if pending_workspace.total %}
+                            検索条件を変更してください
+                        {% else %}
+                            登録待ちの確認が完了しました
+                        {% endif %}
+                    </h3>
+                    <p>取込済みの資料は、それぞれの車両カルテから確認できます。</p>
+                    <a class="btn btn-outline" href="{{ url_for('vehicle_master') }}">登録済み車両を見る</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% else %}
+
 <div class="card vehicle-master-filter-card vehicle-search-card">
     <h3 class="vehicle-search-heading">検索条件</h3>
 
@@ -490,5 +1075,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/vehicle_master.js') }}"></script>
+
+{% endif %}
 
 {% endblock %}

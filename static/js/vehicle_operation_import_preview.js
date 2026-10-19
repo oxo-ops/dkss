@@ -251,6 +251,7 @@
     const updateImportCount = () => {
         let ready = 0;
         let pending = 0;
+        let invalid = 0;
         const validIds = new Set(options.map((option) => option.value));
 
         preview.querySelectorAll(
@@ -268,8 +269,10 @@
 
             if (validIds.has(select.value)) {
                 ready += 1;
-            } else {
+            } else if (!select.value) {
                 pending += 1;
+            } else {
+                invalid += 1;
             }
         });
 
@@ -280,23 +283,27 @@
             excludedConfirmation && !excludedConfirmation.checked
         );
 
+        const total = ready + pending;
+
         if (importSummary) {
-            importSummary.textContent = pending > 0
-                ? `車両未確認：${pending}件。登録先を選択するか、車両を追加してください。対象外の車両は「今回は取り込まない」を選んでください。`
-                : ready === 0
+            importSummary.textContent = invalid > 0
+                ? "登録先の車両を確認できない明細があります。車両を選び直すか、未選択に戻してください。"
+                : total === 0
                     ? "今回の取込対象はありません。登録済み・対象外の明細を確認するか、CSVの選択へ戻ってください。"
                     : needsExcludedConfirmation
                         ? "明細でエラー・重複の行を確認し、「今回は取り込まない」の確認欄にチェックしてください。"
-                        : `確認できました。${ready}件の実績を取り込みます。下の取込ボタンを押してください。`;
+                        : pending > 0
+                            ? `カルテへ登録：${ready}件／登録待ちとして保存：${pending}件。未選択の実績も取り込めます。`
+                            : `確認できました。${ready}件の実績を取り込みます。下の取込ボタンを押してください。`;
         }
 
         if (importButton) {
-            importButton.disabled = ready === 0
-                || pending > 0
+            importButton.disabled = total === 0
+                || invalid > 0
                 || needsExcludedConfirmation;
 
-            importButton.textContent = ready > 0
-                ? `${ready}件の運行実績を取り込む`
+            importButton.textContent = total > 0
+                ? `${total}件の運行実績を取り込む`
                 : "運行実績を取り込む";
         }
     };
@@ -404,7 +411,7 @@
 
                 message.textContent = skip.checked
                     ? "この車両の実績は今回は取り込みません。"
-                    : "登録先の車両を選択するか、追加してください。";
+                    : "未選択の実績は登録待ちとして保存します。";
 
                 refresh();
             });

@@ -70,8 +70,8 @@
         </p>
     {% else %}
         <p class="help-text">
-            確認が必要な車両の登録先を選択してください。
-            登録済みの車両がなければ「車両を追加」から登録できます。
+            登録先が分かる実績は、登録済み車両を選択してください。
+            未選択の実績は「登録待ち」として保存します。
             今回取り込まない実績は「運行実績の明細を見る」でチェックを外してください。
             確認が終わったら、下の「運行実績を取り込む」ボタンを押してください。
         </p>
@@ -125,8 +125,8 @@
             <section id="vehicle-operation-resolution">
                 <h3>確認が必要な車両（{{ vehicle_resolution_groups | length }}台）</h3>
                 <p class="help-text">
-                    自動照合できた車両は設定済みです。下の車両だけ確認してください。
-                    「登録済み車両を選択」「車両を追加」「今回は取り込まない」のいずれかを選んでください。
+                    自動照合できた車両は設定済みです。登録先が分かる場合は選択してください。
+                    登録先が分からない場合は、未選択のまま登録待ちとして保存できます。
                     選択内容は、その車両の実績すべてに反映されます。
                 </p>
 
@@ -369,7 +369,7 @@
                                         </div>
                                     {% elif row.vehicle_record_id is none %}
                                         <div class="help-text">
-                                            登録先の車両を選択してください
+                                            登録待ちとして保存します
                                         </div>
                                     {% endif %}
                                 {% endif %}
@@ -399,7 +399,7 @@
 {% include "vehicle_operation_add_vehicle.html" %}
 
 <script
-    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261013-2"
+    src="{{ url_for('static', filename='js/vehicle_operation_import_preview.js') }}?v=20261019-pending-1"
     defer
 ></script>
 
