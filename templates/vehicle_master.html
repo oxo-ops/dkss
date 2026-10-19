@@ -3,23 +3,6 @@
 {% block title %}車両マスタ{% endblock %}
 
 {% block content %}
-
-<div class="page-header vehicle-master-page-header">
-    <div class="vehicle-list-title-group">
-        <h2>車両一覧</h2>
-        <p>
-            登録されている車両の一覧です。車両を選択すると車両カルテを確認できます。
-        </p>
-    </div>
-
-    <div class="header-actions">
-        <a href="{{ url_for('vehicle_registration_method') }}" class="btn btn-outline">
-            車両追加
-        </a>
-
-    </div>
-</div>
-
 {% set invoice_review_view = invoice_review_rows is defined %}
 {% set pending_view = pending_detail is defined or request.args.get('view') == 'pending' %}
 <nav class="form-actions vehicle-filter-actions vehicle-workflow-tabs" aria-label="車両一覧の切替">
@@ -34,6 +17,10 @@
     <a href="{{ url_for('vehicle_maintenance_document_reviews') }}" class="btn btn-outline"
        {% if invoice_review_view %}aria-current="page"{% endif %}>
         請求書の確認
+    </a>
+    <a href="{{ url_for('vehicle_registration_method') }}"
+       class="btn btn-primary vehicle-master-add-button">
+        ＋ 車両追加
     </a>
 </nav>
 
@@ -246,7 +233,7 @@
                     <input id="pending_queue_search" type="search" name="q"
                            maxlength="100" value="{{ pending_workspace.keyword }}"
                            placeholder="ナンバー・車両コード">
-                    <button type="submit" class="btn btn-outline">検索</button>
+                    <button type="submit" class="btn btn-primary">検索</button>
                 </div>
             </form>
 
@@ -716,7 +703,7 @@
             <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline">
                 クリア
             </a>
-            <button type="submit" class="btn btn-outline">検索</button>
+            <button type="submit" class="btn btn-primary">検索</button>
         </div>
     </form>
 </div>
@@ -849,12 +836,7 @@
 
         <td class="action-cell vehicle-action-cell">
             <div class="action-buttons vehicle-action-buttons">
-                <a
-                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
-                    class="btn btn-outline btn-small"
-                >
-                    カルテ
-                </a>
+
 
                 <a
                     href="/master/vehicles/{{ vehicle.index }}/edit"
@@ -1040,13 +1022,6 @@
             </div>
 
             <div class="mobile-card-actions">
-                <a
-                    href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
-                    class="btn btn-outline btn-small"
-                >
-                    カルテ
-                </a>
-
                 <a
                     href="/master/vehicles/{{ vehicle.index }}/edit"
                     class="btn-small btn-edit"
