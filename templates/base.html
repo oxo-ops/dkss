@@ -16,7 +16,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261019-dashboard-mineral-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261019-master-unified-2') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
@@ -99,56 +99,16 @@
             </div>
 
             {% if session.get("role") in ["admin", "itc"] %}
-            <a href="{{ url_for('master') }}"
-   class="menu-item {% if path.startswith('/master') %}active{% endif %}"
-   {% if path.startswith('/master') %}aria-current="page"{% endif %}>
-    <span class="menu-icon">
-        <img src="{{ url_for('static', filename='icons/master.png') }}" alt="">
-    </span>
-    <span class="menu-text">マスタ管理</span>
-</a>
-                <div class="sidebar-submenu">
-                    <a href="/master/drivers" class="menu-item submenu-item {% if path.startswith('/master/drivers') %}active{% endif %}">
-                        <span class="menu-text">ドライバーマスタ</span>
-                    </a>
-
-                    <a href="/master/offices" class="menu-item submenu-item {% if path.startswith('/master/offices') %}active{% endif %}">
-                        <span class="menu-text">営業所マスタ</span>
-                    </a>
-
-                    <a
-                        href="{{ url_for('vehicle_master') }}"
-                        class="menu-item submenu-item {% if path.startswith('/master/vehicles') %}active{% endif %}"
-                    >
-                        <span class="menu-text">車両マスタ</span>
-                    </a>
-
-                    <a href="/master/vehicle-types"
-                    class="menu-item submenu-item {% if path.startswith('/master/vehicle-types') %}active{% endif %}">
-                        <span class="menu-text">車種マスタ</span>
-                    </a>
-
-                    <a href="/master/license-types"
-                    class="menu-item submenu-item {% if path.startswith('/master/license-types') %}active{% endif %}">
-                        <span class="menu-text">免許種別マスタ</span>
-                    </a>
-
-                    <a href="/master/delivery-places" class="menu-item submenu-item {% if path.startswith('/master/delivery-places') %}active{% endif %}">
-                        <span class="menu-text">納入先マスタ</span>
-                    </a>
-
-                    <a href="/master/manuals" class="menu-item submenu-item {% if path.startswith('/master/manuals') %}active{% endif %}">
-                        <span class="menu-text">マニュアルマスタ</span>
-                    </a>
-
-                    <a href="/master/patrol-content-types"
-                    class="menu-item submenu-item {% if path.startswith('/master/patrol-content-types') %}active{% endif %}">
-                        <span class="menu-text">内容区分マスタ</span>
-                    </a>
-
-                    <a href="/master/checklists" class="menu-item submenu-item {% if path.startswith('/master/checklists') %}active{% endif %}">
-                        <span class="menu-text">チェックリストマスタ</span>
-                    </a>
+            <a
+                href="/master/drivers"
+                class="menu-item {% if path.startswith('/master') %}active{% endif %}"
+                {% if path.startswith('/master') %}aria-current="page"{% endif %}
+            >
+                <span class="menu-icon">
+                    <img src="{{ url_for('static', filename='icons/master.png') }}" alt="">
+                </span>
+                <span class="menu-text">マスタ管理</span>
+            </a>
             {% endif %}
 
         </nav>
@@ -425,12 +385,74 @@
             ('/master/license-types', '免許種別マスタ'),
             ('/master/delivery-places', '納入先マスタ')
         ] %}
+        {% set master_titles = {
+            '/master/drivers': 'ドライバーマスタ',
+            '/master/offices': '営業所マスタ',
+            '/master/vehicles': '車両マスタ',
+            '/master/vehicle-types': '車種マスタ',
+            '/master/license-types': '免許種別マスタ',
+            '/master/delivery-places': '納入先マスタ'
+        } %}
+
+        {% if request.path in master_titles %}
+        {% set master_descriptions = {
+            '/master/drivers': '登録されているドライバーの一覧です。条件で絞り込み、編集・削除ができます。',
+            '/master/offices': '登録されている営業所の一覧です。新規登録・編集・削除ができます。',
+            '/master/vehicles': '登録されている車両の一覧です。条件で絞り込み、編集・削除ができます。',
+            '/master/vehicle-types': '車両登録時に使用する車種を管理します。新規登録・編集・削除ができます。',
+            '/master/license-types': 'ドライバーの免許種別を管理します。新規登録・編集・削除ができます。',
+            '/master/delivery-places': '登録されている納入先の一覧です。新規登録・編集・削除ができます。'
+        } %}
+        <header class="master-unified-heading">
+            <h2>{{ master_titles[request.path] }}</h2>
+            <p>{{ master_descriptions[request.path] }}</p>
+        </header>
+        {% endif %}
+
         <nav class="master-unified-tabs" aria-label="マスタ管理の切替">
             {% for href, label in master_tabs %}
             <a href="{{ href }}"
                class="master-unified-tab{% if request.path == href %} is-current{% endif %}"
                {% if request.path == href %}aria-current="page"{% endif %}>
-                {{ label }}
+
+                <svg class="master-tab-icon" width="22" height="22"
+                     viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"
+                     aria-hidden="true">
+
+                    {% if href == '/master/drivers' %}
+                    <circle cx="12" cy="7" r="4"/>
+                    <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+
+                    {% elif href == '/master/offices' %}
+                    <rect x="5" y="3" width="14" height="18" rx="1"/>
+                    <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/>
+
+                    {% elif href == '/master/vehicles' %}
+                    <path d="M5 17H3v-5l2-6h14l2 6v5h-2"/>
+                    <path d="M3 12h18M5 17h14"/>
+                    <circle cx="7" cy="17" r="2"/>
+                    <circle cx="17" cy="17" r="2"/>
+
+                    {% elif href == '/master/vehicle-types' %}
+                    <path d="M3 7h12v10H3zM15 10h4l3 4v3h-7"/>
+                    <circle cx="7" cy="18" r="2"/>
+                    <circle cx="18" cy="18" r="2"/>
+
+                    {% elif href == '/master/license-types' %}
+                    <rect x="3" y="5" width="18" height="14" rx="2"/>
+                    <circle cx="9" cy="11" r="2"/>
+                    <path d="M6 16c0-2 6-2 6 0M15 10h3M15 14h3"/>
+
+                    {% elif href == '/master/delivery-places' %}
+                    <rect x="5" y="3" width="14" height="18" rx="1"/>
+                    <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/>
+                    {% endif %}
+
+                </svg>
+
+                <span class="master-tab-label">{{ label }}</span>
             </a>
             {% endfor %}
         </nav>
