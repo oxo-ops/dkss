@@ -33,15 +33,25 @@
         </span>
     {% endif %}
 
-    <a
-        href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
-        class="vehicle-karte-tab"
-        {% if request.endpoint == "vehicle_karte_inspections" %}
-            aria-current="page"
-        {% endif %}
-    >
-        点検
-    </a>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_inspections" %}
+                aria-current="page"
+            {% endif %}
+        >
+            点検
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            点検
+        </span>
+    {% endif %}
 
     {% if vehicle is defined and vehicle %}
         <a
@@ -126,11 +136,23 @@
         </span>
     {% endif %}
 
-    <span
-        class="vehicle-karte-tab is-disabled"
-        aria-disabled="true"
-        title="分析タブは実装中です"
-    >
-        分析
-    </span>
+    {% if vehicle is defined and vehicle %}
+        <a
+            href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}"
+            class="vehicle-karte-tab"
+            {% if request.endpoint == "vehicle_karte_analysis" %}
+                aria-current="page"
+            {% endif %}
+        >
+            分析
+        </a>
+    {% else %}
+        <span
+            class="vehicle-karte-tab is-disabled"
+            aria-disabled="true"
+            title="車両を選択してください"
+        >
+            分析
+        </span>
+    {% endif %}
 </nav>

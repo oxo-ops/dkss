@@ -183,7 +183,10 @@
 
         <div class="form-group">
             <label>車種</label>
-            <select name="type" id="type" required>
+            <select name="type" id="type" {% if mode != 'edit' %}required{% endif %}>
+                {% if mode == 'edit' %}
+                    <option value="" {% if not vehicle or not vehicle.type %}selected{% endif %}>未設定</option>
+                {% endif %}
                 {% for vehicle_type in vehicle_types %}
                     <option
                         value="{{ vehicle_type.name }}"
@@ -197,7 +200,10 @@
 
         <div class="form-group">
             <label>営業所</label>
-            <select name="office" id="office" required>
+            <select name="office" id="office" {% if mode != 'edit' %}required{% endif %}>
+                {% if mode == 'edit' %}
+                    <option value="" {% if not vehicle or not vehicle.office %}selected{% endif %}>未設定</option>
+                {% endif %}
                 {% for office in offices %}
                     <option
                         value="{{ office.name }}"

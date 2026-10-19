@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}整備知識{% endblock %}
+{% block content %}
+<h2>整備知識</h2>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+
+{% if not selected %}
+<p class="help-text">
+    確認済みで有効期間内の知識を分析に使います。
+    内容の修正は新規登録し、以前の登録を利用停止にしてください。
+</p>
+<details class="card">
+    <summary>整備知識を登録</summary>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <div class="form-grid">
+            <label>タイトル（必須）
+                <input name="title" maxlength="150" value="{{ values.get('title', '') }}" required>
+            </label>
+            <label>部品・箇所（必須）
+                <input name="part_name" maxlength="100" value="{{ values.get('part_name', '') }}" required>
+            </label>
+            <label>メーカー（空欄は限定なし）
+                <input name="manufacturer" maxlength="100" value="{{ values.get('manufacturer', '') }}">
+            </label>
+            <label>型式（空欄は限定なし）
+                <input name="model_code" maxlength="100" value="{{ values.get('model_code', '') }}">
+            </label>
+        </div>
+        <p class="help-text">メーカー・型式は台帳と完全一致するものに適用します。系統や世代の指定には対応していません。</p>
+        <label>適用条件（必須）
+            <textarea name="conditions" rows="3" maxlength="1500" required>{{ values.get('conditions', '') }}</textarea>
+        </label>
+        <label>確認・対応内容と、その理由（必須）
+            <textarea name="guidance" rows="5" maxlength="2500" required>{{ values.get('guidance', '') }}</textarea>
+        </label>
+        <p class="help-text">症状、距離・期間、使用条件、最初の確認と次の確認候補を、確認できた根拠の範囲で記載してください。</p>
+        <label>出典区分（必須）
+            <select name="source_kind" required>
+                {% for kind in kinds %}
+                <option value="{{ kind }}" {% if values.get('source_kind') == kind %}selected{% endif %}>{{ kind }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>出典・資料名・該当ページ等（必須）
+            <textarea name="source_reference" rows="2" maxlength="1500" required>{{ values.get('source_reference', '') }}</textarea>
+        </label>
+        <label>知識の提供者（必須）
+            <input name="provider" maxlength="150" value="{{ values.get('provider', '') }}" required>
+        </label>
+        <div class="form-grid">
+            <label>有効開始日（必須）
+                <input type="date" name="valid_from" value="{{ values.get('valid_from', today) }}" required>
+            </label>
+            <label>有効終了日（任意）
+                <input type="date" name="valid_until" value="{{ values.get('valid_until', '') }}">
+            </label>
+        </div>
+        <button type="submit" class="btn btn-outline">未確認として登録</button>
+    </form>
+</details>
+<p class="help-text">登録一覧：新しい順に最大200件</p>
+{% endif %}
+
+{% for row in rows %}
+<article class="card" id="knowledge-{{ row.id }}">
+    <h3>{{ row.title }}</h3>
+    <p>
+        {{ {'draft': '未確認', 'active': '確認済み', 'retired': '利用停止'}.get(row.status, row.status) }}
+        · {{ row.source_kind }} · {{ row.part_name }}
+    </p>
+    {% if row.status != 'active' or row.valid_from > today or (row.valid_until and row.valid_until < today) %}
+    <p class="help-text">現在の分析対象には含まれません。</p>
+    {% endif %}
+    <dl>
+        <dt>メーカー・型式</dt>
+        <dd>{{ row.manufacturer or '限定なし' }} ／ {{ row.model_code or '限定なし' }}</dd>
+        <dt>適用条件</dt>
+        <dd style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ row.conditions }}</dd>
+        <dt>確認・対応内容と理由</dt>
+        <dd style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ row.guidance }}</dd>
+        <dt>出典</dt>
+        <dd style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ row.source_reference }}</dd>
+        <dt>提供者</dt><dd>{{ row.provider }}</dd>
+        <dt>有効期間</dt><dd>{{ row.valid_from }} ～ {{ row.valid_until or '終了日未設定' }}</dd>
+        <dt>登録</dt><dd>{{ row.created_by }} · {{ row.created_at }}</dd>
+        {% if row.confirmed_at %}
+        <dt>確認</dt><dd>{{ row.confirmed_by }} · {{ row.confirmed_at }}</dd>
+        {% endif %}
+        {% if row.retired_at %}
+        <dt>利用停止</dt><dd>{{ row.retired_by }} · {{ row.retired_at }} · {{ row.retirement_reason }}</dd>
+        {% endif %}
+    </dl>
+    {% if not selected %}
+        {% if row.status == 'draft' %}
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="confirm">
+            <input type="hidden" name="knowledge_id" value="{{ row.id }}">
+            <label><input type="checkbox" name="reviewed" value="1" required>出典・適用条件・確認内容を確認しました</label>
+            <button type="submit" class="btn btn-outline">確認済みにする</button>
+        </form>
+        {% endif %}
+        {% if row.status != 'retired' %}
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="retire">
+            <input type="hidden" name="knowledge_id" value="{{ row.id }}">
+            <label>利用停止の理由
+                <input name="retirement_reason" maxlength="1000" required>
+            </label>
+            <button type="submit" class="btn btn-outline">利用停止</button>
+        </form>
+        {% endif %}
+    {% endif %}
+</article>
+{% else %}
+<p class="help-text">整備知識はまだ登録されていません。</p>
+{% endfor %}
+{% endblock %}

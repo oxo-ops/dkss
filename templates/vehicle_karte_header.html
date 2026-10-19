@@ -21,6 +21,7 @@
                         'vehicle_karte_maintenance',
                         'vehicle_karte_parts',
                         'vehicle_karte_costs',
+                        'vehicle_karte_analysis',
                         'vehicle_karte_documents'
                     ]
                     else 'vehicle_karte'
@@ -143,8 +144,8 @@
     <div class="vehicle-karte-summary">
         <div class="vehicle-karte-metrics">
             <div class="vehicle-karte-metric">
-                <span>現在走行距離</span>
                 {% set operation_summary = karte_operation_summary | default({}) %}
+                <span>現在走行距離{% if operation_summary.get('mileage_date') %}（{{ (operation_summary.get('mileage_date')|string)[:10] }}）{% endif %}</span>
                 {% if operation_summary.get("current_mileage") is not none %}
                     <strong title="{{ operation_summary.get('mileage_date') or '' }}">
                         {{ "{:,.2f}".format(operation_summary.get("current_mileage")) }} km

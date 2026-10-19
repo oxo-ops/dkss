@@ -4,74 +4,532 @@
 
 {% block content %}
 
-<div class="dashboard-page">
+<div class="dashboard-page dashboard-design-v2">
 
     <div class="dashboard-header">
         <div>
             <h2>ダッシュボード</h2>
-            <p>今日の安全状況と対応状況を確認できます。</p>
-            {% if setup_tasks %}
-            <div class="card setup-guide-card">
-                <h3>初期設定ガイド</h3>
-
-                <p class="help-text">
-                    システム利用前に、以下のマスタを設定してください。
-                </p>
-
-                <div class="setup-task-list">
-                    {% for task in setup_tasks %}
-                        <div class="setup-task-item">
-                            <div>
-                                <strong>{{ task.name }}</strong>
-                                <p>{{ task.description }}</p>
-                            </div>
-
-                            <a href="{{ task.url }}" class="btn-small">
-                                設定する
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            <span class="dashboard-reference-office">所属：{{ dashboard_scope_office or '未設定' }}</span>
         </div>
     </div>
+{% if dashboard_settings.get("show_vehicles", True) %}
+<div class="dashboard-vehicles-section">
+    <div class="dashboard-vehicles-header">
+        <div class="dashboard-vehicles-title">
+            <h3 class="dashboard-vehicles-heading">
+                使用車両・日常点検
+            </h3>
+
+            <span class="dashboard-vehicles-count">
+                {{ my_vehicles|length }}台
+            </span>
+        </div>
+
+        <button
+            type="button"
+            id="dashboardVehicleAddButton"
+            class="dashboard-vehicle-add-button"
+        >
+            <span class="dashboard-vehicle-add-icon">
+                ＋
+            </span>
+
+            車両を追加
+        </button>
+    </div>
+
+
+    {% if my_vehicles %}
+
+        <div class="dashboard-vehicle-grid">
+
+            {% for vehicle in my_vehicles %}
+
+                {% set analysis =
+                    my_vehicle_analysis.get(
+                        vehicle.id,
+                        {}
+                    )
+                %}
+
+                {% set vehicle_type_text =
+                    (
+                        (vehicle.type or "")
+                        ~ " "
+                        ~ (vehicle.body_type or "")
+                    )|lower
+                %}
+
+                {% if "トレーラ" in vehicle_type_text %}
+                    {% set vehicle_icon = "trailer.png" %}
+                {% elif
+                    "トラクタ" in vehicle_type_text
+                    or "ヘッド" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "tractor.png" %}
+                {% elif
+                    "クレーン" in vehicle_type_text
+                    or "ユニック" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "crane.png" %}
+                {% elif
+                    "平ボディ" in vehicle_type_text
+                    or "平車" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "flatbed.png" %}
+                {% elif
+                    "乗用" in vehicle_type_text
+                    or "普通車" in vehicle_type_text
+                %}
+                    {% set vehicle_icon = "car.png" %}
+                {% else %}
+                    {% set vehicle_icon = "truck.png" %}
+                {% endif %}
+
+
+                <div class="dashboard-vehicle-card">
+
+                    <img
+                        src="{{ url_for(
+                            'static',
+                            filename='icons/' ~ vehicle_icon
+                        ) }}"
+                        alt=""
+                        class="dashboard-vehicle-icon"
+                    >
+
+
+                    <div class="dashboard-vehicle-content dashboard-vehicle-entry">
+                        <div class="dashboard-vehicle-entry-main">
+                            <strong class="dashboard-vehicle-id" title="{% if vehicle.plate_number %}{{ vehicle.plate_area or '' }}{{ vehicle.plate_class or '' }}{{ vehicle.plate_kana or '' }}{{ vehicle.plate_number or '' }}{% else %}ナンバー未登録{% endif %}">
+                                {% if vehicle.plate_number %}
+                                    {{ vehicle.plate_area or "" }}{{ vehicle.plate_class or "" }}{{ vehicle.plate_kana or "" }}{{ vehicle.plate_number or "" }}
+                                {% else %}
+                                    ナンバー未登録
+                                {% endif %}
+                            </strong>
+                            <span class="dashboard-vehicle-type">{{ vehicle.type or vehicle.body_type or '車種未登録' }}</span>
+                        </div>
+                        <div class="dashboard-vehicle-toolbar">
+                            {% if dashboard_settings.get("show_my_checklists", True) %}
+                                {% set vehicle_lists = my_checklist_summaries|default([], true)|selectattr('vehicle_record_id', 'equalto', vehicle.id)|list %}
+                                {% set daily_lists = vehicle_lists|selectattr('is_standard_daily')|list %}
+                                {% set custom_lists = vehicle_lists|rejectattr('is_standard_daily')|list %}
+
+                                {% if daily_lists %}
+                                <a class="dashboard-vehicle-action dashboard-vehicle-action-primary"
+                                   href="/vehicle/checklists/{{ daily_lists[0].id }}?vehicle_record_id={{ vehicle.id }}">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/></svg>
+                                    日常点検
+                                </a>
+                                {% else %}
+                                <a class="dashboard-vehicle-action dashboard-vehicle-action-primary" href="/vehicle/checklists">点検表一覧</a>
+                                {% endif %}
+
+                                {% if custom_lists or daily_lists|length > 1 %}
+                                <details class="dashboard-vehicle-checklists">
+                                    <summary class="dashboard-vehicle-action">独自チェックリスト</summary>
+                                    <div class="dashboard-vehicle-checklist-menu">
+                                        {% for item in custom_lists + daily_lists[1:] %}
+                                        <a href="/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ vehicle.id }}">{{ item.name }}</a>
+                                        {% endfor %}
+                                    </div>
+                                </details>
+                                {% else %}
+                                <span class="dashboard-vehicle-action dashboard-vehicle-action-unavailable" aria-disabled="true" title="利用できる独自チェックリストはありません">独自チェックリスト</span>
+                                {% endif %}
+                            {% endif %}
+
+                            <a class="dashboard-vehicle-action"
+                               href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/></svg>
+                                車両カルテ
+                            </a>
+                        </div>
+                    </div>
+
+
+                    <form
+                        method="post"
+                        action="/usage-vehicles/remove/{{ vehicle.id }}"
+                        class="dashboard-vehicle-remove-form"
+                    >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <input
+                            type="hidden"
+                            name="next"
+                            value="/"
+                        >
+
+                        <button
+                            type="submit"
+                            title="使用車両から削除"
+                            class="dashboard-vehicle-remove-button"
+                        >
+                            ×
+                        </button>
+                    </form>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    {% endif %}
+
+
+    <div
+        id="dashboardVehicleAddArea"
+        class="dashboard-vehicle-add-area"
+    >
+
+        <form
+            method="post"
+            action="/usage-vehicles/add"
+            id="dashboardVehicleForm"
+        >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <input
+                type="hidden"
+                name="next"
+                value="/"
+            >
+
+            <input
+                type="hidden"
+                name="vehicle_record_id"
+                id="dashboardVehicleId"
+            >
+
+            <div class="dashboard-vehicle-search-wrapper">
+
+                <input
+                    type="text"
+                    id="dashboardVehicleSearch"
+                    class="dashboard-vehicle-search-input"
+                    placeholder="車台番号・ナンバーで検索"
+                    autocomplete="off"
+                >
+
+                <div
+                    id="dashboardVehicleResults"
+                    class="dashboard-vehicle-results"
+                ></div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endif %}
+
+{% if
+    dashboard_settings.get("show_my_checklists", True)
+    and my_checklist_summaries
+%}
+
+<div class="dashboard-my-checklists-section">
+
+    {% set daily = my_checklist_summaries|selectattr('is_standard_daily', 'equalto', true)|list %}
+    {% set others = my_checklist_summaries|rejectattr('is_standard_daily', 'equalto', true)|list %}
+
+    {% if not dashboard_settings.get("show_vehicles", True) %}
+    <div class="card-title-row dashboard-my-checklists-title-row">
+        <h3>日常点検</h3>
+    </div>
+
+    <div class="dashboard-daily-grid">
+        {% for item in daily %}
+        <a class="dashboard-daily-link"
+           href="/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ item.vehicle_record_id }}">
+            <span>
+                <strong>{{ item.registration_number or 'ナンバー未登録' }}</strong>
+                <small>{{ item.name }}</small>
+            </span>
+            <span class="dashboard-daily-open">点検表を開く →</span>
+        </a>
+        {% else %}
+        <p class="help-text">
+            表示できる日常点検表がありません。
+            <a href="/vehicle/checklists">点検表一覧へ</a>
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if others %}
+    <details class="dashboard-other-checklists">
+        <summary>その他のチェックリスト・集計（{{ others|length }}件）</summary>
+        <div class="dashboard-my-checklists-grid">
+
+        {% for item in others %}
+
+    <a
+        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ item.vehicle_record_id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_username|urlencode }}{% endif %}"
+        class="dashboard-card dashboard-my-checklist-card"
+    >
+
+            <strong class="dashboard-my-checklist-name">
+                {{ item.name }}
+            </strong>
+
+            {% if item.target == '車両管理' and item.vehicle_record_id %}
+            <span class="help-text">
+                対象車両 {{ item.registration_number or "ナンバー未登録" }}
+            </span>
+            {% endif %}
+
+            <div class="dashboard-my-checklist-score-row">
+
+                <div>
+                    {% if item.average_score is not none %}
+                        <span class="dashboard-my-checklist-score">
+                            {{ item.average_score if item.average_score is number else '—' }}
+                        </span>
+                    {% else %}
+                        <span class="ui-empty-value">
+                            {% if item.result_count %}
+                                集計対象の記録なし
+                            {% else %}
+                                記録なし
+                            {% endif %}
+                        </span>
+                    {% endif %}
+
+                    {% if item.average_score is not none %}
+                    <span class="dashboard-my-checklist-max-score">
+                        / {{ item.max_score }}点
+                    </span>
+                    {% endif %}
+                </div>
+
+                <span class="dashboard-my-checklist-count">
+                    {{ item.result_count }}件
+                </span>
+
+            </div>
+
+
+            {% if item.average_difference is not none %}
+
+            <div class="dashboard-my-checklist-average">
+                全体平均 {{ item.overall_average_score }}点
+
+                {% if item.average_difference > 0 %}
+                    ・ +{{ item.average_difference }}点
+                {% elif item.average_difference < 0 %}
+                    ・ {{ item.average_difference }}点
+                {% else %}
+                    ・ ±0点
+                {% endif %}
+            </div>
+
+            {% endif %}
+
+
+            {% if item.category_analysis %}
+
+            <div class="dashboard-my-checklist-categories">
+
+                <div class="dashboard-my-checklist-category-title">
+                    注意したい分野
+                </div>
+
+                {% for category in item.category_analysis %}
+
+                    <div class="dashboard-my-checklist-category">
+
+                        <div class="dashboard-my-checklist-category-row">
+
+                            <span class="dashboard-my-checklist-category-label">
+                                {{ category.category }}
+                            </span>
+
+                            <strong class="dashboard-my-checklist-category-rate">
+                                {{ category.improvement_rate }}%
+                            </strong>
+
+                        </div>
+
+                        <progress
+                            class="dashboard-my-checklist-progress-bar"
+                            value="{{ category.improvement_rate }}"
+                            max="100"
+                        ></progress>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+            {% endif %}
+
+        </a>
+
+        {% endfor %}
+
+    </div>
+    </details>
+    {% endif %}
+
+</div>
+
+{% endif %}
+
+{% if dashboard_settings.get("show_analysis", True) %}
+    <section class="dashboard-attention dashboard-attention-list" aria-label="車両の確認・対応候補">
+        <h3 class="dashboard-reference-title">確認・対応すること</h3>
+        {% macro attention_table(items) %}
+        <div class="dashboard-attention-table-wrap">
+            <table class="dashboard-attention-table">
+                <thead>
+                    <tr>
+                        <th scope="col">車両・箇所</th>
+                        <th scope="col">次の対応・理由</th>
+                        <th scope="col">目安</th>
+                        <th scope="col">状態</th>
+                        <th scope="col"><span class="dashboard-attention-detail-heading">詳細</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>
+                            <a href="{{ item.url }}">{{ item.vehicle_number }}</a>
+                            <strong>{{ item.target or item.title }}</strong>
+                        </td>
+                        <td>
+                            <strong class="dashboard-reference-action" title="{{ item.action }}">{{ item.action }}</strong>
+                            <small class="dashboard-reference-reason" title="{{ item.reason }}">{{ item.reason }}</small>
+                        </td>
+                        <td>
+                            <p>{{ item.timing or '時期の判断材料不足' }}</p>
+                        </td>
+                        <td>
+                            {% set response_state = item.get('feedback_status', 'open') %}
+                            <span class="dashboard-reference-state" data-state="{{ response_state }}">
+                                {{ {'open': '未着手', 'accepted': '採用', 'in_progress': '対応中', 'completed': '完了', 'dismissed': '見送り'}.get(response_state, '未着手') }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ item.url }}{% if item.get('proposal_id') %}#proposal={{ item.proposal_id }}{% endif %}" aria-label="{{ item.vehicle_number }}：{{ item.action }}の根拠・対応">根拠・対応</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endmacro %}
+
+        {% for key, title in [
+            ('mine', '自分の使用車両'),
+            ('office', '所属営業所のほかの車両')
+        ] %}
+        {% set group = dashboard_vehicle_attention[key] %}
+        {% set maintenance = group['items']|selectattr('category', 'equalto', '整備・点検')|list %}
+        {% set checks = group['items']|rejectattr('category', 'equalto', '整備・点検')|list %}
+        <div class="dashboard-attention-panel">
+            <h3>
+                {% if key == 'office' and dashboard_scope_office %}
+                    {{ dashboard_scope_office }}のほかの車両
+                {% else %}
+                    {{ title }}
+                {% endif %}
+                <span>{{ maintenance|length }}件</span>
+                {% if maintenance|length > 3 %}
+                <button type="button" class="dashboard-attention-view-all"
+                        data-reference-target="#dashboard-attention-more-{{ key }}"
+                        aria-controls="dashboard-attention-more-{{ key }}">全件を見る</button>
+                {% endif %}
+            </h3>
+
+            {% if group.errors %}
+            <p class="dashboard-attention-update" role="status">
+                更新に失敗した車両があります。保存済みの結果は表示しています。
+            </p>
+            {% elif group.updating %}
+            <p class="dashboard-attention-update" role="status">
+                更新待ちの車両があります。保存済みの結果は表示しています。
+            </p>
+            {% endif %}
+
+            {% if maintenance %}
+                {{ attention_table(maintenance[:3]) }}
+                {% if maintenance|length > 3 %}
+                <details class="dashboard-attention-more" id="dashboard-attention-more-{{ key }}">
+                    <summary>残り{{ maintenance|length - 3 }}件の対応候補を見る</summary>
+                    {{ attention_table(maintenance[3:]) }}
+                </details>
+                {% endif %}
+            {% else %}
+            {{ attention_table([]) }}
+            <p class="dashboard-attention-empty">
+                {% if not group.vehicles %}
+                    {% if key == 'office' and not dashboard_scope_office %}
+                    所属営業所が未設定です。
+                    {% else %}
+                    対象の車両はありません。
+                    {% endif %}
+                {% else %}
+                現在表示できる整備・点検候補はありません。
+                {% endif %}
+            </p>
+            {% endif %}
+
+            {% if checks or group.missing or group.insufficient %}
+            <details class="dashboard-attention-records">
+                <summary>記録の確認・分析状況を見る</summary>
+                {% for item in checks %}
+                <article class="dashboard-attention-item">
+                    <a href="{{ item.url }}">{{ item.vehicle_number }} · {{ item.title }}</a>
+                    {% if item.category != '記録確認' %}
+                    <p>保存済みの分析です。更新状況と内容を確認してください。</p>
+                    {% endif %}
+                    <p>{{ item.action }}</p>
+                    <p>{{ item.reason }}</p>
+                </article>
+                {% endfor %}
+                {% if group.missing %}
+                <p class="help-text">分析結果を確認できない車両：{{ group.missing }}台</p>
+                {% endif %}
+                {% if group.insufficient %}
+                <p class="help-text">記録の確認のみを行った車両：{{ group.insufficient }}台</p>
+                {% endif %}
+            </details>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
 
     <form
         method="post"
         action="/dashboard/settings"
         id="dashboardFilterForm"
         class="dashboard-filter-form"
+        hidden
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_view" id="dashboardReturnView" value="">
+        <input type="hidden" name="return_checklist" id="dashboardReturnChecklist" value="">
         <div class="dashboard-filter-fields">
             <span class="dashboard-filter-label">
                 表示条件
             </span>
 
-            <label class="dashboard-filter-field">
-                営業所
-
-                <select
-                    name="office"
-                    class="dashboard-filter-select dashboard-filter-select-office dashboard-auto-submit"
-                >
-                    <option value="">
-                        全営業所
-                    </option>
-
-                    {% for office in dashboard_offices %}
-                        <option
-                            value="{{ office.name }}"
-                            {% if dashboard_settings.office == office.name %}
-                                selected
-                            {% endif %}
-                        >
-                            {{ office.name }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+            <div class="dashboard-filter-field">
+                <span>表示営業所</span>
+                <strong>{{ dashboard_scope_office or '所属営業所未設定' }}</strong>
+                <input type="hidden" name="office"
+                       value="{{ dashboard_scope_office }}">
+            </div>
 
             <label class="dashboard-filter-field">
                 期間
@@ -213,6 +671,11 @@
 
 
                 <div class="dashboard-display-footer">
+                    {% if setup_tasks %}
+                    <button type="button" class="dashboard-setup-trigger" data-reference-target=".dashboard-setup-details">
+                        初期設定 <span aria-hidden="true">›</span>
+                    </button>
+                    {% endif %}
 
                     <button
                         type="submit"
@@ -228,435 +691,236 @@
         </div>
     </form>
 
-    {% if dashboard_settings.get("show_summary", True) %}
-    <div class="dashboard-summary">
+    {% if dashboard_scope_missing %}
+    <p class="help-text" role="status">
+        所属営業所が未設定のため、営業所の集計を表示できません。
+        ユーザーの所属営業所を設定してください。
+    </p>
+    {% endif %}
 
+    {% if dashboard_settings.get("show_summary", True) %}
+    {% set periodic = dashboard_periodic_schedule|default({}, true) %}
+    <section class="dashboard-reference-safety">
+        <h3>安全・期限</h3>
+        <div class="dashboard-summary">
             {% if is_dashboard_admin %}
-            <a
-                href="/master/drivers?keyword={{ my_user_name|urlencode }}"
-                class="summary-card main dashboard-link-card"
-            >
+            <a href="/master/drivers?keyword={{ my_user_name|urlencode }}" class="summary-card main dashboard-link-card">
             {% else %}
             <div class="summary-card main">
             {% endif %}
-                <div class="summary-title">あなたの無事故無違反</div>
-                <div class="summary-value">{{ my_safe_days }}</div>
-                <div class="summary-unit">日継続中</div>
+                <svg class="dashboard-safety-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-6h10l2 6M4 10h16v9H4zM7 19v2m10-2v2M7 14h1m8 0h1"/></svg>
+                <div class="summary-title">自分の無事故無違反</div>
+                <div class="summary-value">{{ my_safe_days if my_safe_days is number else '—' }}</div>
+                <div class="summary-unit">日</div>
             {% if is_dashboard_admin %}
             </a>
             {% else %}
             </div>
             {% endif %}
-            <a
-                href="/pointouts?type=user&category=Good&mine=1"
-                class="summary-card dashboard-link-card"
-            >
-                <div class="summary-title">あなたのGood件数</div>
+
+            <a href="/pointouts?type=user&amp;category=Good&amp;mine=1" class="summary-card dashboard-link-card">
+                <svg class="dashboard-safety-icon dashboard-safety-icon-teal" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4-7c2 0 3 1 2 4l-1 3h5c2 0 3 1 2 3l-2 7H8zM3 10h5v10H3z"/></svg>
+                <div class="summary-title">Good</div>
                 <div class="summary-value good">{{ my_good_count }}</div>
                 <div class="summary-unit">件</div>
             </a>
-     
-            <a
-                href="/pointouts?type=user&mine=1&pending=1"
-                class="summary-card dashboard-link-card"
-            >
-                <div class="summary-title">あなたへの未対応指摘</div>
-                <div class="summary-value danger">{{ my_pending_pointouts|length }}</div>
-                <div class="summary-unit">件</div>
-            </a>
 
-            {% if is_dashboard_admin %}
-            <a
-                href="/master/vehicles"
-                class="summary-card dashboard-link-card"
-            >
-            {% else %}
-            <div class="summary-card">
-            {% endif %}
+            <a href="#dashboard-reference-inspection" data-reference-target="#dashboard-reference-inspection" class="summary-card dashboard-link-card">
+                <svg class="dashboard-safety-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/></svg>
                 <div class="summary-title">車検期限90日以内</div>
                 <div class="summary-value warning">{{ inspection_alerts|length }}</div>
                 <div class="summary-unit">台</div>
-            {% if is_dashboard_admin %}
             </a>
-            {% else %}
-            </div>
-            {% endif %}
 
-    </div>
+            <a href="#dashboard-reference-periodic" data-reference-target="#dashboard-reference-periodic" class="summary-card dashboard-link-card">
+                <svg class="dashboard-safety-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 10h18M7 14h3m4 0h3"/></svg>
+                <div class="summary-title">3か月点検の予定</div>
+                <div class="summary-value">{{ periodic.get('scheduled', [])|length if periodic.get('available') and (periodic.get('known_count') or periodic.get('total_count') == 0) else '—' }}</div>
+                <div class="summary-unit">台</div>
+            </a>
+        </div>
+        {% if periodic.get('unregistered') %}
+        <p class="dashboard-periodic-note">次回予定未登録：{{ periodic.unregistered|length }}台</p>
+        {% endif %}
+    </section>
     {% endif %}
+
+    <div class="dashboard-reference-bottom-grid">
+        {% if dashboard_settings.get('show_analysis', True) %}
+        <section class="dashboard-reference-bottom-panel dashboard-office-trends">
+            <div class="dashboard-office-trend-header">
+                <h3>営業所の傾向</h3>
+                <div class="dashboard-trend-tabs" role="tablist" aria-label="営業所の傾向の表示">
+                    <button type="button" id="dashboardTrendSafetyTab" role="tab" aria-selected="true" aria-controls="dashboardTrendSafety" tabindex="0">安全・点検</button>
+                    <button type="button" id="dashboardTrendCostTab" role="tab" aria-selected="false" aria-controls="dashboardTrendCost" tabindex="-1">整備費</button>
+                </div>
+                <span data-trend-period>{{ {'7d':'直近7日','30d':'直近30日','90d':'直近90日','365d':'直近365日'}.get(dashboard_settings.get('period'), '直近30日') }}・{{ dashboard_scope_office or '営業所未設定' }}</span>
+            </div>
+
+            <div id="dashboardTrendSafety" role="tabpanel" aria-labelledby="dashboardTrendSafetyTab" tabindex="0">
+                {% set safety_trend = dashboard_office_check_trend|default({}, true) %}
+                {% if safety_trend.get('answer_count', 0) %}
+                <div class="dashboard-office-safety-grid">
+                    <div class="dashboard-office-categories">
+                        <h4>要確認の多い分野</h4>
+
+                        {% for category in safety_trend.get('categories', []) %}
+                        <div class="dashboard-office-category">
+                            <span>{{ category.name }}</span>
+                            <progress value="{{ category.count }}" max="{{ category.maximum }}" aria-label="{{ category.name }}：{{ category.count }}件"></progress>
+                            <strong>{{ category.count }}<small>件</small></strong>
+                        </div>
+                        {% else %}
+                        <p class="dashboard-office-empty">集計対象の回答に、満点未満の項目はありません。</p>
+                        {% endfor %}
+
+                        <p class="dashboard-office-trend-note">満点未満の回答数。対応済みの記録も含みます。</p>
+                    </div>
+
+                    {% if safety_trend.get('focus') %}
+                    {% set focus = safety_trend.focus %}
+                    <aside class="dashboard-office-focus">
+                        <span>多く見られた項目</span>
+                        <strong>{{ focus.content }}</strong>
+                        <small>{{ focus.category }}・期間内{{ focus.count }}件</small>
+                        {% if focus.url %}
+                        <a href="{{ focus.url }}">点検記録を確認 ›</a>
+                        {% else %}
+                        <small>詳しい記録は管理者に確認してください。</small>
+                        {% endif %}
+                    </aside>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="dashboard-office-empty">
+                    {% if dashboard_scope_office %}
+                    この期間に評価可能な点検記録がありません。
+                    {% else %}
+                    所属営業所が未設定です。
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+
+            <div id="dashboardTrendCost" role="tabpanel" aria-labelledby="dashboardTrendCostTab" tabindex="0" hidden>
+                <h4>月別整備費 <small>万円・直近7か月</small></h4>
+                {% set trend = dashboard_office_trend %}
+                {% if trend.available %}
+                <svg viewBox="0 0 590 110" class="dashboard-reference-cost-chart" role="img" aria-label="{{ dashboard_scope_office }}の直近7か月の月別登録済み整備費">
+                    {% for y in [20, 52, 84] %}
+                    <line x1="38" y1="{{ y }}" x2="550" y2="{{ y }}" stroke="#e1eaf5" />
+                    {% endfor %}
+                    <text x="0" y="23">{{ trend.maximum }}</text>
+                    <text x="0" y="87">{{ trend.minimum }}</text>
+                    {% for item in trend.months %}
+                        {% if item.y is not none %}
+                            {% if not loop.first and trend.months[loop.index0-1].y is not none %}
+                            <line x1="{{ trend.months[loop.index0-1].x }}" y1="{{ trend.months[loop.index0-1].y }}" x2="{{ item.x }}" y2="{{ item.y }}" stroke="#2687f4" stroke-width="2" />
+                            {% endif %}
+                            <circle cx="{{ item.x }}" cy="{{ item.y }}" r="3" fill="#2687f4">
+                                <title>{{ item.label }}：{{ item.formatted }}円{% if item.missing %}（金額未入力{{ item.missing }}件を除く）{% endif %}</title>
+                            </circle>
+                        {% endif %}
+                        <text x="{{ item.x }}" y="105" text-anchor="middle">{{ item.label }}</text>
+                    {% endfor %}
+                </svg>
+                {% else %}
+                <p class="dashboard-office-empty">表示できる整備費の記録がありません。</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="dashboard-reference-bottom-panel">
+            <h3>自分への依頼</h3>
+            {% set request_counts = dashboard_request_counts|default({}, true) %}
+            <div class="dashboard-reference-action-links">
+                <a href="/notifications?view=action&amp;category=vehicle&amp;type=vehicle_response">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M9 3h6v4H9zM8 11h8m-8 4h8"/></svg>
+                    <strong>運行判断・不具合対応</strong>
+                    <b class="dashboard-request-count">{{ request_counts.get('vehicle_response', '—') }}<small>件</small></b>
+                    <span aria-hidden="true">›</span>
+                </a>
+                <a href="/notifications?view=action&amp;category=vehicle&amp;type=vehicle_approvals">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2h6v5H9zM8 13l3 3 5-6"/></svg>
+                    <strong>車両チェックリストの承認</strong>
+                    <b class="dashboard-request-count">{{ request_counts.get('vehicle_approvals', '—') }}<small>件</small></b>
+                    <span aria-hidden="true">›</span>
+                </a>
+                <a href="/pointouts?type=user&amp;mine=1&amp;pending=1">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 3v6c0 5-4 9-8 11-4-2-8-6-8-11V5zM8 12l3 3 5-6"/></svg>
+                    <strong>あなたへの未対応指摘</strong>
+                    <b class="dashboard-request-count">{{ my_pending_pointouts|length }}<small>件</small></b>
+                    <span aria-hidden="true">›</span>
+                </a>
+            </div>
+        </section>
+    </div>
+
+<nav class="dashboard-reference-footer" aria-label="集計・一覧への入口">
+    {% if dashboard_settings.get('show_analysis', True) %}
+    <button type="button" data-reference-target=".dashboard-analysis-section">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10m5 10V4m5 16v-8m5 8V7"/></svg>
+        チェックリスト集計 <span>›</span>
+    </button>
+    {% endif %}
+    {% if dashboard_settings.get('show_ranking', True) %}
+    <button type="button" data-reference-target="#dashboard-reference-ranking">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8v7a4 4 0 0 1-8 0zM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v6m-4 1h8"/></svg>
+        無事故無違反ランキング <span>›</span>
+    </button>
+    {% endif %}
+    {% if dashboard_settings.get('show_inspection', True) %}
+    <button type="button" data-reference-target="#dashboard-reference-inspection">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-6h10l2 6M4 10h16v9H4zM7 19v2m10-2v2M7 14h1m8 0h1"/></svg>
+        車検期限が近い車両 <span>›</span>
+    </button>
+    {% endif %}
+</nav>
+
+<details id="dashboard-reference-other" class="dashboard-reference-other">
+    <summary>集計・一覧を開く</summary>
 
 <!-- 使用車両 -->
-{% if dashboard_settings.get("show_vehicles", True) %}
-<div class="dashboard-vehicles-section">
-    <div class="dashboard-vehicles-header">
-        <div class="dashboard-vehicles-title">
-            <h3 class="dashboard-vehicles-heading">
-                使用車両
-            </h3>
 
-            <span class="dashboard-vehicles-count">
-                {{ my_vehicles|length }}台
-            </span>
-        </div>
 
-        <button
-            type="button"
-            id="dashboardVehicleAddButton"
-            class="dashboard-vehicle-add-button"
-        >
-            <span class="dashboard-vehicle-add-icon">
-                ＋
-            </span>
 
-            車両を追加
-        </button>
-    </div>
 
-
-    {% if my_vehicles %}
-
-        <div class="dashboard-vehicle-grid">
-
-            {% for vehicle in my_vehicles %}
-
-                {% set analysis =
-                    my_vehicle_analysis.get(
-                        vehicle.id,
-                        {}
-                    )
-                %}
-
-                {% set vehicle_type_text =
-                    (
-                        (vehicle.type or "")
-                        ~ " "
-                        ~ (vehicle.body_type or "")
-                    )|lower
-                %}
-
-                {% if "トレーラ" in vehicle_type_text %}
-                    {% set vehicle_icon = "trailer.png" %}
-                {% elif
-                    "トラクタ" in vehicle_type_text
-                    or "ヘッド" in vehicle_type_text
-                %}
-                    {% set vehicle_icon = "tractor.png" %}
-                {% elif
-                    "クレーン" in vehicle_type_text
-                    or "ユニック" in vehicle_type_text
-                %}
-                    {% set vehicle_icon = "crane.png" %}
-                {% elif
-                    "平ボディ" in vehicle_type_text
-                    or "平車" in vehicle_type_text
-                %}
-                    {% set vehicle_icon = "flatbed.png" %}
-                {% elif
-                    "乗用" in vehicle_type_text
-                    or "普通車" in vehicle_type_text
-                %}
-                    {% set vehicle_icon = "car.png" %}
-                {% else %}
-                    {% set vehicle_icon = "truck.png" %}
-                {% endif %}
-
-
-                <div class="dashboard-vehicle-card">
-
-                    <img
-                        src="{{ url_for(
-                            'static',
-                            filename='icons/' ~ vehicle_icon
-                        ) }}"
-                        alt=""
-                        class="dashboard-vehicle-icon"
-                    >
-
-
-                    <div class="dashboard-vehicle-content">
-
-                        <div class="dashboard-vehicle-main-row">
-
-                            <strong class="dashboard-vehicle-id">
-                                {% if vehicle.plate_number %}
-                                    {{ vehicle.plate_area or "" }}
-                                    {{ vehicle.plate_class or "" }}
-                                    {{ vehicle.plate_kana or "" }}
-                                    {{ vehicle.plate_number or "" }}
-                                {% else %}
-                                    ナンバー未登録
-                                {% endif %}
-                            </strong>
-
-                            {% if analysis.get("score_rate") is not none %}
-
-                                <span class="dashboard-vehicle-score">
-                                    {{ analysis.score_rate }}%
-                                </span>
-
-                            {% endif %}
-
-                        </div>
-
-                        {% if analysis.get("score_rate") is not none %}
-
-                            <div class="dashboard-vehicle-meta">
-                                {{ analysis.result_count }}件
-
-                                {% if analysis.latest_date %}
-                                    ・最終点検
-                                    {{ analysis.latest_date[:10] }}
-                                {% endif %}
-                            </div>
-                        {% if analysis.get("category_analysis") %}
-
-                            <div class="dashboard-vehicle-categories">
-
-                                {% for category in analysis.category_analysis %}
-
-                                    <span class="dashboard-vehicle-category-chip">
-                                        <span>
-                                            {{ category.category }}
-                                        </span>
-
-                                        <strong class="dashboard-vehicle-category-rate">
-                                            {{ category.improvement_rate }}%
-                                        </strong>
-                                    </span>
-
-                                {% endfor %}
-
-                            </div>
-
-                        {% endif %}
-                        {% else %}
-
-                            <div class="dashboard-vehicle-no-data">
-                                分析データなし
-                            </div>
-
-                        {% endif %}
-
-                    </div>
-
-
-                    <form
-                        method="post"
-                        action="/usage-vehicles/remove/{{ vehicle.id }}"
-                        class="dashboard-vehicle-remove-form"
-                    >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                        <input
-                            type="hidden"
-                            name="next"
-                            value="/"
-                        >
-
-                        <button
-                            type="submit"
-                            title="使用車両から削除"
-                            class="dashboard-vehicle-remove-button"
-                        >
-                            ×
-                        </button>
-                    </form>
-
-                </div>
-
-            {% endfor %}
-
-        </div>
-
-    {% endif %}
-
-
-    <div
-        id="dashboardVehicleAddArea"
-        class="dashboard-vehicle-add-area"
-    >
-
-        <form
-            method="post"
-            action="/usage-vehicles/add"
-            id="dashboardVehicleForm"
-        >
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-            <input
-                type="hidden"
-                name="next"
-                value="/"
-            >
-
-            <input
-                type="hidden"
-                name="vehicle_record_id"
-                id="dashboardVehicleId"
-            >
-
-            <div class="dashboard-vehicle-search-wrapper">
-
-                <input
-                    type="text"
-                    id="dashboardVehicleSearch"
-                    class="dashboard-vehicle-search-input"
-                    placeholder="車台番号・ナンバーで検索"
-                    autocomplete="off"
-                >
-
-                <div
-                    id="dashboardVehicleResults"
-                    class="dashboard-vehicle-results"
-                ></div>
-
-            </div>
-
-        </form>
-
-    </div>
-
-</div>
-
-{% endif %}
-
-{% if
-    dashboard_settings.get("show_my_checklists", True)
-    and my_checklist_summaries
-%}
-
-<div class="dashboard-my-checklists-section">
-
-    <div class="card-title-row dashboard-my-checklists-title-row">
-        <h3>あなたのチェックリスト</h3>
-    </div>
-
-    <div class="dashboard-my-checklists-grid">
-
-        {% for item in my_checklist_summaries %}
-
-    <a
-        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ item.vehicle_record_id }}{% else %}/safety/checklists/{{ item.id }}?target_type=user&target_value={{ item.target_username|urlencode }}{% endif %}"
-        class="dashboard-card dashboard-my-checklist-card"
-    >
-
-            <strong class="dashboard-my-checklist-name">
-                {{ item.name }}
-            </strong>
-
-            {% if item.target == '車両管理' and item.vehicle_record_id %}
-            <span class="help-text">
-                対象車両 {{ item.registration_number or "ナンバー未登録" }}
-            </span>
-            {% endif %}
-
-            <div class="dashboard-my-checklist-score-row">
-
-                <div>
-                    {% if item.average_score is not none %}
-                        <span class="dashboard-my-checklist-score">
-                            {{ item.average_score }}
-                        </span>
-                    {% else %}
-                        <span class="ui-empty-value">
-                            {% if item.result_count %}
-                                集計対象の記録なし
-                            {% else %}
-                                記録なし
-                            {% endif %}
-                        </span>
-                    {% endif %}
-
-                    {% if item.average_score is not none %}
-                    <span class="dashboard-my-checklist-max-score">
-                        / {{ item.max_score }}点
-                    </span>
-                    {% endif %}
-                </div>
-
-                <span class="dashboard-my-checklist-count">
-                    {{ item.result_count }}件
-                </span>
-
-            </div>
-
-
-            {% if item.average_difference is not none %}
-
-            <div class="dashboard-my-checklist-average">
-                全体平均 {{ item.overall_average_score }}点
-
-                {% if item.average_difference > 0 %}
-                    ・ +{{ item.average_difference }}点
-                {% elif item.average_difference < 0 %}
-                    ・ {{ item.average_difference }}点
-                {% else %}
-                    ・ ±0点
-                {% endif %}
-            </div>
-
-            {% endif %}
-
-
-            {% if item.category_analysis %}
-
-            <div class="dashboard-my-checklist-categories">
-
-                <div class="dashboard-my-checklist-category-title">
-                    注意したい分野
-                </div>
-
-                {% for category in item.category_analysis %}
-
-                    <div class="dashboard-my-checklist-category">
-
-                        <div class="dashboard-my-checklist-category-row">
-
-                            <span class="dashboard-my-checklist-category-label">
-                                {{ category.category }}
-                            </span>
-
-                            <strong class="dashboard-my-checklist-category-rate">
-                                {{ category.improvement_rate }}%
-                            </strong>
-
-                        </div>
-
-                        <progress
-                            class="dashboard-my-checklist-progress-bar"
-                            value="{{ category.improvement_rate }}"
-                            max="100"
-                        ></progress>
-
-                    </div>
-
-                {% endfor %}
-
-            </div>
-
-            {% endif %}
-
-        </a>
-
-        {% endfor %}
-
-    </div>
-
-</div>
-
-{% endif %}
-
-    {% if
-        dashboard_settings.get("show_analysis", True)
-        and checklist_score_summaries
-    %}
+    {% if dashboard_settings.get("show_analysis", True) %}
 
     <div class="dashboard-analysis-section">
 
-        <div class="card-title-row dashboard-analysis-title-row">
-            <h3>チェックリスト分析</h3>
-            <span>改善優先度が高い項目を表示</span>
+        <div class="dashboard-report-conditions">
+            <label class="dashboard-report-condition" for="dashboardReportChecklist">
+                <span>チェックリスト</span>
+                <select id="dashboardReportChecklist" class="dashboard-filter-select"{% if not checklist_score_summaries %} disabled{% endif %}>
+                    {% for item in checklist_score_summaries %}
+                    <option value="{{ item.id }}">{{ item.name }}（{{ item.target }}）</option>
+                    {% else %}
+                    <option value="">集計対象なし</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="dashboard-report-condition">
+                <span>営業所</span>
+                <strong class="dashboard-report-condition-value">{{ dashboard_scope_office or '営業所未設定' }}</strong>
+            </div>
+            <label class="dashboard-report-condition" for="dashboardReportPeriod">
+                <span>期間</span>
+                <select id="dashboardReportPeriod" form="dashboardFilterForm" class="dashboard-filter-select dashboard-auto-submit" aria-label="集計期間">
+                    {% for value, label in [('7d','直近7日'),('30d','直近30日'),('90d','直近90日'),('365d','直近365日')] %}
+                    <option value="{{ value }}"{% if dashboard_settings.get('period', '30d') == value %} selected{% endif %}>{% if dashboard_settings.get('period', '30d') == value %}{{ dashboard_period_start|replace('-', '/') }} ～ {{ dashboard_period_end|replace('-', '/') }}{% else %}{{ label }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </label>
         </div>
+
+        {% if not checklist_score_summaries %}
+        <div class="dashboard-card dashboard-report-empty" role="status">
+            <h4 class="dashboard-analysis-priority-title">現在の条件で集計できるチェックリストがありません</h4>
+            <p class="dashboard-category-note">表示設定で対象営業所を確認してください。記録がある場合は、期間を広げると表示されることがあります。採点できる回答がある記録が集計対象です。</p>
+        </div>
+        {% endif %}
 
         <div class="dashboard-analysis-grid">
 
@@ -664,210 +928,211 @@
 
             <div
                 class="dashboard-card dashboard-analysis-card"
+                data-checklist-id="{{ item.id }}"
                 data-url="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}"
             >
 
                 <!-- チェックリスト名 -->
                 <div class="dashboard-analysis-header">
-
-                    <div class="dashboard-analysis-name-wrap">
-                        <h4 class="dashboard-analysis-name">
-                            {{ item.name }}
-                        </h4>
-
-                        <span class="help-text">
-                            {{ item.result_count }}件実施
-                        </span>
+                    <div class="dashboard-checklist-views" role="group" aria-label="チェックリストの表示切り替え">
+                        <button type="button" data-checklist-view="summary" aria-pressed="true">集計</button>
+                        <button type="button" data-checklist-view="history" aria-pressed="false" aria-controls="dashboardHistory-{{ item.id }}">実施履歴</button>
                     </div>
+                    <a class="dashboard-report-back"
+                       href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}">
+                        点検表を開く ›
+                    </a>
+                </div>
 
-                    <div class="dashboard-analysis-score-wrap">
-                        <strong class="dashboard-analysis-score">
-                            {{ item.average_score }}
-                        </strong>
-                        <span class="dashboard-analysis-max-score">
-                            / {{ item.max_score }}点
-                        </span>
+                <div class="dashboard-analysis-metrics">
+                    <div class="dashboard-analysis-metric" title="得点を集計できた記録の件数">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M9 3h6v4H9zM8 11h8m-8 4h8"/></svg>
+                        <span>実施件数</span>
+                        <strong>{{ item.result_count }}<small>件</small></strong>
                     </div>
-
+                    <div class="dashboard-analysis-metric">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10m7 10V4m7 16v-8"/></svg>
+                        <span>平均点</span>
+                        <strong>{{ item.average_score if item.average_score is number else '—' }}<small>/ {{ item.max_score }}点</small></strong>
+                    </div>
+                    <div class="dashboard-analysis-metric" title="集計対象全体で、合計得点が満点未満となった項目の数。未対応件数ではありません。">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 18H2zM12 9v5m0 3v1"/></svg>
+                        <span>要確認項目</span>
+                        <strong>{{ item.review_item_count if item.review_item_count is number else '—' }}<small>件</small></strong>
+                    </div>
                 </div>
 
 
                 <!-- 改善優先分野 -->
                 <div class="dashboard-analysis-priority">
+                    <h4 class="dashboard-analysis-priority-title">改善項目</h4>
 
-                    <div class="dashboard-analysis-priority-title">
-                        改善優先分野
-                    </div>
+                    {% macro category_table(categories) %}
+                    <table class="dashboard-category-table">
+                        <colgroup>
+                            <col class="dashboard-category-label-column">
+                            <col>
+                            <col class="dashboard-category-value-column">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th scope="col">項目</th>
+                                <th scope="col" colspan="2">改善余地</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <th scope="row">{{ category.category }}</th>
+                                <td>
+                                    <progress
+                                        class="dashboard-category-bar"
+                                        value="{{ category.improvement_rate }}"
+                                        max="100"
+                                        aria-label="{{ category.category }}の改善余地：{{ category.improvement_rate }}%"
+                                    ></progress>
+                                </td>
+                                <td>{{ category.improvement_rate }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endmacro %}
 
-                    {% for category in item.category_analysis %}
+                    {% if item.category_analysis %}
+                        {{ category_table(item.category_analysis[:3]) }}
 
-                        {% if loop.index <= 3 %}
-
-                        <div class="dashboard-analysis-category">
-
-                            <div class="dashboard-analysis-category-row">
-
-                                <span class="dashboard-analysis-category-label">
-                                    {{ category.category }}
-                                </span>
-
-                                <strong class="dashboard-analysis-category-rate">
-                                    {{ category.improvement_rate }}%
-                                </strong>
-
-                            </div>
-
-                            <progress
-                                class="dashboard-analysis-progress-bar"
-                                value="{{ category.improvement_rate }}"
-                                max="100"
-                            ></progress>
-
-                        </div>
-
+                        {% if item.category_analysis|length > 3 %}
+                        <details class="dashboard-category-more">
+                            <summary>残り{{ item.category_analysis|length - 3 }}分野を見る</summary>
+                            {{ category_table(item.category_analysis[3:]) }}
+                        </details>
                         {% endif %}
 
-                    {% endfor %}
-
-                </div>
-
-
-                <!-- 最重要項目 -->
-                {% if item.improvement_items %}
-
-                <div
-                    class="dashboard-analysis-important"
-                    {% if item.improvement_items[0].result_url %}
-                    data-url="{{ item.improvement_items[0].result_url }}"
+                        <p class="dashboard-category-note">
+                            満点との差を割合で表示。低いほど良好です。
+                        </p>
+                    {% else %}
+                        <p class="empty-text">集計できる回答がありません。</p>
                     {% endif %}
-                >
-
-                    <div class="dashboard-analysis-important-content">
-
-                        <div class="dashboard-analysis-important-label">
-                            最優先
+                    {% if item.improvement_items and item.improvement_items[0].improvement_rate > 0 %}
+                    <div class="dashboard-analysis-important">
+                        <div class="dashboard-analysis-important-content">
+                            <div class="dashboard-analysis-important-label">改善余地が最大の項目</div>
+                            <div class="dashboard-analysis-important-text" title="{{ item.improvement_items[0].content }}">{{ item.improvement_items[0].content }}</div>
+                            <div class="dashboard-analysis-important-category">{{ item.improvement_items[0].category }}</div>
                         </div>
-
-                        <div class="dashboard-analysis-important-text">
-                            {{ item.improvement_items[0].content }}
+                        <div class="dashboard-analysis-important-actions">
+                            <strong class="dashboard-analysis-important-rate">{{ item.improvement_items[0].improvement_rate }}%</strong>
+                            {% if item.improvement_items[0].result_url %}
+                            <a class="dashboard-report-back" href="{{ item.improvement_items[0].result_url }}">記録を見る ›</a>
+                            {% endif %}
                         </div>
-
-                        <div class="dashboard-analysis-important-category">
-                            {{ item.improvement_items[0].category }}
-                        </div>
-
                     </div>
-
-                    <strong class="dashboard-analysis-important-rate">
-                        {{ item.improvement_items[0].improvement_rate }}%
-                    </strong>
-
+                    {% endif %}
                 </div>
 
-                {% endif %}
 
-
-                {% if item.target_analysis %}
+                {% set visible_targets = namespace(items=[]) %}
+                {% for target in item.target_analysis %}
+                    {% if target.target_type != 'user' or is_dashboard_admin %}
+                        {% set visible_targets.items = visible_targets.items + [target] %}
+                    {% endif %}
+                {% endfor %}
 
                 <div class="dashboard-analysis-targets">
-
                     <div class="dashboard-analysis-targets-header">
-
-                        <span class="dashboard-analysis-targets-title">
-                            要注意対象
-                        </span>
-
-                        <span class="dashboard-analysis-targets-subtitle">
-                            改善余地が大きい順
-                        </span>
-
+                        <span class="dashboard-analysis-targets-title">{{ '対象車両' if item.target == '車両管理' else '対象一覧' }}</span>
+                        <span class="dashboard-analysis-targets-subtitle">改善余地順・{{ visible_targets.items|length }}対象</span>
                     </div>
 
-                    <div class="dashboard-analysis-targets-list">
-
-                        {% for target in item.target_analysis %}
-
-                            {% if target.target_type != "user" or is_dashboard_admin %}
-
-                            <a
-                                href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}&year={{ target.year|urlencode }}&month={{ target.month|urlencode }}&active_day={% if item.frequency_unit == 'year' %}{{ target.year|urlencode }}{% elif item.display_type == 'month' %}{{ target.day|urlencode }}{% else %}{{ target.month|urlencode }}{% endif %}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_value|urlencode }}{% endif %}"
-                                class="dashboard-analysis-target-link"
-                            >
-
-                                <span class="dashboard-analysis-target-rank">
-                                    {{ loop.index }}
-                                </span>
-
-
-                                {% if target.target_type == "user" %}
-
-                                <img
-                                    src="{{ url_for('static', filename='icons/user.png') }}"
-                                    alt=""
-                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-small"
-                                >
-
-                                {% elif target.target_type == "vehicle" %}
-
-                                    {% set target_vehicle_type_text =
-                                        ((target.vehicle_type or "") ~ " " ~
-                                        (target.body_type or ""))|lower
-                                    %}
-
-                                    {% if "トレーラ" in target_vehicle_type_text %}
-                                        {% set target_vehicle_icon = "trailer.png" %}
-                                    {% elif "トラクタ" in target_vehicle_type_text
-                                        or "ヘッド" in target_vehicle_type_text %}
-                                        {% set target_vehicle_icon = "tractor.png" %}
-                                    {% elif "クレーン" in target_vehicle_type_text
-                                        or "ユニック" in target_vehicle_type_text %}
-                                        {% set target_vehicle_icon = "crane.png" %}
-                                    {% elif "平ボディ" in target_vehicle_type_text
-                                        or "平車" in target_vehicle_type_text %}
-                                        {% set target_vehicle_icon = "flatbed.png" %}
-                                    {% elif "乗用" in target_vehicle_type_text
-                                        or "普通車" in target_vehicle_type_text %}
-                                        {% set target_vehicle_icon = "car.png" %}
-                                    {% else %}
-                                        {% set target_vehicle_icon = "truck.png" %}
-                                    {% endif %}
-
-                                <img
-                                    src="{{ url_for('static', filename='icons/' ~ target_vehicle_icon) }}"
-                                    alt=""
-                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-vehicle"
-                                >
-
-                                {% elif target.target_type == "office" %}
-
-                                <img
-                                    src="{{ url_for('static', filename='icons/office.png') }}"
-                                    alt=""
-                                    class="dashboard-analysis-target-icon dashboard-analysis-target-icon-small"
-                                >
-
-                                {% endif %}
-
-
-                                <span class="dashboard-analysis-target-label">
-                                    {{ target.target_label }}
-                                </span>
-
-                                <strong class="dashboard-analysis-target-rate">
-                                    {{ target.improvement_rate }}%
-                                </strong>
-
-                            </a>
-
-                            {% endif %}
-
-                        {% endfor %}
-
+                    {% if visible_targets.items %}
+                    <div class="dashboard-analysis-targets-scroll">
+                        <table class="dashboard-table dashboard-analysis-targets-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">{{ '車両番号' if item.target == '車両管理' else '対象' }}</th>
+                                    <th scope="col" title="得点を集計できた点検記録の件数">実施件数</th>
+                                    <th scope="col" title="各記録の得点率を100点換算した平均">平均点</th>
+                                    <th scope="col">改善対象</th>
+                                    <th scope="col">履歴</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for target in visible_targets.items %}
+                                {% set review_items = target.review_items|default([], true) %}
+                                <tr>
+                                    <td>{{ target.target_label }}</td>
+                                    <td>{{ target.count if target.count is number else '—' }}{% if target.count is number %}件{% endif %}</td>
+                                    <td>{{ target.average_score if target.average_score is number else '—' }}{% if target.average_score is number %}点{% endif %}</td>
+                                    <td title="{{ review_items|join('・') }}">
+                                        {% if review_items %}
+                                            {{ review_items[:2]|join('・') }}
+                                            {% if review_items|length > 2 %}ほか{{ review_items|length - 2 }}項目{% endif %}
+                                        {% else %}
+                                            <span class="dashboard-target-clear">該当なし</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a class="dashboard-report-back"
+                                           href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}&year={{ target.year|urlencode }}&month={{ target.month|urlencode }}&active_day={% if item.frequency_unit == 'year' %}{{ target.year|urlencode }}{% elif item.display_type == 'month' %}{{ target.day|urlencode }}{% else %}{{ target.month|urlencode }}{% endif %}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_value|urlencode }}{% endif %}">
+                                            履歴 ›
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-
+                    {% else %}
+                    <p class="empty-text">この期間に採点可能な対象はありません。</p>
+                    {% endif %}
                 </div>
 
-                {% endif %}
+                {% set history = item.history|default({'total': 0, 'rows': []}, true) %}
+                <section class="dashboard-analysis-history" id="dashboardHistory-{{ item.id }}">
+                    <div class="dashboard-history-heading">
+                        <h4 tabindex="-1">実施履歴</h4>
+                        <span class="dashboard-history-preview-note">直近{{ [history.rows|length, 5]|min }}件／全{{ history.total }}件</span>
+                        <span class="dashboard-history-full-note">直近{{ history.rows|length }}件／全{{ history.total }}件</span>
+                        {% if history.rows|length > 5 %}
+                        <button type="button" class="dashboard-history-open">履歴を詳しく見る ›</button>
+                        {% endif %}
+                    </div>
+
+                    <p class="dashboard-history-note">閲覧できる記録を表示しています。記録日の新しい順・得点は100点換算です。</p>
+
+                    {% if history.rows %}
+                    <div class="dashboard-history-scroll">
+                        <table class="dashboard-history-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">記録日</th>
+                                    <th scope="col">{{ '車両番号' if item.target == '車両管理' else '対象' }}</th>
+                                    <th scope="col">チェックリスト</th>
+                                    <th scope="col">得点</th>
+                                    <th scope="col">状態</th>
+                                    <th scope="col">詳細</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in history.rows %}
+                                <tr>
+                                    <td>{{ record.date }}</td>
+                                    <td>{{ record.target }}</td>
+                                    <td>{{ item.name }}</td>
+                                    <td>{{ record.score if record.score is number else '—' }}{% if record.score is number %}点{% endif %}</td>
+                                    <td><span class="dashboard-history-state" data-status="{{ record.status }}">{{ record.status }}</span></td>
+                                    <td><a class="dashboard-report-back" href="{{ record.url }}">詳細 ›</a></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="empty-text">この期間に閲覧できる実施履歴はありません。</p>
+                    {% endif %}
+                </section>
             </div>
 
             {% endfor %}
@@ -881,6 +1146,7 @@
     {% if
         dashboard_settings.get("show_ranking", True)
         or dashboard_settings.get("show_inspection", True)
+        or dashboard_settings.get("show_summary", True)
     %}
 
     <div
@@ -895,7 +1161,7 @@
     {% if is_dashboard_admin %}data-url="/master/drivers"{% endif %}
 >
     <div class="card-title-row">
-        <h3>無事故無違反ランキング</h3>
+        <h3 id="dashboard-reference-ranking">無事故無違反ランキング</h3>
         <span>上位10名</span>
     </div>
 
@@ -946,13 +1212,13 @@
 {% endif %}
 
 
-{% if dashboard_settings.get("show_inspection", True) %}
+{% if dashboard_settings.get("show_inspection", True) or dashboard_settings.get("show_summary", True) %}
 <div
     class="dashboard-card{% if is_dashboard_admin %} dashboard-click-card{% endif %}"
     {% if is_dashboard_admin %}data-url="/master/vehicles"{% endif %}
 >
     <div class="card-title-row">
-        <h3>車検期限が近い車両</h3>
+        <h3 id="dashboard-reference-inspection">車検期限が近い車両</h3>
         <span>90日以内</span>
     </div>
 
@@ -966,10 +1232,8 @@
 
         {% for vehicle in inspection_alerts %}
         <tr
-            {% if is_dashboard_admin %}
             class="dashboard-click-row"
-            data-url="/master/vehicles?keyword={{ vehicle.chassis_number|urlencode }}"
-            {% endif %}
+            data-url="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.vehicle_record_id) }}"
         >
             <td>
                 {% set vehicle_type_text =
@@ -990,14 +1254,8 @@
                     {% set vehicle_icon = "truck.png" %}
                 {% endif %}
 
-                {% if is_dashboard_admin %}
-                <a
-                    href="/master/vehicles?keyword={{ vehicle.chassis_number|urlencode }}"
-                    class="dashboard-vehicle-table-link"
-                >
-                {% else %}
-                <div class="dashboard-vehicle-table-link">
-                {% endif %}
+                <a href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.vehicle_record_id) }}"
+                   class="dashboard-vehicle-table-link">
                     <img
                         src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
                         alt=""
@@ -1007,11 +1265,7 @@
                     <span>
                         {{ vehicle.number or "ナンバー未登録" }}
                     </span>
-                {% if is_dashboard_admin %}
                 </a>
-                {% else %}
-                </div>
-                {% endif %}
             </td>
 
             <td>{{ vehicle.inspection_expiry }}</td>
@@ -1044,6 +1298,71 @@
 
 {% endif %}
 
+
+{% if dashboard_settings.get("show_summary", True) %}
+{% set periodic = dashboard_periodic_schedule|default({}, true) %}
+<div class="dashboard-card">
+    <div class="card-title-row">
+        <h3 id="dashboard-reference-periodic">3か月点検の予定</h3>
+        <span>{{ dashboard_scope_office or '営業所未設定' }}</span>
+    </div>
+    <p class="help-text">登録済みの次回予定日のうち90日以内。期限超過を含みます。</p>
+
+    {% if not periodic.get('available') %}
+    <p class="empty-text">所属営業所が未設定です。</p>
+
+    {% elif periodic.get('scheduled') %}
+    <div class="dashboard-periodic-table-wrap">
+        <table class="dashboard-table">
+            <thead>
+                <tr>
+                    <th>車両</th>
+                    <th>次回予定日</th>
+                    <th>残日数</th>
+                    <th>詳細</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in periodic.scheduled %}
+                <tr>
+                    <td><a href="{{ item.url }}">{{ item.number }}</a></td>
+                    <td>{{ item.date }}</td>
+                    <td>
+                        {% if item.remaining_days < 0 %}
+                        <strong class="dashboard-periodic-overdue">{{ -item.remaining_days }}日超過</strong>
+                        {% elif item.remaining_days == 0 %}
+                        本日
+                        {% else %}
+                        {{ item.remaining_days }}日
+                        {% endif %}
+                    </td>
+                    <td><a href="{{ item.url }}">点検記録 ›</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif periodic.get('known_count') or periodic.get('total_count') == 0 %}
+    <p class="empty-text">登録済みの予定に、90日以内の対象車両はありません。</p>
+
+    {% else %}
+    <p class="empty-text">次回予定日が未登録のため、予定台数を確認できません。</p>
+    {% endif %}
+
+    {% if periodic.get('unregistered') %}
+    <details class="dashboard-periodic-missing">
+        <summary>次回予定が未登録の車両（{{ periodic.unregistered|length }}台）</summary>
+        <p class="help-text">最新の3か月点検記録に、有効な次回予定日が登録されていない車両です。</p>
+        <ul>
+            {% for item in periodic.unregistered %}
+            <li><a href="{{ item.url }}">{{ item.number }}：点検記録を確認 ›</a></li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+</div>
+{% endif %}
 
 {% if dashboard_settings.get("show_pending", True) %}
 
@@ -1106,8 +1425,38 @@
 </div>
 
 {% endif %}
+{% if setup_tasks %}
+<details class="dashboard-setup-details">
+<summary>初期設定を確認</summary>
+            <div class="card setup-guide-card">
+                <h3>初期設定ガイド</h3>
+
+                <p class="help-text">
+                    システム利用前に、以下のマスタを設定してください。
+                </p>
+
+                <div class="setup-task-list">
+                    {% for task in setup_tasks %}
+                        <div class="setup-task-item">
+                            <div>
+                                <strong>{{ task.name }}</strong>
+                                <p>{{ task.description }}</p>
+                            </div>
+
+                            <a href="{{ task.url }}" class="btn-small">
+                                設定する
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            </details>
+{% endif %}
+
+    </details>
 </div>
 
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js', v='20261019-mineral-1') }}"></script>
+
 
 {% endblock %}

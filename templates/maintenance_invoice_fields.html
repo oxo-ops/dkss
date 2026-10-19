@@ -9,7 +9,7 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% set selected_vehicle = namespace(label='対象車両を選択してください') %}
+{% set selected_vehicle = namespace(label='登録先の車両が未確定です') %}
 {% for choice in vehicle_choices %}
     {% if record.get('vehicle_record_id')|string == choice.id|string %}
         {% set selected_vehicle.label = choice.number or choice.chassis_number %}
@@ -45,7 +45,17 @@
 </div>
 
 {% if record.get('vehicle_match_status') in ['unmatched', 'ambiguous', 'conflict'] %}
-<p class="invoice-attention">原本の車両と対象車両を確認してください。</p>
+<p class="invoice-attention" data-vehicle-match-warning>
+    原本の車番：{{ record.get('registration_number') or '読取なし' }}<br>
+    車台番号：{{ record.get('chassis_number') or '読取なし' }}<br>
+    {% if record.get('vehicle_match_status') == 'conflict' %}
+    車番と車台番号の照合結果が一致しません。登録先を確認して選択してください。
+    {% elif record.get('vehicle_match_status') == 'ambiguous' %}
+    該当候補が複数あるため、登録先を選択してください。
+    {% else %}
+    車両台帳と自動照合できませんでした。登録先を選択してください。
+    {% endif %}
+</p>
 {% endif %}
 
 <details class="invoice-overview-details" open>
@@ -89,7 +99,7 @@
             <select id="vehicle_{{ row_key }}" name="vehicle_{{ row_key }}">
                 <option value="">選択してください</option>
                 {% for choice in vehicle_choices %}
-                <option value="{{ choice.id }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
+                <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number or '' }}" data-vehicle-chassis="{{ choice.chassis_number or '' }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
                 {% endfor %}
             </select>
         </label>

@@ -1103,6 +1103,478 @@ window.addEventListener(
     }
 );
 
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".vehicle-data-import .import-form").forEach(function (form) {
+        const input = form.querySelector('input[type="file"]');
+        const zone = form.querySelector(".import-dropzone");
+        const status = form.querySelector(".import-file-status");
+        const list = form.querySelector(".import-file-list");
+        const error = form.querySelector(".import-error");
+        const clear = form.querySelector(".import-clear");
+        const extensions = input.accept.split(",");
+
+        function showError(message) {
+            error.textContent = message;
+            error.hidden = !message;
+            input.setAttribute("aria-invalid", message ? "true" : "false");
+        }
+
+        function validate(files) {
+            if (!files.length) return "ファイルを選択してください。";
+            if (files.length > (input.multiple ? 50 : 1)) {
+                return input.multiple
+                    ? "1回に取り込めるファイルは50件までです。"
+                    : "CSVは1ファイルずつ選択してください。";
+            }
+            if (files.some(file =>
+                !extensions.some(ext => file.name.toLowerCase().endsWith(ext))
+            )) {
+                return "対応形式のファイルを選択してください（" + input.accept + "）。";
+            }
+            if (
+                form.querySelector('input[name="document_type"]')?.value === "maintenance"
+            ) {
+                const oversized = files.find(
+                    file => file.size > 20 * 1024 * 1024
+                );
+                if (oversized) {
+                    return oversized.name + "：請求書は1ファイル20MB以下にしてください。";
+                }
+            }
+
+            if (files.reduce((total, file) => total + file.size, 0) > 1024 * 1024 * 1024) {
+                return "ファイルの合計は1GB以下にしてください。";
+            }
+            return "";
+        }
+
+        function refresh() {
+            if (form.dataset.loading === "1") return;
+
+            const files = Array.from(input.files || []);
+            const ready = files.length > 0 && !validate(files);
+            const title = zone.querySelector(".import-drop-copy strong");
+            const detail = zone.querySelector(".import-drop-copy small");
+            const pick = zone.querySelector(".import-pick-button");
+            const submit = form.querySelector('button[type="submit"]');
+
+            const size = value => value < 1024 * 1024
+                ? Math.max(1, Math.ceil(value / 1024)) + " KB"
+                : (value / 1024 / 1024).toFixed(1) + " MB";
+
+            if (!zone.dataset.originalTitle) {
+                zone.dataset.originalTitle = title.textContent;
+                zone.dataset.originalDetail = detail.textContent;
+            }
+
+            zone.classList.toggle("has-files", ready);
+
+            title.textContent = files.length === 1
+                ? files[0].name
+                : files.length > 1
+                    ? files.length + "ファイルを選択しました"
+                    : zone.dataset.originalTitle;
+
+            title.title = files.map(file => file.name).join("\n");
+
+            detail.textContent = files.length
+                ? size(files.reduce((total, file) => total + file.size, 0))
+                    + (ready
+                        ? " ・ 読み取りの準備ができました"
+                        : " ・ 選択内容を確認してください")
+                : zone.dataset.originalDetail;
+
+            pick.textContent = files.length ? "選び直す" : "ファイルを選ぶ";
+
+            list.replaceChildren();
+            files.forEach(function (file) {
+                const item = document.createElement("li");
+                item.textContent = file.name + "（" + size(file.size) + "）";
+                list.appendChild(item);
+            });
+
+            status.textContent = ready
+                ? "✓ " + files.length + "ファイルを選択済み"
+                : files.length
+                    ? "ファイルの確認が必要です"
+                    : "ファイル未選択";
+
+            list.hidden = files.length <= 1;
+            clear.hidden = !files.length;
+            submit.disabled = !ready;
+        }
+
+        input.addEventListener("change", function () {
+            showError(input.files.length ? validate(Array.from(input.files)) : "");
+            setTimeout(refresh, 0);
+        });
+
+        clear.addEventListener("click", function () {
+            input.value = "";
+            showError("");
+            refresh();
+            input.focus();
+        });
+
+        ["dragenter", "dragover"].forEach(function (name) {
+            zone.addEventListener(name, function (event) {
+                event.preventDefault();
+                zone.classList.add("is-dragging");
+            });
+        });
+
+        zone.addEventListener("dragleave", function (event) {
+            if (!zone.contains(event.relatedTarget)) {
+                zone.classList.remove("is-dragging");
+            }
+        });
+
+        zone.addEventListener("drop", function (event) {
+            event.preventDefault();
+            zone.classList.remove("is-dragging");
+            if (form.dataset.loading === "1") return;
+            const files = Array.from(event.dataTransfer.files);
+            const message = validate(files);
+            showError(message);
+            if (message) return;
+            input.files = event.dataTransfer.files;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            if (form.dataset.loading === "1") return;
+
+            const message = validate(Array.from(input.files || []));
+            showError(message);
+
+            if (message) {
+                input.focus();
+                return;
+            }
+
+            if (document.querySelector(
+                '.vehicle-data-import .import-form[data-loading="1"]'
+            )) {
+                showError("別の資料を読み取り中です。完了後に実行してください。");
+                return;
+            }
+
+            const payload = new FormData(form);
+            const streaming = payload.get("document_type") === "maintenance";
+            let lastServerUpdate = 0;
+            const button = form.querySelector('button[type="submit"]');
+            const title = zone.querySelector(".import-drop-copy strong");
+            const detail = zone.querySelector(".import-drop-copy small");
+            const pick = zone.querySelector(".import-pick-button");
+
+            let progress = form.querySelector(".import-progress");
+            if (!progress) {
+                progress = document.createElement("progress");
+                progress.className = "import-progress";
+                progress.max = 100;
+                progress.setAttribute(
+                    "aria-label",
+                    "ファイルの送信・読み取り状況"
+                );
+                zone.after(progress);
+            }
+
+            form.dataset.loading = "1";
+            form.setAttribute("aria-busy", "true");
+            zone.classList.add("is-loading");
+
+            input.disabled = true;
+            clear.disabled = true;
+            button.disabled = true;
+            button.textContent = "読み取り中…";
+            pick.textContent = "処理中";
+
+            progress.hidden = false;
+            progress.value = 0;
+            progress.setAttribute("aria-label", "ファイルの送信率");
+
+            title.textContent = "ファイルを送信しています";
+            detail.textContent = "この画面を開いたままお待ちください";
+
+            const phase = document.createElement("span");
+            phase.setAttribute("role", "status");
+            phase.textContent = "送信中";
+
+            const elapsed = document.createElement("span");
+            elapsed.className = "import-elapsed";
+            elapsed.setAttribute("aria-hidden", "true");
+            elapsed.textContent = (streaming ? "数分かかる場合があります ｜ " : "")
+                + "経過 0:00";
+
+            status.setAttribute("aria-live", "off");
+            status.replaceChildren(phase, elapsed);
+
+            const started = Date.now();
+            let waiting = false;
+
+            const timer = window.setInterval(function () {
+                const seconds = Math.floor((Date.now() - started) / 1000);
+                elapsed.textContent = (streaming ? "数分かかる場合があります ｜ " : "")
+                    + "経過 " + Math.floor(seconds / 60)
+                    + ":" + String(seconds % 60).padStart(2, "0");
+
+                if (waiting && seconds >= 60 && !streaming) {
+                    title.textContent = "読み取りに時間がかかっています";
+                }
+            }, 1000);
+
+            function restore(errorMessage) {
+                window.clearInterval(timer);
+                delete form.dataset.loading;
+                form.setAttribute("aria-busy", "false");
+                zone.classList.remove("is-loading");
+
+                input.disabled = false;
+                clear.disabled = false;
+                button.textContent = "読み込んで確認";
+                progress.hidden = true;
+
+                status.setAttribute("aria-live", "polite");
+                refresh();
+                showError(errorMessage);
+            }
+
+            let received = 0;
+            let pending = "";
+            let streamError = "";
+            let streamDestination = "";
+            const xhr = new XMLHttpRequest();
+            const endpoint = new URL(form.action, location.href);
+
+            if (streaming) {
+                endpoint.pathname = endpoint.pathname.replace(/\/$/, "") + "/progress";
+            }
+
+            xhr.open("POST", endpoint.href);
+
+            function readProgress() {
+                pending += xhr.responseText.slice(received);
+                received = xhr.responseText.length;
+                let newline;
+
+                while ((newline = pending.indexOf("\n")) >= 0) {
+                    const line = pending.slice(0, newline);
+                    pending = pending.slice(newline + 1);
+                    if (!line.trim()) continue;
+
+                    let update;
+                    try {
+                        update = JSON.parse(line);
+                    } catch (_) {
+                        streamError = "進捗データを読み取れませんでした。";
+                        continue;
+                    }
+
+                    lastServerUpdate = Date.now();
+                    if (update.heartbeat === true) continue;
+
+                    if (update.phase === "error") {
+                        streamError = update.message || "読み取りに失敗しました。";
+                        continue;
+                    }
+
+                    if (update.phase === "complete") {
+                        streamDestination = update.redirect_url || "";
+                        continue;
+                    }
+
+                    const total = Number(update.total);
+                    const done = Number(update.completed);
+
+                    if (
+                        !(total > 0)
+                        || !Number.isInteger(done)
+                        || done < 0
+                        || done > total
+                    ) {
+                        streamError = "進捗データが不正です。";
+                        continue;
+                    }
+
+                    if (["ai_accepted", "ai_output"].includes(update.phase)) {
+                        const count = Number(update.received_lines || 0);
+
+                        if (!Number.isInteger(count) || count < 0) {
+                            streamError = "AIの受信件数が不正です。";
+                            continue;
+                        }
+
+                        progress.hidden = total === 1;
+
+                        phase.textContent = "② AIからの読取結果"
+                            + (update.phase === "ai_output"
+                                ? "を受信中"
+                                : "を待っています");
+
+                        title.textContent = update.phase === "ai_accepted"
+                            ? "AIの受付を確認しました"
+                            : count > 0
+                                ? "明細 " + count + "件を受信しました"
+                                : "読取結果を受信し始めました";
+
+                        detail.textContent = (done + 1)
+                            + "件目：" + update.filename
+                            + (update.phase === "ai_output"
+                                ? " ／ 内容は確認前です"
+                                : "");
+
+                        continue;
+                    }
+
+                    progress.value = Math.round(done / total * 100);
+                    progress.setAttribute("aria-label", "ファイルの処理完了率");
+                    progress.hidden = total === 1;
+
+                    phase.textContent = total > 1
+                        ? done + " / " + total
+                            + "ファイル処理済み（" + progress.value + "％）"
+                        : {
+                            accepted: "① 送信完了",
+                            reading: "② AI読取中（送信完了）",
+                            checking: "③ 車両照合中（読取完了）",
+                            processed: "③ 車両照合完了",
+                            saving: "④ 確認画面を準備中"
+                        }[update.phase] || "処理中";
+
+                    title.textContent = {
+                        accepted: "送信完了・読み取りを開始します",
+                        reading: "AIが請求書を読み取っています",
+                        checking: "読取結果と車両台帳を照合しています",
+                        processed: "ファイルの処理結果を確認しました",
+                        saving: "確認画面のデータを保存しています"
+                    }[update.phase] || "処理中";
+
+                    detail.textContent = update.filename
+                        ? (done + (update.phase === "processed" ? 0 : 1))
+                            + "件目：" + update.filename
+                        : "成功 " + (update.succeeded || 0)
+                            + "件・失敗 " + (update.failed || 0) + "件";
+
+                    if (update.phase === "accepted") {
+                        detail.textContent = total + "ファイルを受信しました";
+                    }
+                }
+            }
+
+            xhr.addEventListener("progress", function () {
+                if (streaming && xhr.status === 200) readProgress();
+            });
+            xhr.setRequestHeader("X-DKSS-Final-Submit", "1");
+            xhr.setRequestHeader("Accept", "application/json");
+
+            xhr.upload.addEventListener("progress", function (upload) {
+                if (upload.lengthComputable) {
+                    progress.value = Math.round(
+                        upload.loaded / upload.total * 100
+                    );
+                    phase.textContent = "ファイル送信 " + progress.value + "％";
+                }
+            });
+
+            xhr.upload.addEventListener("load", function () {
+                waiting = true;
+                if (streaming) {
+                    progress.value = 0;
+                    phase.textContent = "送信完了・サーバーの受信確認待ち";
+                    title.textContent = "送信が完了しました";
+                    detail.textContent = "サーバーから進捗を受け取っています";
+                    return;
+                }
+                progress.removeAttribute("value");
+                phase.textContent = "送信完了 ・ 結果待ち";
+                title.textContent = "資料の読み取り結果を待っています";
+                detail.textContent =
+                    "複数ページ・複数ファイルは時間がかかる場合があります";
+            });
+
+            xhr.addEventListener("load", function () {
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    let message =
+                        "読み取りに失敗しました（HTTP " + xhr.status + "）。";
+
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        if (
+                            Array.isArray(result.errors)
+                            && result.errors.length
+                        ) {
+                            message = result.errors
+                                .map(item => item.message)
+                                .join("\n");
+                        }
+                    } catch (_) {}
+
+                    restore(message);
+                    return;
+                }
+
+                if (streaming) {
+                    readProgress();
+                    if (streamError || !streamDestination) {
+                        restore(
+                            streamError
+                            || "完了結果を受信できませんでした。サーバーログを確認してください。"
+                        );
+                        return;
+                    }
+                }
+
+                const destination = new URL(
+                    streamDestination || xhr.responseURL,
+                    location.href
+                );
+
+                if (
+                    destination.origin !== location.origin
+                    || !/^\/vehicle\/(?:data-import|operation-import)\/[^/]+\/preview\/?$/.test(
+                        destination.pathname
+                    )
+                ) {
+                    restore(
+                        "確認画面を開けませんでした。ログイン状態を確認してください。"
+                    );
+                    return;
+                }
+
+                window.clearInterval(timer);
+                progress.value = 100;
+                phase.textContent = "読み取り完了";
+                title.textContent = "確認画面を開いています";
+                button.textContent = "確認画面へ…";
+                window.location.assign(destination.href);
+            });
+
+            xhr.addEventListener("error", function () {
+                restore(
+                    "通信が切れました。通信状態と読み取り結果を確認してください。"
+                );
+            });
+
+            xhr.addEventListener("abort", function () {
+                restore(
+                    "通信が中断されました。読み取り結果を確認してください。"
+                );
+            });
+
+            try {
+                xhr.send(payload);
+            } catch (_) {
+                restore(
+                    "ファイルを送信できませんでした。もう一度お試しください。"
+                );
+            }
+        });
+
+        refresh();
+    });
+});
+
 function getFormErrorTarget(targetId) {
     if (!targetId) return null;
 

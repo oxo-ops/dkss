@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}車両カルテ・分析{% endblock %}
+
+{% block content %}
+{% include "vehicle_karte_header.html" %}
+{% include "vehicle_karte_tabs.html" %}
+{% set data = analysis_summary %}
+
+
+
+{% macro value(number, unit) -%}
+    {% if number is not none %}
+        {{ format_analysis_number(number) }}<small> {{ unit }}</small>
+    {% else %}
+        <span class="kc-unset">—</span>
+    {% endif %}
+{%- endmacro %}
+
+<div class="karte-maintenance karte-costs karte-analysis">
+    <header class="kc-toolbar">
+        <div class="kc-title">
+            <h2 data-karte-icon="chart">車両分析</h2>
+            <span>運行・整備・故障・部品交換の記録から、今後の対応を検討します</span>
+        </div>
+
+        <form method="get" class="ka-period-form"
+              action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
+            <label for="ka-start-date">期間</label>
+            <input id="ka-start-date" name="start_date" type="date"
+                   value="{{ data.start_date }}" required>
+            <span aria-hidden="true">～</span>
+            <label for="ka-end-date" class="km-sr-only">終了日</label>
+            <input id="ka-end-date" name="end_date" type="date"
+                   value="{{ data.end_date }}" required>
+            <button type="submit" class="kc-year-button">集計</button>
+        </form>
+    </header>
+
+    <section class="km-panel kc-chart-panel ka-ai-panel">
+        <div class="ka-ai-header">
+            <div>
+                <h3 data-karte-icon="chart">予防整備・対応候補</h3>
+            </div>
+        </div>
+
+        <p id="ka-ai-status"
+           class="kc-muted"
+           role="status"
+           aria-live="polite"
+           data-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) }}">
+            保存済みの結果を確認しています。
+        </p>
+
+        <div id="ka-ai-results" hidden></div>
+    </section>
+
+    <div class="kc-summary-grid ka-summary-grid ka-summary-compact">
+        {% for title, number, unit, icon, note in [
+            ('期間内走行距離', data.distance, 'km', 'chart', '期間内の登録済み運行距離'),
+            ('整備費', data.total_cost, '円', 'money', '期間内の登録済み費用'),
+            ('故障登録', data.failure_count, '件', 'tool', '故障として登録された記録'),
+            ('部品交換', data.part_replacement_count, '回', 'parts', '同一整備・同一部品は1回')
+        ] %}
+        <section class="km-panel kc-metric">
+            <h3 data-karte-icon="{{ icon }}" title="{{ note }}">{{ title }}</h3>
+            <p class="kc-metric-value">{{ value(number, unit) }}</p>
+            <p class="kc-muted">{{ note }}</p>
+        </section>
+        {% endfor %}
+    </div>
+
+    <div class="ka-reference-bottom-grid">
+        <section class="ka-reference-panel">
+            <header>
+                <h3 data-karte-icon="chart">指摘から対応まで</h3>
+                <a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}">費用推移・部位別費用 →</a>
+            </header>
+            {% set progress_entries = inspection_defect_progress|sort(attribute='result_id', reverse=true)|list %}
+            {% set pending_entries = progress_entries|rejectattr('defect.status', 'equalto', '解消')|list %}
+            {% if progress_entries %}
+                {% set entry = (pending_entries or progress_entries)|first %}
+                {% set defect = entry.get('defect', {}) %}
+                {% set defect_status = defect.get('status', '記録を確認') %}
+                {% set repair = defect.get('repair') or {} %}
+                {% set recheck = defect.get('recheck') or {} %}
+                {% set recheck_current = recheck.get('result') and recheck.get('performed_at') and repair.get('performed_at') and recheck.get('performed_at') >= repair.get('performed_at') and defect_status not in ['整備中', '再確認待ち'] %}
+                <p class="ka-reference-muted">{{ (defect.get('reported_answer') or {}).get('content') or '点検の指摘' }}</p>
+                <div class="ka-reference-flow">
+                    <div class="is-recorded">
+                        <b>1</b><strong>指摘</strong>
+                        <small>{{ entry.get('inspection_date') or '日付未確認' }}</small>
+                    </div>
+                    <div{% if repair %} class="is-recorded"{% endif %}>
+                        <b>2</b><strong>修理</strong>
+                        <small>{{ repair.get('performed_at') or '記録なし' }}</small>
+                        {% if repair %}<small>{{ repair.get('status') or '実施記録あり' }}</small>{% endif %}
+                    </div>
+                    <div{% if recheck_current %} class="is-recorded"{% endif %}>
+                        <b>3</b><strong>再確認</strong>
+                        {% if recheck_current %}
+                        <small>{{ recheck.get('performed_at') }}</small>
+                        <small>{{ recheck.get('result') }}</small>
+                        {% else %}
+                        <small>{{ '再確認待ち' if defect_status == '再確認待ち' else '記録なし' }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <a class="ka-reference-record-link" href="{{ entry.get('link') }}">{{ defect_status }} · 点検・対応記録を見る ↗</a>
+                {% if pending_entries|length > 1 %}
+                <small class="ka-reference-muted">ほか未解消{{ pending_entries|length - 1 }}件</small>
+                {% endif %}
+            {% else %}
+                <div class="ka-reference-flow">
+                    <div><b>1</b><strong>指摘</strong><small>記録なし</small></div>
+                    <div><b>2</b><strong>修理</strong><small>記録なし</small></div>
+                    <div><b>3</b><strong>再確認</strong><small>記録なし</small></div>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="ka-reference-panel">
+            <header><h3 data-karte-icon="file">型式別の実績</h3></header>
+            <form method="get" id="ka-reference-peer-conditions"
+                  action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}#ka-reference-peer-conditions">
+                <input type="hidden" name="start_date" value="{{ analysis_summary.start_date }}">
+                <input type="hidden" name="end_date" value="{{ analysis_summary.end_date }}">
+                <div class="ka-reference-conditions">
+                    <span>同一会社</span>
+                    <span>{{ vehicle.model_code or '型式未登録' }}</span>
+                    <select name="peer_registration" aria-label="比較する初度登録年">
+                        <option value="same_year"{% if analysis_comparison.registration_scope == 'same_year' %} selected{% endif %}>同じ初度登録年</option>
+                        <option value="all_years"{% if analysis_comparison.registration_scope == 'all_years' %} selected{% endif %}>初度登録年を限定しない</option>
+                    </select>
+                    <label>
+                        <input type="checkbox" name="peer_inactive" value="1"{% if analysis_comparison.include_inactive %} checked{% endif %}>
+                        無効車両を含む
+                    </label>
+                    <button type="submit" class="ka-reference-link-button">比較</button>
+                </div>
+            </form>
+            <p class="ka-reference-muted">比較対象 {{ analysis_comparison.vehicle_count if analysis_comparison.vehicle_count is number else '—' }}台（この車両を除く）</p>
+            {% if analysis_comparison.metrics %}
+                <p class="ka-reference-comparison-result">比較結果 {{ analysis_comparison.metrics|length }}項目</p>
+            {% else %}
+                <p class="ka-reference-empty">{{ analysis_comparison.note or '比較可能なデータが不足しています。' }}</p>
+            {% endif %}
+            <button type="button" class="ka-reference-link-button"
+                    data-analysis-comparison="1">
+                比較条件・母数 →
+            </button>
+        </section>
+    </div>
+
+    <details id="ka-reference-aggregate" class="ka-reference-aggregate">
+        <summary>費用・月別の集計詳細</summary>
+    <p class="kc-data-note">
+        期間内の整備記録 {{ data.maintenance_count }}件。
+        全期間の累計整備費：{{ value(data.all_time_cost, '円') }}。
+        {% if data.missing_cost_count %}
+        金額未入力 {{ data.missing_cost_count }}件は費用集計から除外。
+        {% endif %}
+        {% if data.missing_distance_count %}
+        距離未入力 {{ data.missing_distance_count }}件は距離集計から除外。
+        {% endif %}
+        {% if data.undated_maintenance_count %}
+        日付不明の整備 {{ data.undated_maintenance_count }}件は期間別集計から除外。
+        {% endif %}
+        記録がない金額・距離は「—」で表示します。
+    </p>
+
+    {% set chart = namespace(distance_months=0, cost_months=0) %}
+    {% for month in data.monthly %}
+        {% if month.distance is not none %}
+            {% set chart.distance_months = chart.distance_months + 1 %}
+        {% endif %}
+        {% if month.cost is not none %}
+            {% set chart.cost_months = chart.cost_months + 1 %}
+        {% endif %}
+    {% endfor %}
+    <div class="kc-chart-grid ka-chart-grid">
+        {% for chart_id, title, icon, unit, visible in [
+            ('ka-distance-chart', '月別走行距離', 'chart', 'km', chart.distance_months >= 2),
+            ('ka-cost-chart', '月別整備費', 'money', '円', chart.cost_months >= 2),
+            ('ka-failure-chart', '月別故障件数', 'tool', '件', data.failure_count > 0)
+        ] if visible %}
+        <section class="km-panel kc-chart-panel">
+            <h3 data-karte-icon="{{ icon }}">{{ title }}</h3>
+            <canvas id="{{ chart_id }}" role="img"
+                    aria-label="{{ title }}（{{ unit }}）" hidden></canvas>
+            <p class="kc-muted ka-chart-note">
+                月別の値は下の集計表で確認できます。
+            </p>
+        </section>
+        {% endfor %}
+    </div>
+
+    <div class="kc-chart-grid ka-detail-grid">
+        <section class="km-panel kc-chart-panel">
+            <h3 data-karte-icon="money">整備区分別の費用</h3>
+            <div class="kc-table-scroll">
+                <table class="kc-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">整備区分</th>
+                            <th scope="col" class="kc-number">金額</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for category, amount in data.category_costs %}
+                        <tr>
+                            <td>{{ category }}</td>
+                            <td class="kc-number">{{ value(amount, '円') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="kc-empty">
+                                対象期間の費用記録はありません。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="km-panel kc-chart-panel">
+            <h3 data-karte-icon="tool">故障内容の記録件数</h3>
+            <p class="kc-muted">
+                同じ内容で登録された記録を集計しています。
+            </p>
+            <div class="kc-table-scroll">
+                <table class="kc-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">登録内容</th>
+                            <th scope="col" class="kc-number">件数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for content, count in data.repeated_failure_contents %}
+                        <tr>
+                            <td>{{ content }}</td>
+                            <td class="kc-number">{{ count }}件</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="kc-empty">
+                                対象期間の故障記録はありません。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+
+
+    <section class="km-panel kc-chart-panel ka-comparison-panel">
+        <h3 data-karte-icon="chart">同型式車との比較</h3>
+        <p class="kc-muted">{{ analysis_comparison.note }}</p>
+
+        {% if analysis_comparison.metrics %}
+        <div class="kc-table-scroll">
+            <table class="kc-table">
+                <thead>
+                    <tr>
+                        <th scope="col">指標</th>
+                        <th scope="col" class="kc-number">この車両</th>
+                        <th scope="col" class="kc-number">他車平均</th>
+                        <th scope="col" class="kc-number">集計対象</th>
+                        <th scope="col" class="kc-number">平均比</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in analysis_comparison.metrics %}
+                    <tr>
+                        <td>{{ metric.label }}</td>
+                        <td class="kc-number">
+                            {{ value(metric.current, metric.unit) }}
+                        </td>
+                        <td class="kc-number">
+                            {{ value(metric.average, metric.unit) }}
+                        </td>
+                        <td class="kc-number">
+                            {{ metric.sample_count }}台
+                        </td>
+                        <td class="kc-number">
+                            {% if metric.difference_percentage is not none %}
+                                {% if metric.difference_percentage == 0 %}
+                                差なし
+                                {% else %}
+                                {{ '%+.1f'|format(metric.difference_percentage) }}%
+                                {% endif %}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <p class="kc-muted">
+            選択した期間で比較しています。
+            整備費は金額未入力を含む車両を平均から除外。
+            1kmあたり整備費は、金額・運行距離の未入力がなく、
+            距離が正の車両のみ集計。
+            故障件数は登録記録の件数です。
+            「—」は集計・比較に必要な記録がない場合に表示します。
+            他車平均が0の場合は平均比を表示しません。
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="km-panel kc-chart-panel ka-monthly-panel">
+        <h3 data-karte-icon="chart">月別集計</h3>
+        <div class="kc-table-scroll ka-monthly-scroll">
+            <table class="kc-table">
+                <thead>
+                    <tr>
+                        <th scope="col">月</th>
+                        <th scope="col" class="kc-number">運行距離</th>
+                        <th scope="col" class="kc-number">整備費</th>
+                        <th scope="col" class="kc-number">故障件数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in data.monthly %}
+                    <tr>
+                        <td>{{ item.month|replace('-', '/') }}</td>
+                        <td class="kc-number">{{ value(item.distance, 'km') }}</td>
+                        <td class="kc-number">{{ value(item.cost, '円') }}</td>
+                        <td class="kc-number">{{ item.failures }}件</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    </details>
+</div>
+
+<script type="application/json" id="ka-reference-context">
+    {{ {
+        'model': vehicle.model_code or '',
+        'start_date': data.start_date,
+        'end_date': data.end_date,
+        'vehicle_count': analysis_comparison.vehicle_count,
+        'note': analysis_comparison.note
+    }|tojson }}
+</script>
+
+<script type="application/json" id="ka-chart-data">
+    {{ data.monthly|tojson }}
+</script>
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261018-analysis-1') }}"
+    defer
+></script>
+<script
+    src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261019-reference-drawer-16') }}"
+    defer
+></script>
+{% endblock %}

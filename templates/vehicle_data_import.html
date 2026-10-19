@@ -1,133 +1,93 @@
 {% extends "base.html" %}
-
 {% block title %}資料・データ取込{% endblock %}
-
 {% block content %}
-
-<div class="page-header">
-    <h2>資料・データ取込</h2>
-
-    <a
-        href="{{ url_for('vehicle_karte_list') }}"
-        class="btn btn-outline"
-    >
-        車両カルテへ戻る
-    </a>
-</div>
-
-{% for category, message in flash_messages %}
-    {% if category in ["success", "info"] %}
-        <div class="card vehicle-search-card" role="status">
-            <p>{{ message }}</p>
-
-            {% if category == "success" %}
-                <a
-                    href="{{ url_for('vehicle_karte_list') }}"
-                    class="btn btn-outline"
-                >
-                    車両カルテを開く
-                </a>
-            {% endif %}
+<div class="vehicle-registration-page vehicle-data-import">
+    <nav class="vehicle-registration-breadcrumb" aria-label="現在の位置">
+        <a href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">資料・データ取込</span>
+    </nav>
+    <div class="vehicle-registration-header">
+        <div>
+            <h2>資料・データ取込</h2>
+            <p>取り込む資料の欄にファイルを追加してください。内容を確認してから車両カルテに反映します。</p>
         </div>
-    {% endif %}
-{% endfor %}
+    </div>
 
-<div class="card vehicle-search-card">
-    <h3>運行実績</h3>
+    {% for category, message in flash_messages %}
+        {% if category in ['success', 'info'] %}
+        <div class="card vehicle-search-card" role="status"><p>{{ message }}</p></div>
+        {% endif %}
+    {% endfor %}
 
-    <p class="help-text">
-        デジタコから出力したCSVを読み込みます。
-        複数車両・複数日分のデータをまとめて取り込めます。
-        読み込み後に対象車両と内容を確認してから反映します。
-    </p>
-
-    <div class="form-actions vehicle-filter-actions">
-        <a
-            href="{{ url_for('vehicle_operation_import') }}"
-            class="btn btn-outline"
-        >
-            運行実績CSVを取り込む
+    {% if session.get('role') in ['admin', 'itc'] %}
+    <p>
+        <a class="btn btn-outline" href="{{ url_for('knowledge_document_import') }}">
+            整備知識の資料を取り込む
         </a>
+    </p>
+    {% endif %}
+
+    {% set import_types = [
+        ('operation', '運行実績', 'airia', 'デジタコから出力した運行実績を取り込みます。', '複数車両・複数日分の走行データをまとめて取り込めます。', 'CSV・1ファイル', '.csv'),
+        ('inspection', '点検記録', 'excel', '3か月・12か月などの点検記録を取り込みます。', '点検日や点検内容を確認し、対象車両の点検履歴に登録します。', 'PDF・PNG・JPEG／最大50ファイル', '.pdf,.png,.jpg,.jpeg'),
+        ('driving_report', '安全運転日報', 'certificate', '安全運転日報を車両カルテに取り込みます。', '対象車両と日報の内容を確認してから登録します。', 'PDF・PNG・JPEG／最大50ファイル', '.pdf,.png,.jpg,.jpeg'),
+        ('maintenance', '請求書・整備資料', 'manual', '整備内容や費用を車両カルテに取り込みます。', 'AIで整備明細を読み取り、確認して登録します。読み取りには1ファイルあたり数分かかる場合があります。', 'PDF・PNG・JPEG／最大50ファイル', '.pdf,.png,.jpg,.jpeg')
+    ] %}
+    <div class="vehicle-registration-method-grid">
+        {% for kind, title, color, lead, description, formats, accept in import_types %}
+        <section id="import-{{ kind }}" class="vehicle-registration-method-card vehicle-registration-method-{{ color }}" aria-labelledby="import-title-{{ kind }}">
+            <div class="vehicle-registration-method-heading">
+                <span class="vehicle-registration-method-icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        {% if kind == 'operation' %}
+                        <path d="M5 14 9 6h14l4 8M4 14h24v12H4zM8 26v3m16-3v3M9 20h2m10 0h2"/>
+                        {% elif kind == 'maintenance' %}
+                        <path d="M21 4a8 8 0 0 0-10 10L3 22a4 4 0 0 0 6 6l8-8A8 8 0 0 0 28 10l-6 5-5-5z"/>
+                        {% else %}
+                        <path d="M7 3h12l7 7v19H7zM19 3v8h7M12 17h9M12 22h9"/>
+                        {% endif %}
+                    </svg>
+                </span>
+                <h3 id="import-title-{{ kind }}">{{ title }}</h3>
+            </div>
+            <p class="vehicle-registration-method-lead">{{ lead }}</p>
+            <p class="vehicle-registration-method-description">{{ description }}</p>
+            {% if kind in ['operation', 'maintenance'] %}
+            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'vehicle_data_import') }}" enctype="multipart/form-data" class="import-form" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if kind != 'operation' %}
+                <input type="hidden" name="document_type" value="{{ kind }}">
+                {% endif %}
+                <label class="import-dropzone" for="import-file-{{ kind }}">
+                    <span class="import-drop-copy">
+                        <strong>{{ 'CSV' if kind == 'operation' else 'PDF・画像' }}をここにドロップ</strong>
+                        <small id="import-help-{{ kind }}">{{ 'PDF・PNG・JPEG／1ファイル20MBまで・最大50ファイル' if kind == 'maintenance' else formats }}</small>
+                    </span>
+                    <span class="import-pick-button">ファイルを選ぶ</span>
+                    <input type="file" id="import-file-{{ kind }}" name="{{ 'csv_file' if kind == 'operation' else 'document_files' }}" accept="{{ accept }}" aria-label="{{ title }}のファイルを選択" aria-describedby="import-help-{{ kind }} import-status-{{ kind }} import-error-{{ kind }}" {% if kind != 'operation' %}multiple{% endif %} required>
+                </label>
+                <p class="import-file-status" id="import-status-{{ kind }}" role="status">ファイル未選択</p>
+                <ul class="import-file-list" hidden></ul>
+                <p class="import-error" id="import-error-{{ kind }}" role="alert" hidden></p>
+                <div class="import-actions">
+                    <button type="button" class="btn btn-outline import-clear" hidden>選択をクリア</button>
+                    <button type="submit" class="btn btn-outline">読み込んで確認</button>
+                </div>
+            </form>
+            {% else %}
+            <div class="import-pending" role="status">
+                <strong>準備中</strong>
+                <span>現在、この資料は取り込めません。</span>
+            </div>
+            {% endif %}
+        </section>
+        {% endfor %}
+    </div>
+    <div class="import-note">
+        <p><strong>取り込みについて</strong></p>
+        <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>
+        <p>ファイルを追加しただけでは登録されません。「読み込んで確認」から、対象車両と内容を確認して反映します。</p>
     </div>
 </div>
-
-<div class="card form-card vehicle-search-card">
-    <h3>点検記録・日報・整備資料</h3>
-
-    <form
-        method="post"
-        action="{{ url_for('vehicle_data_import') }}"
-        enctype="multipart/form-data"
-        class="responsive-form"
-        novalidate
-    >
-        <input
-            type="hidden"
-            name="csrf_token"
-            value="{{ csrf_token() }}"
-        >
-
-        <div class="form-group">
-            <label for="document_type">資料の種類</label>
-
-            <select
-                id="document_type"
-                name="document_type"
-                required
-            >
-                {% set selected_type = request.args.get("document_type", "") %}
-
-                <option value="">選択してください</option>
-                <option
-                    value="inspection"
-                    {% if selected_type == "inspection" %}selected{% endif %}
-                >
-                    点検記録（3か月・12か月など）
-                </option>
-                <option
-                    value="driving_report"
-                    {% if selected_type == "driving_report" %}selected{% endif %}
-                >
-                    安全運転日報
-                </option>
-                <option
-                    value="maintenance"
-                    {% if selected_type == "maintenance" %}selected{% endif %}
-                >
-                    請求書・整備資料
-                </option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="document_files">PDF・画像</label>
-
-            <input
-                type="file"
-                id="document_files"
-                name="document_files"
-                accept=".pdf,.png,.jpg,.jpeg"
-                aria-describedby="document_files_help"
-                multiple
-                required
-            >
-
-            <p id="document_files_help" class="help-text">
-                同じ種類の資料を複数選択できます。
-                複数車両の資料もまとめて取り込めます。
-                対象車両と内容は、確認画面で確認してから反映します。
-            </p>
-        </div>
-
-        <div class="form-actions vehicle-filter-actions">
-            <button
-                type="submit"
-                class="btn btn-outline"
-            >
-                読み込んで確認
-            </button>
-        </div>
-    </form>
-</div>
-
 {% endblock %}
