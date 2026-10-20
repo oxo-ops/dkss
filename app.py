@@ -2094,6 +2094,12 @@ knowledge_import_link = register_knowledge_import(
     app, db, VehicleMaintenanceKnowledge, prepare_maintenance_invoice_pdf,
 )
 
+from public_maintenance_knowledge import register_public_knowledge
+
+public_knowledge_tick = register_public_knowledge(
+    app, db, Vehicle, Company, VehicleMaintenanceKnowledge,
+)
+
 
 @app.route("/master/maintenance-knowledge", methods=["GET", "POST"])
 def maintenance_knowledge_master():
@@ -2196,7 +2202,7 @@ def maintenance_knowledge_detail(knowledge_id):
     )
 
 
-def get_vehicle_maintenance_knowledge(vehicle):
+def get_vehicle_maintenance_knowledge(vehicle, records=()):
     import unicodedata
 
     def normalize(value):
@@ -2225,9 +2231,62 @@ def get_vehicle_maintenance_knowledge(vehicle):
         (not row.manufacturer or normalize_manufacturer(row.manufacturer) == normalize_manufacturer(vehicle.manufacturer))
         and (not row.model_code or normalize(row.model_code) == normalize(vehicle.model_code))
     )]
-    matched.sort(key=lambda row: (
-        bool(row.model_code), bool(row.manufacturer), row.id,
-    ), reverse=True)
+    def relevance_terms(value):
+        text = normalize(value).replace("フィルター", "フィルタ")
+        text = re.sub(r"[^\w]+", "", text)
+        return {
+            text[index:index + 3]
+            for index in range(max(0, len(text) - 2))
+        }
+
+    record_terms = []
+    for record in records:
+        source_id = str(record.get("source_id") or "")
+        findings = " ".join(
+            str(item.get("content") or "")
+            + " " + str(item.get("comment") or "")
+            for item in (record.get("findings") or [])
+            if isinstance(item, dict)
+        )
+        text = " ".join(
+            str(record.get(name) or "")
+            for name in (
+                "content", "symptom", "cause",
+                "repair_content", "notes",
+            )
+        ) + " " + findings
+        attention = (
+            source_id.startswith("defect:")
+            and record.get("status") in {"未対応", "対応中"}
+        ) or (
+            source_id.startswith("inspection:")
+            and bool(record.get("has_attention"))
+        )
+        group = (
+            0 if attention
+            else 1 if source_id.startswith("part:")
+            else 2
+        )
+        record_terms.append((group, relevance_terms(text)))
+
+    def knowledge_order(row):
+        subject = relevance_terms(row.part_name)
+        scores = [0, 0, 0]
+        for group, terms in record_terms:
+            combined = subject | terms
+            similarity = (
+                len(subject & terms) / len(combined)
+                if combined else 0
+            )
+            scores[group] = max(scores[group], similarity)
+        return (
+            *scores,
+            bool(row.model_code),
+            bool(row.manufacturer),
+            row.id,
+        )
+
+    matched.sort(key=knowledge_order, reverse=True)
     knowledge = []
     sources = {}
     for row in matched[:20]:
@@ -23180,7 +23239,17 @@ def vehicle_karte_analysis_worker():
 
 @app.cli.command("vehicle-karte-analysis-tick")
 def vehicle_karte_analysis_tick():
-    """登録内容の変更確認と、予約時刻を過ぎた分析を実行する。"""
+    """公開資料と登録内容の変更を確認し、予約済み分析を実行する。"""
+    try:
+        public_result = public_knowledge_tick()
+        if public_result:
+            print(public_result, flush=True)
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("公開整備資料の更新確認に失敗しました。")
+    finally:
+        db.session.remove()
+
     targets = (
         db.session.query(Vehicle.id, Vehicle.company_code)
         .join(
@@ -23611,6 +23680,7 @@ def build_vehicle_karte_service_progress(maintenance, summary):
 
 def build_vehicle_karte_preventive_facts(vehicle, summary, records):
     """交換後の期間・距離を計算する。交換期限や故障時期は推定しない。"""
+    import unicodedata
     def day(value):
         try:
             return datetime.strptime(
@@ -23648,7 +23718,11 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
         name = str(record.get("content") or "").strip()
         number = str(record.get("part_number") or "").strip()
         if name:
-            groups.setdefault((name, number), []).append(record)
+            normalized_name = re.sub(
+                r"[\s・･]+", "",
+                unicodedata.normalize("NFKC", name).casefold(),
+            ).replace("フィルター", "フィルタ")
+            groups.setdefault((normalized_name, number), []).append(record)
 
     facts = []
 
@@ -23705,7 +23779,10 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
             notes.append("走行距離の記録が不足しています。")
 
         facts.append({
-            "part_name": name,
+            "part_name": str(latest[0].get("content") or name).strip(),
+            "recorded_names": sorted({
+                str(row.get("content") or "").strip() for row in rows
+            }),
             "part_number": number,
             "latest_dated_replacement": latest_day.isoformat(),
             "days_since": (
@@ -24138,12 +24215,14 @@ def build_vehicle_karte_analysis_payload(
         ),
     }
 
-    knowledge, knowledge_sources, knowledge_count = get_vehicle_maintenance_knowledge(vehicle)
+    knowledge, knowledge_sources, knowledge_count = get_vehicle_maintenance_knowledge(
+        vehicle, records=records,
+    )
     payload["maintenance_knowledge"] = knowledge
     payload["knowledge_coverage"] = {
         "matching_count": knowledge_count,
         "sent_count": len(knowledge),
-        "description": "確認済み・有効期間内。メーカー・型式限定を優先し、新しい順に最大20件。適用条件の成立は別途確認。",
+        "description": "利用中・有効期間内でメーカー・型式が一致する知識。指摘・部品・整備記録との文字列関連性、メーカー・型式の限定、登録順で最大20件。資料の発行順ではない。適用条件の成立は別途確認。",
     }
     sources.update(knowledge_sources)
     if knowledge:
@@ -25002,9 +25081,24 @@ def inject_vehicle_karte_choices():
             )
 
             current_mileage = operation_summary.get("current_mileage")
+            try:
+                measured_on = datetime.strptime(
+                    str(operation_summary.get("mileage_date") or "")[:10].replace("/", "-"),
+                    "%Y-%m-%d",
+                ).date()
+                maintained_on = datetime.strptime(
+                    str(maintenance_summary.get("last_date") or "")[:10].replace("/", "-"),
+                    "%Y-%m-%d",
+                ).date()
+            except ValueError:
+                measured_on = maintained_on = None
+
             if (
                 current_mileage is not None
                 and latest_record.mileage is not None
+                and measured_on is not None
+                and maintained_on is not None
+                and measured_on >= maintained_on
             ):
                 difference = (
                     Decimal(str(current_mileage))
