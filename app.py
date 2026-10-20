@@ -23143,7 +23143,29 @@ def run_vehicle_karte_analysis_job(state_id):
         )
 
         if method == "ai":
-            analysis = analyze_vehicle_karte(payload)
+            def renew_analysis_lease():
+                renewed = VehicleKarteAnalysis.query.filter_by(
+                    id=state_id,
+                    lease_token=token,
+                    status="running",
+                ).update(
+                    {
+                        "lease_expires_at": (
+                            datetime.now(ZoneInfo("UTC"))
+                            + timedelta(minutes=3)
+                        ),
+                    },
+                    synchronize_session=False,
+                )
+                if renewed != 1:
+                    db.session.rollback()
+                    raise RuntimeError("ANALYSIS_LEASE_LOST")
+                db.session.commit()
+
+            analysis = analyze_vehicle_karte(
+                payload,
+                on_progress=renew_analysis_lease,
+            )
         else:
             analysis = {
                 "overview": (
@@ -24095,8 +24117,8 @@ def build_vehicle_karte_analysis_payload(
                     for answer in answers
                 ),
                 "finding_count": len(findings),
-                "findings": findings[:30],
-                "treatments": treatments[:30],
+                "findings": findings,
+                "treatments": treatments,
                 "registered_operation_judgment": short(
                     judgment.get("status")
                 ),
@@ -24260,6 +24282,7 @@ def build_vehicle_karte_analysis_payload(
                 "部品別の直近交換記録を優先。"
                 "同じ優先区分では新しい順。"
                 "日付不明は末尾。"
+                "日常点検の指摘・対応は件数で切り捨てず保持。"
                 "定期点検の内容・備考は各2000文字、"
                 "その他の自由記述は最大400文字。"
             ),
