@@ -33,6 +33,26 @@ def extract_knowledge(pdf):
         raise ValueError("OPENAI_API_KEYが設定されていません。")
     properties = {name: {"type": "string"} for name in FIELDS}
     properties["page"] = {"type": "integer", "minimum": 1}
+    properties["vehicle_scope"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["mode", "categories", "quote"],
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["restricted", "unrestricted", "unknown"],
+            },
+            "categories": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                    "type": "string",
+                    "enum": ["truck", "bus", "other"],
+                },
+            },
+            "quote": {"type": "string"},
+        },
+    }
     schema = {"type": "object", "additionalProperties": False,
               "required": ["items"], "properties": {"items": {
                   "type": "array", "maxItems": 20, "items": {
@@ -43,6 +63,13 @@ def extract_knowledge(pdf):
 対象の部品・箇所、適用条件、確認・対応内容と理由を日本語で整理する。
 メーカー・型式・使用条件・距離・期間などの限定条件や例外を省略しない。
 メーカー名と型式は明記されたもののみ。記載がなければ空文字。
+vehicle_scopeは、この知識項目に明記された車両区分の適用範囲を抽出する。
+modeは、区分が限定されていればrestricted、車両区分を問わず適用すると明記されていればunrestricted、判断できなければunknown。
+categoriesは明記された対象区分のみ。トラックはtruck、バスはbus、その他の車両区分はother。「トラック・バス全車」はrestrictedでtruckとbus。
+商品名、型式の記憶、挿絵、メーカー名から車両区分を推測しない。
+quoteには区分の判断根拠になる短い原文を300字以内で抜粋する。restrictedとunrestrictedでは必須。
+unknownではcategoriesを空配列、quoteを空文字にする。対象区分が不明なことを全車共通と解釈しない。
+特定の商品系列・型式・年式・仕様・例外は、vehicle_scopeで表現し切れなくてもconditionsに必ず残す。
 対象が特定できない資料や、前提条件を読み取れない項目は抽出しない。
 個別車両の修理実績を、全車共通の交換基準に変えない。
 providerは資料に記載された発行者。なければ「資料に記載なし」。
@@ -89,6 +116,35 @@ pageはPDF先頭を1とする物理ページ番号。quoteは該当ページの�
             raise ValueError("適用期間が逆転しています。")
         if type(item.get("page")) is not int or not 1 <= item["page"] <= 9999:
             raise ValueError("原本ページを確認できませんでした。")
+
+        scope = item.get("vehicle_scope")
+        if not isinstance(scope, dict):
+            raise ValueError("対象車両区分の形式が不正です。")
+        mode = scope.get("mode")
+        categories = scope.get("categories")
+        quote = scope.get("quote")
+        if (
+            mode not in {"restricted", "unrestricted", "unknown"}
+            or not isinstance(categories, list)
+            or len(categories) > 3
+            or any(
+                not isinstance(value, str)
+                or value not in {"truck", "bus", "other"}
+                for value in categories
+            )
+            or not isinstance(quote, str)
+            or len(quote) > 300
+        ):
+            raise ValueError("対象車両区分を確認できませんでした。")
+        scope["quote"] = quote.strip()
+        if mode == "restricted" and not categories:
+            raise ValueError("限定された対象車両区分が空です。")
+        if mode in {"restricted", "unrestricted"} and not scope["quote"]:
+            raise ValueError("対象車両区分の原文がありません。")
+        if mode in {"unknown", "unrestricted"} and categories:
+            raise ValueError("対象車両区分と範囲指定が矛盾しています。")
+        if mode == "unknown" and scope["quote"]:
+            raise ValueError("対象不明の原文指定を確認してください。")
     return items
 
 
@@ -298,8 +354,96 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
         response.headers["Content-Security-Policy"] = "sandbox"
         return response
 
+    def get_vehicle_scopes(rows):
+        targets = {}
+        for row in rows:
+            matches = re.findall(
+                r"\[knowledge-document:([a-f0-9-]{36})\]",
+                row.source_reference or "",
+            )
+            if len(matches) != 1:
+                continue
+            targets.setdefault(row.company_code, {}).setdefault(
+                matches[0], [],
+            ).append(row)
+
+        scopes = {}
+        for company_code, documents in targets.items():
+            stored = KnowledgeDocument.query.filter(
+                KnowledgeDocument.company_code == company_code,
+                KnowledgeDocument.id.in_(list(documents)),
+            ).with_entities(
+                KnowledgeDocument.id,
+                KnowledgeDocument.knowledge_ids_json,
+                KnowledgeDocument.extraction_json,
+            ).all()
+
+            for document_id, ids_json, extraction_json in stored:
+                try:
+                    ids = json.loads(ids_json)
+                    items = json.loads(extraction_json)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    not isinstance(ids, list)
+                    or not isinstance(items, list)
+                    or len(ids) != len(items)
+                    or any(type(value) is not int for value in ids)
+                    or len(set(ids)) != len(ids)
+                ):
+                    continue
+
+                extracted = dict(zip(ids, items))
+                for row in documents[document_id]:
+                    item = extracted.get(row.id)
+                    if not isinstance(item, dict):
+                        continue
+                    if any(
+                        item.get(name) != getattr(row, name)
+                        for name in ("title", "model_code", "conditions")
+                    ):
+                        continue
+
+                    scope = item.get("vehicle_scope")
+                    if not isinstance(scope, dict):
+                        continue
+                    mode = scope.get("mode")
+                    categories = scope.get("categories")
+                    quote = scope.get("quote")
+                    if (
+                        mode not in {"restricted", "unrestricted", "unknown"}
+                        or not isinstance(categories, list)
+                        or len(categories) > 3
+                        or any(
+                            not isinstance(value, str)
+                            or value not in {"truck", "bus", "other"}
+                            for value in categories
+                        )
+                        or not isinstance(quote, str)
+                        or len(quote) > 300
+                    ):
+                        continue
+                    if mode == "restricted" and (
+                        not categories or not quote.strip()
+                    ):
+                        continue
+                    if mode == "unrestricted" and (
+                        categories or not quote.strip()
+                    ):
+                        continue
+                    if mode == "unknown" and (categories or quote.strip()):
+                        continue
+
+                    scopes[row.id] = {
+                        "mode": mode,
+                        "categories": list(categories),
+                        "quote": quote.strip(),
+                    }
+        return scopes
+
     app.extensions["maintenance_knowledge_import"] = {
         "store_public_document": store_public_document,
+        "get_vehicle_scopes": get_vehicle_scopes,
     }
     return source_link
 

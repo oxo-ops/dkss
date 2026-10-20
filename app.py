@@ -2286,6 +2286,41 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
             row.id,
         )
 
+    scope_reader = app.extensions.get(
+        "maintenance_knowledge_import", {},
+    ).get("get_vehicle_scopes")
+    scopes = scope_reader(matched) if scope_reader else {}
+
+    category_aliases = {
+        "トラック": "truck",
+        "大型トラック": "truck",
+        "中型トラック": "truck",
+        "小型トラック": "truck",
+        "トラクタ": "truck",
+        "トラクター": "truck",
+        "バス": "bus",
+    }
+    registered_categories = {
+        category_aliases[value]
+        for value in (
+            normalize(vehicle.body_type),
+            normalize(vehicle.type),
+        )
+        if value in category_aliases
+    }
+    vehicle_category = (
+        next(iter(registered_categories))
+        if len(registered_categories) == 1 else None
+    )
+
+    matched = [
+        row for row in matched
+        if not (
+            vehicle_category is not None
+            and scopes.get(row.id, {}).get("mode") == "restricted"
+            and vehicle_category not in scopes[row.id]["categories"]
+        )
+    ]
     matched.sort(key=knowledge_order, reverse=True)
     knowledge = []
     sources = {}
@@ -2300,6 +2335,29 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
         }
         source_id = f"knowledge:{row.id}"
         item["source_id"] = source_id
+        item["vehicle_scope"] = scopes.get(row.id, {
+            "mode": "unknown",
+            "categories": [],
+            "quote": "",
+        })
+        item["vehicle_category_match"] = (
+            "matched"
+            if vehicle_category is not None
+            and item["vehicle_scope"]["mode"] == "restricted"
+            and vehicle_category in item["vehicle_scope"]["categories"]
+            else "unrestricted"
+            if item["vehicle_scope"]["mode"] == "unrestricted"
+            else "unknown"
+        )
+        item["applicability_status"] = "requires_condition_check"
+        item["applicability_note"] = (
+            "有効期間内で、登録されたメーカー・型式の"
+            "絞込条件に一致した候補。空欄は対象範囲の"
+            "確認済みを意味しない。conditionsに記載された"
+            "車種・年式・装備・症状・使用条件は未照合。"
+            "activeは知識の利用状態であり、この車両への"
+            "適用確認済みを意味しない。"
+        )
         knowledge.append(item)
         sources[source_id] = {
             "label": f"{row.source_kind}：{row.title}（提供：{row.provider}）",
@@ -24260,6 +24318,17 @@ def build_vehicle_karte_analysis_payload(
             "manufacturer": vehicle.manufacturer,
             "first_registration_date": (
                 vehicle.first_registration_date
+            ),
+            "body_type": vehicle.body_type or None,
+            "registered_type": vehicle.type or None,
+            "gross_vehicle_weight_kg": vehicle.gross_vehicle_weight,
+            "max_payload_kg": vehicle.max_payload,
+            "attribute_scope_note": (
+                "登録済みの車両台帳情報。空欄は不明。"
+                "初度登録日は製造年月ではない。"
+                "車体形状・登録区分・重量だけで商品系列、"
+                "エンジン、変速機、締結方式、装備、"
+                "実際の使用条件を確定しない。"
             ),
         },
         "summary": summary,
