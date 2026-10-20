@@ -23,8 +23,16 @@
     let referenceFeedbackHistory = [];
 
     function feedbackHistory(panel = node("details", "ka-feedback-history")) {
-        panel.style.cssText = "width:100%;margin-top:12px;";
-        panel.replaceChildren(node("summary", "", "過去の提案と対応履歴（直近30件）"));
+        const summary = node("summary", "ka-info-summary");
+        summary.append(
+            node("strong", "", "過去の提案と対応履歴（直近30件）"),
+            node(
+                "span",
+                "ka-info-summary-description",
+                "これまでに提案された内容と対応状況を確認できます"
+            )
+        );
+        panel.replaceChildren(summary);
         const labels = {
             open: "未着手", accepted: "採用", in_progress: "対応中",
             completed: "完了", dismissed: "見送り"
@@ -216,15 +224,35 @@
         commentSave.style.cssText = "margin-top:6px;padding:5px 10px;font-size:12px;";
         commentSave.addEventListener("click", () => save(saved.status || "open", true));
         comment.append(commentSave);
-        wrap.append(comment, message, evaluationControls(item), feedbackHistory());
+        wrap.append(
+            comment,
+            message,
+            evaluationControls(item)
+        );
         showSaved();
         return wrap;
     }
 
     function evaluationControls(item) {
-        const panel = node("details", "ka-reference-comment");
-        panel.style.cssText = "width:100%;margin-top:12px;";
-        panel.append(node("summary", "", "提案の評価（任意）"));
+        const panel = node(
+            "details",
+            "ka-reference-comment ka-evaluation-panel"
+        );
+
+        const summary = node("summary", "ka-evaluation-summary");
+
+        const heading = node("div", "ka-evaluation-heading");
+        heading.append(
+            node("strong", "", "提案の評価（任意）"),
+            node(
+                "span",
+                "ka-evaluation-description",
+                "AIの提案が適切だったかを評価し、改善につなげます"
+            )
+        );
+
+        summary.append(heading);
+        panel.append(summary);
         const choices = [
             ["appropriate", "適切"],
             ["needs_revision", "要修正"],
@@ -364,14 +392,60 @@
             document.body.append(referenceDrawer);
         }
         const header = node("header", "ka-reference-drawer-header");
-        const title = node("h3", "", `${item.target || item.title}｜提案の詳細`);
+
+        const heading = node("div", "ka-drawer-heading");
+        heading.append(
+            node("span", "ka-drawer-eyebrow", "AI提案の詳細")
+        );
+
+        const title = node(
+            "h3",
+            "",
+            item.target || item.title || "確認項目"
+        );
         title.id = "ka-reference-drawer-title";
-        const close = node("button", "", "×");
+        heading.append(title);
+
+        const close = node("button", "ka-drawer-close", "×");
         close.type = "button";
         close.setAttribute("aria-label", "提案の詳細を閉じる");
         close.addEventListener("click", closeReferenceDrawer);
-        header.append(title, close);
-        referenceDrawer.replaceChildren(header, content);
+
+        header.append(heading, close);
+
+        const summary = node("section", "ka-drawer-summary");
+
+        const priorityRow = node("div", "ka-drawer-priority-row");
+        priorityRow.append(
+            node("span", "ka-drawer-summary-label", "優先度")
+        );
+
+        const priority = node(
+            "span",
+            "ka-ai-priority",
+            item.priority || "未設定"
+        );
+        priority.dataset.priority = item.priority || "";
+        priorityRow.append(priority);
+
+        const state = node("div", "ka-drawer-summary-field");
+        state.append(
+            node("span", "ka-drawer-summary-label", "現在の状態"),
+            node("p", "", item.current_state || "記録を確認")
+        );
+
+        const action = node(
+            "div",
+            "ka-drawer-summary-field ka-drawer-summary-action"
+        );
+        action.append(
+            node("span", "ka-drawer-summary-label", "推奨する対応"),
+            node("p", "", item.action || "確認が必要です")
+        );
+
+        summary.append(priorityRow, state, action);
+
+        referenceDrawer.replaceChildren(header, summary, content);
         referenceDrawerContent = content;
         referenceDrawerOpener = opener;
         referenceDrawer.hidden = false;
@@ -568,25 +642,44 @@
                     link.rel = "noopener noreferrer";
                     if (knowledgeIds.has(id) || String(id).startsWith("knowledge:")) {
                         const snapshot = source.snapshot || {};
+                        const reference = String(snapshot.source_reference || "")
+                            .replace(/\[knowledge-document:[a-f0-9-]{36}\]/g, "")
+                            .trim();
                         const fields = [
-                            ["出典区分", snapshot.source_kind],
+                            ["対象メーカー", snapshot.manufacturer],
+                            ["対象型式", snapshot.model_code],
                             ["適用条件", snapshot.conditions],
-                            ["提供者", snapshot.provider],
-                            ["確認者", snapshot.confirmed_by],
-                            ["確認日", snapshot.confirmed_at],
-                            ["適用開始", snapshot.valid_from],
-                            ["適用終了", snapshot.valid_until || "期限指定なし"],
-                            ["出典", snapshot.source_reference]
+                            ["知識に記載された確認・対応", snapshot.guidance],
+                            ["出典", reference]
                         ].filter(([, value]) => value);
-                        const text = fields.map(([label, value]) => `${label}：${value}`).join("\n");
-                        const confirmation = snapshot.status === "active"
-                            && snapshot.confirmed_by && snapshot.confirmed_at
-                            ? "確認済み（分析時点）"
-                            : "確認状況は出典を確認";
+
+                        const knowledge = node("details", "ka-reference-note");
+                        knowledge.append(node(
+                            "summary",
+                            "",
+                            snapshot.title || source.label || "根拠となる知識"
+                        ));
+                        for (const [label, value] of fields) {
+                            knowledge.append(node(
+                                "p",
+                                "ka-reference-note",
+                                `${label}：${value}`
+                            ));
+                        }
+                        if (!fields.length) {
+                            knowledge.append(node(
+                                "p",
+                                "ka-reference-note",
+                                "この保存結果には知識の詳細が含まれていません。"
+                            ));
+                        }
                         knowledgeLinks.append(
-                            node("span", "ka-reference-knowledge", `${snapshot.source_kind || "登録済み知識"} · ${confirmation}`),
-                            link,
-                            node("p", "ka-reference-note", text || "出典の詳細はリンク先を確認してください。")
+                            node(
+                                "span",
+                                "ka-reference-knowledge",
+                                snapshot.source_kind || "登録済み知識"
+                            ),
+                            knowledge
                         );
                     } else {
                         recordLinks.append(link);
@@ -641,6 +734,74 @@
             return wrap;
         };
 
+        const cardList = (rows, label) => {
+            const list = node("div", "ka-action-cards");
+            list.setAttribute("role", "list");
+            list.setAttribute("aria-label", label);
+
+            if (!rows.length) {
+                const empty = node("div", "ka-action-empty");
+                empty.append(
+                    node("span", "ka-action-empty-icon", "✓"),
+                    node("strong", "", "現在、優先して対応すべき項目はありません"),
+                    node("p", "", "新しい点検・整備記録が追加されたら、分析結果を確認してください。")
+                );
+                list.append(empty);
+                return list;
+            }
+
+            const existing = table(rows, label);
+            const tableRows = [...existing.querySelectorAll("tbody tr")];
+
+            tableRows.forEach((tr, index) => {
+                const [priorityCell, targetCell, stateCell, actionCell, timingCell, controlsCell] = [...tr.children];
+                const item = rows[index];
+
+                const card = node("article", "ka-action-card");
+                card.dataset.priority = item.priority || "低";
+                card.setAttribute("role", "listitem");
+
+                const head = node("div", "ka-action-card-head");
+                const badge = priorityCell.querySelector(".ka-ai-priority");
+                const title = node("h5", "", item.target || "確認項目");
+                const position = node("span", "ka-action-rank", String(index + 1));
+
+                head.append(position);
+                if (badge) head.append(badge);
+                head.append(title);
+
+                const details = node("div", "ka-action-card-body");
+
+                const state = node("div", "ka-action-field");
+                state.append(node("span", "ka-action-label", "現在の状態"));
+                state.append(node("p", "", item.current_state || "記録を確認"));
+
+                const action = node("div", "ka-action-field ka-action-field-primary");
+                action.append(node("span", "ka-action-label", "推奨する対応"));
+                action.append(node("p", "", item.action || "確認が必要です"));
+
+                details.append(state, action);
+
+                const footer = node("div", "ka-action-card-footer");
+
+                const timing = node("div", "ka-action-timing");
+                timing.append(node("span", "ka-action-label", "対応の目安"));
+                timing.append(node("strong", "", item.timing || "記録確認時"));
+
+                const controls = node("div", "ka-action-controls");
+
+                while (controlsCell.firstChild) {
+                    controls.append(controlsCell.firstChild);
+                }
+
+                footer.append(timing, controls);
+                card.append(head, details, footer);
+                list.append(card);
+            });
+
+            return list;
+        };
+
         const maintenance = items.filter(
             item => item.category === "整備・点検"
         );
@@ -648,35 +809,83 @@
             item => item.category === "記録確認"
         );
 
-        const decisionHeader = node("div", "ka-reference-list-heading");
-        decisionHeader.append(
-            node("h4", "ka-decision-heading", `次に確認・対応すること（${maintenance.length}件）`),
-            node("small", "", data.generated_at ? `最終更新：${data.generated_at}` : "更新日時未確認")
-        );
-        fragment.append(decisionHeader);
+        const actionPanel = node("section", "ka-reference-panel ka-action-panel");
 
-        fragment.append(table(maintenance, "整備・点検の対応候補"));
+        const actionHeader = node("header", "ka-action-panel-header");
+        const actionHeading = node("div", "ka-action-panel-heading");
+
+        actionHeading.append(
+            node(
+                "h4",
+                "ka-decision-heading",
+                `次に確認・対応すること（${maintenance.length}件）`
+            ),
+            node(
+                "p",
+                "ka-action-panel-description",
+                "AIが提案する点検・整備の対応候補を優先度順に確認します"
+            )
+        );
+
+        actionHeader.append(
+            actionHeading,
+            node(
+                "small",
+                "ka-action-updated",
+                data.generated_at
+                    ? `最終更新：${data.generated_at}`
+                    : "更新日時未確認"
+            )
+        );
+
+        actionPanel.append(
+            actionHeader,
+            cardList(maintenance, "整備・点検の対応候補")
+        );
+
+        fragment.append(actionPanel);
 
         const recordDetail = node("details", "ka-decision-records");
-        const recordSummary = node("summary");
-        recordSummary.append(
+        const recordSummary = node("summary", "ka-record-summary");
+
+        const recordTitle = node("div", "ka-record-summary-title");
+        recordTitle.append(
             node("strong", "", "記録の確認事項"),
-            node("span", "kc-muted", "　点検・整備・部品交換などの記録内容に関する確認事項")
+            node("span", "ka-record-count", `${records.length}件`)
         );
+
+        const recordDescription = node(
+            "span",
+            "ka-record-summary-description",
+            "点検・整備・部品交換などの記録内容に関する確認事項"
+        );
+
+        recordSummary.append(recordTitle, recordDescription);
         recordDetail.append(recordSummary);
         if (records.length) {
-            recordDetail.append(table(records, "記録の確認事項"));
+            recordDetail.append(cardList(records, "記録の確認事項"));
         } else {
             recordDetail.append(node("p", "kc-muted", "現在の分析結果に記録の確認事項はありません。"));
         }
-        fragment.append(recordDetail);
+        const recordPanel = node("section", "ka-reference-panel ka-record-panel");
+        recordPanel.append(recordDetail);
+        fragment.append(recordPanel);
 
         const overview = node(
             "details", "ka-ai-overview-detail"
         );
+        const overviewSummary = node("summary", "ka-info-summary");
+        const overviewTitle = node("strong", "", "分析の概要・参照範囲");
+        const overviewDescription = node(
+            "span",
+            "ka-info-summary-description",
+            "対象期間・参照データ・分析の前提条件を表示します"
+        );
+        overviewSummary.append(overviewTitle, overviewDescription);
+
         overview.append(
-            node("summary", "", "分析の概要・参照範囲"),
-            node("p", "", data.analysis.overview)
+            overviewSummary,
+            node("p", "ka-info-content", data.analysis.overview)
         );
 
         const coverage = data.coverage || {};

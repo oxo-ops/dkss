@@ -420,18 +420,18 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
 
             view.id = `dashboard-panel-${key}`;
             name.id = `dashboard-panel-title-${key}`;
-            view.setAttribute("aria-labelledby", name.id);
             if (inlineKeys.has(key)) {
+                view.setAttribute("aria-label", title);
                 back.remove();
-            }
 
-            const panelTitle = inlineKeys.has(key)
-                ? panel.querySelector(":scope > .card-title-row > h3")
-                : null;
-            if (panelTitle) {
-                view.setAttribute("aria-labelledby", panelTitle.id);
+                const panelTitle = panel.querySelector(
+                    ":scope > .card-title-row > h3"
+                );
+                panelTitle?.remove();
+
                 view.append(panel);
             } else {
+                view.setAttribute("aria-labelledby", name.id);
                 view.append(heading, panel);
             }
 
@@ -564,17 +564,19 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
             }
 
             if (focus) {
-                const heading = active?.querySelector("h3");
                 const closedButton = !active && previousInlineKey
                     ? inlineButtons.get(previousInlineKey).at(-1)
                     : null;
 
-                if (heading) {
-                    heading.focus({preventScroll: true});
-                } else if (closedButton) {
-                    closedButton.focus({preventScroll: true});
-                } else {
-                    header?.querySelector("h2")?.focus({preventScroll: true});
+                if (!inlineActive) {
+                    const heading = active?.querySelector("h3");
+                    if (heading) {
+                        heading.focus({preventScroll: true});
+                    } else if (closedButton) {
+                        closedButton.focus({preventScroll: true});
+                    } else {
+                        header?.querySelector("h2")?.focus({preventScroll: true});
+                    }
                 }
 
                 if (inlineActive || closedButton) {

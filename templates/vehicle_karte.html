@@ -117,6 +117,16 @@
         <h3 class="result-info-title" data-karte-icon="chart">整備費の内訳（累計）</h3>
         {% set cost_summary = karte_maintenance_summary | default({}) %}
         {% set category_costs = cost_summary.get("category_costs", []) %}
+        {% set cost_palette = [
+            "#9680db",
+            "#6ca4e8",
+            "#57beb3",
+            "#6875bd",
+            "#77a9ba",
+            "#b19acb",
+            "#43988e",
+            "#a2b5d4"
+        ] %}
         {% if category_costs %}
             <div class="vehicle-karte-cost-breakdown">
                 {% if cost_summary.get("show_cost_ring") %}
@@ -134,7 +144,7 @@
                                 <circle
                                     cx="60" cy="60" r="46"
                                     fill="none"
-                                    stroke="{{ item.color }}"
+                                    stroke="{{ cost_palette[loop.index0 % (cost_palette|length)] }}"
                                     stroke-width="16"
                                     pathLength="100"
                                     stroke-dasharray="{{ percent }} {{ 100 - percent }}"
@@ -158,7 +168,13 @@
                 <dl class="vehicle-karte-cost-legend">
                     {% for item in category_costs %}
                         <div>
-                            <dt>{{ item.label }}</dt>
+                            <dt>
+                                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+                                    <rect x="1" y="1" width="8" height="8" rx="2"
+                                          fill="{{ cost_palette[loop.index0 % (cost_palette|length)] }}"></rect>
+                                </svg>
+                                {{ item.label }}
+                            </dt>
                             <dd>
                                 {% if item.percentage is not none %}
                                     <span>{{ "%.1f" | format(item.percentage) }}%</span>
