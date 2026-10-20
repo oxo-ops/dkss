@@ -13108,6 +13108,46 @@ def pointouts():
 
         result["can_manage"] = can_edit_patrol_result(result)
         visible_results.append(result)
+
+    # 現在のタブの全記録を、閲覧権限に従って集計する
+    # ページ分割やステータス絞り込みの影響を受けない
+    summary_records = PatrolResult.query.filter(
+        PatrolResult.company_code == session.get("company_code"),
+        PatrolResult.target_type == view_type
+    ).all()
+
+    patrol_stats = {
+        "total": 0,
+        "waiting": 0,
+        "approved": 0,
+        "not_started": 0,
+        "rejected": 0,
+        "none": 0
+    }
+
+    for summary_record in summary_records:
+        summary_item = patrol_result_to_dict(summary_record)
+
+        if not can_view_patrol_result(summary_item):
+            continue
+
+        patrol_stats["total"] += 1
+
+        if summary_item.get("category") == "Good":
+            patrol_stats["none"] += 1
+            continue
+
+        if not summary_item.get("countermeasure"):
+            patrol_stats["not_started"] += 1
+        elif summary_item.get("approval_status") == "承認待ち":
+            patrol_stats["waiting"] += 1
+        elif summary_item.get("approval_status") == "承認済み":
+            patrol_stats["approved"] += 1
+        elif summary_item.get("approval_status") == "差し戻し":
+            patrol_stats["rejected"] += 1
+        else:
+            patrol_stats["not_started"] += 1
+
     allowed_page_sizes = {10, 20, 50}
 
     try:
@@ -13172,6 +13212,7 @@ def pointouts():
     return render_template(
         "pointouts.html",
         patrol_results=paginated_results,
+        patrol_stats=patrol_stats,
         total_results=total_results,
         page=page,
         page_size=page_size,
@@ -24166,10 +24207,20 @@ def build_vehicle_karte_analysis_payload(
             )
         return False
 
-    records = sorted(
-        records,
-        key=lambda item: not important_for_analysis(item),
-    )[:80]
+    protected_records = []
+    other_records = []
+
+    for item in records:
+        if important_for_analysis(item):
+            protected_records.append(item)
+        else:
+            other_records.append(item)
+
+    protected_count = len(protected_records)
+    records = (
+        protected_records
+        + other_records[:max(0, 80 - protected_count)]
+    )
 
     selected_ids = {
         item["source_id"] for item in records
@@ -24197,9 +24248,13 @@ def build_vehicle_karte_analysis_payload(
         "coverage": {
             "available_count": available_count,
             "sent_count": len(records),
+            "protected_count": protected_count,
+            "omitted_count": available_count - len(records),
             "description": (
-                "詳細履歴は期間終了日以前の最大80件。"
-                "部品別の交換後距離・期間は80件に絞る前の履歴から計算。"
+                "対象は期間終了日以前の履歴。"
+                "重要履歴は80件の枠で切り捨てず保持。"
+                "通常履歴は合計80件までの残り枠へ追加。"
+                "部品別の交換後距離・期間は履歴選択前に計算。"
                 "計算に使った交換記録の参照先も保持。"
                 "未対応不具合・点検指摘・定期点検内容・"
                 "部品別の直近交換記録を優先。"
