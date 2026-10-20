@@ -20,13 +20,7 @@
         {% endif %}
     {% endfor %}
 
-    {% if session.get('role') in ['admin', 'itc'] %}
-    <p>
-        <a class="btn btn-outline" href="{{ url_for('knowledge_document_import') }}">
-            整備知識の資料を取り込む
-        </a>
-    </p>
-    {% endif %}
+
 
     {% set import_types = [
         ('operation', '運行実績', 'airia', 'デジタコから出力した運行実績を取り込みます。', '複数車両・複数日分の走行データをまとめて取り込めます。', 'CSV・1ファイル', '.csv'),

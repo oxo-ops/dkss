@@ -2248,13 +2248,20 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
             for item in (record.get("findings") or [])
             if isinstance(item, dict)
         )
+        line_item_text = " ".join(
+            value
+            for item in (record.get("line_items") or [])
+            if isinstance(item, dict)
+            for value in item.values()
+            if isinstance(value, str)
+        )
         text = " ".join(
             str(record.get(name) or "")
             for name in (
                 "content", "symptom", "cause",
-                "repair_content", "notes",
+                "temporary_action", "repair_content", "notes",
             )
-        ) + " " + findings
+        ) + " " + findings + " " + line_item_text
         attention = (
             source_id.startswith("defect:")
             and record.get("status") in {"未対応", "対応中"}
@@ -23899,6 +23906,31 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
         else:
             notes.append("走行距離の記録が不足しています。")
 
+        previous_days = [
+            day(row["date"]) for row in dated
+            if day(row["date"]) < latest_day
+        ]
+        previous_day = max(previous_days) if previous_days else None
+        previous = [
+            row for row in dated
+            if previous_day and day(row["date"]) == previous_day
+        ]
+        previous_meters = {
+            meter(row.get("mileage")) for row in previous
+        }
+        previous_meter = (
+            next(iter(previous_meters))
+            if len(previous_meters) == 1 else None
+        )
+        interval_km = None
+        if previous_meter is not None and replaced_meter is not None:
+            if replaced_meter >= previous_meter:
+                interval_km = replaced_meter - previous_meter
+            else:
+                notes.append(
+                    "交換時走行距離が前回より小さいため交換間隔の距離を計算していません。"
+                )
+
         facts.append({
             "part_name": str(latest[0].get("content") or name).strip(),
             "recorded_names": sorted({
@@ -23910,9 +23942,22 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
                 (as_of - latest_day).days if as_of else None
             ),
             "distance_since_km": distance,
-            "source_ids": [
-                row["source_id"] for row in latest
-            ],
+            "previous_dated_replacement": (
+                previous_day.isoformat() if previous_day else None
+            ),
+            "last_recorded_interval_days": (
+                (latest_day - previous_day).days
+                if previous_day else None
+            ),
+            "last_recorded_interval_km": interval_km,
+            "interval_scope_note": (
+                "登録された前回と直近の交換記録間の実績。"
+                "途中の未登録作業の有無は不明。"
+                "推奨交換間隔・交換期限・不具合の再発を意味しない。"
+            ),
+            "source_ids": list(dict.fromkeys(
+                row["source_id"] for row in latest + previous
+            )),
             "notes": notes,
         })
 
@@ -23996,10 +24041,19 @@ def build_vehicle_karte_analysis_payload(
             {
                 "type": "整備・修理",
                 "category": short(row.category),
-                "content": short(row.content),
-                "symptom": short(row.symptom),
-                "cause": short(row.cause),
-                "repair_content": short(row.repair_content),
+                "content": str(row.content or "").strip(),
+                "symptom": str(row.symptom or "").strip(),
+                "cause": str(row.cause or "").strip(),
+                "temporary_action": str(
+                    row.temporary_action or ""
+                ).strip(),
+                "repair_content": str(
+                    row.repair_content or ""
+                ).strip(),
+                "notes": str(row.notes or "").strip(),
+                "line_items": safe_json_dict_list(
+                    row.line_items_json
+                ),
                 "status": short(row.status),
                 "completion_date": row.completion_date,
                 "mileage": row.mileage,
@@ -24269,6 +24323,8 @@ def build_vehicle_karte_analysis_payload(
 
     def important_for_analysis(item):
         source_id = item["source_id"]
+        if source_id.startswith("maintenance:"):
+            return True
         if source_id.startswith("defect:"):
             return item.get("status") in {"未対応", "対応中"}
         if source_id.startswith("inspection:"):
@@ -24353,7 +24409,9 @@ def build_vehicle_karte_analysis_payload(
                 "日付不明は末尾。"
                 "日常点検の指摘・対応は件数で切り捨てず保持。"
                 "定期点検の内容・備考は各2000文字、"
-                "その他の自由記述は最大400文字。"
+                "整備・修理の内容・症状・原因・応急処置・"
+                "修理内容・備考と登録明細は文字数で省略しない。"
+                "整備・修理以外のその他の自由記述は最大400文字。"
             ),
         },
         "status_note": (
@@ -24444,6 +24502,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     result = {
         "vehicle_count": None,
         "metrics": [],
+        "part_statistics": [],
         "note": "",
     }
 
@@ -24495,6 +24554,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         row.id: {
             "maintenance": [],
             "operations": [],
+            "parts": [],
             "defects": [],
         }
         for row in peers
@@ -24504,6 +24564,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     for record_class, key in (
         (VehicleMaintenanceRecord, "maintenance"),
         (VehicleOperationRecord, "operations"),
+        (VehiclePartReplacement, "parts"),
         (VehiclePatrol, "defects"),
     ):
         records = (
@@ -24519,11 +24580,155 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
                 record
             )
 
+    import unicodedata
+
+    part_events = {}
+    part_names = {}
+    for peer_id, values in grouped.items():
+        parents = {
+            row.id: row for row in values["maintenance"]
+        }
+        for part in values["parts"]:
+            parent = parents.get(part.maintenance_record_id)
+            if parent is None or parent.vehicle_record_id != peer_id:
+                continue
+            try:
+                replaced_on = datetime.strptime(
+                    str(part.replacement_date or "")[:10],
+                    "%Y-%m-%d",
+                ).date().isoformat()
+            except ValueError:
+                continue
+            if not summary["start_date"] <= replaced_on <= summary["end_date"]:
+                continue
+
+            name = str(part.part_name or "").strip()
+            if not name:
+                continue
+            normalized_name = re.sub(
+                r"[\s・･]+", "",
+                unicodedata.normalize("NFKC", name).casefold(),
+            ).replace("フィルター", "フィルタ")
+            number = str(part.part_number or "").strip()
+            key = (normalized_name, number)
+            part_names.setdefault(key, set()).add(name)
+            part_events.setdefault(key, set()).add(
+                (peer_id, parent.id)
+            )
+
+    result["part_statistics"] = [
+        {
+            "part_name": sorted(part_names[key])[0],
+            "recorded_names": sorted(part_names[key]),
+            "part_number": key[1],
+            "registered_event_count": len(events),
+            "vehicles_with_registered_events": len({
+                peer_id for peer_id, _ in events
+            }),
+        }
+        for key, events in sorted(
+            part_events.items(),
+            key=lambda item: (-len(item[1]), item[0]),
+        )
+    ]
+    result["part_statistics_note"] = (
+        "比較条件・指定期間内の部品交換登録を名称・品番別に集計。"
+        "同一車両・同一整備記録・同一部品は1件。"
+        "対象車両自身は含まない。未登録車両を未交換と扱わない。"
+        "登録内容の真偽・作業完了・故障原因はこの集計では判定しない。"
+        "件数の多さだけで故障多発や交換時期を判断しない。"
+    )
+
+    from statistics import median
+
+    interval_samples = {}
+    for peer in peers:
+        values = grouped[peer.id]
+        parents = {
+            row.id: row for row in values["maintenance"]
+        }
+        peer_parts = []
+        for part in values["parts"]:
+            parent = parents.get(part.maintenance_record_id)
+            if parent is None or parent.vehicle_record_id != peer.id:
+                continue
+            peer_parts.append({
+                "source_id": f"part:{part.id}",
+                "date": part.replacement_date,
+                "content": part.part_name,
+                "part_number": part.part_number,
+                "mileage": part.mileage,
+                "status": parent.status,
+                "completion_date": parent.completion_date,
+            })
+
+        peer_facts = build_vehicle_karte_preventive_facts(
+            peer,
+            {
+                "end_date": summary["end_date"],
+                "current_mileage": None,
+                "current_mileage_date": None,
+            },
+            peer_parts,
+        )
+        for fact in peer_facts["part_replacements"]:
+            latest = fact["latest_dated_replacement"]
+            if not summary["start_date"] <= latest <= summary["end_date"]:
+                continue
+            days = fact.get("last_recorded_interval_days")
+            if days is None:
+                continue
+            name = re.sub(
+                r"[\s・･]+", "",
+                unicodedata.normalize(
+                    "NFKC", fact["part_name"],
+                ).casefold(),
+            ).replace("フィルター", "フィルタ")
+            key = (name, fact["part_number"])
+            interval_samples.setdefault(key, []).append({
+                "vehicle_id": peer.id,
+                "days": days,
+                "km": fact.get("last_recorded_interval_km"),
+            })
+
+    for item in result["part_statistics"]:
+        name = re.sub(
+            r"[\s・･]+", "",
+            unicodedata.normalize(
+                "NFKC", item["part_name"],
+            ).casefold(),
+        ).replace("フィルター", "フィルタ")
+        samples = interval_samples.get(
+            (name, item["part_number"]), [],
+        )
+        days = [sample["days"] for sample in samples]
+        distances = [
+            sample["km"] for sample in samples
+            if sample["km"] is not None
+        ]
+        item.update({
+            "latest_interval_sample_count": len(days),
+            "latest_interval_distance_sample_count": len(distances),
+            "latest_interval_days_median": median(days) if days else None,
+            "latest_interval_km_median": (
+                median(distances) if distances else None
+            ),
+        })
+
+    result["part_interval_note"] = (
+        "各比較対象車両の、期間内で直近の登録交換とその前回との間隔。"
+        "同一部品・品番につき1台最大1組。前回は期間開始前も参照する。"
+        "交換完了の登録がある記録を使用。全交換間隔の平均ではない。"
+        "期間と距離の母数は別で、距離不明・逆転は距離集計から除外。"
+        "途中の未登録作業やテスト記録等の真偽は未確認。"
+        "メーカー基準・推奨交換間隔・故障発生間隔を意味しない。"
+    )
+
     summaries = [
         build_vehicle_karte_analysis_summary(
             values["maintenance"],
             values["operations"],
-            [],
+            values["parts"],
             values["defects"],
             summary["start_date"],
             summary["end_date"],
@@ -24534,6 +24739,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     for field, label, unit in (
         ("total_cost", "期間内の整備費", "円"),
         ("failure_count", "登録故障件数", "件"),
+        ("part_replacement_count", "部品交換登録件数", "件"),
         ("cost_per_km", "1kmあたり整備費", "円/km"),
     ):
         def comparable(item):
@@ -24561,6 +24767,23 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
             "current": current,
             "average": average,
             "sample_count": len(known),
+            "vehicles_with_registered_events": (
+                sum(value > 0 for value in known)
+                if field in {
+                    "failure_count", "part_replacement_count",
+                }
+                else None
+            ),
+            "sample_scope_note": (
+                "登録件数の平均には登録0件の比較対象車両も含む。"
+                "登録0件は実際の故障・交換がなかった証明ではない。"
+                if field in {
+                    "failure_count", "part_replacement_count",
+                }
+                else
+                "平均の母数はsample_count。比較対象の全台数とは"
+                "限らず、記録のある費用・距離に基づく比較。"
+            ),
             "difference_percentage": (
                 (Decimal(str(current)) - average)
                 / average * Decimal("100")

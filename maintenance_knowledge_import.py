@@ -240,109 +240,9 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
 
     def source_link(row):
         match = re.search(r"\[knowledge-document:([a-f0-9-]{36})\]", row.source_reference or "")
-        return url_for("knowledge_document_review", document_id=match[1]) if match else None
+        return url_for("knowledge_document_source", document_id=match[1]) if match else None
 
-    @app.route("/vehicle/knowledge-documents", methods=["GET", "POST"])
-    def knowledge_document_import():
-        authorize(write=True)
-        error = None
-        if request.method == "POST":
-            kind = request.form.get("source_kind", "")
-            file = request.files.get("knowledge_file")
-            if kind not in KINDS or not file or not file.filename:
-                abort(400)
-            original = file.read(10 * 1024 * 1024 + 1)
-            filename = os.path.basename(file.filename.replace("\\", "/"))[:255]
-            mime = ("application/pdf" if original.startswith(b"%PDF-") else
-                    "image/png" if original.startswith(b"\x89PNG\r\n\x1a\n") else
-                    "image/jpeg" if original.startswith(b"\xff\xd8\xff") else None)
-            if not original or len(original) > 10 * 1024 * 1024 or not mime:
-                error = "PDF・PNG・JPEGの10MB以下の資料を選んでください。"
-            else:
-                checksum = hashlib.sha256(original).hexdigest()
-                existing = KnowledgeDocument.query.filter_by(
-                    company_code=session["company_code"], checksum=checksum).first()
-                if existing:
-                    return redirect(url_for("knowledge_document_review", document_id=existing.id))
-                try:
-                    items = extract_knowledge(prepare_pdf(original))
-                except Exception:
-                    app.logger.exception("Knowledge document extraction failed")
-                    error = "読み取りに失敗しました。API設定と資料を確認してください。登録は行っていません。"
-                else:
-                    document_id = str(uuid4())
-                    now = datetime.now(ZoneInfo("Asia/Tokyo"))
-                    stamp = now.strftime("%Y/%m/%d %H:%M")
-                    rows = []
-                    for item in items:
-                        row = Knowledge(company_code=session["company_code"],
-                            **{name: item[name] for name in (
-                                "title", "part_name", "manufacturer", "model_code", "conditions", "guidance", "provider")},
-                            source_kind=kind, source_reference=(
-                                f"{filename} / PDF {item['page']}ページ / 原文: {item['quote']}\n"
-                                f"[knowledge-document:{document_id}]"),
-                            valid_from=item["valid_from"] or now.date().isoformat(),
-                            valid_until=item["valid_until"],
-                            status="active" if kind == "メーカー公式資料" else "draft",
-                            confirmed_by="official-document-import" if kind == "メーカー公式資料" else None,
-                            confirmed_at=stamp if kind == "メーカー公式資料" else None,
-                            created_by=session["username"], created_at=stamp)
-                        db.session.add(row)
-                        rows.append(row)
-                    db.session.flush()
-                    db.session.add(KnowledgeDocument(id=document_id,
-                        company_code=session["company_code"], checksum=checksum,
-                        filename=filename, original_data=original, mimetype=mime,
-                        knowledge_ids_json=json.dumps([row.id for row in rows]),
-                        extraction_json=json.dumps(items, ensure_ascii=False),
-                        created_by=session["username"], created_at=stamp))
-                    try:
-                        db.session.commit()
-                    except IntegrityError:
-                        db.session.rollback()
-                        existing = KnowledgeDocument.query.filter_by(
-                            company_code=session["company_code"], checksum=checksum).first()
-                        if not existing:
-                            raise
-                        document_id = existing.id
-                    return redirect(url_for("knowledge_document_review", document_id=document_id))
-        documents = KnowledgeDocument.query.filter_by(company_code=session["company_code"]).order_by(
-            KnowledgeDocument.created_at.desc()).limit(50).all()
-        return render_template_string(PAGE, document=None, rows=[], documents=documents,
-            error=error, kinds=KINDS, can_confirm=True)
 
-    @app.route("/vehicle/knowledge-documents/<document_id>", methods=["GET", "POST"])
-    def knowledge_document_review(document_id):
-        document = document_for(document_id)
-        ids = json.loads(document.knowledge_ids_json)
-        if request.method == "POST":
-            authorize(write=True)
-            knowledge_id = request.form.get("knowledge_id", type=int)
-            action = request.form.get("action")
-            comment = request.form.get("comment", "").strip()
-            if knowledge_id not in ids or action not in {"accept", "dismiss", "retire"} or len(comment) > 1000:
-                abort(400)
-            row = Knowledge.query.filter_by(id=knowledge_id, company_code=session["company_code"]).first_or_404()
-            expected = "active" if action == "retire" else "draft"
-            now = datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M")
-            if action == "accept":
-                values = {"status": "active", "confirmed_by": session["username"], "confirmed_at": now}
-                if comment:
-                    values["guidance"] = row.guidance + "\n確認者コメント（資料本文とは別）: " + comment
-            else:
-                values = {"status": "retired", "retired_by": session["username"], "retired_at": now,
-                          "retirement_reason": comment or "確認画面で利用しないことを選択"}
-            changed = Knowledge.query.filter_by(id=row.id, company_code=session["company_code"],
-                                               status=expected).update(values, synchronize_session=False)
-            if changed != 1:
-                db.session.rollback()
-                abort(409)
-            db.session.commit()
-            return redirect(url_for("knowledge_document_review", document_id=document_id) + f"#knowledge-{row.id}")
-        rows = Knowledge.query.filter(Knowledge.company_code == session["company_code"],
-                                      Knowledge.id.in_(ids)).order_by(Knowledge.id).all()
-        return render_template_string(PAGE, document=document, rows=rows, documents=[], error=None,
-            kinds=KINDS, can_confirm=session.get("role") in {"admin", "itc"})
 
     @app.route("/vehicle/knowledge-documents/<document_id>/source")
     def knowledge_document_source(document_id):
@@ -404,7 +304,14 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
                     ):
                         continue
 
-                    scope = item.get("vehicle_scope")
+                    review = item.get("vehicle_scope_review")
+                    scope = (
+                        review
+                        if isinstance(review, dict)
+                        and review.get("confirmed_by")
+                        and review.get("confirmed_at")
+                        else item.get("vehicle_scope")
+                    )
                     if not isinstance(scope, dict):
                         continue
                     mode = scope.get("mode")
@@ -438,6 +345,14 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
                         "mode": mode,
                         "categories": list(categories),
                         "quote": quote.strip(),
+                        "reviewed_by": (
+                            scope.get("confirmed_by", "")
+                            if scope is review else ""
+                        ),
+                        "reviewed_at": (
+                            scope.get("confirmed_at", "")
+                            if scope is review else ""
+                        ),
                     }
         return scopes
 
@@ -446,58 +361,3 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
         "get_vehicle_scopes": get_vehicle_scopes,
     }
     return source_link
-
-
-PAGE = """{% extends 'base.html' %}
-{% block title %}整備知識の取込・確認{% endblock %}
-{% block content %}
-<div class="vehicle-registration-page">
-<h2>整備知識の取込・確認</h2>
-{% if error %}<p role="alert">{{ error }}</p>{% endif %}
-{% if not document %}
-<p>資料を追加し、AIが抽出した候補を確認します。採用した知識を車両分析に使います。</p>
-<form method="post" enctype="multipart/form-data" class="card">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label>資料の種類 <select name="source_kind" required><option value="" disabled selected>資料の種類を選択</option>{% for kind in kinds %}<option>{{ kind }}</option>{% endfor %}</select></label>
-<label>資料 <input type="file" name="knowledge_file" accept=".pdf,.png,.jpg,.jpeg" required></label>
-<p class="help-text">1ファイル10MBまで。1回の抽出は最大20候補。多い資料は章ごとに分けてください。</p>
-<button class="btn btn-outline" type="submit">AIで読み込む</button>
-</form>
-{% for item in documents %}<p><a href="{{ url_for('knowledge_document_review', document_id=item.id) }}">{{ item.filename }}</a> · {{ item.created_at }}</p>{% endfor %}
-{% else %}
-<p>{{ document.filename }} · {{ document.created_at }} · {{ rows|length }}候補</p>
-<p><a class="btn btn-outline" href="{{ url_for('knowledge_document_source', document_id=document.id) }}" target="_blank" rel="noopener">原本を開く</a></p>
-<p class="help-text">AIの抽出結果です。出典・適用条件・数値・資料の版と有効性を原本で確認して採用してください。</p>
-{% if not rows %}<p>知識候補を抽出できませんでした。資料の内容を確認してください。</p>{% endif %}
-{% for row in rows %}
-<article class="card" id="knowledge-{{ row.id }}">
-<h3>{{ row.title }}</h3>
-<p>{{ {'draft':'未確認','active':'分析に使用中','retired':'利用しない'}.get(row.status,row.status) }} · {{ row.source_kind }} · {{ row.part_name }}</p>
-<dl>
-<dt>対象</dt><dd>{{ row.manufacturer or 'メーカー指定の記載なし' }} ／ {{ row.model_code or '型式指定の記載なし' }}</dd>
-<dt>適用条件</dt><dd style="white-space:pre-wrap">{{ row.conditions }}</dd>
-<dt>確認・対応と理由</dt><dd style="white-space:pre-wrap">{{ row.guidance }}</dd>
-<dt>出典・原文</dt><dd style="white-space:pre-wrap">{{ row.source_reference.split('[knowledge-document:')[0] }}</dd>
-<dt>資料に記載された発行者</dt><dd>{{ row.provider }}</dd>
-<dt>分析への適用期間</dt><dd>{{ row.valid_from }} ～ {{ row.valid_until or '終了日の記載なし' }}</dd>
-{% if row.confirmed_at %}<dt>採用</dt><dd>{{ row.confirmed_by }} · {{ row.confirmed_at }}</dd>{% endif %}
-{% if row.retired_at %}<dt>利用停止</dt><dd>{{ row.retired_by }} · {{ row.retired_at }} · {{ row.retirement_reason }}</dd>{% endif %}
-</dl>
-{% if can_confirm and row.status in ['draft','active'] %}
-<form method="post">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<input type="hidden" name="knowledge_id" value="{{ row.id }}">
-<label>コメント（任意）<textarea name="comment" maxlength="1000" rows="2"></textarea></label>
-{% if row.status == 'draft' %}
-<button class="btn btn-outline" name="action" value="accept">原本を確認・分析に使う</button>
-<button class="btn btn-outline" name="action" value="dismiss">今回は使わない</button>
-{% else %}<button class="btn btn-outline" name="action" value="retire">利用を停止する</button>{% endif %}
-</form>
-{% endif %}
-</article>
-{% endfor %}
-{% if can_confirm %}<a href="{{ url_for('knowledge_document_import') }}">別の資料を追加</a>{% endif %}
-{% endif %}
-</div>
-{% endblock %}
-"""
