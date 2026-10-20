@@ -28,6 +28,79 @@
     </div>
 </div>
 
+<section class="safety-summary-grid" aria-label="安全パトロール集計">
+    <a
+        class="safety-summary-card safety-summary-all"
+        href="{{ url_for('pointouts', type=view_type, page_size=page_size) }}#pointouts-list"
+        aria-label="安全パトロールの全件一覧を表示"
+    >
+        <span class="safety-summary-icon">▤</span>
+        <div>
+            <span class="safety-summary-label">全件数</span>
+            <strong>{{ patrol_stats.total }}<small> 件</small></strong>
+        </div>
+    </a>
+
+    <a
+        class="safety-summary-card safety-summary-waiting"
+        href="{{ url_for('pointouts', type=view_type, status='waiting', page_size=page_size) }}#pointouts-list"
+        aria-label="未承認の記録を表示"
+    >
+        <span class="safety-summary-icon">!</span>
+        <div>
+            <span class="safety-summary-label">未承認</span>
+            <strong>{{ patrol_stats.waiting }}<small> 件</small></strong>
+        </div>
+    </a>
+
+    <a
+        class="safety-summary-card safety-summary-approved"
+        href="{{ url_for('pointouts', type=view_type, status='approved', page_size=page_size) }}#pointouts-list"
+        aria-label="承認済みの記録を表示"
+    >
+        <span class="safety-summary-icon">✓</span>
+        <div>
+            <span class="safety-summary-label">承認済み</span>
+            <strong>{{ patrol_stats.approved }}<small> 件</small></strong>
+        </div>
+    </a>
+
+    <a
+        class="safety-summary-card safety-summary-pending"
+        href="{{ url_for('pointouts', type=view_type, status='not_started', page_size=page_size) }}#pointouts-list"
+        aria-label="対策未登録の記録を表示"
+    >
+        <span class="safety-summary-icon">!</span>
+        <div>
+            <span class="safety-summary-label">対策未登録</span>
+            <strong>{{ patrol_stats.not_started }}<small> 件</small></strong>
+        </div>
+    </a>
+    <a
+        class="safety-summary-card safety-summary-rejected"
+        href="{{ url_for('pointouts', type=view_type, status='rejected', page_size=page_size) }}#pointouts-list"
+        aria-label="差し戻し中の記録を表示"
+    >
+        <span class="safety-summary-icon">↶</span>
+        <div>
+            <span class="safety-summary-label">差し戻し中</span>
+            <strong>{{ patrol_stats.rejected }}<small> 件</small></strong>
+        </div>
+    </a>
+
+    <a
+        class="safety-summary-card safety-summary-none"
+        href="{{ url_for('pointouts', type=view_type, status='none', page_size=page_size) }}#pointouts-list"
+        aria-label="対象外の記録を表示"
+    >
+        <span class="safety-summary-icon">−</span>
+        <div>
+            <span class="safety-summary-label">対象外</span>
+            <strong>{{ patrol_stats.none }}<small> 件</small></strong>
+        </div>
+    </a>
+</section>
+
 <div class="tabs">
     <a
         class="tab {% if view_type == 'user' %}active{% endif %}"
@@ -42,6 +115,10 @@
             page_size=page_size
         ) }}"
     >
+        <svg class="safety-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M4 21v-2a8 8 0 0 1 16 0v2"></path>
+        </svg>
         ユーザーに関する記録
     </a>
 
@@ -58,6 +135,10 @@
             page_size=page_size
         ) }}"
     >
+        <svg class="safety-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="3" width="16" height="18" rx="2"></rect>
+            <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"></path>
+        </svg>
         納入先に関する記録
     </a>
 </div>
@@ -97,45 +178,7 @@
             </select>
         </div>
 
-        <div class="pointouts-filter-item">
-            <label for="pointout_status">対策ステータス</label>
-            <select
-                name="status"
-                id="pointout_status"
-            >
-                <option value="">すべて</option>
-                <option
-                    value="not_started"
-                    {% if status_filter == "not_started" %}selected{% endif %}
-                >
-                    対策未登録
-                </option>
-                <option
-                    value="waiting"
-                    {% if status_filter == "waiting" %}selected{% endif %}
-                >
-                    未承認
-                </option>
-                <option
-                    value="rejected"
-                    {% if status_filter == "rejected" %}selected{% endif %}
-                >
-                    差し戻し中
-                </option>
-                <option
-                    value="approved"
-                    {% if status_filter == "approved" %}selected{% endif %}
-                >
-                    承認済み
-                </option>
-                <option
-                    value="none"
-                    {% if status_filter == "none" %}selected{% endif %}
-                >
-                    対象外
-                </option>
-            </select>
-        </div>
+        <input type="hidden" name="status" value="{{ status_filter }}">
 
         <div class="pointouts-filter-item">
             <label for="pointout_category">分類</label>
