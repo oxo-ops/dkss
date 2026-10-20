@@ -119,8 +119,8 @@
         }
 
         const gradient = context.createLinearGradient(0, top, 0, bottom);
-        gradient.addColorStop(0, "rgba(37, 99, 235, 0.18)");
-        gradient.addColorStop(1, "rgba(37, 99, 235, 0.02)");
+        gradient.addColorStop(0, "rgba(145, 122, 221, 0.22)");
+        gradient.addColorStop(1, "rgba(145, 122, 221, 0.02)");
 
         context.beginPath();
         context.moveTo(x(points[0]), bottom);
@@ -138,7 +138,7 @@
                 context.lineTo(x(point), y(point));
             }
         });
-        context.strokeStyle = "#2563eb";
+        context.strokeStyle = "#917add";
         context.lineWidth = 2;
         context.stroke();
 
@@ -147,13 +147,13 @@
         markers.forEach((point) => {
             context.beginPath();
             context.arc(x(point), y(point), 3, 0, Math.PI * 2);
-            context.fillStyle = "#2563eb";
+            context.fillStyle = "#917add";
             context.fill();
         });
 
         context.textAlign = "right";
         context.textBaseline = "top";
-        context.fillStyle = "#1d4ed8";
+        context.fillStyle = "#65549d";
         context.font = "12px sans-serif";
         context.fillText(`${formatMileage(latest.mileage)} km`, right, 4);
     }
@@ -290,7 +290,12 @@
             const barTop = Math.min(zero, position);
             const barHeight = Math.max(1, Math.abs(zero - position));
 
-            context.fillStyle = "#75a7ee";
+            const barGradient = context.createLinearGradient(
+                0, barTop, 0, barTop + Math.max(barHeight, 1)
+            );
+            barGradient.addColorStop(0, "#95dcd6");
+            barGradient.addColorStop(1, "#58bdb5");
+            context.fillStyle = barGradient;
             context.fillRect(
                 center - barWidth / 2, barTop, barWidth, barHeight
             );
