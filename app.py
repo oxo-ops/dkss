@@ -15133,6 +15133,9 @@ def new_vehicle_patrol():
                     400
                 )
             
+        if form_errors:
+            return return_form_errors(form_errors)
+
         patrol = VehiclePatrol(
             company_code=session.get("company_code"),
             vehicle_record_id=vehicle.id,
@@ -15524,6 +15527,9 @@ def edit_vehicle_patrol(index):
                     400
                 )
             
+        if form_errors:
+            return return_form_errors(form_errors)
+
         patrol.vehicle_record_id = vehicle.id
         patrol.occurred_date = occurred_date
         patrol.category = category
@@ -22297,7 +22303,7 @@ def get_vehicle_maintenance_record_events(record):
     return items
 
 
-def validate_vehicle_maintenance_form(form):
+def validate_vehicle_maintenance_form(form, *, entry_date_required=True):
     values = {}
     errors = []
 
@@ -22336,7 +22342,7 @@ def validate_vehicle_maintenance_form(form):
         values[field] = text or None
 
         if not text:
-            if field == "entry_date":
+            if field == "entry_date" and entry_date_required:
                 errors.append(("入庫日を入力してください。", field))
             continue
 
@@ -23291,6 +23297,13 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         app.logger.warning("Unable to load maintenance inspection choices", exc_info=True)
         return "点検情報を確認できませんでした。画面を再読み込みしてください。", 409
     selected_inspection_tokens = [c["token"] for c in inspection_choices if c["linked"]]
+    # Inspection repairs do not establish an arrival date. Keep that unknown
+    # value editable without requiring the user to invent a date.
+    entry_date_required = not (
+        record is not None
+        and not record.entry_date
+        and any(choice["linked"] for choice in inspection_choices)
+    )
     selected_inspections = []
     intent = ""
     notification_targets = []
@@ -23303,7 +23316,9 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
             field: request.form.get(field, "")
             for field in field_names
         }
-        values, errors = validate_vehicle_maintenance_form(request.form)
+        values, errors = validate_vehicle_maintenance_form(
+            request.form, entry_date_required=entry_date_required,
+        )
         intent = request.form.get("maintenance_action", "save")
         selected_inspection_tokens = request.form.getlist("inspection_defect")
         try:
@@ -23559,6 +23574,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         record_version=record_version,
         inspection_choices=inspection_choices,
         selected_inspection_tokens=selected_inspection_tokens,
+        entry_date_required=entry_date_required,
     ), response_status
 
 
@@ -29818,6 +29834,11 @@ def import_vehicles():
 
     company_code = session.get("company_code")
 
+    if request.method == "GET" and request.args.get("complete") == "1":
+        result = session.get("vehicle_import_complete")
+        if isinstance(result, dict):
+            return render_template("vehicle_import_complete.html", **result)
+
     if request.method == "POST":
 
         excel_file = request.files.get("excel_file")
@@ -31346,13 +31367,17 @@ def confirm_vehicle_import():
             
     db.session.commit()
 
-    return render_template(
-        "vehicle_import_complete.html",
-        registered_count=registered_count,
-        updated_count=updated_count,
-        unchanged_count=unchanged_count,
-        duplicate_skip_count=duplicate_skip_count,
-    )
+    result = {
+        "registered_count": registered_count,
+        "updated_count": updated_count,
+        "unchanged_count": unchanged_count,
+        "duplicate_skip_count": duplicate_skip_count,
+    }
+    if request.headers.get("X-DKSS-Final-Submit") == "1":
+        session["vehicle_import_complete"] = result
+        return jsonify(redirect_url=url_for("import_vehicles", complete="1"))
+
+    return render_template("vehicle_import_complete.html", **result)
 
 VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS = (('engine_code', '\u30a8\u30f3\u30b8\u30f3\u578b\u5f0f', 100),)
 

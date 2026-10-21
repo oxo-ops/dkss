@@ -150,7 +150,7 @@
             {{ field('content', '整備内容', kind='textarea', required=true, limit=5000) }}
 
             <div class="km-form-grid">
-                {{ field('entry_date', '入庫日', kind='date', required=true) }}
+                {{ field('entry_date', '入庫日', kind='date', required=entry_date_required|default(true)) }}
                 {{ field('completion_date', '完了日', kind='date') }}
                 {{ field('mileage', '走行距離（km）', decimal=true, limit=100) }}
                 {{ field('category', '分類', limit=50, choices=[
