@@ -142,7 +142,7 @@
                         <form
                             method="post"
                             action="/master/checklists/{{ checklist.id }}/delete"
-                            onsubmit="return confirm('このチェックリストを削除しますか？');"
+                            data-confirm-message="このチェックリストを削除しますか？"
                         >
                             <input
                                 type="hidden"
@@ -247,7 +247,7 @@
                         <form
                             method="post"
                             action="/master/checklists/{{ checklist.id }}/delete"
-                            onsubmit="return confirm('このチェックリストを削除しますか？');"
+                            data-confirm-message="このチェックリストを削除しますか？"
                         >
                             <input
                                 type="hidden"

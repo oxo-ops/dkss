@@ -107,7 +107,7 @@
                     <form
                         method="post"
                         action="/master/drivers/{{ driver.index }}/delete"
-                        onsubmit="return confirm('このドライバーを削除しますか？');"
+                        data-confirm-message="このドライバーを削除しますか？"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-small btn-delete">
@@ -191,7 +191,7 @@
                 <form
                     method="post"
                     action="/master/drivers/{{ driver.index }}/delete"
-                    onsubmit="return confirm('このドライバーを削除しますか？');"
+                    data-confirm-message="このドライバーを削除しますか？"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -208,66 +208,6 @@
         </div>
     {% endfor %}
 </div>
-<script>
-const driverVehicleFilter =
-    document.getElementById("driver_vehicle_filter");
 
-const driverVehicleOptions =
-    document.getElementById("driver_vehicle_options");
-
-let driverVehicleSearchTimer = null;
-
-
-driverVehicleFilter.addEventListener("input", function () {
-
-    clearTimeout(driverVehicleSearchTimer);
-
-    const keyword =
-        driverVehicleFilter.value.trim();
-
-    if (!keyword) {
-        driverVehicleOptions.innerHTML = "";
-        return;
-    }
-
-
-    driverVehicleSearchTimer = setTimeout(function () {
-
-        fetch(
-            "/api/vehicles?q=" +
-            encodeURIComponent(keyword)
-        )
-        .then(response => response.json())
-        .then(data => {
-
-            driverVehicleOptions.innerHTML = "";
-
-            data.results.forEach(vehicle => {
-
-                const option =
-                    document.createElement("option");
-
-                option.value =
-                    vehicle.vehicle_record_id;
-
-                const details = [
-                    vehicle.number || "ナンバー未登録"
-                ];
-
-                option.label =
-                    details.join(" / ");
-
-                driverVehicleOptions.appendChild(
-                    option
-                );
-
-            });
-
-        });
-
-    }, 300);
-
-});
-</script>
 
 {% endblock %}

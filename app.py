@@ -2214,20 +2214,79 @@ def maintenance_knowledge_detail(knowledge_id):
     )
 
 
+def get_vehicle_verified_model_specification(vehicle):
+    """Exact-model official facts; no master updates or network requests."""
+    import copy
+    import unicodedata
+    registry = {'QPG-SH1EDDG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140128.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2014/20140128.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2PG-SH1EDGG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2018/20180531.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2018/20180531.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, 'QPG-FW1EXEG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140129.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2014/20140129.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2RG-FW1AHG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4478.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, 'QKG-FQ1ARBA': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4378.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2DG-FQ1AJC': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4594.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2PG-FE2ABA': {'manufacturer': '日野', 'commercial_name': 'レンジャー', 'vehicle_category': 'truck', 'vehicle_class': 'medium_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4515.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2RG-FP84VDR': {'manufacturer': '三菱', 'commercial_name': 'スーパーグレート', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://assets.mitsubishi-fuso.com/fusoassets/2026/03/R5797.pdf', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}}
+    model = unicodedata.normalize("NFKC", str(vehicle.model_code or "")).strip().upper()
+    record = registry.get(model)
+    if record is None:
+        return {"status": "not_indexed", "model_code": model, "facts": {}}
+    maker = unicodedata.normalize("NFKC", str(vehicle.manufacturer or "")).strip().casefold()
+    maker = {"hino": "日野", "日野自動車": "日野", "日野自動車株式会社": "日野",
+             "三菱ふそう": "三菱", "三菱ふそうトラック・バス": "三菱"}.get(maker, maker)
+    return {
+        "status": "matched" if maker == record["manufacturer"] else "manufacturer_conflict",
+        "model_code": model, "facts": copy.deepcopy(record),
+        "registry_version": "OFFICIAL_MODEL_SPECIFICATIONS_V1",
+        "registry_checksum": '24e60298c1a89daff2b335d594093d1cf36a1fee4cde90b27e82b8e867e5dc0d',
+    }
+
+
+def resolve_verified_maintenance_source_conditions(rule, specification, symbol):
+    """Resolve known source conditions by explicit facts, preserving AI review."""
+    definitions = {'対象はポスト新長期規制以降。規制の「以降」を許容分類の列挙に置き換えない。': ['post_2009_emissions'], '車種の限定は大型トラック・大型観光バス。vehicle_categoryだけでは大型・観光の限定を表現できない。': ['large_truck_or_tourism_bus'], '原文は車両や搭載装置による相違を明示するが、トレーラコントロールバルブの搭載仕様の詳細は列挙していない。': ['installed_trailer_control_valve'], '大型トラックの「大型」という限定はvehicle_categoryだけでは表現できない。': ['large_truck'], '対象車両の「ポスト新長期規制以降」という限定は、許容される排出ガス規制区分の列挙ではないため、構造化条件とは別に保持する。対象は大型トラック。': ['post_2009_emissions', 'large_truck'], '対象車両の「ポスト新長期規制以降」という限定は、許容される排出ガス規制区分の列挙ではないため、構造化条件とは別に保持する。対象は大型観光バス。': ['post_2009_emissions', 'large_tourism_bus']}
+    checksum = "80a351761072cbc07a0a6a64f84c4ebf2fd247091c1241a3355b02029f60ba25"
+    semantic = rule.get("semantic_review") or {}
+    applicability = semantic.get("applicability") or {}
+    notes = applicability.get("unresolved_conditions") or []
+    facts = specification.get("facts") or {}
+    states = []
+    for note in notes:
+        components = definitions.get(note) if semantic.get("document_checksum") == checksum else None
+        checks = []
+        for component in components or []:
+            value = "unknown"
+            urls = []
+            if component == "post_2009_emissions":
+                # Only explicitly researched heavy-diesel symbols. Registration
+                # dates are never a substitute for an emissions regulation.
+                if symbol in {"QPG", "QKG", "2PG", "2RG", "2DG"}:
+                    value = "matched"
+                    urls = ["https://www.mlit.go.jp/common/001179991.pdf"]
+            elif component in {"large_truck", "large_tourism_bus", "large_truck_or_tourism_bus"}:
+                actual = facts.get("vehicle_class")
+                if actual:
+                    accepted = {component} if component != "large_truck_or_tourism_bus" else {"large_truck", "large_tourism_bus"}
+                    value = "matched" if actual in accepted else "not_matched"
+                    urls = [facts["identity_url"]]
+            checks.append({"condition": component, "status": value, "source_urls": urls})
+        status = ("not_matched" if any(c["status"] == "not_matched" for c in checks)
+                  else "matched" if checks and all(c["status"] == "matched" for c in checks)
+                  else "unknown")
+        states.append({"attribute": "source_condition", "original_condition": note,
+                       "status": status, "condition_checks": checks})
+    return states
+
+
 def evaluate_vehicle_maintenance_rule(
     vehicle, rule, *, document_checksum, vehicle_category=None,
 ):
     """登録値と適用条件を照合する。基準採用・期限計算は行わない。"""
     import unicodedata
 
+    # OFFICIAL_MODEL_SPECIFICATIONS_V1
     checks = []
+    specification = {}
 
     def result(status, reason):
         return {
             "status": status,
             "reason": reason,
             "vehicle_source_id": f"vehicle:{vehicle.id}",
-            "scope": "registered_vehicle_fields_only",
+            "scope": "registered_and_verified_official_model_facts",
+            "official_specification": specification,
             "calculation_permitted": False,
             "checks": checks,
         }
@@ -2301,13 +2360,28 @@ def evaluate_vehicle_maintenance_rule(
         ):
             return result("unknown", "scope_conflicting")
 
+        specification = get_vehicle_verified_model_specification(vehicle)
+        if specification["status"] == "manufacturer_conflict":
+            return result("conditions_not_matched", "official_model_conflicts_with_registered_manufacturer")
+        official = specification.get("facts") or {}
+        if vehicle_category and official.get("vehicle_category") and vehicle_category != official["vehicle_category"]:
+            return result("unknown", "registered_category_conflicts_with_official_model")
         registered = {
             "manufacturer": vehicle.manufacturer,
             "model_code": vehicle.model_code,
             "engine_code": getattr(vehicle, "engine_code", None),
-            "vehicle_category": vehicle_category,
+            "vehicle_category": vehicle_category or official.get("vehicle_category"),
+            "commercial_name": official.get("commercial_name"),
             "first_registration_date": vehicle.first_registration_date,
         }
+        # RULE_MODEL_EMISSIONS_V1
+        # The prefix is already present in the registered full model code.
+        # Do not infer vehicle series, equipment or manufacture date from it.
+        full_model = normalize(vehicle.model_code).upper()
+        model_match = re.fullmatch(r"([A-Z0-9]{3})-[A-Z0-9]+", full_model)
+        registered["emission_standard"] = (
+            model_match.group(1) if model_match else None
+        )
         date_attributes = {
             "manufacture_date", "first_registration_date",
         }
@@ -2383,6 +2457,31 @@ def evaluate_vehicle_maintenance_rule(
                             pass
             elif attribute in date_attributes:
                 return result("unknown", "invalid_date_operator")
+            elif attribute == "equipment":
+                # An AMT category does not identify MZ12/M112 or hybrid status.
+                possible = official.get("transmission_categories") or []
+                categories = {normalize(value).upper() for value in values}
+                if possible and categories <= {"MT", "AMT"}:
+                    allowed = set(possible)
+                    if allowed <= categories:
+                        state = "matched" if operator == "one_of" else "not_matched"
+                    elif allowed.isdisjoint(categories):
+                        state = "not_matched" if operator == "one_of" else "matched"
+                actual = possible[0] if len(possible) == 1 else None
+            elif attribute == "emission_standard":
+                patterns = [normalize(value).upper() for value in values]
+                # A star replaces exactly the middle character, never an
+                # arbitrary substring. Other descriptions need interpretation.
+                if actual and all(re.fullmatch(
+                    r"(?:[SLQ2]\*G|[A-Z0-9]{3})", value,
+                ) for value in patterns):
+                    matches_value = any(re.fullmatch(
+                        re.escape(value).replace(r"\*", r"[A-Z0-9]"), actual,
+                    ) for value in patterns)
+                    matched = bool(matches_value)
+                    if operator == "not_one_of":
+                        matched = not matched
+                    state = "matched" if matched else "not_matched"
             elif attribute in registered:
                 normalizer = (
                     manufacturer
@@ -2405,6 +2504,28 @@ def evaluate_vehicle_maintenance_rule(
                 "operator": operator,
                 "required_values": list(values),
                 "registered_value": actual,
+                **({"official_source_url": official.get("identity_url")}
+                   if attribute in {"commercial_name", "vehicle_category"} and official else {}),
+                **({"official_source_url": official.get("transmission_url"),
+                    "reason_detail": "Exact transmission model and hybrid exceptions need separate evidence"}
+                   if attribute == "equipment" and official else {}),
+                **({
+                    "registered_value_basis": {
+                        "field": "model_code",
+                        "value": vehicle.model_code,
+                        "derivation": "leading_three_character_emissions_symbol",
+                        "reference_url": "https://www.mlit.go.jp/common/001179991.pdf",
+                    },
+                } if attribute == "emission_standard" and actual else {}),
+                "reason": (
+                    "registered_value_matches" if state == "matched"
+                    else "registered_value_differs" if state == "not_matched"
+                    else "vehicle_field_not_available"
+                    if attribute not in registered
+                    else "registered_field_missing_or_ambiguous"
+                    if not actual
+                    else "condition_requires_interpretation"
+                ),
                 "status": state,
                 "evidence_indexes": list(indexes),
             })
@@ -2436,7 +2557,18 @@ def evaluate_vehicle_maintenance_rule(
                     "basis": field,
                 })
 
-        if coverage != "complete" or unresolved:
+        source_conditions = resolve_verified_maintenance_source_conditions(
+            rule, specification, registered.get("emission_standard"),
+        )
+        checks.extend(source_conditions)
+        # A disproven necessary condition excludes the rule even when other
+        # conditions remain unknown. No unknown condition may create a match.
+        if any(check["status"] == "not_matched" for check in checks):
+            return result("conditions_not_matched", "registered_value_differs")
+        if unresolved:
+            if not source_conditions or any(c["status"] != "matched" for c in source_conditions):
+                return result("unknown", "source_conditions_need_additional_evidence")
+        elif coverage != "complete":
             return result("unknown", "conditions_not_fully_structured")
         if any(
             requirement["operator"] == "unknown"
@@ -32289,17 +32421,15 @@ def extract_vehicle_certificate_route():
 
 @app.route("/master/vehicles/certificate")
 def vehicle_certificate_register():
-    """車検証のAI読取・確認画面。車両データは変更しない。"""
+    """Keep old bookmarks on the current certificate import workflow."""
     from flask import abort
 
     if not session.get("username") or not session.get("company_code"):
         abort(403)
 
-    return render_template(
-        "vehicle_certificate_register.html",
-        vehicle_types=vehicle_types_for_current_company(),
-        offices=offices_for_current_company(),
-    )
+    return redirect(url_for(
+        "vehicle_registration_method", _anchor="registration-certificate-title",
+    ))
 
 
 @app.route("/master/vehicles/register")

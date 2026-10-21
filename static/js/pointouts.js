@@ -116,3 +116,74 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTargetResults
     );
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+        function getDesiredPageSize() {
+            if (window.innerWidth <= 768) {
+                return 5;
+            }
+
+            if (window.innerWidth <= 1024) {
+                return 8;
+            }
+
+            return 10;
+        }
+
+        function updatePageSize() {
+            const url = new URL(
+                window.location.href
+            );
+
+            const desiredPageSize =
+                getDesiredPageSize();
+
+            const currentPageSize =
+                parseInt(
+                    url.searchParams.get(
+                        "page_size"
+                    ) || "10",
+                    10
+                );
+
+            if (
+                currentPageSize ===
+                desiredPageSize
+            ) {
+                return;
+            }
+
+            url.searchParams.set(
+                "page_size",
+                String(desiredPageSize)
+            );
+
+            url.searchParams.set(
+                "page",
+                "1"
+            );
+
+            window.location.replace(
+                url.toString()
+            );
+        }
+
+        updatePageSize();
+
+        let resizeTimer = null;
+
+        window.addEventListener(
+            "resize",
+            function () {
+                window.clearTimeout(
+                    resizeTimer
+                );
+
+                resizeTimer =
+                    window.setTimeout(
+                        updatePageSize,
+                        250
+                    );
+            }
+        );
+    });
