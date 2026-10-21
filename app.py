@@ -1,4 +1,4 @@
-﻿from flask import (
+from flask import (
     Flask,
     render_template,
     request,
@@ -38,6 +38,7 @@ from decimal import Decimal, InvalidOperation
 from io import StringIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import NotFound, HTTPException
+from werkzeug.routing import BuildError
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -570,34 +571,44 @@ def is_html_document_request():
 
 
 def build_safe_redirect_url(referrer, fallback="/"):
-    if not referrer:
-        return fallback
-
-    normalized_referrer = referrer.replace("\\", "/")
-    parsed_referrer = urlparse(normalized_referrer)
-
-    if parsed_referrer.scheme and parsed_referrer.scheme not in {"http", "https"}:
-        return fallback
-
-    resolved_target = urlparse(urljoin(request.host_url, normalized_referrer))
-
-    current_host = request.host.lower()
-    resolved_host = resolved_target.hostname or ""
-    if resolved_target.port:
-        resolved_host = f"{resolved_host}:{resolved_target.port}"
-    resolved_host = resolved_host.lower()
-
-    if resolved_host != current_host:
-        return fallback
-
-    redirect_path = resolved_target.path or "/"
-    if not redirect_path.startswith("/"):
-        return fallback
-
-    if resolved_target.query:
-        return redirect_path + "?" + resolved_target.query
-
-    return redirect_path
+    """Build a local application URL; never redirect to a supplied URL verbatim."""
+    adapter = app.url_map.bind_to_environ(request.environ)
+    for candidate in (referrer, fallback):
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        if any(ord(char) < 32 or ord(char) == 127 for char in candidate):
+            continue
+        try:
+            resolved = urlparse(urljoin(
+                request.host_url, candidate.replace("\\", "/")
+            ))
+            if resolved.scheme not in {"http", "https"}:
+                continue
+            if resolved.username is not None or resolved.password is not None:
+                continue
+            if resolved.netloc.lower() != request.host.lower():
+                continue
+            matched = None
+            for method in dict.fromkeys(("GET", request.method)):
+                try:
+                    matched = adapter.match(resolved.path or "/", method=method)
+                    break
+                except HTTPException:
+                    continue
+            if matched is None:
+                continue
+            endpoint, route_values = matched
+            values = {}
+            for key, value in parse_qsl(resolved.query, keep_blank_values=True):
+                # url_for reserves underscore-prefixed arguments for URL options.
+                if key.startswith("_") or key in route_values:
+                    continue
+                values.setdefault(key, []).append(value)
+            values.update(route_values)
+            return url_for(endpoint, _external=False, **values)
+        except (ValueError, BuildError):
+            continue
+    return "/"
 
 
 @app.after_request
@@ -1160,6 +1171,7 @@ class Vehicle(db.Model):
         nullable=True
     )
     model_code = db.Column(db.String(100))
+    engine_code = db.Column(db.String(100), nullable=True)
     first_registration_date = db.Column(db.String(20))
     manufacturer = db.Column(db.String(100))
     body_type = db.Column(db.String(100))
@@ -2202,6 +2214,375 @@ def maintenance_knowledge_detail(knowledge_id):
     )
 
 
+def evaluate_vehicle_maintenance_rule(
+    vehicle, rule, *, document_checksum, vehicle_category=None,
+):
+    """登録値と適用条件を照合する。基準採用・期限計算は行わない。"""
+    import unicodedata
+
+    checks = []
+
+    def result(status, reason):
+        return {
+            "status": status,
+            "reason": reason,
+            "vehicle_source_id": f"vehicle:{vehicle.id}",
+            "scope": "registered_vehicle_fields_only",
+            "calculation_permitted": False,
+            "checks": checks,
+        }
+
+    def normalize(value):
+        if not isinstance(value, str):
+            return ""
+        return unicodedata.normalize("NFKC", value).strip().casefold()
+
+    def manufacturer(value):
+        value = normalize(value)
+        return {
+            "hino": "日野",
+            "日野自動車": "日野",
+            "日野自動車株式会社": "日野",
+        }.get(value, value)
+
+    try:
+        if (
+            not isinstance(document_checksum, str)
+            or not re.fullmatch(r"[a-f0-9]{64}", document_checksum)
+        ):
+            return result("unknown", "document_not_identified")
+
+        source = rule.get("source_verification") or {}
+        semantic = rule.get("semantic_review") or {}
+        numeric = rule.get("numeric_evidence") or {}
+        if (
+            source.get("status") != "quote_matched"
+            or source.get("document_checksum") != document_checksum
+            or numeric.get("status") != "tokens_present"
+            or semantic.get("status") != "supported"
+            or semantic.get("document_checksum") != document_checksum
+        ):
+            return result("unknown", "source_review_not_supported")
+
+        evidence = semantic.get("evidence")
+        if not isinstance(evidence, list) or not 1 <= len(evidence) <= 3:
+            return result("unknown", "review_evidence_missing")
+        for entry in evidence:
+            verification = entry["source_verification"]
+            if (
+                verification.get("status") != "quote_matched"
+                or verification.get("document_checksum") != document_checksum
+            ):
+                return result("unknown", "review_evidence_not_verified")
+
+        applicability = semantic["applicability"]
+        scope = applicability["scope"]
+        coverage = applicability["coverage"]
+        requirements = applicability["requirements"]
+        unresolved = applicability["unresolved_conditions"]
+
+        if (
+            scope not in {"restricted", "unrestricted", "unknown"}
+            or coverage not in {"complete", "uncertain"}
+            or not isinstance(requirements, list)
+            or len(requirements) > 20
+            or not isinstance(unresolved, list)
+        ):
+            return result("unknown", "invalid_applicability")
+
+        if scope == "unknown":
+            return result("unknown", "scope_not_identified")
+        if scope == "restricted" and not requirements:
+            return result("unknown", "requirements_missing")
+        if scope == "unrestricted" and (
+            requirements
+            or rule.get("model_codes")
+            or rule.get("engine_codes")
+        ):
+            return result("unknown", "scope_conflicting")
+
+        registered = {
+            "manufacturer": vehicle.manufacturer,
+            "model_code": vehicle.model_code,
+            "engine_code": getattr(vehicle, "engine_code", None),
+            "vehicle_category": vehicle_category,
+            "first_registration_date": vehicle.first_registration_date,
+        }
+        date_attributes = {
+            "manufacture_date", "first_registration_date",
+        }
+        attributes = {
+            *registered,
+            "engine_code", "manufacture_date", "equipment",
+            "usage_condition", "part_specification", "commercial_name", "emission_standard",
+        }
+
+        for requirement in requirements:
+            attribute = requirement["attribute"]
+            operator = requirement["operator"]
+            values = requirement["values"]
+            indexes = requirement["evidence_indexes"]
+            if (
+                attribute not in attributes
+                or operator not in {
+                    "one_of", "not_one_of", "on_or_after", "on_or_before", "unknown",
+                }
+                or not isinstance(values, list)
+                or len(values) > 20
+                or any(
+                    not isinstance(value, str) or not value.strip()
+                    for value in values
+                )
+                or not isinstance(indexes, list)
+                or not indexes
+                or any(
+                    type(index) is not int
+                    or not 0 <= index < len(evidence)
+                    for index in indexes
+                )
+            ):
+                return result("unknown", "invalid_requirement")
+
+            state = "unknown"
+            actual = registered.get(attribute)
+            if operator == "unknown":
+                if values:
+                    return result("unknown", "invalid_unknown_requirement")
+            elif not values:
+                return result("unknown", "requirement_values_missing")
+            elif operator in {"on_or_after", "on_or_before"}:
+                if attribute not in date_attributes or len(values) != 1:
+                    return result("unknown", "invalid_date_requirement")
+                boundary = datetime.strptime(
+                    values[0], "%Y-%m-%d",
+                ).date()
+                if boundary.isoformat() != values[0]:
+                    return result("unknown", "invalid_date_requirement")
+                if isinstance(actual, str):
+                    text = normalize(actual).replace("/", "-")
+                    if len(text) == 10:
+                        try:
+                            measured = datetime.strptime(
+                                text, "%Y-%m-%d",
+                            ).date()
+                            if (
+                                measured.isoformat() == text
+                                and measured <= datetime.now(
+                                    ZoneInfo("Asia/Tokyo")
+                                ).date()
+                            ):
+                                matched = (
+                                    measured >= boundary
+                                    if operator == "on_or_after"
+                                    else measured <= boundary
+                                )
+                                state = (
+                                    "matched" if matched else "not_matched"
+                                )
+                        except ValueError:
+                            pass
+            elif attribute in date_attributes:
+                return result("unknown", "invalid_date_operator")
+            elif attribute in registered:
+                normalizer = (
+                    manufacturer
+                    if attribute == "manufacturer" else normalize
+                )
+                actual_value = normalizer(actual)
+                if actual_value:
+                    # APPLICABILITY_NAMED_SCOPE_V2
+                    matches_value = actual_value in {
+                        normalizer(value) for value in values
+                    }
+                    matched = (
+                        matches_value if operator == "one_of"
+                        else not matches_value
+                    )
+                    state = "matched" if matched else "not_matched"
+
+            checks.append({
+                "attribute": attribute,
+                "operator": operator,
+                "required_values": list(values),
+                "registered_value": actual,
+                "status": state,
+                "evidence_indexes": list(indexes),
+            })
+
+        for attribute, field in (
+            ("model_code", "model_codes"),
+            ("engine_code", "engine_codes"),
+        ):
+            declared = rule.get(field) or []
+            if not isinstance(declared, list) or any(
+                not isinstance(value, str) or not value.strip()
+                for value in declared
+            ):
+                return result("unknown", "invalid_declared_scope")
+            if declared:
+                actual = registered.get(attribute)
+                value = normalize(actual)
+                checks.append({
+                    "attribute": attribute,
+                    "operator": "one_of",
+                    "required_values": list(declared),
+                    "registered_value": actual,
+                    "status": (
+                        "matched" if value in {
+                            normalize(entry) for entry in declared
+                        }
+                        else "not_matched" if value else "unknown"
+                    ),
+                    "basis": field,
+                })
+
+        if coverage != "complete" or unresolved:
+            return result("unknown", "conditions_not_fully_structured")
+        if any(
+            requirement["operator"] == "unknown"
+            for requirement in requirements
+        ):
+            return result("unknown", "condition_not_interpreted")
+        if any(check["status"] == "not_matched" for check in checks):
+            return result("conditions_not_matched", "registered_value_differs")
+        if any(check["status"] == "unknown" for check in checks):
+            return result("unknown", "required_vehicle_fact_unavailable")
+        return result("conditions_matched", "registered_conditions_matched")
+
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return result("unknown", "invalid_applicability_data")
+
+
+def assess_public_maintenance_rule_adoption(
+    vehicle, knowledge_row, evidence, rule,
+    *, vehicle_category=None,
+):
+    """原本・車両条件による採用候補判定。状態変更・期限計算は行わない。"""
+    import unicodedata
+
+    def decision(status, reason, **details):
+        return {
+            "status": status,
+            "reason": reason,
+            "calculation_permitted": False,
+            "scope": "automatic_adoption_eligibility",
+            **details,
+        }
+
+    def maker(value):
+        if not isinstance(value, str):
+            return ""
+        value = unicodedata.normalize(
+            "NFKC", value,
+        ).strip().casefold()
+        return {
+            "hino": "日野",
+            "日野自動車": "日野",
+            "日野自動車株式会社": "日野",
+        }.get(value, value)
+
+    try:
+        if knowledge_row.company_code != vehicle.company_code:
+            return decision("not_eligible", "company_mismatch")
+        if knowledge_row.status not in {"draft", "active"}:
+            return decision("not_eligible", "knowledge_unavailable")
+        if knowledge_row.source_kind != "メーカー公式資料":
+            return decision("not_eligible", "not_public_manufacturer_source")
+
+        registered_maker = maker(vehicle.manufacturer)
+        source_maker = maker(knowledge_row.manufacturer)
+        if not registered_maker or source_maker != registered_maker:
+            return decision("not_eligible", "manufacturer_not_confirmed")
+
+        today = datetime.now(
+            ZoneInfo("Asia/Tokyo")
+        ).date().isoformat()
+        valid_from = knowledge_row.valid_from
+        valid_until = knowledge_row.valid_until
+        for value in (valid_from, valid_until):
+            if value and (
+                not isinstance(value, str)
+                or datetime.strptime(
+                    value, "%Y-%m-%d",
+                ).date().isoformat() != value
+            ):
+                return decision("not_eligible", "invalid_validity_period")
+        if (
+            not valid_from
+            or valid_from > today
+            or (valid_until and valid_until < today)
+            or (valid_until and valid_until < valid_from)
+        ):
+            return decision("not_eligible", "outside_validity_period")
+
+        if evidence.get("knowledge_id") != knowledge_row.id:
+            return decision("not_eligible", "knowledge_identity_mismatch")
+        stored_rules = evidence.get("rules")
+        if (
+            not isinstance(stored_rules, list)
+            or not isinstance(rule, dict)
+            or rule not in stored_rules
+        ):
+            return decision("not_eligible", "rule_not_bound_to_knowledge")
+        if evidence.get("status") != "candidates":
+            return decision("not_eligible", "stored_candidate_not_verified")
+        if evidence.get("public_source_status") != "available":
+            return decision("not_eligible", "public_source_reader_unavailable")
+
+        document_id = evidence.get("document_id")
+        checksum = evidence.get("document_checksum")
+        marker = f"[knowledge-document:{document_id}]"
+        reference = knowledge_row.source_reference or ""
+        if marker not in reference:
+            return decision("not_eligible", "knowledge_document_mismatch")
+
+        observed = []
+        for state in evidence.get("public_document_states", []):
+            url = state.get("source_url")
+            if (
+                state.get("company_code") == vehicle.company_code
+                and state.get("document_id") == document_id
+                and state.get("document_checksum") == checksum
+                and state.get("source_state") == "observed"
+                and state.get("available") is True
+                and isinstance(url, str)
+                and url.startswith("https://")
+                and reference.startswith(url + " /")
+            ):
+                observed.append(state)
+
+        if not observed:
+            return decision("not_eligible", "matching_public_version_unavailable")
+
+        if rule.get("cycle") not in {"first", "repeat", "all"}:
+            return decision("not_eligible", "cycle_not_interpreted")
+        if rule.get("relation") not in {"single", "any", "all"}:
+            return decision("not_eligible", "criteria_relation_not_interpreted")
+
+        matched = evaluate_vehicle_maintenance_rule(
+            vehicle,
+            rule,
+            document_checksum=checksum,
+            vehicle_category=vehicle_category,
+        )
+        if matched["status"] != "conditions_matched":
+            return decision(
+                "not_eligible", "vehicle_conditions_not_confirmed",
+                vehicle_applicability=matched,
+            )
+
+        return decision(
+            "eligible", "source_and_vehicle_conditions_confirmed",
+            document_id=document_id,
+            document_checksum=checksum,
+            source_url=observed[0]["source_url"],
+            vehicle_applicability=matched,
+        )
+
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return decision("not_eligible", "invalid_adoption_data")
+
+
 def get_vehicle_maintenance_knowledge(vehicle, records=()):
     import unicodedata
 
@@ -2219,8 +2600,9 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
 
     today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
     rows = VehicleMaintenanceKnowledge.query.filter_by(
-        company_code=vehicle.company_code, status="active",
+        company_code=vehicle.company_code,
     ).filter(
+        VehicleMaintenanceKnowledge.status.in_({"active", "draft"}),
         VehicleMaintenanceKnowledge.valid_from <= today,
         db.or_(
             VehicleMaintenanceKnowledge.valid_until == "",
@@ -2296,7 +2678,12 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
     scope_reader = app.extensions.get(
         "maintenance_knowledge_import", {},
     ).get("get_vehicle_scopes")
-    scopes = scope_reader(matched) if scope_reader else {}
+    if scope_reader:
+        scopes, rule_evidence = scope_reader(
+            matched, include_rule_evidence=True,
+        )
+    else:
+        scopes, rule_evidence = {}, {}
 
     category_aliases = {
         "トラック": "truck",
@@ -2331,7 +2718,8 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
     matched.sort(key=knowledge_order, reverse=True)
     knowledge = []
     sources = {}
-    for row in matched[:20]:
+    eligible_count = 0
+    for row in matched:
         item = {
             name: getattr(row, name)
             for name in (
@@ -2356,6 +2744,80 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
             if item["vehicle_scope"]["mode"] == "unrestricted"
             else "unknown"
         )
+        item["maintenance_rule_evidence"] = rule_evidence.get(
+            row.id,
+            {
+                "status": "not_available",
+                "calculation_permitted": False,
+                "requires_semantic_review": True,
+                "requires_applicability_check": True,
+                "rules": [],
+            },
+        )
+        adopted_rules = []
+        for rule_index, rule in enumerate(
+            item["maintenance_rule_evidence"].get("rules", []), 1,
+        ):
+            rule["vehicle_applicability"] = evaluate_vehicle_maintenance_rule(
+                vehicle,
+                rule,
+                document_checksum=item["maintenance_rule_evidence"].get(
+                    "document_checksum"
+                ),
+                vehicle_category=vehicle_category,
+            )
+            assessment = assess_public_maintenance_rule_adoption(
+                vehicle,
+                row,
+                item["maintenance_rule_evidence"],
+                rule,
+                vehicle_category=vehicle_category,
+            )
+            rule["adoption_assessment"] = {
+                "status": assessment["status"],
+                "reason": assessment["reason"],
+            }
+
+            if assessment["status"] == "eligible":
+                identity = {
+                    "knowledge_id": row.id,
+                    "document_id": assessment["document_id"],
+                    "document_checksum": assessment["document_checksum"],
+                    "rule": {
+                        name: rule[name]
+                        for name in (
+                            "action", "criteria", "relation", "cycle",
+                            "model_codes", "engine_codes", "conditions",
+                            "source_page", "source_quote",
+                        )
+                    },
+                }
+                rule["analysis_adoption"] = {
+                    "status": "adopted_for_analysis",
+                    "method": "automatic_source_and_vehicle_checks",
+                    "rule_index": rule_index,
+                    "rule_key": hashlib.sha256(
+                        json.dumps(
+                            identity,
+                            sort_keys=True,
+                            ensure_ascii=False,
+                            default=str,
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    "knowledge_source_id": source_id,
+                    "vehicle_source_id": f"vehicle:{vehicle.id}",
+                    "document_id": assessment["document_id"],
+                    "document_checksum": assessment["document_checksum"],
+                    "source_url": assessment["source_url"],
+                    "calculation_permitted": False,
+                    "calculation_status": "baseline_not_evaluated",
+                }
+                adopted_rules.append(rule)
+            else:
+                rule["analysis_adoption"] = {
+                    "status": "held",
+                    "calculation_permitted": False,
+                }
         item["applicability_status"] = "requires_condition_check"
         item["applicability_note"] = (
             "有効期間内で、登録されたメーカー・型式の"
@@ -2365,13 +2827,44 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
             "activeは知識の利用状態であり、この車両への"
             "適用確認済みを意味しない。"
         )
+        if row.status == "draft":
+            if not adopted_rules:
+                continue
+
+            item["analysis_usage"] = "verified_rules_only"
+            item["conditions"] = ""
+            item["guidance"] = ""
+            item["source_reference"] = (
+                adopted_rules[0]["analysis_adoption"]["source_url"]
+                + " [knowledge-document:"
+                + str(item["maintenance_rule_evidence"]["document_id"])
+                + "]"
+            )
+            item["maintenance_rule_evidence"] = {
+                **item["maintenance_rule_evidence"],
+                "rules": adopted_rules,
+            }
+            item["applicability_status"] = "verified_rules_only"
+            item["applicability_note"] = (
+                "原本の版・引用・数値・意味・車両条件を照合した"
+                "規則だけを分析へ提供。下書きの説明文は提供しない。"
+                "規則ごとのanalysis_adoptionを参照。"
+                "期限計算に必要な交換実績等の照合は別工程。"
+            )
+        else:
+            item["analysis_usage"] = "active_knowledge"
+
+        eligible_count += 1
+        if len(knowledge) >= 20:
+            continue
+
         knowledge.append(item)
         sources[source_id] = {
             "label": f"{row.source_kind}：{row.title}（提供：{row.provider}）",
             "url": knowledge_import_link(row) or url_for("maintenance_knowledge_detail", knowledge_id=row.id),
             "snapshot": item,
         }
-    return knowledge, sources, len(matched)
+    return knowledge, sources, eligible_count
 
 
 class VehicleAnalysisFeedback(db.Model):
@@ -13644,12 +14137,12 @@ def edit_pointout(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_edit_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     pointout_edit_form_data = session.pop(
         "pointout_edit_form_data",
@@ -13984,12 +14477,12 @@ def register_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_countermeasure_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     form_errors = []
 
@@ -14246,12 +14739,12 @@ def approve_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status != "承認待ち":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_approve_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result_record.approval_status = "承認済み"
     result_record.reject_reason = ""
@@ -14301,12 +14794,12 @@ def reject_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status != "承認待ち":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_approve_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     reject_reason = request.form.get(
         "reject_reason",
@@ -14380,12 +14873,12 @@ def delete_pointout(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_delete_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     view_type = result.get("target_type", "user")
 
@@ -17771,6 +18264,125 @@ def apply_maintenance_invoice_preview(draft, extraction):
     return preview
 
 
+def invoice_import_target_is_empty(record):
+    details = safe_json_dict(record.invoice_details_json)
+    return not (
+        record.invoice_number or record.invoice_date or details.get("source")
+        or any(getattr(record, field) is not None for field in (
+            "labor_cost", "parts_cost", "other_cost", "tax_amount", "total_cost"
+        ))
+        or json.loads(record.line_items_json or "[]") or details.get("fees")
+        or VehiclePartReplacement.query.filter_by(
+            company_code=record.company_code, vehicle_record_id=record.vehicle_record_id,
+            maintenance_record_id=record.id,
+        ).first() is not None
+    )
+
+
+def get_invoice_import_matches(company_code, vehicle_id, values):
+    matches = get_vehicle_pending_maintenance_candidates(company_code, vehicle_id, values)
+    for candidate in matches:
+        model = VehicleMaintenanceRecord if candidate["kind"] == "maintenance" else VehiclePeriodicInspectionRecord
+        target = model.query.filter_by(
+            id=candidate["record_id"], company_code=company_code, vehicle_record_id=vehicle_id,
+        ).first()
+        if target is None:
+            raise UploadValidationError("整備候補が変わりました。再確認してください。")
+        candidate["token"] = candidate["kind"] + ":" + str(target.id) + ":" + vehicle_maintenance_record_version(target)
+    return matches
+
+
+def resolve_invoice_import_choice(draft, values, choice):
+    if not isinstance(choice, str) or len(choice) > 150:
+        raise UploadValidationError("請求書と整備の対応を確認してください。")
+    vehicle_id = values.get("vehicle_record_id")
+    if vehicle_id is None:
+        return None
+    candidates = get_invoice_import_matches(draft.company_code, vehicle_id, values)
+    if choice == "new" or (not choice and not candidates):
+        return None
+    selected = next((row for row in candidates if row["token"] == choice), None)
+    if selected is None:
+        raise UploadValidationError("同じ作業日の整備候補があります。請求書の対応先を確認してください。候補が更新された場合は選び直してください。")
+    return selected
+
+
+def apply_invoice_import_choice(draft, record_index, values):
+    stored = db.session.query(
+        VehicleDocumentImportDraft.status, VehicleDocumentImportDraft.preview_json,
+    ).filter_by(id=draft.id, company_code=draft.company_code,
+                created_by_username=session.get("username")).first()
+    rows = safe_json_dict(stored.preview_json).get("records") if stored else None
+    if (draft.company_code != session.get("company_code")
+            or draft.created_by_username != session.get("username")
+            or draft.document_type != "maintenance" or stored is None or stored.status != "processing"
+            or type(record_index) is not int or not isinstance(rows, list)
+            or not 0 <= record_index < len(rows) or rows[record_index] != values
+            or hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256):
+        raise UploadValidationError("保存済みの請求書原本・確認内容を再確認してください。")
+    selected = resolve_invoice_import_choice(draft, values, values.get("service_match", ""))
+    invoice = build_vehicle_document_record(draft, record_index, values)
+    if selected is None:
+        db.session.add(invoice)
+        db.session.flush()
+        add_vehicle_maintenance_record_event(invoice, action="imported")
+        save_vehicle_maintenance_replacement_parts(invoice)
+        return invoice.id, None
+    model = VehicleMaintenanceRecord if selected["kind"] == "maintenance" else VehiclePeriodicInspectionRecord
+    target = model.query.filter_by(
+        id=selected["record_id"], company_code=draft.company_code,
+        vehicle_record_id=values["vehicle_record_id"],
+    ).with_for_update().populate_existing().first()
+    if target is None or selected["token"].rsplit(":", 1)[1] != vehicle_maintenance_record_version(target):
+        raise UploadValidationError("整備候補が更新されています。再確認してください。")
+    if selected["kind"] == "maintenance" and invoice_import_target_is_empty(target):
+        target = merge_vehicle_pending_invoice_record(target.id, invoice)
+        add_vehicle_maintenance_record_event(target, action="imported")
+        save_vehicle_maintenance_replacement_parts(target)
+        return target.id, None
+    # Existing financial and replacement data require the existing review workflow.
+    if hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256:
+        raise UploadValidationError("保存済みの原本を確認できません。")
+    document = VehicleMaintenanceDocument(
+        company_code=draft.company_code, vehicle_record_id=values["vehicle_record_id"],
+        source_draft_id=draft.id, source_record_index=record_index,
+        maintenance_record_id=target.id if selected["kind"] == "maintenance" else None,
+        inspection_record_id=target.id if selected["kind"] == "inspection" else None,
+        payload_json=json.dumps(values, ensure_ascii=False, sort_keys=True),
+        decision_json=json.dumps({"service_match": "same", "matched_by_username": session.get("username"), "costs_applied": False, "parts_applied": False}, ensure_ascii=False),
+        financial_status="pending", parts_status="pending", created_by_username=session.get("username"),
+    )
+    db.session.add(document)
+    db.session.flush()
+    return target.id, document
+
+
+@app.route("/vehicle/document-import/<batch_id>/<draft_id>/<int:record_index>/maintenance-candidates")
+def vehicle_invoice_import_candidates(batch_id, draft_id, record_index):
+    if not require_master_admin():
+        return jsonify(error="この操作は管理者のみ利用できます。"), 403
+    draft = VehicleDocumentImportDraft.query.filter_by(
+        id=draft_id, batch_id=batch_id, company_code=session.get("company_code"),
+        created_by_username=session.get("username"), document_type="maintenance", status="preview",
+    ).first_or_404()
+    rows = safe_json_dict(draft.preview_json).get("records")
+    if not isinstance(rows, list) or not 0 <= record_index < len(rows):
+        return jsonify(error="対象の請求書明細を確認できません。"), 400
+    try:
+        vehicle_id = int(request.args.get("vehicle_id", ""))
+        if not 0 < vehicle_id <= 9223372036854775807:
+            raise ValueError
+        candidates = get_invoice_import_matches(draft.company_code, vehicle_id, {
+            "record_date": request.args.get("record_date") or None,
+            "completion_date": request.args.get("completion_date") or None,
+        })
+    except (ValueError, UploadValidationError):
+        return jsonify(error="車両・作業日を確認してください。"), 400
+    response = jsonify(candidates=candidates)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 def build_vehicle_document_record(
     draft,
     record_index,
@@ -18945,11 +19557,19 @@ def vehicle_document_import_confirm(batch_id):
                 request.form,
                 allow_pending_vehicle=True
             )
+            if draft.document_type == "maintenance":
+                values["service_match"] = request.form.get(f"service_match_{row_key}", "") if values.get("vehicle_record_id") is not None else ""
             values["include"] = row_key in included
             updated_records.append(values)
 
             if row_key not in included:
                 continue
+
+            if draft.document_type == "maintenance" and not row_errors:
+                try:
+                    resolve_invoice_import_choice(draft, values, values["service_match"])
+                except UploadValidationError as error:
+                    row_errors.append((str(error), f"service_match_{row_key}"))
 
             if draft.document_type == "maintenance" and not row_errors:
                 source_keys = maintenance_import_source_keys({
@@ -19142,6 +19762,7 @@ def vehicle_document_import_confirm(batch_id):
 
                 latest_source_keys.update(source_keys)
 
+        reviews_created = []
         results = {draft.id: [] for draft in drafts}
         pending_results = {draft.id: [] for draft in drafts}
 
@@ -19154,6 +19775,19 @@ def vehicle_document_import_confirm(batch_id):
                     "pending_record_id": pending_record.id,
                     "record_index": record_index,
                 })
+                continue
+
+            if draft.document_type == "maintenance":
+                record_id, document = apply_invoice_import_choice(draft, record_index, values)
+                result = {
+                    "record_id": record_id, "record_index": record_index,
+                    "vehicle_record_id": values["vehicle_record_id"],
+                    "document_type": "maintenance" if document is None or document.maintenance_record_id is not None else "inspection",
+                }
+                if document is not None:
+                    result["maintenance_document_id"] = document.id
+                    reviews_created.append(document.id)
+                results[draft.id].append(result)
                 continue
 
             record = build_vehicle_document_record(
@@ -19234,6 +19868,10 @@ def vehicle_document_import_confirm(batch_id):
     if not applied_submissions:
         return redirect(url_for("vehicle_master", view="pending"))
 
+    if reviews_created:
+        flash("請求書を既存記録へ添付しました。登録済みの費用・部品は変更していません。請求の反映方法を確認してください。", "success")
+        return redirect(url_for("vehicle_maintenance_document_reviews"))
+
     first_draft, _, first_values = applied_submissions[0]
     if first_draft.document_type == "maintenance":
         return redirect(url_for(
@@ -19255,6 +19893,7 @@ def vehicle_document_import_confirm(batch_id):
         destination,
         vehicle_record_id=first_values["vehicle_record_id"],
     ))
+
 
 
 @app.route(
@@ -22210,6 +22849,369 @@ def vehicle_karte_parts(vehicle_record_id):
 
 
 
+class VehicleMaintenanceInspectionLink(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False, index=True)
+    vehicle_record_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False, index=True)
+    maintenance_record_id = db.Column(db.Integer, db.ForeignKey("vehicle_maintenance_record.id"), nullable=False, index=True)
+    inspection_result_id = db.Column(db.Integer, db.ForeignKey("vehicle_checklist_result.id"), nullable=False, index=True)
+    defect_no = db.Column(db.Integer, nullable=False)
+    __table_args__ = (db.UniqueConstraint("maintenance_record_id", "inspection_result_id", "defect_no", name="uq_maintenance_inspection_defect"),)
+
+
+def get_maintenance_inspection_choices(vehicle, record):
+    links = VehicleMaintenanceInspectionLink.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+        maintenance_record_id=record.id,
+    ).all() if record is not None else []
+    linked = {(row.inspection_result_id, row.defect_no) for row in links}
+    choices = []
+    results = VehicleChecklistResult.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+    ).order_by(VehicleChecklistResult.id.asc()).all()
+    for result in results:
+        snapshot = safe_json_dict(result.checklist_snapshot_json)
+        if not any(item.get("fixed_template_code") == "daily_inspection_truck_trailer" for item in snapshot.get("items", []) if isinstance(item, dict)):
+            continue
+        judgment = safe_json_dict(result.operation_judgment_json)
+        for defect in judgment.get("defects", []):
+            if not isinstance(defect, dict) or type(defect.get("defect_no")) is not int or defect["defect_no"] < 1:
+                continue
+            key = (result.id, defect["defect_no"])
+            saved = key in linked
+            if not saved:
+                continue
+            choices.append({
+                "key": f"{key[0]}:{key[1]}",
+                "token": f"{key[0]}:{key[1]}:{int(judgment.get('version') or 0)}",
+                "linked": saved,
+                "status": defect.get("status") or "",
+                "label": f"{result.year}/{str(result.month).zfill(2)}/{str(result.day).zfill(2)} No.{int(defect.get('item_no', 0)) + 1} " + str((defect.get("reported_answer") or {}).get("content") or "点検指摘"),
+                "link": url_for("vehicle_checklist_results", index=result.checklist_id, vehicle_record_id=vehicle.id, year=result.year, month=result.month, active_day=result.day) + f"#vehicle-flow-defect-{result.id}-{defect['defect_no']}",
+            })
+    if linked != {(int(c["key"].split(":")[0]), int(c["key"].split(":")[1])) for c in choices if c["linked"]}:
+        raise ValueError("紐付け済みの点検指摘を確認できません。元の点検記録を確認してください。")
+    return choices
+
+
+
+def validate_maintenance_inspection_selection(choices, tokens):
+    if len(tokens) > 100 or len(tokens) != len(set(tokens)):
+        raise ValueError("点検指摘の選択内容を確認してください。")
+    available = {choice["token"]: choice for choice in choices}
+    if any(token not in available for token in tokens):
+        raise ValueError("点検指摘が更新されています。画面を開き直してください。")
+    selected = [available[token] for token in tokens]
+    if not {c["key"] for c in choices if c["linked"]} <= {c["key"] for c in selected}:
+        raise ValueError("保存済みの点検指摘との紐付けは解除できません。")
+    return selected
+
+
+def sync_maintenance_inspection_links(record, choices, values, intent, current_user):
+    targets = []
+    changed = False
+    updated_results = []
+    local_now = get_user_local_now(record.company_code, current_user.username)
+    if intent == "complete":
+        performed = datetime.strptime(values.get("completion_date") or "", "%Y-%m-%d")
+        if performed.date() > local_now.date():
+            raise ValueError("整備完了日に未来の日付は指定できません。")
+    grouped = {}
+    for choice in choices:
+        result_id, defect_no = map(int, choice["key"].split(":"))
+        grouped.setdefault(result_id, []).append((defect_no, choice))
+    for result_id, selected in grouped.items():
+        result = VehicleChecklistResult.query.filter_by(id=result_id, company_code=record.company_code, vehicle_record_id=record.vehicle_record_id).with_for_update().populate_existing().first()
+        if result is None:
+            raise ValueError("対象の点検記録を確認できません。")
+        previous_json = result.operation_judgment_json
+        previous = safe_json_dict(previous_json)
+        version = int(previous.get("version") or 0)
+        if any(choice["token"] != f"{result_id}:{number}:{version}" for number, choice in selected):
+            raise ValueError("点検指摘が更新されています。画面を開き直してください。")
+        for number, choice in selected:
+            link = VehicleMaintenanceInspectionLink.query.filter_by(company_code=record.company_code, vehicle_record_id=record.vehicle_record_id, maintenance_record_id=record.id, inspection_result_id=result_id, defect_no=number).first()
+            new_link = link is None
+            if new_link:
+                link = VehicleMaintenanceInspectionLink(company_code=record.company_code, vehicle_record_id=record.vehicle_record_id, maintenance_record_id=record.id, inspection_result_id=result_id, defect_no=number)
+                db.session.add(link)
+                changed = True
+            defects = [dict(item) for item in previous.get("defects", [])]
+            defect = next((d for d in defects if d.get("defect_no") == number), None)
+            if defect is None:
+                raise ValueError("対象の不具合を確認できません。")
+            # Ordinary corrections do not reopen or complete an inspection defect.
+            if intent != "complete":
+                continue
+            if defect.get("status") not in {"対応待ち", "整備中"}:
+                raise ValueError("再確認中または解消済みの指摘です。元の点検画面で状態を確認してください。")
+            next_status = "再確認待ち" if intent == "complete" else "整備中"
+            date_text = values.get("completion_date") if intent == "complete" else values.get("entry_date")
+            performed = datetime.strptime(date_text or "", "%Y-%m-%d")
+            inspection_date = datetime(int(result.year), int(result.month), int(result.day)).date()
+            if performed.date() < inspection_date or performed.date() > local_now.date():
+                raise ValueError("整備実施日は点検日以降、今日以前にしてください。")
+            repair = {
+                "status": next_status,
+                "note": values.get("repair_content") or values.get("content") or "",
+                "performed_by": (current_user.last_name or "") + (current_user.first_name or ""),
+                "performed_by_username": current_user.username,
+                "performed_at": performed.strftime("%Y-%m-%d"),
+                "recorded_at": local_now.strftime("%Y-%m-%d %H:%M:%S"),
+                "notification_created_at": local_now.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "timezone": str(local_now.tzinfo),
+                "maintenance_record_id": record.id,
+            }
+            previous_defect = dict(defect)
+            defect.update(status=next_status, repair=repair)
+            judgment = {**previous, "defects": defects, "status": "未判定", "version": version + 1}
+            for key in ("reason", "judged_by", "judged_by_username", "judged_at", "authority_role", "authority_confirmed", "checks_confirmed", "checks_evidence"):
+                judgment.pop(key, None)
+            targets.extend(persist_vehicle_inspection_repair(result, record.company_code, current_user, previous_json, judgment, next_status, repair, previous_defect, defect, previous, False))
+            if result not in updated_results:
+                updated_results.append(result)
+            # The following selected defect belongs to the same transaction/version.
+            previous = judgment
+            previous_json = json.dumps(judgment, ensure_ascii=False)
+            version += 1
+            changed = True
+    return targets, changed, updated_results
+
+
+def dispatch_maintenance_inspection_notifications(targets):
+    for user, notification in targets:
+        try:
+            dispatch_external_notification(user, notification.title, notification.message, notification.link, notification_id=notification.id)
+        except Exception:
+            app.logger.exception("不具合対応の外部通知に失敗しました。")
+
+
+def carry_inspection_repair_to_maintenance(result_record, defect_no, previous_defect, repair, current_user):
+    """Carry a known inspection repair into the karte in the caller's transaction."""
+    company_code = result_record.company_code
+    vehicle_id = result_record.vehicle_record_id
+    vehicle = Vehicle.query.filter_by(id=vehicle_id, company_code=company_code).first()
+    if vehicle is None or current_user.company_code != company_code:
+        raise ValueError("INSPECTION_MAINTENANCE_SCOPE_INVALID")
+    links = VehicleMaintenanceInspectionLink.query.filter_by(
+        company_code=company_code, vehicle_record_id=vehicle_id,
+        inspection_result_id=result_record.id, defect_no=defect_no,
+    ).all()
+    records = []
+    for link in links:
+        record = VehicleMaintenanceRecord.query.filter_by(
+            id=link.maintenance_record_id, company_code=company_code,
+            vehicle_record_id=vehicle_id,
+        ).with_for_update().first()
+        if record is None:
+            raise ValueError("INSPECTION_MAINTENANCE_LINK_INVALID")
+        records.append(record)
+
+    previous_repair = previous_defect.get("repair") or {}
+    previous_id = previous_repair.get("maintenance_record_id")
+    if previous_id is not None and (
+        type(previous_id) is not int or previous_id not in {row.id for row in records}
+    ):
+        raise ValueError("INSPECTION_MAINTENANCE_REFERENCE_INVALID")
+    record = None
+    if previous_defect.get("status") == "整備中" and previous_id is not None:
+        record = next(row for row in records if row.id == previous_id)
+        if record.status == "完了":
+            raise ValueError("INSPECTION_MAINTENANCE_STATE_CONFLICT")
+    else:
+        unfinished = [row for row in records if row.status != "完了"]
+        if len(unfinished) > 1:
+            raise ValueError("INSPECTION_MAINTENANCE_AMBIGUOUS")
+        record = unfinished[0] if unfinished else None
+
+    created = record is None
+    stamp = repair["recorded_at"]
+    if created:
+        record = VehicleMaintenanceRecord(
+            company_code=company_code, vehicle_record_id=vehicle_id,
+            category="修理", content=repair["note"],
+            symptom=str((previous_defect.get("reported_answer") or {}).get("content") or ""),
+            created_by_username=current_user.username, created_at=stamp,
+        )
+        db.session.add(record)
+    status_before = record.status
+    changes = []
+    updates = {
+        "repair_content": repair["note"],
+        "status": "完了" if repair["status"] == "再確認待ち" else "整備中",
+        "maintenance_person": repair["performed_by"],
+    }
+    if repair["status"] == "再確認待ち":
+        updates["completion_date"] = repair["performed_at"][:10]
+    for field, after in updates.items():
+        before = getattr(record, field)
+        if before != after:
+            setattr(record, field, after)
+            changes.append({"field": field, "before": before, "after": after})
+    # An inspection repair date does not establish an arrival date, mileage or cost.
+    record.updated_by_username = current_user.username
+    record.updated_at = stamp
+    db.session.flush()
+    if created:
+        db.session.add(VehicleMaintenanceInspectionLink(
+            company_code=company_code, vehicle_record_id=vehicle_id,
+            maintenance_record_id=record.id,
+            inspection_result_id=result_record.id, defect_no=defect_no,
+        ))
+    repair["maintenance_record_id"] = record.id
+    changes.append({
+        "field": "inspection_repair", "before": previous_repair,
+        "after": {"inspection_result_id": result_record.id, "defect_no": defect_no, **repair},
+    })
+    add_vehicle_maintenance_record_event(
+        record, action="created" if created else "status_changed" if status_before != record.status else "updated",
+        changes=changes, status_before=status_before,
+    )
+    return record
+
+
+def persist_vehicle_inspection_repair(result_record, company_code, current_user, previous_json, judgment, next_status, repair, previous_defect, defect, previous, is_recheck):
+    updated = VehicleChecklistResult.query.filter_by(
+        id=result_record.id,
+        company_code=company_code,
+        operation_judgment_json=previous_json
+    ).update(
+        {"operation_judgment_json": json.dumps(judgment, ensure_ascii=False)},
+        synchronize_session=False
+    )
+    if updated != 1:
+        raise ValueError("INSPECTION_UPDATE_CONFLICT")
+
+    invalidate_other_vehicle_operation_judgments(result_record)
+
+    db.session.add(ChecklistEvent(
+        company_code=company_code,
+        result_type="vehicle",
+        result_id=result_record.id,
+        event_type=next_status,
+        actor_username=current_user.username,
+        actor_name=repair["performed_by"],
+        created_at=repair["recorded_at"],
+        detail_json=json.dumps({
+            "previous_defect": previous_defect,
+            "defect": defect,
+            "repair": {} if is_recheck else repair,
+            "recheck": repair if is_recheck else {},
+            "previous_judgment": previous,
+        }, ensure_ascii=False)
+    ))
+
+    notification_targets = []
+    if next_status == "再確認待ち" or is_recheck:
+        target_usernames = set(previous.get("requested_usernames") or [])
+
+        if not target_usernames:
+            inspector = User.query.filter_by(
+                company_code=company_code,
+                username=result_record.checked_by_username
+            ).first()
+
+            if inspector and inspector.office:
+                target_usernames.update(
+                    user.username
+                    for user in User.query.filter_by(
+                        company_code=company_code,
+                        office=inspector.office,
+                        role="admin"
+                    ).all()
+                )
+
+        if result_record.checked_by_username:
+            target_usernames.add(result_record.checked_by_username)
+
+        vehicle = Vehicle.query.filter_by(
+            id=result_record.vehicle_record_id,
+            company_code=company_code
+        ).first()
+        vehicle_name = (
+            " ".join(value for value in [
+                vehicle.plate_area or "",
+                vehicle.plate_class or "",
+                vehicle.plate_kana or "",
+                vehicle.plate_number or ""
+            ] if value)
+            if vehicle else ""
+        ) or f"車両ID：{result_record.vehicle_record_id}"
+
+        item_name = (
+            defect.get("reported_answer", {}).get("content") or ""
+        )
+
+        if not is_recheck:
+            notification_action = "再確認待ち"
+            next_action = (
+                "整備した箇所を再確認し、再確認結果を登録してください。"
+            )
+        elif next_status == "解消":
+            notification_action = "再確認済み・異常なし"
+            next_action = (
+                "この不具合の再確認は完了しました。"
+                "整備管理者は、ほかの未解消の不具合と点検結果を確認し、"
+                "運行可否を判断してください。"
+            )
+        else:
+            notification_action = "再確認で異常あり"
+            next_action = (
+                "異常が残っています。整備内容を確認し、"
+                "追加の整備を登録してください。"
+            )
+
+        notification_title = (
+            f"{vehicle_name}：{notification_action}"
+        )
+        notification_message = (
+            f"対象車両：{vehicle_name}\n"
+            f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
+            f"項目：No.{int(defect.get('item_no', 0)) + 1} {item_name}\n"
+            f"対応状況：{next_status}\n"
+            f"次にすること：{next_action}\n"
+            f"実施者：{repair['performed_by']}\n"
+            f"実施日時：{repair['performed_at']}\n"
+            f"内容：{repair['note']}"
+        )
+        notification_link = url_for(
+            "vehicle_checklist_results",
+            index=result_record.checklist_id,
+            vehicle_record_id=result_record.vehicle_record_id,
+            year=result_record.year,
+            month=result_record.month,
+            active_day=result_record.day
+        ) + (
+            f"#vehicle-flow-defect-{result_record.id}-"
+            f"{defect.get('defect_no')}"
+        )
+
+        for target_username in sorted(target_usernames):
+            target_user = User.query.filter_by(
+                company_code=company_code,
+                username=target_username
+            ).first()
+            if not target_user:
+                continue
+
+            notification = Notification(
+                company_code=company_code,
+                target_user=(target_user.last_name or "")
+                + (target_user.first_name or ""),
+                target_username=target_user.username,
+                title=notification_title,
+                message=notification_message,
+                link=notification_link,
+                files_json="[]",
+                read=False,
+                created_at=repair["notification_created_at"]
+            )
+            db.session.add(notification)
+            notification_targets.append((target_user, notification))
+
+    return notification_targets
+
+
 def vehicle_maintenance_record_version(record):
     snapshot = {
         column.key: getattr(record, column.key)
@@ -22242,6 +23244,20 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         company_code=session.get("company_code"),
     ).first_or_404()
 
+    if request.method == "POST" and (
+        request.form.getlist("inspection_defect")
+        or (record_id is not None and VehicleMaintenanceInspectionLink.query.filter_by(
+            company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+            maintenance_record_id=record_id,
+        ).first() is not None)
+    ):
+        lock_error = lock_vehicle_inspection_updates(
+            vehicle.company_code, vehicle_record_id=vehicle.id,
+            checklist={"items": [{"fixed_template_code": "daily_inspection_truck_trailer"}]},
+        )
+        if lock_error is not None:
+            return lock_error
+
     record = None
     if record_id is not None:
         query = VehicleMaintenanceRecord.query.filter_by(
@@ -22269,6 +23285,16 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
     record_version = (
         vehicle_maintenance_record_version(record) if record else ""
     )
+    try:
+        inspection_choices = get_maintenance_inspection_choices(vehicle, record)
+    except ValueError:
+        app.logger.warning("Unable to load maintenance inspection choices", exc_info=True)
+        return "点検情報を確認できませんでした。画面を再読み込みしてください。", 409
+    selected_inspection_tokens = [c["token"] for c in inspection_choices if c["linked"]]
+    selected_inspections = []
+    intent = ""
+    notification_targets = []
+    inspection_results_updated = []
     errors = []
     response_status = 200
 
@@ -22278,6 +23304,22 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
             for field in field_names
         }
         values, errors = validate_vehicle_maintenance_form(request.form)
+        intent = request.form.get("maintenance_action", "save")
+        selected_inspection_tokens = request.form.getlist("inspection_defect")
+        try:
+            selected_inspections = validate_maintenance_inspection_selection(
+                inspection_choices, selected_inspection_tokens,
+            )
+            if intent not in {"save", "draft", "complete"}:
+                raise ValueError("保存操作を確認してください。")
+            if intent == "complete":
+                if not values.get("completion_date"):
+                    raise ValueError("整備完了日を入力してください。")
+                values["status"] = "完了"
+            elif intent in {"draft", "save"}:
+                values["status"] = record.status if record and record.status == "完了" else "整備中"
+        except ValueError as error:
+            errors.append((str(error), "inspection_defects"))
 
         if record is not None:
             submitted_version = request.form.get("record_version", "")
@@ -22314,7 +23356,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 for field in changed_fields
             ]
 
-            if not changed_fields:
+            if not changed_fields and intent != "complete" and all(c["linked"] for c in selected_inspections):
                 flash("変更はありませんでした。", "success")
                 return redirect(url_for(
                     "vehicle_karte_maintenance",
@@ -22336,6 +23378,88 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                     )
                     db.session.add(record)
 
+                if not is_new and {
+                    "mileage", "entry_date", "completion_date"
+                }.intersection(changed_fields):
+                    previous_date = (
+                        record.completion_date or record.entry_date or ""
+                    )
+                    replacement_date = (
+                        values["completion_date"] or values["entry_date"] or ""
+                    )
+                    previous_mileage = record.mileage
+                    source_lines = safe_json_dict_list(record.line_items_json)
+                    part_sources = (
+                        VehiclePartReplacementSource.query.filter_by(
+                            company_code=record.company_code,
+                            maintenance_record_id=record.id,
+                        ).all()
+                    )
+
+                    for source in part_sources:
+                        index = source.source_line_index
+                        if (
+                            type(index) is not int
+                            or not 0 <= index < len(source_lines)
+                        ):
+                            continue
+
+                        line = source_lines[index]
+                        line_version = hashlib.sha256(json.dumps(
+                            line,
+                            sort_keys=True,
+                            ensure_ascii=False,
+                            default=str,
+                        ).encode("utf-8")).hexdigest()
+                        if (
+                            line.get("replacement_action") != "replace"
+                            or source.source_line_version != line_version
+                        ):
+                            continue
+
+                        part = (
+                            VehiclePartReplacement.query.filter_by(
+                                id=source.replacement_id,
+                                company_code=record.company_code,
+                                vehicle_record_id=record.vehicle_record_id,
+                                maintenance_record_id=record.id,
+                            )
+                            .with_for_update()
+                            .populate_existing()
+                            .first()
+                        )
+                        if part is None:
+                            continue
+
+                        part_changes = []
+                        if (
+                            previous_date != replacement_date
+                            and part.replacement_date == previous_date
+                        ):
+                            part_changes.append((
+                                "replacement_date",
+                                part.replacement_date,
+                                replacement_date,
+                            ))
+                        if (
+                            previous_mileage != values["mileage"]
+                            and part.mileage == previous_mileage
+                        ):
+                            part_changes.append((
+                                "mileage", part.mileage, values["mileage"],
+                            ))
+
+                        for field, before, after in part_changes:
+                            setattr(part, field, after)
+                            changes.append({
+                                "field": f"part_replacement:{part.id}:{field}",
+                                "before": before,
+                                "after": after,
+                            })
+                        if part_changes:
+                            part.updated_by_username = session.get("username")
+                            part.updated_at = now
+
                 for field in field_names:
                     setattr(record, field, values[field])
 
@@ -22343,6 +23467,22 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 record.updated_at = now
                 db.session.flush()
                 saved_id = record.id
+                if selected_inspections or intent == "complete":
+                    current_user = User.query.filter_by(
+                        company_code=vehicle.company_code,
+                        username=session.get("username"),
+                    ).first()
+                    if not current_user:
+                        raise ValueError("操作ユーザーを確認できません。")
+                    notification_targets, links_changed, inspection_results_updated = sync_maintenance_inspection_links(
+                        record, selected_inspections, values, intent, current_user,
+                    )
+                    if links_changed:
+                        changes.append({
+                            "field": "inspection_links",
+                            "before": [c["key"] for c in inspection_choices if c["linked"]],
+                            "after": [c["key"] for c in selected_inspections],
+                        })
 
                 add_vehicle_maintenance_record_event(
                     record,
@@ -22370,6 +23510,11 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 )
                 db.session.commit()
 
+            except ValueError as error:
+                db.session.rollback()
+                errors.append((str(error), "inspection_defects"))
+                response_status = 409
+
             except SQLAlchemyError:
                 db.session.rollback()
                 app.logger.exception("Maintenance record save failed")
@@ -22380,6 +23525,12 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 response_status = 500
 
             else:
+                for result in inspection_results_updated:
+                    try:
+                        dispatch_vehicle_defect_notifications(result)
+                    except Exception:
+                        app.logger.exception("不具合対応の通知配信に失敗しました。")
+                dispatch_maintenance_inspection_notifications(notification_targets)
                 flash(
                     "整備記録を登録しました。"
                     if is_new else "整備記録を更新しました。",
@@ -22406,6 +23557,8 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         form_values=form_values,
         form_errors=errors,
         record_version=record_version,
+        inspection_choices=inspection_choices,
+        selected_inspection_tokens=selected_inspection_tokens,
     ), response_status
 
 
@@ -22816,9 +23969,218 @@ def get_vehicle_karte_usage_vehicles():
     ]
 
 
+def build_vehicle_karte_mileage_reference(
+    maintenance_records, operation_records, as_of,
+    periodic_records=(),
+):
+    """記録距離と出典を選ぶ。現在の実測値とは断定しない。"""
+    from decimal import Decimal, InvalidOperation
+
+    def day(value):
+        try:
+            return datetime.strptime(
+                str(value or "").strip()[:10].replace("/", "-"),
+                "%Y-%m-%d",
+            ).date()
+        except ValueError:
+            return None
+
+    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
+    requested = day(as_of)
+    if requested is None:
+        raise ValueError("走行距離の基準日が不正です。")
+    limit = min(requested, today)
+
+    readings = []
+    excluded = {
+        "invalid_value": 0,
+        "unknown_date": 0,
+        "future_date": 0,
+        "after_as_of": 0,
+    }
+
+    def add(value, date_value, source_id, source, date_basis, time=""):
+        if value is None or str(value).strip() == "":
+            return
+        try:
+            if isinstance(value, bool):
+                raise ValueError()
+            number = Decimal(str(value))
+            if not number.is_finite() or number < 0:
+                raise ValueError()
+        except (InvalidOperation, ValueError, TypeError):
+            excluded["invalid_value"] += 1
+            return
+
+        recorded = day(date_value)
+        if recorded is None:
+            excluded["unknown_date"] += 1
+            return
+        if recorded > today:
+            excluded["future_date"] += 1
+            return
+        if recorded > limit:
+            excluded["after_as_of"] += 1
+            return
+
+        readings.append({
+            "value": number,
+            "date": recorded.isoformat(),
+            "time": str(time or "").strip(),
+            "source_id": source_id,
+            "source": source,
+            "date_basis": date_basis,
+        })
+
+    for row in operation_records:
+        add(
+            row.arrival_meter,
+            row.operation_date,
+            f"operation:{row.id}",
+            "運行実績",
+            "operation_date",
+            row.arrival_at,
+        )
+
+    for row in maintenance_records:
+        entry = str(row.entry_date or "").strip()
+        add(
+            row.mileage,
+            entry or row.completion_date,
+            f"maintenance:{row.id}",
+            "整備・修理記録",
+            "entry_date" if entry else "completion_date",
+        )
+
+    for row in periodic_records:
+        add(
+            row.mileage,
+            row.inspection_date,
+            f"periodic:{row.id}",
+            "定期点検記録",
+            "inspection_date",
+        )
+
+    by_date = {}
+    for reading in readings:
+        by_date.setdefault(reading["date"], []).append(reading)
+
+    daily = []
+    conflicts = []
+    decreases = []
+    previous = None
+
+    for recorded, rows in sorted(by_date.items()):
+        operations = [
+            row for row in rows if row["source"] == "運行実績"
+        ]
+        others = [
+            row for row in rows if row["source"] != "運行実績"
+        ]
+
+        timed_operations = []
+        for row in operations:
+            try:
+                timestamp = datetime.fromisoformat(row["time"])
+            except ValueError:
+                break
+            if timestamp.tzinfo is not None:
+                timestamp = timestamp.astimezone(
+                    ZoneInfo("Asia/Tokyo")
+                )
+            if timestamp.date().isoformat() != recorded:
+                break
+            timed_operations.append((
+                timestamp.replace(tzinfo=None), row,
+            ))
+
+        if operations and len(timed_operations) == len(operations):
+            timed_operations.sort(key=lambda item: item[0])
+            previous_values = (
+                {previous} if previous is not None else None
+            )
+            for timestamp in sorted({
+                item[0] for item in timed_operations
+            }):
+                values_at_time = {
+                    row["value"]
+                    for time_value, row in timed_operations
+                    if time_value == timestamp
+                }
+                if len(values_at_time) != 1:
+                    if recorded not in conflicts:
+                        conflicts.append(recorded)
+                if (
+                    previous_values is not None
+                    and min(values_at_time) < max(previous_values)
+                    and recorded not in decreases
+                ):
+                    decreases.append(recorded)
+                previous_values = values_at_time
+
+            latest_time = timed_operations[-1][0]
+            operations = [
+                row for timestamp, row in timed_operations
+                if timestamp == latest_time
+            ]
+
+        candidates = operations + others
+        values = {row["value"] for row in candidates}
+        if len(values) != 1:
+            conflicts.append(recorded)
+            daily.append({
+                "date": recorded,
+                "value": None,
+                "sources": candidates,
+            })
+            continue
+
+        value = next(iter(values))
+        if previous is not None and value < previous:
+            decreases.append(recorded)
+        previous = value
+        daily.append({
+            "date": recorded,
+            "value": value,
+            "sources": candidates,
+        })
+
+    latest = daily[-1] if daily else None
+    status = (
+        "unknown" if latest is None
+        else "conflicting" if latest["value"] is None
+        else "recorded"
+    )
+    return {
+        "as_of": limit.isoformat(),
+        "status": status,
+        "value": latest["value"] if latest else None,
+        "date": latest["date"] if latest else None,
+        "sources": latest["sources"] if latest else [],
+        "conflict_dates": conflicts,
+        "decrease_dates": decreases,
+        "distance_usable": (
+            status == "recorded"
+            and not conflicts
+            and not decreases
+            and all(
+                row["date_basis"] == "operation_date"
+                for row in latest["sources"]
+            )
+        ),
+        "excluded": excluded,
+        "note": (
+            "最後に登録された距離であり、現在の実測値ではありません。"
+            "整備の入庫日・完了日は距離の計測日とは限りません。"
+            "距離の減少だけでメーター交換や入力誤りを確定しません。"
+        ),
+    }
+
+
 def build_vehicle_karte_analysis_summary(
     maintenance_records, operation_records, part_records,
     defect_records, start_date, end_date,
+    periodic_records=(),
 ):
     from collections import Counter
 
@@ -22927,18 +24289,11 @@ def build_vehicle_karte_analysis_summary(
         for row in selected_operations
     )
 
-    mileage_rows = [
-        row for row in operations
-        if row.arrival_meter is not None
-        and parse_date(row.operation_date)
-        and parse_date(row.operation_date) <= end
-    ]
-    mileage_rows.sort(
-        key=lambda row: (
-            row.operation_date,
-            row.arrival_at or "",
-            row.id,
-        )
+    mileage_reference = build_vehicle_karte_mileage_reference(
+        maintenance,
+        operations,
+        end.isoformat(),
+        periodic_records=periodic_records,
     )
 
     category_costs = {}
@@ -22960,13 +24315,14 @@ def build_vehicle_karte_analysis_summary(
             maintenance, "total_cost"
         ),
         "distance": distance,
+        "mileage_reference": mileage_reference,
         "current_mileage": (
-            mileage_rows[-1].arrival_meter
-            if mileage_rows else None
+            mileage_reference["value"]
+            if mileage_reference["distance_usable"] else None
         ),
         "current_mileage_date": (
-            mileage_rows[-1].operation_date
-            if mileage_rows else None
+            mileage_reference["date"]
+            if mileage_reference["distance_usable"] else None
         ),
         "cost_per_km": (
             cost / distance
@@ -23060,6 +24416,11 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         analysis=analysis_with_vehicle_feedback(analysis, vehicle) if has_result else None,
         sources=bundle.get("sources") if has_result else {},
         coverage=bundle.get("coverage") if has_result else {},
+        comparison=(
+            bundle["comparison"]
+            if has_result and isinstance(bundle.get("comparison"), dict)
+            else None
+        ),
         generated_at=(
             bundle.get("generated_at") if has_result else None
         ),
@@ -23120,8 +24481,41 @@ def get_vehicle_karte_analysis_job_data(vehicle):
         defects,
         start.isoformat(),
         today.isoformat(),
+        periodic_records=(
+            VehiclePeriodicInspectionRecord.query.filter_by(
+                company_code=vehicle.company_code,
+                vehicle_record_id=vehicle.id,
+            ).all()
+        ),
     )
-    comparison = get_vehicle_karte_peer_comparison(vehicle, summary)
+    import os
+
+    registration_scope = os.environ.get(
+        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "same_year"
+    ).strip()
+    inactive_setting = os.environ.get(
+        "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE", "0"
+    ).strip()
+
+    if registration_scope not in {"same_year", "all_years"}:
+        raise ValueError(
+            "VEHICLE_KARTE_AI_PEER_REGISTRATION must be "
+            "same_year or all_years"
+        )
+    if inactive_setting not in {"0", "1"}:
+        raise ValueError(
+            "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE must be 0 or 1"
+        )
+
+    comparison = get_vehicle_karte_peer_comparison(
+        vehicle,
+        summary,
+        registration_scope=registration_scope,
+        include_inactive=inactive_setting == "1",
+    )
+    comparison["comparison_scope"]["condition_source"] = (
+        "automatic_analysis_configuration"
+    )
 
     return build_vehicle_karte_analysis_payload(
         vehicle,
@@ -23245,6 +24639,7 @@ def run_vehicle_karte_analysis_job(state_id):
             "analysis": analysis,
             "sources": sources,
             "coverage": payload["coverage"],
+            "comparison": payload.get("comparison"),
             "fingerprints": fingerprints,
             "analysis_method": method,
             "generated_at": finished.astimezone(
@@ -23649,6 +25044,7 @@ def get_vehicle_karte_analysis_fingerprints(
 
     vehicle_context = {
         "model_code": vehicle.model_code,
+            "engine_code": getattr(vehicle, "engine_code", None),
         "manufacturer": vehicle.manufacturer,
         "first_registration_date": (
             vehicle.first_registration_date
@@ -23694,6 +25090,12 @@ def get_vehicle_karte_analysis_fingerprints(
             "evaluation_date": today.isoformat(),
             "distance": summary["distance"],
             "current_mileage": summary["current_mileage"],
+            "current_mileage_date": summary.get(
+                "current_mileage_date"
+            ),
+            "mileage_reference": summary.get(
+                "mileage_reference"
+            ),
             "total_cost": summary["total_cost"],
             "failure_count": summary["failure_count"],
             "part_replacement_count": (
@@ -23804,6 +25206,245 @@ def build_vehicle_karte_service_progress(maintenance, summary):
         )
 
     return result
+
+
+def calculate_adopted_maintenance_rule_timing(
+    rule, part_name, preventive_facts, summary,
+):
+    """採用済み交換基準を実績と照合する。故障予測・整備要否は判定しない。"""
+    import calendar
+    import unicodedata
+    from datetime import timedelta
+    from decimal import Decimal, InvalidOperation
+
+    criteria_results = []
+    source_ids = []
+
+    def result(status, reason):
+        if status == "held":
+            criteria_results.clear()
+        return {
+            "status": status,
+            "reason": reason,
+            "scope": "registered_replacement_and_reading_dates",
+            "calculation_permitted": any(
+                item.get("calculation_permitted") is True
+                for item in criteria_results
+            ),
+            "criteria": criteria_results,
+            "source_ids": list(dict.fromkeys(source_ids)),
+        }
+
+    def day(value):
+        if not isinstance(value, str) or len(value) != 10:
+            return None
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date()
+            return parsed if parsed.isoformat() == value else None
+        except ValueError:
+            return None
+
+    def number(value):
+        if type(value) not in {int, float, Decimal}:
+            return None
+        try:
+            parsed = Decimal(str(value))
+            return parsed if parsed.is_finite() and parsed >= 0 else None
+        except (InvalidOperation, ValueError):
+            return None
+
+    def normalize_name(value):
+        text = unicodedata.normalize(
+            "NFKC", str(value or ""),
+        ).casefold()
+        return re.sub(r"[\s・･]+", "", text).replace(
+            "フィルター", "フィルタ",
+        )
+
+    if (
+        not isinstance(rule, dict)
+        or not isinstance(preventive_facts, dict)
+        or not isinstance(summary, dict)
+    ):
+        return result("held", "invalid_input")
+
+    adoption = rule.get("analysis_adoption") or {}
+    if adoption.get("status") != "adopted_for_analysis":
+        return result("held", "rule_not_adopted")
+    if rule.get("action") != "replace":
+        return result("held", "inspection_baseline_not_available")
+    if rule.get("cycle") not in {"repeat", "all"}:
+        return result("held", "initial_baseline_not_available")
+
+    criteria = rule.get("criteria")
+    relation = rule.get("relation")
+    if (
+        not isinstance(criteria, list)
+        or not 1 <= len(criteria) <= 4
+        or (
+            relation != "single" if len(criteria) == 1
+            else relation not in {"any", "all"}
+        )
+    ):
+        return result("held", "invalid_criteria_relation")
+
+    as_of = day(summary.get("end_date"))
+    if (
+        as_of is None
+        or as_of > datetime.now(ZoneInfo("Asia/Tokyo")).date()
+        or preventive_facts.get("as_of") != as_of.isoformat()
+    ):
+        return result("held", "invalid_reference_date")
+
+    name = normalize_name(part_name)
+    facts = preventive_facts.get("part_replacements")
+    if not name or not isinstance(facts, list):
+        return result("held", "part_history_not_matched")
+    matches = [
+        fact for fact in facts
+        if isinstance(fact, dict)
+        and normalize_name(fact.get("part_name")) == name
+    ]
+    if len(matches) != 1:
+        return result("held", "part_history_not_uniquely_matched")
+
+    fact = matches[0]
+    replaced_on = day(fact.get("latest_dated_replacement"))
+    if (
+        fact.get("replacement_date_usable") is not True
+        or replaced_on is None
+        or replaced_on > as_of
+    ):
+        return result("held", "replacement_date_not_confirmed")
+
+    ids = fact.get("source_ids")
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or any(
+            not isinstance(value, str) or not value.startswith("part:")
+            for value in ids
+        )
+    ):
+        return result("held", "replacement_evidence_missing")
+    source_ids.extend(ids)
+    for name in ("knowledge_source_id", "vehicle_source_id"):
+        value = adoption.get(name)
+        if not isinstance(value, str) or not value:
+            return result("held", "adoption_evidence_missing")
+        source_ids.append(value)
+
+    seen = set()
+    for criterion in criteria:
+        if not isinstance(criterion, dict):
+            return result("held", "invalid_criterion")
+        metric = criterion.get("metric")
+        threshold = number(criterion.get("value"))
+        if (
+            not isinstance(metric, str)
+            or metric not in {
+                "distance_km", "period_days",
+                "period_months", "engine_hours",
+            }
+            or metric in seen
+            or threshold is None
+            or threshold <= 0
+        ):
+            return result("held", "invalid_criterion")
+        seen.add(metric)
+        entry = {
+            "metric": metric,
+            "threshold": criterion["value"],
+            "baseline_date": replaced_on.isoformat(),
+            "status": "unknown",
+            "calculation_permitted": False,
+        }
+
+        if metric == "distance_km":
+            measured_on = day(summary.get("current_mileage_date"))
+            reference = summary.get("mileage_reference") or {}
+            current = number(summary.get("current_mileage"))
+            replaced_meter = number(fact.get("replacement_mileage"))
+            recorded_distance = number(fact.get("distance_since_km"))
+            if (
+                fact.get("replacement_mileage_usable") is True
+                and reference.get("distance_usable") is True
+                and current is not None
+                and replaced_meter is not None
+                and current >= replaced_meter
+                and measured_on is not None
+                and replaced_on <= measured_on <= as_of
+                and recorded_distance == current - replaced_meter
+            ):
+                elapsed = current - replaced_meter
+                entry.update({
+                    "status": (
+                        "reached" if elapsed >= threshold
+                        else "not_reached_at_reference"
+                    ),
+                    "calculation_permitted": True,
+                    "reference_date": measured_on.isoformat(),
+                    "replacement_mileage": replaced_meter,
+                    "recorded_mileage": current,
+                    "elapsed_km": elapsed,
+                    "remaining_km": max(Decimal(0), threshold - elapsed),
+                    "excess_km": max(Decimal(0), elapsed - threshold),
+                })
+            else:
+                entry["reason"] = "comparable_mileage_not_available"
+
+        elif metric in {"period_days", "period_months"}:
+            if threshold != threshold.to_integral_value():
+                entry["reason"] = "fractional_calendar_period"
+            else:
+                try:
+                    amount = int(threshold)
+                    if metric == "period_days":
+                        due = replaced_on + timedelta(days=amount)
+                    else:
+                        total = replaced_on.month - 1 + amount
+                        year = replaced_on.year + total // 12
+                        month = total % 12 + 1
+                        if not 1 <= year <= 9999:
+                            raise ValueError("DATE_OUT_OF_RANGE")
+                        due = replaced_on.replace(
+                            year=year,
+                            month=month,
+                            day=min(
+                                replaced_on.day,
+                                calendar.monthrange(year, month)[1],
+                            ),
+                        )
+                    entry.update({
+                        "status": (
+                            "reached" if as_of >= due
+                            else "not_reached_at_reference"
+                        ),
+                        "calculation_permitted": True,
+                        "reference_date": as_of.isoformat(),
+                        "due_date": due.isoformat(),
+                        "elapsed_days": (as_of - replaced_on).days,
+                        "remaining_days": max(0, (due - as_of).days),
+                        "overdue_days": max(0, (as_of - due).days),
+                    })
+                except (ValueError, OverflowError):
+                    entry["reason"] = "calendar_date_out_of_range"
+        else:
+            entry["reason"] = "engine_hours_not_available"
+
+        criteria_results.append(entry)
+
+    statuses = [item["status"] for item in criteria_results]
+    if relation in {"single", "any"} and "reached" in statuses:
+        return result("threshold_reached", "recorded_threshold_reached")
+    if relation == "all" and all(value == "reached" for value in statuses):
+        return result("threshold_reached", "all_recorded_thresholds_reached")
+    if "unknown" in statuses:
+        return result("unknown", "some_criteria_not_calculable")
+    return result(
+        "not_reached_at_reference_dates",
+        "threshold_not_reached_at_recorded_reference_dates",
+    )
 
 
 def build_vehicle_karte_preventive_facts(vehicle, summary, records):
@@ -23938,6 +25579,19 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
             }),
             "part_number": number,
             "latest_dated_replacement": latest_day.isoformat(),
+            "replacement_date_usable": bool(
+                as_of and len(dated) == len(rows)
+            ),
+            "replacement_mileage": replaced_meter,
+            "replacement_mileage_usable": bool(
+                as_of
+                and len(dated) == len(rows)
+                and replaced_meter is not None
+                and (
+                    previous_meter is None
+                    or replaced_meter >= previous_meter
+                )
+            ),
             "days_since": (
                 (as_of - latest_day).days if as_of else None
             ),
@@ -24000,6 +25654,23 @@ def build_vehicle_karte_analysis_payload(
 ):
     records = []
     sources = {}
+    inspection_links = VehicleMaintenanceInspectionLink.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+    ).order_by(
+        VehicleMaintenanceInspectionLink.maintenance_record_id,
+        VehicleMaintenanceInspectionLink.inspection_result_id,
+        VehicleMaintenanceInspectionLink.defect_no,
+    ).all()
+    links_by_maintenance = {}
+    links_by_defect = {}
+    for link in inspection_links:
+        links_by_maintenance.setdefault(link.maintenance_record_id, []).append({
+            "source_id": f"inspection:{link.inspection_result_id}",
+            "defect_no": link.defect_no,
+        })
+        links_by_defect.setdefault((link.inspection_result_id, link.defect_no), []).append(
+            f"maintenance:{link.maintenance_record_id}"
+        )
 
     def short(value, limit=400):
         return str(value or "").strip()[:limit]
@@ -24034,11 +25705,39 @@ def build_vehicle_karte_analysis_payload(
         }
 
     for row in maintenance:
+        # ATTACHED_INVOICE_AI_INPUT_V1
+        invoice_details = safe_json_dict(row.invoice_details_json)
+        invoice_attachment = {}
+        invoice_text = {
+            name: value.strip() if isinstance(value, str) else ""
+            for name, value in (
+                ("content", invoice_details.get("attached_invoice_content")),
+                ("notes", invoice_details.get("attached_invoice_notes")),
+            )
+        }
+        if (
+            isinstance(invoice_details.get("source"), dict)
+            and any(invoice_text.values())
+        ):
+            invoice_attachment["attached_invoice"] = {
+                **invoice_text,
+                "source": {
+                    key: invoice_details["source"].get(key)
+                    for key in ("sha256", "pages", "record_index")
+                },
+                "evidence_scope": (
+                    "Confirmed invoice text attached to this maintenance record. "
+                    "It does not independently confirm repair completion "
+                    "or inspection defect resolution."
+                ),
+            }
         add(
             "maintenance",
             row,
             row.entry_date or row.completion_date,
             {
+                **invoice_attachment,
+                "inspection_links": links_by_maintenance.get(row.id, []),
                 "type": "整備・修理",
                 "category": short(row.category),
                 "content": str(row.content or "").strip(),
@@ -24204,6 +25903,11 @@ def build_vehicle_karte_analysis_payload(
                 repair = {}
 
             treatments.append({
+                "defect_no": defect.get("defect_no"),
+                "maintenance_source_ids": links_by_defect.get((row.id, defect.get("defect_no")), []),
+                "recheck_result": short((defect.get("recheck") or {}).get("result")),
+                "recheck_date": short((defect.get("recheck") or {}).get("performed_at"), 30),
+                "recheck_note": str((defect.get("recheck") or {}).get("note") or "").strip(),
                 "item_no": defect.get("item_no"),
                 "status": short(defect.get("status")),
                 "repair_note": short(repair.get("note")),
@@ -24371,6 +26075,7 @@ def build_vehicle_karte_analysis_payload(
     payload = {
         "vehicle": {
             "model_code": vehicle.model_code,
+            "engine_code": getattr(vehicle, "engine_code", None),
             "manufacturer": vehicle.manufacturer,
             "first_registration_date": (
                 vehicle.first_registration_date
@@ -24423,6 +26128,62 @@ def build_vehicle_karte_analysis_payload(
     knowledge, knowledge_sources, knowledge_count = get_vehicle_maintenance_knowledge(
         vehicle, records=records,
     )
+    import copy
+
+    rule_timing_fingerprint = []
+    for knowledge_item in knowledge:
+        evidence = knowledge_item.get("maintenance_rule_evidence") or {}
+        for rule in evidence.get("rules", []):
+            adoption = rule.get("analysis_adoption") or {}
+            if adoption.get("status") != "adopted_for_analysis":
+                continue
+
+            timing = calculate_adopted_maintenance_rule_timing(
+                rule,
+                knowledge_item.get("part_name"),
+                preventive_facts,
+                summary,
+            )
+            rule["timing_facts"] = timing
+            adoption["calculation_permitted"] = (
+                timing["calculation_permitted"]
+            )
+            adoption["calculation_status"] = (
+                "evaluated"
+                if timing["calculation_permitted"]
+                else "held"
+            )
+            rule_timing_fingerprint.append({
+                "rule_key": adoption.get("rule_key"),
+                "timing_facts": timing,
+            })
+
+        source_id = knowledge_item["source_id"]
+        if source_id in knowledge_sources:
+            knowledge_sources[source_id]["snapshot"] = knowledge_item
+
+    knowledge_for_fingerprint = copy.deepcopy(knowledge)
+    for knowledge_item in knowledge_for_fingerprint:
+        evidence = knowledge_item.get("maintenance_rule_evidence") or {}
+        for rule in evidence.get("rules", []):
+            rule.pop("timing_facts", None)
+            adoption = rule.get("analysis_adoption")
+            if isinstance(adoption, dict):
+                adoption.pop("calculation_permitted", None)
+                adoption.pop("calculation_status", None)
+
+    fingerprints["routine_hash"] = hashlib.sha256(
+        json.dumps(
+            {
+                "history": fingerprints["routine_hash"],
+                "maintenance_rule_timing": rule_timing_fingerprint,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+
     payload["maintenance_knowledge"] = knowledge
     payload["knowledge_coverage"] = {
         "matching_count": knowledge_count,
@@ -24437,6 +26198,7 @@ def build_vehicle_karte_analysis_payload(
             **payload["vehicle"],
             "current_mileage": summary["current_mileage"],
             "current_mileage_date": summary.get("current_mileage_date"),
+            "mileage_reference": summary.get("mileage_reference"),
         }
         sources[source_id] = {
             "label": "車両台帳・登録済み走行距離",
@@ -24478,7 +26240,8 @@ def build_vehicle_karte_analysis_payload(
         json.dumps(
             {
                 "history": fingerprints["important_hash"],
-                "knowledge": knowledge, "feedback": feedback_context,
+                "knowledge": knowledge_for_fingerprint,
+                "feedback": feedback_context,
             },
             sort_keys=True, ensure_ascii=False, default=str,
         ).encode("utf-8")
@@ -24508,13 +26271,43 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
 
     if registration_scope not in {"same_year", "all_years"}:
         registration_scope = "same_year"
+    include_inactive = include_inactive is True
     result["registration_scope"] = registration_scope
     result["include_inactive"] = include_inactive
+    result["comparison_scope"] = {
+        "status": "available",
+        "model_code": model or None,
+        "registration_scope": registration_scope,
+        "reference_registration_year": (
+            int(year_match.group(1)) if year_match else None
+        ),
+        "registration_year_basis": "初度登録年。製造年月ではありません。",
+        "include_inactive": include_inactive,
+        "start_date": summary.get("start_date"),
+        "end_date": summary.get("end_date"),
+        "same_company_only": True,
+        "target_vehicle_excluded": True,
+        "cohort_vehicle_ids": [],
+        "active_vehicle_count": None,
+        "inactive_vehicle_count": None,
+        "status_unknown_vehicle_count": None,
+        "data_scope_note": (
+            "登録済み記録に基づく比較。比較台数と各指標の"
+            "sample_countは異なります。未登録を未交換・故障なしと扱いません。"
+        ),
+    }
     if not model:
+        result["comparison_scope"]["status"] = "missing_model"
         result["note"] = "型式が未登録のため比較できません。"
         return result
     if registration_scope == "same_year" and not year_match:
-        result["note"] = "初度登録年が未登録です。比較条件で「初度登録年を限定しない」を選べます。"
+        result["comparison_scope"]["status"] = "missing_registration_year"
+        result["note"] = (
+            "同じ初度登録年で比較する条件ですが、対象車両の初度登録年が"
+            "不明なため比較できません。比較対象0台という意味ではありません。"
+            "画面では「初度登録年を限定しない」で別条件の比較ができます。"
+            "画面の条件変更だけでは保存済み自動AIの条件は変わりません。"
+        )
         return result
 
     year = year_match.group(1) if year_match else None
@@ -24545,6 +26338,16 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         "対象車両は平均から除外。"
     )
     result["vehicle_count"] = len(peers)
+    result["comparison_scope"].update({
+        "status": "available" if peers else "no_peers",
+        "cohort_vehicle_ids": sorted(row.id for row in peers),
+        "active_vehicle_count": sum(row.deleted is False for row in peers),
+        "inactive_vehicle_count": sum(row.deleted is True for row in peers),
+        "status_unknown_vehicle_count": sum(
+            row.deleted is not False and row.deleted is not True
+            for row in peers
+        ),
+    })
 
     if not peers:
         result["note"] += " 比較対象車両がありません。"
@@ -24906,6 +26709,12 @@ def vehicle_karte_analysis(vehicle_record_id):
         defects,
         start.isoformat(),
         end.isoformat(),
+        periodic_records=(
+            VehiclePeriodicInspectionRecord.query.filter_by(
+                company_code=vehicle.company_code,
+                vehicle_record_id=vehicle.id,
+            ).all()
+        ),
     )
 
     number = vehicle_number({
@@ -25464,7 +27273,10 @@ def inject_vehicle_karte_choices():
                 measured_on = maintained_on = None
 
             if (
-                current_mileage is not None
+                operation_summary.get(
+                    "mileage_reference", {}
+                ).get("distance_usable") is True
+                and current_mileage is not None
                 and latest_record.mileage is not None
                 and measured_on is not None
                 and maintained_on is not None
@@ -29542,6 +31354,9 @@ def confirm_vehicle_import():
         duplicate_skip_count=duplicate_skip_count,
     )
 
+VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS = (('engine_code', '\u30a8\u30f3\u30b8\u30f3\u578b\u5f0f', 100),)
+
+
 def apply_vehicle_form_values(
     vehicle,
     form_data,
@@ -29576,6 +31391,11 @@ def apply_vehicle_form_values(
             field_key,
             validated_values[field_key]
         )
+
+    for field_key, field_label, max_length in VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS:
+        if field_key in form_data:
+            value = (form_data.get(field_key) or "").strip()
+            setattr(vehicle, field_key, value or None)
 
 
 def validate_vehicle_master_values(
@@ -29862,36 +31682,30 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
 
 
 def get_vehicle_operation_summary(company_code, vehicle_record_id):
-    latest_meter_record = (
-        VehicleOperationRecord.query
-        .filter(
-            VehicleOperationRecord.company_code == company_code,
-            VehicleOperationRecord.vehicle_record_id == vehicle_record_id,
-            VehicleOperationRecord.arrival_meter.isnot(None)
-        )
-        .order_by(
-            db.func.coalesce(
-                VehicleOperationRecord.arrival_at,
-                VehicleOperationRecord.operation_date
-            ).desc(),
-            VehicleOperationRecord.operation_date.desc(),
-            VehicleOperationRecord.id.desc()
-        )
-        .first()
+    operations = VehicleOperationRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id,
+    ).all()
+    maintenance = VehicleMaintenanceRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id,
+    ).all()
+
+    periodic = VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id,
+    ).all()
+
+    reference = build_vehicle_karte_mileage_reference(
+        maintenance,
+        operations,
+        datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat(),
+        periodic_records=periodic,
     )
-
-    if latest_meter_record is None:
-        return {
-            "current_mileage": None,
-            "mileage_date": None,
-        }
-
     return {
-        "current_mileage": latest_meter_record.arrival_meter,
-        "mileage_date": (
-            latest_meter_record.arrival_at
-            or latest_meter_record.operation_date
-        ),
+        "current_mileage": reference["value"],
+        "mileage_date": reference["date"],
+        "mileage_reference": reference,
     }
 
 
@@ -30298,6 +32112,13 @@ def get_vehicle_date_error(value, field_name):
     if not value:
         return None
 
+    # Certificate first registration has month precision; never invent a day.
+    if field_name == "初年度登録日" and re.fullmatch(r"[0-9]{4}-[0-9]{2}", value):
+        year, month = map(int, value.split("-"))
+        if 1 <= year <= 9999 and 1 <= month <= 12:
+            return None
+        return f"{field_name}が不正です。"
+
     try:
         datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
@@ -30349,6 +32170,8 @@ def validate_vehicle_text_fields(form_data):
         ("body_type", "車両形状", 100),
     ]
 
+    field_settings += list(VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS)
+
     errors = []
 
     for field_key, field_name, max_length in field_settings:
@@ -30369,10 +32192,97 @@ def validate_vehicle_text_fields(form_data):
     return errors
 
 
+@app.route("/master/vehicles/certificate/extract", methods=["POST"])
+@limiter.limit("5 per minute", methods=["POST"])
+def extract_vehicle_certificate_route():
+    """車検証から登録候補を抽出する。DB更新なし。"""
+    from flask import abort
+    from vehicle_certificate_ai import extract_vehicle_certificate
+    from vehicle_certificate_adapter import prepare_certificate_form
+
+    if not session.get("username") or not session.get("company_code"):
+        abort(403)
+
+    max_bytes = 20 * 1024 * 1024
+
+    if request.content_length and request.content_length > max_bytes + 65536:
+        return {"error": "ファイルは20MB以下にしてください。"}, 413
+
+    upload = request.files.get("certificate")
+    if upload is None or not upload.filename:
+        return {"error": "車検証ファイルを選択してください。"}, 400
+
+    filename = upload.filename.rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if extension not in {"pdf", "jpg", "jpeg", "png"}:
+        return {"error": "PDF・JPEG・PNGに対応しています。"}, 400
+
+    raw = upload.read(max_bytes + 1)
+    if not raw:
+        return {"error": "ファイルが空です。"}, 400
+    if len(raw) > max_bytes:
+        return {"error": "ファイルは20MB以下にしてください。"}, 413
+
+    valid_pdf = extension == "pdf" and raw.startswith(b"%PDF-")
+    valid_jpeg = extension in {"jpg", "jpeg"} and raw.startswith(b"\xff\xd8\xff")
+    valid_png = extension == "png" and raw.startswith(
+        b"\x89PNG\r\n\x1a\n"
+    )
+
+    if not (valid_pdf or valid_jpeg or valid_png):
+        return {"error": "ファイル形式が拡張子と一致しません。"}, 400
+
+    try:
+        extraction = extract_vehicle_certificate(raw, filename)
+
+        vehicle_types = [
+            item["name"]
+            for item in vehicle_types_for_current_company()
+        ]
+
+        prepared = prepare_certificate_form(extraction, vehicle_types)
+
+    except ValueError:
+        return {
+            "error": "車検証を読み取れませんでした。ファイルを確認してください。"
+        }, 422
+    except RuntimeError:
+        return {
+            "error": "AI読み取りに失敗しました。時間をおいて再試行してください。"
+        }, 502
+
+    response = jsonify({
+        "vehicle": prepared["form"],
+        "warnings": prepared["warnings"],
+        "needs_review": True,
+        "source_filename": filename,
+    })
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response, 200
+
+
+@app.route("/master/vehicles/certificate")
+def vehicle_certificate_register():
+    """車検証のAI読取・確認画面。車両データは変更しない。"""
+    from flask import abort
+
+    if not session.get("username") or not session.get("company_code"):
+        abort(403)
+
+    return render_template(
+        "vehicle_certificate_register.html",
+        vehicle_types=vehicle_types_for_current_company(),
+        offices=offices_for_current_company(),
+    )
+
+
 @app.route("/master/vehicles/register")
 def vehicle_registration_method():
     return render_template(
-        "vehicle_registration_method.html"
+        "vehicle_registration_method.html",
+        offices=offices_for_current_company(),
+        vehicle_types=vehicle_types_for_current_company(),
     )
 
 
@@ -30682,6 +32592,11 @@ def edit_vehicle(index):
                 ]
             }
 
+            previous_values.update({
+                key: getattr(vehicle, key, None)
+                for key, label, limit in VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS
+            })
+
             return render_template(
                 "vehicle_edit_confirm.html",
                 vehicle=confirmation_values,
@@ -30731,6 +32646,11 @@ def edit_vehicle(index):
         "office": vehicle.office,
         "inspection_expiry": vehicle.inspection_expiry,
     }
+
+    vehicle_dict.update({
+        key: getattr(vehicle, key, None)
+        for key, label, limit in VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS
+    })
 
     vehicle_dict = {
         key: "" if value is None else value
@@ -33094,13 +35014,13 @@ def edit_checklist_result(result_index):
 
     if result_record.status == "承認済み":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
 
     if not can_manage_checklist_result(result):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     checklist_record = Checklist.query.filter_by(
         id=result_record.checklist_id,
@@ -33128,7 +35048,7 @@ def edit_checklist_result(result_index):
 
         if result_record.status == "承認済み":
             return redirect(
-                f"/safety/checklist-results/{result_index}"
+                url_for("checklist_result_detail", result_index=result_index)
             )
 
         db.session.refresh(result_record)
@@ -33136,7 +35056,7 @@ def edit_checklist_result(result_index):
 
         if not can_manage_checklist_result(result):
             return redirect(
-                f"/safety/checklist-results/{result_index}"
+                url_for("checklist_result_detail", result_index=result_index)
             )
 
         checklist = (
@@ -33981,13 +35901,13 @@ def delete_checklist_result(result_index):
 
     if result_record.status == "承認済み":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
 
     if not can_manage_checklist_result(result):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     checklist_id = result_record.checklist_id
 
@@ -35117,148 +37037,18 @@ def save_vehicle_inspection_repair(result_index, defect_no):
         return jsonify({"success": True})
 
     try:
-        updated = VehicleChecklistResult.query.filter_by(
-            id=result_record.id,
-            company_code=company_code,
-            operation_judgment_json=previous_json
-        ).update(
-            {"operation_judgment_json": json.dumps(judgment, ensure_ascii=False)},
-            synchronize_session=False
+        if not is_recheck:
+            carry_inspection_repair_to_maintenance(
+                result_record, defect_no, previous_defect, repair, current_user,
+            )
+        notification_targets = persist_vehicle_inspection_repair(
+            result_record, company_code, current_user, previous_json, judgment,
+            next_status, repair, previous_defect, defect, previous, is_recheck,
         )
-        if updated != 1:
-            db.session.rollback()
-            return return_form_errors([
-                ("不具合対応が更新されています。再読み込みしてください。", "")
-            ], 409)
-
-        invalidate_other_vehicle_operation_judgments(result_record)
-
-        db.session.add(ChecklistEvent(
-            company_code=company_code,
-            result_type="vehicle",
-            result_id=result_record.id,
-            event_type=next_status,
-            actor_username=current_user.username,
-            actor_name=repair["performed_by"],
-            created_at=repair["recorded_at"],
-            detail_json=json.dumps({
-                "previous_defect": previous_defect,
-                "defect": defect,
-                "repair": {} if is_recheck else repair,
-                "recheck": repair if is_recheck else {},
-                "previous_judgment": previous,
-            }, ensure_ascii=False)
-        ))
-
-        notification_targets = []
-        if next_status == "再確認待ち" or is_recheck:
-            target_usernames = set(previous.get("requested_usernames") or [])
-
-            if not target_usernames:
-                inspector = User.query.filter_by(
-                    company_code=company_code,
-                    username=result_record.checked_by_username
-                ).first()
-
-                if inspector and inspector.office:
-                    target_usernames.update(
-                        user.username
-                        for user in User.query.filter_by(
-                            company_code=company_code,
-                            office=inspector.office,
-                            role="admin"
-                        ).all()
-                    )
-
-            if result_record.checked_by_username:
-                target_usernames.add(result_record.checked_by_username)
-
-            vehicle = Vehicle.query.filter_by(
-                id=result_record.vehicle_record_id,
-                company_code=company_code
-            ).first()
-            vehicle_name = (
-                " ".join(value for value in [
-                    vehicle.plate_area or "",
-                    vehicle.plate_class or "",
-                    vehicle.plate_kana or "",
-                    vehicle.plate_number or ""
-                ] if value)
-                if vehicle else ""
-            ) or f"車両ID：{result_record.vehicle_record_id}"
-
-            item_name = (
-                defect.get("reported_answer", {}).get("content") or ""
-            )
-
-            if not is_recheck:
-                notification_action = "再確認待ち"
-                next_action = (
-                    "整備した箇所を再確認し、再確認結果を登録してください。"
-                )
-            elif next_status == "解消":
-                notification_action = "再確認済み・異常なし"
-                next_action = (
-                    "この不具合の再確認は完了しました。"
-                    "整備管理者は、ほかの未解消の不具合と点検結果を確認し、"
-                    "運行可否を判断してください。"
-                )
-            else:
-                notification_action = "再確認で異常あり"
-                next_action = (
-                    "異常が残っています。整備内容を確認し、"
-                    "追加の整備を登録してください。"
-                )
-
-            notification_title = (
-                f"{vehicle_name}：{notification_action}"
-            )
-            notification_message = (
-                f"対象車両：{vehicle_name}\n"
-                f"点検日：{result_record.year}/{result_record.month}/{result_record.day}\n"
-                f"項目：No.{int(defect.get('item_no', 0)) + 1} {item_name}\n"
-                f"対応状況：{next_status}\n"
-                f"次にすること：{next_action}\n"
-                f"実施者：{repair['performed_by']}\n"
-                f"実施日時：{repair['performed_at']}\n"
-                f"内容：{repair['note']}"
-            )
-            notification_link = url_for(
-                "vehicle_checklist_results",
-                index=result_record.checklist_id,
-                vehicle_record_id=result_record.vehicle_record_id,
-                year=result_record.year,
-                month=result_record.month,
-                active_day=result_record.day
-            ) + (
-                f"#vehicle-flow-defect-{result_record.id}-"
-                f"{defect.get('defect_no')}"
-            )
-
-            for target_username in sorted(target_usernames):
-                target_user = User.query.filter_by(
-                    company_code=company_code,
-                    username=target_username
-                ).first()
-                if not target_user:
-                    continue
-
-                notification = Notification(
-                    company_code=company_code,
-                    target_user=(target_user.last_name or "")
-                    + (target_user.first_name or ""),
-                    target_username=target_user.username,
-                    title=notification_title,
-                    message=notification_message,
-                    link=notification_link,
-                    files_json="[]",
-                    read=False,
-                    created_at=repair["notification_created_at"]
-                )
-                db.session.add(notification)
-                notification_targets.append((target_user, notification))
-
         db.session.commit()
+    except ValueError:
+        db.session.rollback()
+        return return_form_errors([("不具合対応が更新されています。再読み込みしてください。", "")], 409)
     except Exception:
         db.session.rollback()
         app.logger.exception("日常点検の整備内容の保存に失敗しました。")
@@ -35362,6 +37152,7 @@ def save_vehicle_inspection_repair(result_index, defect_no):
     if request.headers.get("X-DKSS-Final-Submit") == "1":
         return jsonify({"redirect_url": redirect_url})
     return redirect(redirect_url)
+
 
 
 @app.route(
@@ -42465,7 +44256,7 @@ def approve_checklist_result(result_index, approval_index):
 
     if result_record.status != "承認待ち":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
@@ -42507,7 +44298,7 @@ def approve_checklist_result(result_index, approval_index):
             })
 
     if approval_index < 0 or approval_index >= len(approvals):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     if any(
         not (
@@ -42517,7 +44308,7 @@ def approve_checklist_result(result_index, approval_index):
         for item in approvals[:approval_index]
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     current_approval_index = next(
@@ -42534,7 +44325,7 @@ def approve_checklist_result(result_index, approval_index):
 
     if approval_index != current_approval_index:
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     approval = approvals[approval_index]
@@ -42579,11 +44370,11 @@ def approve_checklist_result(result_index, approval_index):
         or approval.get("approved_by_username")
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     if not can_approve_checklist_result(result, approval):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     approval["approved_by"] = session.get("name")
     approval["approved_by_username"] = session.get("username")    
@@ -42741,7 +44532,7 @@ def reject_checklist_result(result_index):
 
     if result_record.status != "承認待ち":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
@@ -42838,7 +44629,7 @@ def reject_checklist_result(result_index):
         current_approval
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     reject_reason = request.form.get(
@@ -42951,6 +44742,50 @@ def reject_checklist_result(result_index):
 def init_db():
     with app.app_context():
         db.create_all()
+
+        # VEHICLE_MAINTENANCE_ATTRIBUTES_MIGRATION
+        maintenance_columns = {
+            column["name"]
+            for column in inspect(db.engine).get_columns(Vehicle.__tablename__)
+        }
+        maintenance_columns_added = False
+        for field_key, field_label, max_length in VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS:
+            if field_key in maintenance_columns:
+                continue
+            optional = (
+                "IF NOT EXISTS "
+                if db.engine.dialect.name == "postgresql" else ""
+            )
+            statement = (
+                f"ALTER TABLE {Vehicle.__tablename__} ADD COLUMN "
+                f"{optional}{field_key} VARCHAR({max_length})"
+            )
+            db.session.execute(db.text(statement))
+            maintenance_columns_added = True
+        if maintenance_columns_added:
+            db.session.commit()
+
+        public_catalog_columns = {
+            column["name"]
+            for column in inspect(db.engine).get_columns(
+                "public_knowledge_catalog"
+            )
+        }
+        if "requested_scope_hash" not in public_catalog_columns:
+            if db.engine.dialect.name == "postgresql":
+                statement = (
+                    "ALTER TABLE public_knowledge_catalog "
+                    "ADD COLUMN IF NOT EXISTS "
+                    "requested_scope_hash VARCHAR(64)"
+                )
+            else:
+                statement = (
+                    "ALTER TABLE public_knowledge_catalog "
+                    "ADD COLUMN requested_scope_hash VARCHAR(64)"
+                )
+            db.session.execute(db.text(statement))
+            db.session.commit()
+
 
         inspector = inspect(db.engine)
 

@@ -1,3 +1,211 @@
+// certificate-invoice-controls-v1: shared by both import screens.
+(() => {
+    "use strict";
+    const initialized = new WeakSet();
+    window.DkssInvoiceReviewControls = root => {
+        if (!root || initialized.has(root)) return;
+        initialized.add(root);
+        const blocks = root.matches("[data-invoice-document]")
+            ? [root] : Array.from(root.querySelectorAll("[data-invoice-document]"));
+        blocks.forEach(block => {
+            const disclosure = block.querySelector(
+                ".invoice-source-disclosure"
+            );
+            const layout = block.querySelector(".invoice-review-layout");
+            const sourceToggle = block.querySelector("[data-view-switch]");
+
+            if (disclosure && layout && sourceToggle) {
+                function updateSourceVisibility() {
+                    const visible = disclosure.open;
+
+                    layout.classList.toggle("is-source-hidden", !visible);
+
+                    const mode = visible ? "source" : "focus";
+
+                    block.querySelectorAll(".invoice-overview-details").forEach(details => {
+                        if (details.dataset.reviewMode !== mode) {
+                            details.open = true;
+                            details.dataset.reviewMode = mode;
+                        }
+                    });
+
+                    block.querySelectorAll(".invoice-metadata").forEach(details => {
+                        if (details.dataset.reviewMode !== mode) {
+                            details.open = !visible;
+                            details.dataset.reviewMode = mode;
+                        }
+                    });
+                    sourceToggle.querySelectorAll("[data-document-view]").forEach(button => {
+                        const selected = button.dataset.documentView === (
+                            visible ? "source" : "focus"
+                        );
+                        button.setAttribute("aria-pressed", String(selected));
+                    });
+
+                    block.querySelectorAll("[data-review-view]").forEach(button => {
+                        const selected = button.dataset.reviewView === (
+                            visible ? "source" : "results"
+                        );
+                        button.setAttribute("aria-pressed", String(selected));
+                    });
+                }
+
+                block.querySelectorAll("[data-review-view]").forEach(button => {
+                    button.addEventListener("click", () => {
+                        disclosure.open = button.dataset.reviewView === "source";
+                        updateSourceVisibility();
+                    });
+                });
+
+                disclosure.open = true;
+
+                sourceToggle.addEventListener("click", event => {
+                    const button = event.target.closest("[data-document-view]");
+                    if (!button || !sourceToggle.contains(button)) return;
+
+                    disclosure.open = button.dataset.documentView === "source";
+                    updateSourceVisibility();
+                });
+
+                disclosure.addEventListener(
+                    "toggle",
+                    updateSourceVisibility
+                );
+
+                updateSourceVisibility();
+            }
+        });
+        root.querySelectorAll(".invoice-review-layout").forEach(layout => {
+            const splitter = layout.querySelector(".invoice-splitter");
+            const source = layout.querySelector(".invoice-source-panel");
+            if (!splitter || !source) return;
+
+            let ratio = 0.55;
+            let drag = null;
+            const narrow = window.matchMedia("(max-width: 1000px)");
+
+            function availableWidth() {
+                const style = getComputedStyle(layout);
+                const gap = parseFloat(style.columnGap) || 0;
+                return Math.max(
+                    1,
+                    layout.clientWidth - splitter.offsetWidth - gap * 2
+                );
+            }
+
+            function applyRatio(nextRatio) {
+                if (narrow.matches || !layout.clientWidth) return;
+
+                const available = availableWidth();
+                const minimum = Math.min(280, available / 2);
+                const maximum = available - Math.min(300, available / 2);
+                const width = Math.max(
+                    minimum,
+                    Math.min(maximum, available * nextRatio)
+                );
+
+                ratio = width / available;
+                layout.style.setProperty(
+                    "--invoice-source-width",
+                    (width / layout.clientWidth * 100) + "%"
+                );
+
+                splitter.setAttribute(
+                    "aria-valuemin",
+                    String(Math.round(minimum / available * 100))
+                );
+                splitter.setAttribute(
+                    "aria-valuemax",
+                    String(Math.round(maximum / available * 100))
+                );
+                splitter.setAttribute(
+                    "aria-valuenow",
+                    String(Math.round(ratio * 100))
+                );
+                splitter.setAttribute(
+                    "aria-valuetext",
+                    "原本 " + Math.round(ratio * 100)
+                        + "％、確認内容 " + Math.round((1 - ratio) * 100) + "％"
+                );
+            }
+
+            function endResize() {
+                if (!drag) return;
+                const pointerId = drag.pointerId;
+                drag = null;
+                layout.classList.remove("is-resizing");
+
+                if (splitter.hasPointerCapture(pointerId)) {
+                    splitter.releasePointerCapture(pointerId);
+                }
+            }
+
+            splitter.addEventListener("pointerdown", event => {
+                if (
+                    narrow.matches
+                    || event.button !== 0
+                    || !event.isPrimary
+                ) return;
+
+                drag = {
+                    pointerId: event.pointerId,
+                    x: event.clientX,
+                    width: source.getBoundingClientRect().width
+                };
+
+                splitter.setPointerCapture(event.pointerId);
+                splitter.focus({ preventScroll: true });
+                layout.classList.add("is-resizing");
+                event.preventDefault();
+            });
+
+            splitter.addEventListener("pointermove", event => {
+                if (!drag || event.pointerId !== drag.pointerId) return;
+
+                if (
+                    event.pointerType === "mouse"
+                    && (event.buttons & 1) === 0
+                ) {
+                    endResize();
+                    return;
+                }
+
+                applyRatio(
+                    (drag.width + event.clientX - drag.x) / availableWidth()
+                );
+                event.preventDefault();
+            });
+
+            splitter.addEventListener("pointerup", endResize);
+            splitter.addEventListener("pointercancel", endResize);
+            splitter.addEventListener("lostpointercapture", endResize);
+            window.addEventListener("blur", endResize);
+
+            splitter.addEventListener("dblclick", () => applyRatio(0.55));
+
+            splitter.addEventListener("keydown", event => {
+                if (event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    applyRatio(ratio - 0.03);
+                } else if (event.key === "ArrowRight") {
+                    event.preventDefault();
+                    applyRatio(ratio + 0.03);
+                } else if (event.key === "Home") {
+                    event.preventDefault();
+                    applyRatio(0.55);
+                }
+            });
+
+            new ResizeObserver(() => applyRatio(ratio)).observe(layout);
+            narrow.addEventListener("change", () => {
+                endResize();
+                applyRatio(ratio);
+            });
+            applyRatio(ratio);
+        });
+    };
+})();
+
 (() => {
     "use strict";
 
@@ -28,8 +236,71 @@
         );
     }
 
+    function initializeInvoiceServiceMatches(form) {
+        form.querySelectorAll('[data-invoice-service-match]').forEach(section => {
+            const record = section.closest('.invoice-record');
+            const key = record.dataset.recordKey;
+            const field = name => form.elements.namedItem(name + '_' + key);
+            const select = field('service_match');
+            const message = section.querySelector('[data-service-match-message]');
+            let generation = 0;
+            let signature = '';
+            const refresh = async () => {
+                const context = [field('vehicle')?.value || '', field('date')?.value || '', field('completion_date')?.value || ''];
+                const nextSignature = JSON.stringify(context);
+                if (signature === nextSignature) return;
+                const first = signature === '';
+                signature = nextSignature;
+                const current = ++generation;
+                const saved = first ? select.dataset.savedChoice : '';
+                select.replaceChildren(new Option('確認してください', ''));
+                select.disabled = true;
+                section.hidden = true;
+                if (!context[0] || (!context[1] && !context[2])) return;
+                const url = new URL(section.dataset.candidatesUrl, window.location.origin);
+                url.searchParams.set('vehicle_id', context[0]);
+                url.searchParams.set('record_date', context[1]);
+                url.searchParams.set('completion_date', context[2]);
+                try {
+                    const response = await fetch(url, {credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+                    if (!response.ok) throw new Error('Candidate lookup failed');
+                    const data = await response.json();
+                    if (current !== generation) return;
+                    if (!Array.isArray(data.candidates)) throw new Error('Invalid candidates');
+                    if (!data.candidates.length) return;
+                    data.candidates.forEach(candidate => {
+                        const kind = candidate.kind === 'inspection' ? '定期点検' : '整備';
+                        const date = candidate.completion_date || candidate.record_date || '';
+                        select.add(new Option(`${kind} ${date} ${candidate.content || '内容未登録'}`, candidate.token));
+                    });
+                    select.add(new Option('別の整備として取り込む', 'new'));
+                    if ([...select.options].some(option => option.value === saved)) select.value = saved;
+                    message.textContent = '同じ作業日の記録があります。日付だけでは同じ整備か判断できないため、今回の請求に対応する記録を確認してください。';
+                    select.disabled = false;
+                    section.hidden = false;
+                } catch (error) {
+                    if (current !== generation) return;
+                    signature = '';
+                    section.hidden = false;
+                    message.textContent = '整備候補を確認できませんでした。通信状態を確認して画面を再読み込みしてください。';
+                }
+            };
+            ['vehicle', 'date', 'completion_date'].forEach(name => {
+                field(name)?.addEventListener('change', refresh);
+            });
+            // Existing reset buttons restore these fields programmatically.
+            form.addEventListener('click', event => {
+                if (event.target.closest('[data-reset-info]')?.closest('.invoice-record') === record) {
+                    queueMicrotask(refresh);
+                }
+            });
+            refresh();
+        });
+    }
+
     function initialize() {
         const form = document.querySelector(".vehicle-document-import-preview");
+        if (form) initializeInvoiceServiceMatches(form);
         if (!form) return;
 
         const submitActions = form.querySelector(".invoice-submit-actions");
@@ -837,72 +1108,7 @@
 
             if (active) activate(block, active.dataset.recordTarget);
 
-            const disclosure = block.querySelector(
-                ".invoice-source-disclosure"
-            );
-            const layout = block.querySelector(".invoice-review-layout");
-            const sourceToggle = block.querySelector("[data-view-switch]");
 
-            if (disclosure && layout && sourceToggle) {
-                function updateSourceVisibility() {
-                    const visible = disclosure.open;
-
-                    layout.classList.toggle("is-source-hidden", !visible);
-
-                    const mode = visible ? "source" : "focus";
-
-                    block.querySelectorAll(".invoice-overview-details").forEach(details => {
-                        if (details.dataset.reviewMode !== mode) {
-                            details.open = true;
-                            details.dataset.reviewMode = mode;
-                        }
-                    });
-
-                    block.querySelectorAll(".invoice-metadata").forEach(details => {
-                        if (details.dataset.reviewMode !== mode) {
-                            details.open = !visible;
-                            details.dataset.reviewMode = mode;
-                        }
-                    });
-                    sourceToggle.querySelectorAll("[data-document-view]").forEach(button => {
-                        const selected = button.dataset.documentView === (
-                            visible ? "source" : "focus"
-                        );
-                        button.setAttribute("aria-pressed", String(selected));
-                    });
-
-                    block.querySelectorAll("[data-review-view]").forEach(button => {
-                        const selected = button.dataset.reviewView === (
-                            visible ? "source" : "results"
-                        );
-                        button.setAttribute("aria-pressed", String(selected));
-                    });
-                }
-
-                block.querySelectorAll("[data-review-view]").forEach(button => {
-                    button.addEventListener("click", () => {
-                        disclosure.open = button.dataset.reviewView === "source";
-                        updateSourceVisibility();
-                    });
-                });
-
-                disclosure.open = true;
-
-                sourceToggle.addEventListener("click", event => {
-                    const button = event.target.closest("[data-document-view]");
-                    if (!button || !sourceToggle.contains(button)) return;
-
-                    disclosure.open = button.dataset.documentView === "source";
-                    updateSourceVisibility();
-                });
-
-                disclosure.addEventListener(
-                    "toggle",
-                    updateSourceVisibility
-                );
-
-                updateSourceVisibility();
-            }
         });
 
         form.querySelectorAll("[data-invoice-document]").forEach(block => {
@@ -1008,134 +1214,7 @@
             updateStatus();
         });
 
-        form.querySelectorAll(".invoice-review-layout").forEach(layout => {
-            const splitter = layout.querySelector(".invoice-splitter");
-            const source = layout.querySelector(".invoice-source-panel");
-            if (!splitter || !source) return;
-
-            let ratio = 0.55;
-            let drag = null;
-            const narrow = window.matchMedia("(max-width: 1000px)");
-
-            function availableWidth() {
-                const style = getComputedStyle(layout);
-                const gap = parseFloat(style.columnGap) || 0;
-                return Math.max(
-                    1,
-                    layout.clientWidth - splitter.offsetWidth - gap * 2
-                );
-            }
-
-            function applyRatio(nextRatio) {
-                if (narrow.matches || !layout.clientWidth) return;
-
-                const available = availableWidth();
-                const minimum = Math.min(280, available / 2);
-                const maximum = available - Math.min(300, available / 2);
-                const width = Math.max(
-                    minimum,
-                    Math.min(maximum, available * nextRatio)
-                );
-
-                ratio = width / available;
-                layout.style.setProperty(
-                    "--invoice-source-width",
-                    (width / layout.clientWidth * 100) + "%"
-                );
-
-                splitter.setAttribute(
-                    "aria-valuemin",
-                    String(Math.round(minimum / available * 100))
-                );
-                splitter.setAttribute(
-                    "aria-valuemax",
-                    String(Math.round(maximum / available * 100))
-                );
-                splitter.setAttribute(
-                    "aria-valuenow",
-                    String(Math.round(ratio * 100))
-                );
-                splitter.setAttribute(
-                    "aria-valuetext",
-                    "原本 " + Math.round(ratio * 100)
-                        + "％、確認内容 " + Math.round((1 - ratio) * 100) + "％"
-                );
-            }
-
-            function endResize() {
-                if (!drag) return;
-                const pointerId = drag.pointerId;
-                drag = null;
-                layout.classList.remove("is-resizing");
-
-                if (splitter.hasPointerCapture(pointerId)) {
-                    splitter.releasePointerCapture(pointerId);
-                }
-            }
-
-            splitter.addEventListener("pointerdown", event => {
-                if (
-                    narrow.matches
-                    || event.button !== 0
-                    || !event.isPrimary
-                ) return;
-
-                drag = {
-                    pointerId: event.pointerId,
-                    x: event.clientX,
-                    width: source.getBoundingClientRect().width
-                };
-
-                splitter.setPointerCapture(event.pointerId);
-                splitter.focus({ preventScroll: true });
-                layout.classList.add("is-resizing");
-                event.preventDefault();
-            });
-
-            splitter.addEventListener("pointermove", event => {
-                if (!drag || event.pointerId !== drag.pointerId) return;
-
-                if (
-                    event.pointerType === "mouse"
-                    && (event.buttons & 1) === 0
-                ) {
-                    endResize();
-                    return;
-                }
-
-                applyRatio(
-                    (drag.width + event.clientX - drag.x) / availableWidth()
-                );
-                event.preventDefault();
-            });
-
-            splitter.addEventListener("pointerup", endResize);
-            splitter.addEventListener("pointercancel", endResize);
-            splitter.addEventListener("lostpointercapture", endResize);
-            window.addEventListener("blur", endResize);
-
-            splitter.addEventListener("dblclick", () => applyRatio(0.55));
-
-            splitter.addEventListener("keydown", event => {
-                if (event.key === "ArrowLeft") {
-                    event.preventDefault();
-                    applyRatio(ratio - 0.03);
-                } else if (event.key === "ArrowRight") {
-                    event.preventDefault();
-                    applyRatio(ratio + 0.03);
-                } else if (event.key === "Home") {
-                    event.preventDefault();
-                    applyRatio(0.55);
-                }
-            });
-
-            new ResizeObserver(() => applyRatio(ratio)).observe(layout);
-            narrow.addEventListener("change", () => {
-                endResize();
-                applyRatio(ratio);
-            });
-            applyRatio(ratio);
-        });
+        window.DkssInvoiceReviewControls(form);
 
         form.addEventListener("click", event => {
             const button = event.target.closest("button");

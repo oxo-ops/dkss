@@ -23,32 +23,79 @@
     let referenceFeedbackHistory = [];
 
     function feedbackHistory(panel = node("details", "ka-feedback-history")) {
+        panel.open = true;
         const summary = node("summary", "ka-info-summary");
         summary.append(
-            node("strong", "", "過去の提案と対応履歴（直近30件）"),
+            node(
+                "strong",
+                "",
+                `過去の提案と対応履歴（${referenceFeedbackHistory.length}件／直近30件）`
+            ),
             node(
                 "span",
                 "ka-info-summary-description",
                 "これまでに提案された内容と対応状況を確認できます"
             )
         );
-        panel.replaceChildren(summary);
+        const historyList = node("div", "ka-history-list");
+        historyList.setAttribute("role", "region");
+        historyList.setAttribute("aria-label", "過去の提案と対応履歴");
+
+        panel.replaceChildren(summary, historyList);
+
         const labels = {
             open: "未着手", accepted: "採用", in_progress: "対応中",
             completed: "完了", dismissed: "見送り"
         };
         if (!referenceFeedbackHistory.length) {
-            panel.append(node("p", "kc-muted", "保存された対応はありません。"));
+            historyList.append(
+                node("p", "kc-muted ka-history-empty", "保存された対応はありません。")
+            );
         }
         for (const entry of referenceFeedbackHistory) {
-            const row = node("div");
-            row.style.cssText = "padding:10px 0;border-bottom:1px solid #e5edf5;";
-            row.append(
-                node("strong", "", `${entry.target} · ${labels[entry.status] || entry.status}`),
-                node("p", "kc-muted", [entry.at, entry.by].filter(Boolean).join(" · ")),
-                node("p", "", entry.action || "")
+            const row = node("article", "ka-history-item");
+            row.dataset.status = entry.status || "open";
+
+            const header = node("div", "ka-history-item-header");
+
+            const target = node(
+                "strong",
+                "ka-history-item-target",
+                entry.target || "確認項目"
             );
-            if (entry.comment) row.append(node("p", "", entry.comment));
+
+            const state = node(
+                "span",
+                "ka-history-item-status",
+                labels[entry.status] || entry.status || "未着手"
+            );
+            state.dataset.status = entry.status || "open";
+
+            header.append(target, state);
+            row.append(header);
+
+            const meta = [entry.at, entry.by].filter(Boolean).join(" · ");
+            if (meta) {
+                row.append(node("p", "ka-history-item-meta", meta));
+            }
+
+            if (entry.action) {
+                const action = node("div", "ka-history-item-action");
+                action.append(
+                    node("span", "ka-history-item-label", "提案内容"),
+                    node("p", "", entry.action)
+                );
+                row.append(action);
+            }
+
+            if (entry.comment) {
+                const comment = node("div", "ka-history-item-comment");
+                comment.append(
+                    node("span", "ka-history-item-label", "対応コメント"),
+                    node("p", "", entry.comment)
+                );
+                row.append(comment);
+            }
             const record = entry.maintenance_record;
             if (record?.url) {
                 try {
@@ -60,7 +107,7 @@
                     }
                 } catch {}
             }
-            panel.append(row);
+            historyList.append(row);
         }
         return panel;
     }
@@ -488,29 +535,110 @@
         return section;
     }
 
-    function referenceComparison() {
+    function referenceComparison(snapshot) {
         const section = node("section", "ka-reference-comparison");
-        let context = {};
-        try {
-            context = JSON.parse(
-                document.getElementById("ka-reference-context")?.textContent || "{}"
-            );
-        } catch {
-            context = {};
-        }
-        const count = Number.isInteger(context.vehicle_count)
-            ? `${context.vehicle_count}台` : "未確認";
-        section.append(
-            node("h4", "", "比較の条件"),
-            node("p", "ka-reference-note", [
-                "同じ会社・同型式（選択中の比較条件）",
-                `型式：${context.model || "未登録"}`,
-                `期間：${context.start_date || "未確認"} ～ ${context.end_date || "未確認"}`,
-                `比較対象：${count}（この車両を除く）`
-            ].join("\n"))
+        section.append(node("h4", "", "AI分析時の比較条件"));
+
+        const scope = snapshot?.comparison_scope;
+        const countLabel = value => (
+            Number.isInteger(value) && value >= 0
+                ? `${value}台` : "不明"
         );
-        if (context.note) section.append(node("p", "kc-muted", context.note));
-        const button = node("button", "ka-reference-detail-button", "比較条件・母数 →");
+
+        if (scope && typeof scope === "object" && !Array.isArray(scope)) {
+            const year = Number.isInteger(scope.reference_registration_year)
+                ? `${scope.reference_registration_year}年` : "不明";
+            const registration = scope.registration_scope === "same_year"
+                ? `同じ初度登録年（基準：${year}）`
+                : scope.registration_scope === "all_years"
+                    ? "初度登録年を限定しない" : "条件未記録";
+            const active = scope.include_inactive === true
+                ? "無効車両を含む"
+                : scope.include_inactive === false
+                    ? "有効車両のみ" : "条件未記録";
+
+            const comparisonFacts = node("dl", "ka-comparison-facts");
+
+            const comparisonRows = [
+                ["型式", scope.model_code || "不明"],
+                [
+                    "対象期間",
+                    `${scope.start_date || "不明"} ～ ${scope.end_date || "不明"}`
+                ],
+                ["初度登録年", registration],
+                ["車両状態", active],
+                [
+                    "比較対象",
+                    `${countLabel(snapshot.vehicle_count)}（この車両を除く）`
+                ]
+            ];
+
+            for (const [label, value] of comparisonRows) {
+                const row = node("div", "ka-comparison-fact");
+                row.append(
+                    node("dt", "", label),
+                    node("dd", "", value)
+                );
+                comparisonFacts.append(row);
+            }
+
+            section.append(comparisonFacts);
+
+            if (snapshot.note) {
+                section.append(node("p", "kc-muted", snapshot.note));
+            }
+
+            const metrics = Array.isArray(snapshot.metrics)
+                ? snapshot.metrics : [];
+            if (metrics.length) {
+                const metricSection = node(
+                    "div", "ka-comparison-metrics-section"
+                );
+                metricSection.append(
+                    node("h5", "", "比較指標の母数")
+                );
+
+                const samples = node("dl", "ka-comparison-facts");
+
+                for (const metric of metrics) {
+                    if (!metric || typeof metric !== "object") continue;
+
+                    const row = node("div", "ka-comparison-fact");
+                    const count = metric.sample_count;
+
+                    const detail = count === 0
+                        ? "0台（比較値なし）"
+                        : count === 1
+                            ? "1台（1台の実績）"
+                            : countLabel(count);
+
+                    row.append(
+                        node("dt", "", metric.label || "指標名未記録"),
+                        node("dd", "", detail)
+                    );
+
+                    samples.append(row);
+                }
+
+                metricSection.append(samples);
+                section.append(metricSection);
+            }
+            section.append(node(
+                "p", "kc-muted",
+                "初度登録年は製造年月とは異なります。登録0件は未交換・故障なしの証明ではありません。"
+            ));
+        } else {
+            section.append(node(
+                "p", "ka-reference-note",
+                "この保存結果には比較条件が記録されていません。次回の分析更新後に確認できます。"
+            ));
+        }
+
+        section.append(node(
+            "p", "kc-muted",
+            "下のボタンでは、現在の画面の選択条件による比較表を開きます。"
+        ));
+        const button = node("button", "ka-reference-detail-button", "比較表を表示");
         button.type = "button";
         button.addEventListener("click", () => {
             closeReferenceDrawer();
@@ -694,7 +822,7 @@
                     node("p", "ka-reference-note", item.uncertainty),
                     referenceConfirmation(item),
                     node("p", "ka-reference-note", `現在の状態：${item.current_state || "記録を確認"}\n対応の目安：${item.timing || "時期の判断材料不足"}`),
-                    referenceComparison(),
+                    referenceComparison(data.comparison),
                     node("h4", "", "対応を記録")
                 );
                 const labels = {
@@ -704,7 +832,7 @@
                 const state = item.feedback?.status || "open";
                 const badge = node("span", "ka-reference-state", labels[state] || "未着手");
                 badge.dataset.state = state;
-                const button = node("button", "ka-reference-detail-button", "詳細を見る ↗");
+                const button = node("button", "ka-reference-detail-button", "詳細・対応記録");
                 button.type = "button";
                 button.addEventListener("click", () => openReferenceDrawer(item, detail, button));
                 if (!referenceLinkedProposalOpened && item.proposal_id
@@ -782,6 +910,66 @@
 
                 details.append(state, action);
 
+                const insights = node("div", "ka-action-insights");
+
+                const reason = node("section", "ka-action-insight");
+                reason.append(
+                    node("h6", "", "勧める理由"),
+                    node("p", "", item.reason || "判断理由を確認してください")
+                );
+
+                const evidence = node("section", "ka-action-insight");
+                evidence.append(node("h6", "", "根拠となる記録"));
+
+                const evidenceList = node("ul", "ka-action-insight-list");
+                const sourceIds = (item.source_ids || [])
+                    .filter(id => data.sources?.[id])
+                    .slice(0, 3);
+
+                for (const id of sourceIds) {
+                    const source = data.sources[id];
+                    const li = node("li");
+                    const link = node(
+                        "a", "", source.label || "記録を確認"
+                    );
+                    const url = new URL(
+                        source.url, window.location.origin
+                    );
+                    if (url.origin === window.location.origin) {
+                        link.href = url.href;
+                        link.target = "_blank";
+                        link.rel = "noopener noreferrer";
+                        li.append(link);
+                    } else {
+                        li.textContent = source.label || "記録";
+                    }
+                    evidenceList.append(li);
+                }
+
+                if (!sourceIds.length) {
+                    evidenceList.append(
+                        node("li", "", "参照記録を確認")
+                    );
+                }
+                evidence.append(evidenceList);
+
+                const steps = node("section", "ka-action-insight");
+                steps.append(node("h6", "", "次の確認手順"));
+
+                const stepsList = node("ol", "ka-action-insight-list");
+                const confirmationSteps = Array.isArray(item.confirmation_steps)
+                    ? item.confirmation_steps.filter(Boolean).slice(0, 3)
+                    : [];
+
+                for (const step of confirmationSteps.length
+                    ? confirmationSteps
+                    : [item.action || "対象の状態を確認"]) {
+                    stepsList.append(node("li", "", step));
+                }
+                steps.append(stepsList);
+
+                insights.append(reason, evidence, steps);
+
                 const footer = node("div", "ka-action-card-footer");
 
                 const timing = node("div", "ka-action-timing");
@@ -795,7 +983,7 @@
                 }
 
                 footer.append(timing, controls);
-                card.append(head, details, footer);
+                card.append(head, details, insights, footer);
                 list.append(card);
             });
 
@@ -845,8 +1033,9 @@
 
         fragment.append(actionPanel);
 
-        const recordDetail = node("details", "ka-decision-records");
-        const recordSummary = node("summary", "ka-record-summary");
+        const recordDetail = node("section", "ka-decision-records");
+
+        const recordSummary = node("header", "ka-record-summary");
 
         const recordTitle = node("div", "ka-record-summary-title");
         recordTitle.append(
@@ -872,9 +1061,9 @@
         fragment.append(recordPanel);
 
         const overview = node(
-            "details", "ka-ai-overview-detail"
+            "section", "ka-ai-overview-detail"
         );
-        const overviewSummary = node("summary", "ka-info-summary");
+        const overviewSummary = node("header", "ka-info-summary");
         const overviewTitle = node("strong", "", "分析の概要・参照範囲");
         const overviewDescription = node(
             "span",
@@ -883,18 +1072,49 @@
         );
         overviewSummary.append(overviewTitle, overviewDescription);
 
-        overview.append(
-            overviewSummary,
-            node("p", "ka-info-content", data.analysis.overview)
+        const overviewBody = node("div", "ka-overview-body");
+
+        const overviewText = node(
+            "section", "ka-overview-description-card"
+        );
+        overviewText.append(
+            node("h4", "", "分析の概要"),
+            node("p", "", data.analysis.overview)
         );
 
-        const coverage = data.coverage || {};
-        overview.append(node("p", "kc-muted", [
-            data.generated_at
-                ? `更新：${data.generated_at}` : "",
-            `参照履歴：${coverage.sent_count ?? 0}件／対象${coverage.available_count ?? 0}件`
-        ].filter(Boolean).join("　")));
+        overviewBody.append(overviewText);
+        overview.append(overviewSummary, overviewBody);
 
+        const coverage = data.coverage || {};
+
+        const overviewFacts = node("dl", "ka-overview-facts");
+
+        function appendOverviewFact(label, value) {
+            const row = node("div", "ka-overview-fact");
+            row.append(
+                node("dt", "", label),
+                node("dd", "", value)
+            );
+            overviewFacts.append(row);
+        }
+
+        if (data.generated_at) {
+            appendOverviewFact("更新日時", data.generated_at);
+        }
+
+        appendOverviewFact(
+            "参照した履歴",
+            `${coverage.sent_count ?? 0}件`
+        );
+
+        appendOverviewFact(
+            "対象履歴",
+            `${coverage.available_count ?? 0}件`
+        );
+
+        overviewBody.append(overviewFacts);
+
+        overview.append(referenceComparison(data.comparison));
         fragment.append(overview, feedbackHistory());
         return fragment;
     }
@@ -1047,7 +1267,7 @@
             if (data.has_result) {
                 const signature = JSON.stringify([
                     data.analysis, data.sources, data.coverage,
-                    data.generated_at, data.analysis_method
+                    data.comparison, data.generated_at, data.analysis_method
                 ]);
                 if (results.dataset.signature !== signature) {
                     if (document.querySelector('[data-feedback-dirty="1"]')

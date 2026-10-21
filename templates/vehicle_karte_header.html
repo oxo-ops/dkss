@@ -145,13 +145,26 @@
         <div class="vehicle-karte-metrics">
             <div class="vehicle-karte-metric">
                 {% set operation_summary = karte_operation_summary | default({}) %}
-                <span>現在走行距離{% if operation_summary.get('mileage_date') %}（{{ (operation_summary.get('mileage_date')|string)[:10] }}）{% endif %}</span>
+                {% set mileage_reference = operation_summary.get("mileage_reference") or {} %}
+                <span>記録走行距離{% if operation_summary.get('mileage_date') %}（{{ (operation_summary.get('mileage_date')|string)[:10] }}）{% endif %}</span>
                 {% if operation_summary.get("current_mileage") is not none %}
-                    <strong title="{{ operation_summary.get('mileage_date') or '' }}">
+                    <strong title="{{ mileage_reference.get('note') or '' }}">
                         {{ "{:,.2f}".format(operation_summary.get("current_mileage")) }} km
                     </strong>
                 {% else %}
                     <span class="ui-empty-value">—</span>
+                {% endif %}
+                {% if mileage_reference.get("sources") %}
+                    <small>
+                        {% for reading in mileage_reference.get("sources", []) | unique(attribute="date_basis") %}
+                            {{ "・" if not loop.first else "" }}{{ reading.source }}{% if reading.date_basis == "operation_date" %}（運行日）{% elif reading.date_basis == "entry_date" %}（入庫日）{% elif reading.date_basis == "completion_date" %}（整備完了日）{% endif %}
+                        {% endfor %}
+                    </small>
+                {% endif %}
+                {% if mileage_reference.get("status") == "conflicting" %}
+                    <small>同日の記録に差があるため、値を確定していません。</small>
+                {% elif mileage_reference.get("value") is not none and not mileage_reference.get("distance_usable") %}
+                    <small>参考値。計測日または距離の連続性が確定しないため、経過距離の計算には使用しません。</small>
                 {% endif %}
             </div>
 

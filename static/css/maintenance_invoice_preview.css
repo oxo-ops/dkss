@@ -952,3 +952,141 @@
     .invoice-review-page .invoice-line-name:enabled { min-height: 44px; }
     .invoice-review-page .invoice-key-facts { gap: 4px 10px; }
 }
+
+/* certificate-external-assets-v1 */
+/* certificate-shared-preview-20261021 */
+html:has(.vehicle-registration-page), body:has(.vehicle-registration-page) {
+    height: auto; overflow: auto;
+}
+body:has(.vehicle-registration-page) .app-layout {
+    height: auto; min-height: 100dvh; overflow: visible;
+}
+body:has(.vehicle-registration-page) .main-content {
+    display: block; overflow: visible;
+}
+.vehicle-certificate-review #certificate-source-container {
+    height: 100%; min-height: 0; min-width: 0;
+}
+.vehicle-certificate-review #certificate-source-container > .invoice-pdf-viewer {
+    height: 100%; min-height: 0;
+}
+.vehicle-certificate-review .invoice-pdf-scroll {
+    min-height: 0; min-width: 0; scrollbar-gutter: stable;
+}
+@media (min-width: 1001px) {
+    .vehicle-certificate-review .invoice-review-layout {
+        height: clamp(300px, calc(100dvh - 300px), 900px);
+    }
+}
+@media (max-width: 1000px) {
+    .vehicle-certificate-review .invoice-review-layout .invoice-records {
+        display: block;
+    }
+    .vehicle-certificate-review #certificate-source-container {
+        height: auto;
+    }
+    .vehicle-certificate-review #certificate-source-container > .invoice-pdf-viewer {
+        height: min(65dvh, 600px); min-height: 300px;
+    }
+}
+
+/* vehicle-confirm-layout-v1 */
+body .main-content .vehicle-confirm-card.card.form-card {
+    display:block !important; box-sizing:border-box; width:100%; padding:20px;
+}
+body .main-content .vehicle-confirm-card > .help-text {
+    display:block; width:auto; margin:0 0 18px; line-height:1.7;
+}
+body .main-content .vehicle-confirm-card .vehicle-confirm-grid {
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0 24px;
+}
+body .main-content .vehicle-confirm-card .vehicle-confirm-grid > .form-group {
+    display:block !important; min-width:0; width:auto;
+    margin:0; padding:12px 0; border-bottom:1px solid #e3eaf2;
+}
+body .main-content .vehicle-confirm-card .vehicle-confirm-grid label {
+    display:block; width:auto; margin:0 0 5px; color:#607188;
+    font-size:12px; font-weight:400; white-space:normal;
+}
+body .main-content .vehicle-confirm-card .vehicle-confirm-grid p {
+    margin:0; color:#233750; font-size:14px;
+    line-height:1.6; overflow-wrap:anywhere;
+}
+body .main-content .vehicle-confirm-card > form.responsive-form {
+    display:block !important; width:100%; margin:0;
+}
+body .main-content .vehicle-confirm-card .form-actions {
+    display:flex; flex-wrap:wrap; justify-content:flex-end;
+    gap:10px; width:100%; margin:20px 0 0;
+}
+body .main-content .vehicle-confirm-card .form-actions .btn {
+    flex:0 0 auto; width:auto !important; min-width:150px;
+    min-height:42px; margin:0; padding:10px 18px; white-space:nowrap;
+}
+@media(max-width:1100px) {
+    body .main-content .vehicle-confirm-card .vehicle-confirm-grid {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+}
+@media(max-width:640px) {
+    body .main-content .vehicle-confirm-card .vehicle-confirm-grid {
+        grid-template-columns:minmax(0,1fr);
+    }
+    body .main-content .vehicle-confirm-card .form-actions .btn { flex:1 1 100%; }
+}
+
+#certificate-review #certificate-back-button {
+    min-height: 30px;
+    padding: 4px 12px;
+    font-size: 12px;
+}
+body .main-content .vehicle-confirm-card .form-actions .btn:not(.btn-outline) {
+    background: #344f66 !important;
+    border-color: #344f66 !important;
+    color: #fff !important;
+}
+
+/* certificate-invoice-controls-v1 */
+.vehicle-certificate-review > .invoice-page-heading .invoice-submit-actions {
+    margin: 0; padding: 0; width: auto;
+}
+.vehicle-certificate-review .invoice-document-heading #certificate-review-filename {
+    flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere;
+}
+@media screen and (min-width: 1001px) {
+    html:has(#certificate-review-shell:not([hidden])),
+    body:has(#certificate-review-shell:not([hidden])) {
+        height: 100%; overflow: hidden;
+    }
+    body:has(#certificate-review-shell:not([hidden])) .app-layout {
+        height: 100dvh; min-height: 0; overflow: hidden;
+    }
+    body:has(#certificate-review-shell:not([hidden])) .main-content {
+        display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    }
+    body:has(#certificate-review-shell:not([hidden])) .vehicle-registration-page {
+        display: flex; flex-direction: column; flex: 1 1 0;
+        min-height: 0; overflow: hidden;
+    }
+    body:has(#certificate-review-shell:not([hidden])) .vehicle-registration-header {
+        display: none;
+    }
+    .vehicle-certificate-review {
+        flex: 1 1 0; min-height: 0; overflow: auto;
+        overscroll-behavior: contain; scrollbar-gutter: stable;
+    }
+    .vehicle-certificate-review > .invoice-page-heading {
+        flex-shrink: 0; padding: 0 0 10px; margin-bottom: 0;
+    }
+    .vehicle-certificate-review #certificate-review {
+        margin-bottom: 0;
+    }
+}
+@media (max-width: 1000px) {
+    .vehicle-certificate-review .invoice-review-layout:not(.is-source-hidden) .invoice-records {
+        display: none;
+    }
+    .vehicle-certificate-review .invoice-review-layout.is-source-hidden .invoice-records {
+        display: block;
+    }
+}

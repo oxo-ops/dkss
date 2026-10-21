@@ -3,12 +3,17 @@
 {% block title %}車両の登録内容確認{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261021-external-1') }}">
+
+
+
+
 
 <div class="page-header">
     <h2>車両の登録内容確認</h2>
 </div>
 
-<div class="card form-card">
+<div class="card form-card vehicle-confirm-card">
     <p class="help-text">
         内容を確認し、問題がなければ「この内容で登録」を押してください。
     </p>
@@ -20,7 +25,8 @@
         ("plate_number", "一連指定番号"),
         ("chassis_number", "車台番号"),
         ("model_code", "型式"),
-        ("first_registration_date", "初年度登録"),
+        ('engine_code', '原動機の型式（エンジン型式）'),
+        ("first_registration_date", "初度登録年月"),
         ("manufacturer", "メーカー・車名"),
         ("body_type", "形状"),
         ("gross_vehicle_weight", "車両総重量（kg）"),
@@ -30,6 +36,7 @@
         ("inspection_expiry", "車検満了日"),
     ] %}
 
+    <div class="vehicle-confirm-grid">
     {% for field_key, field_label in fields %}
         <div class="form-group">
             <label>{{ field_label }}</label>
@@ -39,6 +46,7 @@
             </p>
         </div>
     {% endfor %}
+    </div>
 
     <form
         method="post"

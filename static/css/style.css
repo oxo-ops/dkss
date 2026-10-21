@@ -12371,7 +12371,7 @@ body:has(.safety-list-breadcrumb) .pointouts-total::before {
 }
 
 .checklist-criteria-details summary::after {
-    content: "⌄";
+    content: none;
     color: var(--dkss-text-secondary);
     font-size: 24px;
     line-height: 1;
@@ -19874,12 +19874,51 @@ body.ka-reference-open .karte-analysis .ka-period-form {
     vertical-align: top;
 }
 
-/* 分析タブ：概要と対応履歴の開閉カード */
+/* 分析結果：上段左右2列、下段は全幅 */
+.karte-costs.karte-analysis #ka-ai-results:has(> .ka-action-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
+    grid-template-areas:
+        "actions overview"
+        "records records"
+        "history history";
+    align-items: start;
+    gap: 12px;
+}
+
+/* 左上：対応候補 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel {
+    grid-area: actions;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 右上：分析概要・参照範囲 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail {
+    grid-area: overview;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 2段目：記録確認は全幅 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel {
+    grid-area: records;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 3段目：対応履歴も全幅 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history {
+    grid-area: history;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 分析概要・対応履歴の外観 */
 .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail,
 .karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history {
     width: 100%;
     box-sizing: border-box;
-    margin: 10px 0 0;
     padding: 0;
     border: 1px solid #e1dff4;
     border-radius: 13px;
@@ -19888,7 +19927,37 @@ body.ka-reference-open .karte-analysis .ka-period-form {
     overflow: hidden;
 }
 
-/* 見出し */
+/* 右側概要：見出しの矢印用余白を削除 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-info-summary {
+    padding: 14px 18px;
+    cursor: default;
+}
+
+/* 右側概要：開閉矢印を非表示 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-info-summary::after {
+    content: none;
+}
+
+/* 右側概要：比較情報のはみ出し防止 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-reference-comparison {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* 画面幅が狭い場合のみ縦並び */
+@media (max-width: 1100px) {
+    .karte-costs.karte-analysis #ka-ai-results:has(> .ka-action-panel) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "actions"
+            "overview"
+            "records"
+            "history";
+    }
+}
+
+
+/* 概要・対応履歴の共通見出し */
 .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-info-summary,
 .karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history > .ka-info-summary {
     position: relative;
@@ -19896,24 +19965,55 @@ body.ka-reference-open .karte-analysis .ka-period-form {
     flex-direction: column;
     align-items: flex-start;
     gap: 5px;
-    min-height: 62px;
-    padding: 15px 48px 15px 18px;
+    min-height: 0;
+    padding: 14px 48px 14px 18px;
     box-sizing: border-box;
     list-style: none;
-    background: linear-gradient(135deg, #ffffff, #fbfaff);
+    background: #ffffff;
     cursor: pointer;
+}
+
+/* 分析の概要・参照範囲：右側の見出し */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-info-summary {
+    padding: 12px 14px;
+    border-bottom: 1px solid #e9e4f7;
+    background: linear-gradient(
+        110deg,
+        #f4f0ff 0%,
+        #faf9ff 65%,
+        #ffffff 100%
+    );
+}
+
+/* 右側の概要本文と参照件数 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-overview-body {
+    gap: 8px;
+    padding: 10px 12px;
+}
+
+/* 右側の比較条件 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison {
+    margin: 0;
+    padding: 10px 12px;
+    border-top: 1px solid #e9e4f7;
 }
 
 .karte-costs.karte-analysis #ka-ai-results > details > .ka-info-summary::-webkit-details-marker {
     display: none;
 }
 
-/* タイトル */
+/* 概要・履歴カードの共通タイトル */
 .karte-costs.karte-analysis #ka-ai-results > details > .ka-info-summary strong {
     color: #253c69;
     font-size: 14px;
     font-weight: 800;
     line-height: 1.45;
+}
+
+/* 分析概要のタイトルだけ紫系に */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-info-summary strong {
+    color: #51469a;
+    font-size: 15px;
 }
 
 /* 補足説明 */
@@ -19948,7 +20048,7 @@ body.ka-reference-open .karte-analysis .ka-period-form {
     border-bottom: 1px solid #ece9f6;
 }
 
-/* 開いたときの本文 */
+/* 開いたときの本文：共通 */
 .karte-costs.karte-analysis #ka-ai-results > details > .ka-info-summary ~ * {
     margin: 0;
     padding: 12px 18px;
@@ -19958,8 +20058,306 @@ body.ka-reference-open .karte-analysis .ka-period-form {
     overflow-wrap: anywhere;
 }
 
+/* 分析概要：右側カードの本文 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-overview-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+    padding: 12px;
+}
+
+/* 分析概要：参照件数の一覧 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-overview-facts {
+    border-radius: 8px;
+}
+
+/* 分析概要：説明文は省略せず折り返す */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-overview-description-card {
+    padding: 10px 12px;
+    border-radius: 8px;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-overview-description-card p {
+    font-size: 12px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+/* 比較条件：右側カードの横幅に収める */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison {
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border-top: 1px solid #e9e4f7;
+    overflow-wrap: anywhere;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison h4 {
+    margin: 0 0 6px;
+    color: #51469a;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison p {
+    margin: 0 0 8px;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison button {
+    max-width: 100%;
+    min-height: 34px;
+    margin: 4px 0 0;
+    padding: 7px 12px;
+    font-size: 11px;
+    white-space: normal;
+}
+
+/* 分析概要：説明カード */
+.karte-costs.karte-analysis .ka-overview-description-card {
+    min-width: 0;
+    margin: 0;
+    padding: 13px 15px;
+    border: 1px solid #e7e2f7;
+    border-radius: 10px;
+    background: #faf9ff;
+}
+
+/* 分析概要：セクション見出しと重複する小見出しを非表示 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-overview-description-card h4 {
+    display: none;
+}
+
+/* 分析概要：文章は省略せずコンパクトに表示 */
+.karte-costs.karte-analysis .ka-overview-description-card p {
+    margin: 0;
+    color: #465675;
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+/* 分析概要：参照情報一覧 */
+.karte-costs.karte-analysis .ka-overview-facts {
+    display: grid;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #e6e8f2;
+    border-radius: 10px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+/* 分析概要：参照情報をコンパクトに表示 */
+.karte-costs.karte-analysis .ka-overview-fact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 12px;
+}
+
+.karte-costs.karte-analysis .ka-overview-fact + .ka-overview-fact {
+    border-top: 1px solid #edf0f6;
+}
+
+/* ラベル */
+.karte-costs.karte-analysis .ka-overview-fact dt {
+    min-width: 0;
+    margin: 0;
+    color: #7887a0;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* 値 */
+.karte-costs.karte-analysis .ka-overview-fact dd {
+    min-width: 0;
+    margin: 0;
+    color: #34476b;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+/* スマートフォン */
+@media (max-width: 540px) {
+    .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-overview-body {
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .karte-costs.karte-analysis .ka-overview-fact {
+        grid-template-columns: 90px minmax(0, 1fr);
+        gap: 8px;
+        padding: 10px 12px;
+    }
+}
+
+/* 概要・履歴の共通区切り */
 .karte-costs.karte-analysis #ka-ai-results > details > .ka-info-summary ~ * + * {
     border-top: 1px solid #f0f1f7;
+}
+
+/* 対応履歴：カード一覧 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history {
+    --ka-history-border: #e5e7f2;
+}
+
+/* 履歴カード */
+.karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history > .ka-history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    margin: 12px 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--ka-history-border);
+    border-radius: 11px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(61, 62, 112, 0.04);
+}
+
+/* 対象部品と対応状況 */
+.karte-costs.karte-analysis .ka-history-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.karte-costs.karte-analysis .ka-history-item-target {
+    flex: 1;
+    min-width: 0;
+    color: #253c69;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+/* 対応状況バッジ */
+.karte-costs.karte-analysis .ka-history-item-status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    padding: 4px 10px;
+    border: 1px solid #dce3ed;
+    border-radius: 999px;
+    background: #f2f5fa;
+    color: #61718c;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+/* 対応中 */
+.karte-costs.karte-analysis .ka-history-item-status[data-status="in_progress"] {
+    border-color: #cbdcf7;
+    background: #eaf2ff;
+    color: #4675b9;
+}
+
+/* 完了 */
+.karte-costs.karte-analysis .ka-history-item-status[data-status="completed"] {
+    border-color: #c9e9df;
+    background: #e8f8f2;
+    color: #278c79;
+}
+
+/* 見送り */
+.karte-costs.karte-analysis .ka-history-item-status[data-status="dismissed"] {
+    border-color: #f1dfb8;
+    background: #fff5df;
+    color: #986b16;
+}
+
+/* 旧形式の採用 */
+.karte-costs.karte-analysis .ka-history-item-status[data-status="accepted"] {
+    border-color: #ded5f8;
+    background: #f1edff;
+    color: #7059c9;
+}
+
+/* 対応日時と記録者 */
+.karte-costs.karte-analysis .ka-history-item-meta {
+    margin: 0;
+    color: #8190aa;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* 提案内容・コメントの共通配置 */
+.karte-costs.karte-analysis .ka-history-item-action,
+.karte-costs.karte-analysis .ka-history-item-comment {
+    min-width: 0;
+    padding: 11px 13px;
+    border: 1px solid #e9ebf4;
+    border-radius: 9px;
+    background: #fafbff;
+}
+
+/* 対応コメントは紫系 */
+.karte-costs.karte-analysis .ka-history-item-comment {
+    border-color: #e5dff7;
+    background: #f7f4ff;
+}
+
+/* 項目ラベル */
+.karte-costs.karte-analysis .ka-history-item-label {
+    display: block;
+    margin-bottom: 5px;
+    color: #7a87a0;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* 内容 */
+.karte-costs.karte-analysis .ka-history-item-action p,
+.karte-costs.karte-analysis .ka-history-item-comment p {
+    margin: 0;
+    color: #354866;
+    font-size: 12px;
+    line-height: 1.75;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+/* 関連する整備記録 */
+.karte-costs.karte-analysis .ka-history-item > a {
+    align-self: flex-start;
+    margin-top: 2px;
+    color: #6956c7;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.karte-costs.karte-analysis .ka-history-item > a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 540px) {
+    .karte-costs.karte-analysis #ka-ai-results > .ka-feedback-history > .ka-history-item {
+        margin: 10px 12px;
+        padding: 12px;
+    }
+
+    .karte-costs.karte-analysis .ka-history-item-header {
+        flex-wrap: wrap;
+    }
 }
 
 /* キーボード操作時のフォーカス */
@@ -23307,8 +23705,8 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 .vehicle-registration-page.vehicle-data-import .vehicle-registration-breadcrumb {
     margin-bottom: 8px;
 }
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-header {
-    margin-bottom: 14px;
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-header {
+    margin-bottom: 8px;
 }
 .vehicle-registration-page.vehicle-data-import .vehicle-registration-header h2 {
     margin: 0 0 5px;
@@ -23320,17 +23718,20 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     font-size: 13px;
     line-height: 1.6;
 }
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-method-grid {
-    gap: 12px;
-    margin-bottom: 12px;
-}
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-method-card,
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-method-airia.vehicle-registration-method-card {
-    padding: 16px 18px;
-}
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-method-heading {
-    gap: 10px;
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-grid {
+    gap: 8px;
     margin-bottom: 8px;
+}
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-card {
+    padding: 12px 16px;
+}
+
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-airia.vehicle-registration-method-card {
+    padding: 12px 16px;
+}
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-heading {
+    gap: 10px;
+    margin-bottom: 5px;
 }
 .vehicle-registration-page.vehicle-data-import .vehicle-registration-method-heading h3 {
     font-size: 20px;
@@ -23349,8 +23750,8 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     font-size: 13px;
     line-height: 1.6;
 }
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-method-description {
-    margin: 0 0 10px;
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-description {
+    margin: 0 0 5px;
     font-size: 12px;
     line-height: 1.6;
 }
@@ -23738,7 +24139,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 .vehicle-registration-page .vehicle-registration-recommendation {
     position: absolute;
     top: 16px;
-    left: 28px;
+    right: 18px;
     padding: 3px 14px;
     border: 1px solid #aacbff;
     border-radius: 999px;
@@ -23792,11 +24193,11 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     line-height: 1.7;
 }
 
-.vehicle-registration-page .vehicle-registration-method-benefits {
+.vehicle-registration-page:has(#registration-choice-grid) .vehicle-registration-method-benefits {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin: auto 0 18px;
+    margin: 5px 0 8px;
     padding: 0;
     list-style: none;
 }
@@ -23822,6 +24223,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 .vehicle-registration-page .vehicle-registration-method-action {
     display: flex;
     justify-content: flex-end;
+    margin-top: auto;
 }
 
 .vehicle-registration-page .vehicle-registration-method-action .btn {
@@ -23858,14 +24260,14 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 }
 
 .vehicle-registration-page .vehicle-registration-guide {
-    padding: 22px;
+    padding: 14px 18px;
     border: 1px solid #dce7f5;
     border-radius: 10px;
     background: var(--dkss-surface);
 }
 
 .vehicle-registration-page .vehicle-registration-guide > h3 {
-    margin: 0 0 20px;
+    margin: 0 0 10px;
     color: #172b4d;
     font-size: 20px;
 }
@@ -23988,7 +24390,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 
     .vehicle-registration-page .vehicle-registration-recommendation {
         top: 10px;
-        left: 18px;
+        right: 18px;
         padding: 2px 10px;
         font-size: 11px;
     }
@@ -24143,7 +24545,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     }
 
     .vehicle-registration-page .vehicle-registration-recommendation {
-        left: 20px;
+        right: 20px;
     }
 
     .vehicle-registration-page .vehicle-registration-method-heading h3 {
@@ -25137,15 +25539,21 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     background: transparent;
 }
 
+/* 記録の確認事項：常時表示する見出し */
 .karte-costs.karte-analysis .ka-record-summary {
     display: flex;
     flex-direction: column;
     position: relative;
     gap: 6px;
-    padding: 17px 48px 17px 20px;
-    background: linear-gradient(135deg, #ffffff, #faf9ff);
-    cursor: pointer;
-    list-style: none;
+    min-width: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e3eaf6;
+    background: linear-gradient(
+        110deg,
+        #edf4ff 0%,
+        #f7faff 65%,
+        #ffffff 100%
+    );
 }
 
 .karte-costs.karte-analysis .ka-record-summary::-webkit-details-marker {
@@ -25160,7 +25568,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 }
 
 .karte-costs.karte-analysis .ka-record-summary-title strong {
-    color: #253c69;
+    color: #365780;
     font-size: 15px;
     font-weight: 800;
     line-height: 1.4;
@@ -25172,9 +25580,10 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     justify-content: center;
     min-width: 30px;
     padding: 4px 10px;
+    border: 1px solid #cbdcf7;
     border-radius: 999px;
-    background: #eeeaff;
-    color: #715bd4;
+    background: #eaf2ff;
+    color: #527bc5;
     font-size: 11px;
     font-weight: 800;
 }
@@ -25186,17 +25595,9 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     line-height: 1.6;
 }
 
+/* 常時表示のため開閉矢印は不要 */
 .karte-costs.karte-analysis .ka-record-summary::after {
-    content: "⌄";
-    position: absolute;
-    right: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #806de0;
-    font-size: 22px;
-    font-weight: 700;
-    line-height: 1;
-    transition: transform 0.2s ease;
+    content: none;
 }
 
 .karte-costs.karte-analysis .ka-decision-records[open] > .ka-record-summary::after {
@@ -26234,15 +26635,160 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 }
 
 /* AI分析：対応候補のカード一覧 */
+/* AI提案：横幅いっぱいの情報カード */
 .karte-costs.karte-analysis .ka-action-cards {
     display: grid;
-    grid-template-columns: repeat(
-        auto-fit,
-        minmax(min(100%, 340px), 1fr)
-    );
-    align-items: stretch;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
     margin: 0 0 12px;
+}
+
+/* 追加情報：共通の配置 */
+.karte-costs.karte-analysis .ka-action-insights {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 10px;
+    min-width: 0;
+    margin: 10px 0;
+}
+
+/* 左側の対応候補だけ2列で使用 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+/* 勧める理由は横幅いっぱい */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insight:first-child {
+    grid-column: 1 / -1;
+}
+
+/* 根拠と手順は左右に配置 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insight:nth-child(2),
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insight:nth-child(3) {
+    grid-column: auto;
+}
+
+/* 左側カードの内側の余白 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-card {
+    padding: 12px;
+}
+
+/* さらに狭い画面では上下1列 */
+@media (max-width: 850px) {
+    .karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-insight {
+        grid-column: 1;
+    }
+}
+
+/* 理由・根拠・手順の情報ブロック */
+.karte-costs.karte-analysis .ka-action-insight {
+    min-width: 0;
+    margin: 0;
+    padding: 11px 13px;
+    border: 1px solid #e5e5f1;
+    border-radius: 9px;
+    background: #fafbff;
+}
+
+/* 小見出し */
+.karte-costs.karte-analysis .ka-action-insight h6 {
+    margin: 0 0 7px;
+    color: #5c53a6;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+/* 説明文 */
+.karte-costs.karte-analysis .ka-action-insight p {
+    margin: 0;
+    color: #384967;
+    font-size: 12px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+/* 根拠と確認手順 */
+/* 根拠・確認手順の一覧 */
+.karte-costs.karte-analysis .ka-action-insight-list {
+    min-width: 0;
+    margin: 0;
+    padding-left: 19px;
+    color: #384967;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+/* 各項目を最大2行に制限 */
+.karte-costs.karte-analysis .ka-action-insight-list li {
+    min-width: 0;
+    margin: 0 0 6px;
+    padding: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+}
+
+.karte-costs.karte-analysis .ka-action-insight-list li:last-child {
+    margin-bottom: 0;
+}
+
+/* 根拠となる記録へのリンク */
+.karte-costs.karte-analysis .ka-action-insight-list a {
+    color: #6254bb;
+    font-size: inherit;
+    font-weight: 700;
+    line-height: inherit;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.karte-costs.karte-analysis .ka-action-insight-list a:hover {
+    color: #4e3ca8;
+    text-decoration: underline;
+}
+
+.karte-costs.karte-analysis .ka-action-insight-list a:focus-visible {
+    outline: 2px solid #927ef4;
+    outline-offset: 2px;
+}
+
+/* カード内部の3列を均等に */
+.karte-costs.karte-analysis .ka-action-insights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+}
+
+.karte-costs.karte-analysis .ka-action-insight {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* 狭い画面では1列 */
+@media (max-width: 850px) {
+    .karte-costs.karte-analysis .ka-action-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 横幅が狭い場合は1列 */
+@media (max-width: 850px) {
+    .karte-costs.karte-analysis .ka-action-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .karte-costs.karte-analysis .ka-action-card {
@@ -26291,43 +26837,139 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     background: linear-gradient(100deg, #f5f9ff, #ffffff 42%);
 }
 
-/* カードの見出し */
+
+/* AI提案カード：番号・見出し・優先度 */
 .karte-costs.karte-analysis .ka-action-card-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 10px;
+    gap: 10px;
+    min-width: 0;
     margin-bottom: 10px;
 }
 
+/* 提案番号 */
 .karte-costs.karte-analysis .ka-action-rank {
     display: grid;
+    grid-column: 1;
+    grid-row: 1;
     place-items: center;
-    width: 26px;
-    height: 26px;
-    flex: 0 0 26px;
-    border-radius: 50%;
-    background: #eef1fa;
-    color: #536990;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    border: 1px solid #ddd7f5;
+    border-radius: 9px;
+    background: #f1edff;
+    color: #7059c9;
     font-size: 12px;
     font-weight: 800;
+    line-height: 1;
 }
 
+/* 提案の見出し */
 .karte-costs.karte-analysis .ka-action-card-head h5 {
-    flex: 1;
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
     margin: 0;
-    color: #20385e;
-    font-size: 15px;
+    color: #253c69;
+    font-size: 14px;
     font-weight: 800;
     line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
-/* 現在の状態・推奨対応 */
+/* 優先度バッジを右端へ */
+.karte-costs.karte-analysis .ka-action-card-head > .ka-ai-priority {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* 画面が狭い場合は優先度を2行目の右側に */
+@media (max-width: 540px) {
+    .karte-costs.karte-analysis .ka-action-card-head {
+        grid-template-columns: 28px minmax(0, 1fr);
+        gap: 8px 10px;
+    }
+
+    .karte-costs.karte-analysis .ka-action-card-head > .ka-ai-priority {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
+    }
+}
+
+/* 現在の状態・推奨対応：横2列 */
 .karte-costs.karte-analysis .ka-action-card-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: stretch;
+    gap: 10px;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 5項目全体をコンパクトに */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-field,
+.karte-costs.karte-analysis .ka-action-insights .ka-action-insight {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 9px;
+}
+
+/* ラベルの高さと文字サイズを統一 */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-label,
+.karte-costs.karte-analysis .ka-action-insights h6 {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+/* 長文は最大3行の要約表示。全文は詳細パネルで確認 */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-field p,
+.karte-costs.karte-analysis .ka-action-insights .ka-action-insight > p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+/* 狭い画面では上下に配置 */
+@media (max-width: 768px) {
+    .karte-costs.karte-analysis .ka-action-card-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 現在の状態 */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-field:not(.ka-action-field-primary) {
+    border-color: #e7eaf3;
+    background: #ffffff;
+}
+
+/* 推奨する対応 */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-field-primary {
+    border-color: #e2daf8;
+    background: #f5f2ff;
+}
+
+/* 長文でもはみ出さない */
+.karte-costs.karte-analysis .ka-action-card-body .ka-action-field p {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .karte-costs.karte-analysis .ka-action-field {
@@ -26363,7 +27005,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     font-weight: 700;
 }
 
-/* 対応時期と詳細ボタン */
+/* 対応時期と詳細ボタン：共通 */
 .karte-costs.karte-analysis .ka-action-card-footer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -26372,6 +27014,60 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid #edf0f7;
+}
+
+/* 左側の対応候補：下部をコンパクトに */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-card-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 9px;
+}
+
+/* 対応の目安：ラベルと値を横並び */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-timing {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-timing .ka-action-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* ボタンと対応状況を同じ行に配置 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 7px;
+}
+
+/* 詳細・対応記録ボタン */
+.karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-reference-detail-button {
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 11px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* 狭い画面でのみ2段表示 */
+@media (max-width: 768px) {
+    .karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-card-footer {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .karte-costs.karte-analysis #ka-ai-results > .ka-action-panel .ka-action-controls {
+        justify-content: flex-start;
+    }
 }
 
 /* 対応時期 */
@@ -26460,19 +27156,44 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     color: #ffffff;
 }
 
-/* 対応事項が0件の場合 */
+/* 対応事項が0件の場合：コンパクトな1行表示 */
 .karte-costs.karte-analysis .ka-action-empty {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
     align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 95px;
-    padding: 18px;
+    justify-content: start;
+    gap: 4px 10px;
+    min-height: 0;
+    margin: 0;
+    padding: 11px 14px;
     border: 1px solid #e1e8f3;
-    border-radius: 10px;
+    border-radius: 9px;
     background: #f8faff;
-    text-align: center;
+    text-align: left;
+}
+
+/* 左側のチェックマーク */
+.karte-costs.karte-analysis .ka-action-empty .ka-action-empty-icon {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+}
+
+/* 主メッセージ */
+.karte-costs.karte-analysis .ka-action-empty strong {
+    grid-column: 2;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* 補足文 */
+.karte-costs.karte-analysis .ka-action-empty p {
+    grid-column: 2;
+    min-width: 0;
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.45;
 }
 
 .karte-costs.karte-analysis .ka-action-empty-icon {
@@ -26496,12 +27217,6 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     color: #7688a2;
     font-size: 11px;
     line-height: 1.6;
-}
-
-@media (max-width: 700px) {
-    .karte-costs.karte-analysis .ka-action-card-body {
-        grid-template-columns: 1fr;
-    }
 }
 .karte-costs.karte-analysis .ka-decision-heading {
     margin: 0;
@@ -26531,40 +27246,49 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     font-size: 11px;
     font-weight: 700;
 }
+/* AI分析：集計・分析指標 */
 .karte-costs.karte-analysis .ka-summary-grid.ka-summary-compact {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin: 16px 0;
+    align-items: stretch;
+    gap: 10px;
+    margin: 14px 0;
 }
 
+/* 指標カード */
 .karte-costs.karte-analysis .ka-summary-compact .kc-metric {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     min-width: 0;
-    min-height: 98px;
-    padding: 16px 18px;
-    border: 1px solid #e1dff4;
-    border-radius: 14px;
-    background: linear-gradient(145deg, #ffffff, #fafaff);
-    box-shadow: 0 4px 14px rgba(72, 61, 135, 0.05);
+    min-height: 82px;
+    padding: 13px 16px;
+    border: 1px solid #e3def3;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 3px 10px rgba(72, 61, 135, 0.04);
 }
 
+/* 指標名 */
 .karte-costs.karte-analysis .ka-summary-compact .kc-metric h3 {
-    margin: 0 0 12px;
-    color: #687797;
-    font-size: 12px;
+    margin: 0 0 8px;
+    color: #71809d;
+    font-size: 11px;
     font-weight: 700;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
+/* 指標の数値 */
 .karte-costs.karte-analysis .ka-summary-compact .kc-metric-value {
     margin: 0;
-    color: #253c69;
-    font-size: clamp(17px, 1.6vw, 24px);
+    color: #384879;
+    font-size: clamp(18px, 1.6vw, 23px);
     font-weight: 800;
-    line-height: 1.3;
+    line-height: 1.25;
     overflow-wrap: anywhere;
 }
 
+/* 補足文は従来どおり非表示 */
 .karte-costs.karte-analysis .ka-summary-compact .kc-metric > .kc-muted {
     display: none;
 }
@@ -26949,6 +27673,189 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     border-top: 1px solid #e8e5f2;
 }
 
+/* 分析概要：比較条件の下部を整理 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* 比較条件に関する補足・注意書き */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison > .kc-muted {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: #f7f8fc;
+    color: #73819b;
+    font-size: 11px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+/* 比較表ボタン直前の説明 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison > p.kc-muted:last-of-type {
+    padding: 0;
+    background: transparent;
+    color: #7887a0;
+}
+
+/* 比較表を開くボタン */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison > .ka-reference-detail-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    width: auto;
+    max-width: 100%;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 13px;
+    border: 1px solid #d9d2f4;
+    border-radius: 8px;
+    background: #f0ecff;
+    color: #6553b8;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.5;
+    box-shadow: none;
+    white-space: normal;
+}
+
+/* ホバー */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison > .ka-reference-detail-button:hover {
+    border-color: #bfb3ee;
+    background: #e6e0ff;
+    color: #5140a3;
+    box-shadow: none;
+}
+
+/* 狭い画面ではボタンを全幅表示 */
+@media (max-width: 540px) {
+    .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison > .ka-reference-detail-button {
+        align-self: stretch;
+        width: 100%;
+    }
+}
+
+/* AI分析：比較条件の項目別一覧 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-facts,
+.ka-reference-drawer .ka-comparison-facts {
+    display: grid;
+    min-width: 0;
+    margin: 8px 0 12px;
+    padding: 0;
+    border: 1px solid #e5e5f1;
+    border-radius: 9px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+/* ラベル左・値右 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-fact,
+.ka-reference-drawer .ka-comparison-fact {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 9px 12px;
+}
+
+/* 行の区切り */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-fact + .ka-comparison-fact,
+.ka-reference-drawer .ka-comparison-fact + .ka-comparison-fact {
+    border-top: 1px solid #edf0f6;
+}
+
+/* ラベル */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-fact dt,
+.ka-reference-drawer .ka-comparison-fact dt {
+    min-width: 0;
+    margin: 0;
+    color: #7887a0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+/* 値 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-fact dd,
+.ka-reference-drawer .ka-comparison-fact dd {
+    min-width: 0;
+    margin: 0;
+    color: #34476b;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.6;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+/* 右側概要：比較条件をコンパクトに */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-comparison-fact {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px 10px;
+}
+
+/* 狭い画面ではラベルの幅を調整 */
+@media (max-width: 540px) {
+    .karte-costs.karte-analysis #ka-ai-results .ka-comparison-fact,
+    .ka-reference-drawer .ka-comparison-fact {
+        grid-template-columns: 74px minmax(0, 1fr);
+        gap: 8px;
+        padding: 8px 10px;
+    }
+}
+
+/* AI分析：比較指標の母数 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-metrics-section,
+.ka-reference-drawer .ka-comparison-metrics-section {
+    min-width: 0;
+    margin: 12px 0 0;
+    padding: 0;
+}
+
+/* 母数一覧の見出し */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-metrics-section > h5,
+.ka-reference-drawer .ka-comparison-metrics-section > h5 {
+    margin: 0 0 8px;
+    color: #51469a;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+/* 既存の比較条件一覧と同じ幅で表示 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-metrics-section > .ka-comparison-facts,
+.ka-reference-drawer .ka-comparison-metrics-section > .ka-comparison-facts {
+    width: 100%;
+    margin: 0;
+}
+
+/* 母数の項目名は長い場合も折り返す */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-metrics-section .ka-comparison-fact dt,
+.ka-reference-drawer .ka-comparison-metrics-section .ka-comparison-fact dt {
+    overflow-wrap: anywhere;
+}
+
+/* 数値は右揃えで統一 */
+.karte-costs.karte-analysis #ka-ai-results .ka-comparison-metrics-section .ka-comparison-fact dd,
+.ka-reference-drawer .ka-comparison-metrics-section .ka-comparison-fact dd {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 右側の分析概要のみ、母数一覧をコンパクトに */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail .ka-comparison-metrics-section .ka-comparison-fact {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 8px 10px;
+}
+
+/* 既存の確認手順見出しは維持 */
 .ka-reference-drawer .ka-reference-confirmation > h4 {
     margin: 0 0 12px;
     color: #253c69;
@@ -27298,13 +28205,13 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
 .karte-costs.karte-analysis #ka-ai-results > .ka-record-panel {
     width: 100%;
     min-height: 0;
-    margin: 0 0 12px;
+    margin: 0 0 10px;
     padding: 0;
     overflow: hidden;
     border: 1px solid #e1dff4;
-    border-radius: 14px;
+    border-radius: 12px;
     background: #ffffff;
-    box-shadow: 0 4px 14px rgba(72, 61, 135, 0.05);
+    box-shadow: 0 3px 10px rgba(72, 61, 135, 0.04);
 }
 
 /* 対応候補の見出し */
@@ -27313,10 +28220,10 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px 18px;
+    gap: 8px 16px;
     min-height: 0;
     margin: 0;
-    padding: 16px 20px;
+    padding: 14px 18px;
     border-bottom: 1px solid #e9e4f7;
     background: linear-gradient(110deg, #f4f0ff, #faf9ff);
 }
@@ -27334,6 +28241,69 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     padding: 0;
     border: 0;
     background: transparent;
+}
+
+/* 記録確認：カード本体を青系に統一 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card {
+    border: 1px solid #d7e3f5;
+    border-left: 4px solid #729bda;
+    background: linear-gradient(
+        105deg,
+        #f3f8ff 0%,
+        #ffffff 48%
+    );
+    box-shadow: 0 2px 8px rgba(54, 91, 143, 0.05);
+}
+
+/* 記録確認：カードのホバー表示 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card:hover {
+    border-color: #b9d0ef;
+    border-left-color: #527bc5;
+    box-shadow: 0 5px 14px rgba(54, 91, 143, 0.08);
+}
+
+/* 記録確認：現在の状態 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card-body .ka-action-field:not(.ka-action-field-primary) {
+    border-color: #e3eaf5;
+    background: #ffffff;
+}
+
+/* 記録確認：推奨する確認内容 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card-body .ka-action-field-primary {
+    border-color: #dce7f8;
+    background: #f0f6ff;
+}
+
+/* 記録確認：詳細ボタンは淡い青系 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-controls .ka-reference-detail-button {
+    border-color: #c5d8f5;
+    background: #eaf2ff;
+    color: #426eaf;
+}
+
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-controls .ka-reference-detail-button:hover {
+    border-color: #a9c5ee;
+    background: #dceaff;
+    color: #315a96;
+}
+
+/* 記録確認：番号は青系で区別 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-rank {
+    border: 1px solid #cbdcf7;
+    border-radius: 9px;
+    background: #eaf2ff;
+    color: #527bc5;
+}
+
+/* 記録確認：見出しも青寄りに */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card-head h5 {
+    color: #365780;
+}
+
+/* 優先度バッジは番号とは別の情報として表示 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-record-panel .ka-action-card-head > .ka-ai-priority {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 /* 記録の確認事項：カード一覧 */
@@ -27381,7 +28351,8 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     }
 }
 
-.karte-costs.karte-analysis .ka-reference-panel > header {
+/* 通常の分析情報カードのヘッダーのみ対象 */
+.karte-costs.karte-analysis .ka-reference-panel:not(.ka-action-panel) > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -27401,19 +28372,7 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     background: #ffffff;
 }
 
-/* カード見出し */
-.karte-costs.karte-analysis .ka-action-panel > .ka-action-panel-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px 18px;
-    margin: 0;
-    padding: 16px 20px;
-    border-bottom: 1px solid #e9e4f7;
-    background: linear-gradient(110deg, #f4f0ff, #faf9ff);
-}
-
+/* 見出しの配置・余白は上の #ka-ai-results 専用ルールに統一 */
 .karte-costs.karte-analysis .ka-action-panel-heading {
     display: flex;
     flex-direction: column;
@@ -27445,18 +28404,12 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     white-space: nowrap;
 }
 
-/* 対応候補カードの配置 */
+/* 対応候補カードの背景色 */
 .karte-costs.karte-analysis .ka-action-panel > .ka-action-cards {
-    margin: 0;
-    padding: 16px;
     background: #ffffff;
 }
 
-.karte-costs.karte-analysis .ka-action-panel .ka-action-card {
-    margin: 0;
-    box-shadow: none;
-}
-
+/* カードの余白・影は共通の .ka-action-card で管理 */
 .karte-costs.karte-analysis .ka-action-panel .ka-action-empty {
     margin: 0;
     border: 1px solid #e7ecf4;
@@ -32473,3 +33426,13 @@ body .main-content > .safety-checklist-list-table .btn-small:hover {
     box-shadow: 0 4px 10px rgba(22, 134, 92, 0.12);
 }
 
+/* VEHICLE_MASTER_ENTRY_WIDTH_FIX_V1 */
+.page-header + .card.vehicle-master-entry-card {
+    display: block;
+}
+
+.vehicle-master-entry-card > form.responsive-form {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
