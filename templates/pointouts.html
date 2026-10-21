@@ -146,6 +146,11 @@
 <div class="card tab-content search-card">
     <form method="get" class="search-form pointouts-filter-form">
         <input type="hidden" name="type" value="{{ view_type }}">
+        {% for flag in ['mine', 'pending'] %}
+            {% if request.args.get(flag) == '1' %}
+                <input type="hidden" name="{{ flag }}" value="1">
+            {% endif %}
+        {% endfor %}
         <input type="hidden" name="page_size" value="{{ page_size }}">
 
         <div class="pointouts-filter-keyword">
@@ -263,6 +268,11 @@
 
     <form method="get" class="pointouts-page-size-form">
         <input type="hidden" name="type" value="{{ view_type }}">
+        {% for flag in ['mine', 'pending'] %}
+            {% if request.args.get(flag) == '1' %}
+                <input type="hidden" name="{{ flag }}" value="1">
+            {% endif %}
+        {% endfor %}
         <input type="hidden" name="keyword" value="{{ keyword }}">
         <input type="hidden" name="office" value="{{ office_filter }}">
         <input type="hidden" name="status" value="{{ status_filter }}">
@@ -274,8 +284,10 @@
         <select
             name="page_size"
             id="pointouts_page_size"
-            onchange="this.form.submit()"
+            data-auto-submit
         >
+            <option value="5" {% if page_size == 5 %}selected{% endif %}>5件</option>
+            <option value="8" {% if page_size == 8 %}selected{% endif %}>8件</option>
             <option value="10" {% if page_size == 10 %}selected{% endif %}>10件</option>
             <option value="20" {% if page_size == 20 %}selected{% endif %}>20件</option>
             <option value="50" {% if page_size == 50 %}selected{% endif %}>50件</option>
@@ -727,6 +739,6 @@
 
 
 
-<script src="{{ url_for('static', filename='js/pointouts.js', v='20261021-csp-controls-1') }}"></script>
+<script src="{{ url_for('static', filename='js/pointouts.js', v='20261021-pagination-1') }}"></script>
 
 {% endblock %}

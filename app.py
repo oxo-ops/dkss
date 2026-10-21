@@ -13838,7 +13838,7 @@ def pointouts():
         else:
             patrol_stats["not_started"] += 1
 
-    allowed_page_sizes = {10, 20, 50}
+    allowed_page_sizes = {5, 8, 10, 20, 50}
 
     try:
         page_size = int(

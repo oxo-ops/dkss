@@ -64,6 +64,36 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.m.VehiclePatrol.query.count(), 0)
 
+    def test_pointouts_page_size_matches_rendered_records(self):
+        from flask import template_rendered
+
+        m = self.m
+        for number in range(24):
+            m.db.session.add(m.PatrolResult(
+                company_code="TEST", created_by_username="admin",
+                target_type="user", target_username="admin",
+                category="Good", content="Pagination " + str(number),
+            ))
+        m.db.session.commit()
+        contexts = []
+
+        def capture(sender, template, context, **extra):
+            contexts.append(context)
+
+        with template_rendered.connected_to(capture, m.app):
+            for size in (5, 8, 10, 20, 50):
+                with self.subTest(size=size):
+                    response = self.client.get("/pointouts?page_size=" + str(size))
+                    self.assertEqual(response.status_code, 200)
+                    context = contexts[-1]
+                    self.assertEqual(context["page_size"], size)
+                    self.assertEqual(len(context["patrol_results"]), min(size, 24))
+                    self.assertEqual(context["total_pages"], (24 + size - 1) // size)
+            response = self.client.get("/pointouts?page_size=5&page=2")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(contexts[-1]["page"], 2)
+            self.assertEqual(len(contexts[-1]["patrol_results"]), 5)
+
     def test_old_certificate_bookmark_uses_current_workflow(self):
         response = self.client.get("/master/vehicles/certificate")
         self.assertEqual(response.status_code, 302)

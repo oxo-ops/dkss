@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("selected_vehicles");
 
     let vehicleSearchTimer = null;
+    let vehicleSearchGeneration = 0;
 
 
     function addLicenseRow() {
@@ -129,6 +130,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (vehicleSearch && vehicleSearchResults) {
         vehicleSearch.addEventListener("input", function () {
             clearTimeout(vehicleSearchTimer);
+            const generation = ++vehicleSearchGeneration;
+            vehicleSearchResults.replaceChildren();
 
             const keyword = vehicleSearch.value.trim();
 
@@ -158,6 +161,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         return response.json();
                     })
                     .then(function (data) {
+                        if (generation !== vehicleSearchGeneration) return;
                         vehicleSearchResults.innerHTML = "";
 
                         if (!data.results || data.results.length === 0) {
@@ -222,6 +226,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         });
                     })
                     .catch(function () {
+                        if (generation !== vehicleSearchGeneration) return;
                         showCommonError(
                             "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
                         );
