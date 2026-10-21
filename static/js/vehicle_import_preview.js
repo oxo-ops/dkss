@@ -1077,11 +1077,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            const html = await response.text();
-
-            document.open();
-            document.write(html);
-            document.close();
+            const result = await response.json();
+            const destination = new URL(result.redirect_url, window.location.href);
+            if (
+                destination.origin !== window.location.origin
+                || destination.pathname !== "/master/vehicles/import"
+                || destination.searchParams.get("complete") !== "1"
+            ) {
+                throw new Error("Invalid import result destination");
+            }
+            window.location.assign(destination.href);
         } catch (error) {
             closeImportConfirm();
 

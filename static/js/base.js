@@ -1105,6 +1105,8 @@ window.addEventListener(
 
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".vehicle-data-import .import-form").forEach(function (form) {
+        // Vehicle Excel import has its own controller and preview route.
+        if (form.id === "registration-excel-form") return;
         const input = form.querySelector('input[type="file"]');
         const zone = form.querySelector(".import-dropzone");
         const status = form.querySelector(".import-file-status");
