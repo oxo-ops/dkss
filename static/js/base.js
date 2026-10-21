@@ -2692,3 +2692,55 @@ document.addEventListener("DOMContentLoaded", function () {
     window.addEventListener("resize", positionPanel);
     window.addEventListener("scroll", positionPanel, true);
 });
+
+// The driver list filter runs under the same strict CSP as every other page.
+document.addEventListener("DOMContentLoaded", function () {
+    const filter = document.getElementById("driver_vehicle_filter");
+    const options = document.getElementById("driver_vehicle_options");
+    if (!filter || !options) return;
+
+    let searchTimer = null;
+    let generation = 0;
+    filter.addEventListener("input", function () {
+        window.clearTimeout(searchTimer);
+        const current = ++generation;
+        const keyword = filter.value.trim();
+        options.replaceChildren();
+        if (!keyword) return;
+
+        searchTimer = window.setTimeout(async function () {
+            try {
+                const response = await fetch(
+                    "/api/vehicles?q=" + encodeURIComponent(keyword)
+                );
+                if (!response.ok) throw new Error("Vehicle lookup failed");
+                const data = await response.json();
+                if (!Array.isArray(data.results)) {
+                    throw new Error("Invalid vehicle candidates");
+                }
+                if (current !== generation) return;
+                data.results.forEach(function (vehicle) {
+                    const option = document.createElement("option");
+                    option.value = vehicle.vehicle_record_id;
+                    option.label = vehicle.number || "ナンバー未登録";
+                    options.appendChild(option);
+                });
+            } catch (error) {
+                if (current !== generation) return;
+                options.replaceChildren();
+                showCommonError(
+                    "使用車両の候補を取得できませんでした。再度検索してください。",
+                    "driver_vehicle_filter"
+                );
+            }
+        }, 300);
+    });
+});
+
+// Confirmation handlers must be external; inline onsubmit is blocked by CSP.
+document.addEventListener("submit", function (event) {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    const message = form.dataset.confirmMessage;
+    if (message && !window.confirm(message)) event.preventDefault();
+});

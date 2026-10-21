@@ -3891,7 +3891,9 @@ body.sidebar-collapsed .sidebar-nav > .menu-item:first-child .menu-icon {
 }
 
 @media (max-width: 768px) {
-    .table-scroll:not(.vehicle-check-table-scroll):not(.master-table-scroll) {
+    /* Hide a table only when this section provides a mobile list. */
+    .table-scroll:not(.vehicle-check-table-scroll):not(.master-table-scroll):has(~ .mobile-card-list),
+    .table-scroll:not(.vehicle-check-table-scroll):not(.master-table-scroll):has(~ .safety-results-mobile-list) {
         display: none;
     }
 

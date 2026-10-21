@@ -64,6 +64,18 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.m.VehiclePatrol.query.count(), 0)
 
+    def test_old_certificate_bookmark_uses_current_workflow(self):
+        response = self.client.get("/master/vehicles/certificate")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location,
+                         "/master/vehicles/register#registration-certificate-title")
+        page = self.client.get(response.location)
+        self.assertEqual(page.status_code, 200)
+        text = page.get_data(as_text=True)
+        self.assertIn('id="registration-choice-grid"', text)
+        self.assertIn('id="certificate-review-shell"', text)
+        self.assertEqual(self.m.Vehicle.query.count(), 1)
+
     def test_invalid_report_category_is_not_saved(self):
         response = self.client.post("/vehicle-patrols/new", data={
             "vehicle_record_id": self.vehicle.id, "category": "invalid",
