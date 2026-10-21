@@ -38,6 +38,7 @@ from decimal import Decimal, InvalidOperation
 from io import StringIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import NotFound, HTTPException
+from werkzeug.routing import BuildError
 from botocore.exceptions import ClientError
 
 from flask_sqlalchemy import SQLAlchemy
@@ -570,34 +571,44 @@ def is_html_document_request():
 
 
 def build_safe_redirect_url(referrer, fallback="/"):
-    if not referrer:
-        return fallback
-
-    normalized_referrer = referrer.replace("\\", "/")
-    parsed_referrer = urlparse(normalized_referrer)
-
-    if parsed_referrer.scheme and parsed_referrer.scheme not in {"http", "https"}:
-        return fallback
-
-    resolved_target = urlparse(urljoin(request.host_url, normalized_referrer))
-
-    current_host = request.host.lower()
-    resolved_host = resolved_target.hostname or ""
-    if resolved_target.port:
-        resolved_host = f"{resolved_host}:{resolved_target.port}"
-    resolved_host = resolved_host.lower()
-
-    if resolved_host != current_host:
-        return fallback
-
-    redirect_path = resolved_target.path or "/"
-    if not redirect_path.startswith("/"):
-        return fallback
-
-    if resolved_target.query:
-        return redirect_path + "?" + resolved_target.query
-
-    return redirect_path
+    """Build a local application URL; never redirect to a supplied URL verbatim."""
+    adapter = app.url_map.bind_to_environ(request.environ)
+    for candidate in (referrer, fallback):
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        if any(ord(char) < 32 or ord(char) == 127 for char in candidate):
+            continue
+        try:
+            resolved = urlparse(urljoin(
+                request.host_url, candidate.replace("\\", "/")
+            ))
+            if resolved.scheme not in {"http", "https"}:
+                continue
+            if resolved.username is not None or resolved.password is not None:
+                continue
+            if resolved.netloc.lower() != request.host.lower():
+                continue
+            matched = None
+            for method in dict.fromkeys(("GET", request.method)):
+                try:
+                    matched = adapter.match(resolved.path or "/", method=method)
+                    break
+                except HTTPException:
+                    continue
+            if matched is None:
+                continue
+            endpoint, route_values = matched
+            values = {}
+            for key, value in parse_qsl(resolved.query, keep_blank_values=True):
+                # url_for reserves underscore-prefixed arguments for URL options.
+                if key.startswith("_") or key in route_values:
+                    continue
+                values.setdefault(key, []).append(value)
+            values.update(route_values)
+            return url_for(endpoint, _external=False, **values)
+        except (ValueError, BuildError):
+            continue
+    return "/"
 
 
 @app.after_request
@@ -14126,12 +14137,12 @@ def edit_pointout(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_edit_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     pointout_edit_form_data = session.pop(
         "pointout_edit_form_data",
@@ -14466,12 +14477,12 @@ def register_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_countermeasure_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     form_errors = []
 
@@ -14728,12 +14739,12 @@ def approve_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status != "承認待ち":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_approve_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result_record.approval_status = "承認済み"
     result_record.reject_reason = ""
@@ -14783,12 +14794,12 @@ def reject_countermeasure(index):
         return redirect("/pointouts")
 
     if result_record.approval_status != "承認待ち":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_approve_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     reject_reason = request.form.get(
         "reject_reason",
@@ -14862,12 +14873,12 @@ def delete_pointout(index):
         return redirect("/pointouts")
 
     if result_record.approval_status == "承認済み":
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     result = patrol_result_to_dict(result_record)
 
     if not can_delete_patrol_result(result):
-        return redirect(f"/pointouts/{index}")
+        return redirect(url_for("pointout_detail", index=index))
 
     view_type = result.get("target_type", "user")
 
@@ -23276,8 +23287,9 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
     )
     try:
         inspection_choices = get_maintenance_inspection_choices(vehicle, record)
-    except ValueError as error:
-        return str(error), 409
+    except ValueError:
+        app.logger.warning("Unable to load maintenance inspection choices", exc_info=True)
+        return "点検情報を確認できませんでした。画面を再読み込みしてください。", 409
     selected_inspection_tokens = [c["token"] for c in inspection_choices if c["linked"]]
     selected_inspections = []
     intent = ""
@@ -32240,12 +32252,14 @@ def extract_vehicle_certificate_route():
             "error": "AI読み取りに失敗しました。時間をおいて再試行してください。"
         }, 502
 
-    return {
+    response = jsonify({
         "vehicle": prepared["form"],
         "warnings": prepared["warnings"],
         "needs_review": True,
         "source_filename": filename,
-    }, 200
+    })
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response, 200
 
 
 @app.route("/master/vehicles/certificate")
@@ -35000,13 +35014,13 @@ def edit_checklist_result(result_index):
 
     if result_record.status == "承認済み":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
 
     if not can_manage_checklist_result(result):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     checklist_record = Checklist.query.filter_by(
         id=result_record.checklist_id,
@@ -35034,7 +35048,7 @@ def edit_checklist_result(result_index):
 
         if result_record.status == "承認済み":
             return redirect(
-                f"/safety/checklist-results/{result_index}"
+                url_for("checklist_result_detail", result_index=result_index)
             )
 
         db.session.refresh(result_record)
@@ -35042,7 +35056,7 @@ def edit_checklist_result(result_index):
 
         if not can_manage_checklist_result(result):
             return redirect(
-                f"/safety/checklist-results/{result_index}"
+                url_for("checklist_result_detail", result_index=result_index)
             )
 
         checklist = (
@@ -35887,13 +35901,13 @@ def delete_checklist_result(result_index):
 
     if result_record.status == "承認済み":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
 
     if not can_manage_checklist_result(result):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     checklist_id = result_record.checklist_id
 
@@ -44242,7 +44256,7 @@ def approve_checklist_result(result_index, approval_index):
 
     if result_record.status != "承認待ち":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
@@ -44284,7 +44298,7 @@ def approve_checklist_result(result_index, approval_index):
             })
 
     if approval_index < 0 or approval_index >= len(approvals):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     if any(
         not (
@@ -44294,7 +44308,7 @@ def approve_checklist_result(result_index, approval_index):
         for item in approvals[:approval_index]
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     current_approval_index = next(
@@ -44311,7 +44325,7 @@ def approve_checklist_result(result_index, approval_index):
 
     if approval_index != current_approval_index:
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     approval = approvals[approval_index]
@@ -44356,11 +44370,11 @@ def approve_checklist_result(result_index, approval_index):
         or approval.get("approved_by_username")
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     if not can_approve_checklist_result(result, approval):
-        return redirect(f"/safety/checklist-results/{result_index}")
+        return redirect(url_for("checklist_result_detail", result_index=result_index))
 
     approval["approved_by"] = session.get("name")
     approval["approved_by_username"] = session.get("username")    
@@ -44518,7 +44532,7 @@ def reject_checklist_result(result_index):
 
     if result_record.status != "承認待ち":
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     result = checklist_result_to_dict(result_record)
@@ -44615,7 +44629,7 @@ def reject_checklist_result(result_index):
         current_approval
     ):
         return redirect(
-            f"/safety/checklist-results/{result_index}"
+            url_for("checklist_result_detail", result_index=result_index)
         )
 
     reject_reason = request.form.get(
