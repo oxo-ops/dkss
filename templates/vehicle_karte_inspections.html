@@ -201,7 +201,7 @@
                 <select name="per_page"
                         form="inspection-page-size-form"
                         aria-label="日常点検の表示件数"
-                        onchange="this.form.requestSubmit()">
+                        data-auto-submit>
                     {% for count in [10, 20, 50] %}
                         <option value="{{ count }}"
                                 {% if inspection_page.per_page == count %}selected{% endif %}>
@@ -353,7 +353,7 @@
                 <select name="periodic_per_page"
                         form="periodic-page-size-form"
                         aria-label="法定・定期点検の表示件数"
-                        onchange="this.form.requestSubmit()">
+                        data-auto-submit>
                     {% for count in [10, 20, 50] %}
                         <option value="{{ count }}"
                                 {% if periodic_inspection_page.per_page == count %}selected{% endif %}>

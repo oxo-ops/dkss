@@ -117,73 +117,16 @@ document.addEventListener("DOMContentLoaded", function () {
     );
 });
 
+// Choose a responsive default once; preserve a size selected by the user or link.
 document.addEventListener("DOMContentLoaded", function () {
-        function getDesiredPageSize() {
-            if (window.innerWidth <= 768) {
-                return 5;
-            }
+    const url = new URL(window.location.href);
+    const requested = url.searchParams.get("page_size");
+    if (["5", "8", "10", "20", "50"].includes(requested)) return;
 
-            if (window.innerWidth <= 1024) {
-                return 8;
-            }
-
-            return 10;
-        }
-
-        function updatePageSize() {
-            const url = new URL(
-                window.location.href
-            );
-
-            const desiredPageSize =
-                getDesiredPageSize();
-
-            const currentPageSize =
-                parseInt(
-                    url.searchParams.get(
-                        "page_size"
-                    ) || "10",
-                    10
-                );
-
-            if (
-                currentPageSize ===
-                desiredPageSize
-            ) {
-                return;
-            }
-
-            url.searchParams.set(
-                "page_size",
-                String(desiredPageSize)
-            );
-
-            url.searchParams.set(
-                "page",
-                "1"
-            );
-
-            window.location.replace(
-                url.toString()
-            );
-        }
-
-        updatePageSize();
-
-        let resizeTimer = null;
-
-        window.addEventListener(
-            "resize",
-            function () {
-                window.clearTimeout(
-                    resizeTimer
-                );
-
-                resizeTimer =
-                    window.setTimeout(
-                        updatePageSize,
-                        250
-                    );
-            }
-        );
-    });
+    const desired = window.innerWidth <= 768 ? 5
+        : window.innerWidth <= 1024 ? 8 : 10;
+    if (desired === 10 && requested === null) return;
+    url.searchParams.set("page_size", String(desired));
+    url.searchParams.set("page", "1");
+    window.location.replace(url.toString());
+});

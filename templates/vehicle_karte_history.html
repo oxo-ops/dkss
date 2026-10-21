@@ -298,7 +298,7 @@
             <select name="per_page"
                     form="history-page-size-form"
                     aria-label="履歴の表示件数"
-                    onchange="this.form.requestSubmit()">
+                    data-auto-submit>
                 {% for count in [10, 20, 50] %}
                     <option value="{{ count }}"
                             {% if history_page.per_page == count %}selected{% endif %}>

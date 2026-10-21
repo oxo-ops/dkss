@@ -2744,3 +2744,12 @@ document.addEventListener("submit", function (event) {
     const message = form.dataset.confirmMessage;
     if (message && !window.confirm(message)) event.preventDefault();
 });
+
+// GET filters use an external handler so they also work under strict CSP.
+document.addEventListener("change", function (event) {
+    const control = event.target;
+    if (!(control instanceof HTMLSelectElement)
+        || !control.hasAttribute("data-auto-submit")) return;
+    const form = control.form;
+    if (form && form.method.toLowerCase() === "get") form.requestSubmit();
+});
