@@ -1,0 +1,84 @@
+<div class="invoice-overview">
+  <div class="invoice-section-heading">
+    <strong>車両基本情報</strong>
+  </div>
+  <p class="invoice-edit-caption">原本と照合し、必要に応じて修正してください。</p>
+  <div class="invoice-input-grid">
+    <label>
+      地域名
+      <input type="text" name="plate_area" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      分類番号
+      <input type="text" name="plate_class" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      平仮名等
+      <input type="text" name="plate_kana" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      一連指定番号
+      <input type="text" name="plate_number" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      車台番号
+      <input type="text" name="chassis_number" data-certificate-field maxlength="100" required>
+    </label>
+    <label>
+      型式
+      <input type="text" name="model_code" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      原動機の型式（エンジン型式）
+      <input type="text" name="engine_code" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      初度登録年月
+      <input type="month" name="first_registration_date" data-certificate-field>
+    </label>
+    <label>
+      車名（メーカー）
+      <input type="text" name="manufacturer" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      車体の形状
+      <input type="text" name="body_type" data-certificate-field maxlength="100">
+    </label>
+    <label>
+      車両総重量（kg）
+      <input type="text" name="gross_vehicle_weight" data-certificate-field maxlength="100" inputmode="numeric">
+    </label>
+    <label>
+      最大積載量（kg）
+      <input type="text" name="max_payload" data-certificate-field maxlength="100" inputmode="numeric">
+    </label>
+    <label>
+      車検満了日
+      <input type="date" name="inspection_expiry" data-certificate-field>
+    </label>
+  </div>
+  <div class="invoice-section-heading">
+    <strong>登録先の情報</strong>
+  </div>
+  <p class="invoice-edit-caption">車種と営業所は所属会社のマスターから選択します。</p>
+  <div class="invoice-input-grid">
+    <label>
+      車種
+      <select name="type" data-certificate-field required>
+        <option value="" selected>選択してください</option>
+        {% for vehicle_type in vehicle_types %}
+        <option value="{{ vehicle_type.name }}">{{ vehicle_type.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      営業所
+      <select name="office" data-certificate-field required>
+        <option value="" selected>選択してください</option>
+        {% for office in offices %}
+        <option value="{{ office.name }}">{{ office.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+</div>

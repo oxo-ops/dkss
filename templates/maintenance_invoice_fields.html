@@ -58,6 +58,16 @@
 </p>
 {% endif %}
 
+<section class="invoice-metadata" data-invoice-service-match
+         data-candidates-url="{{ url_for('vehicle_invoice_import_candidates', batch_id=batch_id, draft_id=document.id, record_index=record_index) }}" hidden>
+    <p data-service-match-message role="status"></p>
+    <label for="service_match_{{ row_key }}">この請求書の整備</label>
+    <select id="service_match_{{ row_key }}" name="service_match_{{ row_key }}"
+            data-saved-choice="{{ record.get('service_match') or '' }}">
+        <option value="">確認してください</option>
+    </select>
+</section>
+
 <details class="invoice-overview-details" open>
     <summary>整備内容・費用内訳・請求書情報</summary>
 <p class="invoice-content-summary" data-fact="content">{{ record.get('content') or '記録内容の記載なし' }}</p>

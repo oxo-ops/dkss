@@ -6,8 +6,10 @@ pdfjs.GlobalWorkerOptions.workerSrc =
 const asset = name =>
     new URL("../vendor/pdfjs/" + name + "/", import.meta.url).href;
 
-class InvoicePdfViewer {
-    constructor(root) {
+export class InvoicePdfViewer {
+    constructor(root, options = {}) {
+        this.options = options;
+        this.destroyed = false;
         this.root = root;
         this.scroll = root.querySelector("[data-pdf-scroll]");
         this.stage = root.querySelector("[data-pdf-stage]");
@@ -26,7 +28,7 @@ class InvoicePdfViewer {
         this.activeKey = root.dataset.requestedRecordKey || "";
         this.viewStates = new Map();
         this.bind();
-        this.load();
+        this.ready = this.load();
     }
 
     bind() {
@@ -96,6 +98,7 @@ class InvoicePdfViewer {
         this.scroll.addEventListener("pointerup", endPan);
         this.scroll.addEventListener("pointercancel", endPan);
         this.scroll.addEventListener("lostpointercapture", endPan);
+        this.endPan = endPan;
         window.addEventListener("blur", endPan);
 
         this.scroll.addEventListener("dragstart", event => {
@@ -177,14 +180,15 @@ class InvoicePdfViewer {
             }
         });
 
-        new ResizeObserver(() => {
+        this.resizeObserver = new ResizeObserver(() => {
             clearTimeout(this.resizeTimer);
             this.resizeTimer = setTimeout(() => {
                 if (this.fit && this.pages.length && this.scroll.clientWidth) {
                     this.fitWidth();
                 }
             }, 120);
-        }).observe(this.scroll);
+        });
+        this.resizeObserver.observe(this.scroll);
 
         const disclosure = this.root.closest("details");
         if (disclosure) {
@@ -211,6 +215,19 @@ class InvoicePdfViewer {
 
     async load() {
         try {
+            if (this.options.data) {
+                this.loadingTask = pdfjs.getDocument({
+                    data: this.options.data,
+                    isEvalSupported: false,
+                    useWasm: false,
+                    cMapUrl: asset("cmaps"),
+                    cMapPacked: true,
+                    standardFontDataUrl: asset("standard_fonts"),
+                    wasmUrl: asset("wasm"),
+                    iccUrl: asset("iccs")
+                });
+                this.pdf = await this.loadingTask.promise;
+            } else {
             const url = new URL(this.root.dataset.sourceBase, location.href);
             if (url.origin !== location.origin) {
                 throw new Error("Source must be same-origin");
@@ -223,7 +240,7 @@ class InvoicePdfViewer {
                 return;
             }
 
-            this.pdf = await pdfjs.getDocument({
+            this.loadingTask = pdfjs.getDocument({
                 url: url.href,
                 withCredentials: true,
                 isEvalSupported: false,
@@ -233,7 +250,11 @@ class InvoicePdfViewer {
                 standardFontDataUrl: asset("standard_fonts"),
                 wasmUrl: asset("wasm"),
                 iccUrl: asset("iccs")
-            }).promise;
+            });
+            this.pdf = await this.loadingTask.promise;
+
+            }
+            if (this.destroyed) return;
 
             this.root.querySelector("[data-pdf-count]").textContent =
                 String(this.pdf.numPages);
@@ -241,6 +262,7 @@ class InvoicePdfViewer {
 
             for (let n = 1; n <= this.pdf.numPages; n++) {
                 const page = await this.pdf.getPage(n);
+                if (this.destroyed) return;
                 const element = document.createElement("div");
                 element.className = "invoice-pdf-page";
                 element.setAttribute("role", "img");
@@ -268,9 +290,23 @@ class InvoicePdfViewer {
             this.fitWidth();
             this.go(this.pending);
         } catch (error) {
+            if (this.destroyed) return;
             this.showSourceFallback("原本を表示できませんでした。");
             console.error("Invoice PDF preview failed", error);
         }
+    }
+
+    destroy() {
+        this.destroyed = true;
+        this.generation++;
+        this.queue = [];
+        this.endPan?.();
+        window.removeEventListener("blur", this.endPan);
+        this.resizeObserver?.disconnect();
+        clearTimeout(this.resizeTimer);
+        if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+        for (const entry of this.pages) entry.task?.cancel();
+        void this.loadingTask?.destroy().catch(() => {});
     }
 
     pageTop(entry) {
@@ -531,7 +567,7 @@ class InvoicePdfViewer {
     }
 
     visible() {
-        if (!this.pages.length || !this.scroll.clientHeight) return;
+        if (this.destroyed || !this.pages.length || !this.scroll.clientHeight) return;
 
         const top = this.scroll.scrollTop - 300;
         const bottom =
@@ -564,7 +600,7 @@ class InvoicePdfViewer {
     }
 
     pump() {
-        while (this.running < 2 && this.queue.length) {
+        while (!this.destroyed && this.running < 2 && this.queue.length) {
             const entry = this.queue.shift();
 
             if (

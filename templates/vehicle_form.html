@@ -26,7 +26,7 @@
     </div>
 </div>
 
-<div class="card form-card">
+<div class="card form-card vehicle-master-entry-card">
     <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -126,9 +126,15 @@
         </div>
 
         <div class="form-group">
-            <label>初年度登録</label>
+            <label for="engine_code">原動機の型式（エンジン型式）</label>
+            <input type="text" name="engine_code" id="engine_code"
+                   maxlength="100" value="{{ vehicle.engine_code or '' if vehicle else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>初度登録年月</label>
             <input
-                type="date"
+                type="{{ 'date' if vehicle and vehicle.first_registration_date and (vehicle.first_registration_date|string|length) == 10 else 'month' }}"
                 name="first_registration_date"
                 id="first_registration_date"
                 value="{{ vehicle.first_registration_date if vehicle else '' }}"

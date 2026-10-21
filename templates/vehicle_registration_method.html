@@ -1,8 +1,13 @@
+<!-- certificate-invoice-controls-v1 -->
 {% extends "base.html" %}
 
 {% block title %}車両登録{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261021-shared-controls-1') }}">
+
+
+
 
 {% macro method_icon(kind) %}
 <svg
@@ -33,7 +38,7 @@
 </svg>
 {% endmacro %}
 
-<div class="vehicle-registration-page">
+<div class="vehicle-registration-page vehicle-data-import">
     <nav
         class="vehicle-registration-breadcrumb"
         aria-label="現在の位置"
@@ -69,7 +74,7 @@
         </div>
     </div>
 
-    <div class="vehicle-registration-method-grid">
+    <div class="vehicle-registration-method-grid" id="registration-choice-grid">
         <section
             class="vehicle-registration-method-card vehicle-registration-method-airia"
             aria-labelledby="registration-airia-title"
@@ -131,15 +136,59 @@
                 <li>既存Excelをそのまま利用</li>
             </ul>
 
-            <div class="vehicle-registration-method-action">
-                <a
-                    href="{{ url_for('import_vehicles') }}"
-                    class="btn btn-outline"
-                >
-                    Excelから登録
-                    <span aria-hidden="true">›</span>
-                </a>
-            </div>
+            <form
+                id="registration-excel-form"
+                class="import-form"
+                action="{{ url_for('import_vehicles') }}"
+                method="post"
+                enctype="multipart/form-data"
+            >
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token() }}">
+
+                <label class="import-dropzone"
+                       id="registration-excel-dropzone"
+                       for="registration-excel-file">
+                    <span class="import-drop-copy">
+                        <strong id="registration-excel-title">
+                            Excelをここにドロップ
+                        </strong>
+                        <small id="registration-excel-detail">
+                            Excel（.xlsx）／1ファイル
+                        </small>
+                    </span>
+                    <span class="import-pick-button">
+                        ファイルを選ぶ
+                    </span>
+                    <input
+                        type="file"
+                        id="registration-excel-file"
+                        name="excel_file"
+                        accept=".xlsx"
+                        required
+                    >
+                </label>
+
+                <p id="registration-excel-status"
+                   class="import-file-status"
+                   role="status">ファイル未選択</p>
+
+                <div class="import-actions">
+                    <button type="button"
+                            id="registration-excel-clear"
+                            class="btn btn-outline import-clear"
+                            hidden>
+                        選択をクリア
+                    </button>
+                    <button type="submit"
+                            id="registration-excel-submit"
+                            class="btn btn-outline"
+                            disabled>
+                        読み込んで確認
+                    </button>
+                </div>
+            </form>
         </section>
 
         <section
@@ -169,11 +218,87 @@
                 <li>手入力を最小限に</li>
             </ul>
 
-            <div class="vehicle-registration-method-action">
-                <button type="button" class="btn btn-outline" disabled>
-                    準備中
-                </button>
-            </div>
+            <span id="certificate-file-label" hidden></span>
+            <form
+                id="certificate-upload-form"
+                class="certificate-registration-import-form"
+                enctype="multipart/form-data"
+                novalidate
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}"
+                >
+
+                <label
+                    class="import-dropzone"
+                    for="certificate-file"
+                >
+                    <span class="import-drop-copy">
+                        <strong>PDF・画像をここにドロップ</strong>
+                        <small>
+                            PDF・PNG・JPEG／1ファイル20MBまで
+                        </small>
+                    </span>
+
+                    <span class="import-pick-button">
+                        ファイルを選ぶ
+                    </span>
+
+                    <input
+                        type="file"
+                        id="certificate-file"
+                        name="certificate"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        required
+                    >
+                </label>
+
+                <progress
+                    id="certificate-progress"
+                    class="import-progress"
+                    max="100"
+                    aria-label="ファイルの送信・読み取り状況"
+                    hidden
+                ></progress>
+
+                <p
+                    id="certificate-status"
+                    class="import-file-status"
+                    role="status"
+                    aria-live="polite"
+                >
+                    ファイル未選択
+                </p>
+
+                <p
+                    id="certificate-error"
+                    class="import-error"
+                    role="alert"
+                    hidden
+                ></p>
+
+                <div class="import-actions">
+                    <button
+                        type="button"
+                        id="certificate-clear"
+                        class="btn btn-outline import-clear"
+                        hidden
+                    >
+                        選択をクリア
+                    </button>
+
+                    <button
+                        type="submit"
+                        id="certificate-read-button"
+                        class="btn btn-outline"
+                        disabled
+                    >
+                        読み込んで確認
+                    </button>
+                </div>
+            </form>
         </section>
 
         <section
@@ -214,7 +339,105 @@
         </section>
     </div>
 
+    <div class="invoice-review-page vehicle-certificate-review" id="certificate-review-shell" hidden>
+    <div class="invoice-page-heading">
+        <h2>車検証の読取確認</h2>
+        <div class="form-actions invoice-submit-actions">
+            <button type="button"
+                    class="btn invoice-primary-action"
+                    id="certificate-continue-button"
+                    disabled>
+                登録内容を確認
+            </button>
+        </div>
+    </div>
+    <section id="certificate-review"
+             class="invoice-document"
+             data-invoice-document
+             hidden>
+
+        <div class="invoice-document-heading">
+            <button type="button" class="btn btn-outline" id="certificate-back-button">← 登録方法に戻る</button>
+            <span id="certificate-review-filename">車検証の読取結果</span>
+            <div class="invoice-document-tools">
+                <div class="invoice-view-switch" data-view-switch role="group" aria-label="表示方法">
+                    <button type="button" data-document-view="source" aria-pressed="true">原本と照合</button>
+                    <button type="button" data-document-view="focus" aria-pressed="false">入力に集中</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="invoice-mobile-views" aria-label="原本と読取結果の表示切替">
+            <button type="button" data-review-view="source" aria-pressed="true">原本</button>
+            <button type="button" data-review-view="results" aria-pressed="false">読取結果</button>
+        </div>
+
+        <div class="invoice-review-layout">
+
+            <aside class="invoice-source-panel">
+                <details class="invoice-source-disclosure" id="certificate-source-container" open>
+                    <summary>原本</summary>
+                        <template id="certificate-pdf-template">
+                            {% set pdf_source_url = "" %}
+                            {% set pdf_filename = "" %}
+                            {% set pdf_record_key = "" %}
+                            {% include "vehicle_document_pdf_viewer.html" %}
+                        </template>
+                </details>
+            </aside>
+
+            <button type="button" class="invoice-splitter" role="separator"
+                    aria-label="原本と確認内容の幅を調整。左右キーで調整、Homeで初期幅に戻す"
+                    aria-orientation="vertical" aria-valuemin="20"
+                    aria-valuemax="80" aria-valuenow="55"
+                    title="ドラッグで幅を調整・ダブルクリックで初期幅に戻す"></button>
+
+            <div class="invoice-records">
+                <section class="invoice-record">
+                    <div class="invoice-overview">
+                        <div class="invoice-record-heading">
+                            <div>
+                                <p class="invoice-eyebrow">
+                                    AI読取結果
+                                </p>
+                                <h3>登録する車両の情報</h3>
+                                <p class="invoice-key-facts">
+                                    原本を確認しながら修正してください。
+                                </p>
+                            </div>
+                        </div>
+                        <div id="certificate-warnings"
+                             class="import-error"
+                             role="alert"
+                             hidden></div>
+
+                        <div class="form-actions">
+                            <span id="certificate-change-label" hidden>
+                                AI読取結果から変更あり
+                            </span>
+                            <button type="button"
+                                    id="certificate-reset-fields"
+                                    class="btn btn-outline"
+                                    disabled>
+                                読取値に戻す
+                            </button>
+                        </div>
+
+                        <div id="certificate-fields-container">
+                            {% include "vehicle_certificate_fields.html" %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+        </div>
+
+
+    </section>
+    </div>
+
     <section
+        id="registration-choice-guide"
         class="vehicle-registration-guide"
         aria-labelledby="registration-guide-title"
     >
@@ -259,10 +482,13 @@
         </div>
 
         <p class="vehicle-registration-availability">
-            AIRIAからの取得・車検証のAI読取は準備中です。
-            現在はExcel一括登録・手入力で登録できます。
+            AIRIAからの取得は準備中です。
+            現在は車検証のAI読取・Excel一括登録・手入力で登録できます。
         </p>
     </section>
 </div>
+
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261021-shared-controls-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_certificate_register.js', v='20261021-shared-controls-1') }}" defer></script>
 
 {% endblock %}

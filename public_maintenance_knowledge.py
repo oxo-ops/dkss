@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.exc import IntegrityError
 
 ROOT = "https://www.hino.co.jp/ts/vehicle_maintenance/"
-MAX_BYTES = 10 * 1024 * 1024
+MAX_BYTES = 32 * 1024 * 1024
 
 
 def next_month(now):
@@ -94,6 +94,7 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
         lease_token = db.Column(db.String(36))
         lease_until = db.Column(db.DateTime)
         last_error = db.Column(db.String(200), default="")
+        requested_scope_hash = db.Column(db.String(64))
 
     class PublicKnowledgeFile(db.Model):
         __tablename__ = "public_knowledge_file"
@@ -112,13 +113,45 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
         last_error = db.Column(db.String(200), default="")
         __table_args__ = (db.UniqueConstraint("company_code", "url"),)
 
-    def target_companies():
-        rows = db.session.query(Vehicle.company_code, Vehicle.manufacturer).join(
+    def target_vehicle_scopes():
+        rows = db.session.query(
+            Vehicle.company_code,
+            Vehicle.manufacturer,
+            Vehicle.model_code,
+        ).join(
             Company, Company.company_code == Vehicle.company_code,
-        ).filter(Vehicle.deleted.is_(False), Company.active.is_(True)).distinct().all()
-        return sorted({company for company, maker in rows if unicodedata.normalize(
-            "NFKC", str(maker or "")
-        ).strip().casefold() in {"日野", "hino", "日野自動車", "日野自動車株式会社"}})
+        ).filter(
+            Vehicle.deleted.is_(False),
+            Company.active.is_(True),
+        ).distinct().all()
+        scopes = {}
+        aliases = {
+            "hino", "\u65e5\u91ce",
+            "\u65e5\u91ce\u81ea\u52d5\u8eca",
+            "\u65e5\u91ce\u81ea\u52d5\u8eca\u682a\u5f0f\u4f1a\u793e",
+        }
+        for company, manufacturer, model in rows:
+            maker = unicodedata.normalize(
+                "NFKC", str(manufacturer or "")
+            ).strip().casefold()
+            if maker not in aliases:
+                continue
+            normalized_model = unicodedata.normalize(
+                "NFKC", str(model or "")
+            ).strip().casefold()
+            scopes.setdefault(company, set()).add(
+                ("hino", normalized_model)
+            )
+        return {
+            company: hashlib.sha256(json.dumps(
+                sorted(values), ensure_ascii=True,
+                separators=(",", ":"),
+            ).encode("utf-8")).hexdigest()
+            for company, values in scopes.items()
+        }
+
+    def target_companies():
+        return sorted(target_vehicle_scopes())
 
     def retire_document(company, document_id, reason, now):
         if not document_id:
@@ -155,13 +188,98 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
             if url not in found and row.available:
                 row.available = False
                 row.status = "unlisted"
-                retire_document(catalog.company_code, row.document_id,
-                    "公式資料一覧で掲載を確認できないため、再確認まで分析への利用を停止。", now)
+                # 一覧からの掲載終了と、整備基準の廃止は区別する。
+                # 掲載を確認できないだけでは既存の知識を廃止しない。
         catalog.last_checked = now
-        catalog.next_check = next_month(now)
+        catalog.next_check = now + timedelta(days=7)
         catalog.last_error = ""
         db.session.commit()
         return f"公式一覧 {len(found)}件を確認"
+
+    def get_public_document_states(company_code, document_ids, *, now=None):
+        """取得済み原本の状態を返す。知識の採用・廃止は行わない。"""
+        import re
+
+        if (
+            not isinstance(company_code, str)
+            or not company_code.strip()
+            or not isinstance(document_ids, (list, tuple, set))
+            or any(
+                not isinstance(value, str)
+                or not re.fullmatch(r"[a-f0-9-]{36}", value)
+                for value in document_ids
+            )
+        ):
+            raise ValueError("PUBLIC_DOCUMENT_LOOKUP_INVALID")
+
+        ids = sorted(set(document_ids))
+        if not ids:
+            return {}
+
+        checked_now = now
+        if checked_now is None:
+            checked_now = datetime.now(
+                ZoneInfo("Asia/Tokyo")
+            ).replace(tzinfo=None)
+        elif checked_now.tzinfo is not None:
+            checked_now = checked_now.astimezone(
+                ZoneInfo("Asia/Tokyo")
+            ).replace(tzinfo=None)
+
+        states = {}
+        rows = PublicKnowledgeFile.query.filter_by(
+            company_code=company_code,
+        ).filter(
+            PublicKnowledgeFile.document_id.in_(ids),
+        ).all()
+
+        for row in rows:
+            valid_checksum = (
+                isinstance(row.checksum, str)
+                and re.fullmatch(r"[a-f0-9]{64}", row.checksum)
+                is not None
+            )
+            if not row.available:
+                state = "unlisted"
+            elif row.status not in {"review", "unchanged"}:
+                state = "verification_pending"
+            elif not valid_checksum:
+                state = "checksum_missing"
+            elif row.last_checked is None:
+                state = "check_date_missing"
+            elif row.last_checked > checked_now:
+                state = "check_date_invalid"
+            elif row.next_check is None or row.next_check < checked_now:
+                state = "verification_due"
+            else:
+                state = "observed"
+
+            states.setdefault(row.document_id, []).append({
+                "public_file_id": row.id,
+                "document_id": row.document_id,
+                "company_code": row.company_code,
+                "source_url": row.url,
+                "document_checksum": row.checksum,
+                "source_state": state,
+                "file_status": row.status,
+                "available": bool(row.available),
+                "last_checked": (
+                    row.last_checked.isoformat()
+                    if row.last_checked else None
+                ),
+                "next_check": (
+                    row.next_check.isoformat()
+                    if row.next_check else None
+                ),
+                "checked_timezone": "Asia/Tokyo",
+                "scope": "last_observed_public_document",
+            })
+
+        return states
+
+    app.extensions["maintenance_knowledge_import"][
+        "get_public_document_states"
+    ] = get_public_document_states
 
     def scan_file(row, now):
         data = fetch_bytes(row.url)
@@ -177,28 +295,24 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
                 company_code=row.company_code, last_import_month=month,
             ).count()
             if imported >= limit:
-                if row.document_id:
-                    retire_document(row.company_code, row.document_id,
-                        "公式原本の変更を検出。新版読取りまで旧版知識の利用を停止。", now)
+                # 読取り上限への到達だけでは、既存の知識を廃止しない。
+                # 新版の取得・検証が完了するまで旧版と原本を保持する。
                 row.status = "monthly_limit"
                 row.next_check = next_month(now)
                 row.last_checked = now
                 db.session.commit()
                 return "月の読取り上限に到達。残りは次月に繰越"
-            old_document_id = row.document_id
             store = app.extensions["maintenance_knowledge_import"]["store_public_document"]
             filename = row.title[:100] + "_" + row.url.rsplit("/", 1)[-1]
             document_id = store(row.company_code, data, filename, row.url, "日野")
-            # 別版の採用済み知識は、新版の確認が済むまで利用を止める。
-            if old_document_id and old_document_id != document_id:
-                retire_document(row.company_code, old_document_id,
-                    "公式原本が更新されたため、新版の確認まで旧版知識の利用を停止。", now)
+            # 新版の抽出候補を保存する。候補保存だけでは旧版を廃止しない。
+            # 旧版との切替は、適用条件・改訂内容の検証後に行う。
             row.document_id = document_id
             row.checksum = checksum
             row.last_import_month = month
             row.status = "review"
         row.last_checked = now
-        row.next_check = next_month(now)
+        row.next_check = now + timedelta(days=7)
         row.last_error = ""
         db.session.commit()
         return "原本の変更なし" if row.status == "unchanged" else "資料を取込・確認待ちへ登録"
@@ -207,7 +321,8 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
         now = now or datetime.now(ZoneInfo("Asia/Tokyo")).replace(tzinfo=None)
         if os.environ.get("PUBLIC_KNOWLEDGE_ENABLED", "1") != "1":
             return "公開資料の自動確認は停止中"
-        for company in target_companies():
+        vehicle_scopes = target_vehicle_scopes()
+        for company in sorted(vehicle_scopes):
             catalog = PublicKnowledgeCatalog.query.filter_by(company_code=company).first()
             if catalog is None:
                 db.session.add(PublicKnowledgeCatalog(company_code=company, next_check=now))
@@ -228,13 +343,32 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
             row = None
             result = None
             try:
-                if catalog.next_check <= now:
+                scope_hash = vehicle_scopes[company]
+                scope_changed = catalog.requested_scope_hash != scope_hash
+                weekly_due = (
+                    not catalog.last_error
+                    and catalog.last_checked is not None
+                    and catalog.last_checked + timedelta(days=7) <= now
+                )
+                if scope_changed or weekly_due or catalog.next_check <= now:
+                    if scope_changed:
+                        catalog.requested_scope_hash = scope_hash
+                        db.session.commit()
                     result = scan_catalog(catalog, now)
                 else:
                     row = PublicKnowledgeFile.query.filter(
                         PublicKnowledgeFile.company_code == company,
                         PublicKnowledgeFile.available.is_(True),
-                        PublicKnowledgeFile.next_check <= now,
+                        db.or_(
+                            PublicKnowledgeFile.next_check <= now,
+                            db.and_(
+                                PublicKnowledgeFile.status.in_(
+                                    {"review", "unchanged"}
+                                ),
+                                PublicKnowledgeFile.last_checked
+                                <= now - timedelta(days=7),
+                            ),
+                        ),
                     ).order_by(PublicKnowledgeFile.priority, PublicKnowledgeFile.id).first()
                     if row is not None:
                         result = scan_file(row, now)

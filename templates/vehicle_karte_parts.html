@@ -326,14 +326,17 @@
                 {% set operation = karte_operation_summary|default({}) %}
                 {% set current_mileage = operation.get('current_mileage') %}
                 {% set mileage_date = operation.get('mileage_date') or '' %}
+                {% set mileage_reference = operation.get('mileage_reference') or {} %}
 
                 <div class="kp-current-list{% if selected_parts_scope == 'all' %} is-all{% endif %}">
                     {% for group in part_state_groups %}
                     {% set part = group.latest %}
                     {% set elapsed = none %}
 
-                    {% if current_mileage is not none
+                    {% if mileage_reference.get('distance_usable') is sameas true
+                          and current_mileage is not none
                           and part.mileage is not none
+                          and part.replacement_date
                           and current_mileage >= part.mileage
                           and mileage_date
                           and mileage_date[:10] >= part.replacement_date %}

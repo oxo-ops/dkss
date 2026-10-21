@@ -86,8 +86,11 @@
         <h2>整備記録の{{ '編集' if editing else '登録' }}</h2>
         <div class="header-actions">
             <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
-            <button type="submit" form="maintenance_form" class="btn">
-                {{ '変更を保存' if editing else '登録する' }}
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="draft" class="btn btn-outline">
+                {{ '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
+            </button>
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="complete" class="btn">
+                整備完了
             </button>
         </div>
     </div>
@@ -125,6 +128,21 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="record_version" value="{{ record_version }}">
 
+        {% if inspection_choices or 'inspection_defects' in error_fields %}
+        <section class="km-form-section" id="inspection_defects">
+            {% if inspection_choices %}
+            <h3>元の点検指摘</h3>
+            {% for choice in inspection_choices %}
+            <input type="hidden" name="inspection_defect" value="{{ choice.token }}">
+            <p><a href="{{ choice.link }}">{{ choice.label }}</a>（{{ choice.status }}）</p>
+            {% endfor %}
+            {% endif %}
+            {% for message, error_field in form_errors %}
+            {% if error_field == 'inspection_defects' %}<p class="field-error-message">{{ message }}</p>{% endif %}
+            {% endfor %}
+        </section>
+        {% endif %}
+
         <section class="km-form-section">
             <h3>基本情報</h3>
             <p class="help-text">対象車両：{{ vehicle_number }}</p>
@@ -139,9 +157,7 @@
                     '整備', '修理', '故障', '部品交換',
                     '定期点検', '車検', '応急処置'
                 ]) }}
-                {{ field('status', '状態', limit=50, choices=[
-                    '未対応', '対応待ち', '対応中', '整備中', '完了'
-                ]) }}
+                <input type="hidden" name="status" value="{{ form_values.get('status') or '' }}">
                 {{ field('repair_hours', '作業時間（時間）', decimal=true, limit=100) }}
             </div>
 
@@ -182,8 +198,11 @@
         </section>
 
         <div class="form-actions">
-            <button type="submit" class="btn">
-                {{ '変更を保存' if editing else '登録する' }}
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="draft" class="btn btn-outline">
+                {{ '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
+            </button>
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="complete" class="btn">
+                整備完了
             </button>
             <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
         </div>
