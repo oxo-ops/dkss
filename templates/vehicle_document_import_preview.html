@@ -34,8 +34,8 @@
 
 {% for document in documents %}
 {% set records = document.preview.get('records') or [{}] %}
-{% if document.document_type == 'maintenance' %}
-<section class="invoice-document" data-invoice-document>
+{% if document.document_type in ['maintenance', 'inspection'] %}
+<section class="invoice-document" data-invoice-document data-document-type="{{ document.document_type }}">
     <div class="invoice-document-heading">
         <span>{{ document.filename }}</span>
         <div class="invoice-document-tools">
@@ -49,12 +49,12 @@
         <button type="button" data-review-view="source" aria-pressed="true">原本</button>
         <button type="button" data-review-view="results" aria-pressed="false">読取結果</button>
     </div>
-    <div class="invoice-switcher" aria-label="確認する請求書">
+    <div class="invoice-switcher" aria-label="確認する記録">
         {% for record in records %}
         {% set row_key = document.id ~ '_' ~ loop.index0 %}
         <button type="button" class="invoice-switch" data-record-target="{{ row_key }}" aria-controls="record_{{ row_key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
             <span>{{ loop.index }}. 原本：{{ record.get('registration_number') or '車番読取なし' }}</span>
-            <small>{{ record.get('invoice_number') or '伝票番号なし' }}</small>
+            <small>{{ (record.get('inspection_type_raw') or '点検区分未読取') if document.document_type == 'inspection' else (record.get('invoice_number') or '伝票番号なし') }}</small>
         </button>
         {% endfor %}
     </div>
@@ -69,7 +69,7 @@
                             <input type="checkbox" data-source-sync checked>
                             原本と連動
                         </label>
-                        <span data-sync-status role="status">表示中の原本に合わせて請求書を切替</span>
+                        <span data-sync-status role="status">表示中の原本に合わせて記録を切替</span>
                     </div>
                     <div class="invoice-pdf-toolbar">
                         <div class="invoice-pdf-pages">
@@ -101,7 +101,11 @@
             {% for record in records %}
             {% set row_key = document.id ~ '_' ~ loop.index0 %}
             <section class="invoice-record" id="record_{{ row_key }}" data-record-key="{{ row_key }}" data-first-page="{{ (record.get('source_pages') or [1])[0] }}" data-source-pages="{{ (record.get('source_pages') or [1])|tojson|forceescape }}" {% if not loop.first %}hidden{% endif %}>
+                {% if document.document_type == 'inspection' %}
+                {% include 'inspection_document_fields.html' %}
+                {% else %}
                 {% include 'maintenance_invoice_fields.html' %}
+                {% endif %}
             </section>
             {% endfor %}
         </div>
@@ -171,6 +175,6 @@
 </div>
 </form>
 </div>
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261021-shared-controls-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261022-inspection-plan-1') }}" defer></script>
 <script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', pdf_fix='20261016-2', v='20261016-review-3') }}"></script>
 {% endblock %}

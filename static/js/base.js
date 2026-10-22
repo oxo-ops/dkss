@@ -1134,13 +1134,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 return "対応形式のファイルを選択してください（" + input.accept + "）。";
             }
             if (
-                form.querySelector('input[name="document_type"]')?.value === "maintenance"
+                ["maintenance", "inspection"].includes(form.querySelector('input[name="document_type"]')?.value)
             ) {
                 const oversized = files.find(
                     file => file.size > 20 * 1024 * 1024
                 );
                 if (oversized) {
-                    return oversized.name + "：請求書は1ファイル20MB以下にしてください。";
+                    return oversized.name + "：資料は1ファイル20MB以下にしてください。";
                 }
             }
 
@@ -1263,7 +1263,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             const payload = new FormData(form);
-            const streaming = payload.get("document_type") === "maintenance";
+            const streaming = ["maintenance", "inspection"].includes(payload.get("document_type"));
             let lastServerUpdate = 0;
             const button = form.querySelector('button[type="submit"]');
             const title = zone.querySelector(".import-drop-copy strong");
@@ -1446,7 +1446,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     title.textContent = {
                         accepted: "送信完了・読み取りを開始します",
-                        reading: "AIが請求書を読み取っています",
+                        reading: "AIが資料を読み取っています",
                         checking: "読取結果と車両台帳を照合しています",
                         processed: "ファイルの処理結果を確認しました",
                         saving: "確認画面のデータを保存しています"
@@ -2753,3 +2753,51 @@ document.addEventListener("change", function (event) {
     const form = control.form;
     if (form && form.method.toLowerCase() === "get") form.requestSubmit();
 });
+
+// Dismiss overlays through each surface's existing close/cancel behavior.
+// A drag beginning inside a panel must never count as a backdrop click.
+(() => {
+    let press = null;
+    function outsideSurface(event) {
+        const dialogs = Array.from(document.querySelectorAll('dialog[open]'))
+            .filter(dialog => dialog.matches(':modal'));
+        const dialog = dialogs.at(-1);
+        if (dialog) {
+            const surface = dialog.querySelector('.modal-box') || dialog;
+            const box = surface.getBoundingClientRect();
+            const outside = event.clientX < box.left || event.clientX > box.right
+                || event.clientY < box.top || event.clientY > box.bottom;
+            return outside ? { element: dialog, type: 'dialog' } : null;
+        }
+        const drawer = document.querySelector('.ka-reference-drawer:not([hidden])');
+        if (drawer && !drawer.contains(event.target)) {
+            return { element: drawer, type: 'drawer' };
+        }
+        return null;
+    }
+    document.addEventListener('pointerdown', event => {
+        press = null;
+        if (event.button !== 0 || !event.isPrimary) return;
+        const surface = outsideSurface(event);
+        if (surface) press = { ...surface, x: event.clientX, y: event.clientY };
+    }, true);
+    document.addEventListener('pointercancel', () => { press = null; }, true);
+    document.addEventListener('click', event => {
+        const start = press;
+        press = null;
+        if (!start || event.button !== 0) return;
+        const end = outsideSurface(event);
+        if (!end || end.element !== start.element
+            || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const surface = start.element;
+        if (surface.querySelector('[aria-busy="true"], [data-submitting="true"], button[type="submit"]:disabled, [data-review-save]:disabled, [data-plan-save]:disabled')) return;
+        if (start.type === 'dialog') {
+            // Existing cancel handlers retain unsaved-input and in-flight guards.
+            if (surface.dispatchEvent(new Event('cancel', { cancelable: true }))) surface.close();
+        } else {
+            surface.querySelector('.ka-drawer-close')?.click();
+        }
+    }, true);
+})();

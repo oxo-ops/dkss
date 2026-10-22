@@ -209,6 +209,309 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.expire_all()
         self.assertEqual(row.entry_date, "2026-10-01")
 
+    def upload_inspection(self, streaming=False, data=None, source=None):
+        from io import BytesIO
+        from test_inspection_document_ai import extraction, pdf_bytes
+        source = source or pdf_bytes()
+        with patch.object(self.m, "extract_inspection_documents", return_value=data or extraction(source)):
+            response = self.client.post("/vehicle/data-import" + ("/progress" if streaming else ""), data={
+                "document_type": "inspection", "document_files": (BytesIO(source), "inspection.pdf"),
+            })
+            response.get_data()  # consume streaming response while patch is active
+        return response
+
+    def inspection_form(self, draft, vehicle=True):
+        row = json.loads(draft.preview_json)["records"][0]
+        key = draft.id + "_0"
+        return {"include": key, "vehicle_" + key: str(self.vehicle.id) if vehicle else "",
+                "date_" + key: row.get("record_date") or "", "inspection_type_" + key: row.get("inspection_type") or "",
+                "mileage_" + key: row.get("mileage") or "", "content_" + key: row.get("content") or ""}
+
+    def test_inspection_import_full_path_and_reupload_guard(self):
+        m = self.m
+        self.assertEqual(self.upload_inspection().status_code, 302)
+        draft = m.VehicleDocumentImportDraft.query.one()
+        preview = self.client.get(f"/vehicle/data-import/{draft.batch_id}/preview")
+        self.assertEqual(preview.status_code, 200)
+        text = preview.get_data(as_text=True)
+        self.assertIn('data-document-type="inspection"', text)
+        self.assertIn('data-invoice-source', text)
+        self.assertIn('点検項目', text)
+        self.assertNotIn('請求総額', text)
+        form = self.inspection_form(draft)
+        key = draft.id + "_0"
+        form["inspection_item_" + key + "_0_raw_result"] = "△"
+        form["inspection_company_" + key] = "修正後工場"
+        form["next_inspection_date_" + key] = "2027-01-21"
+        form["mileage_" + key] = "100,001.25"
+        response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/inspections', response.location)
+        record = m.VehiclePeriodicInspectionRecord.query.one()
+        self.assertEqual(str(record.mileage), "100001.25")
+        self.assertEqual(record.inspection_company, "修正後工場")
+        self.assertEqual(record.inspector_name, "点検者")
+        self.assertIsNone(record.completion_date)
+        self.assertEqual(record.next_inspection_date, "2027-01-21")
+        details = json.loads(record.details_json)
+        self.assertEqual(details["inspection_items"][0]["raw_result"], "△")
+        self.assertEqual(json.loads(draft.preview_json)["original_records"][0]["inspection_items"][0]["raw_result"], "○")
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePartReplacement.query.count(), 0)
+        history = self.client.get(response.location)
+        self.assertEqual(history.status_code, 200)
+        self.assertIn("ブレーキの効き", history.get_data(as_text=True))
+        source = self.client.get(f"/vehicle/periodic-inspections/{record.id}/source")
+        self.assertEqual(source.data, draft.source_file)
+        self.assertIn("no-store", source.headers["Cache-Control"])
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 409)
+        self.upload_inspection()
+        again = m.VehicleDocumentImportDraft.query.filter_by(status="preview").one()
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{again.batch_id}/confirm", data=self.inspection_form(again)).status_code, 400)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_inspection_stream_progress_and_partial_failure(self):
+        from io import BytesIO
+        from test_inspection_document_ai import pdf_bytes, extraction
+        source = pdf_bytes()
+        with patch.object(self.m, "extract_inspection_documents", side_effect=[extraction(source), ValueError("NO_INSPECTION_FOUND")]):
+            response = self.client.post("/vehicle/data-import/progress", data={"document_type": "inspection", "document_files": [
+                (BytesIO(source), "good.pdf"), (BytesIO(source), "bad.pdf")]})
+            events = [json.loads(line) for line in response.data.decode().splitlines()]
+        self.assertEqual(events[-1]["phase"], "complete")
+        draft = self.m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(json.loads(draft.preview_json)["import_failures"][0]["filename"], "bad.pdf")
+        self.assertIn("点検表", self.client.get(events[-1]["redirect_url"]).get_data(as_text=True))
+
+    def test_inspection_all_failed_does_not_save_empty_records(self):
+        from io import BytesIO
+        from test_inspection_document_ai import pdf_bytes
+        for streaming in (False, True):
+            with patch.object(self.m, "extract_inspection_documents", side_effect=RuntimeError("OPENAI_NETWORK_OR_TIMEOUT")):
+                response = self.client.post("/vehicle/data-import" + ("/progress" if streaming else ""), data={
+                    "document_type": "inspection", "document_files": (BytesIO(pdf_bytes()), "retry.pdf")}, headers={"X-DKSS-Final-Submit": "1"})
+                raw = response.get_data(as_text=True)
+            raw = raw if streaming else json.dumps(response.get_json(), ensure_ascii=False)
+            self.assertIn("時間切れ", raw)
+            self.assertEqual(self.m.VehicleDocumentImportDraft.query.count(), 0)
+        self.assertEqual(self.upload_inspection().status_code, 302)
+
+    def test_inspection_company_owner_and_role_boundaries(self):
+        self.upload_inspection()
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        form = self.inspection_form(draft)
+        m.db.session.add(m.Company(company_code="OTHER", company_name="Other", active=True))
+        foreign = m.Vehicle(company_code="OTHER", chassis_number="FOREIGN")
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for company, user in [("TEST", "other-admin"), ("OTHER", "admin")]:
+            m.db.session.add(m.User(company_code=company, username=user, role="admin", password="unused", last_name="検証", first_name="管理者", password_changed_at=stamp))
+        m.db.session.add(foreign); m.db.session.commit()
+        form["vehicle_" + draft.id + "_0"] = str(foreign.id)
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 400)
+        with patch.object(m, "require_master_admin", return_value=True):
+            for field, value in [("username", "other-admin"), ("company_code", "OTHER")]:
+                with self.client.session_transaction() as session:
+                    saved = session[field]; session[field] = value
+                for url in [f"/vehicle/data-import/{draft.batch_id}/preview", f"/vehicle/data-import/files/{draft.id}"]:
+                    self.assertEqual(self.client.get(url).status_code, 404)
+                with self.client.session_transaction() as session: session[field] = saved
+        with patch.object(m, "require_master_admin", return_value=False):
+            self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 403)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+
+    def test_inspection_failed_save_rolls_back_and_keeps_edits(self):
+        self.upload_inspection()
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        form = self.inspection_form(draft)
+        with patch.object(m, "build_vehicle_document_record", side_effect=ValueError("forced failure")):
+            response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form)
+        self.assertEqual(response.status_code, 500)
+        m.db.session.expire_all()
+        self.assertEqual(draft.status, "preview")
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 302)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_inspection_validation_keeps_edits_and_original(self):
+        self.upload_inspection()
+        draft = self.m.VehicleDocumentImportDraft.query.one()
+        form = self.inspection_form(draft)
+        key = draft.id + "_0"
+        form["date_" + key] = "2026-02-30"
+        form["content_" + key] = '<script>alert("x")</script>'
+        response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form)
+        self.assertEqual(response.status_code, 400)
+        stored = json.loads(draft.preview_json)
+        self.assertEqual(stored["records"][0]["record_date"], "2026-02-30")
+        self.assertEqual(stored["original_records"][0]["record_date"], "2026-10-21")
+        text = self.client.get(f"/vehicle/data-import/{draft.batch_id}/preview").get_data(as_text=True)
+        self.assertNotIn('<script>alert("x")</script>', text)
+        self.assertIn('&lt;script&gt;', text)
+
+    def test_inspection_pending_then_assign_without_reupload(self):
+        self.upload_inspection()
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=self.inspection_form(draft, vehicle=False))
+        self.assertEqual(response.status_code, 302)
+        item = m.VehicleImportPendingRecord.query.one()
+        self.assertEqual(item.source_kind, "inspection")
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        with m.app.test_request_context():
+            from flask import session
+            session.update(company_code="TEST", username="admin", role="admin")
+            m.apply_vehicle_import_pending_documents(item.pending_id, self.vehicle.id, "TEST", "admin")
+            m.db.session.commit()
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.one().source_draft_id, draft.id)
+
+    def test_inspection_multiple_records_same_page_and_two_drafts(self):
+        from test_inspection_document_ai import extraction
+        import copy
+        data = extraction()
+        row = copy.deepcopy(data["records"][0]); row["inspection_date"] = "2026-10-20"
+        data["records"].append(row)
+        self.upload_inspection(data=data)
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        form = self.inspection_form(draft)
+        key = draft.id + "_1"
+        form["include"] = [draft.id + "_0", key]
+        form.update({"vehicle_" + key: str(self.vehicle.id), "date_" + key: "2026-10-20",
+                     "inspection_type_" + key: "3month", "content_" + key: "点検"})
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 302)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 2)
+
+    def test_invoice_import_still_saves_cost_and_replacement(self):
+        import hashlib
+        from io import BytesIO
+        import maintenance_invoice_ai as ai
+        from test_inspection_document_ai import pdf_bytes
+        source = pdf_bytes()
+        row = {field: None for field in ai.record_properties}
+        part = {field: None for field in ai.line_properties}
+        part.update(category="部品", description="テストフィルター", quantity="1", parts_amount="2000",
+                    source_page=1, replacement_action="replace", replacement_part_name="テストフィルター", replacement_category="消耗品")
+        row.update(source_pages=[1], line_items=[part], fees=[], warnings=[], entry_date="2026-10-21",
+                   chassis_number="TEST-001", total_cost="2200", parts_cost="2000", tax_amount="200", content="フィルター交換")
+        data = {"schema_version": 1, "source_sha256": hashlib.sha256(source).hexdigest(), "records": [row], "warnings": []}
+        with patch.object(self.m, "extract_maintenance_invoices", return_value=data):
+            response = self.client.post("/vehicle/data-import", data={"document_type": "maintenance", "document_files": (BytesIO(source), "invoice.pdf")})
+        self.assertEqual(response.status_code, 302)
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(self.client.get(response.location).status_code, 200)
+        key = draft.id + "_0"
+        form = {"include": key, "vehicle_" + key: str(self.vehicle.id), "date_" + key: "2026-10-21", "content_" + key: "フィルター交換"}
+        response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form)
+        self.assertEqual(response.status_code, 302)
+        record = m.VehicleMaintenanceRecord.query.one()
+        self.assertEqual(str(record.total_cost), "2200.00")
+        self.assertEqual(m.VehiclePartReplacement.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+
+    def test_inspection_invalid_files_and_same_batch_duplicates(self):
+        from io import BytesIO
+        from test_inspection_document_ai import pdf_bytes, extraction
+        for source, filename in [(b"", "empty.pdf"), (b"not a PDF", "fake.pdf"), (b"x", "bad.exe"),
+                                 (b"%PDF-" + b"x" * (20*1024*1024), "large.pdf")]:
+            with self.subTest(filename=filename):
+                response = self.client.post("/vehicle/data-import", data={"document_type": "inspection", "document_files": (BytesIO(source), filename)})
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.m.VehicleDocumentImportDraft.query.count(), 0)
+        source = pdf_bytes()
+        with patch.object(self.m, "extract_inspection_documents", return_value=extraction(source)):
+            response = self.client.post("/vehicle/data-import", data={"document_type": "inspection", "document_files": [
+                (BytesIO(source), "one.pdf"), (BytesIO(source), "copy.pdf")]})
+        drafts = self.m.VehicleDocumentImportDraft.query.all()
+        self.assertEqual(len(drafts), 2)
+        form = self.inspection_form(drafts[0])
+        second = self.inspection_form(drafts[1]); form.update(second)
+        form["include"] = [draft.id + "_0" for draft in drafts]
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{drafts[0].batch_id}/confirm", data=form).status_code, 400)
+        self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(), 0)
+
+    def test_inspection_image_preview_uses_shared_pdf_converter(self):
+        from io import BytesIO
+        from PIL import Image
+        from test_inspection_document_ai import extraction
+        source = BytesIO(); Image.new("RGB", (100, 100), "white").save(source, format="PNG")
+        source = source.getvalue()
+        with patch.object(self.m, "extract_inspection_documents", return_value=extraction(source)):
+            self.client.post("/vehicle/data-import", data={"document_type": "inspection", "document_files": (BytesIO(source), "scan.png")})
+        draft = self.m.VehicleDocumentImportDraft.query.one()
+        response = self.client.get(f"/vehicle/data-import/files/{draft.id}?preview=pdf")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data.startswith(b"%PDF-"))
+        self.assertEqual(draft.source_file, source)
+
+
+    def test_imported_periodic_record_is_visible_in_history_header_and_inspection_view(self):
+        self.upload_inspection()
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        form = self.inspection_form(draft)
+        form['next_inspection_date_' + draft.id + '_0'] = '2027-01-21'
+        self.assertEqual(self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=form).status_code, 302)
+        record = m.VehiclePeriodicInspectionRecord.query.one()
+        response = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections')
+        text = response.get_data(as_text=True)
+        self.assertIn(f'id="periodic-record-{record.id}"', text)
+        self.assertIn('aria-current="page">すべての点検', text)
+        self.assertIn('<h3>日常点検</h3>', text)
+        self.assertIn('前回 2026-10-21', text)
+        self.assertIn('2027-01-21', text)
+        self.assertIn('100,000', text)
+        daily = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections?inspection_view=daily').get_data(as_text=True)
+        self.assertIn('<h3>日常点検</h3>', daily)
+        self.assertNotIn(f'id="periodic-record-{record.id}"', daily)
+        history = self.client.get(f'/vehicle/karte/{self.vehicle.id}/history').get_data(as_text=True)
+        self.assertIn('定期点検を実施', history)
+        self.assertIn(f'/vehicle/periodic-inspections/{record.id}/source', history)
+        self.assertIn('試験工場', history)
+        self.assertIn('点検者', history)
+        filtered = self.client.get(f'/vehicle/karte/{self.vehicle.id}/history?event_type=3か月点検&start_date=2026-10-21&end_date=2026-10-21').get_data(as_text=True)
+        self.assertIn('定期点検を実施', filtered)
+        excluded = self.client.get(f'/vehicle/karte/{self.vehicle.id}/history?start_date=2026-10-22').get_data(as_text=True)
+        self.assertNotIn('定期点検を実施', excluded)
+        documents = self.client.get(f'/vehicle/karte/{self.vehicle.id}/documents').get_data(as_text=True)
+        self.assertIn('inspection.pdf', documents)
+
+    def test_header_keeps_newer_meter_date_and_warns_about_distance_decrease(self):
+        from test_inspection_document_ai import extraction
+        data = extraction()
+        data['records'][0].update(inspection_date='2026-09-12', mileage='351842')
+        self.upload_inspection(data=data)
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=self.inspection_form(draft))
+        m.db.session.add(m.VehicleOperationRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            report_number='meter-evidence', operation_date='2026-09-16', arrival_meter='349867.05'))
+        m.db.session.commit()
+        text = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections').get_data(as_text=True)
+        self.assertIn('349,867.05', text)
+        self.assertIn('前回 2026-09-12', text)
+        self.assertIn('351,842', text)
+        self.assertIn('過去の記録より距離が減少しています', text)
+        self.assertIn('日付未登録', text)
+        self.assertNotIn('2026-12-12', text)
+
+    def test_periodic_header_uses_latest_same_company_inspection_without_calculating_next_date(self):
+        self.upload_inspection()
+        m = self.m; draft = m.VehicleDocumentImportDraft.query.one()
+        self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=self.inspection_form(draft))
+        record = m.VehiclePeriodicInspectionRecord.query.one()
+        record.next_inspection_date = '2027-01-21'
+        m.db.session.add(m.VehiclePeriodicInspectionRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            inspection_type='3month', inspection_date='2099-01-01', next_inspection_date='2099-04-01',
+            details_json='{}', source_draft_id=draft.id, source_record_index=10, created_by_username='admin'))
+        m.db.session.add(m.VehiclePeriodicInspectionRecord(company_code='OTHER', vehicle_record_id=self.vehicle.id,
+            inspection_type='12month', inspection_date='2026-10-21', next_inspection_date='2027-10-21',
+            details_json='{}', source_draft_id=draft.id, source_record_index=11, created_by_username='admin'))
+        m.db.session.commit()
+        got = m.get_vehicle_periodic_inspection_summary('TEST', self.vehicle.id)
+        self.assertEqual(got['3month']['last_date'], '2026-10-21')
+        self.assertEqual(got['3month']['next_date'], '2027-01-21')
+        self.assertNotIn('12month', got)
+        record.next_inspection_date = None; m.db.session.commit()
+        self.assertIsNone(m.get_vehicle_periodic_inspection_summary('TEST', self.vehicle.id)['3month']['next_date'])
+
+
 
 if __name__ == "__main__":
     unittest.main()

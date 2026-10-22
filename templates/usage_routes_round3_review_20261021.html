@@ -1,0 +1,40 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>輸送版DX 実利用ルート再検証・3回目</title><style>body{max-width:1120px;margin:32px auto;padding:0 20px;font-family:system-ui,'Noto Sans JP',sans-serif;line-height:1.85;color:#223047;background:#f6f8fc}h1{font-size:27px;line-height:1.5}h2{margin-top:36px;font-size:21px}.lead{background:white;border-left:5px solid #2877c7;padding:16px 20px}.facts{display:flex;flex-wrap:wrap;gap:14px}.fact{background:white;border:1px solid #dce2ed;padding:12px 20px}.fact strong{display:block;font-size:25px;color:#2261a0}table{width:100%;border-collapse:collapse;background:white;font-size:14px}td,th{border:1px solid #dce2ed;text-align:left;vertical-align:top;padding:12px}th{background:#e9eef8}.tablebox{overflow-x:auto}pre{background:#18253a;color:#f4f7ff;padding:18px;overflow:auto;font-size:13px;line-height:1.65}code{overflow-wrap:anywhere}small{color:#5a6780}</style><h1>輸送版DX 実利用ルート再検証<br><small>2026年10月21日・3回目</small></h1>
+<p class="lead"><strong>一覧操作と検索の取消し・連続入力で、追加の不具合を確認し修正した。</strong><br>件数セレクト5か所、スマホ・タブレットの件数不整合、手動件数の上書き、絞込条件の消失、古い車両検索結果の再表示を修正。既存の業務経路に加え、会社・アカウント・設定・一括操作と、取込失敗からの復旧も検証した。修正はまだGitHubへpushしていない。</p>
+<p>取得対象：<a href="https://github.com/oxo-ops/dkss/commit/f03d786cea6c0aae763d93ece256a927aac8c534">main f03d786</a>（PR #138マージ後）。終了時の照合でもmainは同コミット。前回の修正を含むソースを新しい作業ツリーへ取得し、新しい検証用DBから開始した。</p>
+<div class="facts"><div class="fact"><strong>35</strong>サーバーの業務シナリオ</div><div class="fact"><strong>218</strong>ブラウザ巡回・操作・表示確認</div><div class="fact"><strong>536</strong>記録したHTTP確認</div><div class="fact"><strong>16</strong>回帰テスト成功</div></div><p><small>権限・表示幅・同じ画面の別操作による重複を含む。全組合せや本番での無障害を保証する数ではない。既存31シナリオを最新mainで再実行し、追加4シナリオを検証。共通JS修正後は画面巡回・取込・追加操作を再実行した。</small></p>
+<h2>今回の問題と修正結果</h2><div class="tablebox"><table><thead><tr><th>問題</th><th>確認した原因・再現</th><th>修正後</th></tr></thead><tbody><tr><td>件数セレクトが動かない</td><td>指摘一覧、カルテ履歴、日常点検、法定・定期点検、整備履歴の5か所。onchangeがCSPで遮断される。各選択を実際に変更して再現。</td><td>外部JSの共通GETフォーム送信へ移動。5か所とも20件指定で遷移し、CSP違反なし。</td></tr><tr><td>スマホ5件・タブレット8件が反映されない</td><td>ブラウザはpage_size=5/8を送るが、サーバーの許容値は10/20/50のみで、実データは10件になる。</td><td>サーバー・選択肢の許容値を統一。スマホ5件、タブレット8件、次ページの件数と内容が変わることを確認。</td></tr><tr><td>手動指定した件数が戻される</td><td>page_size=20で開いても、画面幅によるJSが5件などへ上書きする。</td><td>画面幅での自動設定は未指定時の初期値だけ。指定済みの5/8/10/20/50件は維持する。スマホ20件を実操作で確認。</td></tr><tr><td>絞込条件が件数変更・検索で失われる</td><td>指摘一覧のmine/pending条件をフォームが送っていない。既存フォーム定義で確認。</td><td>自分対象・未承認等の内部条件をhidden項目として保持。件数変更と検索送信後も両条件が残ることをブラウザで確認。</td></tr><tr><td>検索取消し・連続検索で古い候補が出る</td><td>ドライバー登録の使用車両検索。通信を保留し、入力を消してから旧応答を返すと候補が再表示。新応答→旧応答の順でも古い候補に戻る。</td><td>検索世代を照合して古い成功・失敗応答を無視。入力時に旧候補を除去。取消し後は候補ゼロ、連続検索は最新候補だけになることを確認。</td></tr></tbody></table></div><p>前回は表示件数のURL変更だけで成功と判定しており、実際の件数との照合が不足していた。今回はサーバーのページ分割結果と、ブラウザのデータ行数・選択値・次ページの内容まで確認した。修正前の記録にあるtbody行数11はヘッダーを含む値で、データ行は10件。修正後はデータ行だけを数えている。</p>
+<h2>今回通した利用経路</h2><div class="tablebox"><table><thead><tr><th>領域</th><th>確認内容</th></tr></thead><tbody><tr><td>車両・カルテ</td><td>手入力・車検証・Excelの確認→戻る→保存、初度登録年月・先頭ゼロ保持、重複、整備登録・編集・古い版409、部品同期、8タブのデータ表示と会社境界。</td></tr><tr><td>点検・承認</td><td>通常チェックリストの未入力・必須・途中保存・完了・差し戻し・編集・再提出・二段階承認・Excel。日常点検の異常→整備→完了→正常再確認→管理者運行判断。固定点検の改変拒否。</td></tr><tr><td>請求書・運行実績</td><td>実ファイルのアップロード→プレビュー→編集→保存、PDF.js描画・内部スクロール、追加費用・訂正・重複、登録待ち車両への紐付け、原本保持、DTG CSVプレビュー→登録→再送拒否。</td></tr><tr><td>入力失敗からの復旧</td><td>請求書読取タイムアウト後、ファイルを選び直さず再試行→プレビュー。成功・失敗混在の2ファイルは成功分の確認画面と失敗ファイル名を表示。車検証503→再試行→PDF描画も実操作。</td></tr><tr><td>会社・アカウント</td><td>ITCによる会社作成・大小文字違い重複拒否、招待登録→ログイン→会社停止でログイン中セッションも拒否。ドライバーとUserの作成・編集・権限同期、ログインID変更拒否、削除、他社車両割当拒否。</td></tr><tr><td>設定・認証</td><td>メール変更の送信失敗時ロールバック→再送→誤コード→正コード、パスワード変更・過去パスワード再利用拒否・新パスワードで再ログイン。既存のMFA、失敗ロック、期限切れ、CSRFも再検証。</td></tr><tr><td>スマホの実入力</td><td>ドライバーの車両検索・選択、免許行の追加・削除→登録→車両割当解除→編集保存。納入先Excelの取消し時保存ゼロ→確認→重複を除いて登録→再読込で二重登録なし。</td></tr><tr><td>一括操作・権限</td><td>車両の一括無効化→上限超過時は全車両未変更→有効化→削除。他社ID混在でも他社車両は未変更。履歴あり車両の削除は409。通知の宛先・既読/未読・削除/復元、マスター更新、添付と他社の境界。</td></tr><tr><td>AIワーカー</td><td>長文履歴100件の分割・全体確認・統合、ジョブ取得・二重実行防止、失敗時の前回結果保持と再試行、対応候補へのフィードバック・評価・版照合。外部AIの実呼出しは行わない。</td></tr></tbody></table></div>
+<h2>検証環境と結果</h2><p>本番と分離した一時SQLiteに検証会社2社とuser/admin/itcを作り、実際のFlaskルートとDB保存状態を照合した。Chromiumの実ブラウザを使い、390px・768px・900px・1440px等で操作した。未処理JavaScript例外は画面巡回158ケースでゼロ。権限により一般ユーザーの整備編集を403で拒否するケースは正常として扱う。Push公開鍵未設定時の503も未設定時の期待応答として区別した。</p><p>車検証・請求書は実PDF.jsで描画し、内部スクロール・ページ移動・表示切替・読取値リセット・登録まで確認。取込失敗の検証では意図的にタイムアウト・503を返し、読込中表示とボタンが復旧して再試行できることを確認した。例外を返したログ自体は故障の残存を意味しない。</p><p>日常点検・定期点検・履歴・整備のページ件数操作、指摘の5/8/20件と次ページ、検索取消し・逆順応答の検証を追加。既存の異常ID・空POST等130リクエストで予期しない500は検出していない。Python本番8ファイル、Jinja 76テンプレート、JavaScript 40ファイルの構文とgit diff --checkを確認。テンプレート内のonchange等のインラインイベント属性は今回の修正後ゼロ。</p>
+<h2>変更対象と適用器</h2><p>既存11ファイルのみを変更。本番用の新モジュール・新テンプレートは追加せず、削除も行わない。別作業のmaintenance_knowledge_import.pyとpublic_maintenance_knowledge.pyは対象外。app.pyは表示件数の許容値1か所だけを変更する。</p><details><summary>11ファイルの一覧</summary><ul><li><code>app.py</code></li><li><code>static/js/base.js</code></li><li><code>static/js/driver_form.js</code></li><li><code>static/js/pointouts.js</code></li><li><code>templates/base.html</code></li><li><code>templates/driver_form.html</code></li><li><code>templates/pointouts.html</code></li><li><code>templates/vehicle_karte_history.html</code></li><li><code>templates/vehicle_karte_inspections.html</code></li><li><code>templates/vehicle_karte_maintenance.html</code></li><li><code>tests/test_workflow_regressions.py</code></li></ul></details><p>適用器は全箇所を照合してから変更する。一致しなければ変更ゼロで停止。改行・BOM、無関係なローカル編集、2回適用で二重変更しないことを別作業ツリーで確認し、その適用先で16テストを再実行した。新しいバックアップフォルダーをリポジトリへ作らない。</p>
+<h2>PowerShellで適用・確認</h2><p>fix_usage_routes_round3_20261021.pyをDownloadsへ保存して実行する。スクリプトやこの報告書をアプリのtemplatesへ置く必要はない。</p><pre>cd C:\Users\takah\dkss
+$fix = Get-ChildItem &quot;$env:USERPROFILE\Downloads\fix_usage_routes_round3_20261021*.py&quot; |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $fix) { throw &quot;修正ファイルをダウンロードしてください&quot; }
+py &quot;$($fix.FullName)&quot;
+if ($LASTEXITCODE -ne 0) { throw &quot;適用停止。出力を送ってください&quot; }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw &quot;テスト失敗&quot; }
+git diff --check
+if ($LASTEXITCODE -ne 0) { throw &quot;差分確認失敗&quot; }
+git --no-pager diff --stat
+git --no-pager status --short --branch</pre><p>適用後はアプリを再起動し、ブラウザをCtrl+F5で更新する。JSのURLにも更新用バージョンを付けた。</p>
+<details><summary>今回の差分だけをコミット・pushする手順</summary><p>同じapp.pyに別作業の変更が残っている可能性があるため、ファイル全体のgit addやcommit --onlyを使わず、提供するパッチだけをステージする。usage_routes_round3_20261021.patchもDownloadsへ保存する。別のステージ済み変更がある場合は停止する。別作業の未ステージ変更はそのまま残る。</p><pre># 同梱の差分パッチもDownloadsへ保存してから実行する
+$patch = Get-ChildItem &quot;$env:USERPROFILE\Downloads\usage_routes_round3_20261021*.patch&quot; |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $patch) { throw &quot;差分パッチをダウンロードしてください&quot; }
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) { throw &quot;別の変更がステージされています。ここで停止してください&quot; }
+git switch -c fix/usage-route-round3
+if ($LASTEXITCODE -ne 0) { throw &quot;ブランチ作成失敗&quot; }
+git apply --cached --check -- &quot;$($patch.FullName)&quot;
+if ($LASTEXITCODE -ne 0) { throw &quot;パッチ照合停止。出力を送ってください&quot; }
+git apply --cached -- &quot;$($patch.FullName)&quot;
+if ($LASTEXITCODE -ne 0) { throw &quot;ステージ停止&quot; }
+git diff --cached --check
+if ($LASTEXITCODE -ne 0) { throw &quot;ステージ差分確認失敗&quot; }
+git commit -m &quot;Fix pagination controls and stale driver search responses&quot;
+if ($LASTEXITCODE -ne 0) { throw &quot;コミット失敗&quot; }
+git push -u origin fix/usage-route-round3
+if ($LASTEXITCODE -ne 0) { throw &quot;プッシュ失敗&quot; }
+git --no-pager status --short --branch</pre></details>
+<h2>確認できていない範囲</h2><ul><li>実車検証・実請求書のOCR精度、有料AI APIの実応答品質・速度。描画・登録・復旧の確認と、抽出精度の受入は区別する。</li><li>実SMTP/Web Push配信、実S3設定、本番AIワーカーの稼働・デプロイ設定。</li><li>PostgreSQLでの複数プロセス間競合・本番負荷。</li><li>iPhone/Safari・Androidの実機受入。</li></ul><p>今回通した経路では修正後に進行を妨げる停止を検出していない。上記の本番・外部連携・実資料の確認を完了した判断にはしていない。</p><p><small>適用器SHA-256：67f8016ca81d741a839b5572eef79b5ff7c66dc5bc792f43f7ffb53f5b64762f<br>差分パッチSHA-256：ae83f24a0b11b284e7358f3dba935241bab6d826dd0f22c398f50af4e712770a</small></p></html>

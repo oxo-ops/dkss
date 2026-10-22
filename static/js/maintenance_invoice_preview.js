@@ -515,6 +515,12 @@
         }
 
         function updateLine(line) {
+            if (line.hasAttribute("data-inspection-item")) {
+                line.querySelector("[data-edit-line]").textContent = lineValue(line, "item_name") || "記載なし";
+                line.querySelector(".invoice-line-supplement").textContent = [lineValue(line, "category"), lineValue(line, "notes")].filter(Boolean).join(" · ");
+                line.querySelector(".invoice-line-money").textContent = [lineValue(line, "raw_result"), lineValue(line, "result_text")].filter(Boolean).join(" ／ ") || "空欄";
+                return;
+            }
             const badge = line.querySelector("[data-replacement-summary]");
             if (badge) {
                 const review = replacementNeedsReview(line);
@@ -676,7 +682,13 @@
                 completion_date: raw("completion_date"),
                 invoice_date: raw("invoice_date"),
                 sales_date: raw("sales_date"),
-                notes: raw("notes")
+                notes: raw("notes"),
+                inspection_type: ({"3month": "3か月点検", "12month": "12か月点検", "other": "その他の点検"})[raw("inspection_type")] || "未入力",
+                inspection_company: raw("inspection_company"),
+                inspector_name: raw("inspector_name"),
+                next_inspection_date: raw("next_inspection_date"),
+                next_inspection_month: raw("next_inspection_month"),
+                symbol_legend: raw("symbol_legend")
             };
 
             const numbers = new Set([
@@ -720,9 +732,10 @@
                 if (candidates) candidates.hidden = Boolean(vehicle.value);
             }
 
-            const invoiceNumber = raw("invoice_number");
-            record.querySelector(".invoice-eyebrow").textContent =
-                "伝票 " + (invoiceNumber || "番号記載なし");
+            const inspection = record.closest("[data-invoice-document]").dataset.documentType === "inspection";
+            const invoiceNumber = inspection ? facts.inspection_type : raw("invoice_number");
+            record.querySelector(".invoice-eyebrow").textContent = inspection
+                ? invoiceNumber : "伝票 " + (invoiceNumber || "番号記載なし");
 
             const tab = Array.from(
                 record.closest("[data-invoice-document]")
@@ -1016,7 +1029,13 @@
                 ["other_cost", "other_cost", true],
                 ["tax_amount", "tax_amount", true],
                 ["total_cost", "total_cost", true],
-                ["notes", "notes", false]
+                ["notes", "notes", false],
+                ["inspection_type", "inspection_type", false],
+                ["inspection_company", "inspection_company", false],
+                ["inspector_name", "inspector_name", false],
+                ["next_inspection_date", "next_inspection_date", false],
+                ["next_inspection_month", "next_inspection_month", false],
+                ["symbol_legend", "symbol_legend", false]
             ];
 
             for (const [inputName, sourceName, numeric] of infoFields) {
@@ -1041,12 +1060,13 @@
             ];
 
             record.querySelectorAll(".invoice-line").forEach((line, index) => {
-                const source = original.line_items?.[index];
+                const inspection = line.hasAttribute("data-inspection-item");
+                const source = (inspection ? original.inspection_items : original.line_items)?.[index];
                 if (!source || typeof source !== "object") return;
 
                 const fields = [];
 
-                for (const name of lineFields) {
+                for (const name of (inspection ? ["category", "item_name", "raw_result", "result_text", "notes"] : lineFields)) {
                     const field = remember(
                         lineInput(line, name),
                         name === "replacement_action"
@@ -1166,7 +1186,7 @@
                 }
 
                 status.textContent =
-                    "表示中の原本に合わせて請求書を切替";
+                    "表示中の原本に合わせて記録を切替";
                 return true;
             }
 
@@ -1185,7 +1205,7 @@
 
                 if (owners.length !== 1) {
                     status.textContent = owners.length > 1
-                        ? "このページに複数の請求書があります。上で選択してください"
+                        ? "このページに複数の記録があります。上で選択してください"
                         : "このページに対応する読取結果はありません";
                     return;
                 }
@@ -1287,7 +1307,7 @@
 
             for (const line of lines) {
                 const text = normalize(
-                    ["description", "part_number", "notes"]
+                    ["description", "part_number", "category", "item_name", "raw_result", "result_text", "notes"]
                         .map(field => lineValue(line, field))
                         .join(" ")
                 );

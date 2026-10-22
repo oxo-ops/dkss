@@ -12,22 +12,7 @@ from datetime import date
 from maintenance_invoice_ai import prepare_maintenance_invoice_pdf
 
 
-FIELDS = (
-    "plate_area",
-    "plate_class",
-    "plate_kana",
-    "plate_number",
-    "chassis_number",
-    "model_code",
-    "engine_code",
-    "first_registration_date",
-    "manufacturer",
-    "body_type",
-    "gross_vehicle_weight",
-    "max_payload",
-    "type",
-    "inspection_expiry",
-)
+FIELDS = ('plate_area', 'plate_class', 'plate_kana', 'plate_number', 'chassis_number', 'model_code', 'engine_code', 'first_registration_date', 'manufacturer', 'body_type', 'gross_vehicle_weight', 'max_payload', 'type', 'inspection_expiry', 'type_designation_number', 'type_classification_number')
 
 SCHEMA = {
     "type": "object",
@@ -102,6 +87,9 @@ typeは必ずnull。自動車の種別、用途、車体の形状を社内車種
 # CERTIFICATE_ENGINE_FIELD_V1
 INSTRUCTIONS += "\n" + 'engine_code: Read only the literal \u539f\u52d5\u6a5f\u306e\u578b\u5f0f field (engine model) on the source document. Preserve the full code, suffixes and punctuation. Do not derive it from model_code, chassis_number, manufacturer or general vehicle knowledge. If absent or unreadable, return null. Do not infer commercial_name, emission_standard or actual usage conditions from an engine code.'
 
+# CERTIFICATE_SPECIFICATION_SOURCE_V1
+INSTRUCTIONS += "\n" + 'Read type_designation_number only from 型式指定番号 (exactly 5 digits) and type_classification_number only from 類別区分番号 (exactly 4 digits). Preserve every leading zero. Return null if the corresponding field is missing, ambiguous, masked or unreadable. Do not derive either number from model_code, the number plate, other vehicles or general knowledge. Do not invent transmission_code. These are internal source facts; no extra manual input is requested.'
+
 def _validate(data):
     if not isinstance(data, dict):
         raise ValueError("INVALID_CERTIFICATE_FORMAT")
@@ -112,6 +100,10 @@ def _validate(data):
     if not isinstance(vehicle, dict):
         raise ValueError("INVALID_VEHICLE_DATA")
 
+    # Missing new internal fields in legacy/mock results remain unknown.
+    vehicle = dict(vehicle)
+    for name in ("type_designation_number", "type_classification_number"):
+        vehicle.setdefault(name, None)
     if set(vehicle) != set(FIELDS):
         raise ValueError("INVALID_VEHICLE_FIELDS")
 
@@ -155,6 +147,14 @@ def _validate(data):
             raise ValueError(f"INVALID_WEIGHT: {key}")
 
     vehicle["type"] = None
+    import unicodedata
+    for name, length in (("type_designation_number", 5), ("type_classification_number", 4)):
+        value = vehicle[name]
+        if value is not None:
+            value = unicodedata.normalize("NFKC", value).strip()
+            if not re.fullmatch(r"[0-9]{" + str(length) + "}", value):
+                raise ValueError("INVALID_CERTIFICATE_SPECIFICATION_NUMBER: " + name)
+            vehicle[name] = value
     return vehicle
 
 

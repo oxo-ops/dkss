@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}点検・整備のAI提案{% endblock %}
+{% block content %}
+{% include 'vehicle_karte_header.html' %}
+{% include 'vehicle_karte_tabs.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_periodic_followups.css', v='20261022-ai-1') }}">
+<div class="pf-workspace" data-periodic-suggestions="{{ url_for('vehicle_periodic_suggestions', vehicle_record_id=vehicle.id, record_id=record.id) }}" data-can-generate="{{ 'true' if can_generate else 'false' }}">
+    <section class="card pf-intro">
+        <div class="card-title-row"><h3>点検・整備のAI提案</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view='periodic') }}">点検一覧へ</a></div>
+        <p>{{ record.inspection_date }} · {{ {'3month':'3か月点検','12month':'12か月点検'}.get(record.inspection_type, 'その他の点検') }} · {{ record.inspection_company or '工場記載なし' }}</p>
+        <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_inspection_source', record_id=record.id) }}" target="_blank" rel="noopener">原本を開く</a>
+    </section>
+    <section class="card" aria-labelledby="pf-ai-title">
+        <div class="card-title-row"><h3 id="pf-ai-title">提案事項</h3><span class="help-text" data-proposal-order style="display:none">優先度：高 → 中 → 低</span></div>
+        <p class="help-text" data-proposal-status role="status" aria-live="polite">AI提案を確認しています…</p>
+        <div data-proposal-list></div>
+        {% if can_generate %}<button class="btn btn-outline" type="button" data-proposal-retry hidden>AI提案を再確認</button>{% endif %}
+    </section>
+    {% if issues %}
+    <details class="card pf-history"><summary>登録済みの対応履歴 {{ issues|length }}件</summary>
+        {% for issue in issues %}
+        <article id="periodic-issue-{{ issue.id }}" class="pf-issue"><div class="card-title-row"><strong>{{ issue.description }}</strong><span class="status-badge">{{ issue.status }}</span></div>
+            {% if issue.maintenance_record_id %}<p><a href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=issue.maintenance_record_id) }}">関連する整備記録</a></p>{% endif %}
+            <ol>{% for event in events if event.issue_id == issue.id %}<li><strong>{{ event.action }}</strong>{% if event.performed_date %} · {{ event.performed_date }}{% endif %}<p>{{ event.note }}</p><small>{{ event.actor }} · {{ event.created_at[:19]|replace('T',' ') }}</small></li>{% endfor %}</ol>
+        </article>{% endfor %}
+    </details>
+    {% endif %}
+</div>
+<script src="{{ url_for('static', filename='js/vehicle_periodic_suggestions.js', v='20261022-vehicle-proposals-1') }}" defer></script>
+{% endblock %}

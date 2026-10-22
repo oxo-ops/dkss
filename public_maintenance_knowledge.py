@@ -286,7 +286,16 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
         if not data.startswith(b"%PDF-"):
             raise ValueError("取得した資料がPDFではありません。")
         checksum = hashlib.sha256(data).hexdigest()
-        if checksum == row.checksum:
+        # LEGACY_PUBLIC_RULE_REVISION_V1
+        extension = app.extensions["maintenance_knowledge_import"]
+        upgrade_enabled = os.environ.get("PUBLIC_KNOWLEDGE_UPGRADE_LEGACY", "0") == "1"
+        needs_upgrade = extension.get("document_needs_rule_upgrade")
+        upgrade_legacy = bool(
+            upgrade_enabled and checksum == row.checksum
+            and row.document_id and needs_upgrade
+            and needs_upgrade(row.company_code, row.document_id)
+        )
+        if checksum == row.checksum and not upgrade_legacy:
             row.status = "unchanged"
         else:
             month = now.strftime("%Y-%m")
@@ -294,6 +303,12 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
             imported = PublicKnowledgeFile.query.filter_by(
                 company_code=row.company_code, last_import_month=month,
             ).count()
+            # LEGACY_RULE_MONTHLY_QUOTA_V1
+            upgrade_counter = extension.get("count_rule_upgrades")
+            if upgrade_enabled and not callable(upgrade_counter):
+                raise ValueError("RULE_UPGRADE_QUOTA_COUNTER_UNAVAILABLE")
+            if callable(upgrade_counter):
+                imported += upgrade_counter(row.company_code, month)
             if imported >= limit:
                 # 読取り上限への到達だけでは、既存の知識を廃止しない。
                 # 新版の取得・検証が完了するまで旧版と原本を保持する。
@@ -304,12 +319,16 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
                 return "月の読取り上限に到達。残りは次月に繰越"
             store = app.extensions["maintenance_knowledge_import"]["store_public_document"]
             filename = row.title[:100] + "_" + row.url.rsplit("/", 1)[-1]
-            document_id = store(row.company_code, data, filename, row.url, "日野")
+            if upgrade_enabled:
+                document_id = store(row.company_code, data, filename, row.url, "日野", upgrade_legacy=True)
+            else:
+                document_id = store(row.company_code, data, filename, row.url, "日野")
             # 新版の抽出候補を保存する。候補保存だけでは旧版を廃止しない。
             # 旧版との切替は、適用条件・改訂内容の検証後に行う。
             row.document_id = document_id
             row.checksum = checksum
-            row.last_import_month = month
+            if not upgrade_legacy:
+                row.last_import_month = month
             row.status = "review"
         row.last_checked = now
         row.next_check = now + timedelta(days=7)

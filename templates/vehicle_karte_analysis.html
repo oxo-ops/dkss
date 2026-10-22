@@ -2,6 +2,8 @@
 {% block title %}車両カルテ・分析{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261022-workspace-2') }}">
+<div class="ka3-shell">
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 {% set data = analysis_summary %}
@@ -16,7 +18,7 @@
     {% endif %}
 {%- endmacro %}
 
-<div class="karte-maintenance karte-costs karte-analysis">
+<div class="karte-maintenance karte-costs karte-analysis ka3-page">
     <header class="kc-toolbar">
         <div class="kc-title">
             <h2 data-karte-icon="chart">車両分析</h2>
@@ -43,13 +45,13 @@
             </div>
         </div>
 
-        <p id="ka-ai-status"
+        <div class="ka3-status"><p id="ka-ai-status"
            class="kc-muted"
            role="status"
            aria-live="polite"
            data-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) }}">
-            保存済みの結果を確認しています。
-        </p>
+            準備中
+        </p></div>
 
         <div id="ka-ai-results" hidden></div>
     </section>
@@ -361,7 +363,8 @@
     defer
 ></script>
 <script
-    src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261019-reference-drawer-16') }}"
+    src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261022-workspace-2') }}"
     defer
 ></script>
+</div>
 {% endblock %}

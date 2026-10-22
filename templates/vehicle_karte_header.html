@@ -163,6 +163,8 @@
                 {% endif %}
                 {% if mileage_reference.get("status") == "conflicting" %}
                     <small>同日の記録に差があるため、値を確定していません。</small>
+                {% elif mileage_reference.get("decrease_dates") %}
+                    <small>過去の記録より距離が減少しています。原本・運行実績を確認してください。</small>
                 {% elif mileage_reference.get("value") is not none and not mileage_reference.get("distance_usable") %}
                     <small>参考値。計測日または距離の連続性が確定しないため、経過距離の計算には使用しません。</small>
                 {% endif %}
@@ -213,19 +215,25 @@
                 {% endif %}
             </div>
 
-            <div class="vehicle-karte-deadline">
-                <span>次回3か月点検</span>
-                <span class="ui-empty-value">—</span>
+            {% set actual_summary = karte_execution_summary | default({}) %}
+            {% for kind, label in [('3month', '3か月'), ('12month', '12か月')] %}
+            {% set actual = actual_summary.get(kind) or {} %}
+            {% set plan = (karte_plan_summary|default({})).get(kind) or {} %}
+            <div class="vehicle-karte-deadline ip-compact-deadline" data-periodic-summary="{{ kind }}">
+                <button type="button" class="ip-deadline-button" data-inspection-plan-open="{{ kind }}" data-vehicle-id="{{ vehicle.id }}" aria-haspopup="dialog" aria-label="{{ label }}点検の予定・実施状況を開く" title="予定・予約・実施記録を確認{% if plan.planned_month %} / {{ plan.planned_month.replace('-', '年') }}月予定{% else %} / 日付未登録{% endif %}{% if actual %} / 前回 {{ actual.performed_date }}{% if actual.mileage %} / {{ '{:,.2f}'.format(actual.mileage|float).rstrip('0').rstrip('.') }} km{% endif %}{% endif %}">
+                    <span>{{ label }}点検 <span aria-hidden="true">›</span></span>
+                    <strong>{% if plan.reservation_date %}次 {{ plan.reservation_date[5:].replace('-', '/') }} 予約{% elif plan.planned_month %}次 {{ plan.planned_month[2:].replace('-', '/') }} 予定{% else %}次回未設定{% endif %}</strong>
+                    <small>{% if actual %}前回 {{ actual.performed_date[5:].replace('-', '/') }} 実施{% else %}実施記録なし{% endif %}</small>
+                </button>
             </div>
-
-            <div class="vehicle-karte-deadline">
-                <span>次回12か月点検</span>
-                <span class="ui-empty-value">—</span>
-            </div>
+            {% endfor %}
 
             <div class="vehicle-karte-deadline vehicle-karte-defect-count">
-                <span>未対応不具合</span>
-                {% if open_defects is defined %}
+                <span>未解消の指摘</span>
+                {% set issue_counts = karte_issue_counts|default({}) %}
+                {% if issue_counts %}
+                    <strong title="日常点検 {{ issue_counts.daily }}件 ／ 点検簿 {{ issue_counts.periodic }}件"><a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view='periodic' if issue_counts.periodic else 'daily') }}">{{ issue_counts.daily + issue_counts.periodic }}件</a></strong>
+                {% elif open_defects is defined %}
                     <strong>{{ open_defects | length }}件</strong>
                 {% else %}
                     <span class="ui-empty-value">—</span>
@@ -234,6 +242,8 @@
         </div>
     </div>
 </div>
+
+{% include "vehicle_inspection_plan_panel.html" %}
 
 {% else %}
 
