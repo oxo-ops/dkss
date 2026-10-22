@@ -197,7 +197,11 @@ def _validate(data):
 def build_maintenance_invoice_preview(extraction, vehicle_choices):
     """会社内の車両候補と照合し、確認画面用データを作る。DB更新なし。"""
     _validate(extraction)
+    return build_vehicle_document_preview(extraction, vehicle_choices)
 
+
+def build_vehicle_document_preview(extraction, vehicle_choices):
+    """Shared company-scoped identity matching and immutable OCR baseline."""
     def normalize(value):
         value = unicodedata.normalize("NFKC", str(value or "")).upper()
         return "".join(
@@ -358,7 +362,7 @@ def _read_maintenance_stream(response, progress_callback):
                     if {
                         "category", "description", "source_page",
                         "replacement_action",
-                    }.issubset(value):
+                    }.issubset(value) or {"item_name", "raw_result", "source_page"}.issubset(value):
                         received_lines += 1
 
             if delta and (not output_started or received_lines != previous_count):
@@ -380,6 +384,16 @@ def _read_maintenance_stream(response, progress_callback):
 
 
 def extract_maintenance_invoices(pdf_bytes, filename="invoice.pdf", progress_callback=None):
+    return extract_vehicle_document(
+        pdf_bytes, filename, progress_callback,
+        instructions=INSTRUCTIONS, schema=SCHEMA, schema_name="maintenance_invoices",
+        prompt="添付PDF内の整備請求書をすべて抽出してください。", validate=_validate,
+    )
+
+
+def extract_vehicle_document(pdf_bytes, filename, progress_callback=None, *,
+                             instructions, schema, schema_name, prompt, validate):
+    """Shared PDF/image transport, streaming, error handling and provenance."""
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
         raise ValueError("API_KEY_NOT_SET")
@@ -388,15 +402,15 @@ def extract_maintenance_invoices(pdf_bytes, filename="invoice.pdf", progress_cal
     model = os.environ.get("OPENAI_MODEL", "gpt-6.1-sol")
     payload = {
         "model": model,
-        "instructions": INSTRUCTIONS,
+        "instructions": instructions,
         "input": [{"role": "user", "content": [
-            {"type": "input_text", "text": "添付PDF内の整備請求書をすべて抽出してください。"},
+            {"type": "input_text", "text": prompt},
             {"type": "input_file", "filename": "invoice.pdf", "detail": "high",
              "file_data": "data:application/pdf;base64," +
                           base64.b64encode(pdf_bytes).decode("ascii")},
         ]}],
-        "text": {"format": {"type": "json_schema", "name": "maintenance_invoices",
-                            "strict": True, "schema": SCHEMA}},
+        "text": {"format": {"type": "json_schema", "name": schema_name,
+                            "strict": True, "schema": schema}},
         "reasoning": {"effort": "medium"},
         "max_output_tokens": 24000,
         "store": False,
@@ -465,7 +479,7 @@ def extract_maintenance_invoices(pdf_bytes, filename="invoice.pdf", progress_cal
     raw = "".join(part.get("text", "") for part in contents
                   if part.get("type") == "output_text")
     data = json.loads(raw)
-    _validate(data)
+    validate(data)
     return {
         "schema_version": 1,
         "source_filename": filename,

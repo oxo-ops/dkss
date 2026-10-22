@@ -123,9 +123,11 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
     }
 
     let searchTimer = null;
+    let searchGeneration = 0;
 
     searchInput.addEventListener("input", function () {
         clearTimeout(searchTimer);
+        const generation = ++searchGeneration;
 
         vehicleIdInput.value = "";
 
@@ -149,6 +151,7 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                     return response.json();
                 })
                 .then(data => {
+                    if (generation !== searchGeneration) return;
                     resultBox.innerHTML = "";
 
                     if (!data.results || data.results.length === 0) {
@@ -202,6 +205,7 @@ document.querySelectorAll(".dashboard-click-card, .dashboard-click-row").forEach
                     resultBox.classList.add("is-open");
                 })
                 .catch(function () {
+                    if (generation !== searchGeneration) return;
                     showCommonError(
                         "車両を取得できませんでした。通信状態を確認して、もう一度検索してください。"
                     );

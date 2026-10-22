@@ -6,10 +6,27 @@
 
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
-
-<section class="card vehicle-karte-inspections-panel vehicle-karte-inspections-primary">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261022-inspection-ppt-1') }}">
+<div class="vi-workspace">
+    <aside class="vi-nav" aria-label="点検記録の種類">
+        <h3>点検</h3>
+        {% for key,label in [('all','すべての点検'),('daily','日常点検'),('3month','3か月点検'),('12month','12か月点検'),('certificate','車検')] %}
+        <a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view=key, start_date=inspection_start, end_date=inspection_end) }}" {% if inspection_view == key %}aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+        <a class="vi-plan-link" href="{{ url_for('vehicle_inspection_plans', scope='vehicle', vehicle_id=vehicle.id) }}">年間点検計画 ›</a>
+    </aside>
+    <div class="vi-content">
+        <form class="vi-filters" method="get">
+            <input type="hidden" name="inspection_view" value="{{ inspection_view }}">
+            <label>実施日 <input type="date" name="start_date" value="{{ inspection_start }}" aria-label="実施日の開始"></label>
+            <span>〜</span><input type="date" name="end_date" value="{{ inspection_end }}" aria-label="実施日の終了">
+            <button class="btn btn-outline" type="submit">絞り込む</button>
+            {% if inspection_start or inspection_end %}<a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view=inspection_view) }}">解除</a>{% endif %}
+        </form>
+{% if inspection_view in ['all', 'daily'] %}
+<section class="card vehicle-karte-inspections-panel vi-section">
     <div class="card-title-row">
-        <h3>日常点検・車両チェックリスト</h3>
+        <h3>日常点検</h3>
         <span>{{ inspection_page.total }}件</span>
     </div>
 
@@ -35,6 +52,7 @@
                         {% set summary = namespace(
                             has_answer=false,
                             has_failure=false,
+                            all_normal=true,
                             comments=[],
                             file_count=0
                         ) %}
@@ -44,6 +62,7 @@
                             {% if value %}
                                 {% set summary.has_answer = true %}
                             {% endif %}
+                            {% if value != "○" %}{% set summary.all_normal = false %}{% endif %}
                             {% if value == "×" %}
                                 {% set summary.has_failure = true %}
                             {% endif %}
@@ -82,9 +101,11 @@
 
                             <td data-label="結果">
                                 {% if summary.has_failure %}
-                                    <span class="status-badge">×あり</span>
+                                    <span class="vi-badge vi-badge-danger">異常あり</span>
+                                {% elif summary.has_answer and summary.all_normal %}
+                                    <span class="vi-badge vi-badge-ok">問題なし</span>
                                 {% elif summary.has_answer %}
-                                    <span>回答あり</span>
+                                    <span class="vi-badge">回答あり</span>
                                 {% else %}
                                     <span class="ui-empty-value">回答なし</span>
                                 {% endif %}
@@ -102,7 +123,7 @@
 
                             <td data-label="修理対応">
                                 {% if defects %}
-                                    <span class="status-badge">
+                                    <span class="vi-badge vi-badge-danger">
                                         要対応 {{ defects | length }}件
                                     </span>
                                 {% else %}
@@ -112,7 +133,7 @@
 
                             <td data-label="承認状態">
                                 {% if record.status %}
-                                    <span class="status-badge">
+                                    <span class="vi-badge {{ 'vi-badge-ok' if record.status == '承認済み' else 'vi-badge-warn' }}">
                                         {{ record.status }}
                                     </span>
                                 {% else %}
@@ -148,6 +169,7 @@
             {{ url_for(
                 'vehicle_karte_inspections',
                 vehicle_record_id=vehicle.id,
+                inspection_view=inspection_view, start_date=inspection_start, end_date=inspection_end,
                 page=number,
                 per_page=inspection_page.per_page,
                 periodic_page=periodic_inspection_page.page,
@@ -159,7 +181,10 @@
               method="get"
               action="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
               hidden>
+            <input type="hidden" name="start_date" value="{{ inspection_start }}">
+            <input type="hidden" name="end_date" value="{{ inspection_end }}">
             <input type="hidden" name="page" value="1">
+            <input type="hidden" name="inspection_view" value="{{ inspection_view }}">
             <input type="hidden" name="periodic_page"
                    value="{{ periodic_inspection_page.page }}">
             <input type="hidden" name="periodic_per_page"
@@ -216,9 +241,30 @@
     {% endif %}
 </section>
 
-<section class="card vehicle-karte-inspections-panel">
+{% endif %}
+{% if inspection_view in ['all', 'periodic', '3month', '12month'] %}
+{% if periodic_followup_summary.issues %}
+<section class="card" aria-label="定期点検の対応状況">
+    <div class="card-title-row"><h3>点検簿の要対応 <span>{{ periodic_followup_summary.open_count }}件</span></h3></div>
+    <p class="help-text">点検を実施済みにしても、指摘は再確認で解消するまで残ります。</p>
+    {% for issue in periodic_followup_summary.issues if issue.status not in ['解消', '取消'] %}
+    <p><span class="status-badge">{{ issue.status }}</span> <a href="{{ periodic_issue_url(issue) }}">{{ issue.description }}</a></p>
+    {% endfor %}
+    {% if not periodic_followup_summary.open_count %}<p class="help-text">登録された指摘への対応は完了しています。履歴は各点検簿の「対応確認」から確認できます。</p>{% endif %}
+</section>
+{% endif %}
+{% if manual_inspection_executions %}
+<section class="card" aria-label="書類未受領の点検実績">
+    <h3>実施済み・書類未受領 <span>{{ manual_inspection_executions|length }}件</span></h3>
+    <p class="help-text">点検の実施は登録済みです。後から同じ車両・点検種別・実施日の点検簿を取り込むと関連付けます。</p>
+    <div class="table-scroll"><table class="checklist-table responsive-table"><thead><tr><th>実施日</th><th>点検</th><th>実施先</th><th>メモ</th><th>登録者</th></tr></thead><tbody>
+    {% for execution in manual_inspection_executions %}<tr id="manual-execution-{{ execution.id }}"><td data-label="実施日">{{ execution.performed_date }}</td><td data-label="点検">{{ '3か月点検' if execution.kind == '3month' else '12か月点検' }}</td><td data-label="実施先">{{ execution.factory or '—' }}</td><td data-label="メモ">{{ execution.note or '—' }}</td><td data-label="登録者">{{ execution.created_by }}</td></tr>{% endfor %}
+    </tbody></table></div>
+</section>
+{% endif %}
+<section class="card vehicle-karte-inspections-panel vi-section">
     <div class="card-title-row">
-        <h3>法定・定期点検</h3>
+        <h3>法定・定期点検 <span>{{ periodic_inspection_page.total }}件</span></h3>
 
         {% if session.get("role") in ["admin", "itc"] %}
             <a
@@ -235,20 +281,23 @@
 
     {% if periodic_inspection_page.items %}
         <div class="table-scroll">
-            <table class="checklist-table responsive-table">
+            <table class="checklist-table responsive-table vehicle-periodic-table">
                 <thead>
                     <tr>
-                        <th scope="col">点検日</th>
-                        <th scope="col">点検区分</th>
+                        <th scope="col">実施日</th>
+                        <th scope="col">種別</th>
+                        <th scope="col">実施者・整備会社</th>
                         <th scope="col">積算走行距離</th>
-                        <th scope="col">記録内容</th>
-                        <th scope="col">原本</th>
+                        <th scope="col">指摘・記録内容</th>
+                        <th scope="col">修理対応</th>
+                        <th scope="col">次回予定</th>
+                        <th scope="col">添付・操作</th>
                     </tr>
                 </thead>
 
                 <tbody>
                     {% for record in periodic_inspection_page.items %}
-                        <tr>
+                        <tr id="periodic-record-{{ record.id }}">
                             <td data-label="点検日">
                                 {{ record.inspection_date }}
                             </td>
@@ -261,6 +310,7 @@
                                 }.get(record.inspection_type, "その他の点検") }}
                             </td>
 
+                            <td data-label="実施者・整備会社">{{ record.inspection_company or record.inspector_name or "—" }}</td>
                             <td data-label="積算走行距離">
                                 {% if record.mileage is not none %}
                                     {{ "{:,.2f}".format(record.mileage) }} km
@@ -277,7 +327,13 @@
                                 {% endif %}
                             </td>
 
-                            <td data-label="原本">
+                            <td data-label="修理対応">
+                                {% set issues = periodic_followup_summary.issues|selectattr('inspection_record_id','equalto',record.id)|rejectattr('status','in',['解消','取消'])|list %}
+                                {% if issues %}<span class="vi-badge vi-badge-danger">要対応 {{ issues|length }}件</span>{% else %}—{% endif %}
+                            </td>
+                            {% set detail = periodic_details.get(record.id, {}) %}
+                            <td data-label="次回予定">{{ record.next_inspection_date or detail.get('next_inspection_month') or '—' }}</td>
+                            <td data-label="添付・操作">
                                 <a
                                     href="{{ url_for(
                                         'vehicle_periodic_inspection_source',
@@ -289,6 +345,25 @@
                                 >
                                     原本を開く
                                 </a>
+                                <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_followup', vehicle_record_id=vehicle.id, record_id=record.id) }}">AI提案</a>
+                            </td>
+                        </tr>
+                        <tr class="vehicle-periodic-detail-row">
+                            <td colspan="8" data-label="点検内容">
+                                {% set detail = periodic_details.get(record.id, {}) %}
+                                <details>
+                                    <summary>点検内容を確認</summary>
+                                    <p>工場：{{ record.inspection_company or '記載なし' }}／点検者：{{ record.inspector_name or '記載なし' }}</p>
+                                    {% if record.completion_date %}<p>点検完了日：{{ record.completion_date }}</p>{% endif %}
+                                    {% if record.next_inspection_date %}<p>原本の次回点検日：{{ record.next_inspection_date }}</p>{% endif %}
+                                    {% if detail.get('symbol_legend') %}<p>記号凡例：{{ detail.symbol_legend }}</p>{% endif %}
+                                    {% if detail.get('notes') %}<p>{{ detail.notes }}</p>{% endif %}
+                                    <ul>
+                                    {% for item in detail.get('inspection_items') or [] %}
+                                        <li>{{ item.get('category') or '' }} {{ item.get('item_name') or '' }}：{{ item.get('raw_result') or '空欄' }} {{ item.get('result_text') or '' }} {{ item.get('notes') or '' }}（原本 {{ item.get('source_page') }}頁）</li>
+                                    {% endfor %}
+                                    </ul>
+                                </details>
                             </td>
                         </tr>
                     {% endfor %}
@@ -300,6 +375,7 @@
             {{ url_for(
                 'vehicle_karte_inspections',
                 vehicle_record_id=vehicle.id,
+                inspection_view=inspection_view, start_date=inspection_start, end_date=inspection_end,
                 page=inspection_page.page,
                 per_page=inspection_page.per_page,
                 periodic_page=number,
@@ -311,11 +387,14 @@
               method="get"
               action="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
               hidden>
+            <input type="hidden" name="start_date" value="{{ inspection_start }}">
+            <input type="hidden" name="end_date" value="{{ inspection_end }}">
             <input type="hidden" name="page"
                    value="{{ inspection_page.page }}">
             <input type="hidden" name="per_page"
                    value="{{ inspection_page.per_page }}">
             <input type="hidden" name="periodic_page" value="1">
+            <input type="hidden" name="inspection_view" value="{{ inspection_view }}">
         </form>
 
         <footer class="kp-footer">
@@ -364,8 +443,17 @@
             </label>
         </footer>
     {% else %}
-        <p class="ui-empty-value">定期点検の記録なし</p>
+        <p class="ui-empty-value">{{ "点検簿は未受領です。実施登録は上の一覧で確認できます。" if manual_inspection_executions else "定期点検の記録なし" }}</p>
     {% endif %}
 </section>
+{% endif %}
 
+{% if inspection_view in ['all', 'certificate'] %}
+<section class="card vehicle-karte-inspections-panel vi-section">
+    <div class="card-title-row"><h3>車検</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">車検証・書類を開く</a></div>
+    <dl class="vi-certificate"><dt>車検満了日</dt><dd>{{ vehicle.inspection_expiry or '未登録' }}</dd></dl>
+</section>
+{% endif %}
+    </div>
+</div>
 {% endblock %}

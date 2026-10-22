@@ -21,6 +21,11 @@ from maintenance_invoice_ai import (
     build_maintenance_invoice_preview,
     prepare_maintenance_invoice_pdf,
 )
+from inspection_document_ai import (
+    extract_inspection_documents,
+    build_inspection_preview,
+    ITEM_FIELDS,
+)
 import os
 import json
 import boto3
@@ -2214,23 +2219,211 @@ def maintenance_knowledge_detail(knowledge_id):
     )
 
 
+def build_vehicle_certificate_specification_evidence(original, extraction):
+    """Retain candidates; only exact same-page PDF identity/label matches verify facts."""
+    import copy
+    import hashlib
+    import re
+    import unicodedata
+    from io import BytesIO
+    def normalized(value):
+        value = unicodedata.normalize('NFKC', str(value or ''))
+        return re.sub(r'\s+', '', value).translate(str.maketrans({'‐':'-', '－':'-', '−':'-'}))
+    if not isinstance(original,bytes) or not original or len(original)>20*1024*1024:
+        raise ValueError('CERTIFICATE_SOURCE_BYTES_INVALID')
+    if not isinstance(extraction,dict) or not isinstance(extraction.get('vehicle'),dict):
+        raise ValueError('CERTIFICATE_SOURCE_EXTRACTION_INVALID')
+    vehicle = extraction['vehicle']
+    identity = {name: normalized(vehicle.get(name)) for name in ('chassis_number', 'model_code')}
+    fields = {'type_designation_number':('型式指定番号',5), 'type_classification_number':('類別区分番号',4)}
+    result = {'document_checksum':hashlib.sha256(original).hexdigest(), 'identity':identity,
+              'scope':'literal_same_page_vehicle_certificate_fields_only', 'fields':{}}
+    for name, (label, size) in fields.items():
+        candidate = normalized(vehicle.get(name))
+        result['fields'][name] = {'value':candidate or None, 'status':'not_recorded' if not candidate else 'source_unverified', 'pages':[]}
+        if candidate and not re.fullmatch(r'[0-9]{'+str(size)+'}',candidate):
+            raise ValueError('CERTIFICATE_SPECIFICATION_NUMBER_INVALID')
+    cache_key = (result['document_checksum'], identity['chassis_number'], identity['model_code'],
+                 *(result['fields'][name]['value'] for name in fields))
+    cache = getattr(build_vehicle_certificate_specification_evidence, '_verified_cache', {})
+    if cache_key in cache:
+        return copy.deepcopy(cache[cache_key])
+    pages = []
+    if original.startswith(b'%PDF-'):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(original), strict=False)
+            if not reader.is_encrypted and 1 <= len(reader.pages) <= 10:
+                for page in reader.pages:
+                    content = page.get_contents()
+                    if content is not None and len(content.get_data()) > 5*1024*1024:
+                        pages.append('')
+                        continue
+                    text = page.extract_text() or ''
+                    pages.append(normalized(text) if len(text) <= 200000 else '')
+        except Exception:
+            pages = []
+    if not identity['chassis_number'] or not identity['model_code']:
+        return result
+    def literal_token(value, text):
+        return re.search(r'(?<![A-Z0-9])'+re.escape(value)+r'(?![A-Z0-9])',text,re.I) is not None
+    for index, text in enumerate(pages, 1):
+        if not all(literal_token(value,text) for value in identity.values()):
+            continue
+        # A multi-vehicle page cannot bind a neighbouring row's identifier.
+        detected = re.findall(r'[A-Z][A-Z0-9]{2,12}-[0-9]{4,12}(?![A-Z0-9])',text,re.I)
+        if text.count('車台番号') != 1 or len(set(detected)) != 1 or normalized(detected[0]) != identity['chassis_number']:
+            continue
+        for name, (label, size) in fields.items():
+            field = result['fields'][name]
+            value = field['value']
+            if not value:
+                continue
+            pattern = re.escape(label)+r'[:：]?'+re.escape(value)+r'(?![0-9])'
+            if text.count(label)==1 and re.search(pattern,text):
+                field['pages'].append(index)
+                field['status'] = 'literal_same_page_matched'
+    if all(field['status']=='literal_same_page_matched' for field in result['fields'].values()):
+        if len(cache)>=8:
+            cache.clear()
+        cache[cache_key] = copy.deepcopy(result)
+        build_vehicle_certificate_specification_evidence._verified_cache = cache
+    return result
+
+
+def remember_vehicle_certificate_specification_source(original, filename, extraction):
+    """Preserve original source in existing draft storage; no vehicle or approval update."""
+    import hashlib
+    from uuid import uuid4
+    evidence = build_vehicle_certificate_specification_evidence(original, extraction)
+    draft = VehicleDocumentImportDraft(
+        id=str(uuid4()), batch_id=str(uuid4()),
+        company_code=session['company_code'], created_by_username=session['username'],
+        document_type='certificate', source_filename=filename[:255], source_file=original,
+        source_sha256=hashlib.sha256(original).hexdigest(),
+        preview_json=json.dumps({'certificate_extraction':extraction, 'specification_evidence':evidence},ensure_ascii=False),
+        result_json='{}', status='certificate_pending',
+    )
+    db.session.add(draft)
+    db.session.commit()
+    refs = session.get('certificate_specification_refs') or []
+    if not isinstance(refs,list):
+        refs=[]
+    session['certificate_specification_refs'] = [r for r in refs if isinstance(r,str)][-4:]+[draft.id]
+
+
+def link_vehicle_certificate_specification_source(vehicle):
+    """Link an authenticated source on final vehicle save, in the same transaction."""
+    import unicodedata
+    def normalized(value):
+        return re.sub(r'\s+', '', unicodedata.normalize('NFKC',str(value or ''))).translate(str.maketrans({'‐':'-', '－':'-', '−':'-'}))
+    if not vehicle.id or vehicle.company_code != session.get('company_code'):
+        return
+    refs = session.get('certificate_specification_refs') or []
+    if not isinstance(refs,list):
+        return
+    for ident in reversed(refs[-5:]):
+        if not isinstance(ident,str):
+            continue
+        draft = VehicleDocumentImportDraft.query.filter_by(
+            id=ident, company_code=vehicle.company_code,
+            created_by_username=session.get('username'), document_type='certificate',
+            status='certificate_pending',
+        ).first()
+        if draft is None:
+            continue
+        data = safe_json_dict(draft.preview_json)
+        identity = (data.get('specification_evidence') or {}).get('identity') or {}
+        actual = {name:normalized(getattr(vehicle,name,None)) for name in ('chassis_number','model_code')}
+        if not all(actual.values()) or identity != actual:
+            continue
+        draft.result_json = json.dumps({'vehicle_record_id':vehicle.id,'identity':actual},ensure_ascii=False)
+        draft.status='certificate_linked'
+        draft.completed_at=datetime.now(ZoneInfo('UTC'))
+        return
+
+
+def get_vehicle_certificate_specification_source(vehicle):
+    """Read only fields whose saved original still verifies the exact current vehicle."""
+    import hashlib
+    import unicodedata
+    def normalized(value):
+        return re.sub(r'\s+', '', unicodedata.normalize('NFKC',str(value or ''))).translate(str.maketrans({'‐':'-', '－':'-', '−':'-'}))
+    drafts = VehicleDocumentImportDraft.query.filter_by(
+        company_code=vehicle.company_code, document_type='certificate', status='certificate_linked',
+    ).order_by(VehicleDocumentImportDraft.created_at.desc(), VehicleDocumentImportDraft.id.desc()).all()
+    expected = {name:normalized(getattr(vehicle,name,None)) for name in ('chassis_number','model_code')}
+    if not all(expected.values()):
+        return {'status':'not_available'}
+    pending = None
+    for draft in drafts:
+        binding = safe_json_dict(draft.result_json)
+        if type(binding.get('vehicle_record_id')) is not int or binding['vehicle_record_id'] != vehicle.id:
+            continue
+        if binding.get('identity') != expected:
+            return {'status':'vehicle_identity_changed'}
+        checksum = hashlib.sha256(draft.source_file).hexdigest()
+        if checksum != draft.source_sha256:
+            return {'status':'source_checksum_mismatch'}
+        data = safe_json_dict(draft.preview_json)
+        extraction = data.get('certificate_extraction')
+        if not isinstance(extraction,dict):
+            return {'status':'invalid_saved_extraction'}
+        evidence = build_vehicle_certificate_specification_evidence(draft.source_file, extraction)
+        if evidence.get('identity') != expected:
+            return {'status':'source_identity_mismatch'}
+        fields = evidence['fields']
+        selected = {name:entry['value'] for name,entry in fields.items() if entry['status']=='literal_same_page_matched'}
+        candidate = {'status':'source_matched' if len(selected)==2 else 'source_unverified',
+                     'document_id':draft.id,'document_checksum':checksum,'values':selected,
+                     'verification':fields,'scope':evidence['scope']}
+        if len(selected)==2:
+            if pending:
+                candidate['newer_unverified_document_id'] = pending['document_id']
+            return candidate
+        if pending is None:
+            pending = candidate
+    return pending or {'status':'not_available'}
+
+
 def get_vehicle_verified_model_specification(vehicle):
     """Exact-model official facts; no master updates or network requests."""
     import copy
     import unicodedata
-    registry = {'QPG-SH1EDDG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140128.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2014/20140128.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2PG-SH1EDGG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2018/20180531.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2018/20180531.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, 'QPG-FW1EXEG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140129.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.hino.co.jp/corp/news/2014/20140129.html', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2RG-FW1AHG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4478.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, 'QKG-FQ1ARBA': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4378.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2DG-FQ1AJC': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4594.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2PG-FE2ABA': {'manufacturer': '日野', 'commercial_name': 'レンジャー', 'vehicle_category': 'truck', 'vehicle_class': 'medium_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4515.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2RG-FP84VDR': {'manufacturer': '三菱', 'commercial_name': 'スーパーグレート', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://assets.mitsubishi-fuso.com/fusoassets/2026/03/R5797.pdf', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}}
+    registry = {'QPG-SH1EDDG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140128.html', 'transmission_categories': ['MT', 'AMT'], 'transmission_url': 'https://www.mlit.go.jp/jidosha/content/H31_truck_JH15_rev.xls', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model', 'transmission_evidence': {'sheet': 'Hino_rev.', 'rows': [2337, 2338, 2339, 2340, 2341, 2342, 2343], 'scope': 'all_published_variants_for_exact_model_not_individual_vehicle'}}, '2PG-SH1EDGG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2018/20180531.html', 'transmission_categories': ['MT', 'AMT'], 'transmission_url': 'https://wwwtb.mlit.go.jp/kanto/content/000302541.pdf', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model', 'transmission_evidence': {'page': 125, 'scope': 'all_published_variants_for_exact_model_not_individual_vehicle'}}, 'QPG-FW1EXEG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/corp/news/2014/20140129.html', 'transmission_categories': ['MT', 'AMT'], 'transmission_url': 'https://www.mlit.go.jp/jidosha/content/H31_truck_JH15_rev.xls', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model', 'transmission_evidence': {'sheet': 'Hino_rev.', 'rows': [2084, 2085, 2086, 2087, 2088, 2089], 'scope': 'all_published_variants_for_exact_model_not_individual_vehicle'}}, '2RG-FW1AHG': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4478.html', 'transmission_categories': ['AMT'], 'transmission_url': 'https://www.mlit.go.jp/report/press/content/001611884.pdf', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model', 'transmission_evidence': {'page': 4, 'published_model': '2RG-FW1AHG', 'published_transmission': '12速AMT', 'reevaluated_model': '2DG-FW1AHG', 'scope': 'published_factory_specification_for_exact_original_model_not_transmission_subtype'}}, 'QKG-FQ1ARBA': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4378.html', 'transmission_categories': ['MT'], 'transmission_url': 'https://www.mlit.go.jp/jidosha/content/H31_truck_JH15_rev.xls', 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model', 'transmission_evidence': {'sheet': 'Hino_rev.', 'rows': [2057], 'scope': 'all_published_variants_for_exact_model_not_individual_vehicle'}}, '2DG-FQ1AJC': {'manufacturer': '日野', 'commercial_name': 'プロフィア', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4594.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2PG-FE2ABA': {'manufacturer': '日野', 'commercial_name': 'レンジャー', 'vehicle_category': 'truck', 'vehicle_class': 'medium_truck', 'identity_url': 'https://www.hino.co.jp/recall/detail_4515.html', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}, '2RG-FP84VDR': {'manufacturer': '三菱', 'commercial_name': 'スーパーグレート', 'vehicle_category': 'truck', 'vehicle_class': 'large_truck', 'identity_url': 'https://assets.mitsubishi-fuso.com/fusoassets/2026/03/R5797.pdf', 'transmission_categories': [], 'transmission_url': None, 'scope': 'published_factory_specifications_only', 'model_match': 'exact_full_model'}}
     model = unicodedata.normalize("NFKC", str(vehicle.model_code or "")).strip().upper()
     record = registry.get(model)
     if record is None:
         return {"status": "not_indexed", "model_code": model, "facts": {}}
+    # CERTIFICATE_SPECIFICATION_SOURCE_V1
+    record = copy.deepcopy(record)
+    if model == "2DG-FQ1AJC":
+        # Full model has AT, MT and AMT variants; never choose by model alone.
+        record["transmission_categories"] = ["MT", "AMT", "AT"]
+        record["transmission_url"] = "https://www.mlit.go.jp/jidosha/content/truck_hino_jh25.xlsx"
+        record["transmission_evidence"] = {
+            "sheet": "3-2", "rows": [524,525,526,527,699,700,701,702],
+            "source_sha256": "98600e1476521022623c1ad67fab77bbb870f269bf03d80195ec5563166cba55",
+            "scope": "published_variants_for_exact_model",
+        }
+        certificate = get_vehicle_certificate_specification_source(vehicle)
+        record["certificate_specification"] = certificate
+        if certificate.get("status") == "source_matched":
+            number = certificate["values"].get("type_classification_number")
+            # Only explicit individual numbers in official rows 699-702.
+            known = {"3010":"MT", "3011":"MT", "3012":"AMT", "3013":"AT",
+                     "3014":"MT", "3015":"MT", "3016":"MT", "3017":"MT", "3018":"AMT"}
+            if number in known:
+                record["transmission_categories"] = [known[number]]
+                record["transmission_evidence"]["scope"] = "exact_model_and_verified_source_classification"
     maker = unicodedata.normalize("NFKC", str(vehicle.manufacturer or "")).strip().casefold()
     maker = {"hino": "日野", "日野自動車": "日野", "日野自動車株式会社": "日野",
              "三菱ふそう": "三菱", "三菱ふそうトラック・バス": "三菱"}.get(maker, maker)
     return {
         "status": "matched" if maker == record["manufacturer"] else "manufacturer_conflict",
         "model_code": model, "facts": copy.deepcopy(record),
-        "registry_version": "OFFICIAL_MODEL_SPECIFICATIONS_V1",
-        "registry_checksum": '24e60298c1a89daff2b335d594093d1cf36a1fee4cde90b27e82b8e867e5dc0d',
+        "registry_version": "OFFICIAL_MODEL_SPECIFICATIONS_V3",
+        "registry_checksum": 'fd5fbc1eff6ca46e10406e788010db71c950860759caa03ad0859f516959d921',
     }
 
 
@@ -2458,15 +2651,21 @@ def evaluate_vehicle_maintenance_rule(
             elif attribute in date_attributes:
                 return result("unknown", "invalid_date_operator")
             elif attribute == "equipment":
-                # An AMT category does not identify MZ12/M112 or hybrid status.
+                # OFFICIAL_TRANSMISSION_VARIANTS_V2: retain every published option.
                 possible = official.get("transmission_categories") or []
                 categories = {normalize(value).upper() for value in values}
-                if possible and categories <= {"MT", "AMT"}:
-                    allowed = set(possible)
+                allowed = set(possible)
+                if allowed and categories <= {"MT", "AMT"}:
                     if allowed <= categories:
                         state = "matched" if operator == "one_of" else "not_matched"
                     elif allowed.isdisjoint(categories):
                         state = "not_matched" if operator == "one_of" else "matched"
+                elif allowed and categories and all(
+                    re.fullmatch(r"AMT\((?:MZ12|M112)\)", value)
+                    for value in categories
+                ) and allowed.isdisjoint({"AMT"}):
+                    # Known MT-only specifications exclude any AMT subtype.
+                    state = "not_matched" if operator == "one_of" else "matched"
                 actual = possible[0] if len(possible) == 1 else None
             elif attribute == "emission_standard":
                 patterns = [normalize(value).upper() for value in values]
@@ -2507,7 +2706,13 @@ def evaluate_vehicle_maintenance_rule(
                 **({"official_source_url": official.get("identity_url")}
                    if attribute in {"commercial_name", "vehicle_category"} and official else {}),
                 **({"official_source_url": official.get("transmission_url"),
-                    "reason_detail": "Exact transmission model and hybrid exceptions need separate evidence"}
+                    "official_possible_categories": list(official.get("transmission_categories") or []),
+                    "official_evidence": official.get("transmission_evidence"),
+                    "reason_detail": (
+                        "Exact model has multiple transmission variants; no individual variant selected"
+                        if len(official.get("transmission_categories") or []) > 1
+                        else "Exact transmission subtype and installation require separate evidence"
+                    )}
                    if attribute == "equipment" and official else {}),
                 **({
                     "registered_value_basis": {
@@ -2585,6 +2790,52 @@ def evaluate_vehicle_maintenance_rule(
         return result("unknown", "invalid_applicability_data")
 
 
+def maintenance_knowledge_model_scope_matches(vehicle, knowledge_row, rule=None):
+    """Match literal model codes; accept source-bound commercial-name scopes separately."""
+    import re
+    import unicodedata
+
+    def normalize(value):
+        return unicodedata.normalize("NFKC", str(value or "")).strip().casefold()
+
+    declared = normalize(knowledge_row.model_code)
+    if not declared or declared == normalize(vehicle.model_code):
+        return True
+    if (
+        knowledge_row.status != "draft"
+        or knowledge_row.source_kind != "メーカー公式資料"
+        or not isinstance(rule, dict)
+    ):
+        return False
+
+    # The document reader binds this rule to the unchanged extracted knowledge row.
+    # A descriptive vehicle name is accepted only when the reviewed rule explicitly
+    # retains that same positive scope. Vehicle applicability is still checked below.
+    semantic = rule.get("semantic_review") or {}
+    if semantic.get("status") != "supported":
+        return False
+    applicability = semantic.get("applicability") or {}
+    requirements = applicability.get("requirements") or []
+    declared_names = [normalize(value) for value in re.split(r"[、,]", declared)]
+    if not declared_names or any(not value for value in declared_names):
+        return False
+    for requirement in requirements:
+        if not isinstance(requirement, dict):
+            continue
+        if (
+            requirement.get("attribute") != "commercial_name"
+            or requirement.get("operator") != "one_of"
+        ):
+            continue
+        values = requirement.get("values")
+        if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+            continue
+        names = {normalize(value) for value in values}
+        if set(declared_names) <= names:
+            return True
+    return False
+
+
 def assess_public_maintenance_rule_adoption(
     vehicle, knowledge_row, evidence, rule,
     *, vehicle_category=None,
@@ -2658,6 +2909,9 @@ def assess_public_maintenance_rule_adoption(
             return decision("not_eligible", "rule_not_bound_to_knowledge")
         if evidence.get("status") != "candidates":
             return decision("not_eligible", "stored_candidate_not_verified")
+        if not maintenance_knowledge_model_scope_matches(vehicle, knowledge_row, rule):
+            return decision("not_eligible", "knowledge_model_scope_not_confirmed")
+
         if evidence.get("public_source_status") != "available":
             return decision("not_eligible", "public_source_reader_unavailable")
 
@@ -2743,7 +2997,14 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
     ).all()
     matched = [row for row in rows if (
         (not row.manufacturer or normalize_manufacturer(row.manufacturer) == normalize_manufacturer(vehicle.manufacturer))
-        and (not row.model_code or normalize(row.model_code) == normalize(vehicle.model_code))
+        and (
+            not row.model_code
+            or normalize(row.model_code) == normalize(vehicle.model_code)
+            or (
+                row.status == "draft"
+                and row.source_kind == "メーカー公式資料"
+            )
+        )
     )]
     def relevance_terms(value):
         text = normalize(value).replace("フィルター", "フィルタ")
@@ -2851,6 +3112,7 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
     knowledge = []
     sources = {}
     eligible_count = 0
+    selected_candidates = []
     for row in matched:
         item = {
             name: getattr(row, name)
@@ -2987,9 +3249,13 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
             item["analysis_usage"] = "active_knowledge"
 
         eligible_count += 1
-        if len(knowledge) >= 20:
-            continue
+        # PREVENTIVE_RULE_SELECTION_V1: an adopted rule is usable evidence;
+        # legacy prose must not displace it before the common input cap is applied.
+        selected_candidates.append((bool(adopted_rules), knowledge_order(row), row, item))
 
+    selected_candidates.sort(key=lambda candidate: candidate[:2], reverse=True)
+    for _, _, row, item in selected_candidates[:20]:
+        source_id = item["source_id"]
         knowledge.append(item)
         sources[source_id] = {
             "label": f"{row.source_kind}：{row.title}（提供：{row.provider}）",
@@ -8032,6 +8298,8 @@ NOTIFICATION_TYPE_LABELS = {
     "defect": "異常報告",
     "recheck": "整備・再確認",
     "reminder": "未実施のお知らせ",
+    "inspection_plan": "点検予定・実施確認",
+    "periodic_issue": "点検簿の対応確認",
     "approved": "承認完了",
     "completed": "点検完了",
     "notice": "お知らせ",
@@ -8291,6 +8559,12 @@ def get_notification_workflow_state(notification):
 
     if not context:
         return get_recheck_notification_state(notification)
+
+    if context.get("action") == "periodic_issue":
+        return periodic_followups.workflow(notification)
+
+    if context.get("action") == "inspection_plan_alert":
+        return inspection_alerts.workflow(notification)
 
     if context.get("action") == "operation_judgment":
         return get_operation_judgment_notification_state(
@@ -8897,6 +9171,14 @@ def get_notification_display_info(notification):
             notification_type = "recheck"
             action_label = "整備・再確認内容を確認"
 
+        elif title.startswith("点検簿の対応確認："):
+            notification_type = "periodic_issue"
+            action_label = "点検簿の対応を確認"
+
+        elif title.startswith("点検予定の確認："):
+            notification_type = "inspection_plan"
+            action_label = "点検計画を確認"
+
         elif title == "車両点検が未実施です":
             notification_type = "reminder"
             action_label = "点検内容を確認"
@@ -8926,6 +9208,8 @@ def get_notification_display_info(notification):
         "recheck": "再確認を見る",
         "defect": "不具合を確認",
         "reminder": "点検内容を確認",
+        "inspection_plan": "点検計画を確認",
+        "periodic_issue": "点検簿の対応を確認",
         "approved": "承認結果を確認",
         "completed": "点検結果を確認",
         "confirmation_request": "内容を確認",
@@ -9948,28 +10232,24 @@ def search_vehicles():
         company_code=company_code,
         deleted=False
     )
-    if keyword:
-
-        keyword_like = f"%{keyword}%"
-
-        query = query.filter(
-            db.or_(
-                Vehicle.plate_area.ilike(keyword_like),
-                Vehicle.plate_class.ilike(keyword_like),
-                Vehicle.plate_kana.ilike(keyword_like),
-                Vehicle.plate_number.ilike(keyword_like),
-                Vehicle.chassis_number.ilike(keyword_like),
-                Vehicle.model_code.ilike(keyword_like),
-                Vehicle.manufacturer.ilike(keyword_like),
-            )
-        )
-
-    vehicles = (
-        query
-        .order_by(Vehicle.id.asc())
-        .limit(20)
-        .all()
-    )
+    normalized = normalize_vehicle_operation_plate(keyword)
+    vehicles = []
+    # Match the whole displayed registration as well as individual attributes.
+    # Apply the result limit after matching so later vehicle IDs remain searchable.
+    candidates = query.order_by(Vehicle.id.asc()).yield_per(200)
+    for vehicle in candidates:
+        plate = ''.join(str(value or '') for value in (
+            vehicle.plate_area, vehicle.plate_class,
+            vehicle.plate_kana, vehicle.plate_number,
+        ))
+        values = (plate, vehicle.chassis_number, vehicle.model_code, vehicle.manufacturer)
+        if normalized and not any(
+            normalized in normalize_vehicle_operation_plate(value) for value in values
+        ):
+            continue
+        vehicles.append(vehicle)
+        if len(vehicles) == 20:
+            break
 
     results = []
 
@@ -12047,28 +12327,6 @@ def get_dashboard_periodic_schedule(company_code, office, today):
     if not vehicles:
         return result
 
-    records = VehiclePeriodicInspectionRecord.query.filter(
-        VehiclePeriodicInspectionRecord.company_code == company_code,
-        VehiclePeriodicInspectionRecord.vehicle_record_id.in_(
-            [vehicle.id for vehicle in vehicles]
-        ),
-        VehiclePeriodicInspectionRecord.inspection_type == "3month",
-    ).all()
-
-    latest = {}
-    for record in records:
-        performed = parse_date(record.inspection_date)
-        if performed is None or performed > today:
-            continue
-
-        previous = latest.get(record.vehicle_record_id)
-        if previous is None or (performed, record.id) > previous[:2]:
-            latest[record.vehicle_record_id] = (
-                performed,
-                record.id,
-                record,
-            )
-
     for vehicle in vehicles:
         item = {
             "vehicle_record_id": vehicle.id,
@@ -12083,21 +12341,20 @@ def get_dashboard_periodic_schedule(company_code, office, today):
                 vehicle_record_id=vehicle.id,
             ),
         }
-        latest_record = latest.get(vehicle.id)
-        due = (
-            parse_date(latest_record[2].next_inspection_date)
-            if latest_record else None
-        )
-
-        if due is None or due < latest_record[0]:
+        plan = inspection_plans.summary(company_code, vehicle.id).get("3month")
+        if not plan:
             result["unregistered"].append(item)
             continue
-
         result["known_count"] += 1
-
+        reservation = parse_date(plan.get("reservation_date"))
+        planned_month = plan["planned_month"]
+        month_only = reservation is None
+        due = reservation or parse_date(planned_month + "-01")
         if due <= today + timedelta(days=90):
-            item["date"] = due.isoformat()
-            item["remaining_days"] = (due - today).days
+            item["date"] = reservation.isoformat() if reservation else planned_month + "（月予定）"
+            item["remaining_days"] = None if month_only else (due - today).days
+            item["month_only"] = month_only
+            item["month_status"] = "予定月経過" if planned_month < today.isoformat()[:7] else "予約日未定"
             result["scheduled"].append(item)
 
     result["scheduled"].sort(
@@ -18355,7 +18612,7 @@ def delete_driver(index):
 
 def apply_maintenance_invoice_preview(draft, extraction):
     if (
-        draft.document_type != "maintenance"
+        draft.document_type not in {"maintenance", "inspection"}
         or draft.company_code != session.get("company_code")
         or draft.created_by_username != session.get("username")
         or draft.status != "preview"
@@ -18391,10 +18648,11 @@ def apply_maintenance_invoice_preview(draft, extraction):
         for vehicle in vehicles
     ]
 
-    preview = build_maintenance_invoice_preview(
-        extraction,
-        vehicle_choices,
+    builder = (
+        build_inspection_preview if draft.document_type == "inspection"
+        else build_maintenance_invoice_preview
     )
+    preview = builder(extraction, vehicle_choices)
     draft.preview_json = json.dumps(
         preview,
         ensure_ascii=False,
@@ -18538,6 +18796,10 @@ def build_vehicle_document_record(
             vehicle_record_id=values["vehicle_record_id"],
             inspection_type=values["inspection_type"],
             inspection_date=values["record_date"],
+            completion_date=values.get("completion_date") or None,
+            next_inspection_date=values.get("next_inspection_date") or None,
+            inspection_company=values.get("inspection_company") or None,
+            inspector_name=values.get("inspector_name") or None,
             mileage=mileage,
             content=values["content"],
             details_json=json.dumps(
@@ -18771,6 +19033,29 @@ def registered_maintenance_import_keys(
     return keys
 
 
+def registered_inspection_import_keys(company_code, exclude_pending_record_id=None):
+    keys = set()
+    for record_index, digest in db.session.query(
+        VehiclePeriodicInspectionRecord.source_record_index, VehicleDocumentImportDraft.source_sha256
+    ).join(VehicleDocumentImportDraft,
+           VehiclePeriodicInspectionRecord.source_draft_id == VehicleDocumentImportDraft.id
+    ).filter(VehiclePeriodicInspectionRecord.company_code == company_code,
+             VehicleDocumentImportDraft.company_code == company_code).all():
+        keys.add((digest, record_index))
+    pending = db.session.query(
+        VehicleImportPendingRecord.source_record_index, VehicleDocumentImportDraft.source_sha256
+    ).join(VehicleDocumentImportDraft,
+           VehicleImportPendingRecord.document_draft_id == VehicleDocumentImportDraft.id
+    ).filter(VehicleImportPendingRecord.company_code == company_code,
+             VehicleDocumentImportDraft.company_code == company_code,
+             VehicleImportPendingRecord.source_kind == "inspection",
+             VehicleImportPendingRecord.status == "pending")
+    if exclude_pending_record_id is not None:
+        pending = pending.filter(VehicleImportPendingRecord.id != exclude_pending_record_id)
+    keys.update((digest, record_index) for record_index, digest in pending.all())
+    return keys
+
+
 def save_vehicle_document_pending_record(draft, record_index, values):
     if values.get("vehicle_record_id") is not None:
         raise UploadValidationError("登録待ちの対象を再確認してください。")
@@ -18891,7 +19176,7 @@ def validate_vehicle_document_record(
         try:
             mileage = (
                 parse_maintenance_invoice_number(mileage_text)
-                if draft.document_type == "maintenance"
+                if draft.document_type in {"maintenance", "inspection"}
                 else Decimal(mileage_text)
             )
 
@@ -18929,6 +19214,48 @@ def validate_vehicle_document_record(
                 "点検区分を選択してください。",
                 f"inspection_type_{row_key}"
             ))
+
+    if draft.document_type == "inspection":
+        for field, (label, limit) in {
+            "inspection_company": ("実施工場", 200),
+            "inspector_name": ("点検者", 100),
+            "notes": ("特記事項", 5000),
+            "symbol_legend": ("記号凡例", 5000),
+        }.items():
+            key = f"{field}_{row_key}"
+            values[field] = form.get(key, original_record.get(field) or "").strip() or None
+            if len(values[field] or "") > limit:
+                errors.append((f"{label}は{limit}文字以内で入力してください。", key))
+        key = f"next_inspection_month_{row_key}"
+        raw = form.get(key, original_record.get("next_inspection_month") or "").strip()
+        values["next_inspection_month"] = raw or None
+        if raw:
+            from vehicle_inspection_plans import month as valid_plan_month
+            if not valid_plan_month(raw):
+                errors.append(("原本の次回予定月を正しく入力してください。", key))
+        for field in ("completion_date", "next_inspection_date"):
+            key = f"{field}_{row_key}"
+            raw = form.get(key, original_record.get(field) or "").strip()
+            values[field] = raw or None
+            if raw:
+                try:
+                    if datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d") != raw:
+                        raise ValueError
+                except ValueError:
+                    errors.append(("原本に記載された日付を正しく入力してください。", key))
+        if values.get("next_inspection_month") and values.get("next_inspection_date") and values["next_inspection_date"][:7] != values["next_inspection_month"]:
+            errors.append(("次回予定月と次回点検日の年月を合わせてください。", f"next_inspection_month_{row_key}"))
+        values["inspection_date"] = record_date
+        values["inspection_items"] = []
+        for index, original_item in enumerate(original_record.get("inspection_items") or []):
+            item = dict(original_item)
+            for field, limit in ITEM_FIELDS.items():
+                key = f"inspection_item_{row_key}_{index}_{field}"
+                raw = form.get(key, original_item.get(field) or "").strip()
+                item[field] = raw or None
+                if len(raw) > limit or (field == "item_name" and not raw):
+                    errors.append(("点検項目の名称・文字数を確認してください。", key))
+            values["inspection_items"].append(item)
 
     if draft.document_type == "maintenance":
         text_fields = {
@@ -19236,11 +19563,11 @@ def prepare_vehicle_document_import(files, document_type):
             continue
 
         if (
-            document_type == "maintenance"
+            document_type in {"maintenance", "inspection"}
             and len(source_file) > 20 * 1024 * 1024
         ):
             errors.append((
-                f"{filename}：請求書は1ファイル20MB以下にしてください。",
+                f"{filename}：資料は1ファイル20MB以下にしてください。",
                 "document_files"
             ))
             continue
@@ -19277,13 +19604,14 @@ def vehicle_data_import_progress():
             status_code=403,
         )
 
-    if request.form.get("document_type") != "maintenance":
+    document_type = request.form.get("document_type")
+    if document_type not in {"maintenance", "inspection"}:
         return return_form_errors(
-            [("請求書を選択してください。", "document_files")]
+            [("請求書・点検記録を選択してください。", "document_files")]
         )
 
     drafts, errors = prepare_vehicle_document_import(
-        request.files.getlist("document_files"), "maintenance"
+        request.files.getlist("document_files"), document_type
     )
     if errors:
         return return_form_errors(errors)
@@ -19315,7 +19643,7 @@ def vehicle_data_import_progress():
                     worker = ThreadPoolExecutor(max_workers=1)
                     try:
                         task = worker.submit(
-                            extract_maintenance_invoices,
+                            extract_inspection_documents if draft.document_type == "inspection" else extract_maintenance_invoices,
                             draft.source_file,
                             filename=draft.source_filename,
                             progress_callback=updates.put,
@@ -19364,7 +19692,7 @@ def vehicle_data_import_progress():
 
                 except (ValueError, RuntimeError) as error:
                     app.logger.exception(
-                        "請求書の読み取り失敗: %s",
+                        "資料の読み取り失敗: %s",
                         draft.source_filename,
                     )
                     code = str(error).split(":", 1)[0]
@@ -19372,8 +19700,15 @@ def vehicle_data_import_progress():
                         "API_KEY_NOT_SET": "AIの接続設定を確認してください。",
                         "OPENAI_NETWORK_OR_TIMEOUT": "AIとの通信が中断、または時間切れになりました。",
                         "NO_INVOICE_FOUND": "整備請求書が見つかりませんでした。",
-                        "OCR_NO_RECORDS": "整備請求書の内容を読み取れませんでした。",
+                        "NO_INSPECTION_FOUND": "点検表が見つかりませんでした。",
+                        "INVALID_INSPECTION_PDF": "PDFが破損・暗号化されているか、200ページを超えています。",
+                        "INVALID_INSPECTION_EXTRACTION": "点検表の読取結果を確認できませんでした。原本を確認して再試行してください。",
+                        "OCR_NO_RECORDS": "資料の内容を読み取れませんでした。",
                         "DOCUMENT_TOO_LARGE": "1ファイル20MB以下にしてください。",
+                        "CONVERTED_PDF_TOO_LARGE": "変換後の容量が20MBを超えています。画像を小さくしてください。",
+                        "IMAGE_TOO_LARGE": "画像の縦横サイズを小さくしてください。",
+                        "IMAGE_READ_FAILED": "画像を開けません。ファイルを確認してください。",
+                        "INVALID_SOURCE_PAGES": "読取結果のページ番号を確認できませんでした。",
                         "EXTRACTION_NOT_COMPLETED": "AIの読み取りが完了しませんでした。",
                     }.get(
                         code,
@@ -19483,14 +19818,15 @@ def vehicle_data_import():
         failed_imports = []
 
         for draft in drafts:
-            if draft.document_type != "maintenance":
+            if draft.document_type not in {"maintenance", "inspection"}:
                 ready_drafts.append(draft)
                 continue
 
             draft.status = "preview"
 
             try:
-                extraction = extract_maintenance_invoices(
+                extractor = extract_inspection_documents if draft.document_type == "inspection" else extract_maintenance_invoices
+                extraction = extractor(
                     draft.source_file,
                     filename=draft.source_filename,
                 )
@@ -19502,7 +19838,7 @@ def vehicle_data_import():
                     raise ValueError("OCR_NO_RECORDS")
             except (ValueError, RuntimeError) as error:
                 app.logger.exception(
-                    "請求書の読み取りに失敗しました: %s",
+                    "資料の読み取りに失敗しました: %s",
                     draft.source_filename,
                 )
                 code = str(error).split(":", 1)[0]
@@ -19512,8 +19848,11 @@ def vehicle_data_import():
                     "CONVERTED_PDF_TOO_LARGE": "変換後の容量が20MBを超えています。画像を小さくしてください。",
                     "IMAGE_TOO_LARGE": "画像の縦横サイズを小さくしてください。",
                     "IMAGE_READ_FAILED": "画像を開けません。ファイルを確認してください。",
-                    "OCR_NO_RECORDS": "整備請求書の内容を読み取れませんでした。",
+                    "OCR_NO_RECORDS": "資料の内容を読み取れませんでした。",
                     "NO_INVOICE_FOUND": "整備請求書が見つかりませんでした。",
+                    "NO_INSPECTION_FOUND": "点検表が見つかりませんでした。",
+                    "INVALID_INSPECTION_PDF": "PDFが破損・暗号化されているか、200ページを超えています。",
+                    "INVALID_INSPECTION_EXTRACTION": "点検表の読取結果を確認できませんでした。原本を確認して再試行してください。",
                     "OPENAI_NETWORK_OR_TIMEOUT": "AIとの通信が中断、または時間切れになりました。",
                     "EXTRACTION_NOT_COMPLETED": "AIの読み取りが完了しませんでした。",
                 }.get(
@@ -19562,7 +19901,7 @@ def vehicle_data_import():
     except (ValueError, RuntimeError) as error:
         db.session.rollback()
         app.logger.exception(
-            "整備請求書の読み取りに失敗しました"
+            "資料の読み取りに失敗しました"
         )
 
         if str(error) == "API_KEY_NOT_SET":
@@ -19577,7 +19916,7 @@ def vehicle_data_import():
             )
         else:
             message = (
-                "請求書の読み取りに失敗しました。"
+                "資料の読み取りに失敗しました。"
                 "サーバーログで原因を確認してください。"
             )
 
@@ -19652,6 +19991,9 @@ def vehicle_document_import_confirm(batch_id):
         draft.document_type == "maintenance" for draft in drafts
     ) else set()
     selected_source_keys = set()
+    inspection_keys = registered_inspection_import_keys(session.get("company_code")) if any(
+        draft.document_type == "inspection" for draft in drafts
+    ) else set()
 
     included = set(request.form.getlist("include"))
     known_keys = set()
@@ -19727,6 +20069,12 @@ def vehicle_document_import_confirm(batch_id):
                     ))
                 else:
                     selected_source_keys.update(source_keys)
+
+            if draft.document_type == "inspection" and not row_errors:
+                key = (draft.source_sha256, record_index)
+                if key in inspection_keys:
+                    row_errors.append(("同じ原本の点検記録が登録済み、または今回の対象に重複しています。取り込みチェックを外してください。", f"include_{row_key}"))
+                inspection_keys.add(key)
 
             errors.extend(row_errors)
 
@@ -19867,12 +20215,13 @@ def vehicle_document_import_confirm(batch_id):
             )
 
         if any(
-            draft.document_type == "maintenance" for draft in drafts
+            draft.document_type in {"maintenance", "inspection"} for draft in drafts
         ):
             Company.query.filter_by(
                 company_code=session.get("company_code")
             ).with_for_update().one()
 
+        if any(draft.document_type == "maintenance" for draft in drafts):
             latest_source_keys = registered_maintenance_import_keys(
                 session.get("company_code")
             )
@@ -19899,6 +20248,19 @@ def vehicle_document_import_confirm(batch_id):
                     )
 
                 latest_source_keys.update(source_keys)
+
+        latest_inspection_keys = registered_inspection_import_keys(session.get("company_code")) if any(
+            draft.document_type == "inspection" for draft in drafts
+        ) else set()
+        for draft, record_index, values in submissions:
+            if draft.document_type == "inspection":
+                key = (draft.source_sha256, record_index)
+                if key in latest_inspection_keys:
+                    db.session.rollback()
+                    return return_form_errors([("同じ原本の点検記録がすでに登録されています。", "")], status_code=409)
+                if hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256:
+                    raise UploadValidationError("保存済みの点検原本を確認できません。")
+                latest_inspection_keys.add(key)
 
         reviews_created = []
         results = {draft.id: [] for draft in drafts}
@@ -20097,7 +20459,7 @@ def vehicle_document_import_source(draft_id):
 
     if (
         request.args.get("preview") == "pdf"
-        and draft.document_type == "maintenance"
+        and draft.document_type in {"maintenance", "inspection"}
         and os.path.splitext(draft.source_filename)[1].lower()
         in {".png", ".jpg", ".jpeg"}
     ):
@@ -21845,6 +22207,35 @@ def vehicle_karte_inspections(vehicle_record_id):
         "plate_number": vehicle.plate_number or ""
     })
 
+    inspection_view = request.args.get("inspection_view", "all")
+    if inspection_view not in {"all", "daily", "periodic", "3month", "12month", "certificate"}:
+        inspection_view = "all"
+
+    def valid_date_arg(name):
+        value = request.args.get(name, "").strip()
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date().isoformat() if value else ""
+        except ValueError:
+            return ""
+
+    inspection_start = valid_date_arg("start_date")
+    inspection_end = valid_date_arg("end_date")
+    if inspection_start and inspection_end and inspection_start > inspection_end:
+        inspection_start, inspection_end = inspection_end, inspection_start
+
+    daily_query = VehicleChecklistResult.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id)
+    periodic_query = VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id)
+    if inspection_view in {"3month", "12month"}:
+        periodic_query = periodic_query.filter_by(inspection_type=inspection_view)
+    for boundary, value in (("start", inspection_start), ("end", inspection_end)):
+        if value:
+            daily_date = db.func.substr(VehicleChecklistResult.checked_date, 1, 10)
+            periodic_date = VehiclePeriodicInspectionRecord.inspection_date
+            daily_query = daily_query.filter(daily_date >= value if boundary == "start" else daily_date <= value)
+            periodic_query = periodic_query.filter(periodic_date >= value if boundary == "start" else periodic_date <= value)
+
     page = max(1, request.args.get("page", 1, type=int))
 
     per_page = request.args.get("per_page", 10, type=int)
@@ -21856,11 +22247,7 @@ def vehicle_karte_inspections(vehicle_record_id):
         periodic_per_page = 10
 
     inspection_page = (
-        VehicleChecklistResult.query
-        .filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id
-        )
+        daily_query
         .order_by(
             VehicleChecklistResult.checked_date.desc(),
             VehicleChecklistResult.id.desc()
@@ -21895,11 +22282,7 @@ def vehicle_karte_inspections(vehicle_record_id):
     )
 
     periodic_inspection_page = (
-        VehiclePeriodicInspectionRecord.query
-        .filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id
-        )
+        periodic_query
         .order_by(
             VehiclePeriodicInspectionRecord.inspection_date.desc(),
             VehiclePeriodicInspectionRecord.id.desc()
@@ -21913,6 +22296,8 @@ def vehicle_karte_inspections(vehicle_record_id):
 
     return render_template(
         "vehicle_karte_inspections.html",
+        inspection_view=inspection_view,
+        inspection_start=inspection_start, inspection_end=inspection_end,
         vehicle=vehicle,
         vehicle_number=number,
         inspection_page=inspection_page,
@@ -21923,6 +22308,13 @@ def vehicle_karte_inspections(vehicle_record_id):
         },
         inspection_links=inspection_links,
         periodic_inspection_page=periodic_inspection_page,
+        periodic_followup_summary=periodic_followups.summary(vehicle.company_code, vehicle.id),
+        manual_inspection_executions=[row for row in inspection_plans.manual_records(vehicle.company_code, vehicle.id)
+            if (inspection_view not in {"3month", "12month"} or row.kind == inspection_view)
+            and (not inspection_start or row.performed_date >= inspection_start)
+            and (not inspection_end or row.performed_date <= inspection_end)],
+        periodic_details={record.id: safe_json_dict(record.details_json)
+                          for record in periodic_inspection_page.items},
         open_defects=get_vehicle_open_inspection_defects(
             vehicle.company_code,
             vehicle.id
@@ -22091,6 +22483,63 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
                             active_day=record.day
                         ),
                     })
+
+    entries.extend(periodic_followups.history(company_code, vehicle_record_id))
+
+    periodic_records = VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=company_code,
+        vehicle_record_id=vehicle_record_id,
+    ).all()
+    for record in periodic_records:
+        entries.append({
+            "key": f"periodic:{record.id}",
+            "date": normalize_date(record.inspection_date),
+            "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(
+                record.inspection_type, "定期点検"
+            ),
+            "content": record.content or "定期点検記録",
+            "files": [],
+            "mileage": record.mileage,
+            "cost": None,
+            "status": "登録済み",
+            "actor": " / ".join(value for value in (
+                record.inspection_company, record.inspector_name
+            ) if value),
+            "link": url_for("vehicle_periodic_inspection_source", record_id=record.id),
+        })
+
+    plan_events = db.session.query(VehicleInspectionPlanEvent, VehicleInspectionPlan).join(
+        VehicleInspectionPlan, VehicleInspectionPlan.id == VehicleInspectionPlanEvent.plan_id
+    ).filter(
+        VehicleInspectionPlan.company_code == company_code,
+        VehicleInspectionPlan.vehicle_record_id == vehicle_record_id,
+        VehicleInspectionPlanEvent.company_code == company_code,
+    ).all()
+    for change, plan in plan_events:
+        snapshot = safe_json_dict(change.detail_json)
+        after = snapshot.get("after") or {}
+        kind_label = {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "車検"}.get(plan.kind, "点検")
+        action_label = {"cancelled": "取消", "completed": "実施記録と連動", "completed_manual": "実施先行登録", "document_attached": "点検簿を関連付け", "created_from_document": "点検簿から作成"}.get(change.action, "登録・変更")
+        entries.append({
+            "key": f"inspection-plan:{change.id}",
+            "date": normalize_date(change.created_at),
+            "kind": "点検予定",
+            "content": f"{kind_label} {action_label} / 予定月 {after.get('planned_month', '')} / 予約日 {after.get('reservation_date') or '未定'} / {after.get('factory') or '実施先未定'}",
+            "files": [], "mileage": None, "cost": None,
+            "status": {"planned": "予定", "completed": "実施済み", "cancelled": "取消"}.get(after.get("status"), ""),
+            "actor": change.created_by,
+            "link": url_for("vehicle_inspection_plans", scope="vehicle", vehicle_id=vehicle_record_id, kind=plan.kind),
+        })
+
+    for execution in inspection_plans.manual_records(company_code, vehicle_record_id):
+        entries.append({
+            "key": f"inspection-execution:{execution.id}", "date": execution.performed_date,
+            "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(execution.kind, "点検"),
+            "content": "点検実施（書類未受領） / " + (execution.factory or "実施先未登録") + (" / " + execution.note if execution.note else ""),
+            "files": [], "mileage": None, "cost": None, "status": "実施済み・書類未受領",
+            "actor": execution.created_by,
+            "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle_record_id, inspection_view="periodic") + f"#manual-execution-{execution.id}",
+        })
 
     driving_reports = VehicleDrivingReportRecord.query.filter_by(
         company_code=company_code,
@@ -23382,6 +23831,9 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         company_code=session.get("company_code"),
     ).first_or_404()
 
+    if request.method == "POST" and periodic_followups.for_maintenance(vehicle.company_code, record_id):
+        periodic_followups.lock(vehicle.company_code)
+
     if request.method == "POST" and (
         request.form.getlist("inspection_defect")
         or (record_id is not None and VehicleMaintenanceInspectionLink.query.filter_by(
@@ -23428,13 +23880,14 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
     except ValueError:
         app.logger.warning("Unable to load maintenance inspection choices", exc_info=True)
         return "点検情報を確認できませんでした。画面を再読み込みしてください。", 409
+    periodic_issues = periodic_followups.for_maintenance(vehicle.company_code, record_id)
     selected_inspection_tokens = [c["token"] for c in inspection_choices if c["linked"]]
     # Inspection repairs do not establish an arrival date. Keep that unknown
     # value editable without requiring the user to invent a date.
     entry_date_required = not (
         record is not None
         and not record.entry_date
-        and any(choice["linked"] for choice in inspection_choices)
+        and (any(choice["linked"] for choice in inspection_choices) or periodic_issues)
     )
     selected_inspections = []
     intent = ""
@@ -23631,6 +24084,12 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                             "after": [c["key"] for c in selected_inspections],
                         })
 
+                if periodic_issues:
+                    periodic_user = User.query.filter_by(company_code=vehicle.company_code, username=session.get("username")).first()
+                    if periodic_user is None:
+                        raise ValueError("操作ユーザーを確認できません。")
+                    periodic_followups.sync_maintenance(record, intent, periodic_user)
+
                 add_vehicle_maintenance_record_event(
                     record,
                     action=(
@@ -23705,6 +24164,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         form_errors=errors,
         record_version=record_version,
         inspection_choices=inspection_choices,
+        periodic_issues=periodic_issues,
         selected_inspection_tokens=selected_inspection_tokens,
         entry_date_required=entry_date_required,
     ), response_status
@@ -23896,6 +24356,7 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
         start_date=start_date,
         end_date=end_date,
         maintenance_record=maintenance_record,
+        periodic_issues=periodic_followups.for_maintenance(vehicle.company_code, maintenance_record.id if maintenance_record else None),
         maintenance_parts=(
             VehiclePartReplacement.query.filter_by(
                 company_code=vehicle.company_code,
@@ -24117,6 +24578,58 @@ def get_vehicle_karte_usage_vehicles():
     ]
 
 
+# PREVENTIVE_SYNTHETIC_SOURCE_V1
+def vehicle_maintenance_synthetic_evidence(row):
+    """Explicit synthetic-document declarations only; never infer from 'test'."""
+    import unicodedata
+    details = safe_json_dict(getattr(row, "invoice_details_json", "{}"))
+    for field, value in (
+        ("notes", getattr(row, "notes", None)),
+        ("attached_invoice_notes", details.get("attached_invoice_notes")),
+    ):
+        if not isinstance(value, str):
+            continue
+        normalized = re.sub(r"\s+", "", unicodedata.normalize("NFKC", value))
+        # A compound declaration from the source, not a generic maintenance/test term.
+        declarations = ("テスト用資料・支払不要(発行元・取引内容は架空です)",)
+        matched = next((text for text in declarations if normalized.startswith(text)), None)
+        if matched is None:
+            continue
+        source = details.get("source")
+        source = source if isinstance(source, dict) else {}
+        return {
+            "source_id": f"maintenance:{row.id}",
+            "company_code": row.company_code,
+            "vehicle_record_id": row.vehicle_record_id,
+            "reason": "explicit_synthetic_document_declaration",
+            "evidence_field": field,
+            "declaration": matched,
+            "document_source": {
+                key: source.get(key) for key in ("sha256", "pages", "record_index")
+            },
+            "scope": "Excluded from factual calculations; stored records retained.",
+        }
+    return None
+
+
+def filter_vehicle_maintenance_factual_history(maintenance, parts=()):
+    """Apply one parent decision to children, retaining company/vehicle boundaries."""
+    kept, excluded, parents = [], [], {}
+    for row in maintenance:
+        evidence = vehicle_maintenance_synthetic_evidence(row)
+        key = (row.company_code, row.vehicle_record_id, row.id)
+        if evidence is not None:
+            excluded.append(evidence)
+        else:
+            kept.append(row)
+            parents[key] = row
+    kept_parts = [
+        row for row in parts
+        if (row.company_code, row.vehicle_record_id, row.maintenance_record_id) in parents
+    ]
+    return kept, kept_parts, excluded
+
+
 def build_vehicle_karte_mileage_reference(
     maintenance_records, operation_records, as_of,
     periodic_records=(),
@@ -24190,6 +24703,8 @@ def build_vehicle_karte_mileage_reference(
             row.arrival_at,
         )
 
+    maintenance_records, _, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance_records)
+    excluded["explicit_synthetic_document"] = len(synthetic_exclusions)
     for row in maintenance_records:
         entry = str(row.entry_date or "").strip()
         add(
@@ -24201,6 +24716,9 @@ def build_vehicle_karte_mileage_reference(
         )
 
     for row in periodic_records:
+        if periodic_inspection_synthetic_evidence(row):
+            excluded["explicit_synthetic_document"] += 1
+            continue
         add(
             row.mileage,
             row.inspection_date,
@@ -24349,9 +24867,12 @@ def build_vehicle_karte_analysis_summary(
         day = parse_date(value)
         return day is not None and start <= day <= end
 
-    maintenance = list(maintenance_records)
+    maintenance, factual_parts, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance_records, part_records)
+    periodic_records = list(periodic_records)
+    synthetic_exclusions.extend(evidence for row in periodic_records if (evidence := periodic_inspection_synthetic_evidence(row)))
+    periodic_records = [row for row in periodic_records if not periodic_inspection_synthetic_evidence(row)]
     operations = list(operation_records)
-    parts = list(part_records)
+    parts = factual_parts
     defects = list(defect_records)
 
     selected_maintenance = [
@@ -24444,6 +24965,8 @@ def build_vehicle_karte_analysis_summary(
         periodic_records=periodic_records,
     )
 
+    mileage_reference["excluded"]["explicit_synthetic_document"] += len(synthetic_exclusions)
+
     category_costs = {}
     for row in selected_maintenance:
         if row.total_cost is not None:
@@ -24456,6 +24979,7 @@ def build_vehicle_karte_analysis_summary(
             )
 
     return {
+        "source_exclusions": synthetic_exclusions,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "total_cost": cost,
@@ -24536,8 +25060,32 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     has_result = isinstance(analysis, dict)
     status = state.status if state else "waiting"
 
-    if status == "completed":
-        message = "保存済みの最新結果です。"
+    # PREVENTIVE_ANALYSIS_UI_FRESHNESS_V1: completed alone does not prove freshness.
+    is_current = None
+    input_summary = None
+    if has_result:
+        try:
+            current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
+            current = current_payload["_fingerprints"]
+            input_records = current_payload.get("records", [])
+            input_summary = {
+                label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
+                for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
+            }
+            previous = bundle.get("fingerprints")
+            is_current = isinstance(previous, dict) and all(
+                key in previous and key in current and previous[key] == current[key]
+                for key in ("policy_version", "important_hash", "routine_hash")
+            )
+        except Exception:
+            app.logger.warning("車両分析の更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
+
+    if status == "completed" and is_current is True:
+        message = "現在の登録内容に対応する分析結果です。"
+    elif status == "completed" and is_current is False:
+        message = "更新待ち"
+    elif status == "completed":
+        message = "状態未確認"
     elif status == "running":
         message = "新しい情報を分析しています。"
     elif status == "pending":
@@ -24560,6 +25108,8 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         ok=True,
         status=status,
         has_result=has_result,
+        is_current=is_current,
+        input_summary=input_summary,
         message=message,
         analysis=analysis_with_vehicle_feedback(analysis, vehicle) if has_result else None,
         sources=bundle.get("sources") if has_result else {},
@@ -25229,8 +25779,11 @@ def get_vehicle_karte_analysis_fingerprints(
         }
 
     return {
-        "policy_version": 10,
+        # PREVENTIVE_BASELINE_GUIDANCE_V1
+        "policy_version": 12,
         "important_hash": digest({
+            "factual_history_policy": "explicit-synthetic-document-v1",
+            "source_exclusions": summary.get("source_exclusions", []),
             "vehicle": vehicle_context,
             "records": important,
         }),
@@ -25297,6 +25850,7 @@ def build_vehicle_karte_service_progress(maintenance, summary):
         "note": "比較できる整備記録がありません。",
     }
 
+    maintenance, _, _ = filter_vehicle_maintenance_factual_history(maintenance)
     candidates = []
     unknown_date = False
     for record in maintenance:
@@ -25356,10 +25910,352 @@ def build_vehicle_karte_service_progress(maintenance, summary):
     return result
 
 
-def calculate_adopted_maintenance_rule_timing(
+# PREVENTIVE_ASSEMBLY_EVIDENCE_V1
+def build_vehicle_part_document_evidence(part, parent, source):
+    """Trace a registered part to its unchanged, reviewed invoice line."""
+    import unicodedata
+
+    def norm(value):
+        return re.sub(r"[\s・･]+", "", unicodedata.normalize("NFKC", str(value or ""))).casefold()
+
+    result = {
+        "status": "untraced",
+        "part_source_id": f"part:{part.id}",
+        "maintenance_source_id": f"maintenance:{parent.id}",
+    }
+    if (
+        part.company_code != parent.company_code
+        or part.vehicle_record_id != parent.vehicle_record_id
+        or part.maintenance_record_id != parent.id
+    ):
+        return {**result, "reason": "parent_scope_mismatch"}
+    if source is None:
+        return {**result, "reason": "source_line_link_not_available"}
+    if (
+        source.company_code != parent.company_code
+        or source.maintenance_record_id != parent.id
+        or source.replacement_id != part.id
+    ):
+        return {**result, "reason": "source_line_scope_mismatch"}
+    try:
+        lines = json.loads(parent.line_items_json or "[]")
+    except (ValueError, TypeError):
+        return {**result, "reason": "source_lines_invalid"}
+    if not isinstance(lines, list) or not all(isinstance(line, dict) for line in lines):
+        return {**result, "reason": "source_lines_invalid"}
+    index = source.source_line_index
+    if type(index) is not int or not 0 <= index < len(lines):
+        return {**result, "reason": "source_line_index_invalid"}
+    line = lines[index]
+    version = hashlib.sha256(json.dumps(
+        line, sort_keys=True, ensure_ascii=False, default=str,
+    ).encode("utf-8")).hexdigest()
+    if source.source_line_version != version:
+        return {**result, "reason": "source_line_changed"}
+    if (
+        line.get("replacement_action") != "replace"
+        or norm(line.get("replacement_part_name")) != norm(part.part_name)
+        or str(line.get("part_number") or "").strip() != str(part.part_number or "").strip()
+    ):
+        return {**result, "reason": "replacement_line_not_matched"}
+    try:
+        quantity = Decimal(str(line.get("quantity")))
+        saved_quantity = Decimal(str(part.quantity))
+        if not quantity.is_finite() or quantity <= 0 or quantity != saved_quantity:
+            raise ValueError()
+    except (ValueError, TypeError, InvalidOperation):
+        return {**result, "reason": "replacement_quantity_not_matched"}
+    invoice_source = safe_json_dict(parent.invoice_details_json).get("source")
+    if not isinstance(invoice_source, dict):
+        return {**result, "reason": "invoice_source_not_available"}
+    sha256 = invoice_source.get("sha256")
+    pages = invoice_source.get("pages")
+    page = line.get("source_page")
+    if (
+        not isinstance(sha256, str) or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None
+        or not isinstance(pages, list) or not pages
+        or any(type(value) is not int or value < 1 for value in pages)
+        or type(page) is not int or page not in pages
+        or not isinstance(invoice_source.get("draft_id"), str) or not invoice_source["draft_id"]
+        or type(invoice_source.get("record_index")) is not int or invoice_source["record_index"] < 0
+    ):
+        return {**result, "reason": "invoice_source_metadata_invalid"}
+    return {
+        **result,
+        "status": "verified_saved_source_line",
+        "verification_scope": "Saved reviewed line, linked part and stored original reference; original bytes are not reread here.",
+        "source_line_index": index,
+        "source_line_version": version,
+        "source_page": page,
+        "document_source": {key: invoice_source.get(key) for key in (
+            "draft_id", "record_index", "sha256", "pages", "filename",
+        )},
+        "reviewed_line": line,
+        "component_inclusion_confirmed": False,
+    }
+
+
+def get_related_air_dryer_assembly_history(part_name, preventive_facts):
+    """A named whole-assembly record is related history, never a component baseline."""
+    import unicodedata
+
+    def norm(value):
+        return re.sub(r"[\s・･]+", "", unicodedata.normalize("NFKC", str(value or ""))).casefold().replace("フィルター", "フィルタ")
+
+    target = norm(part_name)
+    allowed_targets = {
+        norm(root + suffix)
+        for root in ("エアドライヤ", "エアドライヤー")
+        for suffix in ("", "の乾燥剤", "のフィルタ", "のゴム部品")
+    }
+    if target not in allowed_targets or not isinstance(preventive_facts, dict):
+        return []
+    result = []
+    for fact in preventive_facts.get("part_replacements", []):
+        if not isinstance(fact, dict) or norm(fact.get("part_name")) not in {
+            norm("エアドライヤASSY"), norm("エアドライヤーASSY"),
+        }:
+            continue
+        source_ids = fact.get("source_ids")
+        if not isinstance(source_ids, list) or not source_ids or any(
+            not isinstance(value, str) or re.fullmatch(r"part:[0-9]+", value) is None for value in source_ids
+        ):
+            continue
+        result.append({
+            "assembly_part_name": fact["part_name"],
+            "replacement_date": fact.get("latest_dated_replacement"),
+            "replacement_mileage": fact.get("replacement_mileage"),
+            "replacement_date_usable": fact.get("replacement_date_usable") is True,
+            "source_ids": source_ids,
+            "document_evidence": fact.get("latest_replacement_document_evidence", []),
+            "relationship": "registered_whole_assembly_related_to_named_component",
+            "component_inclusion_confirmed": False,
+            "usable_as_component_baseline": False,
+            "usable_as_inspection_baseline": False,
+            "interpretation": (
+                "本体ASSYの交換登録あり。構成部品の交換範囲・新品か再生品かは未確定。"
+                "構成部品の交換日・点検日を本体交換日へ置き換えない。"
+                "関連履歴がないとは案内しない。交換未実施・期限超過とも断定しない。"
+            ),
+        })
+    return result
+
+
+
+
+# PREVENTIVE_INSPECTION_FACTS_V1
+def periodic_inspection_synthetic_evidence(row):
+    from types import SimpleNamespace
+    details = safe_json_dict(row.details_json)
+    evidence = vehicle_maintenance_synthetic_evidence(SimpleNamespace(
+        id=row.id, company_code=row.company_code, vehicle_record_id=row.vehicle_record_id,
+        notes=details.get("notes"), invoice_details_json="{}",
+    ))
+    if evidence:
+        evidence["source_id"] = f"periodic:{row.id}"
+        evidence["evidence_field"] = "details_json.notes"
+    return evidence
+
+
+def assess_saved_inspection_item(item, legend):
+    """Use this document's legend; never use a universal circle/cross convention."""
+    import unicodedata
+    def text(value):
+        return unicodedata.normalize("NFKC", str(value or "")).strip()
+    raw = text(item.get("raw_result"))
+    if not raw:
+        return {"status": "blank", "inspection_performed_confirmed": False}
+    pairs = {}
+    for entry in re.split(r"[、,;；\n\r]+", text(legend)):
+        parts = re.split(r"[:：]", entry)
+        if len(parts) != 2:
+            continue
+        left, right = (part.strip() for part in parts)
+        for symbol, meaning in ((left, right), (right, left)):
+            if len(symbol) == 1 and meaning:
+                pairs.setdefault(symbol, set()).add(meaning)
+    meanings = pairs.get(raw, set())
+    if len(meanings) != 1:
+        return {"status": "symbol_unresolved", "inspection_performed_confirmed": False}
+    meaning = next(iter(meanings))
+    labels = {
+        "点検良好": "inspection_recorded", "点検済": "inspection_recorded",
+        "点検済み": "inspection_recorded", "点検": "inspection_recorded",
+        "異常なし": "inspection_recorded", "良好": "inspection_recorded",
+        "該当なし": "not_applicable", "省略": "omitted",
+        "交換": "recorded_work", "修理": "recorded_work", "調整": "recorded_work",
+        "締付": "recorded_work", "清掃": "recorded_work", "給油(水)": "recorded_work",
+        "特定整備": "recorded_work", "不良": "recorded_attention", "異常あり": "recorded_attention",
+    }
+    status = labels.get(meaning, "meaning_unresolved")
+    # Combined cells and placement notes do not establish each sub-item's result.
+    if status == "inspection_recorded" and (
+        "/" in text(item.get("item_name"))
+        or any(word in text(item.get("notes")) for word in ("空欄", "左欄", "右欄", "判読", "不明", "不確実"))
+    ):
+        status = "item_scope_unresolved"
+    if status == "inspection_recorded" and any(
+        word in text(item.get("result_text")) + text(item.get("notes"))
+        for word in ("未実施", "未点検", "不良", "異常あり", "要修理", "判読不能")
+    ):
+        status = "conflicting_result_text"
+    return {"status": status, "legend_meaning": meaning,
+            "inspection_performed_confirmed": status == "inspection_recorded"}
+
+
+def build_periodic_inspection_ai_details(row, draft):
+    """Read confirmed item values plus original reference without changing the import."""
+    from io import BytesIO
+    from pypdf import PdfReader
+    details = safe_json_dict(row.details_json)
+    items = details.get("inspection_items")
+    valid_items = isinstance(items, list) and len(items) <= 1000 and all(isinstance(item, dict) for item in items)
+    legend = details.get("symbol_legend")
+    legend = legend if isinstance(legend, str) else ""
+    warnings = details.get("warnings")
+    warnings = warnings if isinstance(warnings, list) else []
+    evidence = {"status": "untraced", "source_id": f"periodic:{row.id}",
+                "reason": "original_reference_not_available"}
+    pages = details.get("source_pages")
+    if (
+        draft is not None and draft.id == row.source_draft_id
+        and draft.company_code == row.company_code and draft.document_type == "inspection"
+        and type(row.source_record_index) is int and row.source_record_index >= 0
+    ):
+        original = draft.source_file
+        checksum = draft.source_sha256
+        preview = safe_json_dict(draft.preview_json)
+        original_records = preview.get("records")
+        if not isinstance(original_records, list):
+            original_records = preview.get("original_records")
+        if (
+            isinstance(original, bytes) and isinstance(checksum, str)
+            and re.fullmatch(r"[0-9a-f]{64}", checksum)
+            and hashlib.sha256(original).hexdigest() == checksum
+            and isinstance(original_records, list) and row.source_record_index < len(original_records)
+            and isinstance(pages, list) and pages
+            and all(type(page) is int and page > 0 for page in pages)
+        ):
+            try:
+                pdf = PdfReader(BytesIO(original), strict=False)
+                count = len(pdf.pages)
+                if pdf.is_encrypted or not 1 <= count <= 200 or max(pages) > count:
+                    raise ValueError("invalid pages")
+                evidence = {
+                    "status": "verified_saved_original",
+                    "source_id": f"periodic:{row.id}", "draft_id": draft.id,
+                    "record_index": row.source_record_index, "sha256": checksum,
+                    "filename": draft.source_filename, "source_pages": pages,
+                    "original_page_count": count,
+                    "verification_scope": "Saved original bytes/checksum, company, source record and physical pages; confirmed item values retained.",
+                }
+            except Exception:
+                evidence["reason"] = "original_pdf_not_verified"
+        else:
+            evidence["reason"] = "original_checksum_or_record_scope_not_verified"
+    date_values = [details.get(key) for key in ("inspection_date", "record_date") if details.get(key)]
+    date_consistent = bool(date_values) and all(value == row.inspection_date for value in date_values)
+    try:
+        meter = Decimal(str(row.mileage))
+        saved_meter = Decimal(str(details.get("mileage")))
+        meter_consistent = meter.is_finite() and meter >= 0 and meter == saved_meter
+    except (TypeError, ValueError, InvalidOperation):
+        meter_consistent = False
+    source_items = []
+    for index, item in enumerate(items if valid_items else []):
+        page = item.get("source_page")
+        assessment = assess_saved_inspection_item(item, legend)
+        if type(page) is not int or not isinstance(pages, list) or page not in pages:
+            assessment = {"status": "source_page_unresolved", "inspection_performed_confirmed": False}
+        source_items.append({**item, "item_index": index, "execution_evidence": assessment})
+    return {
+        "inspection_items": source_items,
+        "symbol_legend": legend,
+        "inspection_warnings": warnings,
+        "inspection_document_evidence": evidence,
+        "inspection_date_consistent": date_consistent,
+        "inspection_mileage_consistent": meter_consistent,
+        "next_inspection_month": details.get("next_inspection_month"),
+        "inspection_execution_note": "記号は当該原本の凡例で解釈。空欄は未記入。交換・修理記号から別途の点検完了や指摘解消を作らない。",
+    }
+
+
+def build_recorded_inspection_facts(summary, records):
+    def day(value):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date() if isinstance(value, str) and len(value) == 10 else None
+        except ValueError:
+            return None
+    def number(value):
+        try:
+            result = Decimal(str(value))
+            return result if not isinstance(value, bool) and result.is_finite() and result >= 0 else None
+        except (ValueError, TypeError, InvalidOperation):
+            return None
+    as_of = day(summary.get("end_date"))
+    measured = day(summary.get("current_mileage_date"))
+    current = number(summary.get("current_mileage"))
+    facts = []
+    for record in records:
+        if not str(record.get("source_id") or "").startswith("periodic:"):
+            continue
+        document = record.get("inspection_document_evidence") or {}
+        if document.get("status") != "verified_saved_original":
+            continue
+        performed = day(record.get("date"))
+        meter = number(record.get("mileage"))
+        for item in record.get("inspection_items", []):
+            assessment = item.get("execution_evidence") or {}
+            if assessment.get("inspection_performed_confirmed") is not True:
+                continue
+            distance = None
+            if (
+                record.get("inspection_mileage_consistent") is True and meter is not None
+                and current is not None and measured and performed and as_of
+                and performed <= measured <= as_of and current >= meter
+                and (summary.get("mileage_reference") or {}).get("distance_usable") is True
+            ):
+                distance = current - meter
+            facts.append({
+                "item_name": item.get("item_name"), "category": item.get("category"),
+                "inspection_item_index": item.get("item_index"),
+                "inspection_date": record.get("date"),
+                "inspection_date_usable": bool(record.get("inspection_date_consistent") is True and performed and as_of and performed <= as_of),
+                "inspection_mileage": meter,
+                "inspection_mileage_usable": distance is not None,
+                "distance_since_km": distance,
+                "source_ids": [record["source_id"]], "source_page": item.get("source_page"),
+                "raw_result": item.get("raw_result"), "legend_meaning": assessment.get("legend_meaning"),
+                "document_evidence": document,
+                "scope_note": "原本・当該項目から確認できる点検登録。交換・指摘解消・車両全体の安全性とは別。未登録実施の有無は不明。",
+            })
+    return facts
+
+
+def inspection_procedure_matches(rule, part_name, fact):
+    """Match the inspection procedure, not merely a shared device name."""
+    import unicodedata
+    def norm(value):
+        value = unicodedata.normalize("NFKC", str(value or ""))
+        return re.sub(r"[\s・･☆★◎]+", "", value).casefold().replace("エアドライヤー", "エアドライヤ")
+    target = norm(part_name)
+    item = norm(fact.get("item_name"))
+    quote = norm(rule.get("source_quote"))
+    if not target or not item or not quote or "/" in item:
+        return False
+    if target == "エアドライヤ":
+        return all(word in quote and word in item for word in ("エアドライヤ", "水", "量", "状態")) and any(
+            word in item and word in quote for word in ("排出", "排水")
+        )
+    return target in item and len(item) >= len(target) + 4 and item in quote
+
+
+
+
+def calculate_adopted_inspection_rule_timing(
     rule, part_name, preventive_facts, summary,
 ):
-    """採用済み交換基準を実績と照合する。故障予測・整備要否は判定しない。"""
+    """採用済み点検基準を、原本と項目の実施を確認できた点検実績へ照合する。"""
     import calendar
     import unicodedata
     from datetime import timedelta
@@ -25367,6 +26263,7 @@ def calculate_adopted_maintenance_rule_timing(
 
     criteria_results = []
     source_ids = []
+    related_assembly_history = []
 
     def result(status, reason):
         if status == "held":
@@ -25374,12 +26271,13 @@ def calculate_adopted_maintenance_rule_timing(
         return {
             "status": status,
             "reason": reason,
-            "scope": "registered_replacement_and_reading_dates",
+            "scope": "registered_inspection_and_reading_dates",
             "calculation_permitted": any(
                 item.get("calculation_permitted") is True
                 for item in criteria_results
             ),
             "criteria": criteria_results,
+            "related_assembly_replacements": related_assembly_history,
             "source_ids": list(dict.fromkeys(source_ids)),
         }
 
@@ -25419,8 +26317,276 @@ def calculate_adopted_maintenance_rule_timing(
     adoption = rule.get("analysis_adoption") or {}
     if adoption.get("status") != "adopted_for_analysis":
         return result("held", "rule_not_adopted")
-    if rule.get("action") != "replace":
+    if rule.get("action") != "inspect":
+        return result("held", "rule_not_inspection")
+    if rule.get("cycle") not in {"repeat", "all"}:
+        return result("held", "initial_baseline_not_available")
+
+    criteria = rule.get("criteria")
+    relation = rule.get("relation")
+    if (
+        not isinstance(criteria, list)
+        or not 1 <= len(criteria) <= 4
+        or (
+            relation != "single" if len(criteria) == 1
+            else relation not in {"any", "all"}
+        )
+    ):
+        return result("held", "invalid_criteria_relation")
+
+    as_of = day(summary.get("end_date"))
+    if (
+        as_of is None
+        or as_of > datetime.now(ZoneInfo("Asia/Tokyo")).date()
+        or preventive_facts.get("as_of") != as_of.isoformat()
+    ):
+        return result("held", "invalid_reference_date")
+
+    name = normalize_name(part_name)
+    facts = preventive_facts.get("inspection_items")
+    if not name or not isinstance(facts, list):
         return result("held", "inspection_baseline_not_available")
+    matches = [
+        fact for fact in facts
+        if isinstance(fact, dict)
+        and inspection_procedure_matches(rule, part_name, fact)
+    ]
+    if not matches:
+        return result("held", "inspection_procedure_not_matched" if facts else "inspection_baseline_not_available")
+    if any(fact.get("inspection_date_usable") is not True or day(fact.get("inspection_date")) is None for fact in matches):
+        return result("held", "inspection_date_not_confirmed")
+    latest = max(day(fact["inspection_date"]) for fact in matches)
+    matches = [fact for fact in matches if day(fact["inspection_date"]) == latest]
+    if len(matches) != 1:
+        return result("held", "inspection_baseline_not_uniquely_matched")
+
+    fact = matches[0]
+    inspected_on = day(fact.get("inspection_date"))
+    if (
+        fact.get("inspection_date_usable") is not True
+        or inspected_on is None
+        or inspected_on > as_of
+    ):
+        return result("held", "inspection_date_not_confirmed")
+
+    ids = fact.get("source_ids")
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or any(
+            not isinstance(value, str) or not value.startswith("periodic:")
+            for value in ids
+        )
+    ):
+        return result("held", "inspection_evidence_missing")
+    source_ids.extend(ids)
+    for name in ("knowledge_source_id", "vehicle_source_id"):
+        value = adoption.get(name)
+        if not isinstance(value, str) or not value:
+            return result("held", "adoption_evidence_missing")
+        source_ids.append(value)
+
+    seen = set()
+    for criterion in criteria:
+        if not isinstance(criterion, dict):
+            return result("held", "invalid_criterion")
+        metric = criterion.get("metric")
+        threshold = number(criterion.get("value"))
+        if (
+            not isinstance(metric, str)
+            or metric not in {
+                "distance_km", "period_days",
+                "period_months", "engine_hours",
+            }
+            or metric in seen
+            or threshold is None
+            or threshold <= 0
+        ):
+            return result("held", "invalid_criterion")
+        seen.add(metric)
+        entry = {
+            "metric": metric,
+            "threshold": criterion["value"],
+            "baseline_kind": "inspection",
+            "inspection_item_index": fact.get("inspection_item_index"),
+            "baseline_date": inspected_on.isoformat(),
+            "status": "unknown",
+            "calculation_permitted": False,
+        }
+
+        if metric == "distance_km":
+            measured_on = day(summary.get("current_mileage_date"))
+            reference = summary.get("mileage_reference") or {}
+            current = number(summary.get("current_mileage"))
+            inspection_meter = number(fact.get("inspection_mileage"))
+            recorded_distance = number(fact.get("distance_since_km"))
+            if (
+                fact.get("inspection_mileage_usable") is True
+                and reference.get("distance_usable") is True
+                and current is not None
+                and inspection_meter is not None
+                and current >= inspection_meter
+                and measured_on is not None
+                and inspected_on <= measured_on <= as_of
+                and recorded_distance == current - inspection_meter
+            ):
+                elapsed = current - inspection_meter
+                entry.update({
+                    "status": (
+                        "reached" if elapsed >= threshold
+                        else "not_reached_at_reference"
+                    ),
+                    "calculation_permitted": True,
+                    "reference_date": measured_on.isoformat(),
+                    "inspection_mileage": inspection_meter,
+                    "recorded_mileage": current,
+                    "elapsed_km": elapsed,
+                    "remaining_km": max(Decimal(0), threshold - elapsed),
+                    "excess_km": max(Decimal(0), elapsed - threshold),
+                })
+            else:
+                entry["reason"] = "comparable_mileage_not_available"
+
+        elif metric in {"period_days", "period_months"}:
+            if threshold != threshold.to_integral_value():
+                entry["reason"] = "fractional_calendar_period"
+            else:
+                try:
+                    amount = int(threshold)
+                    if metric == "period_days":
+                        due = inspected_on + timedelta(days=amount)
+                    else:
+                        total = inspected_on.month - 1 + amount
+                        year = inspected_on.year + total // 12
+                        month = total % 12 + 1
+                        if not 1 <= year <= 9999:
+                            raise ValueError("DATE_OUT_OF_RANGE")
+                        due = inspected_on.replace(
+                            year=year,
+                            month=month,
+                            day=min(
+                                inspected_on.day,
+                                calendar.monthrange(year, month)[1],
+                            ),
+                        )
+                    entry.update({
+                        "status": (
+                            "reached" if as_of >= due
+                            else "not_reached_at_reference"
+                        ),
+                        "calculation_permitted": True,
+                        "reference_date": as_of.isoformat(),
+                        "due_date": due.isoformat(),
+                        "elapsed_days": (as_of - inspected_on).days,
+                        "remaining_days": max(0, (due - as_of).days),
+                        "overdue_days": max(0, (as_of - due).days),
+                    })
+                except (ValueError, OverflowError):
+                    entry["reason"] = "calendar_date_out_of_range"
+        else:
+            entry["reason"] = "engine_hours_not_available"
+
+        criteria_results.append(entry)
+
+    statuses = [item["status"] for item in criteria_results]
+    if relation in {"single", "any"} and "reached" in statuses:
+        return result("threshold_reached", "recorded_threshold_reached")
+    if relation == "all" and all(value == "reached" for value in statuses):
+        return result("threshold_reached", "all_recorded_thresholds_reached")
+    if "unknown" in statuses:
+        return result("unknown", "some_criteria_not_calculable")
+    return result(
+        "not_reached_at_reference_dates",
+        "threshold_not_reached_at_recorded_reference_dates",
+    )
+
+
+
+
+def calculate_adopted_maintenance_rule_timing(
+    rule, part_name, preventive_facts, summary,
+):
+    """採用済み交換基準を実績と照合する。故障予測・整備要否は判定しない。"""
+    import calendar
+    import unicodedata
+    from datetime import timedelta
+    from decimal import Decimal, InvalidOperation
+
+    criteria_results = []
+    source_ids = []
+    related_assembly_history = []
+
+    def result(status, reason):
+        if status == "held":
+            criteria_results.clear()
+        return {
+            "status": status,
+            "reason": reason,
+            "scope": "registered_replacement_and_reading_dates",
+            "calculation_permitted": any(
+                item.get("calculation_permitted") is True
+                for item in criteria_results
+            ),
+            "criteria": criteria_results,
+            "related_assembly_replacements": related_assembly_history,
+            "source_ids": list(dict.fromkeys(source_ids)),
+        }
+
+    def day(value):
+        if not isinstance(value, str) or len(value) != 10:
+            return None
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date()
+            return parsed if parsed.isoformat() == value else None
+        except ValueError:
+            return None
+
+    def number(value):
+        if type(value) not in {int, float, Decimal}:
+            return None
+        try:
+            parsed = Decimal(str(value))
+            return parsed if parsed.is_finite() and parsed >= 0 else None
+        except (InvalidOperation, ValueError):
+            return None
+
+    def normalize_name(value):
+        text = unicodedata.normalize(
+            "NFKC", str(value or ""),
+        ).casefold()
+        return re.sub(r"[\s・･]+", "", text).replace(
+            "フィルター", "フィルタ",
+        )
+
+    if (
+        not isinstance(rule, dict)
+        or not isinstance(preventive_facts, dict)
+        or not isinstance(summary, dict)
+    ):
+        return result("held", "invalid_input")
+
+    adoption = rule.get("analysis_adoption") or {}
+    if adoption.get("status") != "adopted_for_analysis":
+        return result("held", "rule_not_adopted")
+    def related_history():
+        values = get_related_air_dryer_assembly_history(part_name, preventive_facts)
+        for value in values:
+            source_ids.extend(value["source_ids"])
+        if values:
+            for key in ("knowledge_source_id", "vehicle_source_id"):
+                value = adoption.get(key)
+                if isinstance(value, str) and value:
+                    source_ids.append(value)
+        return values
+
+    if rule.get("action") == "inspect":
+        timing = calculate_adopted_inspection_rule_timing(rule, part_name, preventive_facts, summary)
+        if timing.get("status") == "held":
+            timing["related_assembly_replacements"] = related_history()
+            timing["source_ids"] = list(dict.fromkeys(timing.get("source_ids", []) + source_ids))
+        return timing
+    if rule.get("action") != "replace":
+        return result("held", "unsupported_action")
     if rule.get("cycle") not in {"repeat", "all"}:
         return result("held", "initial_baseline_not_available")
 
@@ -25453,6 +26619,9 @@ def calculate_adopted_maintenance_rule_timing(
         if isinstance(fact, dict)
         and normalize_name(fact.get("part_name")) == name
     ]
+    if not matches:
+        related_assembly_history = related_history()
+        return result("held", "related_assembly_component_scope_unconfirmed" if related_assembly_history else "part_history_not_matched")
     if len(matches) != 1:
         return result("held", "part_history_not_uniquely_matched")
 
@@ -25760,6 +26929,10 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
             "source_ids": list(dict.fromkeys(
                 row["source_id"] for row in latest + previous
             )),
+            "latest_replacement_document_evidence": [
+                row["replacement_document_evidence"] for row in latest
+                if isinstance(row.get("replacement_document_evidence"), dict)
+            ],
             "notes": notes,
         })
 
@@ -25788,6 +26961,7 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
         "current_mileage_date": summary.get(
             "current_mileage_date"
         ),
+        "inspection_items": build_recorded_inspection_facts(summary, records),
         "part_replacements": facts,
         "note": (
             "名称・品番が一致する登録記録を集計。"
@@ -25800,6 +26974,17 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
 def build_vehicle_karte_analysis_payload(
     vehicle, summary, comparison, maintenance, parts, defects,
 ):
+    maintenance, parts = list(maintenance), list(parts)
+    original_source_ids = {f"maintenance:{row.id}" for row in maintenance} | {f"part:{row.id}" for row in parts}
+    maintenance, parts, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance, parts)
+    # Preserve audit evidence from the summary if a caller already filtered its rows.
+    source_exclusions = {
+        (item["company_code"], item["vehicle_record_id"], item["source_id"]): item
+        for item in list(summary.get("source_exclusions", [])) + synthetic_exclusions
+    }
+    excluded_source_ids = original_source_ids - ({f"maintenance:{row.id}" for row in maintenance} | {f"part:{row.id}" for row in parts})
+    excluded_source_ids.update(item["source_id"] for item in source_exclusions.values())
+    allowed_maintenance_ids = {row.id for row in maintenance}
     records = []
     sources = {}
     inspection_links = VehicleMaintenanceInspectionLink.query.filter_by(
@@ -25812,6 +26997,8 @@ def build_vehicle_karte_analysis_payload(
     links_by_maintenance = {}
     links_by_defect = {}
     for link in inspection_links:
+        if link.maintenance_record_id not in allowed_maintenance_ids:
+            continue
         links_by_maintenance.setdefault(link.maintenance_record_id, []).append({
             "source_id": f"inspection:{link.inspection_result_id}",
             "defect_no": link.defect_no,
@@ -25851,6 +27038,8 @@ def build_vehicle_karte_analysis_payload(
             ),
             "url": link,
         }
+        if kind in {"part", "periodic"}:
+            sources[source_id]["snapshot"] = records[-1]
 
     for row in maintenance:
         # ATTACHED_INVOICE_AI_INPUT_V1
@@ -25917,6 +27106,12 @@ def build_vehicle_karte_analysis_payload(
         row.id: row for row in maintenance
     }
 
+    part_source_rows = (VehiclePartReplacementSource.query.filter_by(
+        company_code=vehicle.company_code,
+    ).filter(VehiclePartReplacementSource.maintenance_record_id.in_(list(maintenance_map))).all()
+        if maintenance_map else [])
+    part_source_map = {row.replacement_id: row for row in part_source_rows}
+
     for row in parts:
         parent = maintenance_map.get(
             row.maintenance_record_id
@@ -25929,6 +27124,7 @@ def build_vehicle_karte_analysis_payload(
             row,
             row.replacement_date,
             {
+                "replacement_document_evidence": build_vehicle_part_document_evidence(row, parent, part_source_map.get(row.id)),
                 "type": "部品交換",
                 "content": short(row.part_name),
                 "part_number": short(row.part_number),
@@ -26108,11 +27304,20 @@ def build_vehicle_karte_analysis_payload(
     )
 
     for row in periodic:
+        excluded_inspection = periodic_inspection_synthetic_evidence(row)
+        if excluded_inspection:
+            source_exclusions[(row.company_code, row.vehicle_record_id, excluded_inspection["source_id"])] = excluded_inspection
+            continue
+        original_draft = VehicleDocumentImportDraft.query.filter_by(
+            id=row.source_draft_id, company_code=vehicle.company_code, document_type="inspection",
+        ).first()
+        inspection_details = build_periodic_inspection_ai_details(row, original_draft)
         add(
             "periodic",
             row,
             row.inspection_date,
             {
+                **inspection_details,
                 "type": "定期点検",
                 "category": short(row.inspection_type),
                 "content": short(row.content, 2000),
@@ -26163,6 +27368,9 @@ def build_vehicle_karte_analysis_payload(
         for fact in preventive_facts["part_replacements"]
         for source_id in fact["source_ids"]
     }
+    fact_source_ids.update(
+        ident for fact in preventive_facts.get("inspection_items", []) for ident in fact["source_ids"]
+    )
     available_count = len(records)
     latest_parts = {}
     for item in records:
@@ -26182,7 +27390,7 @@ def build_vehicle_karte_analysis_payload(
         if source_id.startswith("inspection:"):
             return bool(item.get("has_attention"))
         if source_id.startswith("periodic:"):
-            return bool(item.get("content") or item.get("notes"))
+            return bool(item.get("content") or item.get("notes") or item.get("inspection_items"))
         if source_id.startswith("part:"):
             key = (item.get("content"), item.get("part_number"))
             return (
@@ -26240,6 +27448,7 @@ def build_vehicle_karte_analysis_payload(
                 "実際の使用条件を確定しない。"
             ),
         },
+        "source_exclusions": list(source_exclusions.values()),
         "summary": summary,
         "comparison": comparison,
         "preventive_facts": preventive_facts,
@@ -26352,8 +27561,19 @@ def build_vehicle_karte_analysis_payload(
             "label": "車両台帳・登録済み走行距離",
             "url": url_for("vehicle_karte", vehicle_record_id=vehicle.id),
         }
+    def feedback_uses_excluded_history(row):
+        snapshot = safe_json_dict(row.snapshot_json)
+        proposal = snapshot.get("proposal") or {}
+        linked = snapshot.get("maintenance_record") or {}
+        references = proposal.get("source_ids") or []
+        return any(value in excluded_source_ids for value in references if isinstance(value, str)) or (
+            isinstance(linked, dict) and f"maintenance:{linked.get('id')}" in excluded_source_ids
+        )
+
     feedback_context = []
     for row in latest_vehicle_analysis_feedback(vehicle.company_code, vehicle.id)[:20]:
+        if feedback_uses_excluded_history(row):
+            continue
         previous = safe_json_dict(row.snapshot_json).get("proposal") or {}
         feedback_context.append({
             "proposal_id": row.proposal_key,
@@ -26370,6 +27590,8 @@ def build_vehicle_karte_analysis_payload(
         "uncertain": "判断保留",
     }
     for row in latest_vehicle_analysis_evaluations(vehicle.company_code, vehicle.id)[:10]:
+        if feedback_uses_excluded_history(row):
+            continue
         previous = safe_json_dict(row.snapshot_json).get("proposal") or {}
         feedback_context.append({
             "type": "人による提案内容の評価。実整備結果・確定診断とは別。",
@@ -26530,6 +27752,12 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
             grouped[record.vehicle_record_id][key].append(
                 record
             )
+
+    for values in grouped.values():
+        values["maintenance"], values["parts"], values["source_exclusions"] = filter_vehicle_maintenance_factual_history(values["maintenance"], values["parts"])
+    result["source_exclusions"] = [
+        item for values in grouped.values() for item in values["source_exclusions"]
+    ]
 
     import unicodedata
 
@@ -27035,7 +28263,7 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
     if not 2 <= selected_year <= 9999:
         raise ValueError("集計年が不正です。")
 
-    records = list(maintenance_records)
+    records, _, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance_records)
     dated_records = []
     undated_records = []
 
@@ -27153,6 +28381,7 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
     )
 
     return {
+        "source_exclusions": synthetic_exclusions,
         "rolling_average": rolling_average,
         "average_start": average_start.isoformat(),
         "average_end_exclusive": average_end.isoformat(),
@@ -27184,7 +28413,8 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
 
 
 def get_vehicle_maintenance_cost_summary(maintenance_records):
-    maintenance_summary = {"total_cost": None, "annual_costs": []}
+    maintenance_records, _, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance_records)
+    maintenance_summary = {"total_cost": None, "annual_costs": [], "source_exclusions": synthetic_exclusions}
     costs = [
         record.total_cost
         for record in maintenance_records
@@ -27273,6 +28503,36 @@ def get_vehicle_maintenance_cost_summary(maintenance_records):
     return maintenance_summary
 
 
+def get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id):
+    """Last performed inspection and explicitly recorded next date, per type."""
+    def parsed(value):
+        try:
+            return datetime.strptime(str(value or ""), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
+    latest = {}
+    for record in VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=company_code, vehicle_record_id=vehicle_record_id
+    ).all():
+        performed = parsed(record.inspection_date)
+        if record.inspection_type not in {"3month", "12month"} or performed is None or performed > today:
+            continue
+        previous = latest.get(record.inspection_type)
+        if previous is None or (performed, record.id) > previous[:2]:
+            latest[record.inspection_type] = (performed, record.id, record)
+    result = {}
+    for kind, (performed, _, record) in latest.items():
+        due = parsed(record.next_inspection_date)
+        result[kind] = {
+            "record_id": record.id, "last_date": performed.isoformat(),
+            "mileage": record.mileage,
+            "next_date": due.isoformat() if due and due >= performed else None,
+        }
+    return result
+
+
 @app.context_processor
 def inject_vehicle_karte_choices():
     if request.endpoint not in {
@@ -27280,6 +28540,7 @@ def inject_vehicle_karte_choices():
         "vehicle_karte",
         "vehicle_karte_history",
         "vehicle_karte_inspections",
+        "vehicle_periodic_followup",
         "vehicle_karte_documents",
         "vehicle_karte_maintenance",
         "vehicle_karte_maintenance_form",
@@ -27380,6 +28641,7 @@ def inject_vehicle_karte_choices():
             get_vehicle_maintenance_cost_summary(maintenance_records)
         )
 
+        maintenance_records, _, _ = filter_vehicle_maintenance_factual_history(maintenance_records)
         completed_records = [
             record
             for record in maintenance_records
@@ -27442,6 +28704,22 @@ def inject_vehicle_karte_choices():
         "karte_usage_vehicles": get_vehicle_karte_usage_vehicles(),
         "karte_operation_summary": operation_summary,
         "karte_maintenance_summary": maintenance_summary,
+        "karte_execution_summary": (
+            inspection_plans.latest(company_code, vehicle_record_id)
+            if any(record.id == vehicle_record_id for record in vehicles) else {}
+        ),
+        "karte_issue_counts": {
+            "daily": len(get_vehicle_open_inspection_defects(company_code, vehicle_record_id)),
+            "periodic": periodic_followups.summary(company_code, vehicle_record_id)["open_count"],
+        } if any(record.id == vehicle_record_id for record in vehicles) else {},
+        "karte_plan_summary": (
+            inspection_plans.summary(company_code, vehicle_record_id)
+            if any(record.id == vehicle_record_id for record in vehicles) else {}
+        ),
+        "karte_periodic_summary": (
+            get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id)
+            if any(record.id == vehicle_record_id for record in vehicles) else {}
+        ),
         "karte_recent_maintenance": (
             sorted(
                 maintenance_records,
@@ -29248,6 +30526,10 @@ def apply_vehicle_import_pending_documents(
                     "同じ原本の請求書が登録済み、または他の登録待ちと重複しています。"
                 )
 
+        if item.source_kind == "inspection" and (draft.source_sha256, index) in registered_inspection_import_keys(
+            company_code, exclude_pending_record_id=item.id
+        ):
+            raise UploadValidationError("同じ原本の点検記録がすでに登録されています。")
         values = {**payload, "vehicle_record_id": vehicle_id}
         record = build_vehicle_document_record(draft, index, values)
         document = None
@@ -32399,6 +33681,14 @@ def extract_vehicle_certificate_route():
         ]
 
         prepared = prepare_certificate_form(extraction, vehicle_types)
+        try:
+            remember_vehicle_certificate_specification_source(raw, filename, extraction)
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Certificate source preservation failed")
+            prepared["warnings"].append(
+                "原本との照合情報を保存できませんでした。車両情報の確認・登録は続けられます。"
+            )
 
     except ValueError:
         return {
@@ -32588,6 +33878,8 @@ def new_vehicle():
 
         if not duplicate_vehicle:
             db.session.add(vehicle)
+        db.session.flush()
+        link_vehicle_certificate_specification_source(vehicle)
         db.session.commit()
 
         return redirect("/master/vehicles")
@@ -32773,6 +34065,8 @@ def edit_vehicle(index):
             }
         )
 
+        db.session.flush()
+        link_vehicle_certificate_specification_source(vehicle)
         db.session.commit()
 
         return redirect("/master/vehicles")
@@ -45127,6 +46421,24 @@ def init_db():
         )
 
         db.session.commit()
+
+from vehicle_inspection_plans import register_inspection_plans
+VehicleInspectionPlan, VehicleInspectionPlanEvent, inspection_plans = register_inspection_plans(
+    app, db, Vehicle, VehiclePeriodicInspectionRecord, Company
+)
+
+from vehicle_inspection_alerts import register_inspection_alerts
+inspection_alerts = register_inspection_alerts(
+    app, db, VehicleInspectionPlan, VehicleInspectionPlanEvent, inspection_plans.Execution,
+    VehiclePeriodicInspectionRecord, Vehicle, Company, User, Notification,
+)
+
+from vehicle_periodic_followups import register_periodic_followups
+periodic_followups = register_periodic_followups(
+    app, db, VehiclePeriodicInspectionRecord, Vehicle, Company, User,
+    VehicleMaintenanceRecord, Notification, add_vehicle_maintenance_record_event,
+    get_vehicle_karte_analysis_job_data,
+)
 
 init_db()
 

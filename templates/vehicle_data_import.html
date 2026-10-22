@@ -47,7 +47,7 @@
             </div>
             <p class="vehicle-registration-method-lead">{{ lead }}</p>
             <p class="vehicle-registration-method-description">{{ description }}</p>
-            {% if kind in ['operation', 'maintenance'] %}
+            {% if kind in ['operation', 'maintenance', 'inspection'] %}
             <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'vehicle_data_import') }}" enctype="multipart/form-data" class="import-form" novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if kind != 'operation' %}
@@ -56,7 +56,7 @@
                 <label class="import-dropzone" for="import-file-{{ kind }}">
                     <span class="import-drop-copy">
                         <strong>{{ 'CSV' if kind == 'operation' else 'PDF・画像' }}をここにドロップ</strong>
-                        <small id="import-help-{{ kind }}">{{ 'PDF・PNG・JPEG／1ファイル20MBまで・最大50ファイル' if kind == 'maintenance' else formats }}</small>
+                        <small id="import-help-{{ kind }}">{{ 'PDF・PNG・JPEG／1ファイル20MBまで・最大50ファイル' if kind in ['maintenance', 'inspection'] else formats }}</small>
                     </span>
                     <span class="import-pick-button">ファイルを選ぶ</span>
                     <input type="file" id="import-file-{{ kind }}" name="{{ 'csv_file' if kind == 'operation' else 'document_files' }}" accept="{{ accept }}" aria-label="{{ title }}のファイルを選択" aria-describedby="import-help-{{ kind }} import-status-{{ kind }} import-error-{{ kind }}" {% if kind != 'operation' %}multiple{% endif %} required>

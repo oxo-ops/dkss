@@ -37,7 +37,7 @@
         <a
             href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}"
             class="vehicle-karte-tab"
-            {% if request.endpoint == "vehicle_karte_inspections" %}
+            {% if request.endpoint in ["vehicle_karte_inspections", "vehicle_periodic_followup"] %}
                 aria-current="page"
             {% endif %}
         >

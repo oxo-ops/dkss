@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}点検計画{% endblock %}
+{% block content %}
+<section class="card inspection-plans" data-inspection-planner data-plan-args="{{ plan_args|tojson|forceescape }}">
+    <div class="card-title-row"><h2>点検計画</h2><a class="btn btn-outline" href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a></div>
+    <p class="help-text">車両ごとの予定・予約・実施状況をまとめて確認できます。自動算出は予定の候補です。</p>
+    {% if session.get('role') in ['admin', 'itc'] %}
+    <details class="ip-alert-policy"><summary>点検通知のルール <span data-alert-check-status></span></summary>
+        <p>登録済みの予定を対象に、同じ営業所の管理者へアプリ内で通知します。未予約は前月1日と予定月1日、予約済みは7日前・前日、予約日翌日は実施確認。月予定のまま翌月に入った場合も実施確認を行い、同じ確認の再通知は7日以上空けます。</p>
+        <p>実施済み・取消・予定変更で元の通知を終了します。点検の未解消不具合は引き続き別に確認してください。</p>
+        <p data-alert-recipient-warning role="status" hidden></p>
+    </details>
+    {% endif %}
+    <form class="ip-filters" data-plan-filters>
+        <label>対象範囲<select name="scope"><option value="vehicle">この車両</option><option value="office">同じ営業所</option><option value="company">会社全体</option></select></label>
+        <label>営業所<select name="office"><option value="">すべて</option></select></label>
+        <label>年度<input name="year" type="number" min="2000" max="2098" required></label>
+        <label>点検種別<select name="kind"><option value="">すべて</option><option value="3month">3か月点検</option><option value="12month">12か月点検</option><option value="vehicle_inspection">車検</option></select></label>
+        <button type="submit" class="btn btn-outline">表示</button>
+    </form>
+    <div class="ip-legend"><span>◯ 予定</span><span>● 予約済み</span><span>✓ 実施済み</span><span>＋ 未登録の候補</span></div>
+    <p role="status" data-plan-status>読み込み中…</p><p class="ip-error" data-planner-error role="alert" hidden></p>
+    <div class="ip-bulk" data-plan-bulk hidden>
+        <strong data-plan-selected>0台選択</strong><button type="button" class="btn btn-outline" data-plan-generate>未登録の年間予定を作成</button>
+        <label>調整する月<select data-plan-bulk-month></select></label>
+        <label>予約日<input type="date" data-plan-bulk-date></label><label>実施先<input maxlength="200" data-plan-bulk-factory></label>
+        <button type="button" class="btn btn-outline" data-plan-bulk-apply>この月の予定をまとめて調整</button>
+    </div>
+    <div class="ip-grid-scroll"><table class="ip-grid"><thead data-plan-grid-head></thead><tbody data-plan-grid-body></tbody></table></div>
+    <details class="ip-missing"><summary data-plan-missing-count>予定未設定</summary><ul data-plan-missing></ul></details>
+</section>
+{% include "vehicle_inspection_plan_panel.html" %}
+{% endblock %}

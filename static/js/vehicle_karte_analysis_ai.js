@@ -23,7 +23,7 @@
     let referenceFeedbackHistory = [];
 
     function feedbackHistory(panel = node("details", "ka-feedback-history")) {
-        panel.open = true;
+        panel.open = false;
         const summary = node("summary", "ka-info-summary");
         summary.append(
             node(
@@ -862,260 +862,99 @@
             return wrap;
         };
 
-        const cardList = (rows, label) => {
-            const list = node("div", "ka-action-cards");
-            list.setAttribute("role", "list");
-            list.setAttribute("aria-label", label);
-
-            if (!rows.length) {
-                const empty = node("div", "ka-action-empty");
-                empty.append(
-                    node("span", "ka-action-empty-icon", "✓"),
-                    node("strong", "", "現在、優先して対応すべき項目はありません"),
-                    node("p", "", "新しい点検・整備記録が追加されたら、分析結果を確認してください。")
-                );
-                list.append(empty);
-                return list;
-            }
-
-            const existing = table(rows, label);
-            const tableRows = [...existing.querySelectorAll("tbody tr")];
-
-            tableRows.forEach((tr, index) => {
-                const [priorityCell, targetCell, stateCell, actionCell, timingCell, controlsCell] = [...tr.children];
-                const item = rows[index];
-
-                const card = node("article", "ka-action-card");
-                card.dataset.priority = item.priority || "低";
-                card.setAttribute("role", "listitem");
-
-                const head = node("div", "ka-action-card-head");
-                const badge = priorityCell.querySelector(".ka-ai-priority");
-                const title = node("h5", "", item.target || "確認項目");
-                const position = node("span", "ka-action-rank", String(index + 1));
-
-                head.append(position);
-                if (badge) head.append(badge);
-                head.append(title);
-
-                const details = node("div", "ka-action-card-body");
-
-                const state = node("div", "ka-action-field");
-                state.append(node("span", "ka-action-label", "現在の状態"));
-                state.append(node("p", "", item.current_state || "記録を確認"));
-
-                const action = node("div", "ka-action-field ka-action-field-primary");
-                action.append(node("span", "ka-action-label", "推奨する対応"));
-                action.append(node("p", "", item.action || "確認が必要です"));
-
-                details.append(state, action);
-
-                const insights = node("div", "ka-action-insights");
-
-                const reason = node("section", "ka-action-insight");
-                reason.append(
-                    node("h6", "", "勧める理由"),
-                    node("p", "", item.reason || "判断理由を確認してください")
-                );
-
-                const evidence = node("section", "ka-action-insight");
-                evidence.append(node("h6", "", "根拠となる記録"));
-
-                const evidenceList = node("ul", "ka-action-insight-list");
-                const sourceIds = (item.source_ids || [])
-                    .filter(id => data.sources?.[id])
-                    .slice(0, 3);
-
-                for (const id of sourceIds) {
-                    const source = data.sources[id];
-                    const li = node("li");
-                    const link = node(
-                        "a", "", source.label || "記録を確認"
-                    );
-                    const url = new URL(
-                        source.url, window.location.origin
-                    );
-                    if (url.origin === window.location.origin) {
-                        link.href = url.href;
-                        link.target = "_blank";
-                        link.rel = "noopener noreferrer";
-                        li.append(link);
-                    } else {
-                        li.textContent = source.label || "記録";
-                    }
-                    evidenceList.append(li);
-                }
-
-                if (!sourceIds.length) {
-                    evidenceList.append(
-                        node("li", "", "参照記録を確認")
-                    );
-                }
-                evidence.append(evidenceList);
-
-                const steps = node("section", "ka-action-insight");
-                steps.append(node("h6", "", "次の確認手順"));
-
-                const stepsList = node("ol", "ka-action-insight-list");
-                const confirmationSteps = Array.isArray(item.confirmation_steps)
-                    ? item.confirmation_steps.filter(Boolean).slice(0, 3)
-                    : [];
-
-                for (const step of confirmationSteps.length
-                    ? confirmationSteps
-                    : [item.action || "対象の状態を確認"]) {
-                    stepsList.append(node("li", "", step));
-                }
-                steps.append(stepsList);
-
-                insights.append(reason, evidence, steps);
-
-                const footer = node("div", "ka-action-card-footer");
-
-                const timing = node("div", "ka-action-timing");
-                timing.append(node("span", "ka-action-label", "対応の目安"));
-                timing.append(node("strong", "", item.timing || "記録確認時"));
-
-                const controls = node("div", "ka-action-controls");
-
-                while (controlsCell.firstChild) {
-                    controls.append(controlsCell.firstChild);
-                }
-
-                footer.append(timing, controls);
-                card.append(head, details, insights, footer);
-                list.append(card);
-            });
-
-            return list;
-        };
-
-        const maintenance = items.filter(
-            item => item.category === "整備・点検"
-        );
-        const records = items.filter(
-            item => item.category === "記録確認"
-        );
-
-        const actionPanel = node("section", "ka-reference-panel ka-action-panel");
-
-        const actionHeader = node("header", "ka-action-panel-header");
-        const actionHeading = node("div", "ka-action-panel-heading");
-
-        actionHeading.append(
-            node(
-                "h4",
-                "ka-decision-heading",
-                `次に確認・対応すること（${maintenance.length}件）`
-            ),
-            node(
-                "p",
-                "ka-action-panel-description",
-                "AIが提案する点検・整備の対応候補を優先度順に確認します"
-            )
-        );
-
-        actionHeader.append(
-            actionHeading,
-            node(
-                "small",
-                "ka-action-updated",
-                data.generated_at
-                    ? `最終更新：${data.generated_at}`
-                    : "更新日時未確認"
-            )
-        );
-
-        actionPanel.append(
-            actionHeader,
-            cardList(maintenance, "整備・点検の対応候補")
-        );
-
-        fragment.append(actionPanel);
-
-        const recordDetail = node("section", "ka-decision-records");
-
-        const recordSummary = node("header", "ka-record-summary");
-
-        const recordTitle = node("div", "ka-record-summary-title");
-        recordTitle.append(
-            node("strong", "", "記録の確認事項"),
-            node("span", "ka-record-count", `${records.length}件`)
-        );
-
-        const recordDescription = node(
-            "span",
-            "ka-record-summary-description",
-            "点検・整備・部品交換などの記録内容に関する確認事項"
-        );
-
-        recordSummary.append(recordTitle, recordDescription);
-        recordDetail.append(recordSummary);
-        if (records.length) {
-            recordDetail.append(cardList(records, "記録の確認事項"));
+        const priorityOrder = {"高": 0, "中": 1, "低": 2};
+        const ordered = [...items].sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
+        const current = data.is_current === true;
+        const board = node("section", "ka3-board");
+        const title = node("header", "ka3-board-title");
+        title.append(node("h3", "", current ? `予防整備の提案 ${ordered.length}件` : "予防整備の提案"));
+        if (data.generated_at && current) title.append(node("span", "ka3-date", `分析 ${data.generated_at}`));
+        board.append(title);
+        if (!current || !ordered.length) {
+            const empty = node("div", "ka3-empty");
+            empty.append(node("span", "ka3-empty-symbol", current ? "≡" : "◷"), node("h4", "", current ? "現在の分析に提案はありません" : "分析更新待ち"));
+            board.append(empty);
         } else {
-            recordDetail.append(node("p", "kc-muted", "現在の分析結果に記録の確認事項はありません。"));
+            // Keep existing evidence validation, source links and feedback handlers.
+            const existing = table(ordered, "提案の根拠");
+            const controls = [...existing.querySelectorAll("tbody tr")].map(tr => [...tr.lastElementChild.childNodes]);
+            const workspace = node("div", "ka3-workspace");
+            workspace.dataset.count = String(ordered.length);
+            const list = node("div", "ka3-proposal-list");
+            list.setAttribute("role", "list");
+            list.setAttribute("aria-label", "優先度順の提案");
+            const detail = node("section", "ka3-detail");
+            detail.setAttribute("aria-label", "選択した提案の詳細");
+            const buttons = [];
+            function select(index) {
+                buttons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === index)));
+                const item = ordered[index];
+                const header = node("header", "ka3-detail-heading");
+                const detailPriority = node("span", "ka3-priority", item.priority || "未確認");
+                detailPriority.dataset.priority = item.priority;
+                header.append(node("span", "ka3-eyebrow", item.category), detailPriority, node("h4", "", item.target || "確認項目"));
+                const action = node("section", "ka3-next-action");
+                action.append(node("span", "ka3-section-label", "次の行動"), node("p", "", item.action));
+                const when = node("div", "ka3-when");
+                when.append(node("span", "", "時期"), node("strong", "", item.timing || "未確認"));
+                action.append(when);
+                const reason = node("section", "ka3-detail-section");
+                reason.append(node("h5", "", "この提案の理由"), node("p", "", item.reason));
+                const evidence = node("section", "ka3-detail-section");
+                evidence.append(node("h5", "", "根拠の記録"));
+                const links = node("div", "ka3-evidence");
+                for (const id of item.source_ids || []) {
+                    const source = data.sources?.[id];
+                    if (!source) continue;
+                    const url = new URL(source.url, window.location.origin);
+                    if (url.origin !== window.location.origin) continue;
+                    const link = node("a", "ka3-source", source.label || "根拠の記録");
+                    link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+                    links.append(link);
+                }
+                evidence.append(links);
+                const steps = node("section", "ka3-detail-section");
+                steps.append(node("h5", "", "確認の進め方"));
+                const stepsList = node("ol", "ka3-steps");
+                for (const text of item.confirmation_steps || []) stepsList.append(node("li", "", text));
+                steps.append(stepsList);
+                const footer = node("footer", "ka3-detail-footer");
+                footer.append(...controls[index]);
+                detail.replaceChildren(header, action, reason, evidence, steps);
+                detail.append(footer);
+            }
+            ordered.forEach((item, index) => {
+                const row = node("article", "ka3-list-item"); row.setAttribute("role", "listitem");
+                const button = node("button", "ka3-select");button.type = "button";
+                const top = node("span", "ka3-row-top");
+                const priority = node("span", "ka3-priority", item.priority || "未確認");priority.dataset.priority = item.priority;
+                top.append(priority, node("span", "ka3-row-category", item.category));
+                button.append(top, node("strong", "ka3-row-target", item.target), node("span", "ka3-row-action", item.action), node("span", "ka3-row-timing", item.timing || "時期未確認"));
+                button.addEventListener("click", () => select(index));
+                buttons.push(button);row.append(button);list.append(row);
+            });
+            workspace.append(list, detail);board.append(workspace);select(0);
+            // Preserve proposal deep links by selecting the containing row before opening its drawer.
+            const linkedIndex = ordered.findIndex(item => item.proposal_id && window.location.hash === `#proposal=${item.proposal_id}`);
+            if (linkedIndex >= 0) select(linkedIndex);
         }
-        const recordPanel = node("section", "ka-reference-panel ka-record-panel");
-        recordPanel.append(recordDetail);
-        fragment.append(recordPanel);
-
-        const overview = node(
-            "section", "ka-ai-overview-detail"
-        );
-        const overviewSummary = node("header", "ka-info-summary");
-        const overviewTitle = node("strong", "", "分析の概要・参照範囲");
-        const overviewDescription = node(
-            "span",
-            "ka-info-summary-description",
-            "対象期間・参照データ・分析の前提条件を表示します"
-        );
-        overviewSummary.append(overviewTitle, overviewDescription);
-
-        const overviewBody = node("div", "ka-overview-body");
-
-        const overviewText = node(
-            "section", "ka-overview-description-card"
-        );
-        overviewText.append(
-            node("h4", "", "分析の概要"),
-            node("p", "", data.analysis.overview)
-        );
-
-        overviewBody.append(overviewText);
-        overview.append(overviewSummary, overviewBody);
-
-        const coverage = data.coverage || {};
-
-        const overviewFacts = node("dl", "ka-overview-facts");
-
-        function appendOverviewFact(label, value) {
-            const row = node("div", "ka-overview-fact");
-            row.append(
-                node("dt", "", label),
-                node("dd", "", value)
-            );
-            overviewFacts.append(row);
+        const input = data.input_summary;
+        if (input) {
+            const strip = node("footer", "ka3-input-strip");
+            strip.append(node("span", "", "分析データ"));
+            for (const [label, value, kind] of [["日常点検", input.daily_inspections, "daily"], ["定期点検", input.periodic_inspections, "periodic"], ["整備", input.maintenance, "maintenance"], ["交換部品", input.parts, "parts"]]) {
+                if (!Number.isInteger(value)) continue;
+                const link = node("a", "", `${label} ${value}件`);
+                const base = new URL(status.dataset.url, window.location.origin);
+                base.pathname = base.pathname.replace(/\/analysis\/result\/?$/, kind === "maintenance" ? "/maintenance" : kind === "parts" ? "/parts" : "/inspections");
+                if (["daily", "periodic"].includes(kind)) base.searchParams.set("inspection_view", kind);
+                link.href = base.href;strip.append(link);
+            }
+            board.append(strip);
         }
-
-        if (data.generated_at) {
-            appendOverviewFact("更新日時", data.generated_at);
-        }
-
-        appendOverviewFact(
-            "参照した履歴",
-            `${coverage.sent_count ?? 0}件`
-        );
-
-        appendOverviewFact(
-            "対象履歴",
-            `${coverage.available_count ?? 0}件`
-        );
-
-        overviewBody.append(overviewFacts);
-
-        overview.append(referenceComparison(data.comparison));
-        fragment.append(overview, feedbackHistory());
+        title.append(status);
+        fragment.append(board);
+        if (current && referenceFeedbackHistory.length) fragment.append(feedbackHistory());
         return fragment;
     }
 
@@ -1264,16 +1103,17 @@
                 );
             }
 
-            if (data.has_result) {
+            if (data.ok) {
+                data.analysis ||= {overview: "", recommendations: []};
                 const signature = JSON.stringify([
                     data.analysis, data.sources, data.coverage,
-                    data.comparison, data.generated_at, data.analysis_method
+                    data.comparison, data.generated_at, data.analysis_method, data.is_current, data.status, data.input_summary
                 ]);
                 if (results.dataset.signature !== signature) {
                     if (document.querySelector('[data-feedback-dirty="1"]')
                         || (referenceDrawer && !referenceDrawer.hidden)) {
                         status.hidden = false;
-                        status.textContent = "新しい分析結果があります。詳細を閉じ、コメントを保存すると表示を更新できます。";
+                        status.textContent = "新しい結果あり";
                         return;
                     }
                     const fragment = render(data);
@@ -1283,9 +1123,10 @@
                 results.hidden = false;
             }
 
-            status.textContent = data.message
-                || "保存済みの結果を表示しています。";
-            status.hidden = Boolean(data.has_result && data.status === "completed");
+            const statusLabels = {running: "分析中", pending: "更新待ち", error: "更新エラー", waiting: "準備中"};
+            status.textContent = data.is_current === true && data.status === "completed"
+                ? "分析済み" : statusLabels[data.status] || (data.is_current === false ? "更新待ち" : "状態未確認");
+            status.hidden = false;
 
         } catch (error) {
             status.hidden = false;

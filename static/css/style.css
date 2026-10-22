@@ -33438,3 +33438,86 @@ body .main-content > .safety-checklist-list-table .btn-small:hover {
     min-width: 0;
     box-sizing: border-box;
 }
+
+/* Periodic imports share the visible inspection workspace with daily records. */
+.vehicle-karte-inspection-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex-shrink: 0;
+    margin: 0 0 8px;
+}
+.vehicle-karte-inspection-switch a[aria-current="page"] {
+    background: #edf4fc;
+    border-color: #a7c5e8;
+    color: #174b84;
+}
+.vehicle-karte-inspection-switch span {
+    margin-left: 6px;
+}
+.vehicle-karte-deadline > small {
+    display: block;
+    margin-top: 4px;
+    color: #536b84;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.invoice-review-page [data-inspection-item] .invoice-line-supplement:not(:empty) {
+    display: block;
+    margin-top: 3px;
+    color: #607188;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table td {
+    vertical-align: top;
+}
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table th:nth-child(1),
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table th:nth-child(2) { width: 13%; }
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table th:nth-child(3),
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table th:nth-child(5) { width: 16%; }
+body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table th:nth-child(4) { width: 42%; }
+.vehicle-periodic-detail-row details > ul { margin: 8px 0; padding-left: 22px; }
+
+/* Inspection PPT: category rail and stacked record tables. */
+.vi-workspace{display:grid;grid-template-columns:152px minmax(0,1fr);gap:12px;align-items:start;min-height:0}
+.vi-nav{background:linear-gradient(140deg,#f7fbff,#edf5ff);padding:16px 8px;border:1px solid #e0eafa;border-radius:6px}
+.vi-nav h3{margin:0 8px 18px;font-size:16px;color:#183d69}
+.vi-nav a{display:block;padding:11px 12px;color:#32618b;font-size:12px;text-decoration:none;border-left:3px solid transparent;border-radius:3px}
+.vi-nav a[aria-current="page"]{color:#0863d6;background:#e5f0ff;border-left-color:#287ef2;font-weight:700}
+.vi-nav a:hover{background:#e9f2fd}
+.vi-nav .vi-plan-link{border-top:1px solid #dce8f7;margin-top:16px;padding-top:16px}
+.vi-content{min-width:0}
+.vi-filters{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-bottom:10px;color:#56708f;font-size:12px}
+.vi-filters label{display:flex;align-items:center;gap:8px}
+.vi-filters input{width:136px;min-height:32px;border:1px solid #d4e2f7;border-radius:4px;background:white;padding:4px 8px;color:#284c74;box-sizing:border-box}
+body.vehicle-list-ppt .vi-content .vi-section{margin:0 0 14px;padding:14px;border:1px solid #e0e9f6;border-radius:6px;box-shadow:none;min-height:0;height:auto}
+.vi-section>.card-title-row{align-items:center;margin-bottom:12px}
+.vi-section h3{font-size:14px;margin:0;color:#163c65}
+.vi-section h3::before{content:'';display:inline-block;width:7px;height:16px;margin-right:9px;vertical-align:-3px;background:#4792ef;border-radius:2px}
+.vi-section h3 span{font-size:11px;color:#6d829e;font-weight:400}
+.vi-section .table-scroll{max-height:340px;overflow:auto;margin:0}
+body.vehicle-list-ppt .vi-workspace .checklist-table{table-layout:auto;width:100%;min-width:720px}
+body.vehicle-list-ppt .vi-workspace .checklist-table th,body.vehicle-list-ppt .vi-workspace .checklist-table td{width:auto;font-size:11px;padding:9px 8px;line-height:1.6;vertical-align:middle}
+body.vehicle-list-ppt .vi-workspace .checklist-table th{background:#edf4fd;color:#4e698d;white-space:nowrap;position:sticky;top:0;z-index:1}
+body.vehicle-list-ppt .vi-workspace .vehicle-periodic-table td:nth-child(5){min-width:150px;max-width:270px}
+body.vehicle-list-ppt .vi-workspace .vehicle-periodic-table td:last-child{min-width:100px}
+.vi-workspace .btn{padding:6px 10px;font-size:11px;min-height:30px}
+.vi-workspace .kp-footer{padding:10px 0 0;margin-top:8px;font-size:11px}
+.vi-badge{display:inline-block;padding:2px 7px;border-radius:4px;background:#eef2f7;color:#4a6080;font-size:11px;white-space:nowrap}
+.vi-badge-danger{color:#c33b4b;background:#fff0f1}.vi-badge-ok{color:#21826a;background:#def5eb}.vi-badge-warn{color:#a97520;background:#fff4d8}
+.vi-certificate{display:flex;gap:20px;font-size:13px;margin:12px 0 0}.vi-certificate dd{margin:0;font-weight:600}
+@media(max-width:960px){
+.vi-workspace{grid-template-columns:1fr}.vi-nav{display:flex;flex-wrap:wrap;padding:6px;gap:3px}.vi-nav h3{display:none}.vi-nav a{padding:8px 10px}.vi-nav .vi-plan-link{margin:0;border-top:0;padding:8px 10px}.vi-filters{justify-content:flex-start}.vi-filters input{width:124px}
+body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table{display:table}
+body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table thead{display:table-header-group}
+body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table tbody{display:table-row-group}
+body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table tr{display:table-row}
+body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table td,body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table th{display:table-cell}
+.vi-workspace .responsive-table td::before{display:none}
+}
+body.vehicle-list-ppt .vi-workspace .vi-section .checklist-table.responsive-table th:nth-child(n){width:auto;white-space:nowrap;overflow-wrap:normal}
+body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table td:not(:nth-child(5)){white-space:nowrap;overflow-wrap:normal}
+body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table{min-width:850px}

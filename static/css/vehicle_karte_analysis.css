@@ -1,0 +1,107 @@
+/* PREVENTIVE_ANALYSIS_WORKSPACE_V2 */
+.ka3-shell .vehicle-karte-header { padding: 12px; grid-template-columns: 64px minmax(180px, .8fr) minmax(400px, 1.5fr); align-items: start; }
+.ka3-shell .vehicle-karte-photo-area, .ka3-shell .vehicle-karte-photo-empty { width: 64px; min-height: 64px; height: 64px; }
+.ka3-shell .vehicle-karte-type-image { max-width: 52px; max-height: 52px; }
+.ka3-shell .vehicle-karte-basic-grid { display: none; }
+.ka3-shell .vehicle-karte-number-row h2 { font-size: 20px; }
+.ka3-shell .vehicle-karte-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ka3-shell .vehicle-karte-metric { padding: 8px 10px; min-height: 64px; }
+.ka3-shell .vehicle-karte-metric strong { font-size: 16px; }
+.ka3-shell .vehicle-karte-metric > small { font-size: 11px; }
+.karte-costs.karte-analysis.ka3-page { padding: 18px; background: #fff; border-radius: 10px; }
+.karte-costs.karte-analysis.ka3-page .kc-toolbar { margin-bottom: 18px; }
+.karte-costs.karte-analysis.ka3-page .kc-title > span { display: none; }
+.karte-costs.karte-analysis.ka3-page .ka-ai-panel { background: #fff; border: 0; box-shadow: none; padding: 0; margin-bottom: 18px; border-radius: 0; }
+.karte-costs.karte-analysis.ka3-page .ka-ai-header { display: none; }
+.karte-costs.karte-analysis.ka3-page .ka3-status { display: flex; justify-content: flex-end; min-height: 22px; margin-bottom: 4px; }
+.karte-costs.karte-analysis.ka3-page #ka-ai-status { margin: 0; border: 1px solid #d8e3ef; border-radius: 99px; padding: 3px 10px; background: #f5f8fc; color: #536b82; font-size: 12px; line-height: 1.5; }
+.karte-costs.karte-analysis.ka3-page #ka-ai-results { display: block; }
+.karte-costs.karte-analysis.ka3-page #ka-ai-results[hidden], .karte-costs.karte-analysis.ka3-page #ka-ai-status[hidden] { display: none; }
+.karte-costs.karte-analysis.ka3-page .ka3-board-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+.karte-costs.karte-analysis.ka3-page .ka3-board-title h3 { margin: 0; color: #17324b; font-size: 20px; font-weight: 700; }
+.karte-costs.karte-analysis.ka3-page .ka3-date { color: #718096; font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.karte-costs.karte-analysis.ka3-page .ka3-total { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #f5f8fc; border-radius: 7px; color: #52677c; font-size: 13px; }
+.karte-costs.karte-analysis.ka3-page .ka3-total strong { font-size: 25px; line-height: 1.2; color: #244865; font-weight: 700; }
+.karte-costs.karte-analysis.ka3-page .ka3-workspace { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(0, 1.7fr); border: 1px solid #dce5ee; border-radius: 9px; overflow: hidden; }
+.karte-costs.karte-analysis.ka3-page .ka3-proposal-list { background: #f8fafc; border-right: 1px solid #dce5ee; min-width: 0; }
+.karte-costs.karte-analysis.ka3-page .ka3-list-item + .ka3-list-item { border-top: 1px solid #e3eaf1; }
+.karte-costs.karte-analysis.ka3-page .ka3-select { display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 16px; text-align: left; border: 0; border-left: 3px solid transparent; border-radius: 0; background: transparent; color: #26435d; cursor: pointer; white-space: normal; }
+.karte-costs.karte-analysis.ka3-page .ka3-select:hover { background: #f0f5fb; }
+.karte-costs.karte-analysis.ka3-page .ka3-select[aria-pressed="true"] { border-left-color: #4384bd; background: #eaf3fc; }
+.karte-costs.karte-analysis.ka3-page .ka3-row-top { display: flex; align-items: center; gap: 8px; }
+.karte-costs.karte-analysis.ka3-page .ka3-priority { display: inline-flex; font-size: 12px; line-height: 1.5; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: #edf2f8; color: #42637f; }
+.karte-costs.karte-analysis.ka3-page .ka3-priority[data-priority="高"] { background: #fff0ed; color: #a74232; }
+.karte-costs.karte-analysis.ka3-page .ka3-priority[data-priority="中"] { background: #fff6e7; color: #92621d; }
+.karte-costs.karte-analysis.ka3-page .ka3-row-category { color: #6b7f93; font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-row-target { font-size: 15px; font-weight: 700; line-height: 1.5; }
+.karte-costs.karte-analysis.ka3-page .ka3-row-action { font-size: 13px; font-weight: 400; line-height: 1.6; }
+.karte-costs.karte-analysis.ka3-page .ka3-row-timing { color: #5b7890; font-size: 12px; line-height: 1.6; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail { padding: 20px; min-width: 0; background: #fff; }
+.karte-costs.karte-analysis.ka3-page .ka3-eyebrow { font-size: 12px; color: #657d92; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-heading h4 { font-size: 20px; color: #17324b; margin: 5px 0 16px; line-height: 1.5; }
+.karte-costs.karte-analysis.ka3-page .ka3-next-action { padding: 14px 16px; background: #f0f6fd; border-radius: 7px; }
+.karte-costs.karte-analysis.ka3-page .ka3-section-label { color: #54758f; font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-next-action p { margin: 5px 0 10px; color: #1d4569; font-size: 17px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
+.karte-costs.karte-analysis.ka3-page .ka3-when { display: flex; align-items: baseline; gap: 12px; color: #57718b; font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-when strong { font-size: 13px; font-weight: 500; color: #355e80; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-section { margin-top: 18px; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-section h5 { color: #294a65; font-size: 13px; margin: 0 0 8px; font-weight: 700; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-section p { font-size: 14px; line-height: 1.8; color: #4d6378; margin: 0; overflow-wrap: anywhere; }
+.karte-costs.karte-analysis.ka3-page .ka3-evidence { display: grid; gap: 6px; }
+.karte-costs.karte-analysis.ka3-page .ka3-source { display: block; padding: 8px 10px; border-left: 2px solid #c5d8eb; background: #f7f9fc; color: #2e658f; font-size: 13px; line-height: 1.6; text-decoration: none; overflow-wrap: anywhere; }
+.karte-costs.karte-analysis.ka3-page .ka3-source:hover { background: #eef4fc; text-decoration: underline; }
+.karte-costs.karte-analysis.ka3-page .ka3-steps { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; counter-reset: step; }
+.karte-costs.karte-analysis.ka3-page .ka3-steps li { position: relative; padding-left: 30px; color: #4d6378; font-size: 13px; line-height: 1.7; counter-increment: step; overflow-wrap: anywhere; }
+.karte-costs.karte-analysis.ka3-page .ka3-steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 21px; height: 21px; border-radius: 50%; background: #edf3f9; color: #64829d; font-size: 11px; text-align: center; line-height: 21px; }
+.karte-costs.karte-analysis.ka3-page .ka3-uncertainty { font-size: 12px; line-height: 1.7; color: #758493; margin: 16px 0 0; }
+.karte-costs.karte-analysis.ka3-page .ka3-uncertainty span { margin-right: 8px; color: #8b6b30; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #e4ebf2; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-footer .ka-reference-detail-button { padding: 9px 14px; font-size: 13px; border-radius: 6px; background: #eef5fd; color: #2e638f; border: 1px solid #bad0e7; cursor: pointer; }
+.karte-costs.karte-analysis.ka3-page .ka3-detail-footer .ka-reference-state { font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-empty { display: flex; justify-content: center; align-items: center; gap: 14px; min-height: 128px; border: 1px dashed #d6e0eb; border-radius: 8px; background: #fafbfd; }
+.karte-costs.karte-analysis.ka3-page .ka3-empty-symbol { font-size: 28px; color: #98aec2; }
+.karte-costs.karte-analysis.ka3-page .ka3-empty h4 { margin: 0; font-size: 16px; color: #71879a; font-weight: 500; }
+.karte-costs.karte-analysis.ka3-page .ka3-input-strip { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 0 0; color: #7c8c9c; font-size: 12px; }
+.karte-costs.karte-analysis.ka3-page .ka3-input-strip a { text-decoration: none; color: #54758f; }
+.karte-costs.karte-analysis.ka3-page :is(button,a):focus-visible { outline: 2px solid #4384bd; outline-offset: 2px; }
+.karte-costs.karte-analysis.ka3-page .ka-summary-grid { margin-top: 20px; }
+@media(max-width: 1100px) { .ka3-shell .vehicle-karte-header { grid-template-columns: 64px minmax(0,1fr); } .ka3-shell .vehicle-karte-summary { grid-column: 1 / -1; } }
+@media(max-width: 700px) {
+    .karte-costs.karte-analysis.ka3-page { padding: 14px 12px; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace { grid-template-columns: 1fr; }
+    .karte-costs.karte-analysis.ka3-page .ka3-proposal-list { border-right: 0; border-bottom: 1px solid #dce5ee; display: flex; overflow-x: auto; }
+    .karte-costs.karte-analysis.ka3-page .ka3-list-item { min-width: 230px; max-width: 280px; flex-shrink: 0; }
+    .karte-costs.karte-analysis.ka3-page .ka3-list-item + .ka3-list-item { border-top: 0; border-left: 1px solid #e3eaf1; }
+    .karte-costs.karte-analysis.ka3-page .ka3-detail { padding: 16px 14px; }
+    .karte-costs.karte-analysis.ka3-page .ka3-total { padding: 10px; flex-direction: column; gap: 6px; align-items: flex-start; font-size: 12px; }
+    .karte-costs.karte-analysis.ka3-page .ka3-total strong { font-size: 23px; }
+    .karte-costs.karte-analysis.ka3-page .ka-period-form { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; width: 100%; gap: 6px; }
+    .karte-costs.karte-analysis.ka3-page .ka-period-form > label:first-child { grid-column: 1 / -1; }
+    .karte-costs.karte-analysis.ka3-page .ka-period-form input[type="date"] { width: 100%; min-width: 0; padding: 6px; font-size: 12px; }
+    .karte-costs.karte-analysis.ka3-page .ka-period-form .kc-year-button { min-width: 0; padding: 6px 8px; }
+    .karte-costs.karte-analysis.ka3-page .ka3-board-title { flex-wrap: wrap; }
+    .ka3-shell .vehicle-karte-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+.ka3-shell .vehicle-karte-header .vehicle-karte-metric strong { font-size: 16px; white-space: nowrap; }
+.ka3-shell .vehicle-karte-header .vehicle-karte-metric { justify-content: flex-start; gap: 6px; }
+.karte-costs.karte-analysis.ka3-page .ka3-status:empty { display: none; }
+.karte-costs.karte-analysis.ka3-page .ka3-board-title #ka-ai-status { flex: none; margin-left: auto; }
+@media(max-width: 700px) {
+    .ka3-shell .vehicle-karte-deadlines { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .ka3-shell .vehicle-karte-deadline { min-width: 0; }
+    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; width: 100%; gap: 6px; }
+    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form input[type="date"] { width: 100%; min-width: 0; padding: 6px; font-size: 12px; }
+    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form > label:first-child { grid-column: 1 / -1; }
+}
+.karte-costs.karte-analysis.ka3-page .ka3-detail-heading > .ka3-priority { margin-left: 8px; }
+.karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+.karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-proposal-list { display: none; }
+@media(min-width: 701px) {
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); column-gap: 24px; row-gap: 16px; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] :is(.ka3-detail-heading,.ka3-next-action,.ka3-detail-footer) { grid-column: 1 / -1; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-heading h4 { margin-bottom: 0; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-section { margin-top: 0; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-section:nth-child(3) { grid-column: 1 / -1; }
+    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-footer { margin-top: 0; }
+}

@@ -1285,7 +1285,7 @@
         <h3 id="dashboard-reference-periodic">3か月点検の予定</h3>
         <span>{{ dashboard_scope_office or '営業所未設定' }}</span>
     </div>
-    <p class="help-text">登録済みの次回予定日のうち90日以内。期限超過を含みます。</p>
+    <p class="help-text">登録済みの予定・予約のうち90日以内。予定月のみの車両は日付を補わず表示します。</p>
 
     {% if not periodic.get('available') %}
     <p class="empty-text">所属営業所が未設定です。</p>
@@ -1307,7 +1307,9 @@
                     <td><a href="{{ item.url }}">{{ item.number }}</a></td>
                     <td>{{ item.date }}</td>
                     <td>
-                        {% if item.remaining_days < 0 %}
+                        {% if item.month_only %}
+                        {{ item.month_status }}
+                        {% elif item.remaining_days < 0 %}
                         <strong class="dashboard-periodic-overdue">{{ -item.remaining_days }}日超過</strong>
                         {% elif item.remaining_days == 0 %}
                         本日
@@ -1332,7 +1334,7 @@
     {% if periodic.get('unregistered') %}
     <details class="dashboard-periodic-missing">
         <summary>次回予定が未登録の車両（{{ periodic.unregistered|length }}台）</summary>
-        <p class="help-text">最新の3か月点検記録に、有効な次回予定日が登録されていない車両です。</p>
+        <p class="help-text">3か月点検の予定月・予約日が未登録の車両です。車両カルテのヘッダーから設定できます。</p>
         <ul>
             {% for item in periodic.unregistered %}
             <li><a href="{{ item.url }}">{{ item.number }}：点検記録を確認 ›</a></li>
@@ -1435,7 +1437,7 @@
     </details>
 </div>
 
-<script src="{{ url_for('static', filename='js/dashboard.js', v='20261019-mineral-1') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js', v='20261022-plate-search-1') }}"></script>
 
 
 {% endblock %}

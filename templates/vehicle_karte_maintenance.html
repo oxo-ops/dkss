@@ -361,6 +361,11 @@
             aria-label="選択した整備記録の詳細"
         >
             {% if maintenance_record %}
+                {% if periodic_issues %}
+                <section class="km-form-section"><h3>定期点検の対応状況</h3>
+                {% for issue in periodic_issues %}<p><span class="status-badge">{{ issue.status }}</span> <a href="{{ periodic_issue_url(issue) }}">{{ issue.description }} · 対応・再確認を開く</a></p>{% endfor %}
+                </section>
+                {% endif %}
                 {% include "vehicle_karte_maintenance_detail.html" %}
             {% else %}
                 <section class="km-panel">

@@ -128,6 +128,12 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="record_version" value="{{ record_version }}">
 
+        {% if periodic_issues %}
+        <section class="km-form-section"><h3>元の定期点検指摘</h3>
+        {% for issue in periodic_issues %}<p><a href="{{ periodic_issue_url(issue) }}">{{ issue.description }}</a>（{{ issue.status }}）</p>{% endfor %}
+        <p class="help-text">整備完了後、元の点検簿で再確認結果を登録してください。</p></section>
+        {% endif %}
+
         {% if inspection_choices or 'inspection_defects' in error_fields %}
         <section class="km-form-section" id="inspection_defects">
             {% if inspection_choices %}
