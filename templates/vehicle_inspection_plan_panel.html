@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261022-alerts-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261022-polish-1') }}">
 <dialog class="inspection-plan-panel" id="inspection-plan-panel" aria-labelledby="inspection-plan-title">
     <div class="ip-heading"><h2 id="inspection-plan-title">点検スケジュール</h2><button type="button" data-plan-close aria-label="閉じる">×</button></div>
     <div class="ip-body">
@@ -6,7 +6,7 @@
         <fieldset class="ip-scope"><legend>対象範囲</legend><button type="button" data-plan-scope="vehicle" aria-pressed="true">この車両</button><button type="button" data-plan-scope="office">同じ営業所</button><button type="button" data-plan-scope="company">会社全体</button></fieldset>
         <div class="ip-vehicle"><strong data-plan-vehicle-label></strong><span data-plan-office-label></span></div>
         <section class="ip-actual" aria-label="点検の実施状況">
-            <h4>実施状況</h4><p data-plan-current-status></p><p data-plan-last></p>
+            <h4>実施状況</h4><p data-plan-current-status></p><p data-plan-last></p><p data-plan-evidence></p>
             <a data-plan-record-link hidden target="_blank" rel="noopener">点検記録の原本を開く ↗</a>
             <button type="button" class="btn btn-outline" data-execution-toggle hidden>実施済みを登録</button>
             <form id="inspection-execution-form" hidden>
@@ -14,8 +14,9 @@
                 <label>対象予定<select name="target_plan"><option value="">過去の実施（対象予定なし）</option></select></label>
                 <label>実施日<input type="date" name="performed_date" required></label>
                 <label>実施先（任意）<input name="factory" maxlength="200"></label>
-                <label>次回予定月（任意）<input type="month" name="next_month"></label>
-                <small>空欄なら実施月から周期に応じた予定月を算出します。予約日は設定しません。</small>
+                <div data-periodic-next><label>次回予定月（任意）<input type="month" name="next_month"></label>
+                <small>空欄なら実施月から周期に応じた予定月を算出します。予約日は設定しません。</small></div>
+                <div data-certificate-evidence hidden><label>更新後満了日（判明している場合）<input type="date" name="new_expiry"></label><label>根拠の車検証<select name="document_id"><option value="">未受領・後日追加</option></select></label><label>実施確認の根拠<textarea name="confirmation" maxlength="1000" placeholder="例：整備工場に実施日を確認"></textarea></label><label><input type="checkbox" name="confirmed">車検の実施日を確認した</label></div>
                 <label>メモ（任意）<textarea name="note" rows="2" maxlength="1000"></textarea></label>
                 <p class="ip-error" data-execution-error role="alert" hidden></p>
                 <div class="ip-footer"><button type="button" class="btn btn-outline" data-execution-back>戻る</button><button type="submit" class="btn btn-outline">実施内容を確認</button></div>
@@ -40,4 +41,4 @@
     <p class="ip-error" data-review-error role="alert" hidden></p>
     <div class="ip-footer"><button type="button" class="btn btn-outline" data-review-close>戻る</button><button type="button" class="btn btn-outline" data-review-save>保存</button></div>
 </dialog>
-<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261022-alerts-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261022-polish-1') }}" defer></script>

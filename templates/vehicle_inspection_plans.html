@@ -2,32 +2,35 @@
 {% block title %}点検計画{% endblock %}
 {% block content %}
 <section class="card inspection-plans" data-inspection-planner data-plan-args="{{ plan_args|tojson|forceescape }}">
-    <div class="card-title-row"><h2>点検計画</h2><a class="btn btn-outline" href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a></div>
-    <p class="help-text">車両ごとの予定・予約・実施状況をまとめて確認できます。自動算出は予定の候補です。</p>
-    {% if session.get('role') in ['admin', 'itc'] %}
-    <details class="ip-alert-policy"><summary>点検通知のルール <span data-alert-check-status></span></summary>
-        <p>登録済みの予定を対象に、同じ営業所の管理者へアプリ内で通知します。未予約は前月1日と予定月1日、予約済みは7日前・前日、予約日翌日は実施確認。月予定のまま翌月に入った場合も実施確認を行い、同じ確認の再通知は7日以上空けます。</p>
-        <p>実施済み・取消・予定変更で元の通知を終了します。点検の未解消不具合は引き続き別に確認してください。</p>
-        <p data-alert-recipient-warning role="status" hidden></p>
-    </details>
-    {% endif %}
-    <form class="ip-filters" data-plan-filters>
-        <label>対象範囲<select name="scope"><option value="vehicle">この車両</option><option value="office">同じ営業所</option><option value="company">会社全体</option></select></label>
-        <label>営業所<select name="office"><option value="">すべて</option></select></label>
-        <label>年度<input name="year" type="number" min="2000" max="2098" required></label>
-        <label>点検種別<select name="kind"><option value="">すべて</option><option value="3month">3か月点検</option><option value="12month">12か月点検</option><option value="vehicle_inspection">車検</option></select></label>
-        <button type="submit" class="btn btn-outline">表示</button>
+    <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><button type="button" class="btn btn-outline" data-plan-add hidden>＋ 予定を追加</button></div></div>
+    <form class="ip-filters" id="inspection-plan-filters" data-plan-filters>
+        <label>営業所<select name="office"><option value="">営業所を選択</option></select></label>
+        <label>車両検索<input name="search" type="search" placeholder="登録番号・車台番号" autocomplete="off"></label>
+        <button type="button" class="ip-focus" data-plan-focus hidden></button>
+
+        <div class="ip-segment" role="group" aria-label="表示形式"><button type="button" data-view="month" aria-pressed="true">一覧</button><button type="button" data-view="calendar" aria-pressed="false">カレンダー</button><button type="button" data-view="year" aria-pressed="false">年間表</button></div>
     </form>
-    <div class="ip-legend"><span>◯ 予定</span><span>● 予約済み</span><span>✓ 実施済み</span><span>＋ 未登録の候補</span></div>
+    <div class="ip-filter-options">
+    <div class="ip-segment ip-kinds" role="group" aria-label="点検種別"><button type="button" data-kind="" aria-pressed="true">すべて</button><button type="button" data-kind="3month" aria-pressed="false">3か月点検</button><button type="button" data-kind="12month" aria-pressed="false">12か月点検</button><button type="button" data-kind="vehicle_inspection" aria-pressed="false">車検</button></div>
+    <div class="ip-states" role="group" aria-label="実施状況" data-plan-states></div>
+    </div>
     <p role="status" data-plan-status>読み込み中…</p><p class="ip-error" data-planner-error role="alert" hidden></p>
     <div class="ip-bulk" data-plan-bulk hidden>
-        <strong data-plan-selected>0台選択</strong><button type="button" class="btn btn-outline" data-plan-generate>未登録の年間予定を作成</button>
-        <label>調整する月<select data-plan-bulk-month></select></label>
-        <label>予約日<input type="date" data-plan-bulk-date></label><label>実施先<input maxlength="200" data-plan-bulk-factory></label>
-        <button type="button" class="btn btn-outline" data-plan-bulk-apply>この月の予定をまとめて調整</button>
+        <strong data-plan-selected>0台選択</strong><button type="button" class="btn btn-outline" data-plan-generate>選択車両の候補を予定に登録</button>
+        <label>調整する月<select data-plan-bulk-month></select></label><label>予約日<input type="date" data-plan-bulk-date></label><label>実施先<input maxlength="200" data-plan-bulk-factory></label><button type="button" class="btn btn-outline" data-plan-bulk-apply>選択車両の予定を変更</button>
     </div>
+    <div data-period-home><div class="ip-period ip-month-navigation" data-plan-period role="group" aria-label="表示期間">
+        <button type="button" class="btn btn-outline" data-period="-1" aria-label="前の月">‹</button>
+        <label class="ip-month-picker"><span data-period-title aria-hidden="true"></span><input name="month" type="month" form="inspection-plan-filters" required min="2000-01" max="2098-12" aria-label="表示年月を選択"></label>
+        <button type="button" class="btn btn-outline" data-period="1" aria-label="次の月">›</button>
+    </div></div>
+    <section class="ip-calendar" data-plan-calendar aria-label="点検カレンダー" hidden></section>
     <div class="ip-grid-scroll"><table class="ip-grid"><thead data-plan-grid-head></thead><tbody data-plan-grid-body></tbody></table></div>
-    <details class="ip-missing"><summary data-plan-missing-count>予定未設定</summary><ul data-plan-missing></ul></details>
+    <div class="ip-empty-action" data-empty-action hidden><span data-empty-message>予定を追加するか、基準未設定の車両を確認してください。</span><button type="button" class="btn btn-outline" data-clear-filters hidden>絞込を解除</button><button type="button" class="btn btn-outline" data-empty-add hidden>＋ 予定を追加</button></div>
+    <details class="ip-missing"><summary data-plan-missing-count>基準未設定</summary><ul data-plan-missing></ul></details>
+    {% if session.get('role') in ['admin', 'itc'] %}<details class="ip-alert-policy"><summary>通知ルール <span data-alert-check-status></span></summary><p>登録済みの予定と、台帳に満了日がある予定未登録の車検を同じ営業所の管理者へアプリ内通知。未予約は前月・当月の1日、予約済みは7日前・前日、経過後は実施確認。予定未登録の車検は前月・当月、満了7日前・前日・当日と経過後に確認。予定取消でも車検期限の注意は継続します。同じ通知は7日以上空けます。</p><p data-alert-recipient-warning role="status" hidden></p></details>{% endif %}
 </section>
+<dialog class="ip-review ip-events-detail" id="inspection-plan-events" aria-labelledby="ip-events-title"><div class="ip-heading"><h2 id="ip-events-title">点検の詳細</h2><button type="button" data-events-close aria-label="閉じる">×</button></div><div data-events-list></div></dialog>
+<dialog class="ip-review ip-new" id="inspection-plan-new" aria-labelledby="ip-new-title"><form method="dialog" data-plan-new-form><div class="ip-heading"><h2 id="ip-new-title">予定を追加</h2><button type="button" data-new-close aria-label="閉じる">×</button></div><label>車両<select name="vehicle" required></select></label><label>点検種別<select name="kind"><option value="3month">3か月点検</option><option value="12month">12か月点検</option><option value="vehicle_inspection">車検</option></select></label><label>予定月<input name="month" type="month" required></label><div class="ip-footer"><button type="button" class="btn btn-outline" data-new-close>キャンセル</button><button type="submit" class="btn btn-outline">日程を入力</button></div></form></dialog>
 {% include "vehicle_inspection_plan_panel.html" %}
 {% endblock %}
