@@ -5,6 +5,7 @@ import time
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
+from urllib.parse import urlencode
 
 import click
 from flask import request, session
@@ -43,6 +44,25 @@ def reminder_phase(plan, today):
     return None
 
 
+
+def expiry_phase(expiry, today):
+    if today > expiry:
+        return 'expiry_elapsed', expiry + timedelta(days=1), '車検期限経過・実施確認'
+    if today == expiry:
+        return 'expiry_today', expiry, '本日が車検期限'
+    if today >= expiry - timedelta(days=1):
+        return 'expiry_1day', expiry - timedelta(days=1), '車検期限の前日'
+    if today >= expiry - timedelta(days=7):
+        return 'expiry_7days', expiry - timedelta(days=7), '車検期限まで7日以内'
+    start = expiry.replace(day=1)
+    if today >= start:
+        return 'expiry_month', start, '今月が車検期限'
+    previous = add_months(start, -1)
+    if today >= previous:
+        return 'expiry_prior', previous, '翌月が車検期限'
+    return None
+
+
 def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehicle, Company, User, Notification):
     class InspectionPlanAlertDelivery(db.Model):
         __table_args__ = (db.UniqueConstraint('company_code', 'plan_id', 'revision', 'phase', 'bucket', 'target_username', name='uq_inspection_alert_delivery'),)
@@ -65,7 +85,22 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         report_json = db.Column(db.Text, nullable=False, default='{}')
         input_signature = db.Column(db.String(64), nullable=False)
 
+    class InspectionExpiryAlertDelivery(db.Model):
+        __table_args__ = (db.UniqueConstraint('company_code', 'vehicle_record_id', 'expiry_date', 'office', 'phase', 'bucket', 'target_username', name='uq_inspection_expiry_alert_delivery'),)
+        id = db.Column(db.Integer, primary_key=True)
+        company_code = db.Column(db.String(50), nullable=False, index=True)
+        vehicle_record_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=False, index=True)
+        expiry_date = db.Column(db.String(10), nullable=False)
+        notification_id = db.Column(db.Integer, db.ForeignKey('notification.id'), nullable=False, index=True)
+        target_username = db.Column(db.String(50), nullable=False)
+        office = db.Column(db.String(100), nullable=False)
+        phase = db.Column(db.String(30), nullable=False)
+        bucket = db.Column(db.Integer, nullable=False)
+        sent_day = db.Column(db.String(10), nullable=False)
+        ended_status = db.Column(db.String(16))
+
     Delivery, Run = InspectionPlanAlertDelivery, InspectionPlanAlertRun
+    ExpiryDelivery = InspectionExpiryAlertDelivery
 
     def json_dict(raw):
         try:
@@ -118,10 +153,61 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
             return 'closed'
         return 'pending'
 
+    def expiry_is_planned(vehicle, expiry):
+        return Plan.query.filter(Plan.company_code == vehicle.company_code,
+            Plan.vehicle_record_id == vehicle.id, Plan.kind == 'vehicle_inspection',
+            Plan.status.in_(['planned', 'completed']),
+            db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).first() is not None
+
+    def expiry_has_actual(vehicle, expiry, today):
+        return has_actual(SimpleNamespace(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+            kind='vehicle_inspection', reservation_date=None, planned_month=expiry[:7]), today)
+
+    def current_expiry_delivery(delivery, today):
+        if delivery.ended_status:
+            return delivery.ended_status
+        vehicle = Vehicle.query.filter_by(company_code=delivery.company_code, id=delivery.vehicle_record_id, deleted=False).first()
+        recipient = User.query.filter_by(company_code=delivery.company_code, username=delivery.target_username, role='admin', login_locked=False).first()
+        company = Company.query.filter_by(company_code=delivery.company_code, active=True).first()
+        if not vehicle or not company or not recipient or not vehicle.office or vehicle.office != recipient.office or vehicle.office != delivery.office:
+            return 'closed'
+        if vehicle.inspection_expiry != delivery.expiry_date:
+            return 'closed'
+        if expiry_has_actual(vehicle, delivery.expiry_date, today):
+            return 'completed'
+        if expiry_is_planned(vehicle, delivery.expiry_date):
+            return 'closed'
+        phase = expiry_phase(iso_date(delivery.expiry_date), today)
+        return 'pending' if phase and phase[0] == delivery.phase else 'closed'
+
+    def plan_link(office, months):
+        months = sorted(set(months))
+        mon = months[0]
+        year = int(mon[:4]) - (1 if int(mon[5:]) < 4 else 0)
+        return '/vehicle/inspection-plans?' + urlencode({'scope': 'office', 'office': office,
+            'month': mon, 'year': year, 'view': 'month' if len(months) == 1 else 'year'})
+
+    def target_link(notification):
+        # Rebuild old digest links as well; never focus only the first vehicle.
+        deliveries = Delivery.query.filter_by(company_code=notification.company_code,
+            notification_id=notification.id, target_username=notification.target_username).all()
+        expiry_deliveries = ExpiryDelivery.query.filter_by(company_code=notification.company_code,
+            notification_id=notification.id, target_username=notification.target_username).all()
+        months = []
+        for d in deliveries:
+            plan = Plan.query.filter_by(company_code=d.company_code, id=d.plan_id).first()
+            if plan and month(plan.planned_month):
+                months.append(plan.planned_month)
+        months.extend(d.expiry_date[:7] for d in expiry_deliveries if iso_date(d.expiry_date))
+        office = (deliveries or expiry_deliveries)[0].office if deliveries or expiry_deliveries else None
+        return plan_link(office, months) if office and months else notification.link
+
     def workflow(notification, today=None):
         today = today or local_today()
         deliveries = Delivery.query.filter_by(company_code=notification.company_code, notification_id=notification.id, target_username=notification.target_username).all()
         statuses = [current_delivery(d, today) for d in deliveries]
+        expiry_deliveries = ExpiryDelivery.query.filter_by(company_code=notification.company_code, notification_id=notification.id, target_username=notification.target_username).all()
+        statuses.extend(current_expiry_delivery(d, today) for d in expiry_deliveries)
         remaining = statuses.count('pending')
         if remaining:
             return {'workflow_status': 'pending', 'workflow_label': f'点検予定の確認待ち {remaining}件', 'requires_action': True}
@@ -131,7 +217,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
 
     def process_company(code, today, force=False):
         now = datetime.now(ZoneInfo('UTC'))
-        report = {'notifications': 0, 'plans': 0, 'no_recipient': 0, 'invalid': 0, 'skipped': False}
+        report = {'notifications': 0, 'plans': 0, 'no_recipient': 0, 'invalid': 0, 'expiry_candidates': 0, 'skipped': False}
         try:
             # Same company lock as plan editing/importing; never notify a rolled-back plan.
             if Company.query.filter_by(company_code=code, active=True).update({Company.company_code: Company.company_code}, synchronize_session=False) != 1:
@@ -145,6 +231,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
             signature = hashlib.sha256(json.dumps([
                 [(p.id, p.version, p.planned_month, p.reservation_date) for p in plans],
                 [(v.id, v.office, v.inspection_expiry) for v in vehicles.values()], [(u.id, u.office) for u in recipients],
+                [(p.id, p.version, p.status) for p in Plan.query.filter_by(company_code=code).all()],
                 Record.query.filter_by(company_code=code).count(), Execution.query.filter_by(company_code=code).count(),
             ], sort_keys=True).encode()).hexdigest()
             if previous and previous.input_signature == signature and not force and previous.local_day == today.isoformat():
@@ -156,8 +243,12 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 except (ValueError, TypeError):
                     pass
             events = PlanEvent.query.filter(PlanEvent.company_code == code, PlanEvent.plan_id.in_([p.id for p in plans])).all() if plans else []
-            old_ids = [row[0] for row in db.session.query(Delivery.notification_id).filter_by(company_code=code).distinct().all()]
+            old_ids = list({row[0] for model in (Delivery, ExpiryDelivery) for row in db.session.query(model.notification_id).filter_by(company_code=code).distinct().all()})
             if old_ids:
+                for delivery in ExpiryDelivery.query.filter_by(company_code=code).all():
+                    state = current_expiry_delivery(delivery, today)
+                    if state != 'pending':
+                        delivery.ended_status = state
                 for delivery in Delivery.query.filter_by(company_code=code).all():
                     state = current_delivery(delivery, today)
                     if state != 'pending':
@@ -192,8 +283,8 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     sent = Delivery.query.filter_by(company_code=code, plan_id=plan.id, revision=rev, phase=phase_key, target_username=user.username).all()
                     if any(d.bucket == bucket or (iso_date(d.sent_day) and (today - iso_date(d.sent_day)).days < 7) for d in sent):
                         continue
-                    groups.setdefault((vehicle.office, user.username, year), []).append((plan, vehicle, user, rev, phase_key, bucket, label))
-            for (office, username, year), items in groups.items():
+                    groups.setdefault((vehicle.office, user.username, plan.planned_month), []).append((plan, vehicle, user, rev, phase_key, bucket, label))
+            for (office, username, planned_month), items in groups.items():
                 # Keep each message short while retaining a receipt for every listed plan.
                 for offset in range(0, len(items), 25):
                     batch = items[offset:offset + 25]
@@ -202,7 +293,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                         plate = ' '.join(str(x) for x in (v.plate_area, v.plate_class, v.plate_kana, v.plate_number) if x) or v.chassis_number or f'車両#{v.id}'
                         lines.append(f'・{plate} / {KINDS[p.kind]} / {label} / 予定月 {p.planned_month}' + (f' / 予約日 {p.reservation_date}' if p.reservation_date else ' / 予約日未定'))
                     lines.append('実施済みの場合は点検計画から実施日を登録してください。書類未受領でも登録できます。')
-                    link = '/vehicle/inspection-plans?scope=office&vehicle_id=' + str(batch[0][1].id) + '&year=' + str(year)
+                    link = plan_link(office, [planned_month])
                     user = batch[0][2]
                     notification = Notification(company_code=code, target_username=username,
                         target_user=((user.last_name or '') + (user.first_name or ''))[:100], title=f'点検予定の確認：{len(batch)}件',
@@ -219,6 +310,49 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     report['notifications'] += 1
                     notified_plan_ids.update(item[0].id for item in batch)
                     report['plans'] = len(notified_plan_ids)
+            expiry_groups = {}
+            for vehicle in vehicles.values():
+                expiry = iso_date(vehicle.inspection_expiry)
+                if not expiry or not 2000 <= expiry.year - (expiry.month < 4) <= 2098:
+                    continue
+                phase = expiry_phase(expiry, today)
+                if not phase or expiry_is_planned(vehicle, expiry.isoformat()) or expiry_has_actual(vehicle, expiry.isoformat(), today):
+                    continue
+                users = [u for u in recipients if vehicle.office and u.office == vehicle.office]
+                if not users:
+                    report['no_recipient'] += 1
+                    continue
+                phase_key, began, label = phase
+                bucket = max(0, (today - began).days // 7)
+                for user in users:
+                    sent = ExpiryDelivery.query.filter_by(company_code=code, vehicle_record_id=vehicle.id,
+                        expiry_date=expiry.isoformat(), office=vehicle.office, phase=phase_key, target_username=user.username).all()
+                    if any(d.bucket == bucket or (iso_date(d.sent_day) and (today - iso_date(d.sent_day)).days < 7) for d in sent):
+                        continue
+                    expiry_groups.setdefault((vehicle.office, user.username, expiry.isoformat()[:7]), []).append((vehicle, user, expiry.isoformat(), phase_key, bucket, label))
+            for (office, username, mon), items in expiry_groups.items():
+                for offset in range(0, len(items), 25):
+                    batch = items[offset:offset + 25]
+                    lines = [office + 'の車検期限と予定未登録の車両を確認してください。']
+                    for v, _, expiry, _, _, label in batch:
+                        plate = ' '.join(str(x) for x in (v.plate_area, v.plate_class, v.plate_kana, v.plate_number) if x) or v.chassis_number or f'車両#{v.id}'
+                        lines.append(f'・{plate} / 車検満了 {expiry} / {label} / 予定未登録')
+                    lines.append('予約済みなら点検計画に日程を登録してください。期限の経過だけで未実施とは断定していません。')
+                    user = batch[0][1]
+                    notification = Notification(company_code=code, target_username=username,
+                        target_user=((user.last_name or '') + (user.first_name or ''))[:100], title=f'点検予定の確認：車検期限・予定未登録 {len(batch)}件',
+                        message='\n'.join(lines), link=plan_link(office, [mon]), read=False,
+                        workflow_context_json=json.dumps({'action': 'inspection_plan_alert'}, ensure_ascii=False),
+                        created_at=now.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                    db.session.add(notification);db.session.flush([notification])
+                    for v, _, expiry, phase_key, bucket, _ in batch:
+                        for old in ExpiryDelivery.query.filter_by(company_code=code, vehicle_record_id=v.id, target_username=username, ended_status=None).all():
+                            old.ended_status = 'closed'
+                        db.session.add(ExpiryDelivery(company_code=code, vehicle_record_id=v.id, expiry_date=expiry,
+                            notification_id=notification.id, target_username=username, office=office,
+                            phase=phase_key, bucket=bucket, sent_day=today.isoformat()))
+                    report['notifications'] += 1
+                    report['expiry_candidates'] += len(batch)
             if old_ids:
                 for notification in Notification.query.filter(Notification.company_code == code, Notification.id.in_(old_ids)).all():
                     if not workflow(notification, today)['requires_action']:
@@ -263,7 +397,8 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         return jsonify(last_checked_at=row.checked_at if row else None, report=json_dict(row.report_json) if row else {},
                        policy={'prior_month_day': 1, 'planned_month_day': 1, 'booking_days_before': [7, 1],
                                'execution_check_days_after': 1, 'repeat_after_days': 7,
-                               'recipients': '同じ営業所の管理者', 'channel': 'アプリ内通知'})
+                               'recipients': '同じ営業所の管理者', 'channel': 'アプリ内通知',
+                               'unregistered_vehicle_inspection': True, 'expiry_days_before': [7, 1], 'expiry_today': True})
 
     @app.cli.command('inspection-plan-alerts')
     @click.option('--watch', is_flag=True, help='1分ごとに確認する常駐処理。')
@@ -286,4 +421,4 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         except KeyboardInterrupt:
             click.echo('点検通知を停止しました。')
 
-    return SimpleNamespace(run=run, workflow=workflow, Delivery=Delivery, Run=Run, phase=reminder_phase)
+    return SimpleNamespace(run=run, workflow=workflow, Delivery=Delivery, ExpiryDelivery=ExpiryDelivery, Run=Run, phase=reminder_phase, target_link=target_link)

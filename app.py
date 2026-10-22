@@ -12537,6 +12537,9 @@ def get_notification_target_link(notification):
     ):
         return ""
 
+    if safe_json_dict(notification.workflow_context_json).get('action') == 'inspection_plan_alert':
+        link = inspection_alerts.target_link(notification)
+
     parsed_link = urlparse(link)
 
     if parsed_link.scheme or parsed_link.netloc:
@@ -46424,7 +46427,7 @@ def init_db():
 
 from vehicle_inspection_plans import register_inspection_plans
 VehicleInspectionPlan, VehicleInspectionPlanEvent, inspection_plans = register_inspection_plans(
-    app, db, Vehicle, VehiclePeriodicInspectionRecord, Company
+    app, db, Vehicle, VehiclePeriodicInspectionRecord, Company, User, Office, VehicleDocumentImportDraft
 )
 
 from vehicle_inspection_alerts import register_inspection_alerts
