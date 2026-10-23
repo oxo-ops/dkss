@@ -50,7 +50,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from sqlalchemy import inspect, or_
+from sqlalchemy import case, inspect, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -1489,6 +1489,17 @@ class DeliveryPlace(db.Model):
 
     company_code = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+
+class MasterDisplayOrder(db.Model):
+    """Company-wide order by stable master IDs, independent of names."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    kind = db.Column(db.String(30), nullable=False)
+    ordered_ids_json = db.Column(db.Text, nullable=False, default="[]")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    __table_args__ = (db.UniqueConstraint("company_code", "kind"),)
+    __mapper_args__ = {"version_id_col": version}
+
 
 class PatrolContentType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -5225,10 +5236,90 @@ def get_company(company_code):
     ).first()
 
 
+def ordered_master_query(model, company_code, query=None):
+    """Apply saved order before limiting candidates; new IDs follow saved IDs."""
+    kinds = {Office: "offices", VehicleType: "vehicle-types",
+             LicenseType: "license-types", DeliveryPlace: "delivery-places",
+             Checklist: "checklists", PatrolContentType: "patrol-content-types", Manual: "manuals"}
+    query = model.query if query is None else query
+    query = query.filter(model.company_code == company_code).order_by(None)
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=company_code, kind=kinds[model]
+    ).first()
+    ids = json.loads(saved.ordered_ids_json) if saved else []
+    if ids:
+        rank = case({item_id: i for i, item_id in enumerate(ids)},
+                    value=model.id, else_=len(ids))
+        query = query.order_by(rank)
+    return query.order_by(model.id.asc())
+
+
+@app.route("/master/<kind>/order", methods=["POST"])
+@limiter.limit("60 per minute")
+def save_master_display_order(kind):
+    if not require_master_admin():
+        return {"ok": False, "message": "管理者のみ変更できます。"}, 403
+    models = {"offices": Office, "vehicle-types": VehicleType,
+              "license-types": LicenseType, "delivery-places": DeliveryPlace,
+              "checklists": Checklist, "patrol-content-types": PatrolContentType, "manuals": Manual}
+    model = models.get(kind)
+    if model is None:
+        return {"ok": False, "message": "対象のマスタがありません。"}, 404
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"ok": False, "message": "並び順の形式が不正です。"}, 400
+    ids, previous_ids = data.get("ids"), data.get("previous_ids")
+    if any(not isinstance(values, list)
+           or any(type(value) is not int or value <= 0 for value in values)
+           or len(values) != len(set(values))
+           for values in (ids, previous_ids)):
+        return {"ok": False, "message": "並び順の形式が不正です。"}, 400
+    company_code = session.get("company_code")
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=company_code, kind=kind
+    ).first()
+    current_ids = [item.id for item in ordered_master_query(model, company_code).all()]
+    if previous_ids != current_ids or set(ids) != set(current_ids):
+        return {"ok": False, "message": "一覧が更新されています。再読み込みして並べ替えてください。"}, 409
+    if ids == current_ids:
+        return jsonify(ok=True, ids=ids)
+    if saved is None:
+        saved = MasterDisplayOrder(company_code=company_code, kind=kind)
+        db.session.add(saved)
+    saved.ordered_ids_json = json.dumps(ids)
+    add_audit_log(action="master_order_changed", target_type=kind,
+                  detail="表示順変更: " + json.dumps(ids), company_code=company_code)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return {"ok": False, "message": "保存できませんでした。再読み込みして再度お試しください。"}, 409
+    return jsonify(ok=True, ids=ids)
+
+
+def remove_master_from_display_order(kind, item):
+    # SQLite may reuse a deleted highest ID. Remove it before later registrations.
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=item.company_code, kind=kind
+    ).first()
+    if saved:
+        saved.ordered_ids_json = json.dumps([
+            ident for ident in json.loads(saved.ordered_ids_json) if ident != item.id
+        ])
+
+
+@app.context_processor
+def inject_master_office_order():
+    # The planning page builds its office selector asynchronously in JavaScript.
+    if request.endpoint != "vehicle_inspection_plans" or not session.get("company_code"):
+        return {}
+    return {"master_office_order": [item.name for item in ordered_master_query(
+        Office, session["company_code"]
+    ).all()]}
+
+
 def offices_for_current_company():
-    query = Office.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Office, session.get("company_code"))
 
     return [
         {
@@ -5241,9 +5332,7 @@ def offices_for_current_company():
     ]
 
 def delivery_places_for_current_company():
-    query = DeliveryPlace.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(DeliveryPlace, session.get("company_code"))
 
     return [
         {
@@ -5256,9 +5345,7 @@ def delivery_places_for_current_company():
     ]
 
 def patrol_content_types_for_current_company():
-    query = PatrolContentType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(PatrolContentType, session.get("company_code"))
 
     return [
         {
@@ -5271,9 +5358,7 @@ def patrol_content_types_for_current_company():
     ]
 
 def manuals_for_current_company():
-    query = Manual.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Manual, session.get("company_code"))
 
     return [
         {
@@ -5559,9 +5644,7 @@ def checklist_for_date(
 
 
 def checklists_for_current_company():
-    query = Checklist.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Checklist, session.get("company_code"))
 
     return [
         checklist_to_dict(checklist)
@@ -7125,9 +7208,7 @@ def vehicle_icon(vehicle_type="", body_type=""):
 
 
 def vehicle_types_for_current_company():
-    query = VehicleType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(VehicleType, session.get("company_code"))
 
     return [
         {
@@ -7140,9 +7221,7 @@ def vehicle_types_for_current_company():
     ]
 
 def license_types_for_current_company():
-    query = LicenseType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(LicenseType, session.get("company_code"))
 
     return [
         {
@@ -9629,11 +9708,7 @@ def register():
     offices = []
 
     if company:
-        offices = Office.query.filter_by(
-            company_code=company.company_code
-        ).order_by(
-            Office.name.asc()
-        ).all()
+        offices = ordered_master_query(Office, company.company_code).all()
 
     return render_template(
         "register.html",
@@ -10132,8 +10207,8 @@ def news_targets():
                 Office.name.ilike(keyword_like)
             )
 
-        for office in query.order_by(
-            Office.name.asc()
+        for office in ordered_master_query(
+            Office, company_code, query
         ).limit(10).all():
             results.append({
                 "id": office.name or "",
@@ -10893,10 +10968,8 @@ def dashboard():
     my_checklist_summaries = []
     office_check_trend_groups = []
 
-    score_checklists = Checklist.query.filter_by(
-        company_code=company_code,
-        active=True
-    ).filter(
+    score_checklists = ordered_master_query(Checklist, company_code).filter(
+        Checklist.active.is_(True),
         Checklist.target.in_(["安全管理", "車両管理"])
     ).all()
 
@@ -16220,6 +16293,7 @@ def delete_license_type(index):
         company_code=license_type.company_code,
     )
 
+    remove_master_from_display_order("license-types", license_type)
     db.session.delete(license_type)
     db.session.commit()
 
@@ -16354,6 +16428,7 @@ def delete_vehicle_type(index):
         company_code=vehicle_type.company_code,
     )
 
+    remove_master_from_display_order("vehicle-types", vehicle_type)
     db.session.delete(vehicle_type)
     db.session.commit()
 
@@ -16569,6 +16644,7 @@ def delete_office(index):
         company_code=office.company_code,
     )
 
+    remove_master_from_display_order("offices", office)
     db.session.delete(office)
     db.session.commit()
 
@@ -17205,6 +17281,7 @@ def delete_delivery_place(index):
         company_code=place.company_code,
     )
 
+    remove_master_from_display_order("delivery-places", place)
     db.session.delete(place)
     db.session.commit()
 
@@ -17337,6 +17414,7 @@ def delete_patrol_content_type(index):
         company_code=item.company_code,
     )
 
+    remove_master_from_display_order("patrol-content-types", item)
     db.session.delete(item)
     db.session.commit()
     return redirect("/master/patrol-content-types")
@@ -34656,6 +34734,7 @@ def delete_manual(index):
 
     company_code = manual.company_code
 
+    remove_master_from_display_order("manuals", manual)
     db.session.delete(manual)
     db.session.commit()
 
@@ -34710,6 +34789,7 @@ def checklist_master():
         ), 500
 
     checklists = checklists_for_current_company()
+    master_order_ids = [checklist["id"] for checklist in checklists]
     company_code = session.get("company_code")
 
     keyword = request.args.get("keyword", "").strip()
@@ -34764,6 +34844,7 @@ def checklist_master():
     return render_template(
         "checklist_master.html",
         checklists=checklists,
+        master_order_ids=master_order_ids,
         keyword=keyword,
         target=target,
         status=status
@@ -45566,6 +45647,7 @@ def delete_checklist(index):
         checklist_id=checklist.id
     ).delete(synchronize_session=False)
 
+    remove_master_from_display_order("checklists", checklist)
     db.session.delete(checklist)
     db.session.commit()
 

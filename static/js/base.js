@@ -2801,3 +2801,243 @@ document.addEventListener("change", function (event) {
         }
     }, true);
 })();
+
+// Company-wide master order, including filtered and responsive lists.
+(() => {
+    const busyUrls = new Set();
+    function initializeMasterOrder() {
+        document.querySelectorAll('[data-master-order-url]').forEach(initializeList);
+    }
+    function initializeList(table) {
+        const body = table.tBodies ? table.tBodies[0] : table;
+        const status = document.getElementById(table.dataset.masterStatusId)
+            || table.previousElementSibling?.querySelector('.master-order-status');
+        if (!body || !status) return;
+        const url = table.dataset.masterOrderUrl;
+        const peers = () => Array.from(document.querySelectorAll('[data-master-order-url]'))
+            .filter(element => element.dataset.masterOrderUrl === url);
+        const rows = () => Array.from(body.querySelectorAll('[data-master-id]'));
+        const ids = () => rows().map(row => Number(row.dataset.masterId));
+        let savedIds = ids();
+        let savedAllIds = table.dataset.masterOrderAllIds
+            ? JSON.parse(table.dataset.masterOrderAllIds) : savedIds.slice();
+        document.addEventListener('master-order-saved', event => {
+            if (event.detail.url !== url || saving) return;
+            savedAllIds = event.detail.ids.slice();
+            const ranks = new Map(savedAllIds.map((id, index) => [id, index]));
+            savedIds = ids().sort((a, b) => ranks.get(a) - ranks.get(b));
+            restore();
+        });
+        let saving = false;
+        let drag = null;
+        function restore() {
+            const byId = new Map(rows().map(row => [Number(row.dataset.masterId), row]));
+            savedIds.forEach(id => body.append(byId.get(id)));
+        }
+        async function save() {
+            const next = ids();
+            if (next.every((id, index) => id === savedIds[index])) return;
+            if (busyUrls.has(url)) return;
+            // Replace only visible slots; hidden checklist rows keep their positions.
+            const visible = new Set(next);
+            let index = 0;
+            const merged = savedAllIds.map(id => visible.has(id) ? next[index++] : id);
+            const focusedHandle = document.activeElement;
+            saving = true;
+            busyUrls.add(url);
+            peers().forEach(peer => {
+                peer.setAttribute('aria-busy', 'true');
+                peer.querySelectorAll('.master-order-handle').forEach(handle => { handle.disabled = true; });
+            });
+            status.textContent = '保存中…';
+            status.classList.remove('is-error');
+            try {
+                const response = await fetch(table.dataset.masterOrderUrl, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ids: merged, previous_ids: savedAllIds})
+                });
+                let result;
+                try { result = await response.json(); } catch (_) { throw new Error('保存できませんでした。再読み込みして再度お試しください。'); }
+                if (!response.ok || !result.ok) throw new Error(result.message || '保存できませんでした。');
+                savedIds = next;
+                savedAllIds = merged;
+                document.dispatchEvent(new CustomEvent('master-order-saved', {detail: {url, ids: merged}}));
+                status.textContent = '保存しました';
+            } catch (error) {
+                restore();
+                status.textContent = error.message || '保存できませんでした。';
+                status.classList.add('is-error');
+            } finally {
+                saving = false;
+                busyUrls.delete(url);
+                peers().forEach(peer => {
+                    peer.removeAttribute('aria-busy');
+                    peer.querySelectorAll('.master-order-handle').forEach(handle => { handle.disabled = false; });
+                });
+                if (focusedHandle?.classList.contains('master-order-handle')) focusedHandle.focus({preventScroll: true});
+            }
+        }
+        function moveAtPointer() {
+            if (!drag || !drag.moving) return;
+            const hit = document.elementFromPoint(drag.x, drag.y)?.closest('[data-master-id]');
+            if (!hit || hit === drag.row || hit.parentElement !== body) return;
+            const rect = hit.getBoundingClientRect();
+            if (drag.y < rect.top + rect.height / 2) body.insertBefore(drag.row, hit);
+            else body.insertBefore(drag.row, hit.nextSibling);
+        }
+        function scrollFrame() {
+            if (!drag) return;
+            if (drag.moving) {
+                const edge = 70;
+                const dy = drag.y < edge ? -14 : drag.y > window.innerHeight - edge ? 14 : 0;
+                if (dy) window.scrollBy(0, dy);
+                moveAtPointer();
+            }
+            drag.frame = requestAnimationFrame(scrollFrame);
+        }
+        function finish(cancelled) {
+            if (!drag) return;
+            const current = drag;
+            drag = null;
+            cancelAnimationFrame(current.frame);
+            current.row.classList.remove('is-dragging');
+            document.body.classList.remove('master-order-dragging');
+            if (body.hasPointerCapture(current.pointerId)) body.releasePointerCapture(current.pointerId);
+            if (cancelled) restore();
+            else if (current.moving) void save();
+        }
+        body.addEventListener('pointerdown', event => {
+            const handle = event.target.closest('.master-order-handle');
+            if (!handle || saving || busyUrls.has(url) || drag || event.button !== 0 || !event.isPrimary) return;
+            event.preventDefault();
+            handle.focus({preventScroll: true});
+            drag = {row: handle.closest('[data-master-id]'), handle, pointerId: event.pointerId,
+                    startX: event.clientX, startY: event.clientY,
+                    x: event.clientX, y: event.clientY, moving: false, frame: 0};
+            // Capture on the stable tbody: moving a row must not cancel the drag.
+            body.setPointerCapture(event.pointerId);
+            drag.frame = requestAnimationFrame(scrollFrame);
+        });
+        body.addEventListener('pointermove', event => {
+            if (!drag || drag.pointerId !== event.pointerId) return;
+            drag.x = event.clientX; drag.y = event.clientY;
+            if (!drag.moving && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 5) {
+                drag.moving = true;
+                drag.row.classList.add('is-dragging');
+                document.body.classList.add('master-order-dragging');
+            }
+            moveAtPointer();
+        });
+        body.addEventListener('pointerup', event => { if (drag?.pointerId === event.pointerId) finish(false); });
+        body.addEventListener('pointercancel', () => finish(true));
+        body.addEventListener('lostpointercapture', () => { if (drag) finish(true); });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && drag) {
+                event.preventDefault();
+                finish(true);
+            }
+        });
+        body.addEventListener('keydown', event => {
+            const handle = event.target.closest('.master-order-handle');
+            if (!handle || saving || busyUrls.has(url) || drag || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+            event.preventDefault();
+            const row = handle.closest('[data-master-id]');
+            const list = rows(); const index = list.indexOf(row);
+            const target = list[index + (event.key === 'ArrowUp' ? -1 : 1)];
+            if (!target) return;
+            body.insertBefore(row, event.key === 'ArrowUp' ? target : target.nextSibling);
+            handle.focus({preventScroll: true});
+            void save();
+        });
+        window.addEventListener('beforeunload', event => {
+            if (saving) { event.preventDefault(); event.returnValue = ''; }
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeMasterOrder);
+    else initializeMasterOrder();
+})();
+
+// Keep the planning page's dynamically generated office choices in master order.
+(() => {
+    function orderPlannerOffices() {
+        const meta = document.querySelector('meta[name="master-office-order"]');
+        const select = document.querySelector('[data-inspection-planner] select[name="office"]');
+        if (!meta || !select) return;
+        const ranks = new Map(JSON.parse(meta.content).map((name, index) => [name, index]));
+        const sort = () => {
+            const before = Array.from(select.options);
+            const ordered = before.slice().sort((a, b) => {
+                const rank = o => !o.value ? -1 : ranks.get(o.value) ?? ranks.size;
+                return rank(a) - rank(b);
+            });
+            if (ordered.some((option, index) => option !== before[index])) {
+                const value = select.value;
+                select.append(...ordered);
+                select.value = value;
+            }
+        };
+        new MutationObserver(sort).observe(select, {childList: true});
+        sort();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', orderPlannerOffices);
+    else orderPlannerOffices();
+})();
+
+// Standard checklist definitions are previewed locally without editable fields.
+(() => {
+    function initializeStandardChecklistPreview() {
+        const dialog = document.getElementById('standard-checklist-dialog');
+        if (!dialog) return;
+        const body = dialog.querySelector('[data-standard-checklist-body]');
+        const heading = document.getElementById('standard-checklist-dialog-title');
+        const tooltip = document.getElementById('standard-checklist-explanation');
+        let opener = null;
+        function hideTooltip() { if (tooltip) tooltip.hidden = true; }
+        function showTooltip(badge) {
+            if (!tooltip) return;
+            tooltip.hidden = false;
+            const box = badge.getBoundingClientRect();
+            tooltip.style.left = Math.max(8, Math.min(box.left, window.innerWidth - tooltip.offsetWidth - 8)) + 'px';
+            tooltip.style.top = Math.max(8, Math.min(box.bottom + 6, window.innerHeight - tooltip.offsetHeight - 8)) + 'px';
+        }
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-standard-checklist-preview]');
+            const badge = event.target.closest('[data-standard-checklist-info]');
+            if (badge) { showTooltip(badge); return; }
+            hideTooltip();
+            if (!button) return;
+            const template = document.getElementById(button.dataset.standardChecklistPreview);
+            if (!template || template.tagName !== 'TEMPLATE') return;
+            opener = button;
+            heading.textContent = template.dataset.checklistTitle;
+            body.replaceChildren(template.content.cloneNode(true));
+            body.scrollTop = 0;
+            if (!dialog.open) dialog.showModal();
+        });
+        document.addEventListener('focusin', event => {
+            const badge = event.target.closest('[data-standard-checklist-info]');
+            if (badge) showTooltip(badge); else hideTooltip();
+        });
+        document.addEventListener('pointerover', event => {
+            const badge = event.target.closest('[data-standard-checklist-info]');
+            if (badge) showTooltip(badge);
+        });
+        document.addEventListener('pointerout', event => {
+            if (event.target.closest('[data-standard-checklist-info]') && !document.activeElement?.matches('[data-standard-checklist-info]')) hideTooltip();
+        });
+        document.addEventListener('keydown', event => { if (event.key === 'Escape') hideTooltip(); });
+        window.addEventListener('scroll', hideTooltip, true);
+        window.addEventListener('resize', hideTooltip);
+        dialog.querySelector('[data-standard-checklist-close]').addEventListener('click', () => dialog.close());
+        dialog.addEventListener('close', () => {
+            body.replaceChildren();
+            if (opener?.isConnected) opener.focus({preventScroll: true});
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeStandardChecklistPreview);
+    else initializeStandardChecklistPreview();
+})();

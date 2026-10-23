@@ -61,8 +61,10 @@
     </form>
 </div>
 
+<p class="master-order-help">右端のハンドルでチェックリストの表示順を変更<span id="checklist-master-order-status" class="master-order-status" role="status" aria-live="polite"></span></p>
 <div class="table-scroll master-table-scroll">
-<table class="responsive-table checklist-master-table">
+<table class="responsive-table checklist-master-table master-order-table" data-master-order-url="/master/checklists/order" data-master-status-id="checklist-master-order-status" data-master-order-all-ids="{{ master_order_ids|default([])|tojson|forceescape }}">
+    <thead>
     <tr>
         <th>チェックリスト名</th>
         <th>用途</th>
@@ -70,11 +72,14 @@
         <th>状態</th>
         <th class="col-actions">操作</th>
     </tr>
+    </thead>
+    <tbody>
 
     {% for checklist in checklists %}
-    <tr>
+    <tr data-master-id="{{ checklist.id }}">
         <td class="checklist-master-name">
-            {{ checklist["name"] }}
+            <span class="standard-checklist-name">{{ checklist["name"] }}
+            {% if checklist.get("fixed_template_code") %}<button type="button" class="standard-checklist-badge" data-standard-checklist-info aria-describedby="standard-checklist-explanation">標準</button>{% endif %}</span>
         </td>
         <td>{{ checklist["target"] }}</td>
         <td>
@@ -91,9 +96,9 @@
         </td>
 
         <td class="action-cell">
-            <div class="checklist-master-actions">
+            <div class="checklist-master-actions master-order-actions">
                 {% if checklist.get("fixed_template_code") %}
-                    <span class="help-text">固定様式</span>
+                    <button type="button" class="btn-small standard-checklist-view" data-standard-checklist-preview="standard-checklist-content-{{ checklist.id }}" aria-haspopup="dialog" aria-controls="standard-checklist-dialog">内容確認</button>
                 {% else %}
                 <a
                     href="/master/checklists/{{ checklist.id }}/edit"
@@ -157,6 +162,13 @@
                     </div>
                 </details>
                 {% endif %}
+                <button type="button" class="master-order-handle" aria-label="{{ checklist.name }}の表示順を変更" title="ドラッグで移動／↑↓キーで移動">
+                    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true" focusable="false">
+                        <circle cx="4" cy="4" r="1"/><circle cx="8" cy="4" r="1"/>
+                        <circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/>
+                        <circle cx="4" cy="12" r="1"/><circle cx="8" cy="12" r="1"/>
+                    </svg>
+                </button>
             </div>
         </td>
     </tr>
@@ -167,15 +179,17 @@
         </td>
     </tr>
     {% endfor %}
+    </tbody>
 </table>
 </div>
 
-<div class="checklist-master-mobile-list">
+<div class="checklist-master-mobile-list master-order-cards" data-master-order-url="/master/checklists/order" data-master-status-id="checklist-master-order-status" data-master-order-all-ids="{{ master_order_ids|default([])|tojson|forceescape }}">
     {% for checklist in checklists %}
-        <div class="checklist-master-mobile-card">
+        <div class="checklist-master-mobile-card" data-master-id="{{ checklist.id }}">
 
             <div class="checklist-master-mobile-head">
-                <strong>{{ checklist["name"] }}</strong>
+                <strong class="standard-checklist-name">{{ checklist["name"] }}
+                {% if checklist.get("fixed_template_code") %}<button type="button" class="standard-checklist-badge" data-standard-checklist-info aria-describedby="standard-checklist-explanation">標準</button>{% endif %}</strong>
 
                 {% if checklist.active %}
                     <span class="status-badge status-approved">● 有効</span>
@@ -198,9 +212,9 @@
                 </strong>
             </div>
 
-            <div class="checklist-master-mobile-actions">
+            <div class="checklist-master-mobile-actions master-order-actions">
                 {% if checklist.get("fixed_template_code") %}
-                    <span class="help-text">固定様式</span>
+                    <button type="button" class="btn-small standard-checklist-view" data-standard-checklist-preview="standard-checklist-content-{{ checklist.id }}" aria-haspopup="dialog" aria-controls="standard-checklist-dialog">内容確認</button>
                 {% else %}
                 <a
                     href="/master/checklists/{{ checklist.id }}/edit"
@@ -262,6 +276,13 @@
                     </div>
                 </details>
                 {% endif %}
+                <button type="button" class="master-order-handle" aria-label="{{ checklist.name }}の表示順を変更" title="ドラッグで移動／↑↓キーで移動">
+                    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true" focusable="false">
+                        <circle cx="4" cy="4" r="1"/><circle cx="8" cy="4" r="1"/>
+                        <circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/>
+                        <circle cx="4" cy="12" r="1"/><circle cx="8" cy="12" r="1"/>
+                    </svg>
+                </button>
             </div>
 
         </div>
@@ -271,5 +292,36 @@
         </div>
     {% endfor %}
 </div>
+
+<span id="standard-checklist-explanation" class="standard-checklist-tooltip" role="tooltip" hidden>システム標準の点検表です。</span>
+{% for checklist in checklists if checklist.get("fixed_template_code") %}
+<template id="standard-checklist-content-{{ checklist.id }}" data-checklist-title="{{ checklist.name }}">
+    <div class="standard-checklist-preview-meta">{{ checklist.target }} · {{ checklist["items"]|length }}項目</div>
+    <p class="standard-checklist-preview-note">システム標準の点検表です。</p>
+    {% set section = namespace(category=none) %}
+    <ol class="standard-checklist-items">
+    {% for item in checklist["items"] %}
+        {% set category = item.get("category") or "記入欄" %}
+        <li class="standard-checklist-item">
+            {% if section.category != category %}
+            <h4>{{ category }}</h4>
+            {% set section.category = category %}
+            {% endif %}
+            <div><span class="standard-checklist-item-number">{{ loop.index }}</span><span class="standard-checklist-item-content">{{ item.get("content", "") }}</span></div>
+        </li>
+    {% endfor %}
+    </ol>
+    {% if checklist["items"] and checklist["items"][0].get("criteria") %}
+    <details class="standard-checklist-criteria"><summary>記入方法・注意事項</summary><p>{{ checklist["items"][0]["criteria"] }}</p></details>
+    {% endif %}
+</template>
+{% endfor %}
+<dialog id="standard-checklist-dialog" class="standard-checklist-dialog" aria-labelledby="standard-checklist-dialog-title">
+    <div class="standard-checklist-dialog-header">
+        <h3 id="standard-checklist-dialog-title"></h3>
+        <button type="button" class="standard-checklist-close" data-standard-checklist-close aria-label="閉じる" autofocus>×</button>
+    </div>
+    <div class="standard-checklist-dialog-body" data-standard-checklist-body></div>
+</dialog>
 
 {% endblock %}

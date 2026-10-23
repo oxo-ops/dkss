@@ -33521,3 +33521,59 @@ body.vehicle-list-ppt .vi-workspace .checklist-table.responsive-table td,body.ve
 body.vehicle-list-ppt .vi-workspace .vi-section .checklist-table.responsive-table th:nth-child(n){width:auto;white-space:nowrap;overflow-wrap:normal}
 body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table td:not(:nth-child(5)){white-space:nowrap;overflow-wrap:normal}
 body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table{min-width:850px}
+
+/* Master ordering uses the existing compact table dimensions. */
+.master-order-help {display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:8px 0;color:#61738c;font-size:12px;}
+.master-order-status {color:#25725d;font-weight:600;}
+.master-order-status.is-error {color:#b13d43;}
+.master-order-handle {display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:30px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:#8a97a9;line-height:1;cursor:grab;touch-action:none;}
+.master-order-handle:hover,.master-order-handle:focus-visible {background:#e8f1ff;border-color:#a9c8fa;color:#2459a3;}
+.master-order-handle:disabled {opacity:.45;cursor:wait;}
+.master-order-table tr.is-dragging td {background:#e6efff;box-shadow:inset 0 1px #9fbeed,inset 0 -1px #9fbeed;}
+.master-order-dragging,.master-order-dragging * {cursor:grabbing!important;user-select:none!important;}
+
+/* Complete master navigation stays visible without a hidden overflow menu. */
+.master-order-handle svg {display:block;flex:0 0 12px;width:12px;height:16px;pointer-events:none;}
+.master-order-table .action-buttons {flex-wrap:nowrap;gap:8px;}
+.master-order-table .action-buttons > .master-order-handle {margin:0;}
+body:has(.master-unified-tabs-complete) .main-content > .page-header > h2 {display:none;}
+.master-unified-tabs-complete .master-unified-tab {min-height:40px;padding:7px 8px;gap:7px;}
+@media (max-width:1200px) {
+    .master-unified-tabs.master-unified-tabs-complete {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible;}
+    .master-unified-tabs-complete .master-unified-tab {min-width:0;font-size:12px;}
+}
+@media (max-width:600px) {
+    .master-unified-tabs.master-unified-tabs-complete {grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;}
+    .master-unified-tabs-complete .master-unified-tab {min-height:34px;padding:5px 4px;gap:5px;}
+    .master-unified-tabs-complete .master-tab-icon {width:18px;height:18px;flex-basis:18px;}
+}
+
+/* Checklist reorder works in both desktop rows and mobile cards. */
+.master-order-actions {display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:nowrap;}
+.master-order-actions > .master-order-handle {flex-shrink:0;margin:0;}
+.master-order-cards > .is-dragging {background:#e6efff;outline:1px solid #9fbeed;}
+.master-order-table .checklist-master-actions {gap:8px;}
+
+/* Standard checklist provenance belongs beside the name, not in the action slot. */
+.standard-checklist-name {display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;}
+.standard-checklist-badge {display:inline-flex;align-items:center;padding:2px 7px;border:1px solid #cbd8e9;border-radius:5px;background:#f0f4fa;color:#4e647e;font:inherit;font-size:11px;font-weight:500;line-height:1.4;cursor:help;white-space:nowrap;}
+.standard-checklist-badge:focus-visible {outline:2px solid #3479f6;outline-offset:2px;}
+.standard-checklist-tooltip {position:fixed;z-index:15000;width:260px;max-width:calc(100vw - 16px);padding:9px 11px;box-sizing:border-box;border:1px solid #d6dfec;border-radius:7px;background:#fff;color:#34445a;box-shadow:0 4px 16px #142c4b20;font-size:12px;line-height:1.6;pointer-events:none;}
+.standard-checklist-tooltip[hidden] {display:none!important;}
+body .main-content .standard-checklist-view {display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:5px 10px;border:1px solid #c5d8f2;border-radius:7px;background:#edf4ff;color:#265a99;white-space:nowrap;line-height:1.4;font-size:12px;}
+.standard-checklist-dialog {width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid #d5dfec;border-radius:12px;background:#fff;color:#233652;box-sizing:border-box;box-shadow:0 16px 60px #142c4b30;overflow:hidden;}
+.standard-checklist-dialog::backdrop {background:rgba(18,35,57,.38);}
+.standard-checklist-dialog-header {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #e3eaf4;}
+.standard-checklist-dialog-header h3 {margin:0;font-size:17px;line-height:1.5;}
+.standard-checklist-close {width:32px;height:32px;padding:0;border:1px solid #dbe4ef;border-radius:6px;background:#fff;color:#435a74;font-size:24px;line-height:1;cursor:pointer;}
+.standard-checklist-dialog-body {max-height:calc(100dvh - 110px);padding:14px 18px 20px;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;}
+.standard-checklist-preview-meta {font-size:12px;color:#60738c;}
+.standard-checklist-preview-note {margin:8px 0 12px;color:#50647c;font-size:12px;line-height:1.6;}
+.standard-checklist-items {list-style:none;margin:0;padding:0;}
+.standard-checklist-item h4 {margin:14px 0 4px;padding:6px 9px;border-radius:5px;background:#edf3fc;color:#2d4f7a;font-size:13px;}
+.standard-checklist-item > div {display:flex;align-items:flex-start;gap:10px;padding:8px 3px;border-bottom:1px solid #edf1f6;font-size:13px;line-height:1.6;}
+.standard-checklist-item-number {flex:0 0 22px;color:#7a8ba0;font-size:12px;text-align:right;}
+.standard-checklist-item-content {min-width:0;white-space:pre-line;overflow-wrap:anywhere;}
+.standard-checklist-criteria {margin-top:14px;color:#50647c;font-size:12px;line-height:1.7;}
+.standard-checklist-criteria summary {cursor:pointer;font-weight:600;}
+.standard-checklist-criteria p {white-space:pre-line;}
