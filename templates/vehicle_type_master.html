@@ -12,14 +12,18 @@
     </div>
 </div>
 
-<table>
+<p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p>
+<table class="master-order-table" data-master-order-url="/master/vehicle-types/order">
+    <thead>
     <tr>
         <th>車種名</th>
         <th class="col-actions">操作</th>
     </tr>
+    </thead>
+    <tbody>
 
     {% for vehicle_type in vehicle_types %}
-    <tr>
+    <tr data-master-id="{{ vehicle_type.id }}">
         <td>{{ vehicle_type.name }}</td>
 
         <td class="action-cell">
@@ -41,6 +45,13 @@
                         削除
                     </button>
                 </form>
+                <button type="button" class="master-order-handle" aria-label="{{ vehicle_type.name }}の表示順を変更" title="ドラッグで移動／↑↓キーで移動">
+                    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true" focusable="false">
+                        <circle cx="4" cy="4" r="1"/><circle cx="8" cy="4" r="1"/>
+                        <circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/>
+                        <circle cx="4" cy="12" r="1"/><circle cx="8" cy="12" r="1"/>
+                    </svg>
+                </button>
             </div>
         </td>
     </tr>
@@ -49,6 +60,7 @@
         <td colspan="2">車種が登録されていません。</td>
     </tr>
     {% endfor %}
+    </tbody>
 </table>
 
 <script src="{{ url_for('static', filename='js/vehicle_type_master.js') }}"></script>
