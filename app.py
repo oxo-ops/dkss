@@ -5598,6 +5598,49 @@ def safe_json_dict(value):
 
     return parsed if isinstance(parsed, dict) else {}
 
+def find_vehicle_pending_cross_source_group(company_code, source_kind, identity):
+    """Only reuse one unambiguous full-plate group across CSV/document sources."""
+    plate = get_vehicle_import_pending_plate(identity)
+    if plate is None:
+        return None
+    matches = [
+        group for group in VehicleImportPending.query.filter_by(
+            company_code=company_code, status="pending"
+        ).with_for_update().all()
+        if get_vehicle_import_pending_plate(safe_json_dict(group.identity_json)) == plate
+    ]
+    if len(matches) != 1:
+        return None
+    group = matches[0]
+    existing = safe_json_dict(group.identity_json)
+    unknown = {"", "不明", "記載なし", "未設定", "なし", "unknown", "none", "n/a"}
+    for field in ("chassis_number", "source_vehicle_code"):
+        left = normalize_vehicle_operation_plate(existing.get(field))
+        right = normalize_vehicle_operation_plate(identity.get(field))
+        if left not in unknown and right not in unknown and left != right:
+            return None
+    kinds = {
+        row.source_kind for row in VehicleImportPendingRecord.query.filter_by(
+            company_code=company_code, pending_id=group.id, status="pending"
+        ).all()
+    }
+    has_other_source = (
+        bool(kinds - {"operation"}) if source_kind == "operation"
+        else "operation" in kinds
+    )
+    if not has_other_source:
+        return None
+    # Preserve the identifiers supplied by each source for subsequent conflicts.
+    for field in ("chassis_number", "source_vehicle_code"):
+        if (
+            normalize_vehicle_operation_plate(existing.get(field)) in unknown
+            and normalize_vehicle_operation_plate(identity.get(field)) not in unknown
+        ):
+            existing[field] = identity[field]
+    group.identity_json = json.dumps(existing, ensure_ascii=False)
+    return group
+
+
 def save_vehicle_import_pending_record(
     *, company_code, username, source_kind, source_draft_id,
     source_record_index, group_identity, identity,
@@ -5639,6 +5682,10 @@ def save_vehicle_import_pending_record(
             separators=(",", ":"), default=str
         )
 
+    # Serialize creation as well as reuse, including when no group exists yet.
+    if Company.query.filter_by(company_code=company_code).with_for_update().first() is None:
+        raise UploadValidationError("会社情報を確認できません。")
+
     record_key = hashlib.sha256(
         serialize(record_identity).encode("utf-8")
     ).hexdigest()
@@ -5669,13 +5716,17 @@ def save_vehicle_import_pending_record(
             raise UploadValidationError(
                 "対応済みの車両があります。登録先を再確認してください。"
             )
-        pending = VehicleImportPending(
-            id=str(uuid4()), company_code=company_code,
-            match_key=match_key, identity_json=serialize(identity),
-            created_by_username=username
+        pending = find_vehicle_pending_cross_source_group(
+            company_code, source_kind, identity
         )
-        db.session.add(pending)
-        db.session.flush()
+        if pending is None:
+            pending = VehicleImportPending(
+                id=str(uuid4()), company_code=company_code,
+                match_key=match_key, identity_json=serialize(identity),
+                created_by_username=username
+            )
+            db.session.add(pending)
+            db.session.flush()
 
     record = VehicleImportPendingRecord(
         id=str(uuid4()), company_code=company_code,
@@ -29706,15 +29757,10 @@ def vehicle_import_pending_review(pending_id):
                         company_code
                     ).count(),
                 )
-            if questions:
-                result = apply_vehicle_import_pending_documents(
-                    pending.id, vehicle_id, company_code, session.get("username"),
-                    invoice_choices=invoice_choices
-                )
-            else:
-                result = apply_vehicle_import_pending_records(
-                    pending.id, vehicle_id, company_code, session.get("username")
-                )
+            result = apply_vehicle_import_pending_records(
+                pending.id, vehicle_id, company_code, session.get("username"),
+                invoice_choices=invoice_choices
+            )
             if request.headers.get("X-DKSS-Validation-Only") == "1":
                 db.session.rollback()
                 return jsonify({"ok": True})
@@ -30453,6 +30499,27 @@ def merge_vehicle_pending_invoice_record(target_id, invoice):
 def apply_vehicle_import_pending_documents(
     pending_id, vehicle_id, company_code, username, *, invoice_choices=None
 ):
+    return apply_vehicle_import_pending_records(
+        pending_id, vehicle_id, company_code, username,
+        invoice_choices=invoice_choices,
+        allowed_kinds={"inspection", "maintenance", "driving_report"},
+    )
+
+
+def apply_vehicle_import_pending_operations(
+    pending_id, vehicle_id, company_code, username
+):
+    return apply_vehicle_import_pending_records(
+        pending_id, vehicle_id, company_code, username,
+        allowed_kinds={"operation"},
+    )
+
+
+def apply_vehicle_import_pending_records(
+    pending_id, vehicle_id, company_code, username, *, invoice_choices=None,
+    allowed_kinds=None,
+):
+    """Claim once and apply every source in the caller's single transaction."""
     if (
         not company_code or not username
         or isinstance(vehicle_id, bool) or not isinstance(vehicle_id, int)
@@ -30480,11 +30547,57 @@ def apply_vehicle_import_pending_documents(
     items = VehicleImportPendingRecord.query.filter_by(
         pending_id=pending_id, company_code=company_code, status="pending"
     ).order_by(VehicleImportPendingRecord.id).all()
-    if not items or any(item.source_kind not in {
-        "inspection", "maintenance", "driving_report"
-    } for item in items):
-        raise UploadValidationError("対象の資料を確認できません。")
+    supported = {"operation", "inspection", "maintenance", "driving_report"}
+    kinds = {item.source_kind for item in items}
+    if not items or not kinds <= (
+        supported if allowed_kinds is None else supported & allowed_kinds
+    ):
+        raise UploadValidationError("登録待ちの資料構成を再確認してください。")
 
+    result = {"added_count": 0, "linked_count": 0, "review_pending_count": 0}
+    operations = [item for item in items if item.source_kind == "operation"]
+    documents = [item for item in items if item.source_kind != "operation"]
+    if operations:
+        applied = _apply_vehicle_pending_operation_records(
+            operations, vehicle_id, company_code, username
+        )
+        for key, value in applied.items():
+            result[key] += value
+    if documents:
+        applied = _apply_vehicle_pending_document_records(
+            documents, vehicle_id, company_code, username,
+            invoice_choices=invoice_choices,
+        )
+        for key, value in applied.items():
+            result[key] += value
+
+    db.session.flush()
+    pending = VehicleImportPending.query.filter_by(
+        id=pending_id, company_code=company_code
+    ).first()
+    applied_ids = {
+        row.vehicle_record_id
+        for row in VehicleImportPendingRecord.query.filter_by(
+            pending_id=pending_id, company_code=company_code, status="applied"
+        ).all()
+        if row.vehicle_record_id is not None
+    }
+    pending.status = "resolved"
+    pending.resolved_vehicle_id = (
+        next(iter(applied_ids)) if len(applied_ids) == 1 else None
+    )
+    pending.resolved_at = datetime.now(ZoneInfo("UTC"))
+    pending.resolution_json = json.dumps({
+        "vehicle_ids": sorted(applied_ids),
+        "resolved_by_username": username,
+    })
+    db.session.flush()
+    return result
+
+
+def _apply_vehicle_pending_document_records(
+    items, vehicle_id, company_code, username, *, invoice_choices=None
+):
     maintenance_candidates = {
         item.id: get_vehicle_pending_maintenance_candidates(
             company_code, vehicle_id, safe_json_dict(item.payload_json)
@@ -30610,27 +30723,6 @@ def apply_vehicle_import_pending_documents(
         item.applied_at = now
         item.result_json = json.dumps(applied_result, ensure_ascii=False)
 
-    pending = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code
-    ).first()
-    applied_ids = {
-        row.vehicle_record_id
-        for row in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id,
-            company_code=company_code,
-            status="applied"
-        ).all()
-        if row.vehicle_record_id is not None
-    }
-    pending.status = "resolved"
-    pending.resolved_vehicle_id = (
-        next(iter(applied_ids)) if len(applied_ids) == 1 else None
-    )
-    pending.resolved_at = now
-    pending.resolution_json = json.dumps({
-        "vehicle_ids": sorted(applied_ids),
-        "resolved_by_username": username,
-    })
     db.session.flush()
     review_pending_count = VehicleMaintenanceDocument.query.filter(
         VehicleMaintenanceDocument.company_code == company_code,
@@ -30644,57 +30736,9 @@ def apply_vehicle_import_pending_documents(
     }
 
 
-def apply_vehicle_import_pending_records(
-    pending_id, vehicle_id, company_code, username
+def _apply_vehicle_pending_operation_records(
+    records, vehicle_id, company_code, username
 ):
-    kinds = {
-        row.source_kind
-        for row in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id,
-            company_code=company_code,
-            status="pending"
-        ).all()
-    }
-    if kinds == {"operation"}:
-        return apply_vehicle_import_pending_operations(
-            pending_id, vehicle_id, company_code, username
-        )
-    if kinds and kinds <= {"inspection", "maintenance", "driving_report"}:
-        return apply_vehicle_import_pending_documents(
-            pending_id, vehicle_id, company_code, username
-        )
-    raise UploadValidationError("登録待ちの資料構成を再確認してください。")
-
-
-def apply_vehicle_import_pending_operations(
-    pending_id, vehicle_id, company_code, username
-):
-    if (
-        not company_code
-        or not username
-        or isinstance(vehicle_id, bool)
-        or not isinstance(vehicle_id, int)
-    ):
-        raise UploadValidationError("会社・利用者・登録先を確認してください。")
-
-    vehicle = Vehicle.query.filter_by(
-        id=vehicle_id, company_code=company_code
-    ).first()
-    if vehicle is None:
-        raise UploadValidationError("登録先の車両を確認できません。")
-
-    claimed = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code, status="pending"
-    ).update({"status": "processing"}, synchronize_session=False)
-    if claimed != 1:
-        raise UploadValidationError("この登録待ちは対応済みか、処理中です。")
-
-    records = VehicleImportPendingRecord.query.filter_by(
-        pending_id=pending_id, company_code=company_code, status="pending"
-    ).order_by(VehicleImportPendingRecord.id).all()
-    if not records or any(item.source_kind != "operation" for item in records):
-        raise UploadValidationError("対応する運行実績を確認できません。")
-
     source_rows_by_draft = {}
     added_count = 0
     linked_count = 0
@@ -30797,27 +30841,6 @@ def apply_vehicle_import_pending_operations(
         })
         linked_count += 1
 
-    pending = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code
-    ).first()
-    applied_ids = {
-        item.vehicle_record_id
-        for item in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id, company_code=company_code,
-            status="applied"
-        ).all()
-        if item.vehicle_record_id is not None
-    }
-    pending.status = "resolved"
-    pending.resolved_vehicle_id = (
-        next(iter(applied_ids)) if len(applied_ids) == 1 else None
-    )
-    pending.resolved_at = now
-    pending.resolution_json = json.dumps({
-        "vehicle_ids": sorted(applied_ids),
-        "resolved_by_username": username,
-    })
-    db.session.flush()
     return {"added_count": added_count, "linked_count": linked_count}
 
 
