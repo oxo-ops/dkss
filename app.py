@@ -5282,7 +5282,7 @@ def save_master_display_order(kind):
     if previous_ids != current_ids or set(ids) != set(current_ids):
         return {"ok": False, "message": "一覧が更新されています。再読み込みして並べ替えてください。"}, 409
     if ids == current_ids:
-        return {"ok": True, "ids": ids}
+        return jsonify(ok=True, ids=ids)
     if saved is None:
         saved = MasterDisplayOrder(company_code=company_code, kind=kind)
         db.session.add(saved)
@@ -5294,7 +5294,7 @@ def save_master_display_order(kind):
     except SQLAlchemyError:
         db.session.rollback()
         return {"ok": False, "message": "保存できませんでした。再読み込みして再度お試しください。"}, 409
-    return {"ok": True, "ids": ids}
+    return jsonify(ok=True, ids=ids)
 
 
 def remove_master_from_display_order(kind, item):
