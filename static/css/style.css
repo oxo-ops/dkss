@@ -33577,3 +33577,24 @@ body .main-content .standard-checklist-view {display:inline-flex;align-items:cen
 .standard-checklist-criteria {margin-top:14px;color:#50647c;font-size:12px;line-height:1.7;}
 .standard-checklist-criteria summary {cursor:pointer;font-weight:600;}
 .standard-checklist-criteria p {white-space:pre-line;}
+
+/* Checklist results open directly; names provide in-place navigation. */
+.checklist-result-switcher {position:relative;min-width:0;max-width:100%;}
+.page-header > .checklist-result-switcher {flex:1 1 auto;}
+.page-header > .header-actions:empty {display:none;}
+.checklist-result-switcher > summary {display:flex;align-items:center;gap:10px;list-style:none;cursor:pointer;width:fit-content;max-width:100%;padding:4px 7px;margin:-4px -7px;border-radius:6px;}
+.checklist-result-switcher > summary::-webkit-details-marker {display:none;}
+.checklist-result-switcher > summary:hover {background:#e8f0fc;}
+.checklist-result-switcher > summary:focus-visible {outline:2px solid #3479f6;outline-offset:2px;}
+.checklist-result-switcher > summary h2 {margin:0;min-width:0;overflow-wrap:anywhere;}
+.checklist-result-switcher > summary > svg {flex:0 0 16px;color:#4c6a91;}
+.checklist-result-switcher[open] > summary > svg {transform:rotate(180deg);}
+.checklist-result-options {position:fixed;top:0;left:0;z-index:200;width:max-content;min-width:min(280px,calc(100vw - 40px));max-width:min(420px,calc(100vw - 40px));max-height:320px;overflow-y:auto;box-sizing:border-box;padding:5px;border:1px solid #d6e0ef;border-radius:9px;background:#fff;box-shadow:0 8px 24px #152c4a24;}
+.checklist-result-options a {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border-radius:5px;color:#314765;text-decoration:none;font-size:13px;line-height:1.5;overflow-wrap:anywhere;}
+.checklist-result-options a:hover,.checklist-result-options a:focus-visible {background:#edf4ff;}
+.checklist-result-options a[aria-current="page"] {background:#e9f1ff;color:#2359a4;font-weight:600;}
+.checklist-result-switcher small {margin-left:8px;font-size:11px;color:#66778d;font-weight:400;white-space:nowrap;}
+.checklist-entry-empty {padding:20px;border:1px solid #dce5f2;border-radius:10px;background:#fff;}
+.checklist-entry-empty p {margin:0 0 12px;}
+.safety-results-title-row > div {min-width:0;}
+@media(max-width:600px) {.checklist-result-switcher > summary h2 {font-size:18px;}.checklist-result-options {max-width:calc(100vw - 44px);}}

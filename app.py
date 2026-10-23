@@ -35244,6 +35244,49 @@ def new_checklist():
         mode="new"
     )
 
+def checklist_navigation_owner():
+    owner = [session.get("company_code"), session.get("username")]
+    if session.get("checklist_navigation_owner") != owner:
+        session["checklist_navigation_owner"] = owner
+        session.pop("checklist_last_safety", None)
+        session.pop("checklist_last_vehicle", None)
+
+
+def checklist_entry_redirect(section, checklists):
+    """Open an available checklist directly, never a stale remembered ID."""
+    checklist_navigation_owner()
+    if not checklists:
+        return None
+    remembered = session.get("checklist_last_" + section)
+    selected = next((row for row in checklists if row["id"] == remembered), checklists[0])
+    allowed = ("target_type", "target_value") if section == "safety" else ("vehicle_record_id", "year", "month", "active_day")
+    params = {key: request.args[key] for key in allowed if request.args.get(key)}
+    return redirect(url_for(section + "_checklist_results", index=selected["id"], **params))
+
+
+def checklist_result_navigation(checklist, section):
+    checklist_navigation_owner()
+    target = "安全管理" if section == "safety" else "車両管理"
+    choices = [row for row in checklists_for_current_company()
+               if row["target"] == target and (row.get("active", True) or row["id"] == checklist.id)]
+    if checklist.active:
+        session["checklist_last_" + section] = checklist.id
+    allowed = ("target_type", "target_value") if section == "safety" else ("vehicle_record_id", "year", "month")
+    params = {key: request.args[key] for key in allowed if request.args.get(key)}
+    current = checklist_to_dict(checklist)
+    items = []
+    for row in choices:
+        row_params = dict(params)
+        if section == "vehicle" and request.args.get("active_day") and all(
+            row.get(key) == current.get(key) for key in ("frequency_unit", "frequency_value", "display_type")
+        ):
+            row_params["active_day"] = request.args["active_day"]
+        items.append({"id": row["id"], "name": row["name"],
+                      "active": row.get("active", True),
+                      "url": url_for(section + "_checklist_results", index=row["id"], **row_params)})
+    return items
+
+
 @app.route("/safety/checklists")
 def safety_checklists():
     safety_lists = []
@@ -35255,6 +35298,9 @@ def safety_checklists():
         ):
             safety_lists.append(checklist)
 
+    destination = checklist_entry_redirect("safety", safety_lists)
+    if destination is not None:
+        return destination
     return render_template(
         "safety_checklists.html",
         checklists=safety_lists
@@ -35264,7 +35310,8 @@ def safety_checklists():
 def safety_checklist_results(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        target="安全管理"
     ).first()
 
     if not checklist_record:
@@ -35400,6 +35447,7 @@ def safety_checklist_results(index):
 
     return render_template(
         "safety_checklist_results.html",
+        checklist_navigation=checklist_result_navigation(checklist_record, "safety"),
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
@@ -37576,6 +37624,9 @@ def vehicle_checklists():
         ):
             vehicle_lists.append(checklist)
 
+    destination = checklist_entry_redirect("vehicle", vehicle_lists)
+    if destination is not None:
+        return destination
     return render_template(
         "vehicle_checklists.html",
         checklists=vehicle_lists
@@ -38157,6 +38208,7 @@ def vehicle_checklist_results(index):
 
     return render_template(
         "vehicle_checklist_results.html",
+        checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
         vehicle_judgment_names=vehicle_judgment_names,
         vehicle_response_notify_names=vehicle_response_notify_names,
@@ -45582,215 +45634,129 @@ def toggle_checklist_active(index):
     return redirect("/master/checklists")
 
 
+def checklist_deletion_files(value):
+    """Collect upload references from definitions, snapshots and answers."""
+    files = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in ("files", "criteria_files") and isinstance(child, list):
+                files.update(name for name in child if isinstance(name, str))
+            else:
+                files.update(checklist_deletion_files(child))
+    elif isinstance(value, list):
+        for child in value:
+            files.update(checklist_deletion_files(child))
+    return files
+
+
+def checklist_upload_still_referenced(company_code, filename):
+    # Be conservative: keep files referenced anywhere in this company's data.
+    # Audit entries describe past actions and are not live file references.
+    for table in db.metadata.tables.values():
+        if "company_code" not in table.c or table.name == AuditLog.__tablename__:
+            continue
+        columns = [column for column in table.c
+                   if isinstance(column.type, db.String) and column.name != "company_code"]
+        if columns and db.session.execute(
+            db.select(table.c.company_code).where(
+                table.c.company_code == company_code,
+                or_(*(column.contains(filename, autoescape=True) for column in columns))
+            ).limit(1)
+        ).first():
+            return True
+    return False
+
+
 @app.route("/master/checklists/<int:index>/delete", methods=["POST"])
 @limiter.limit("10 per minute")
 def delete_checklist(index):
+    if not require_master_admin():
+        return return_form_errors([("管理者のみ削除できます。", "")], 403)
     checklist = Checklist.query.filter_by(
-        id=index,
-        company_code=session.get("company_code")
+        id=index, company_code=session.get("company_code")
     ).first()
-
     if not checklist:
         return redirect("/master/checklists")
-
     if checklist_to_dict(checklist).get("fixed_template_code"):
         return return_form_errors(
-            [("標準の日常点検表は固定様式のため、削除できません。", "")],
-            403
+            [("標準の日常点検表は固定様式のため、削除できません。", "")], 403
         )
-
-    has_safety_results = ChecklistResult.query.filter_by(
-        company_code=checklist.company_code,
-        checklist_id=checklist.id
-    ).first()
-
-    has_vehicle_results = VehicleChecklistResult.query.filter_by(
-        company_code=checklist.company_code,
-        checklist_id=checklist.id
-    ).first()
-
-    if has_safety_results or has_vehicle_results:
-        return (
-            "点検履歴が存在するチェックリストは削除できません。",
-            409
+    if request.form.get("confirm_delete") != "1":
+        return return_form_errors(
+            [("点検記録も削除されます。削除ボタンから確認して実行してください。", "")], 400
         )
-
-    add_audit_log(
-        action="checklist_deleted",
-        target_type="checklist",
-        target_id=checklist.id,
-        detail=f"チェックリスト削除: {checklist.name}",
-        company_code=checklist.company_code,
-    )
-
-    files_to_delete = []
-
-    checklist_data = checklist_to_dict(
-        checklist
-    )
-
-    for item in checklist_data.get(
-        "items",
-        []
-    ):
-        files_to_delete.extend(
-            item.get(
-                "criteria_files",
-                []
-            )
-        )
-
     company_code = checklist.company_code
-
-    VehicleChecklistNotifySetting.query.filter_by(
-        company_code=company_code,
-        checklist_id=checklist.id
-    ).delete(synchronize_session=False)
-
-    remove_master_from_display_order("checklists", checklist)
-    db.session.delete(checklist)
-    db.session.commit()
-
-    for filename in files_to_delete:
-        filename = os.path.basename(
-            str(filename or "")
+    files = checklist_deletion_files(checklist_to_dict(checklist))
+    safety = ChecklistResult.query.filter_by(
+        company_code=company_code, checklist_id=checklist.id
+    ).all()
+    vehicle = VehicleChecklistResult.query.filter_by(
+        company_code=company_code, checklist_id=checklist.id
+    ).all()
+    ids_by_type = {"safety": {row.id for row in safety},
+                   "vehicle": {row.id for row in vehicle}}
+    from urllib.parse import urlsplit
+    try:
+        for notification in Notification.query.filter_by(company_code=company_code).all():
+            context = safe_json_dict(notification.workflow_context_json)
+            result_id = context.get("result_id")
+            try:
+                path = urlsplit(notification.link or "").path.rstrip("/")
+            except ValueError:
+                path = ""
+            result_type = context.get("result_type")
+            linked = (type(result_id) is int and isinstance(result_type, str)
+                      and result_id in ids_by_type.get(result_type, set()))
+            linked = linked or path == f"/vehicle/checklists/{checklist.id}"
+            linked = linked or any(path == f"/safety/checklist-results/{ident}"
+                                   for ident in ids_by_type["safety"])
+            if linked:
+                files.update(safe_json_str_list(notification.files_json))
+                db.session.delete(notification)
+        for result_type, ids in ids_by_type.items():
+            if not ids:
+                continue
+            for event in ChecklistEvent.query.filter(
+                ChecklistEvent.company_code == company_code,
+                ChecklistEvent.result_type == result_type,
+                ChecklistEvent.result_id.in_(ids)
+            ).all():
+                files.update(checklist_deletion_files(safe_json_dict(event.detail_json)))
+                db.session.delete(event)
+        if ids_by_type["vehicle"]:
+            VehicleMaintenanceInspectionLink.query.filter(
+                VehicleMaintenanceInspectionLink.company_code == company_code,
+                VehicleMaintenanceInspectionLink.inspection_result_id.in_(ids_by_type["vehicle"])
+            ).delete(synchronize_session=False)
+        for result in safety + vehicle:
+            files.update(checklist_deletion_files(safe_json_dict(result.checklist_snapshot_json)))
+            files.update(checklist_deletion_files(safe_json_dict_list(result.answers_json)))
+            db.session.delete(result)
+        VehicleChecklistNotifySetting.query.filter_by(
+            company_code=company_code, checklist_id=checklist.id
+        ).delete(synchronize_session=False)
+        remove_master_from_display_order("checklists", checklist)
+        add_audit_log(
+            action="checklist_deleted", target_type="checklist", target_id=checklist.id,
+            detail=f"チェックリスト削除: {checklist.name} / 安全記録{len(safety)}件・車両記録{len(vehicle)}件",
+            company_code=company_code,
         )
-
+        db.session.delete(checklist)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("チェックリストと関連記録の削除に失敗しました。")
+        return return_form_errors([("削除できませんでした。再度お試しください。", "")], 500)
+    for value in files:
+        filename = os.path.basename(str(value or ""))
         if not filename:
             continue
-
-        still_referenced = False
-
-        other_checklists = Checklist.query.filter_by(
-            company_code=company_code
-        ).all()
-
-        for other_checklist in other_checklists:
-            other_data = checklist_to_dict(
-                other_checklist
-            )
-
-            if any(
-                filename in item.get(
-                    "criteria_files",
-                    []
-                )
-                for item in other_data.get(
-                    "items",
-                    []
-                )
-            ):
-                still_referenced = True
-                break
-
-            for version in other_data.get(
-                "version_history",
-                []
-            ):
-                snapshot = version.get(
-                    "snapshot",
-                    {}
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-            if still_referenced:
-                break
-
-        if not still_referenced:
-            safety_results = ChecklistResult.query.filter_by(
-                company_code=company_code
-            ).all()
-
-            for result_record in safety_results:
-                snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-        if not still_referenced:
-            vehicle_results = VehicleChecklistResult.query.filter_by(
-                company_code=company_code
-            ).all()
-
-            for result_record in vehicle_results:
-                snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-        if still_referenced:
-            continue
-
-        if s3_client and S3_BUCKET_NAME:
-            try:
-                s3_client.delete_object(
-                    Bucket=S3_BUCKET_NAME,
-                    Key=(
-                        f"uploads/"
-                        f"{company_code}/"
-                        f"{filename}"
-                    )
-                )
-            except ClientError:
-                app.logger.warning(
-                    "チェックリスト評価基準添付のS3削除に失敗しました。",
-                    exc_info=True
-                )
-        else:
-            safe_filename = secure_filename(
-                filename
-            )
-
-            if not safe_filename:
-                continue
-
-            file_path = os.path.join(
-                app.config["UPLOAD_FOLDER"],
-                company_code,
-                safe_filename
-            )
-
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
+        try:
+            if not checklist_upload_still_referenced(company_code, filename):
+                delete_uploaded_file(filename)
+        except Exception:
+            app.logger.warning("削除済みチェックリストの添付ファイル整理に失敗しました。", exc_info=True)
     return redirect("/master/checklists")
-
 
 @app.route(
     "/safety/checklist-results/<int:result_index>/approve/<int:approval_index>",

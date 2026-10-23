@@ -106,61 +106,12 @@
                 >
                     編集
                 </a>
-
-                <details class="checklist-action-menu">
-                    <summary aria-label="その他の操作">⋮</summary>
-
-                    <div class="checklist-action-menu-items">
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/duplicate"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit">
-                                複製
-                            </button>
-                        </form>
-
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/toggle-active"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit">
-                                {% if checklist.active %}
-                                    無効化
-                                {% else %}
-                                    有効化
-                                {% endif %}
-                            </button>
-                        </form>
-
-                        {% if not checklist.has_results %}
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/delete"
-                            data-confirm-message="このチェックリストを削除しますか？"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit" class="checklist-action-delete">
-                                削除
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </details>
+                <form method="post" action="/master/checklists/{{ checklist.id }}/delete"
+                      data-confirm-message="「{{ checklist.name }}」を削除します。関連する点検記録・回答・承認履歴・通知も削除されます。元に戻せません。本当に削除してよろしいですか？">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="confirm_delete" value="1">
+                    <button type="submit" class="btn-small btn-delete">削除</button>
+                </form>
                 {% endif %}
                 <button type="button" class="master-order-handle" aria-label="{{ checklist.name }}の表示順を変更" title="ドラッグで移動／↑↓キーで移動">
                     <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true" focusable="false">
@@ -222,59 +173,12 @@
                 >
                     編集
                 </a>
-
-                <details class="checklist-action-menu">
-                    <summary aria-label="その他の操作">⋮</summary>
-
-                    <div class="checklist-action-menu-items">
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/duplicate"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit">複製</button>
-                        </form>
-
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/toggle-active"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit">
-                                {% if checklist.active %}
-                                    無効化
-                                {% else %}
-                                    有効化
-                                {% endif %}
-                            </button>
-                        </form>
-
-                        {% if not checklist.has_results %}
-                        <form
-                            method="post"
-                            action="/master/checklists/{{ checklist.id }}/delete"
-                            data-confirm-message="このチェックリストを削除しますか？"
-                        >
-                            <input
-                                type="hidden"
-                                name="csrf_token"
-                                value="{{ csrf_token() }}"
-                            >
-                            <button type="submit" class="checklist-action-delete">
-                                削除
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </details>
+                <form method="post" action="/master/checklists/{{ checklist.id }}/delete"
+                      data-confirm-message="「{{ checklist.name }}」を削除します。関連する点検記録・回答・承認履歴・通知も削除されます。元に戻せません。本当に削除してよろしいですか？">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="confirm_delete" value="1">
+                    <button type="submit" class="btn-small btn-delete">削除</button>
+                </form>
                 {% endif %}
                 <button type="button" class="master-order-handle" aria-label="{{ checklist.name }}の表示順を変更" title="ドラッグで移動／↑↓キーで移動">
                     <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true" focusable="false">

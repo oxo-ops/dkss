@@ -3041,3 +3041,37 @@ document.addEventListener("change", function (event) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeStandardChecklistPreview);
     else initializeStandardChecklistPreview();
 })();
+
+// Close checklist navigation on outside clicks and Escape.
+(() => {
+    function positionMenu(menu) {
+        if (!menu.open) return;
+        const panel = menu.querySelector('.checklist-result-options');
+        const anchor = menu.querySelector('summary').getBoundingClientRect();
+        panel.style.maxHeight = Math.max(100, Math.min(320, innerHeight - 24)) + 'px';
+        panel.style.left = Math.max(12, Math.min(anchor.left, innerWidth - panel.offsetWidth - 12)) + 'px';
+        panel.style.top = Math.max(12, Math.min(anchor.bottom + 8, innerHeight - panel.offsetHeight - 12)) + 'px';
+    }
+    document.addEventListener('toggle', event => {
+        if (event.target.matches('.checklist-result-switcher')) positionMenu(event.target);
+    }, true);
+    window.addEventListener('resize', () => {
+        document.querySelectorAll('.checklist-result-switcher[open]').forEach(positionMenu);
+    });
+    window.addEventListener('scroll', event => {
+        if (event.target instanceof Element && event.target.closest('.checklist-result-options')) return;
+        document.querySelectorAll('.checklist-result-switcher[open]').forEach(positionMenu);
+    }, true);
+    document.addEventListener('click', event => {
+        document.querySelectorAll('.checklist-result-switcher[open]').forEach(menu => {
+            if (!menu.contains(event.target)) menu.open = false;
+        });
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        document.querySelectorAll('.checklist-result-switcher[open]').forEach(menu => {
+            menu.open = false;
+            if (menu.contains(document.activeElement)) menu.querySelector('summary').focus();
+        });
+    });
+})();

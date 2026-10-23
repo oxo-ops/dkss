@@ -1,3 +1,23 @@
+{% macro checklist_result_heading(checklist, choices) -%}
+{% if choices|length > 1 %}
+<details class="checklist-result-switcher">
+    <summary title="チェックリストを切り替える">
+        <h2>{{ checklist.name }}{% if not checklist.active %}<small>無効</small>{% endif %}</h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <nav class="checklist-result-options" aria-label="チェックリストの切替">
+    {% for choice in choices %}
+        <a href="{{ choice.url }}"{% if choice.id == checklist.id %} aria-current="page"{% endif %}>
+            <span>{{ choice.name }}</span>{% if not choice.active %}<small>無効</small>{% endif %}
+            {% if choice.id == checklist.id %}<span aria-hidden="true">✓</span>{% endif %}
+        </a>
+    {% endfor %}
+    </nav>
+</details>
+{% else %}
+<h2>{{ checklist.name }}{% if not checklist.active %}<small>無効</small>{% endif %}</h2>
+{% endif %}
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>

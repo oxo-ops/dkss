@@ -1,13 +1,8 @@
 {% extends "base.html" %}
-
 {% block title %}車両チェックリスト{% endblock %}
-
 {% block content %}
-
-<div class="page-header">
-    <h2>車両チェックリスト</h2>
-</div>
-
+<div class="page-header"><h2>車両チェックリスト</h2></div>
+{% if checklists %}
 <table class="checklist-list-mobile-table vehicle-checklist-list-table">
     <tr>
         <th>チェックリスト名</th>
@@ -52,5 +47,12 @@
     </tr>
     {% endfor %}
 </table>
-
+{% else %}
+<div class="checklist-entry-empty">
+    <p>利用できるチェックリストがありません。</p>
+    {% if session.get('role') in ['admin', 'itc'] %}
+    <a href="/master/checklists" class="btn">チェックリストを管理</a>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}
