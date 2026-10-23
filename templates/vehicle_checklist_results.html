@@ -18,7 +18,7 @@
 <div class="page-header{{ ' vehicle-workspace-header' if vehicle_response_ready else '' }}">
     {% if vehicle_response_ready %}
     <div class="vehicle-workspace-heading">
-        <h2>日常点検</h2>
+        {{ checklist_result_heading(checklist, checklist_navigation) }}
         <p class="vehicle-workspace-subtitle">
             <strong>{{ selected_vehicle.number or "ナンバー未登録" }}</strong>
             <label class="vehicle-workspace-date">
@@ -34,7 +34,7 @@
         </p>
     </div>
     {% else %}
-    <h2>{{ checklist.name }} </h2>
+    {{ checklist_result_heading(checklist, checklist_navigation) }}
     {% endif %}
 {% set export_ns = namespace(result=None) %}
 
@@ -62,10 +62,6 @@
         <a class="btn btn-back vehicle-workspace-back"
             href="{{ request.path }}?{{ {'vehicle_record_id': vehicle_record_id, 'year': vehicle_return_year, 'month': vehicle_return_month, 'active_day': vehicle_return_day}|urlencode }}#vehicle-flow-judgment">
             ← {{ vehicle_return_month|int }}/{{ vehicle_return_day|int }}の運行判断に戻る
-        </a>
-        {% else %}
-        <a href="/vehicle/checklists" class="btn btn-back vehicle-workspace-back">
-            ← 点検一覧に戻る
         </a>
         {% endif %}
 

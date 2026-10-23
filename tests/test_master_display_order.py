@@ -121,7 +121,7 @@ class MasterDisplayOrderTests(unittest.TestCase):
         for kind, model in [('manuals', self.m.Manual), ('patrol-content-types', self.m.PatrolContentType), ('checklists', self.m.Checklist)]:
             ids, _ = self.seed(model)
             self.assertEqual(self.save(kind, ids[::-1], ids).status_code, 200)
-            self.assertEqual(self.client.post('/master/' + kind + '/' + str(ids[2]) + '/delete').status_code, 302)
+            self.assertEqual(self.client.post('/master/' + kind + '/' + str(ids[2]) + '/delete', data={'confirm_delete': '1'}).status_code, 302)
             saved = self.m.MasterDisplayOrder.query.filter_by(kind=kind).one()
             self.assertEqual(json.loads(saved.ordered_ids_json), [ids[1], ids[0]])
 
@@ -178,5 +178,224 @@ class MasterDisplayOrderTests(unittest.TestCase):
         self.assertEqual([r.name for r in self.m.ordered_master_query(self.m.Office, 'OTHER').all()], ['Other company'])
         self.assertEqual(self.save('offices', ids, ids).status_code, 200)
         self.assertEqual(self.m.MasterDisplayOrder.query.count(), 1)
+
+    def seed_checklist_for_deletion(self):
+        m = self.m
+        checklist = m.Checklist(company_code='TEST', name='Test checklist', target='安全管理', items_json='[]')
+        other = m.Checklist(company_code='TEST', name='Keep', target='安全管理', items_json='[]')
+        m.db.session.add_all([checklist, other]); m.db.session.flush()
+        safety = m.ChecklistResult(company_code='TEST', checklist_id=checklist.id, status='承認済み', answers_json='[]')
+        vehicle = m.VehicleChecklistResult(company_code='TEST', checklist_id=checklist.id, vehicle_record_id=self.vehicle.id, status='承認済み', answers_json='[]')
+        keep = m.ChecklistResult(company_code='TEST', checklist_id=other.id, answers_json='[]')
+        m.db.session.add_all([safety, vehicle, keep]); m.db.session.commit()
+        return checklist.id, safety.id, vehicle.id, keep.id
+
+    def test_delete_checklist_requires_explicit_confirmation(self):
+        ident, _, _, _ = self.seed_checklist_for_deletion()
+        self.assertEqual(self.client.post(f'/master/checklists/{ident}/delete').status_code, 400)
+        self.assertEqual(self.m.ChecklistResult.query.count(), 2)
+        self.assertIsNotNone(self.m.db.session.get(self.m.Checklist, ident))
+
+    def test_delete_checklist_removes_only_its_records_events_notifications_and_links(self):
+        m = self.m
+        ident, sid, vid, keep = self.seed_checklist_for_deletion()
+        maintenance = m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id)
+        m.db.session.add(maintenance); m.db.session.flush()
+        m.db.session.add(m.VehicleMaintenanceInspectionLink(company_code='TEST', vehicle_record_id=self.vehicle.id, maintenance_record_id=maintenance.id, inspection_result_id=vid, defect_no=1))
+        for kind, rid in [('safety', sid), ('vehicle', vid), ('safety', keep)]:
+            m.db.session.add(m.ChecklistEvent(company_code='TEST', result_type=kind, result_id=rid, event_type='approved', created_at='2026-10-23'))
+            m.db.session.add(m.Notification(company_code='TEST', target_user='admin', title='Test', link='/unrelated', workflow_context_json=json.dumps({'result_type': kind, 'result_id': rid})))
+        m.db.session.add(m.Notification(company_code='TEST', target_user='admin', title='Legacy', link=f'/vehicle/checklists/{ident}?year=2026'))
+        m.db.session.add(m.Notification(company_code='OTHER', target_user='admin', title='Other company', workflow_context_json=json.dumps({'result_type': 'safety', 'result_id': sid})))
+        m.db.session.add(m.VehicleChecklistNotifySetting(company_code='TEST', checklist_id=ident, vehicle_record_id=self.vehicle.id))
+        m.db.session.add(m.MasterDisplayOrder(company_code='TEST', kind='checklists', ordered_ids_json=json.dumps([ident])))
+        m.db.session.commit()
+        response = self.client.post(f'/master/checklists/{ident}/delete', data={'confirm_delete': '1'})
+        self.assertEqual(response.status_code, 302)
+        self.assertIsNone(m.db.session.get(m.Checklist, ident))
+        self.assertEqual([row.id for row in m.ChecklistResult.query.all()], [keep])
+        self.assertEqual(m.VehicleChecklistResult.query.count(), 0)
+        self.assertEqual(m.ChecklistEvent.query.count(), 1)
+        self.assertEqual(m.Notification.query.count(), 2)
+        self.assertEqual(m.VehicleMaintenanceInspectionLink.query.count(), 0)
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), 1)
+        self.assertEqual(m.VehicleChecklistNotifySetting.query.count(), 0)
+        self.assertEqual(json.loads(m.MasterDisplayOrder.query.one().ordered_ids_json), [])
+        self.assertEqual(m.AuditLog.query.filter_by(action='checklist_deleted').count(), 1)
+
+    def test_delete_checklist_keeps_shared_uploads_and_removes_unshared_files(self):
+        from pathlib import Path
+        import tempfile
+        from unittest.mock import patch
+        m = self.m
+        ident, sid, _, keep = self.seed_checklist_for_deletion()
+        m.db.session.get(m.ChecklistResult, sid).answers_json = json.dumps([{'files': ['shared.pdf', 'private.pdf']}])
+        m.db.session.get(m.ChecklistResult, keep).answers_json = json.dumps([{'files': ['shared.pdf']}])
+        m.db.session.commit()
+        with tempfile.TemporaryDirectory() as folder, patch.dict(m.app.config, UPLOAD_FOLDER=folder):
+            company = Path(folder) / 'TEST'; company.mkdir()
+            for name in ('shared.pdf', 'private.pdf'): (company / name).write_bytes(b'test')
+            response = self.client.post(f'/master/checklists/{ident}/delete', data={'confirm_delete': '1'})
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue((company / 'shared.pdf').exists())
+            self.assertFalse((company / 'private.pdf').exists())
+
+    def test_delete_checklist_rolls_back_all_database_changes_on_failure(self):
+        from unittest.mock import patch
+        ident, _, _, _ = self.seed_checklist_for_deletion()
+        with patch.object(self.m.db.session, 'commit', side_effect=self.m.SQLAlchemyError('forced')):
+            response = self.client.post(f'/master/checklists/{ident}/delete', data={'confirm_delete': '1'})
+        self.assertEqual(response.status_code, 500)
+        self.assertIsNotNone(self.m.db.session.get(self.m.Checklist, ident))
+        self.assertEqual(self.m.ChecklistResult.query.count(), 2)
+        self.assertEqual(self.m.VehicleChecklistResult.query.count(), 1)
+
+    def test_delete_checklist_keeps_standard_and_foreign_company_and_checks_csrf(self):
+        m = self.m
+        self.client.get('/master/checklists')
+        standard = m.Checklist.query.filter_by(company_code='TEST', target='車両管理').one()
+        self.assertEqual(self.client.post(f'/master/checklists/{standard.id}/delete', data={'confirm_delete': '1'}).status_code, 403)
+        foreign = m.Checklist(company_code='OTHER', name='Foreign', items_json='[]')
+        m.db.session.add(foreign); m.db.session.commit()
+        self.client.post(f'/master/checklists/{foreign.id}/delete', data={'confirm_delete': '1'})
+        self.assertIsNotNone(m.db.session.get(m.Checklist, foreign.id))
+        ident, _, _, _ = self.seed_checklist_for_deletion()
+        m.app.config['WTF_CSRF_ENABLED'] = True
+        try:
+            self.assertEqual(self.client.post(f'/master/checklists/{ident}/delete', data={'confirm_delete': '1'}).status_code, 400)
+        finally: m.app.config['WTF_CSRF_ENABLED'] = False
+        m.User.query.filter_by(company_code='TEST', username='admin').one().role = 'user'; m.db.session.commit()
+        self.client.post(f'/master/checklists/{ident}/delete', data={'confirm_delete': '1'})
+        self.assertIsNotNone(m.db.session.get(m.Checklist, ident))
+
+    def test_checklist_delete_button_remains_visible_for_recorded_checklists(self):
+        import re
+        ident, _, _, _ = self.seed_checklist_for_deletion()
+        text = self.client.get('/master/checklists').get_data(as_text=True)
+        forms = re.findall(r'<form\b[^>]*action="/master/checklists/' + str(ident) + r'/delete".*?</form>', text, re.S)
+        self.assertEqual(len(forms), 2)
+        for form in forms:
+            self.assertIn('data-confirm-message=', form)
+            self.assertIn('元に戻せません', form)
+            self.assertIn('name="confirm_delete" value="1"', form)
+        self.assertNotIn('checklist-action-menu', text)
+
+    def seed_navigation_checklists(self, target='安全管理'):
+        m = self.m
+        rows = [m.Checklist(company_code='TEST', name=name, target=target, active=True, items_json='[]', frequency_unit='day', frequency_value=1, display_type='month') for name in ['First', 'Second']]
+        m.db.session.add_all(rows); m.db.session.commit()
+        return rows
+
+    def test_checklist_entry_skips_list_and_uses_master_order_then_last_opened(self):
+        first, second = self.seed_navigation_checklists()
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{first.id}')
+        self.save('checklists', [second.id, first.id], [first.id, second.id])
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{second.id}')
+        self.assertEqual(self.client.get(f'/safety/checklists/{first.id}').status_code, 200)
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{first.id}')
+        first.active = False; self.m.db.session.commit()
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{second.id}')
+
+    def test_single_checklist_has_no_switcher_and_zero_has_clear_empty_state(self):
+        text = self.client.get('/safety/checklists').get_data(as_text=True)
+        self.assertIn('利用できるチェックリストがありません', text)
+        self.assertIn('チェックリストを管理', text)
+        first, second = self.seed_navigation_checklists()
+        second.active = False; self.m.db.session.commit()
+        result = self.client.get('/safety/checklists', follow_redirects=True)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.request.path, f'/safety/checklists/{first.id}')
+        self.assertNotIn('<details class="checklist-result-switcher">', result.get_data(as_text=True))
+        self.assertNotIn('チェックリスト一覧へ', result.get_data(as_text=True))
+
+    def test_switcher_uses_master_order_escapes_names_and_keeps_safety_filters(self):
+        from urllib.parse import urlsplit, parse_qs
+        from flask import template_rendered
+        first, second = self.seed_navigation_checklists()
+        first.name = '<img src=x onerror=alert(1)>'; self.m.db.session.commit()
+        contexts = []
+        def capture(sender, template, context, **extra): contexts.append(context)
+        with template_rendered.connected_to(capture, self.m.app):
+            page = self.client.get(f'/safety/checklists/{first.id}?target_type=office&target_value=Tokyo&next=https://evil.invalid')
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn('<img src=x', page.get_data(as_text=True))
+        self.assertIn('&lt;img src=x', page.get_data(as_text=True))
+        choices = contexts[-1]['checklist_navigation']
+        self.assertEqual([item['id'] for item in choices], [first.id, second.id])
+        self.assertEqual(parse_qs(urlsplit(choices[1]['url']).query), {'target_type': ['office'], 'target_value': ['Tokyo']})
+
+    def test_vehicle_navigation_keeps_vehicle_and_date_and_resets_incompatible_input_day(self):
+        from unittest.mock import patch
+        from urllib.parse import urlsplit, parse_qs
+        from flask import template_rendered
+        first, second = self.seed_navigation_checklists('車両管理')
+        contexts = []
+        def capture(sender, template, context, **extra): contexts.append(context)
+        query = f'?vehicle_record_id={self.vehicle.id}&year=2026&month=09&active_day=12'
+        with patch.object(self.m, 'ensure_daily_inspection_checklist'), template_rendered.connected_to(capture, self.m.app):
+            entry = self.client.get('/vehicle/checklists' + query)
+            self.assertEqual(entry.status_code, 302)
+            self.assertEqual(urlsplit(entry.location).path, f'/vehicle/checklists/{first.id}')
+            self.assertEqual(self.client.get(f'/vehicle/checklists/{second.id}' + query).status_code, 200)
+            choices = contexts[-1]['checklist_navigation']
+            self.assertEqual(parse_qs(urlsplit(choices[0]['url']).query), {'vehicle_record_id': [str(self.vehicle.id)], 'year': ['2026'], 'month': ['09'], 'active_day': ['12']})
+            self.assertEqual(self.client.get('/vehicle/checklists').location, f'/vehicle/checklists/{second.id}')
+            first.display_type = 'year'; first.frequency_unit = 'month'; self.m.db.session.commit()
+            self.client.get(f'/vehicle/checklists/{second.id}' + query)
+            self.assertNotIn('active_day', parse_qs(urlsplit(contexts[-1]['checklist_navigation'][0]['url']).query))
+
+    def test_history_link_still_opens_inactive_and_can_switch_to_active(self):
+        first, second = self.seed_navigation_checklists()
+        first.active = False; self.m.db.session.commit()
+        page = self.client.get(f'/safety/checklists/{first.id}')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('無効', page.get_data(as_text=True))
+        self.assertIn(f'href="/safety/checklists/{second.id}"', page.get_data(as_text=True))
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{second.id}')
+
+    def test_navigation_remembered_ids_are_scoped_to_user_company_and_section(self):
+        first, second = self.seed_navigation_checklists()
+        self.client.get(f'/safety/checklists/{second.id}')
+        with self.client.session_transaction() as session:
+            session['checklist_navigation_owner'] = ['OTHER', 'another-user']
+            session['checklist_last_safety'] = second.id
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{first.id}')
+        foreign = self.m.Checklist(company_code='OTHER', name='Foreign', target='安全管理', active=True, items_json='[]')
+        self.m.db.session.add(foreign); self.m.db.session.commit()
+        with self.client.session_transaction() as session: session['checklist_last_safety'] = foreign.id
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{first.id}')
+        self.assertEqual(self.client.get(f'/safety/checklists/{foreign.id}').status_code, 302)
+        with self.client.session_transaction() as session: session['checklist_last_safety'] = 999999
+        self.assertEqual(self.client.get('/safety/checklists').location, f'/safety/checklists/{first.id}')
+
+    def test_safety_result_rejects_vehicle_checklist_and_vehicle_empty_has_no_loop(self):
+        from unittest.mock import patch
+        first, second = self.seed_navigation_checklists('車両管理')
+        self.assertEqual(self.client.get(f'/safety/checklists/{first.id}').location, '/safety/checklists')
+        first.active = second.active = False; self.m.db.session.commit()
+        with patch.object(self.m, 'ensure_daily_inspection_checklist'):
+            response = self.client.get('/vehicle/checklists', follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.request.path, '/vehicle/checklists')
+            self.assertIn('利用できるチェックリストがありません', response.get_data(as_text=True))
+
+    def test_vehicle_normal_header_has_switcher_and_no_old_list_back_link(self):
+        first, second = self.seed_navigation_checklists('車両管理')
+        text = self.client.get(f'/vehicle/checklists/{first.id}').get_data(as_text=True)
+        self.assertIn('<details class="checklist-result-switcher">', text)
+        self.assertIn(f'href="/vehicle/checklists/{second.id}"', text)
+        self.assertNotIn('点検一覧に戻る', text)
+
+    def test_entry_templates_keep_links_if_rendered_with_available_checklists(self):
+        from flask import render_template
+        first, second = self.seed_navigation_checklists()
+        with self.m.app.test_request_context('/'):
+            self.m.session['company_code'] = 'TEST'
+            self.m.session['role'] = 'admin'
+            rows = [self.m.checklist_to_dict(first), self.m.checklist_to_dict(second)]
+            for section in ('safety', 'vehicle'):
+                text = render_template(section + '_checklists.html', checklists=rows)
+                self.assertIn(f'href="/{section}/checklists/{first.id}"', text)
+                self.assertNotIn('利用できるチェックリストがありません', text)
 
 if __name__ == '__main__': unittest.main()
