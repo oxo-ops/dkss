@@ -364,6 +364,211 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.one().source_draft_id, draft.id)
 
+    def mixed_pending_import(self):
+        """Use original CSV/PDF bytes; only OCR is mocked by upload_inspection."""
+        m = self.m
+        from test_inspection_document_ai import extraction
+        data = extraction()
+        data["records"][0]["registration_number"] = "横浜100あ1234"
+        self.upload_inspection(data=data)
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(self.client.post(
+            f"/vehicle/data-import/{draft.batch_id}/confirm",
+            data=self.inspection_form(draft, vehicle=False),
+        ).status_code, 302)
+        document = m.VehicleImportPendingRecord.query.one()
+        pending_id = document.pending_id
+        source = ("日報番号,運行日,車両コード,車両,入庫メータ,走行距離\n"
+                  "MIXED-001,2026/10/21,DTG-001,横浜100あ1234,100020,20\n").encode("utf-8-sig")
+        operation_draft = m.VehicleOperationImportDraft(
+            id="mixed-csv", company_code="TEST", created_by_username="admin",
+            source_filename="operations.csv", source_file=source, status="completed",
+        )
+        m.db.session.add(operation_draft)
+        m.db.session.flush()
+        row = m.read_vehicle_operation_csv(source)[0]
+        values = m.parse_vehicle_operation_csv_row(row["source_row"], row["line_number"])
+        item, _ = m.save_vehicle_import_pending_record(
+            company_code="TEST", username="admin", source_kind="operation",
+            source_draft_id=operation_draft.id, source_record_index=row["line_number"],
+            group_identity={"source": "dtg7", "vehicle_code": "DTG-001", "plate": "横浜100あ1234"},
+            identity={"source_vehicle_number": "横浜100あ1234", "source_vehicle_code": "DTG-001"},
+            record_identity={"report_number": values["report_number"]},
+            payload=values, record_date="2026-10-21",
+        )
+        self.assertEqual(item.pending_id, pending_id)
+        m.db.session.commit()
+        return pending_id, document, operation_draft
+
+    def assert_mixed_import_pending(self, pending_id):
+        m = self.m
+        m.db.session.expire_all()
+        self.assertEqual(m.VehicleImportPending.query.filter_by(id=pending_id).one().status, "pending")
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(
+            pending_id=pending_id, status="pending").count(), 2)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        self.assertEqual(m.VehicleOperationVehicleMapping.query.count(), 0)
+        self.assertEqual(json.loads(m.VehicleOperationImportDraft.query.one().result_json), {})
+
+    def test_mixed_pending_sources_apply_together_and_replay_is_not_duplicated(self):
+        pending_id, document, operation_draft = self.mixed_pending_import()
+        m = self.m
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}", data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, f"/vehicle/karte/{self.vehicle.id}")
+        self.assertEqual(m.VehicleOperationRecord.query.one().vehicle_record_id, self.vehicle.id)
+        inspection = m.VehiclePeriodicInspectionRecord.query.one()
+        self.assertEqual(inspection.vehicle_record_id, self.vehicle.id)
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(status="applied").count(), 2)
+        pending = m.VehicleImportPending.query.one()
+        self.assertEqual(pending.status, "resolved")
+        self.assertEqual(pending.resolved_vehicle_id, self.vehicle.id)
+        self.assertEqual(json.loads(operation_draft.result_json)["imported_vehicle_ids"], [self.vehicle.id])
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(json.loads(draft.result_json)["pending_count"], 0)
+        self.assertEqual(self.client.get(f"/vehicle/periodic-inspections/{inspection.id}/source").data,
+                         draft.source_file)
+        self.assertEqual(self.client.get(f"/master/vehicles/pending/{pending_id}/sources/{operation_draft.id}").data,
+                         operation_draft.source_file)
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_mixed_pending_document_failure_rolls_back_csv_and_mapping_then_retries(self):
+        pending_id, document, _ = self.mixed_pending_import()
+        m = self.m
+        draft = m.VehicleDocumentImportDraft.query.one()
+        original = draft.source_sha256
+        draft.source_sha256 = "invalid"
+        m.db.session.commit()
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        draft.source_sha256 = original
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_mixed_pending_validation_only_rolls_back_every_source(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(self.vehicle.id)},
+            headers={"X-DKSS-Validation-Only": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+        self.assert_mixed_import_pending(pending_id)
+
+    def test_mixed_pending_rejects_foreign_vehicle_and_foreign_group(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        foreign = m.Vehicle(company_code="OTHER", chassis_number="OTHER-001")
+        m.db.session.add(foreign)
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(foreign.id)}).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        pending = m.VehicleImportPending.query.one()
+        pending.company_code = "OTHER"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(self.vehicle.id)}).status_code, 404)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+
+    def test_mixed_pending_new_vehicle_is_rolled_back_when_document_fails(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        pending = m.VehicleImportPending.query.one()
+        pending.identity_json = json.dumps({"source_vehicle_number": "横浜100あ1234"})
+        draft = m.VehicleDocumentImportDraft.query.one()
+        draft.source_sha256 = "invalid"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"pending_action": "create"}).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        self.assertEqual(m.Vehicle.query.count(), 1)
+
+    def test_mixed_pending_invoice_answer_applies_csv_and_preserves_existing_costs(self):
+        import hashlib
+        from flask import session
+        from test_inspection_document_ai import pdf_bytes
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        target = m.VehicleMaintenanceRecord(company_code="TEST", vehicle_record_id=self.vehicle.id,
+            entry_date="2026-10-21", content="既存整備", total_cost="500")
+        m.db.session.add(target)
+        source = pdf_bytes(2)
+        payload = {"vehicle_record_id": None, "record_date": "2026-10-21",
+                   "content": "請求書", "total_cost": "2200", "line_items": [],
+                   "registration_number": "横浜100あ1234", "chassis_number": "TEST-001"}
+        draft = m.VehicleDocumentImportDraft(id="mixed-invoice", batch_id="invoice-batch",
+            company_code="TEST", created_by_username="admin", document_type="maintenance",
+            source_filename="invoice.pdf", source_file=source, source_sha256=hashlib.sha256(source).hexdigest(),
+            preview_json=json.dumps({"records": [payload]}), status="completed")
+        m.db.session.add(draft)
+        m.db.session.flush()
+        with m.app.test_request_context():
+            session.update(company_code="TEST", username="admin", role="admin")
+            invoice, _ = m.save_vehicle_document_pending_record(draft, 0, payload)
+        self.assertEqual(invoice.pending_id, pending_id)
+        m.db.session.commit()
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        url = f"/master/vehicles/pending/{pending_id}"
+        response = self.client.post(url, data=form)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("この整備に対応する請求書ですか", response.get_data(as_text=True))
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        form["invoice_choice_" + invoice.id] = f"maintenance:{target.id}"
+        response = self.client.post(url, data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), 1)
+        self.assertEqual(str(target.total_cost), "500.00")
+        saved = m.VehicleMaintenanceDocument.query.one()
+        self.assertEqual(saved.maintenance_record_id, target.id)
+        self.assertEqual(saved.financial_status, "pending")
+        self.assertEqual(saved.parts_status, "pending")
+        self.assertEqual(m.VehiclePartReplacement.query.count(), 0)
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(status="applied").count(), 3)
+
+    def test_cross_source_grouping_rejects_conflicts_partial_plates_and_ambiguity(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        find = m.find_vehicle_pending_cross_source_group
+        valid = {"source_vehicle_number": "横浜100あ1234", "chassis_number": "TEST-001"}
+        self.assertEqual(find("TEST", "maintenance", valid).id, pending_id)
+        for identity in (
+            {**valid, "chassis_number": "DIFFERENT"},
+            {**valid, "source_vehicle_code": "DIFFERENT"},
+            {**valid, "source_vehicle_number": "1234"},
+        ):
+            self.assertIsNone(find("TEST", "maintenance", identity))
+        self.assertIsNone(find("OTHER", "maintenance", valid))
+        m.db.session.add(m.VehicleImportPending(id="ambiguous", company_code="TEST",
+            match_key="ambiguous", identity_json=json.dumps(valid), created_by_username="admin"))
+        m.db.session.flush()
+        self.assertIsNone(find("TEST", "maintenance", valid))
+
+    def test_mixed_pending_create_applies_all_records_to_one_new_vehicle(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        pending = m.VehicleImportPending.query.one()
+        pending.identity_json = json.dumps({"source_vehicle_number": "横浜100あ1234"})
+        m.db.session.commit()
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"pending_action": "create"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(m.Vehicle.query.count(), 2)
+        new_id = m.VehicleImportPending.query.one().resolved_vehicle_id
+        self.assertNotEqual(new_id, self.vehicle.id)
+        self.assertEqual(m.VehicleOperationRecord.query.one().vehicle_record_id, new_id)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.one().vehicle_record_id, new_id)
+
     def test_inspection_multiple_records_same_page_and_two_drafts(self):
         from test_inspection_document_ai import extraction
         import copy
