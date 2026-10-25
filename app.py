@@ -3438,6 +3438,13 @@ def save_vehicle_analysis_feedback(vehicle_record_id):
             break
     if selected is None:
         return jsonify(ok=False, message="提案が更新されています。最新の内容を確認してください。"), 409
+    try:
+        payload, _sources = get_vehicle_karte_analysis_job_data(vehicle)
+        current = state.status == "completed" and vehicle_karte_analysis_matches_input(bundle, payload)
+    except Exception:
+        current = False
+    if not current:
+        return jsonify(ok=False, message="分析の更新が必要です。更新完了後に最新の提案を確認して記録してください。"), 409
     comment = comment.strip()
     previous = VehicleAnalysisFeedback.query.filter_by(
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
@@ -25199,6 +25206,15 @@ def build_vehicle_karte_analysis_summary(
     }
 
 
+def vehicle_karte_analysis_matches_input(bundle, payload):
+    previous = bundle.get("fingerprints")
+    current = payload["_fingerprints"]
+    return isinstance(previous, dict) and all(
+        key in previous and key in current and previous[key] == current[key]
+        for key in ("policy_version", "important_hash", "routine_hash")
+    )
+
+
 @app.route("/vehicle/karte/<int:vehicle_record_id>/analysis/result")
 def vehicle_karte_analysis_result(vehicle_record_id):
     if not session.get("username"):
@@ -25236,12 +25252,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
             for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
         }
         if has_result:
-            current = current_payload["_fingerprints"]
-            previous = bundle.get("fingerprints")
-            is_current = isinstance(previous, dict) and all(
-                key in previous and key in current and previous[key] == current[key]
-                for key in ("policy_version", "important_hash", "routine_hash")
-            )
+            is_current = vehicle_karte_analysis_matches_input(bundle, current_payload)
     except Exception:
         app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 

@@ -673,7 +673,7 @@
         const scope = node("details", "ka-ai-overview-detail");
         scope.append(node("summary", "", "AI分析の条件"));
         scope.append(node("p", "kc-muted", "重要な整備・不具合・点検指摘は、比較集計期間より前の履歴も分析対象です。"));
-        scope.append(referenceComparison(data.comparison || data.scheduled_comparison,
+        scope.append(referenceComparison(data.has_result ? data.comparison : data.scheduled_comparison,
             data.has_result ? "AI分析時の比較条件" : "自動分析の設定条件"));
         fragment.append(scope);
 
@@ -957,7 +957,7 @@
         const input = data.input_summary;
         if (input) {
             const strip = node("footer", "ka3-input-strip");
-            strip.append(node("span", "", "分析データ"));
+            strip.append(node("span", "", "現在の分析対象データ"));
             for (const [label, value, kind] of [["日常点検", input.daily_inspections, "daily"], ["定期点検", input.periodic_inspections, "periodic"], ["整備", input.maintenance, "maintenance"], ["交換部品", input.parts, "parts"]]) {
                 if (!Number.isInteger(value)) continue;
                 const link = node("a", "", `${label} ${value}件`);
