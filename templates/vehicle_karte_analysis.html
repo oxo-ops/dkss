@@ -27,13 +27,15 @@
 
         <form method="get" class="ka-period-form"
               action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
-            <label for="ka-start-date">期間</label>
+            <label for="ka-start-date">実績集計の期間</label>
             <input id="ka-start-date" name="start_date" type="date"
                    value="{{ data.start_date }}" required>
             <span aria-hidden="true">～</span>
             <label for="ka-end-date" class="km-sr-only">終了日</label>
             <input id="ka-end-date" name="end_date" type="date"
                    value="{{ data.end_date }}" required>
+            <input type="hidden" name="peer_registration" value="{{ analysis_comparison.registration_scope }}">
+            {% if analysis_comparison.include_inactive %}<input type="hidden" name="peer_inactive" value="1">{% endif %}
             <button type="submit" class="kc-year-button">集計</button>
         </form>
     </header>
@@ -42,6 +44,7 @@
         <div class="ka-ai-header">
             <div>
                 <h3 data-karte-icon="chart">予防整備・対応候補</h3>
+                <p class="kc-muted">現在の登録内容と過去の重要履歴を使って自動分析します。実績集計の期間・比較条件を変更しても、自動分析の条件は変わりません。</p>
             </div>
         </div>
 
@@ -122,6 +125,7 @@
 
         <section class="ka-reference-panel">
             <header><h3 data-karte-icon="file">型式別の実績</h3></header>
+            <p class="ka-reference-muted">ここで選ぶ条件は実績比較表に適用します。AIが使用した条件は「AI分析の条件」で確認できます。</p>
             <form method="get" id="ka-reference-peer-conditions"
                   action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}#ka-reference-peer-conditions">
                 <input type="hidden" name="start_date" value="{{ analysis_summary.start_date }}">
@@ -363,7 +367,7 @@
     defer
 ></script>
 <script
-    src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261022-workspace-2') }}"
+    src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261025-result-consistency-1') }}"
     defer
 ></script>
 </div>

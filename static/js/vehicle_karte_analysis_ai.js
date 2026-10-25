@@ -562,7 +562,7 @@
             const comparisonRows = [
                 ["型式", scope.model_code || "不明"],
                 [
-                    "対象期間",
+                    "比較集計期間",
                     `${scope.start_date || "不明"} ～ ${scope.end_date || "不明"}`
                 ],
                 ["初度登録年", registration],
@@ -670,6 +670,11 @@
         }
 
         const fragment = document.createDocumentFragment();
+        const scope = node("details", "ka-ai-overview-detail");
+        scope.append(node("summary", "", "AI分析の条件"));
+        scope.append(node("p", "kc-muted", "重要な整備・不具合・点検指摘は、比較集計期間より前の履歴も分析対象です。"));
+        scope.append(referenceComparison(data.comparison));
+        fragment.append(scope);
 
         const table = (rows, label) => {
             const wrap = node("div", "ka-decision-scroll");
