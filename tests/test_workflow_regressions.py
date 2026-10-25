@@ -59,6 +59,26 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.remove()
         self.ctx.pop()
 
+    def test_operation_csv_module_keeps_shared_upload_error_and_names(self):
+        import vehicle_operation_csv as parser
+        from upload_validation import UploadValidationError
+        self.assertIs(self.m.UploadValidationError, UploadValidationError)
+        for name in ("normalize_vehicle_operation_plate", "parse_vehicle_operation_csv_row",
+                     "read_vehicle_operation_csv", "parse_vehicle_operation_date",
+                     "parse_vehicle_operation_decimal"):
+            self.assertIs(getattr(self.m, name), getattr(parser, name))
+
+    def test_invalid_operation_csv_returns_validation_error_without_saving(self):
+        import io
+        response = self.client.post("/vehicle/operation-import", data={
+            "csv_file": (io.BytesIO("日報番号,運行日,車両,車両\n".encode()), "bad.csv"),
+        }, headers={"X-DKSS-Validation-Only": "1"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json, {"errors": [
+            {"field": "csv_file", "message": "CSVの項目名が重複しています。"},
+        ]})
+        self.assertEqual(self.m.VehicleOperationImportDraft.query.count(), 0)
+
     def test_overview_connects_maintenance_periodic_mileage_and_files(self):
         m = self.m
         m.db.session.add(m.VehicleMaintenanceRecord(
