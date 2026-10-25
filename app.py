@@ -15,6 +15,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from uuid import uuid4
 from vehicle_analysis_dates import parse_record_date
+from vehicle_analysis_repository import VehicleAnalysisInputRepository, VehicleAnalysisJobRepository
+from vehicle_analysis_service import (
+    AnalysisComparisonSettings, VehicleAnalysisInputService,
+    VehicleAnalysisQueueService, VehicleAnalysisJobService,
+)
 from daily_inspection_defaults import get_daily_inspection_default
 from upload_validation import UploadValidationError
 from vehicle_operation_csv import (
@@ -25421,294 +25426,33 @@ def vehicle_karte_analysis_result(vehicle_record_id):
 
 
 def get_vehicle_karte_analysis_job_data(vehicle):
-    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
-    start = today.replace(
-        year=today.year - 2,
-        day=min(
-            today.day,
-            calendar.monthrange(today.year - 2, today.month)[1],
-        ),
+    repository = VehicleAnalysisInputRepository(
+        maintenance=VehicleMaintenanceRecord, operations=VehicleOperationRecord,
+        parts=VehiclePartReplacement, defects=VehiclePatrol,
+        periodic=VehiclePeriodicInspectionRecord,
     )
-
-    maintenance = VehicleMaintenanceRecord.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).all()
-
-    operations = VehicleOperationRecord.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).filter(
-        VehicleOperationRecord.operation_date <= today.isoformat(),
-    ).all()
-
-    parts = (
-        VehiclePartReplacement.query.join(
-            VehicleMaintenanceRecord,
-            VehiclePartReplacement.maintenance_record_id
-            == VehicleMaintenanceRecord.id,
-        )
-        .filter(
-            VehiclePartReplacement.company_code == vehicle.company_code,
-            VehiclePartReplacement.vehicle_record_id == vehicle.id,
-            VehicleMaintenanceRecord.company_code == vehicle.company_code,
-            VehicleMaintenanceRecord.vehicle_record_id == vehicle.id,
-        )
-        .all()
-    )
-
-    defects = VehiclePatrol.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).all()
-
-    summary = build_vehicle_karte_analysis_summary(
-        maintenance,
-        operations,
-        parts,
-        defects,
-        start.isoformat(),
-        today.isoformat(),
-        periodic_records=(
-            VehiclePeriodicInspectionRecord.query.filter_by(
-                company_code=vehicle.company_code,
-                vehicle_record_id=vehicle.id,
-            ).all()
-        ),
-    )
-    import os
-
-    registration_scope = os.environ.get(
-        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "auto"
-    ).strip()
-    inactive_setting = os.environ.get(
-        "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE", "0"
-    ).strip()
-
-    if registration_scope not in {"auto", "same_year", "all_years"}:
-        raise ValueError(
-            "VEHICLE_KARTE_AI_PEER_REGISTRATION must be "
-            "auto, same_year or all_years"
-        )
-    if inactive_setting not in {"0", "1"}:
-        raise ValueError(
-            "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE must be 0 or 1"
-        )
-
-    comparison = get_vehicle_karte_peer_comparison(
-        vehicle,
-        summary,
-        registration_scope=registration_scope,
-        include_inactive=inactive_setting == "1",
-    )
-    comparison["comparison_scope"]["condition_source"] = (
-        "automatic_analysis_configuration"
-    )
-
-    return build_vehicle_karte_analysis_payload(
-        vehicle,
-        summary,
-        comparison,
-        maintenance,
-        parts,
-        defects,
-    )
+    return VehicleAnalysisInputService(
+        repository=repository, build_summary=build_vehicle_karte_analysis_summary,
+        read_comparison=get_vehicle_karte_peer_comparison,
+        build_payload=build_vehicle_karte_analysis_payload,
+        today=lambda: datetime.now(ZoneInfo("Asia/Tokyo")).date(),
+        read_settings=lambda: AnalysisComparisonSettings.from_environ(os.environ),
+    ).build(vehicle)
 
 
 def run_vehicle_karte_analysis_job(state_id):
     """専用のバックグラウンド処理から呼び出す。"""
-    now = datetime.now(ZoneInfo("UTC"))
-    state = db.session.get(VehicleKarteAnalysis, state_id)
-    if state is None:
-        return False
-
-    claimed_hash = state.input_hash
-    token = str(uuid4())
-
-    claimed = VehicleKarteAnalysis.query.filter(
-        VehicleKarteAnalysis.id == state_id,
-        VehicleKarteAnalysis.input_hash == claimed_hash,
-        VehicleKarteAnalysis.status.in_({"pending", "error", "running"}),
-        VehicleKarteAnalysis.next_analysis_at <= now,
-        db.or_(
-            VehicleKarteAnalysis.lease_expires_at.is_(None),
-            VehicleKarteAnalysis.lease_expires_at <= now,
-        ),
-    ).update(
-        {
-            "status": "running",
-            "lease_token": token,
-            "lease_expires_at": now + timedelta(minutes=3),
-        },
-        synchronize_session=False,
+    repository = VehicleAnalysisJobRepository(
+        db=db, state_model=VehicleKarteAnalysis, vehicle_model=Vehicle,
     )
-    db.session.commit()
-
-    if not claimed:
-        return False
-
-    try:
-        vehicle = Vehicle.query.filter_by(
-            id=state.vehicle_record_id,
-            company_code=state.company_code,
-            deleted=False,
-        ).first()
-
-        if vehicle is None:
-            VehicleKarteAnalysis.query.filter_by(
-                id=state_id,
-                lease_token=token,
-            ).update(
-                {
-                    "status": "skipped",
-                    "next_analysis_at": None,
-                    "lease_token": None,
-                    "lease_expires_at": None,
-                    "last_error": "対象車両が存在しないか、無効になっています。",
-                },
-                synchronize_session=False,
-            )
-            db.session.commit()
-            return True
-
-        with app.test_request_context("/"):
-            payload, sources = get_vehicle_karte_analysis_job_data(vehicle)
-
-        fingerprints = payload["_fingerprints"]
-        snapshot_hash = hashlib.sha256(
-            json.dumps(
-                fingerprints,
-                sort_keys=True,
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
-
-        method = (
-            "ai"
-            if fingerprints["has_important_history"]
-            else "record_check"
-        )
-
-        if method == "ai":
-            def renew_analysis_lease():
-                renewed = VehicleKarteAnalysis.query.filter_by(
-                    id=state_id,
-                    lease_token=token,
-                    status="running",
-                ).update(
-                    {
-                        "lease_expires_at": (
-                            datetime.now(ZoneInfo("UTC"))
-                            + timedelta(minutes=3)
-                        ),
-                    },
-                    synchronize_session=False,
-                )
-                if renewed != 1:
-                    db.session.rollback()
-                    raise RuntimeError("ANALYSIS_LEASE_LOST")
-                db.session.commit()
-
-            analysis = analyze_vehicle_karte(
-                payload,
-                on_progress=renew_analysis_lease,
-            )
-        else:
-            analysis = {
-                "overview": (
-                    "AIの対応候補を作るための"
-                    "整備・不具合・点検指摘の履歴はありません。"
-                ),
-                "recommendations": [],
-            }
-
-        finished = datetime.now(ZoneInfo("UTC"))
-        bundle = {
-            "analysis": analysis,
-            "sources": sources,
-            "coverage": payload["coverage"],
-            "comparison": payload.get("comparison"),
-            "fingerprints": fingerprints,
-            "analysis_method": method,
-            "generated_at": finished.astimezone(
-                ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y/%m/%d %H:%M"),
-        }
-
-        db.session.expire_all()
-        state = (
-            VehicleKarteAnalysis.query.filter_by(
-                id=state_id,
-                lease_token=token,
-            )
-            .with_for_update()
-            .first()
-        )
-
-        if state is None:
-            db.session.rollback()
-            return False
-
-        changed = state.input_hash not in {
-            claimed_hash,
-            snapshot_hash,
-        }
-
-        state.result_json = json.dumps(
-            bundle,
-            ensure_ascii=False,
-            default=str,
-        )
-        state.last_analyzed_at = (
-            finished if method == "ai" else None
-        )
-        state.last_error = None
-        state.lease_token = None
-        state.lease_expires_at = None
-
-        if changed:
-            state.status = "pending"
-            state.next_analysis_at = finished + timedelta(minutes=2)
-        else:
-            state.status = "completed"
-            state.input_hash = snapshot_hash
-            state.next_analysis_at = None
-
-        db.session.commit()
-        return True
-
-    except Exception as error:
-        db.session.rollback()
-
-        code = f"{type(error).__name__}: {error}"
-        key = os.environ.get("OPENAI_API_KEY", "")
-        if key:
-            code = code.replace(key, "[REDACTED]")
-        code = code[:500]
-
-        app.logger.warning(
-            "車両自動分析に失敗しました: %s",
-            code,
-        )
-
-        VehicleKarteAnalysis.query.filter_by(
-            id=state_id,
-            lease_token=token,
-        ).update(
-            {
-                "status": "error",
-                "last_error": code,
-                "next_analysis_at": (
-                    datetime.now(ZoneInfo("UTC"))
-                    + timedelta(hours=1)
-                ),
-                "lease_token": None,
-                "lease_expires_at": None,
-            },
-            synchronize_session=False,
-        )
-        db.session.commit()
-        return False
+    return VehicleAnalysisJobService(
+        repository=repository, load_input=get_vehicle_karte_analysis_job_data,
+        analyze=analyze_vehicle_karte,
+        utc_now=lambda: datetime.now(ZoneInfo("UTC")),
+        new_token=lambda: str(uuid4()),
+        input_context=lambda: app.test_request_context("/"),
+        logger=app.logger, read_api_key=lambda: os.environ.get("OPENAI_API_KEY", ""),
+    ).run(state_id)
 
 
 @app.cli.command("vehicle-karte-analysis-worker")
@@ -25871,117 +25615,13 @@ def vehicle_karte_analysis_tick():
 
 def queue_vehicle_karte_analysis(vehicle, payload):
     """バックグラウンド処理用。コミットは呼出元が行う。"""
-    utc = ZoneInfo("UTC")
-    now = datetime.now(utc)
-
-    def aware(value):
-        if value is None:
-            return None
-        if value.tzinfo is None:
-            return value.replace(tzinfo=utc)
-        return value.astimezone(utc)
-
-    state = VehicleKarteAnalysis.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).first()
-
-    if state is None:
-        try:
-            with db.session.begin_nested():
-                state = VehicleKarteAnalysis(
-                    company_code=vehicle.company_code,
-                    vehicle_record_id=vehicle.id,
-                )
-                db.session.add(state)
-                db.session.flush()
-        except IntegrityError:
-            state = VehicleKarteAnalysis.query.filter_by(
-                company_code=vehicle.company_code,
-                vehicle_record_id=vehicle.id,
-            ).one()
-
-    fingerprints = payload["_fingerprints"]
-    signature = hashlib.sha256(
-        json.dumps(
-            fingerprints,
-            sort_keys=True,
-            ensure_ascii=False,
-        ).encode("utf-8")
-    ).hexdigest()
-
-    old_result = safe_json_dict(state.result_json)
-    previous = old_result.get("fingerprints") or {}
-    if not isinstance(previous, dict):
-        previous = {}
-
-    active = (
-        state.status == "running"
-        and aware(state.lease_expires_at) is not None
-        and aware(state.lease_expires_at) > now
+    repository = VehicleAnalysisJobRepository(
+        db=db, state_model=VehicleKarteAnalysis, vehicle_model=Vehicle,
     )
-
-    if state.input_hash == signature and (
-        state.status in {"pending", "error"} or active
-    ):
-        return state
-
-    important_changed = (
-        previous.get("policy_version")
-        != fingerprints["policy_version"]
-        or previous.get("important_hash")
-        != fingerprints["important_hash"]
-    )
-    routine_changed = (
-        previous.get("routine_hash")
-        != fingerprints["routine_hash"]
-    )
-    state.input_hash = signature
-
-    if previous and not important_changed and not routine_changed:
-        if not active:
-            state.status = "completed"
-            state.next_analysis_at = None
-            state.last_error = None
-            state.lease_token = None
-            state.lease_expires_at = None
-        return state
-
-    if important_changed:
-        due = now + timedelta(minutes=2)
-        reason = (
-            "初回分析" if not previous
-            else "整備・不具合・点検指摘などの変更"
-        )
-    elif routine_changed:
-        local = now.astimezone(ZoneInfo("Asia/Tokyo"))
-        due = local.replace(
-            hour=3,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-        if due <= local:
-            due += timedelta(days=1)
-        due = due.astimezone(utc)
-        reason = "走行距離・期限などの日次確認"
-    else:
-        due = now + timedelta(minutes=2)
-        reason = "中断した分析の再実行"
-
-    existing_due = aware(state.next_analysis_at)
-    if state.status in {"pending", "running"} and existing_due:
-        due = min(existing_due, due)
-
-    state.next_analysis_at = due
-    state.request_reason = reason
-
-    if not active:
-        state.status = "pending"
-        state.lease_token = None
-        state.lease_expires_at = None
-
-    return state
+    return VehicleAnalysisQueueService(
+        repository=repository, utc_now=lambda: datetime.now(ZoneInfo("UTC")),
+        parse_result=safe_json_dict,
+    ).queue(vehicle, payload)
 
 
 def get_vehicle_karte_analysis_fingerprints(
