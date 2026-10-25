@@ -6976,11 +6976,52 @@ def can_view_checklist_result(result):
     ):
         return True
 
-    return (
+    if (
         result.get("target_type") == "user"
         and result.get("target_username")
         == session.get("username")
-    )
+    ):
+        return True
+
+    # Reading the result and its attachments must be possible before approving it.
+    # Preserve access for selected/previous approvers after the workflow advances.
+    if role != "user":
+        return False
+    approvals = result.get("approvals") or []
+    checklist = result.get("checklist_snapshot") or {}
+    if not checklist and result.get("checklist_id"):
+        record = Checklist.query.filter_by(
+            id=result["checklist_id"], company_code=result["company_code"]
+        ).first()
+        if record:
+            checklist = checklist_to_dict(record)
+    definitions = [item for item in checklist.get("items", [])
+                   if item.get("item_type") == "approval"]
+    if not approvals:
+        approvals = [{} for _ in definitions]
+    approvals = [
+        dict(approval, allow_general=approval.get(
+            "allow_general",
+            definitions[index].get("approval_allow_general", False)
+            if index < len(definitions) else False,
+        ))
+        for index, approval in enumerate(approvals)
+    ]
+    username = session.get("username")
+    if any(
+        username and (
+            approval.get("approved_by_username") == username
+            or (approval.get("allow_general")
+                and username in (approval.get("candidate_usernames") or []))
+        )
+        for approval in approvals
+    ):
+        return True
+    current = next((approval for approval in approvals
+                    if not (approval.get("approved_by")
+                            or approval.get("approved_by_username"))), None)
+    return (result.get("status") == "承認待ち"
+            and can_approve_checklist_result(result, current))
 
 
 def can_manage_checklist_result(result):
@@ -12376,12 +12417,7 @@ def get_dashboard_office_check_trend(groups, score_value, start_date, end_date):
                             month=record.month,
                             active_day=active_day,
                         )
-                    elif can_view_checklist_result({
-                        "company_code": record.company_code,
-                        "checked_by_username": record.checked_by_username,
-                        "target_type": record.target_type,
-                        "target_username": record.target_username,
-                    }):
+                    elif can_view_checklist_result(checklist_result_to_dict(record)):
                         result_url = url_for(
                             "checklist_result_detail",
                             result_index=record.id,
@@ -12502,12 +12538,7 @@ def get_dashboard_checklist_history(checklist_record, checklist, records, score_
         if record.company_code != company_code or record.checklist_id != checklist_record.id:
             continue
 
-        if not is_vehicle and not can_view_checklist_result({
-            "company_code": record.company_code,
-            "checked_by_username": record.checked_by_username,
-            "target_type": record.target_type,
-            "target_username": record.target_username,
-        }):
+        if not is_vehicle and not can_view_checklist_result(checklist_result_to_dict(record)):
             continue
 
         allowed.append(record)
@@ -36605,6 +36636,21 @@ def export_checklist_result_excel(result_index):
         )
     )
 
+def checklist_result_edit_version(record):
+    snapshot = {
+        column.key: getattr(record, column.key)
+        for column in inspect(record).mapper.column_attrs
+    }
+    latest_event = ChecklistEvent.query.filter_by(
+        company_code=record.company_code, result_type="safety", result_id=record.id
+    ).order_by(ChecklistEvent.id.desc()).first()
+    # Identical resubmissions within the same minute must still invalidate a form.
+    snapshot["latest_event_id"] = latest_event.id if latest_event else None
+    return hashlib.sha256(json.dumps(
+        snapshot, sort_keys=True, ensure_ascii=False, default=str,
+    ).encode("utf-8")).hexdigest()
+
+
 @app.route("/safety/checklist-results/<int:result_index>/edit", methods=["GET", "POST"])
 @limiter.limit("20 per minute", methods=["POST"])
 def edit_checklist_result(result_index):
@@ -36662,6 +36708,14 @@ def edit_checklist_result(result_index):
             return redirect(
                 url_for("checklist_result_detail", result_index=result_index)
             )
+
+        if not secrets.compare_digest(
+            request.form.get("record_version", "").encode("utf-8"),
+            checklist_result_edit_version(result_record).encode("ascii"),
+        ):
+            return return_form_errors([
+                ("記録が更新されています。入力内容を確認し、画面を再読み込みしてください。", "")
+            ], status_code=409)
 
         checklist = (
             result.get("checklist_snapshot")
@@ -37480,6 +37534,7 @@ def edit_checklist_result(result_index):
         index=checklist_record.id,
         result=result,
         result_index=result_record.id,
+        record_version=checklist_result_edit_version(result_record),
         mode="edit",
         criteria_list=criteria_list,
         drivers=drivers_for_current_company(),
@@ -43040,19 +43095,13 @@ def complete_vehicle_checklist(index):
 
         db.session.add(result_record)
 
-    if result_record.status in {
-        "承認待ち",
-        "承認済み"
-    }:
+    if result_record.status in {"承認待ち", "承認済み", "点検完了"}:
         return return_form_errors([
-            (
-                (
-                    "すでに承認待ちです。"
-                    if result_record.status == "承認待ち"
-                    else "すでに承認済みです。"
-                ),
-                ""
-            )
+            ({
+                "承認待ち": "すでに承認待ちです。",
+                "承認済み": "すでに承認済みです。",
+                "点検完了": "すでに点検完了しています。",
+            }[result_record.status], "")
         ], status_code=409)
 
     result_checklist = checklist_for_date(

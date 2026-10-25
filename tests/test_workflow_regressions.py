@@ -715,7 +715,180 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertNotIn('12month', got)
         record.next_inspection_date = None; m.db.session.commit()
         self.assertIsNone(m.get_vehicle_periodic_inspection_summary('TEST', self.vehicle.id)['3month']['next_date'])
+    def workflow_checklist(self, target="安全管理", approvals=None, content="確認"):
+        items = [{"item_type": "check", "category": "点検", "content": content,
+                  "input_type": "text", "answer_required": False}]
+        for general in ([False, False] if approvals is None else approvals):
+            items.append({"item_type": "approval", "approval_label": "確認",
+                          "approval_allow_general": general})
+        row = self.m.Checklist(company_code="TEST", name="業務確認", target=target,
+            frequency_unit="day", display_type="month", active=True,
+            items_json=json.dumps(items, ensure_ascii=False))
+        self.m.db.session.add(row); self.m.db.session.commit()
+        return row
 
+    def safety_record(self, approvals=None, candidates=None):
+        checklist = self.workflow_checklist(approvals=approvals)
+        data = {"answer_0": "確認済み", **(candidates or {})}
+        response = self.client.post(f"/safety/checklists/{checklist.id}/new", data=data)
+        self.assertEqual(response.status_code, 302)
+        return self.m.ChecklistResult.query.one(), data
+
+    def safety_edit_token(self, record):
+        import re
+        page = self.client.get(f"/safety/checklist-results/{record.id}/edit")
+        self.assertEqual(page.status_code, 200)
+        return re.search(r'name="record_version" value="([a-f0-9]{64})"',
+                         page.get_data(as_text=True)).group(1)
+
+    def workflow_user_client(self):
+        stamp = self.m.User.query.filter_by(username="admin").one().password_changed_at
+        self.m.db.session.add(self.m.User(company_code="TEST", username="reviewer",
+            role="user", password="unused", last_name="確認", first_name="担当",
+            password_changed_at=stamp))
+        self.m.db.session.commit()
+        client = self.m.app.test_client()
+        with client.session_transaction() as session:
+            session.update(company_code="TEST", username="reviewer", role="user",
+                           password_changed_at=stamp)
+        return client
+
+    def test_stale_safety_edit_cannot_erase_partial_approval_or_send_notices(self):
+        row, data = self.safety_record(candidates={"approval_notify_users_0": "admin"})
+        token = self.safety_edit_token(row)
+        self.client.post(f"/safety/checklist-results/{row.id}/approve/0")
+        self.m.db.session.refresh(row)
+        before = row.approvals_json
+        events, notices = self.m.ChecklistEvent.query.count(), self.m.Notification.query.count()
+        response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+            data={**data, "record_version": token}, headers={"X-DKSS-Final-Submit": "1"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("記録が更新", response.json["errors"][0]["message"])
+        self.m.db.session.refresh(row)
+        self.assertEqual(row.approvals_json, before)
+        self.assertEqual(self.m.ChecklistEvent.query.count(), events)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+
+    def test_identical_safety_edit_replay_is_rejected_even_with_same_timestamp(self):
+        row, data = self.safety_record(candidates={"approval_notify_users_0": "admin"})
+        token = self.safety_edit_token(row)
+        payload = {**data, "record_version": token}
+        url = f"/safety/checklist-results/{row.id}/edit"
+        self.assertEqual(self.client.post(url, data=payload).status_code, 302)
+        self.m.db.session.refresh(row)
+        # The only new revision may be the event: checked_date has minute precision.
+        events, notices = self.m.ChecklistEvent.query.count(), self.m.Notification.query.count()
+        self.assertEqual(self.client.post(url, data=payload).status_code, 409)
+        self.assertEqual(self.m.ChecklistEvent.query.count(), events)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+
+    def test_fresh_safety_resubmission_still_resets_all_approval_slots(self):
+        row, data = self.safety_record()
+        self.client.post(f"/safety/checklist-results/{row.id}/approve/0")
+        self.client.post(f"/safety/checklist-results/{row.id}/reject", data={"reject_reason": "再確認"})
+        token = self.safety_edit_token(row)
+        response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+            data={**data, "answer_0": "訂正済み", "record_version": token})
+        self.assertEqual(response.status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertEqual(row.status, "承認待ち")
+        self.assertEqual(json.loads(row.answers_json)[0]["value"], "訂正済み")
+        self.assertTrue(all(not slot["approved_by_username"] for slot in json.loads(row.approvals_json)))
+        self.assertEqual(self.m.ChecklistEvent.query.filter_by(event_type="再申請").count(), 1)
+
+    def test_safety_edit_requires_valid_revision_and_keeps_previous_answers(self):
+        row, data = self.safety_record()
+        before = row.answers_json
+        for token in ("", "invalid", "日本語", "0" * 64):
+            with self.subTest(token=token):
+                response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+                    data={**data, "answer_0": "変更", "record_version": token})
+                self.assertEqual(response.status_code, 409)
+                self.m.db.session.refresh(row)
+                self.assertEqual(row.answers_json, before)
+
+    def test_general_approver_can_read_result_excel_attachments_and_finished_result(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[True], candidates={"approval_notify_users_0": "reviewer"})
+        row.answers_json = json.dumps([{"item_no": 0, "value": "確認済み", "files": ["review-evidence.pdf"]}])
+        self.m.db.session.commit()
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        self.assertEqual(client.get(url + "/excel").status_code, 200)
+        with self.m.app.test_request_context("/"):
+            self.m.session.update(company_code="TEST", username="reviewer", role="user")
+            self.assertTrue(self.m.file_belongs_to_current_company("review-evidence.pdf", "uploads"))
+        # Viewing/approving grants neither editing nor deletion.
+        before = row.answers_json
+        client.post(url + "/edit", data={"answer_0": "unauthorized"})
+        client.post(url + "/delete")
+        self.m.db.session.refresh(row); self.assertEqual(row.answers_json, before)
+        self.assertEqual(client.post(url + "/approve/0").status_code, 302)
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認済み")
+        self.assertEqual(client.get(url).status_code, 200)
+
+    def test_general_approval_visibility_matches_current_slot_without_candidate_requirement(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[False, True])
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 302)
+        self.client.post(url + "/approve/0")
+        self.assertEqual(client.get(url).status_code, 200)
+        self.assertEqual(client.post(url + "/approve/1").status_code, 302)
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認済み")
+        self.assertEqual(client.get(url).status_code, 200)
+
+    def test_future_selected_general_approver_can_read_but_cannot_approve_out_of_order(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[False, True], candidates={"approval_notify_users_1": "reviewer"})
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        before = row.approvals_json
+        client.post(url + "/approve/1")
+        self.m.db.session.refresh(row); self.assertEqual(row.approvals_json, before)
+
+    def test_general_approval_visibility_uses_legacy_snapshot_and_keeps_company_boundary(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[True])
+        row.approvals_json = "[]"; self.m.db.session.commit()
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        row.company_code = "OTHER"; self.m.db.session.commit()
+        self.assertEqual(client.get(url).status_code, 302)
+        self.assertEqual(client.get(url + "/excel").status_code, 302)
+        client.post(url + "/approve/0")
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認待ち")
+
+    def test_vehicle_checklist_item_html_is_escaped_and_newlines_remain(self):
+        content = '<b id="injected">点検</b>\n次の行 & <img src=x onerror=alert(1)>'
+        checklist = self.workflow_checklist("車両管理", [], content)
+        page = self.client.get(f"/vehicle/checklists/{checklist.id}", query_string={
+            "vehicle_record_id": self.vehicle.id, "year": "2026", "month": "10"})
+        self.assertEqual(page.status_code, 200)
+        text = page.get_data(as_text=True)
+        self.assertNotIn('<b id="injected">', text)
+        self.assertNotIn('<img src=x', text)
+        self.assertIn('&lt;b id=&#34;injected&#34;&gt;点検&lt;/b&gt;<br>', text)
+        self.assertIn('次の行 &amp; &lt;img', text)
+
+    def test_vehicle_completion_replay_does_not_send_another_notice_but_edited_result_can_complete(self):
+        checklist = self.workflow_checklist("車両管理", [])
+        data = {"vehicle_record_id": self.vehicle.id, "year": "2026", "month": "10", "day": "23"}
+        url = f"/vehicle/checklists/{checklist.id}"
+        # Optional, entirely unanswered inspections can still be explicitly completed.
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 302)
+        row = self.m.VehicleChecklistResult.query.one()
+        self.assertEqual(json.loads(row.answers_json), [])
+        before = (row.status, row.checked_date, row.operation_judgment_json)
+        notices = self.m.Notification.query.count()
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 409)
+        self.m.db.session.refresh(row)
+        self.assertEqual((row.status, row.checked_date, row.operation_judgment_json), before)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+        self.assertEqual(self.m.VehicleChecklistResult.query.count(), 1)
+        self.assertEqual(self.client.post(url + "/save-one", data={**data, "item_no": "0", "value": "0"}).status_code, 302)
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 302)
+        self.assertEqual(self.m.Notification.query.count(), notices + 1)
 
 
 if __name__ == "__main__":

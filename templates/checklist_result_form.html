@@ -49,6 +49,9 @@
 
 <form method="post" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if mode == "edit" %}
+    <input type="hidden" name="record_version" value="{{ record_version }}">
+    {% endif %}
 
     <div class="card">
         <h3>対象情報</h3>
