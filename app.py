@@ -15,6 +15,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from uuid import uuid4
 from daily_inspection_defaults import get_daily_inspection_default
+from upload_validation import UploadValidationError
+from vehicle_operation_csv import (
+    normalize_vehicle_operation_plate,
+    parse_vehicle_operation_csv_row,
+    read_vehicle_operation_csv,
+    parse_vehicle_operation_date,
+    parse_vehicle_operation_decimal,
+)
 from vehicle_karte_analysis_ai import analyze_vehicle_karte
 from maintenance_invoice_ai import (
     extract_maintenance_invoices,
@@ -37,10 +45,8 @@ from pywebpush import webpush, WebPushException
 import secrets
 import zipfile
 import re
-import csv
 import hashlib
 from decimal import Decimal, InvalidOperation
-from io import StringIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import NotFound, HTTPException
 from werkzeug.routing import BuildError
@@ -807,8 +813,6 @@ def redirect_form_errors(response):
         )
     )
 
-class UploadValidationError(ValueError):
-    pass
 
 
 @app.errorhandler(UploadValidationError)
@@ -3458,6 +3462,13 @@ def save_vehicle_analysis_feedback(vehicle_record_id):
             break
     if selected is None:
         return jsonify(ok=False, message="提案が更新されています。最新の内容を確認してください。"), 409
+    try:
+        payload, _sources = get_vehicle_karte_analysis_job_data(vehicle)
+        current = state.status == "completed" and vehicle_karte_analysis_matches_input(bundle, payload)
+    except Exception:
+        current = False
+    if not current:
+        return jsonify(ok=False, message="分析の更新が必要です。更新完了後に最新の提案を確認して記録してください。"), 409
     comment = comment.strip()
     previous = VehicleAnalysisFeedback.query.filter_by(
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
@@ -25316,6 +25327,15 @@ def build_vehicle_karte_analysis_summary(
     }
 
 
+def vehicle_karte_analysis_matches_input(bundle, payload):
+    previous = bundle.get("fingerprints")
+    current = payload["_fingerprints"]
+    return isinstance(previous, dict) and all(
+        key in previous and key in current and previous[key] == current[key]
+        for key in ("policy_version", "important_hash", "routine_hash")
+    )
+
+
 @app.route("/vehicle/karte/<int:vehicle_record_id>/analysis/result")
 def vehicle_karte_analysis_result(vehicle_record_id):
     if not session.get("username"):
@@ -25343,22 +25363,19 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     # PREVENTIVE_ANALYSIS_UI_FRESHNESS_V1: completed alone does not prove freshness.
     is_current = None
     input_summary = None
-    if has_result:
-        try:
-            current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
-            current = current_payload["_fingerprints"]
-            input_records = current_payload.get("records", [])
-            input_summary = {
-                label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
-                for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
-            }
-            previous = bundle.get("fingerprints")
-            is_current = isinstance(previous, dict) and all(
-                key in previous and key in current and previous[key] == current[key]
-                for key in ("policy_version", "important_hash", "routine_hash")
-            )
-        except Exception:
-            app.logger.warning("車両分析の更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
+    scheduled_comparison = None
+    try:
+        current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
+        scheduled_comparison = current_payload.get("comparison")
+        input_records = current_payload.get("records", [])
+        input_summary = {
+            label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
+            for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
+        }
+        if has_result:
+            is_current = vehicle_karte_analysis_matches_input(bundle, current_payload)
+    except Exception:
+        app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 
     if status == "completed" and is_current is True:
         message = "現在の登録内容に対応する分析結果です。"
@@ -25391,6 +25408,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         has_result=has_result,
         is_current=is_current,
         input_summary=input_summary,
+        scheduled_comparison=scheduled_comparison,
         message=message,
         analysis=annotate_analysis(analysis_with_vehicle_feedback(analysis, vehicle), bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None,
         sources=bundle.get("sources") if has_result else {},
@@ -33611,19 +33629,6 @@ def get_vehicle_registration_plate_conflicts(
     return conflicts
 
 
-def normalize_vehicle_operation_plate(value):
-    import unicodedata
-
-    text = unicodedata.normalize(
-        "NFKC",
-        "" if value is None else str(value)
-    ).strip()
-
-    return re.sub(
-        r"[\s\-‐‑‒–—―−・･.]+",
-        "",
-        text
-    ).casefold()
 
 
 def get_vehicle_operation_plate_candidates(company_code):
@@ -33665,243 +33670,12 @@ def get_vehicle_operation_plate_candidates(company_code):
     return vehicles, plate_candidates
 
 
-def parse_vehicle_operation_csv_row(source_row, line_number):
-    try:
-        report_number = source_row.get("日報番号", "").strip()
-
-        if not report_number:
-            raise UploadValidationError(
-                "日報番号がありません。"
-            )
-
-        if len(report_number) > 100:
-            raise UploadValidationError(
-                "日報番号は100文字以内にしてください。"
-            )
-
-        operation_date = parse_vehicle_operation_date(
-            source_row.get("運行日"),
-            "運行日"
-        )
-
-        if operation_date is None:
-            raise UploadValidationError(
-                "運行日がありません。"
-            )
-
-        values = {
-            "report_number": report_number,
-            "operation_date": operation_date,
-            "source_row_json": json.dumps(
-                source_row,
-                ensure_ascii=False
-            ),
-        }
-
-        for csv_name, field_name in (
-            ("車両コード", "source_vehicle_code"),
-            ("車両", "source_vehicle_number"),
-        ):
-            text = source_row.get(csv_name, "").strip()
-
-            if len(text) > 100:
-                raise UploadValidationError(
-                    f"{csv_name}は100文字以内にしてください。"
-                )
-
-            values[field_name] = text or None
-
-        for csv_name, field_name in (
-            ("出庫日時", "departure_at"),
-            ("入庫日時", "arrival_at"),
-        ):
-            values[field_name] = parse_vehicle_operation_date(
-                source_row.get(csv_name),
-                csv_name,
-                with_time=True
-            )
-
-        for csv_name, field_name in (
-            ("出庫メータ", "departure_meter"),
-            ("入庫メータ", "arrival_meter"),
-            ("走行距離", "distance"),
-        ):
-            values[field_name] = parse_vehicle_operation_decimal(
-                source_row.get(csv_name),
-                csv_name
-            )
-
-        return values
-
-    except UploadValidationError as error:
-        raise UploadValidationError(
-            f"CSVの{line_number}行目：{error}"
-        ) from error
 
 
-def read_vehicle_operation_csv(file_bytes):
-    csv_text = None
-
-    for encoding in ("utf-8-sig", "cp932"):
-        try:
-            csv_text = file_bytes.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-
-    if csv_text is None:
-        raise UploadValidationError(
-            "CSVの文字コードを確認してください。"
-        )
-
-    if "\x00" in csv_text:
-        raise UploadValidationError(
-            "CSVファイルの内容が不正です。"
-        )
-
-    rows = []
-
-    try:
-        reader = csv.reader(
-            StringIO(csv_text, newline=""),
-            strict=True
-        )
-        headers = [
-            value.strip()
-            for value in next(reader, [])
-        ]
-
-        if not headers or any(not value for value in headers):
-            raise UploadValidationError(
-                "CSVの先頭行に項目名を設定してください。"
-            )
-
-        if len(headers) != len(set(headers)):
-            raise UploadValidationError(
-                "CSVの項目名が重複しています。"
-            )
-
-        missing_headers = [
-            name
-            for name in ("日報番号", "運行日")
-            if name not in headers
-        ]
-
-        if missing_headers:
-            raise UploadValidationError(
-                "CSVに必要な項目がありません："
-                + "、".join(missing_headers)
-            )
-
-        if not any(
-            name in headers
-            for name in ("車両コード", "車両")
-        ):
-            raise UploadValidationError(
-                "CSVに車両コードまたは車両の項目が必要です。"
-            )
-
-        for values in reader:
-            if not any(value.strip() for value in values):
-                continue
-
-            if len(values) != len(headers):
-                raise UploadValidationError(
-                    f"CSVの{reader.line_num}行目の列数が"
-                    "項目名の列数と一致していません。"
-                )
-
-            rows.append({
-                "line_number": reader.line_num,
-                "source_row": dict(zip(headers, values)),
-            })
-
-    except csv.Error:
-        raise UploadValidationError(
-            "CSVの区切り文字・引用符を確認してください。"
-        )
-
-    if not rows:
-        raise UploadValidationError(
-            "CSVに運行実績のデータがありません。"
-        )
-
-    return rows
 
 
-def parse_vehicle_operation_date(value, field_name, with_time=False):
-    text = "" if value is None else str(value).strip()
-
-    if not text:
-        return None
-
-    if with_time:
-        formats = (
-            "%Y/%m/%d %H:%M:%S",
-            "%Y-%m-%d %H:%M:%S",
-            "%Y/%m/%d %H:%M",
-            "%Y-%m-%d %H:%M",
-        )
-        output_format = "%Y-%m-%d %H:%M:%S"
-    else:
-        formats = (
-            "%Y/%m/%d",
-            "%Y-%m-%d",
-        )
-        output_format = "%Y-%m-%d"
-
-    for date_format in formats:
-        try:
-            parsed = datetime.strptime(text, date_format)
-        except ValueError:
-            continue
-
-        return parsed.strftime(output_format)
-
-    raise UploadValidationError(
-        f"{field_name}の日付・時刻を確認してください。"
-    )
 
 
-def parse_vehicle_operation_decimal(value, field_name):
-    text = "" if value is None else str(value).strip()
-
-    if not text:
-        return None
-
-    if not re.fullmatch(
-        r"(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?",
-        text
-    ):
-        raise UploadValidationError(
-            f"{field_name}は0以上の数値で入力してください。"
-        )
-
-    try:
-        parsed = Decimal(text.replace(",", ""))
-    except InvalidOperation:
-        raise UploadValidationError(
-            f"{field_name}の数値を確認してください。"
-        )
-
-    if not parsed.is_finite() or parsed > Decimal("999999999999.99"):
-        raise UploadValidationError(
-            f"{field_name}の値が大きすぎます。"
-        )
-
-    try:
-        rounded = parsed.quantize(Decimal("0.01"))
-    except InvalidOperation:
-        raise UploadValidationError(
-            f"{field_name}の数値を確認してください。"
-        )
-
-    if parsed != rounded:
-        raise UploadValidationError(
-            f"{field_name}は小数点以下2桁までで入力してください。"
-        )
-
-    return rounded
 
 
 def parse_vehicle_weights(form_data):

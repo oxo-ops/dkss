@@ -951,7 +951,7 @@
                         openReferenceDrawer(item, detail, button, data.sources);
                     });
                 }
-                if (item.proposal_id) {
+                if (item.proposal_id && data.is_current === true && data.status === "completed") {
                     const controls = feedbackControls(item);
                     controls.addEventListener("ka-feedback-saved", event => {
                         badge.textContent = labels[event.detail.status] || "未着手";
@@ -980,7 +980,7 @@
 
         const priorityOrder = {"高": 0, "中": 1, "低": 2};
         const ordered = [...items].sort((a, b) => riskResponseRank(a) - riskResponseRank(b));
-        const current = data.is_current === true;
+        const current = data.is_current === true && data.status === "completed";
         const board = node("section", "ka7-board");
         const heading = node("header", "ka7-board-heading");
         heading.append(node("h3", "", "予防整備・対応候補"));
@@ -1237,7 +1237,7 @@
                 data.analysis ||= {overview: "", recommendations: []};
                 const signature = JSON.stringify([
                     data.analysis, data.sources, data.coverage,
-                    data.comparison, data.generated_at, data.analysis_method, data.is_current, data.status, data.input_summary
+                    data.comparison, data.scheduled_comparison, data.generated_at, data.analysis_method, data.is_current, data.status, data.input_summary
                 ]);
                 if (results.dataset.signature !== signature) {
                     if (document.querySelector('[data-feedback-dirty="1"]')
