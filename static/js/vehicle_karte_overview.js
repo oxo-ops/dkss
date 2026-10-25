@@ -35,10 +35,13 @@
                 item.category !== "記録確認" && !(item.feedback?.revision === item.proposal_revision &&
                 ["completed", "dismissed"].includes(item.feedback?.status)))
                 .sort((a, b) => (priorities[a.priority] ?? 3) - (priorities[b.priority] ?? 3));
-            for (const item of items.slice(0, 3)) {
-                const row = node("li", "ko-action-row", "");
+            panel.dataset.current = String(current);
+            const count = panel.querySelector('[data-ko-ai-count]');
+            if (count) { count.textContent = `${items.length}件`; count.hidden = false; }
+            for (const [index, item] of items.slice(0, 3).entries()) {
+                const row = node("li", "ko-proposal", "");
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
-                const heading = node("div", "ko-row-heading", "");
+                const heading = node("div", "ko-proposal-heading", "");
                 const link = node("a", "", item.target || "確認項目");
                 const url = new URL(panel.dataset.analysisUrl, window.location.origin);
                 if (url.origin !== window.location.origin) throw new Error();
@@ -46,12 +49,28 @@
                 link.href = url.href;
                 const changed = item.feedback?.revision && item.feedback.revision !== item.proposal_revision;
                 const feedback = changed ? "提案更新あり" : ({open:"未着手",accepted:"採用",in_progress:"対応中",completed:"完了",dismissed:"見送り"}[item.feedback?.status] || "未着手");
-                heading.append(link, node("span", "ko-badge", feedback));
+                heading.append(node('span', 'ko-proposal-order', String(index+1).padStart(2,'0')), link, node("span", "ko-badge", feedback));
                 row.append(heading);
-                row.append(node("p", "ko-meta", `状態：${item.current_state || "記録不足"}`));
-                row.append(node("p", "", item.action || "分析タブで提案内容を確認してください。"));
-                row.append(node("p", "ko-meta", `想定される影響：${typeof item.risk === "string" && item.risk.trim() ? item.risk : "未評価"}`));
-                row.append(node("p", "ko-meta", `時期：${item.timing || "未評価"}${current ? "" : " · 最新の記録を確認してください"}`));
+                row.append(node("p", "ko-proposal-state", item.current_state || "状態を判断できる記録が不足しています"));
+                row.append(node("p", "ko-proposal-action", item.action || "分析タブで提案内容を確認してください。"));
+                const riskText = typeof item.risk === 'string' && item.risk.trim() ? item.risk : '未評価';
+                const risk = node('details','ko-risk','');
+                const riskSummary = node('summary','','想定される影響');
+                riskSummary.append(node('span','ko-risk-inline',riskText));
+                risk.append(riskSummary,node('p','',riskText)); row.append(risk);
+                const footer=node('div','ko-proposal-footer','');
+                const timing=node('span','ko-proposal-timing','');
+                timing.append(node('b','','対応の目安'),node('span','',item.timing || '時期未評価'));
+                const action=node('a','ko-action-button','根拠・対応を確認 →'); action.href=url.href;
+                footer.append(timing,action);row.append(footer);
+                if (!current) row.append(node('p','ko-meta','前回結果です。最新の記録を確認してください。'));
+                if (index > 0) {
+                    row.classList.add('ko-secondary');
+                    const disclosure=node('details','ko-secondary-disclosure','');
+                    disclosure.append(node('summary','','状態・影響・時期を確認'));
+                    disclosure.append(row.querySelector('.ko-proposal-state'),risk,footer);
+                    row.append(disclosure);
+                }
                 list.append(row);
             }
             if (!items.length) {
@@ -59,7 +78,7 @@
                     "対応済み・見送り等を除く予防整備候補はありません。" : "保存済みの分析結果に対応候補はありません。";
                 list.append(node("li", "ko-empty", message));
             } else if (items.length > 3) {
-                const more = node("a", "ko-state-footer", `残り${items.length - 3}件を分析で確認 ›`);
+                const more = node("a", "ko-action-button", `残り${items.length - 3}件を分析で確認 ›`);
                 more.href = panel.dataset.analysisUrl;
                 const row = node("li", "", ""); row.append(more); list.append(row);
             }
