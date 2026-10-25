@@ -13,6 +13,10 @@
         return;
     }
 
+    // Zoom to registered months; retain interior missing months as null, never zero.
+    const populated = rows.map((row,index)=>row.distance !== null && row.distance !== undefined || row.cost !== null && row.cost !== undefined ? index : -1).filter(index=>index>=0);
+    if(populated.length) rows=rows.slice(populated[0],populated[populated.length-1]+1);
+
     const number = (value) => {
         if (value === null || value === undefined || value === "") return null;
         const result = Number(value);
@@ -60,8 +64,8 @@
                 : values[index].toLocaleString("ja-JP") + unit}`
         )).join("、"));
 
-        context.font = '10px "Segoe UI", "Meiryo", sans-serif';
-        context.fillStyle = "#63758a";
+        context.font = '12px "Segoe UI", "Meiryo", sans-serif';
+        context.fillStyle = "#526277";
 
         if (!known.length) {
             context.textAlign = "center";
@@ -97,7 +101,7 @@
             context.lineTo(width - 10, y(value));
             context.stroke();
 
-            context.fillStyle = "#63758a";
+            context.fillStyle = "#526277";
             context.textAlign = "right";
             context.fillText(
                 format(value),
@@ -144,7 +148,7 @@
             const barWidth = Math.max(
                 1, Math.min(18, step * 0.6)
             );
-            context.fillStyle = "#79abe9";
+            context.fillStyle = "#8271d7";
 
             values.forEach((value, index) => {
                 if (value === null) return;
@@ -160,7 +164,7 @@
         const interval = Math.max(
             1, Math.ceil(rows.length / 4)
         );
-        context.fillStyle = "#63758a";
+        context.fillStyle = "#526277";
         context.textAlign = "center";
 
         rows.forEach((row, index) => {

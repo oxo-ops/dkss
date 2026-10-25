@@ -399,6 +399,8 @@ def analyze_vehicle_karte(payload, on_progress=None):
         final_payload["history_review_scope"]["complete"] = True
         check_review_context()
 
+    # RISK_V4_FULL_SOURCE_VALIDATION: local-only original evidence, excluded from AI transport.
+    final_payload["_risk_evidence_payload"] = payload
     result = _analyze_vehicle_karte_once(
         final_payload, on_progress=on_progress,
     )
@@ -408,6 +410,9 @@ def analyze_vehicle_karte(payload, on_progress=None):
 
 
 def _analyze_vehicle_karte_once(payload, on_progress=None):
+    # VEHICLE_RISK_V4_INSTALLED
+    from vehicle_analysis_risk import RISK_INSTRUCTIONS, risk_output_properties, validate_vehicle_risk, compose_vehicle_risk_data
+
     if on_progress is not None:
         on_progress()
 
@@ -464,6 +469,14 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
     def text():
         return {"type": "string"}
 
+    # PREVENTIVE_ANALYSIS_SOURCE_SCHEMA_V1: constrain generation, keep validation strict.
+    # Large fleets may supply many protected histories; never truncate their IDs or facts.
+    def source_id_items(values):
+        ids = sorted(set(values))
+        if ids and len(ids) <= 200 and sum(len(value) for value in ids) <= 12000:
+            return {"type": "string", "enum": ids}
+        return {"type": "string"}
+
     properties = {
         "priority": {
             "type": "string",
@@ -475,6 +488,9 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
         },
         "target": text(),
         "current_state": text(),
+        "risk": text(),
+        "risk_status": {"type": "string", "enum": ["supported", "unassessed"]},
+        "risk_source_ids": {"type": "array", "items": source_id_items(allowed_ids), "maxItems": 10},
         "timing": text(),
         "title": text(),
         "reason": text(),
@@ -493,13 +509,20 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
         },
         "knowledge_ids": {
             "type": "array",
-            "items": text(),
+            "items": source_id_items(knowledge_ids),
+            "maxItems": min(10, len(knowledge_ids)),
         },
         "source_ids": {
             "type": "array",
-            "items": text(),
+            "items": source_id_items(allowed_ids),
+            "minItems": 1,
+            "maxItems": 10,
         },
     }
+
+    properties.update(risk_output_properties())
+    properties.pop("risk", None)  # RISK_CONDITION_EFFECT_V1: risk is derived locally.
+    properties.pop("risk_source_ids", None)  # RISK_EVIDENCE_IDS_V1: derive only from checked citations.
 
     schema = {
         "type": "object",
@@ -552,10 +575,14 @@ priorityは記録上の必要性と対応時期に基づいて選び、メーカ
 出力は部品・箇所ごとの判断一覧に使用します。長文ではなく、以下の項目に分けてください。
 categoryは実車の確認・点検・整備の提案なら「整備・点検」、入力や明細・集計の確認なら「記録確認」。両者を混同しないでください。
 targetは部品・箇所名のみ24文字以内。current_stateは日付・症状・経過距離等の要点を36文字以内。
+出力は「現在の状態 → リスク・懸念 → 推奨する対応」の因果関係が分かるようにしてください。current_stateには、その対象に記録された症状・状態・経過の事実を簡潔に示してください。内部の照合処理や提案への回答状況だけで埋めず、対象の指摘と解消確認の有無を優先してください。
+riskは80文字以内で、状態から想定される影響と確認理由を示してください。詳細はリスク判定v4の契約に従ってください。根拠のある故障リスクと、解消確認ができず判断できないことを区別してください。記録確認の提案では具体的に何の解消・再確認が未確認かを示し、作業未実施や故障とは断定しないでください。実車の状態やメーカー基準の裏付けがない事故・故障・運行不可・期限超過は創作しないでください。影響が分からなければ、その影響は判断できないと明記してください。
+actionは、その状態と懸念に対して行う具体的な対応にしてください。reasonは引用した記録・基準がその判断を支える理由を示し、riskやactionの繰り返しにしないでください。
 titleは確認する内容を24文字以内。actionは次に行う主な行動を一文36文字以内。具体的な確認対象を残し、前置き・状態の復唱・定型的な結びは省いてください。確認手順はconfirmation_stepsへ1〜3件、各100文字以内で順番に記載してください。各手順は確認対象と行動を具体的に示し、番号は付けないでください。
 confirmation_branchには、確認できた場合・できなかった場合の次の対応を120文字以内で記載してください。記録や適用可能な知識の範囲で示し、判断材料が足りない場合は確認結果を記録して担当者へ判断を求める分岐にしてください。未登録の数値基準・診断・運行可否を作らないでください。
 timingは24文字以内。入力に期限・整備基準があれば、その根拠に沿って記載してください。数値の期限がなくても、記録された症状・未対応の指摘・再発状況と一般的な整備知識から、確認を行うタイミングや条件を提案してください。その場合はbasis_typeを「AIの一般知識」とし、reasonに判断理由を記載してください。確認を勧める時期と、メーカー指定の交換期限を区別してください。時期を判断できない場合も、判断に必要な具体的な確認をactionへ示してください。記録確認は「記録確認時」としてください。根拠のない交換距離・日数・メーカー基準は作らないでください。
 reasonは事実と提案理由を120文字以内、uncertaintyは不足情報を80文字以内、overviewは要点を80文字以内。各欄で同じ説明を繰り返さないでください。
+利用者向けの出力では、内部の照合経緯や分析者のメモを結論にしないでください。overviewは、根拠で確認できる車両上の懸念と推奨する具体的な確認・対応を先に示してください。提案への回答と元点検の状態が異なる場合も、記録の不一致そのものを主題にせず、対象の指摘が解消したか確認する行動を示してください。reasonは根拠で確認できるリスク、または未確認で判断できない事項と確認が必要な理由を示してください。記録の未確認を故障・作業未実施・事故危険の証拠に変えないでください。安全上の影響を裏付ける根拠がなければ、危険度や運行可否を創作しないでください。解消済みの他の指摘、今回使わなかった資料、内部処理の説明をoverviewに並べないでください。提案がない場合は現在確認できる対応の要否と判断上の制約だけを示してください。
 整備・点検の提案を優先し、記録確認は最大2件。同じ対象の確認をまとめ、件数を埋めるための提案は作らないでください。
 部品ごとの経過距離・期間と交換間隔は、preventive_facts.part_replacementsの計算値を優先してください。車両全体の前回整備からの距離を、個別部品の交換後距離として扱わないでください。
 latest_dated_replacementは直近の登録交換日、days_sinceとdistance_since_kmはその交換後の経過です。previous_dated_replacementは前回の登録交換日、last_recorded_interval_daysとlast_recorded_interval_kmは前回と直近の登録交換記録間の実績です。過去の交換間隔と直近交換後の経過を混同しないでください。
@@ -632,10 +659,22 @@ usable_as_component_baselineとusable_as_inspection_baselineがfalseの関連履
 replacement_document_evidence.statusがverified_saved_source_lineの場合、保存された明細の版・部品との対応・原本参照を確認済みです。原本の全内容、新品や再生品の区別、全構成部品の交換まで確認済みという意味ではありません。
 原本参照は既存履歴から引き継ぎ、同じ資料の再取込や専門項目の追加入力を求めないでください。関連本体の交換登録だけを理由に部品別の記録確認提案を大量に作らないでください。
 
+【検証済み原本の影響説明と日常点検】
+maintenance_knowledge内のverified_document_contextは、同一原本の版・ページ引用と、採用済み点検規則と同じ表の車両適用範囲を照合した追加知識です。source_quoteとconditionを根拠として参照できます。source_idとvehicle_source_idを実際の提案の根拠IDへ含めてください。引用の範囲外の意味や専門家確認済みという説明を追加しないでください。
+kindがconditional_impactなら、conditionが成立した場合の影響であり、現在の故障・交換未実施・期限超過の証拠ではありません。実車状態と条件付きの懸念を区別してください。期限計算がheldでも根拠のある条件付き影響は説明できますが、risk_statusの既存検証契約を守り、裏付けのない危険度・発生確率・運行可否を作らないでください。
+kindがdaily_inspectionなら、そのsource_quoteにある具体的な日常点検内容です。既存の日常点検・後日の対応・正常結果と照合し、未登録を未実施扱いせず、通常の日常点検に含める内容として扱ってください。既存点検の繰返し登録や、日常点検だけの大量の独立提案を作らないでください。同じ装置の定期点検提案があれば関連する確認内容として整理してください。点検手順の数値・分解・調整方法は補作しないでください。
+追加知識のcalculation_permitted=falseとrisk_score_calculation_permitted=falseは、期限・リスク区分の計算根拠には使えないという意味で、引用に書かれた条件付き影響・点検内容まで使用不可という意味ではありません。交換規則は従来の厳密な検証を維持してください。
+
 【履歴の起算点がない場合の予防点検提案】
 analysis_adoption.statusがadopted_for_analysisの規則は、timing_factsがheldでも、検証されたsource_quoteに明記された点検内容を非数値の提案根拠にできます。履歴がないという理由だけで適用済みのメーカー基準まで使えないと判断しないでください。
 点検規則のsource_quoteに具体的な確認内容がある場合は、その内容をactionへ示し、reasonに車両への適用根拠と確認目的を示してください。期限の到達状況を判断できないときは、その旨をuncertaintyへ示してください。
-timingには「次回整備時に実施状況と点検を検討」など、24文字以内で期限確定とは区別した提案上の時機を示せます。実施状況が記録上未確認なら、actionに当該項目の点検を検討する旨と具体的な確認内容を示してください。これはメーカー指定期限、緊急性、点検未実施の断定ではありません。既存の予定日を創作しないでください。
+【予防整備の判断を利用者へ届ける】
+保存済みの整備・点検・交換履歴と採用済みのメーカー基準はAIが一次照合してください。利用者へ既存資料の探索、担当者への実施日照会、原票の照合を通常の最初の作業として戻さないでください。情報不足だけを予防整備の主な提案にしないでください。
+適用できる点検基準があり、保存済み入力から該当項目の点検結果を確認できない場合は、その基準に書かれた具体的な点検を整備担当者へ依頼する対応を示してください。既存の予定や実施案件が入力にあればそこへ関連付けてください。点検未実施・期限超過と断定せず、新しい期日や緊急性も作らないでください。予定がなければ「次回整備時」等を提案上の時機として示し、メーカー指定期限と区別してください。
+current_stateは対象の実績と状態を簡潔に示してください。actionは36文字以内で、点検・確認する箇所と内容を直接示してください。「記録を照合する」「担当者へ実施状況を照会する」「点検を検討する」を主な対応にしないでください。既存の該当実施結果が入力にある場合は重複点検を無条件に提案しないでください。
+reasonは利用者向けの対応理由を示してください。メーカーの点検対象・周期、交換後の経過や症状、適用可能な実績傾向を使い、なぜその点検・対応を勧めるかを説明してください。原本検証成功・条件照合済み・件数・分析手続きの説明で埋めないでください。周期は採用済み規則の範囲で引用し、期限計算が保留なら現在期限を計算しないでください。
+confirmation_stepsは1〜3件とし、整備担当者に何の点検を依頼し、何の結果を確認するかを簡潔に示してください。既存記録の検索作業を列挙しないでください。confirmation_branchは、点検結果が正常な場合と異常又は判断困難な場合で次の対応を示してください。結果に応じた専門判断は整備担当者へ委ね、入力にない合否数値・分解手順・交換範囲・運行可否を創作しないでください。新しい専門項目入力、車両の選び直し、資料の再取込を要求しないでください。
+riskは車両状態と適用できる知識から説明してください。入力に機能影響の記載がなくても、一般知識から成立条件を示す懸念は、risk_basisで一般知識と明示して説明できます。現在の異常の断定、未計算の期限の作成は禁止です。詳細はリスク判定v4の契約に従ってください。
 source_quoteが交換間隔だけを記載する規則から、点検手順・故障兆候・具体的な作業を補作しないでください。履歴不足だけで交換を勧めず、適用が確認された点検規則があれば、その明記された作業へまとめてください。
 関連する本体ASSYの交換が記録されていれば、その事実と日付をreasonに含めてください。構成部品の全交換、点検実施、期限のリセットを意味しないことを必要に応じてuncertaintyに示してください。同じ装置について構成部品別の履歴確認を大量に提案せず、一つの具体的な点検行動へまとめてください。
 knowledge_source_idとvehicle_source_id、関連する本体履歴がある場合はそのsource_idsを、実際の入力に存在する範囲で引用してください。資料の再取込、部品ごとの専門項目入力、対象の選び直しを求めないでください。
@@ -674,6 +713,8 @@ statusがnot_available、not_extracted、knowledge_changed、invalid_stored_rule
 候補の未検証だけを理由に、利用者へ資料確認や記録確認の提案を増やさないでください。
 未対応指摘、症状の継続・再発、利用可能な別の根拠に基づく実車の確認・点検は引き続き検討し、何を・なぜ・いつ確認するかと最初の行動を具体的に示してください。候補数値から作った期限と、実際の症状に基づく確認タイミングを混同しないでください。
 """.strip()
+
+    instructions += "\n\n" + RISK_INSTRUCTIONS
 
     if payload.get("analysis_stage") == "partial":
         instructions += """
@@ -719,7 +760,7 @@ detail_scopeがある履歴では項目が一部省略されています。省�
             "reason": {"type": "string", "maxLength": 240},
             "source_ids": {
                 "type": "array",
-                "items": {"type": "string"},
+                "items": source_id_items(str(record["source_id"]) for record in records),
                 "maxItems": 10,
             },
         }
@@ -773,6 +814,13 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
 規則の引用・適用条件・採用状態・計算可否・原本参照・履歴の解釈は、参照先の元の値に従ってください。参照キーe1等は根拠IDではありません。source_idsには元の入力の実際のsource_idだけを指定し、送信用の参照記法を利用者向け説明へ書かないでください。
 """
 
+    if len(allowed_ids) <= 200 and sum(len(value) for value in allowed_ids) <= 12000:
+        instructions += "\n入力内の根拠ID一覧（この範囲だけを引用）：" + json.dumps({
+            "vehicle_evidence_ids": sorted(vehicle_evidence_ids),
+            "knowledge_ids": sorted(knowledge_ids),
+        }, ensure_ascii=False)
+        instructions += "\nperiodic:等のIDは記載どおりに使い、項目番号・ページ番号・送信用参照キーから新しいIDを作らないでください。根拠を示せない提案は出力しないでください。"
+
     model = (
         os.environ.get("OPENAI_ANALYSIS_MODEL")
         or os.environ.get("OPENAI_MODEL")
@@ -792,7 +840,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
             },
         },
         "reasoning": {"effort": "low"},
-        "max_output_tokens": 3000,
+        "max_output_tokens": 6000,
         "store": False,
     }
 
@@ -873,6 +921,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         if part.get("type") == "output_text"
     )
     data = json.loads(raw)
+    compose_vehicle_risk_data(data)
 
     if payload.get("analysis_stage") == "review":
         candidates = payload.get("review_candidates")
@@ -996,6 +1045,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         for field, limit in (
             ("target", 24),
             ("current_state", 36),
+            ("risk", 80),
             ("timing", 24),
             ("title", 24),
             ("action", 36),
@@ -1042,8 +1092,20 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
             )
             or not any(value in vehicle_evidence_ids for value in ids)
         ):
-            raise ValueError("INVALID_ANALYSIS_SOURCES")
+            if not isinstance(ids, list):
+                reason = "not_an_array"
+            elif not 1 <= len(ids) <= 10:
+                reason = "invalid_reference_count"
+            elif any(not isinstance(value, str) for value in ids):
+                reason = "non_string_reference"
+            elif any(value not in allowed_ids for value in ids):
+                reason = "unknown_reference"
+            else:
+                reason = "missing_vehicle_evidence"
+            # Do not leak source contents or guessed IDs in worker logs.
+            raise ValueError("INVALID_ANALYSIS_SOURCES: " + reason)
 
+        validate_vehicle_risk(item, payload.get("_risk_evidence_payload", payload))
         used_knowledge = item.get("knowledge_ids")
         if (
             not isinstance(used_knowledge, list)
@@ -1065,5 +1127,8 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         item["knowledge_ids"] = list(dict.fromkeys(used_knowledge))
         item["source_ids"] = list(dict.fromkeys(ids))
 
+    data["output_contract"] = "vehicle-preventive-v4"
+    data["risk_contract"] = "vehicle-risk-v4"
+    data["risk_text_contract"] = "condition-effect-v2"
     data["model"] = result.get("model", model)
     return data

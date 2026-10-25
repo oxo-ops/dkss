@@ -17,6 +17,13 @@ document.addEventListener("DOMContentLoaded", function () {
     let vehicleSearchTimer = null;
     let vehicleSearchGeneration = 0;
 
+    function updateSelectedVehicleCount() {
+        const count = document.getElementById("selected_vehicle_count");
+        if (count && selectedVehiclesArea) {
+            count.textContent = selectedVehiclesArea.querySelectorAll(".selected-vehicle").length + "台";
+        }
+    }
+
 
     function addLicenseRow() {
         if (!licenseArea || !licenseRowTemplate) {
@@ -67,6 +74,7 @@ document.addEventListener("DOMContentLoaded", function () {
         vehicleSearch.dispatchEvent(
             new Event("input")
         );
+        updateSelectedVehicleCount();
     }
 
 
@@ -106,14 +114,16 @@ document.addEventListener("DOMContentLoaded", function () {
         ];
 
         const label = document.createElement("span");
+        label.className = "driver-vehicle-number";
         label.textContent = labelParts.join(" / ");
 
         const removeButton = document.createElement("button");
         removeButton.type = "button";
         removeButton.className =
-            "btn-small btn-delete js-remove-selected-vehicle";
+            "btn-small driver-vehicle-remove js-remove-selected-vehicle";
         removeButton.dataset.vehicleId = vehicle.vehicle_record_id;
-        removeButton.textContent = "削除";
+        removeButton.textContent = "解除";
+        removeButton.setAttribute("aria-label", label.textContent + "の選択を解除");
 
         row.appendChild(hiddenInput);
         row.appendChild(label);
@@ -124,6 +134,7 @@ document.addEventListener("DOMContentLoaded", function () {
         vehicleSearch.dispatchEvent(
             new Event("input")
         );
+        updateSelectedVehicleCount();
     }
 
 
@@ -136,15 +147,16 @@ document.addEventListener("DOMContentLoaded", function () {
             const keyword = vehicleSearch.value.trim();
 
             if (!keyword) {
-                vehicleSearchResults.innerHTML = "";
-
-                const message = document.createElement("p");
-                message.className = "help-text";
-                message.textContent = "車両を検索してください。";
-
-                vehicleSearchResults.appendChild(message);
+                vehicleSearchResults.hidden = true;
                 return;
             }
+
+            vehicleSearchResults.hidden = false;
+            const loading = document.createElement("p");
+            loading.className = "help-text";
+            loading.setAttribute("role", "status");
+            loading.textContent = "検索中…";
+            vehicleSearchResults.appendChild(loading);
 
             vehicleSearchTimer = setTimeout(function () {
                 fetch(
@@ -198,7 +210,9 @@ document.addEventListener("DOMContentLoaded", function () {
                             button.textContent =
                                 alreadySelected
                                     ? "選択済み"
-                                    : "選択";
+                                    : "追加";
+                            button.classList.add("driver-vehicle-add");
+                            button.setAttribute("aria-label", (vehicle.number || "ナンバー未登録") + (alreadySelected ? "は選択済み" : "を追加"));
 
                             const labelParts = [
                                 vehicle.number || "ナンバー未登録"
@@ -206,6 +220,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                             const label =
                                 document.createElement("span");
+                            label.className = "vehicle-option-label";
 
                             label.textContent =
                                 labelParts.join(" / ");
@@ -219,8 +234,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                 );
                             }
 
-                            row.appendChild(button);
                             row.appendChild(label);
+                            row.appendChild(button);
 
                             vehicleSearchResults.appendChild(row);
                         });
@@ -247,6 +262,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 300);
         });
     }
+
+    updateSelectedVehicleCount();
 
 
     document.addEventListener("click", function (event) {

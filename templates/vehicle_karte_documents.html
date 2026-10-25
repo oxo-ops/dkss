@@ -285,6 +285,10 @@
                 </div>
             {% endif %}
 
+            {# VEHICLE_DOCUMENT_DELETION_V1 #}
+            {% if session.get('role') in ['admin', 'itc'] and selected_document.key.startswith('document:') %}
+            <p><a class="btn btn-outline" href="{{ url_for('vehicle_document_delete', vehicle_record_id=vehicle.id, draft_id=selected_document.draft_id) }}">資料の削除・取込取消</a></p>
+            {% endif %}
             <dl class="km-detail-facts">
                 {% for label, value in [
                     ('資料種別', selected_document.kind_label),

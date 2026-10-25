@@ -59,6 +59,75 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.remove()
         self.ctx.pop()
 
+    def test_overview_connects_maintenance_periodic_mileage_and_files(self):
+        m = self.m
+        m.db.session.add(m.VehicleMaintenanceRecord(
+            company_code="TEST", vehicle_record_id=self.vehicle.id,
+            entry_date="2026-09-01", completion_date="2026-09-01",
+            content="概要整備接続", status="完了", mileage=10000, total_cost=12345,
+        ))
+        m.db.session.commit()
+        self.upload_inspection()
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=self.inspection_form(draft))
+        record = m.VehiclePeriodicInspectionRecord.query.one()
+        record.content = "概要点検接続"
+        record.mileage = 10100
+        m.db.session.commit()
+        text = self.client.get(f"/vehicle/karte/{self.vehicle.id}").get_data(as_text=True)
+        for expected in ("概要整備接続", "概要点検接続", "12,345", "10,100", "inspection.pdf", "直近の履歴"):
+            self.assertIn(expected, text)
+        self.assertNotIn("未実装", text)
+        with m.app.test_request_context('/'):
+            context = m.get_vehicle_karte_overview_context(self.vehicle)
+        document = next(item for item in context['karte_recent_documents'] if item['filename'] == 'inspection.pdf')
+        self.assertEqual(document['date_kind'], '実施日')
+        self.assertEqual(document['business_date'], record.inspection_date)
+        self.assertIn(f'#periodic-record-{record.id}', document['related_url'])
+        Path(self.temp.name, "overview.html").write_text(text, encoding="utf-8")
+
+    def test_overview_note_save_escape_clear_and_conflict(self):
+        url = f"/vehicle/karte/{self.vehicle.id}/note"
+        self.assertEqual(self.client.post(url, data={"version":0,"content":"<script>alert(1)</script>"}).status_code, 302)
+        text = self.client.get(f"/vehicle/karte/{self.vehicle.id}").get_data(as_text=True)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", text)
+        self.assertEqual(self.client.post(url, data={"version":0,"content":"stale"}).status_code, 409)
+        self.assertEqual(self.m.VehicleKarteNote.query.one().version, 1)
+        self.assertEqual(self.client.post(url, data={"version":1,"content":""}).status_code, 302)
+        self.assertEqual(self.m.VehicleKarteNote.query.one().content, "")
+        self.assertEqual(self.client.post(url, data={"version":2,"content":"a"*10001}).status_code, 400)
+
+    def test_overview_note_company_and_role_boundaries(self):
+        m = self.m
+        other = m.Vehicle(company_code="OTHER", chassis_number="OTHER-1")
+        m.db.session.add(other); m.db.session.commit()
+        self.assertEqual(self.client.post(f"/vehicle/karte/{other.id}/note", data={"version":0,"content":"no"}).status_code, 404)
+        m.User.query.filter_by(company_code="TEST", username="admin").one().role = "user"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/vehicle/karte/{self.vehicle.id}/note", data={"version":0,"content":"no"}).status_code, 403)
+        self.assertEqual(m.VehicleKarteNote.query.count(), 0)
+
+    def test_overview_mileage_conflicts_are_gaps(self):
+        m = self.m
+        for value in (10000, 11000):
+            m.db.session.add(m.VehicleMaintenanceRecord(
+                company_code="TEST", vehicle_record_id=self.vehicle.id,
+                entry_date="2026-09-01", mileage=value,
+            ))
+        m.db.session.commit()
+        with m.app.test_request_context():
+            context = m.get_vehicle_karte_overview_context(self.vehicle)
+        self.assertEqual(context["karte_mileage_points"], [{"date":"2026-09-01", "mileage":None}])
+        self.assertEqual(context["karte_mileage_reference"]["conflict_dates"], ["2026-09-01"])
+
+    def test_vehicle_deletion_cleans_up_overview_note(self):
+        m = self.m
+        m.db.session.add(m.VehicleKarteNote(company_code="TEST", vehicle_record_id=self.vehicle.id, content="note"))
+        m.db.session.commit()
+        m.delete_vehicle_related_data(self.vehicle)
+        m.db.session.delete(self.vehicle); m.db.session.commit()
+        self.assertEqual(m.VehicleKarteNote.query.count(), 0)
+
     def test_empty_vehicle_report_is_validation_error(self):
         response = self.client.post("/vehicle-patrols/new", data={})
         self.assertEqual(response.status_code, 400)

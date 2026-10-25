@@ -33522,6 +33522,101 @@ body.vehicle-list-ppt .vi-workspace .vi-section .checklist-table.responsive-tabl
 body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table td:not(:nth-child(5)){white-space:nowrap;overflow-wrap:normal}
 body.vehicle-list-ppt .vi-workspace .vi-section .vehicle-periodic-table{min-width:850px}
 
+/* Driver form: compact multi-vehicle selection, scoped to this form. */
+.driver-edit-card .driver-vehicle-picker { display:grid; gap:10px; min-width:0; }
+.driver-edit-card .driver-vehicle-heading { display:flex; align-items:center; gap:8px; }
+.driver-edit-card .driver-vehicle-heading label { margin:0; }
+.driver-edit-card #selected_vehicle_count { padding:2px 8px; border-radius:12px; background:#edf3fb; color:#456386; font-size:12px; font-weight:600; }
+.driver-edit-card .driver-vehicle-picker #vehicle_search { margin:0; width:100%; box-sizing:border-box; }
+.driver-edit-card .driver-vehicle-picker .vehicle-select-box { margin:0; padding:4px; max-height:220px; }
+.driver-edit-card .driver-vehicle-picker .vehicle-select-box[hidden] { display:none; }
+.driver-edit-card .driver-vehicle-picker .vehicle-select-box .help-text { margin:0; padding:10px; }
+.driver-edit-card .driver-vehicle-picker .vehicle-option { display:flex; align-items:center; gap:12px; padding:6px 8px; }
+.driver-edit-card .driver-vehicle-picker .vehicle-option-label { overflow-wrap:anywhere; }
+.driver-edit-card .driver-vehicle-picker .selected-box { margin:0; padding:12px; background:#f8faff; border-color:#dce5f0; }
+.driver-edit-card .driver-vehicle-picker .selected-box > strong { display:block; margin-bottom:8px; font-size:12px; font-weight:600; color:#5d708a; }
+.driver-edit-card #selected_vehicles { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:8px; }
+.driver-edit-card #selected_vehicles .selected-vehicle { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; padding:6px 8px 6px 12px; border:1px solid #dce5f0; border-radius:8px; background:#fff; }
+.driver-edit-card .driver-vehicle-number { min-width:0; overflow-wrap:anywhere; font-size:13px; font-weight:500; }
+.driver-edit-card #selected_vehicles button.driver-vehicle-remove,
+.driver-edit-card #vehicle_search_results button.driver-vehicle-add { flex:0 0 auto; width:auto; min-width:48px; min-height:36px; height:auto; margin:0; padding:6px 10px; border:1px solid #d7e2ef; border-radius:6px; background:#fff; color:#426187; box-shadow:none; font-size:12px; line-height:1.4; }
+.driver-edit-card #selected_vehicles button.driver-vehicle-remove:hover { border-color:#afc0d6; background:#edf3fb; color:#23466f; }
+.driver-edit-card #vehicle_search_results button.driver-vehicle-add:not(:disabled):hover { background:#edf3fb; border-color:#afc0d6; }
+.driver-edit-card #no_selected_vehicle { color:#687c96; font-size:13px; }
+@media(max-width:600px) {
+  .driver-edit-card #selected_vehicles { grid-template-columns:minmax(0,1fr); }
+  .driver-edit-card .driver-vehicle-picker .selected-box { padding:10px; }
+}
+
+/* Driver account editor: grouped fields with compact, predictable spacing. */
+#driver-editor { max-width:1180px; margin:0 auto; }
+#driver-editor .page-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; }
+#driver-editor .page-header h2 { margin:0; font-size:22px; line-height:1.4; }
+#driver-editor .page-header .header-actions { width:auto; margin:0; }
+#driver-editor .driver-edit-card { padding:20px; margin:0; }
+#driver-editor .driver-editor-form { display:block; margin:0; }
+#driver-editor .driver-editor-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px 28px; align-items:start; }
+#driver-editor .driver-editor-section { min-width:0; margin:0; padding:0; }
+#driver-editor .driver-editor-section h3 { margin:0 0 12px; padding:0; font-size:14px; font-weight:700; line-height:1.4; color:#263e5e; }
+#driver-editor .driver-field-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px 14px; }
+#driver-editor .driver-field-wide { grid-column:1/-1; }
+#driver-editor .driver-field { display:flex; flex-direction:column; gap:6px; min-width:0; margin:0; }
+#driver-editor .driver-login-fields { display:grid; gap:12px; }
+#driver-editor .driver-field > label,
+#driver-editor .license-row label { display:block; margin:0; padding:0; font-size:12px; line-height:1.5; font-weight:600; }
+#driver-editor .driver-field :is(input,select),
+#driver-editor .license-row :is(input,select),
+#driver-editor #vehicle_search { display:block; box-sizing:border-box; width:100%; min-width:0; max-width:100%; height:38px; min-height:38px; margin:0; padding:7px 10px; font-size:13px; line-height:1.4; border-radius:7px; }
+#driver-editor .driver-field input[readonly] { background:#f3f6fa; color:#5e7086; }
+#driver-editor #safe_start_date { max-width:260px; }
+#driver-editor .driver-field-help { margin:0; color:#687b94; font-size:11px; line-height:1.5; }
+#driver-editor .driver-required { margin-left:4px; padding:1px 4px; color:#8a4751; background:#fcf0f1; border-radius:3px; font-size:10px; font-weight:500; }
+#driver-editor .password-field { margin:0; min-width:0; }
+#driver-editor .password-field input { padding-right:42px; }
+#driver-editor .driver-vehicle-picker { gap:9px; }
+#driver-editor .driver-vehicle-heading { margin:0 0 3px; gap:8px; }
+#driver-editor .driver-vehicle-heading h3 { margin:0; }
+#driver-editor .driver-vehicle-heading h3 label { margin:0; font-size:14px; font-weight:700; color:inherit; }
+#driver-editor .driver-vehicle-picker .selected-box { padding:0; border:0; background:transparent; }
+#driver-editor #selected_vehicles { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+#driver-editor #selected_vehicles .selected-vehicle { padding:4px 6px 4px 10px; min-height:38px; box-sizing:border-box; background:#f8faff; }
+#driver-editor #selected_vehicles button.driver-vehicle-remove { min-height:30px; min-width:44px; padding:4px 8px; }
+#driver-editor .driver-section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 12px; }
+#driver-editor .driver-section-heading h3 { margin:0; }
+#driver-editor #license_area { display:grid; gap:10px; }
+#driver-editor .license-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(125px,.8fr) auto; gap:8px; align-items:end; min-width:0; width:100%; margin:0; padding:0; }
+#driver-editor .license-row > div { min-width:0; }
+#driver-editor .license-row label { margin:0 0 5px; }
+#driver-editor .license-row button.driver-license-remove,
+#driver-editor .driver-section-heading button.driver-license-add { width:auto; min-width:44px; min-height:34px; height:34px; margin:0; padding:5px 8px; border:1px solid #d7e2ef; border-radius:6px; background:#fff; color:#426187; box-shadow:none; font-size:12px; line-height:1.4; }
+#driver-editor .license-row button.driver-license-remove { margin-bottom:2px; color:#6f5963; }
+#driver-editor .license-row button.driver-license-remove:hover { background:#fcf3f4; border-color:#e5c9cf; }
+#driver-editor .driver-section-heading button.driver-license-add:hover { background:#edf3fb; }
+#driver-editor .driver-editor-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; position:sticky; bottom:0; z-index:4; margin:18px 0 0; padding:12px 0 0; background:#fff; border-top:1px solid #e4eaf2; }
+#driver-editor .driver-editor-actions :is(a.btn,button.btn) { display:inline-flex; align-items:center; justify-content:center; width:auto; min-width:100px; min-height:38px; margin:0; padding:8px 16px; font-size:13px; line-height:1.4; }
+#driver-editor .driver-editor-actions button.driver-editor-save { background:#e4efff; color:#21569b; border-color:#b7cff1; font-weight:700; box-shadow:none; }
+#driver-editor .driver-editor-actions button.driver-editor-save:hover { background:#d5e6ff; border-color:#91b5e8; }
+@media(max-width:1050px) {
+  #driver-editor .driver-editor-grid { grid-template-columns:minmax(0,1fr); gap:20px; }
+  #driver-editor .driver-editor-section + .driver-editor-section { border-top:1px solid #e4eaf2; padding-top:16px; }
+  #driver-editor #selected_vehicles { grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); }
+}
+@media(max-width:600px) {
+  #driver-editor .driver-edit-card { padding:14px; }
+  #driver-editor .page-header { align-items:center; margin-bottom:12px; }
+  #driver-editor .page-header h2 { font-size:20px; }
+  #driver-editor .driver-field-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+  #driver-editor .driver-field-wide { grid-column:auto; }
+  #driver-editor #safe_start_date { max-width:100%; }
+  #driver-editor #selected_vehicles { grid-template-columns:minmax(0,1fr); }
+  #driver-editor .license-row { grid-template-columns:minmax(0,1fr) auto; gap:6px 8px; padding-bottom:10px; border-bottom:1px solid #edf0f5; }
+  #driver-editor .license-row > div:first-child { grid-column:1/-1; }
+  #driver-editor .license-row > div:nth-child(2) { grid-column:1; }
+  #driver-editor .license-row > button { grid-column:2; width:auto; }
+  #driver-editor .driver-editor-actions { padding-top:10px; }
+  #driver-editor .driver-editor-actions :is(a.btn,button.btn) { flex:1; }
+}
+
 /* Master ordering uses the existing compact table dimensions. */
 .master-order-help {display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:8px 0;color:#61738c;font-size:12px;}
 .master-order-status {color:#25725d;font-weight:600;}
@@ -33548,11 +33643,13 @@ body:has(.master-unified-tabs-complete) .main-content > .page-header > h2 {displ
     .master-unified-tabs-complete .master-tab-icon {width:18px;height:18px;flex-basis:18px;}
 }
 
+
 /* Checklist reorder works in both desktop rows and mobile cards. */
 .master-order-actions {display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:nowrap;}
 .master-order-actions > .master-order-handle {flex-shrink:0;margin:0;}
 .master-order-cards > .is-dragging {background:#e6efff;outline:1px solid #9fbeed;}
 .master-order-table .checklist-master-actions {gap:8px;}
+
 
 /* Standard checklist provenance belongs beside the name, not in the action slot. */
 .standard-checklist-name {display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;}
@@ -33577,6 +33674,25 @@ body .main-content .standard-checklist-view {display:inline-flex;align-items:cen
 .standard-checklist-criteria {margin-top:14px;color:#50647c;font-size:12px;line-height:1.7;}
 .standard-checklist-criteria summary {cursor:pointer;font-weight:600;}
 .standard-checklist-criteria p {white-space:pre-line;}
+
+/* DASHBOARD_DATA_DENSITY_V1_BEGIN */
+body .dashboard-page.dashboard-design-v2 .dashboard-home-layout {align-items:start;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-list {grid-template-columns:1fr;align-self:start;gap:7px;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-panel>h3 {min-height:26px;padding:5px 8px;font-size:12px;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table-wrap {max-height:180px;overflow:auto;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table {font-size:12px;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table :is(th,td):is(:nth-child(3),:nth-child(4)) {display:none;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:first-child {width:27%;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child(2) {width:58%;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:last-child {width:15%;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td {padding:7px 8px;line-height:1.55;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-action {font-size:12px;line-height:1.6;-webkit-line-clamp:2;color:#263f5b;}
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-reason {display:none;}
+body .dashboard-page.dashboard-design-v2 .dashboard-reference-bottom-grid {align-items:start;}
+body .dashboard-page.dashboard-design-v2 .dashboard-office-empty {padding:7px 2px;margin:0;font-size:12px;}
+/* DASHBOARD_DATA_DENSITY_V1_END */
+
+.checklist-action-menu summary.checklist-action-label {width:auto;min-width:44px;box-sizing:border-box;padding:0 8px;font-size:12px;}
 
 /* Checklist results open directly; names provide in-place navigation. */
 .checklist-result-switcher {position:relative;min-width:0;max-width:100%;}

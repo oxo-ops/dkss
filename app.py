@@ -1195,6 +1195,17 @@ class Vehicle(db.Model):
         default=False
     )
 
+class VehicleKarteNote(db.Model):
+    __table_args__ = (db.UniqueConstraint("company_code", "vehicle_record_id"),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    vehicle_record_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False)
+    content = db.Column(db.Text, nullable=False, default="")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    updated_by_username = db.Column(db.String(50))
+    updated_at = db.Column(db.String(30))
+
+
 class VehicleType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -3266,6 +3277,15 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
 
     selected_candidates.sort(key=lambda candidate: candidate[:2], reverse=True)
     for _, _, row, item in selected_candidates[:20]:
+        # VERIFIED_DOCUMENT_CONTEXT_V1: retain checked impact and daily tasks,
+        # independently of numeric-rule calculation permissions.
+        context_reader = app.extensions.get(
+            "maintenance_knowledge_import", {},
+        ).get("get_verified_document_context")
+        if context_reader:
+            context = context_reader(vehicle.company_code, item)
+            if context:
+                item["verified_document_context"] = context
         source_id = item["source_id"]
         knowledge.append(item)
         sources[source_id] = {
@@ -7100,6 +7120,10 @@ def vehicle_number(vehicle):
 
 
 def delete_vehicle_related_data(vehicle):
+    VehicleKarteNote.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).delete(synchronize_session=False)
+
 
     VehicleChecklistNotifySetting.query.filter_by(
         company_code=vehicle.company_code,
@@ -21802,51 +21826,112 @@ def vehicle_karte(vehicle_record_id):
             )
             db.session.commit()
 
-    mileage_records = (
-        VehicleOperationRecord.query
-        .filter(
-            VehicleOperationRecord.company_code == vehicle.company_code,
-            VehicleOperationRecord.vehicle_record_id == vehicle.id,
-            VehicleOperationRecord.arrival_meter.isnot(None)
-        )
-        .order_by(
-            VehicleOperationRecord.operation_date.asc(),
-            db.func.coalesce(
-                VehicleOperationRecord.arrival_at,
-                VehicleOperationRecord.operation_date
-            ).asc(),
-            VehicleOperationRecord.id.asc()
-        )
-        .all()
-    )
-
-    mileage_by_date = {}
-
-    for record in mileage_records:
-        mileage_by_date[record.operation_date] = float(
-            record.arrival_meter
-        )
-
-    karte_mileage_points = [
-        {
-            "date": operation_date,
-            "mileage": mileage
-        }
-        for operation_date, mileage in sorted(
-            mileage_by_date.items()
-        )
-    ]
-
+    overview = get_vehicle_karte_overview_context(vehicle)
     return render_template(
-        "vehicle_karte.html",
-        vehicle=vehicle,
-        vehicle_number=number,
-        open_defects=open_defects,
-        karte_mileage_points=karte_mileage_points,
-        karte_parts_ranking=get_vehicle_karte_parts_context(
-            vehicle
-        )["part_ranking"],
+        "vehicle_karte.html", vehicle=vehicle, vehicle_number=number,
+        open_defects=open_defects, **overview,
     )
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/note", methods=["POST"])
+def vehicle_karte_note(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id, company_code=session.get("company_code")
+    ).first_or_404()
+    if not require_master_admin():
+        return "車両メモの編集権限がありません。", 403
+    content = request.form.get("content", "").strip()
+    version = request.form.get("version", type=int)
+    if len(content) > 10000 or version is None or version < 0:
+        return "メモは10,000文字以内で入力してください。", 400
+    note = VehicleKarteNote.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).first()
+    now = datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M")
+    try:
+        if note is None and version == 0:
+            db.session.add(VehicleKarteNote(
+                company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+                content=content, version=1, updated_at=now,
+                updated_by_username=session.get("username"),
+            ))
+        elif note is not None:
+            changed = VehicleKarteNote.query.filter_by(
+                id=note.id, company_code=vehicle.company_code, version=version
+            ).update({"content": content, "version": version + 1,
+                      "updated_at": now, "updated_by_username": session.get("username")})
+            if not changed:
+                db.session.rollback()
+                return "他の人がメモを更新しました。画面を更新して内容を確認してください。", 409
+        else:
+            return "メモの状態が変わりました。画面を更新してください。", 409
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return "他の人がメモを更新しました。画面を更新して内容を確認してください。", 409
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("車両メモを保存できませんでした。")
+        return "メモを保存できませんでした。もう一度お試しください。", 500
+    flash("車両メモを保存しました。", "success")
+    return redirect(url_for("vehicle_karte", vehicle_record_id=vehicle.id, _anchor="vehicle-note"))
+
+
+def get_vehicle_karte_overview_context(vehicle):
+    # OVERVIEW_SUMMARY_V19: reuse the existing domain records, without AI calls.
+    from vehicle_karte_overview import build_overview
+    return build_overview(globals(), vehicle)
+
+
+def _legacy_vehicle_karte_overview_context(vehicle):
+    maintenance = VehicleMaintenanceRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    maintenance, _, _ = filter_vehicle_maintenance_factual_history(maintenance)
+    periodic = VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    periodic = [row for row in periodic if not periodic_inspection_synthetic_evidence(row)]
+    operations = VehicleOperationRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    reference = build_vehicle_karte_mileage_reference(
+        maintenance, operations, datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat(), periodic, include_points=True
+    )
+    recent = [{
+        "date": row.entry_date or row.completion_date or "",
+        "kind": row.category or "整備", "content": row.content or row.repair_content or "整備記録",
+        "mileage": row.mileage, "cost": row.total_cost,
+        "status": row.status or ("完了" if row.completion_date else "未設定"),
+        "link": url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id, record_id=row.id),
+        "key": f"maintenance:{row.id}",
+    } for row in maintenance]
+    recent.extend({
+        "date": row.inspection_date or "", "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.inspection_type, "定期点検"),
+        "content": row.content or "定期点検記録", "mileage": row.mileage,
+        "cost": None, "status": "登録済み",
+        "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
+        "key": f"periodic:{row.id}",
+    } for row in periodic)
+    recent.extend({
+        "date": row.performed_date, "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.kind, "点検"),
+        "content": "点検実施（書類未受領）", "mileage": None, "cost": None,
+        "status": "実施済み・書類未受領",
+        "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
+        "key": f"execution:{row.id}",
+    } for row in inspection_plans.manual_records(vehicle.company_code, vehicle.id))
+    parts = get_vehicle_karte_parts_context(vehicle, factual_only=True)["part_ranking"]
+    documents = get_vehicle_karte_documents(vehicle)
+    build_vehicle_karte_documents_context(vehicle, documents)
+    return {
+        "karte_mileage_points": reference["points"],
+        "karte_mileage_reference": reference,
+        "karte_recent_entries": sorted(recent, key=lambda row: (row["date"], row["key"]), reverse=True)[:5],
+        "karte_parts_ranking": parts,
+        "karte_note": VehicleKarteNote.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).first(),
+        "karte_recent_documents": documents[:4],
+        "karte_document_count": len(documents),
+    }
 
 
 @app.route(
@@ -22229,20 +22314,7 @@ def build_vehicle_karte_documents_context(vehicle, documents):
     }
 
 
-@app.route("/vehicle/karte/<int:vehicle_record_id>/documents")
-def vehicle_karte_documents(vehicle_record_id):
-    vehicle = Vehicle.query.filter_by(
-        id=vehicle_record_id,
-        company_code=session.get("company_code")
-    ).first_or_404()
-
-    number = vehicle_number({
-        "plate_area": vehicle.plate_area or "",
-        "plate_class": vehicle.plate_class or "",
-        "plate_kana": vehicle.plate_kana or "",
-        "plate_number": vehicle.plate_number or ""
-    })
-
+def get_vehicle_karte_documents(vehicle):
     drafts = (
         VehicleDocumentImportDraft.query
         .with_entities(
@@ -22295,11 +22367,6 @@ def vehicle_karte_documents(vehicle_record_id):
             "records": vehicle_records,
         })
 
-    open_defects = get_vehicle_open_inspection_defects(
-        vehicle.company_code,
-        vehicle.id
-    )
-
     operation_drafts = (
         VehicleOperationImportDraft.query
         .with_entities(
@@ -22345,6 +22412,26 @@ def vehicle_karte_documents(vehicle_record_id):
         ),
         reverse=True
     )
+
+    return documents
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/documents")
+def vehicle_karte_documents(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    documents = get_vehicle_karte_documents(vehicle)
+    open_defects = get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id)
 
     return render_template(
         "vehicle_karte_documents.html",
@@ -23295,7 +23382,7 @@ def save_vehicle_maintenance_replacement_parts(
     return created_count
 
 
-def get_vehicle_karte_parts_context(vehicle):
+def get_vehicle_karte_parts_context(vehicle, factual_only=False):
     from types import SimpleNamespace
 
     rows = (
@@ -23329,6 +23416,11 @@ def get_vehicle_karte_parts_context(vehicle):
             vehicle_record_id=vehicle.id,
         ).all()
     }
+
+    if factual_only:
+        factual, _, _ = filter_vehicle_maintenance_factual_history(list(maintenance.values()))
+        maintenance = {record.id: record for record in factual}
+        rows = [(part, record) for part, record in rows if record.id in maintenance]
 
     sources = (
         VehiclePartReplacementSource.query.filter_by(
@@ -24795,7 +24887,7 @@ def filter_vehicle_maintenance_factual_history(maintenance, parts=()):
 
 def build_vehicle_karte_mileage_reference(
     maintenance_records, operation_records, as_of,
-    periodic_records=(),
+    periodic_records=(), include_points=False,
 ):
     """記録距離と出典を選ぶ。現在の実測値とは断定しない。"""
     from decimal import Decimal, InvalidOperation
@@ -24980,7 +25072,7 @@ def build_vehicle_karte_mileage_reference(
         else "conflicting" if latest["value"] is None
         else "recorded"
     )
-    return {
+    result = {
         "as_of": limit.isoformat(),
         "status": status,
         "value": latest["value"] if latest else None,
@@ -25004,6 +25096,12 @@ def build_vehicle_karte_mileage_reference(
             "距離の減少だけでメーター交換や入力誤りを確定しません。"
         ),
     }
+    if include_points:
+        result["points"] = [
+            {"date": row["date"], "mileage": float(row["value"]) if row["value"] is not None else None}
+            for row in daily
+        ]
+    return result
 
 
 def build_vehicle_karte_analysis_summary(
@@ -25121,6 +25219,16 @@ def build_vehicle_karte_analysis_summary(
         for row in selected_operations
     )
 
+    # Compare only matched months of registered facts. Missing months are not zero.
+    cost_months = {key for key, bucket in monthly.items() if bucket["cost"] is not None}
+    distance_months = {key for key, bucket in monthly.items() if bucket["distance"] is not None}
+    cost_per_km_status = (
+        "missing_values" if cost is None or distance is None or distance <= 0
+        else "incomplete_values" if missing_cost or missing_distance
+        else "record_months_do_not_match" if cost_months != distance_months
+        else "matched_record_months"
+    )
+
     mileage_reference = build_vehicle_karte_mileage_reference(
         maintenance,
         operations,
@@ -25166,7 +25274,16 @@ def build_vehicle_karte_analysis_summary(
             and distance > 0
             and not missing_cost
             and not missing_distance
+            and cost_per_km_status == "matched_record_months"
             else None
+        ),
+        "cost_per_km_status": cost_per_km_status,
+        "cost_per_km_note": (
+            "費用と走行距離の記録月が異なるため算出保留。"
+            if cost_per_km_status == "record_months_do_not_match"
+            else "費用・距離が揃う登録月の比率。期間全体の記録の完全性は未確認。"
+            if cost_per_km_status == "matched_record_months"
+            else "費用または走行距離の記録が不足するため算出保留。"
         ),
         "maintenance_count": len(selected_maintenance),
         "failure_count": len(failures),
@@ -25267,6 +25384,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     if has_result and status in {"running", "pending", "error"}:
         message += " 現在は前回の結果を表示しています。"
 
+    from vehicle_risk_assessment import annotate_analysis  # VEHICLE_RISK_MATRIX_API_V1
     response = jsonify(
         ok=True,
         status=status,
@@ -25274,7 +25392,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         is_current=is_current,
         input_summary=input_summary,
         message=message,
-        analysis=analysis_with_vehicle_feedback(analysis, vehicle) if has_result else None,
+        analysis=annotate_analysis(analysis_with_vehicle_feedback(analysis, vehicle), bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None,
         sources=bundle.get("sources") if has_result else {},
         coverage=bundle.get("coverage") if has_result else {},
         comparison=(
@@ -25352,16 +25470,16 @@ def get_vehicle_karte_analysis_job_data(vehicle):
     import os
 
     registration_scope = os.environ.get(
-        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "same_year"
+        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "auto"
     ).strip()
     inactive_setting = os.environ.get(
         "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE", "0"
     ).strip()
 
-    if registration_scope not in {"same_year", "all_years"}:
+    if registration_scope not in {"auto", "same_year", "all_years"}:
         raise ValueError(
             "VEHICLE_KARTE_AI_PEER_REGISTRATION must be "
-            "same_year or all_years"
+            "auto, same_year or all_years"
         )
     if inactive_setting not in {"0", "1"}:
         raise ValueError(
@@ -27785,7 +27903,7 @@ def build_vehicle_karte_analysis_payload(
     return payload, sources
 
 
-def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same_year", include_inactive=False):
+def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="auto", include_inactive=False):
     model = (vehicle.model_code or "").strip().upper()
     registration = str(
         vehicle.first_registration_date or ""
@@ -27802,6 +27920,9 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         "note": "",
     }
 
+    requested_scope = registration_scope
+    if registration_scope == "auto":
+        registration_scope = "same_year" if year_match else "all_years"
     if registration_scope not in {"same_year", "all_years"}:
         registration_scope = "same_year"
     include_inactive = include_inactive is True
@@ -27811,6 +27932,8 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         "status": "available",
         "model_code": model or None,
         "registration_scope": registration_scope,
+        "requested_registration_scope": requested_scope,
+        "year_scope_fallback": requested_scope == "auto" and not bool(year_match),
         "reference_registration_year": (
             int(year_match.group(1)) if year_match else None
         ),
@@ -27867,6 +27990,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     )
     active_note = "無効車両を含む" if include_inactive else "有効車両のみ"
     result["note"] = (
+        ("初度登録年が不明のため、年を限定せず同型式で比較。" if requested_scope == "auto" and not year_match else "") +
         f"同じ会社・同型式・{year_note}・{active_note}。"
         "対象車両は平均から除外。"
     )
@@ -28139,6 +28263,93 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     return result
 
 
+def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_date, end_date):
+    """Use registered monetary fields; never infer a repair category or tax rate."""
+    from decimal import Decimal, InvalidOperation
+    def money(value):
+        if value is None or value == "": return None
+        try:
+            parsed = Decimal(str(value))
+            return parsed if parsed.is_finite() else None
+        except (ValueError, InvalidOperation, TypeError): return None
+    parents = [row for row in maintenance if row.company_code == vehicle.company_code and row.vehicle_record_id == vehicle.id]
+    parents, _, _ = filter_vehicle_maintenance_factual_history(parents, [])
+    fields = (("labor_cost", "工賃"), ("parts_cost", "部品代"), ("other_cost", "その他費用"), ("tax_amount", "消費税"))
+    totals = {label: Decimal("0") for _, label in fields}
+    totals["内訳未確定"] = Decimal("0")
+    total = Decimal("0"); records = 0; incomplete = 0
+    for row in parents:
+        day = str(row.entry_date or row.completion_date or "")[:10]
+        try: datetime.strptime(day, "%Y-%m-%d")
+        except ValueError: continue
+        if not start_date <= day <= end_date: continue
+        amount = money(row.total_cost)
+        if amount is None: continue
+        records += 1; total += amount
+        components = [(label, money(getattr(row, field, None))) for field, label in fields]
+        known = sum((value for _, value in components if value is not None), Decimal("0"))
+        remaining = amount - known
+        # Inconsistent components do not become invented negative residual categories.
+        inconsistent = (amount >= 0 and (remaining < 0 or any(value is not None and value < 0 for _,value in components))) or (amount < 0 and (remaining > 0 or any(value is not None and value > 0 for _,value in components)))
+        if inconsistent:
+            totals["内訳未確定"] += amount; incomplete += 1; continue
+        for label, value in components:
+            if value is not None: totals[label] += value
+        if remaining != 0:
+            totals["内訳未確定"] += remaining; incomplete += 1
+    return {"rows": [{"label": label, "amount": value} for label, value in totals.items() if value != 0], "total": total if records else None, "record_count": records, "incomplete_count": incomplete, "note": "登録済みの工賃・部品代・その他費用・消費税を集計。合計との差額は内訳未確定。整備区分を推測して分類していません。"}
+
+
+def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date):
+    """Period-scoped saved registrations, independent of AI selection/freshness."""
+    from decimal import Decimal, InvalidOperation
+
+    def day(value):
+        try:
+            return datetime.strptime(str(value or "")[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    start, end = day(start_date), day(end_date)
+    if start is None or end is None or start > end:
+        raise ValueError("分析期間が不正です。")
+    # Fence both parent and child before applying the source-based exclusion.
+    parents = [row for row in maintenance if row.company_code == vehicle.company_code
+               and row.vehicle_record_id == vehicle.id]
+    children = [row for row in parts if row.company_code == vehicle.company_code
+                and row.vehicle_record_id == vehicle.id]
+    _, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    candidates = []
+    for part in children:
+        replaced = day(part.replacement_date)
+        if replaced is None or not start <= replaced <= end:
+            continue
+        name = str(part.part_name or "").strip()
+        if not name:
+            continue
+        candidates.append((replaced, int(part.id or 0), part))
+    result, seen = [], set()
+    for replaced, _, part in sorted(candidates, key=lambda value: value[:2], reverse=True):
+        key = (str(part.part_name).strip(), str(part.part_number or "").strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            mileage = Decimal(str(part.mileage))
+            if not mileage.is_finite() or mileage < 0:
+                mileage = None
+        except (InvalidOperation, ValueError, TypeError):
+            mileage = None
+        result.append({
+            "source_id": f"part:{part.id}", "part_name": key[0],
+            "part_number": key[1], "replacement_date": replaced.isoformat(),
+            "mileage": mileage,
+            "url": url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id,
+                           record_id=part.maintenance_record_id),
+        })
+    return result
+
+
 @app.route(
     "/vehicle/karte/<int:vehicle_record_id>/analysis",
     methods=["GET"],
@@ -28350,13 +28561,17 @@ def vehicle_karte_analysis(vehicle_record_id):
             include_resolved=True,
         ),
         analysis_summary=summary,
+        analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()),
+        analysis_part_history=build_vehicle_karte_dashboard_parts(
+            vehicle, maintenance, parts, start.isoformat(), end.isoformat(),
+        ),
         analysis_progress=build_vehicle_karte_service_progress(
             maintenance, summary
         ),
         analysis_comparison=get_vehicle_karte_peer_comparison(
             vehicle,
             summary,
-            registration_scope=request.args.get("peer_registration", "same_year"),
+            registration_scope=request.args.get("peer_registration", "auto"),
             include_inactive=request.args.get("peer_inactive") == "1",
         ),
         analysis_today=today.isoformat(),
@@ -28696,6 +28911,52 @@ def get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id):
     return result
 
 
+def get_vehicle_overview_cost_summary(maintenance_records):
+    """Overview financial components; keep shared cost/year/category summaries intact."""
+    maintenance_records = list(maintenance_records)
+    summary = dict(get_vehicle_maintenance_cost_summary(maintenance_records))
+    factual, _, _ = filter_vehicle_maintenance_factual_history(maintenance_records)
+    fields = (
+        ("labor_cost", "工賃", "#7863d7"),
+        ("parts_cost", "部品代", "#43988e"),
+        ("other_cost", "その他費用", "#478cbf"),
+        ("tax_amount", "消費税", "#a0802e"),
+    )
+    amounts = {field: Decimal("0") for field, _, _ in fields}
+    present = set()
+    residual = Decimal("0")
+    for record in factual:
+        if record.total_cost is None:
+            continue
+        known = Decimal("0")
+        for field, _, _ in fields:
+            value = getattr(record, field, None)
+            if value is not None:
+                amount = Decimal(str(value))
+                amounts[field] += amount
+                known += amount
+                present.add(field)
+        residual += Decimal(str(record.total_cost)) - known
+    rows = [
+        {"label": label, "amount": amounts[field], "color": color}
+        for field, label, color in fields if field in present
+    ]
+    if residual:
+        rows.append({
+            "label": "内訳未確定" if residual > 0 else "内訳差額",
+            "amount": residual, "color": "#94a3b8",
+        })
+    total = summary.get("total_cost")
+    if total is not None and sum((row["amount"] for row in rows), Decimal("0")) != total:
+        raise ValueError("OVERVIEW_COST_COMPONENT_TOTAL_MISMATCH")
+    show_ring = total is not None and total > 0 and all(row["amount"] >= 0 for row in rows)
+    for row in rows:
+        row["percentage"] = row["amount"] / total * Decimal("100") if show_ring else None
+    summary["category_costs"] = rows
+    summary["show_cost_ring"] = show_ring
+    return summary
+
+
 @app.context_processor
 def inject_vehicle_karte_choices():
     if request.endpoint not in {
@@ -28801,7 +29062,7 @@ def inject_vehicle_karte_choices():
         ).all()
 
         maintenance_summary.update(
-            get_vehicle_maintenance_cost_summary(maintenance_records)
+            get_vehicle_overview_cost_summary(maintenance_records)
         )
 
         maintenance_records, _, _ = filter_vehicle_maintenance_factual_history(maintenance_records)
@@ -47570,6 +47831,10 @@ with app.app_context():
 
     db.session.commit()
 
+
+# VEHICLE_DOCUMENT_DELETION_V1
+from vehicle_document_deletion import register_document_deletion
+register_document_deletion(app, db, globals())
 
 if __name__ == "__main__":
     app.run(debug=False)

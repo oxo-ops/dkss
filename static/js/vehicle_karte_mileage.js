@@ -14,10 +14,10 @@
         points = JSON.parse(dataElement.textContent).map((point) => ({
             date: point.date,
             time: Date.parse(`${point.date}T00:00:00Z`),
-            mileage: Number(point.mileage)
+            mileage: point.mileage === null ? null : Number(point.mileage)
         })).filter((point) => (
             Number.isFinite(point.time)
-            && Number.isFinite(point.mileage)
+            && (point.mileage === null || Number.isFinite(point.mileage))
         )).sort((a, b) => a.time - b.time);
     } catch (error) {
         canvas.replaceWith(document.createTextNode(
@@ -36,7 +36,12 @@
         return;
     }
 
-    const latest = points[points.length - 1];
+    const measured = points.filter(point => point.mileage !== null);
+    if (!measured.length) {
+        canvas.replaceWith(document.createTextNode("走行距離が不一致のため、確定できる値がありません。"));
+        return;
+    }
+    const latest = measured[measured.length - 1];
     const formatMileage = (value) => value.toLocaleString("ja-JP", {
         maximumFractionDigits: 2
     });
@@ -68,12 +73,12 @@
         const right = width - 20;
         const top = 30;
         const bottom = height - 32;
-        const maximum = Math.max(...points.map((point) => point.mileage), 1);
+        const maximum = measured.reduce((maximum, point) => Math.max(maximum, point.mileage), 1);
         const magnitude = 10 ** Math.floor(Math.log10(maximum));
         const step = Math.ceil(maximum / 5 / magnitude * 10) * magnitude / 10;
         const ceiling = step * 5;
         const firstTime = points[0].time;
-        const lastTime = latest.time;
+        const lastTime = points[points.length - 1].time;
         const span = lastTime - firstTime;
 
         const x = (point) => span > 0
@@ -122,27 +127,34 @@
         gradient.addColorStop(0, "rgba(145, 122, 221, 0.22)");
         gradient.addColorStop(1, "rgba(145, 122, 221, 0.02)");
 
-        context.beginPath();
-        context.moveTo(x(points[0]), bottom);
-        points.forEach((point) => context.lineTo(x(point), y(point)));
-        context.lineTo(x(latest), bottom);
-        context.closePath();
-        context.fillStyle = gradient;
-        context.fill();
-
-        context.beginPath();
-        points.forEach((point, index) => {
-            if (index === 0) {
-                context.moveTo(x(point), y(point));
-            } else {
-                context.lineTo(x(point), y(point));
-            }
+        // Preserve missing/conflicting days as gaps instead of plotting zero.
+        const segments = [];
+        let segment = [];
+        points.forEach(point => {
+            if (point.mileage === null) {
+                if (segment.length) segments.push(segment);
+                segment = [];
+            } else { segment.push(point); }
         });
-        context.strokeStyle = "#917add";
-        context.lineWidth = 2;
-        context.stroke();
-
-        const markers = points.length <= 30 ? points : [latest];
+        if (segment.length) segments.push(segment);
+        segments.forEach(segment => {
+            context.beginPath();
+            context.moveTo(x(segment[0]), bottom);
+            segment.forEach(point => context.lineTo(x(point), y(point)));
+            context.lineTo(x(segment[segment.length - 1]), bottom);
+            context.closePath();
+            context.fillStyle = gradient;
+            context.fill();
+            context.beginPath();
+            segment.forEach((point, index) => {
+                if (index === 0) context.moveTo(x(point), y(point));
+                else context.lineTo(x(point), y(point));
+            });
+            context.strokeStyle = "#917add";
+            context.lineWidth = 2;
+            context.stroke();
+        });
+        const markers = measured.length <= 30 ? measured : [latest];
 
         markers.forEach((point) => {
             context.beginPath();

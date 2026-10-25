@@ -1,107 +1,207 @@
-/* PREVENTIVE_ANALYSIS_WORKSPACE_V2 */
-.ka3-shell .vehicle-karte-header { padding: 12px; grid-template-columns: 64px minmax(180px, .8fr) minmax(400px, 1.5fr); align-items: start; }
-.ka3-shell .vehicle-karte-photo-area, .ka3-shell .vehicle-karte-photo-empty { width: 64px; min-height: 64px; height: 64px; }
-.ka3-shell .vehicle-karte-type-image { max-width: 52px; max-height: 52px; }
-.ka3-shell .vehicle-karte-basic-grid { display: none; }
-.ka3-shell .vehicle-karte-number-row h2 { font-size: 20px; }
-.ka3-shell .vehicle-karte-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.ka3-shell .vehicle-karte-metric { padding: 8px 10px; min-height: 64px; }
-.ka3-shell .vehicle-karte-metric strong { font-size: 16px; }
-.ka3-shell .vehicle-karte-metric > small { font-size: 11px; }
-.karte-costs.karte-analysis.ka3-page { padding: 18px; background: #fff; border-radius: 10px; }
-.karte-costs.karte-analysis.ka3-page .kc-toolbar { margin-bottom: 18px; }
-.karte-costs.karte-analysis.ka3-page .kc-title > span { display: none; }
-.karte-costs.karte-analysis.ka3-page .ka-ai-panel { background: #fff; border: 0; box-shadow: none; padding: 0; margin-bottom: 18px; border-radius: 0; }
-.karte-costs.karte-analysis.ka3-page .ka-ai-header { display: none; }
-.karte-costs.karte-analysis.ka3-page .ka3-status { display: flex; justify-content: flex-end; min-height: 22px; margin-bottom: 4px; }
-.karte-costs.karte-analysis.ka3-page #ka-ai-status { margin: 0; border: 1px solid #d8e3ef; border-radius: 99px; padding: 3px 10px; background: #f5f8fc; color: #536b82; font-size: 12px; line-height: 1.5; }
-.karte-costs.karte-analysis.ka3-page #ka-ai-results { display: block; }
-.karte-costs.karte-analysis.ka3-page #ka-ai-results[hidden], .karte-costs.karte-analysis.ka3-page #ka-ai-status[hidden] { display: none; }
-.karte-costs.karte-analysis.ka3-page .ka3-board-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
-.karte-costs.karte-analysis.ka3-page .ka3-board-title h3 { margin: 0; color: #17324b; font-size: 20px; font-weight: 700; }
-.karte-costs.karte-analysis.ka3-page .ka3-date { color: #718096; font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-.karte-costs.karte-analysis.ka3-page .ka3-total { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #f5f8fc; border-radius: 7px; color: #52677c; font-size: 13px; }
-.karte-costs.karte-analysis.ka3-page .ka3-total strong { font-size: 25px; line-height: 1.2; color: #244865; font-weight: 700; }
-.karte-costs.karte-analysis.ka3-page .ka3-workspace { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(0, 1.7fr); border: 1px solid #dce5ee; border-radius: 9px; overflow: hidden; }
-.karte-costs.karte-analysis.ka3-page .ka3-proposal-list { background: #f8fafc; border-right: 1px solid #dce5ee; min-width: 0; }
-.karte-costs.karte-analysis.ka3-page .ka3-list-item + .ka3-list-item { border-top: 1px solid #e3eaf1; }
-.karte-costs.karte-analysis.ka3-page .ka3-select { display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 16px; text-align: left; border: 0; border-left: 3px solid transparent; border-radius: 0; background: transparent; color: #26435d; cursor: pointer; white-space: normal; }
-.karte-costs.karte-analysis.ka3-page .ka3-select:hover { background: #f0f5fb; }
-.karte-costs.karte-analysis.ka3-page .ka3-select[aria-pressed="true"] { border-left-color: #4384bd; background: #eaf3fc; }
-.karte-costs.karte-analysis.ka3-page .ka3-row-top { display: flex; align-items: center; gap: 8px; }
-.karte-costs.karte-analysis.ka3-page .ka3-priority { display: inline-flex; font-size: 12px; line-height: 1.5; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: #edf2f8; color: #42637f; }
-.karte-costs.karte-analysis.ka3-page .ka3-priority[data-priority="高"] { background: #fff0ed; color: #a74232; }
-.karte-costs.karte-analysis.ka3-page .ka3-priority[data-priority="中"] { background: #fff6e7; color: #92621d; }
-.karte-costs.karte-analysis.ka3-page .ka3-row-category { color: #6b7f93; font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-row-target { font-size: 15px; font-weight: 700; line-height: 1.5; }
-.karte-costs.karte-analysis.ka3-page .ka3-row-action { font-size: 13px; font-weight: 400; line-height: 1.6; }
-.karte-costs.karte-analysis.ka3-page .ka3-row-timing { color: #5b7890; font-size: 12px; line-height: 1.6; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail { padding: 20px; min-width: 0; background: #fff; }
-.karte-costs.karte-analysis.ka3-page .ka3-eyebrow { font-size: 12px; color: #657d92; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-heading h4 { font-size: 20px; color: #17324b; margin: 5px 0 16px; line-height: 1.5; }
-.karte-costs.karte-analysis.ka3-page .ka3-next-action { padding: 14px 16px; background: #f0f6fd; border-radius: 7px; }
-.karte-costs.karte-analysis.ka3-page .ka3-section-label { color: #54758f; font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-next-action p { margin: 5px 0 10px; color: #1d4569; font-size: 17px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
-.karte-costs.karte-analysis.ka3-page .ka3-when { display: flex; align-items: baseline; gap: 12px; color: #57718b; font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-when strong { font-size: 13px; font-weight: 500; color: #355e80; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-section { margin-top: 18px; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-section h5 { color: #294a65; font-size: 13px; margin: 0 0 8px; font-weight: 700; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-section p { font-size: 14px; line-height: 1.8; color: #4d6378; margin: 0; overflow-wrap: anywhere; }
-.karte-costs.karte-analysis.ka3-page .ka3-evidence { display: grid; gap: 6px; }
-.karte-costs.karte-analysis.ka3-page .ka3-source { display: block; padding: 8px 10px; border-left: 2px solid #c5d8eb; background: #f7f9fc; color: #2e658f; font-size: 13px; line-height: 1.6; text-decoration: none; overflow-wrap: anywhere; }
-.karte-costs.karte-analysis.ka3-page .ka3-source:hover { background: #eef4fc; text-decoration: underline; }
-.karte-costs.karte-analysis.ka3-page .ka3-steps { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; counter-reset: step; }
-.karte-costs.karte-analysis.ka3-page .ka3-steps li { position: relative; padding-left: 30px; color: #4d6378; font-size: 13px; line-height: 1.7; counter-increment: step; overflow-wrap: anywhere; }
-.karte-costs.karte-analysis.ka3-page .ka3-steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 21px; height: 21px; border-radius: 50%; background: #edf3f9; color: #64829d; font-size: 11px; text-align: center; line-height: 21px; }
-.karte-costs.karte-analysis.ka3-page .ka3-uncertainty { font-size: 12px; line-height: 1.7; color: #758493; margin: 16px 0 0; }
-.karte-costs.karte-analysis.ka3-page .ka3-uncertainty span { margin-right: 8px; color: #8b6b30; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #e4ebf2; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-footer .ka-reference-detail-button { padding: 9px 14px; font-size: 13px; border-radius: 6px; background: #eef5fd; color: #2e638f; border: 1px solid #bad0e7; cursor: pointer; }
-.karte-costs.karte-analysis.ka3-page .ka3-detail-footer .ka-reference-state { font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-empty { display: flex; justify-content: center; align-items: center; gap: 14px; min-height: 128px; border: 1px dashed #d6e0eb; border-radius: 8px; background: #fafbfd; }
-.karte-costs.karte-analysis.ka3-page .ka3-empty-symbol { font-size: 28px; color: #98aec2; }
-.karte-costs.karte-analysis.ka3-page .ka3-empty h4 { margin: 0; font-size: 16px; color: #71879a; font-weight: 500; }
-.karte-costs.karte-analysis.ka3-page .ka3-input-strip { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 0 0; color: #7c8c9c; font-size: 12px; }
-.karte-costs.karte-analysis.ka3-page .ka3-input-strip a { text-decoration: none; color: #54758f; }
-.karte-costs.karte-analysis.ka3-page :is(button,a):focus-visible { outline: 2px solid #4384bd; outline-offset: 2px; }
-.karte-costs.karte-analysis.ka3-page .ka-summary-grid { margin-top: 20px; }
-@media(max-width: 1100px) { .ka3-shell .vehicle-karte-header { grid-template-columns: 64px minmax(0,1fr); } .ka3-shell .vehicle-karte-summary { grid-column: 1 / -1; } }
-@media(max-width: 700px) {
-    .karte-costs.karte-analysis.ka3-page { padding: 14px 12px; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace { grid-template-columns: 1fr; }
-    .karte-costs.karte-analysis.ka3-page .ka3-proposal-list { border-right: 0; border-bottom: 1px solid #dce5ee; display: flex; overflow-x: auto; }
-    .karte-costs.karte-analysis.ka3-page .ka3-list-item { min-width: 230px; max-width: 280px; flex-shrink: 0; }
-    .karte-costs.karte-analysis.ka3-page .ka3-list-item + .ka3-list-item { border-top: 0; border-left: 1px solid #e3eaf1; }
-    .karte-costs.karte-analysis.ka3-page .ka3-detail { padding: 16px 14px; }
-    .karte-costs.karte-analysis.ka3-page .ka3-total { padding: 10px; flex-direction: column; gap: 6px; align-items: flex-start; font-size: 12px; }
-    .karte-costs.karte-analysis.ka3-page .ka3-total strong { font-size: 23px; }
-    .karte-costs.karte-analysis.ka3-page .ka-period-form { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; width: 100%; gap: 6px; }
-    .karte-costs.karte-analysis.ka3-page .ka-period-form > label:first-child { grid-column: 1 / -1; }
-    .karte-costs.karte-analysis.ka3-page .ka-period-form input[type="date"] { width: 100%; min-width: 0; padding: 6px; font-size: 12px; }
-    .karte-costs.karte-analysis.ka3-page .ka-period-form .kc-year-button { min-width: 0; padding: 6px 8px; }
-    .karte-costs.karte-analysis.ka3-page .ka3-board-title { flex-wrap: wrap; }
-    .ka3-shell .vehicle-karte-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-}
-.ka3-shell .vehicle-karte-header .vehicle-karte-metric strong { font-size: 16px; white-space: nowrap; }
-.ka3-shell .vehicle-karte-header .vehicle-karte-metric { justify-content: flex-start; gap: 6px; }
-.karte-costs.karte-analysis.ka3-page .ka3-status:empty { display: none; }
-.karte-costs.karte-analysis.ka3-page .ka3-board-title #ka-ai-status { flex: none; margin-left: auto; }
-@media(max-width: 700px) {
-    .ka3-shell .vehicle-karte-deadlines { grid-template-columns: repeat(2,minmax(0,1fr)); }
-    .ka3-shell .vehicle-karte-deadline { min-width: 0; }
-    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; width: 100%; gap: 6px; }
-    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form input[type="date"] { width: 100%; min-width: 0; padding: 6px; font-size: 12px; }
-    .karte-costs.karte-analysis.ka3-page .kc-toolbar .ka-period-form > label:first-child { grid-column: 1 / -1; }
-}
-.karte-costs.karte-analysis.ka3-page .ka3-detail-heading > .ka3-priority { margin-left: 8px; }
-.karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
-.karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-proposal-list { display: none; }
-@media(min-width: 701px) {
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); column-gap: 24px; row-gap: 16px; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] :is(.ka3-detail-heading,.ka3-next-action,.ka3-detail-footer) { grid-column: 1 / -1; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-heading h4 { margin-bottom: 0; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-section { margin-top: 0; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-section:nth-child(3) { grid-column: 1 / -1; }
-    .karte-costs.karte-analysis.ka3-page .ka3-workspace[data-count="1"] .ka3-detail-footer { margin-top: 0; }
-}
+/* PREVENTIVE_ANALYSIS_ACTIONS_V5 */
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-header {display:grid;grid-template-columns:44px minmax(180px,1fr) minmax(250px,.65fr);padding:12px 16px;gap:12px;align-items:center;margin-bottom:10px;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-photo-area,body.vehicle-list-ppt .ka3-shell .vehicle-karte-photo-empty {width:44px;height:44px;min-height:44px;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-type-image {max-width:36px;max-height:36px;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-basic-grid,body.vehicle-list-ppt .ka3-shell .vehicle-karte-header .vehicle-karte-deadlines,body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:not(:first-child) {display:none;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-number-row h2 {font-size:19px;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-model {margin:4px 0 0;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-metrics {display:block;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child {display:grid;grid-template-columns:1fr auto;gap:3px 12px;min-height:0;padding:0;border:0;background:transparent;box-shadow:none;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>small {grid-column:1 / -1;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>span {font-size:13px;}
+body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>strong {font-size:17px;white-space:nowrap;}
+
+/* ANALYSIS_MINERAL_COMPACT_V1: unified dashboard palette and explicit information hierarchy. */
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page {--ka-ink:#1f2d45;--ka-muted:#526277;--ka-purple:#6554d2;--ka-purple-soft:#f2efff;--ka-teal:#286c69;--ka-teal-soft:#edf7f4;--ka-blue:#285fa8;--ka-blue-soft:#edf4fe;--ka-amber:#805200;--ka-amber-soft:#fff4d6;--ka-rose:#b23850;--ka-line:#e1e6ef;background:#fff;color:var(--ka-ink);padding:14px;font-size:13px;line-height:1.55;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page [hidden] {display:none!important;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page * {box-sizing:border-box;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page h2,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page h3,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page h4,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page p {letter-spacing:normal;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page h2::before,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page h3::before {display:none!important;content:none!important;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page button,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page input,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page select {font:inherit;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page a {text-underline-offset:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page :is(a,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page button,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page input,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page select,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page summary,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page [tabindex]):focus-visible {outline:3px solid #9b8ce8;outline-offset:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar {display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar h2 {display:flex;align-items:center;gap:7px;font-size:16px;font-weight:700;color:var(--ka-ink);margin:0;padding:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-page-icon {display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--ka-purple);background:var(--ka-purple-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page svg {display:block;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-page-icon svg,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-panel-icon svg,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric-icon svg {width:21px;height:21px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form {display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0;font-size:13px;color:var(--ka-muted);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input {width:140px;min-height:34px;border:1px solid #ccd6e5;border-radius:6px;padding:5px 8px;background:#fff;color:var(--ka-ink);font-size:13px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form button,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions button {min-height:34px;padding:5px 13px;border:1px solid #c6bcec;border-radius:6px;background:#f5f2ff;color:#5140af;font-size:13px;font-weight:600;cursor:pointer;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;border:0;overflow:visible;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric {--metric:var(--ka-blue);--metric-soft:var(--ka-blue-soft);border:1px solid #dce5f1;border-top:3px solid var(--metric);border-radius:9px;padding:9px 11px;background:linear-gradient(120deg,#fff 45%,var(--metric-soft));min-width:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost {--metric:var(--ka-purple);--metric-soft:var(--ka-purple-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-fault {--metric:#596d8b;--metric-soft:#f0f3f8;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-parts {--metric:var(--ka-teal);--metric-soft:var(--ka-teal-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric h3 {display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#3a4960;margin:0 0 4px;padding:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric-icon {display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:5px;background:var(--metric-soft);color:var(--metric);flex:none;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric-icon svg {width:16px;height:16px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric p {color:var(--metric);font-size:21px;line-height:1.25;font-weight:700;margin:0;font-variant-numeric:tabular-nums;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric p small {display:inline;font-size:13px;color:#526277;font-weight:400;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric.is-missing {border-top-color:#c7ced9;background:#fafbfc;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric.is-missing .ka10-metric-icon {color:#6a7686;background:#edf0f4;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-missing {font-size:14px;color:#687487;font-weight:500;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka8-kpi-period {display:block;font-size:12px;color:#526277;margin-top:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposals {border:1px solid #ded8f1;border-top:3px solid var(--ka-purple);border-radius:10px;padding:10px;margin-bottom:12px;background:#fff;box-shadow:0 2px 7px #34415e06;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-board-heading {display:flex;align-items:center;flex-wrap:wrap;gap:5px 10px;margin-bottom:8px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-board-heading h3 {font-size:14px;color:#4f3faa;font-weight:700;margin:0;padding:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-board-heading h3::before {display:none!important;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-count {font-size:12px;color:#6554a2;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-date {font-size:12px;color:var(--ka-muted);margin-left:auto;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-input-records {font-size:12px;color:var(--ka-muted);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page #ka-ai-status {font-size:12px;line-height:1.5;padding:2px 8px;border:1px solid #c5ded8;border-radius:14px;color:#286c69;background:#edf7f4;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-insight {background:linear-gradient(110deg,#f2efff,#faf9ff);border:1px solid #e5dff7;border-radius:8px;padding:9px 11px;margin-bottom:9px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-insight-top {display:flex;align-items:center;flex-wrap:wrap;gap:8px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-ai-mark {display:inline-flex;justify-content:center;align-items:center;min-width:22px;height:22px;padding:0 4px;font-size:11px;line-height:1;font-weight:700;color:#fff;background:var(--ka-purple);border-radius:6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-insight-top strong {font-size:14px;color:#46358c;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-overview {font-size:13px;color:#2e3750;line-height:1.65;margin:5px 0 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-limit {display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:13px;line-height:1.55;color:#6d4c0e;background:#fff6df;border:1px solid #ead7a7;border-radius:5px;padding:5px 8px;margin:6px 0 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-limit strong {font-size:12px;white-space:nowrap;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-severity {font-size:12px;line-height:1.5;font-weight:600;padding:3px 8px;border-radius:5px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-severity.high {color:#a92a44;background:#ffeaf0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-severity.medium {color:var(--ka-amber);background:var(--ka-amber-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-scroll {max-width:100%;overflow:auto;border:1px solid #e0e5ed;border-radius:7px;scrollbar-gutter:stable;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table {border-collapse:collapse;table-layout:fixed;width:100%;font-size:13px;line-height:1.55;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table th {font-size:12px;font-weight:600;text-align:left;padding:7px 9px;background:#f5f4fa;color:#536078;border:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table th:nth-child(1) {width:17%;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table th:nth-child(2) {width:20%;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table th:nth-child(4) {width:27%;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table th:nth-child(5) {width:13%;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table td {vertical-align:top;padding:8px 9px;border:0;border-top:1px solid #e7eaf1;color:var(--ka-ink);overflow-wrap:anywhere;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table tbody tr:nth-child(even) {background:#fbfcfe;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table tbody tr:hover {background:#f6f4ff;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table tr[data-priority="高"] td:first-child {box-shadow:inset 3px 0 #c65169;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table tr[data-priority="中"] td:first-child {box-shadow:inset 3px 0 #c49634;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table tr[data-priority="低"] td:first-child {box-shadow:inset 3px 0 #4e928c;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-priority {display:inline-flex;align-items:center;justify-content:center;min-width:29px;padding:2px 7px;border-radius:5px;font-size:13px;font-weight:700;background:#edf1f5;color:#506179;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-priority[data-priority="高"] {color:#a92a44;background:#ffeaf0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-priority[data-priority="中"] {color:var(--ka-amber);background:var(--ka-amber-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-priority[data-priority="低"] {color:#286c69;background:#e6f3ef;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-target strong,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-next strong {display:block;font-size:13px;font-weight:700;color:#22344c;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-target span {display:block;font-size:12px;color:#526277;line-height:1.55;margin-top:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-category {display:inline-flex;margin-top:4px;padding:1px 6px;border:1px solid #c7dfd8;border-radius:4px;background:#edf7f4;color:#286c69;font-size:11px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-category[data-kind="record"] {background:#f2efff;color:#5a49b7;border-color:#ddd5f7;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka8-first-step {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;color:#3c4b61;line-height:1.6;margin-top:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-timing>span {display:block;font-size:13px;color:#3c4b61;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-held {display:inline-block;font-size:12px;color:#805200;background:#fff4d6;border:1px solid #ecd69d;border-radius:4px;line-height:1.5;padding:1px 6px;margin-top:4px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-row-actions a {display:block;font-size:12px;color:#286c69;text-decoration:none;margin-bottom:5px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-row-actions button {width:100%;min-height:30px;padding:4px 8px;border:1px solid #c6bcec;border-radius:6px;background:#f3efff;color:#5140af;cursor:pointer;font-size:12px;font-weight:600;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-row-actions button:hover {background:#e9e2ff;border-color:#a99ade;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-reference-state {display:block;background:none!important;color:#687487!important;font-size:11px;line-height:1.5;padding:0;margin-top:5px;white-space:nowrap;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-input-audit {margin:6px 0 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-input-audit>summary {font-size:12px;color:#5b4ab3;padding:4px 0;cursor:pointer;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-audit-note,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-audit-counts {font-size:13px;color:var(--ka-muted);line-height:1.7;margin:7px 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-source-list {max-height:230px;overflow:auto;list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--ka-line);scrollbar-gutter:stable;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-source-list li {padding:8px 3px;border-bottom:1px solid var(--ka-line);font-size:13px;overflow-wrap:anywhere;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-source-list a {color:#286c69;text-decoration:underline;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-trends {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-trends:has(>.ka7-chart:only-child) {grid-template-columns:1fr;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel {min-width:0;padding:11px;border:1px solid var(--ka-line);border-radius:9px;background:#fff;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel>header {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel h3 {display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#27394f;margin:0;padding:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-panel-icon {display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;background:var(--ka-purple-soft);color:var(--ka-purple);border-radius:6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka8-parts-panel .ka10-panel-icon {color:var(--ka-teal);background:var(--ka-teal-soft);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel h3 small {font-size:12px;font-weight:400;color:var(--ka-muted);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel>header a,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel>header>span {font-size:12px;color:#526277;text-decoration:none;white-space:nowrap;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel>header a:hover {text-decoration:underline;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-chart canvas {width:100%;max-height:170px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-chart-note,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-no-data {font-size:13px;color:var(--ka-muted);padding:12px 0;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-evidence-grid {display:grid;grid-template-columns:minmax(250px,.7fr) minmax(0,1.3fr);gap:10px;align-items:start;margin-bottom:10px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-evidence-grid:not(:has(>section)) {display:none;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-evidence-grid:has(>section:only-child) {grid-template-columns:1fr;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-panel {grid-column:1 / -1;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-composition {width:100%;height:12px;overflow:hidden;border-radius:5px;margin:3px 0 8px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-0 {--cost-color:#7865cf;fill:#7865cf;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-1 {--cost-color:#3e9687;fill:#3e9687;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-2 {--cost-color:#4287bd;fill:#4287bd;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-3 {--cost-color:#9d7b31;fill:#9d7b31;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-4 {--cost-color:#8290a8;fill:#8290a8;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown>div {display:grid;grid-template-columns:1fr auto 45px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #edf0f5;font-size:13px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown>div:last-child {border:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown>div>span:first-child {display:flex;align-items:center;gap:7px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-key {display:inline-block;width:9px;height:9px;flex:none;border-radius:2px;background:var(--cost-color,#8290a8);}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown strong {font-size:13px;font-weight:600;color:#27394f;white-space:nowrap;font-variant-numeric:tabular-nums;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown small {display:inline;font-size:12px;font-weight:400;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-cost-percentage {font-size:12px;color:var(--ka-muted);text-align:right;font-variant-numeric:tabular-nums;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-subhead {font-size:13px;color:#526277;margin:14px 0 6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-failure {display:flex;justify-content:space-between;gap:8px;font-size:13px;margin:5px 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-scroll {max-height:222px;overflow:auto;scrollbar-gutter:stable;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table {border-collapse:collapse;width:100%;font-size:13px;line-height:1.55;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table th,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table th {text-align:left;font-size:12px;font-weight:600;color:#526277;background:#f3f5f9;padding:7px 8px;border-bottom:1px solid #dfe5ee;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table th {position:sticky;top:0;z-index:1;background:#f0f7f5;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table td,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table td {padding:7px 8px;border-bottom:1px solid #e8edf3;color:#2d3b50;vertical-align:top;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table td:first-child {width:52%;max-width:none;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table td:not(:first-child) {white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table a {color:#286c69;text-decoration:none;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table a:hover {text-decoration:underline;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table tr[data-analysis-related="true"] {background:#eaf6f1;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table tr[data-analysis-related="true"] td:first-child {box-shadow:inset 3px 0 #3e9687;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table tr[data-analysis-related="true"] a {font-weight:700;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions {display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:#526277;font-size:13px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions>span {font-size:12px;padding:4px 7px;border-radius:5px;background:#f1f3f8;border:1px solid #dee3ed;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions select {max-width:100%;width:auto;padding:6px 9px;border:1px solid #ccd6e5;border-radius:5px;font-size:13px;color:#33425a;background:#fff;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions label {display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:13px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-conditions input[type="checkbox"] {width:14px;height:14px;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-count {font-size:13px;font-weight:600;color:#4c3fa4;margin:12px 0 8px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table {table-layout:fixed;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table th:first-child {width:36%;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table td {white-space:nowrap;font-variant-numeric:tabular-nums;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table small {display:inline!important;font-size:12px;color:#526277;margin-left:7px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-missing {font-size:12px;color:#687487;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-sample {background:#f0f2f7;padding:2px 5px;border-radius:4px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-note,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-note,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-peer-empty {font-size:13px;line-height:1.7;color:#526277;margin:8px 0 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-peer-empty {margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-peer-settings {margin-top:7px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-peer-settings>summary {font-size:12px;color:#6554b5;cursor:pointer;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-peer-settings[open] .ka7-peer-conditions {margin-top:10px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-reference-link-button {font-size:12px;color:#6554b5;background:#f5f2ff;border:1px solid #d9d0f0;border-radius:5px;padding:6px 9px;margin-top:8px;cursor:pointer;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-aggregate {border-top:1px solid #e5e9f0;padding-top:10px;margin-top:14px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-aggregate>summary {font-size:12px;color:#6554b5;cursor:pointer;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-conclusion {padding:12px 14px;border:1px solid #ecd69d;border-radius:7px;background:#fff8e7;text-align:left;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-conclusion-title {font-size:14px;color:#805200;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka9-conclusion p {font-size:13px;margin:5px 0 0;color:#526277;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-feedback-history {padding:0;margin:10px 0 0;border:0;border-radius:0;box-shadow:none;background:none;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-feedback-history>summary {min-height:0;padding:5px 0;font-size:13px;color:#6554b5;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-feedback-history .ka-info-summary-description {display:none;}
+@media(max-width:1150px){body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table{min-width:900px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar{align-items:flex-start;flex-wrap:wrap;}}
+@media(max-width:800px){body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-evidence-grid,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-trends{grid-template-columns:1fr;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-panel{grid-column:auto;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis{grid-template-columns:1fr 1fr;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-date{margin-left:0;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table{min-width:440px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table{table-layout:auto;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table td{white-space:normal;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table small{display:block!important;margin-left:0;}}
+@media(max-width:500px){body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page{padding:12px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar .ka-period-form{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;width:100%;gap:5px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form>label[for="ka-start-date"]{grid-column:1 / -1;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input{width:100%;min-width:0;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric h3{font-size:12px;gap:5px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric p{font-size:21px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis{gap:8px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposals{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-board-heading h3{width:100%;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-insight{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel{padding:11px;}}
+
+/* ANALYSIS_ACTION_RESPONSE_V1: visible action and deliberate three-choice response. */
+.ka-reference-drawer .ka-drawer-summary {padding:12px!important;margin:12px!important;}
+.ka-reference-drawer .ka-reference-detail {padding:0 16px 18px!important;}
+.ka-reference-drawer .ka-feedback {padding:0!important;display:flex!important;gap:7px!important;}
+.ka-reference-drawer .ka-action-answer-title {width:100%;margin:0 0 5px;font-size:14px;}
+.ka-reference-drawer .ka-feedback>button {flex:1;min-width:110px;white-space:normal;border-radius:6px;}
+.ka-reference-drawer .ka-feedback>button[aria-pressed="true"] {border-color:#6554d2;color:#5140af;font-weight:700;box-shadow:inset 0 0 0 1px #6554d2;}
+.ka-reference-drawer .ka-reference-comment {width:100%;margin:0!important;padding:0!important;border:0!important;background:none!important;}
+.ka-reference-drawer .ka-reference-comment p {font-size:12px;margin:7px 0 4px;}
+.ka-reference-drawer .ka-reference-comment textarea {font:inherit;font-size:13px;min-height:60px;padding:8px;border:1px solid #cbd4e3;border-radius:6px;resize:vertical;}
+.ka-reference-drawer .ka-action-save {background:#6554d2!important;color:#fff!important;border-color:#6554d2!important;min-height:34px;padding:6px 14px!important;}
+.ka-reference-drawer .ka-action-record,.ka-reference-drawer .ka-action-evaluation {width:100%;font-size:12px;margin:7px 0;}
+.ka-reference-drawer .ka-action-evidence {margin-top:14px;border-top:1px solid #e1e6ef;padding-top:10px;}
+.ka-reference-drawer :is(.ka-action-record,.ka-action-evaluation,.ka-action-evidence)>summary {cursor:pointer;color:#5140af;font-size:12px;}
+.ka-reference-drawer .ka-action-evidence-body {padding-top:8px;}
+.ka-reference-drawer .ka-action-when {font-size:12px;color:#526277;margin:8px 0 0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-action-summary {padding-left:18px;margin:6px 0 0;font-size:13px;line-height:1.6;}
+
+/* ANALYSIS_STATE_CONCERN_ACTION_V1 */
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table {min-width:900px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-priority {display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-priority .ka-reference-state {display:inline;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-risk p {font-size:13px;line-height:1.6;margin:0;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-risk-label {display:block;font-size:11px;color:#805200;margin-bottom:3px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-state {font-size:13px;line-height:1.6;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-row-actions>span {display:block;font-size:12px;line-height:1.55;margin-bottom:6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-row-actions .ka7-held {display:inline-block;margin:0 0 6px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-scroll {max-height:480px;}
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table thead th {position:sticky;top:0;z-index:1;}
+.ka-reference-drawer .ka-context-concern {border-left:3px solid #b8903d;background:#fffaf0;}
+
+/* ANALYSIS_DETAIL_OVERLAY_V1: keep page/header/vehicle-switcher widths unchanged. */
+body.ka-analysis-detail-open {overflow:hidden;}
+html:has(.karte-analysis) {scrollbar-gutter:stable;}
+.ka-analysis-detail-backdrop {position:fixed;inset:0;background:rgba(20,32,54,.22);z-index:1099;}
+.ka-analysis-detail-backdrop[hidden] {display:none!important;}
+body.ka-analysis-detail-open>.ka-reference-drawer {width:480px;max-width:100vw;height:100dvh;overflow-y:auto;overscroll-behavior:contain;z-index:1100;box-shadow:-12px 0 36px rgba(24,34,55,.2);}
+@media(max-width:600px) {body.ka-analysis-detail-open>.ka-reference-drawer {width:100vw;}}
