@@ -44,7 +44,6 @@
         <div class="ka-ai-header">
             <div>
                 <h3 data-karte-icon="chart">予防整備・対応候補</h3>
-                <p class="kc-muted">現在の登録内容と過去の重要履歴を使って自動分析します。実績集計の期間・比較条件を変更しても、自動分析の条件は変わりません。</p>
             </div>
         </div>
 
@@ -125,7 +124,7 @@
 
         <section class="ka-reference-panel">
             <header><h3 data-karte-icon="file">型式別の実績</h3></header>
-            <p class="ka-reference-muted">ここで選ぶ条件は実績比較表に適用します。AIが使用した条件は「AI分析の条件」で確認できます。</p>
+            <p class="ka-reference-muted">実績比較表の条件です。AIの比較条件は「AI分析の条件」で確認できます。</p>
             <form method="get" id="ka-reference-peer-conditions"
                   action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}#ka-reference-peer-conditions">
                 <input type="hidden" name="start_date" value="{{ analysis_summary.start_date }}">

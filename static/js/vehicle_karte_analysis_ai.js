@@ -675,7 +675,6 @@
         scope.append(node("p", "kc-muted", "重要な整備・不具合・点検指摘は、比較集計期間より前の履歴も分析対象です。"));
         scope.append(referenceComparison(data.has_result ? data.comparison : data.scheduled_comparison,
             data.has_result ? "AI分析時の比較条件" : "自動分析の設定条件"));
-        fragment.append(scope);
 
         const table = (rows, label) => {
             const wrap = node("div", "ka-decision-scroll");
@@ -962,7 +961,7 @@
             board.append(strip);
         }
         title.append(status);
-        fragment.append(board);
+        fragment.append(board, scope);
         if (current && referenceFeedbackHistory.length) fragment.append(feedbackHistory());
         return fragment;
     }
