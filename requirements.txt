@@ -23,7 +23,7 @@ MarkupSafe==3.0.3
 openpyxl==3.1.5
 packaging==26.2
 pillow==13.0.0
-pypdf==6.21.1
+pypdf==6.21.2
 psycopg2-binary==2.9.12
 pycparser==3.0
 PyJWT==2.15.0
