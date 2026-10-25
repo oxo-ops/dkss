@@ -25226,22 +25226,24 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     # PREVENTIVE_ANALYSIS_UI_FRESHNESS_V1: completed alone does not prove freshness.
     is_current = None
     input_summary = None
-    if has_result:
-        try:
-            current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
+    scheduled_comparison = None
+    try:
+        current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
+        scheduled_comparison = current_payload.get("comparison")
+        input_records = current_payload.get("records", [])
+        input_summary = {
+            label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
+            for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
+        }
+        if has_result:
             current = current_payload["_fingerprints"]
-            input_records = current_payload.get("records", [])
-            input_summary = {
-                label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
-                for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
-            }
             previous = bundle.get("fingerprints")
             is_current = isinstance(previous, dict) and all(
                 key in previous and key in current and previous[key] == current[key]
                 for key in ("policy_version", "important_hash", "routine_hash")
             )
-        except Exception:
-            app.logger.warning("車両分析の更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
+    except Exception:
+        app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 
     if status == "completed" and is_current is True:
         message = "現在の登録内容に対応する分析結果です。"
@@ -25273,6 +25275,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         has_result=has_result,
         is_current=is_current,
         input_summary=input_summary,
+        scheduled_comparison=scheduled_comparison,
         message=message,
         analysis=analysis_with_vehicle_feedback(analysis, vehicle) if has_result else None,
         sources=bundle.get("sources") if has_result else {},

@@ -535,9 +535,9 @@
         return section;
     }
 
-    function referenceComparison(snapshot) {
+    function referenceComparison(snapshot, heading = "AI分析時の比較条件") {
         const section = node("section", "ka-reference-comparison");
-        section.append(node("h4", "", "AI分析時の比較条件"));
+        section.append(node("h4", "", heading));
 
         const scope = snapshot?.comparison_scope;
         const countLabel = value => (
@@ -673,7 +673,8 @@
         const scope = node("details", "ka-ai-overview-detail");
         scope.append(node("summary", "", "AI分析の条件"));
         scope.append(node("p", "kc-muted", "重要な整備・不具合・点検指摘は、比較集計期間より前の履歴も分析対象です。"));
-        scope.append(referenceComparison(data.comparison));
+        scope.append(referenceComparison(data.comparison || data.scheduled_comparison,
+            data.has_result ? "AI分析時の比較条件" : "自動分析の設定条件"));
         fragment.append(scope);
 
         const table = (rows, label) => {
@@ -1115,7 +1116,7 @@
                 data.analysis ||= {overview: "", recommendations: []};
                 const signature = JSON.stringify([
                     data.analysis, data.sources, data.coverage,
-                    data.comparison, data.generated_at, data.analysis_method, data.is_current, data.status, data.input_summary
+                    data.comparison, data.scheduled_comparison, data.generated_at, data.analysis_method, data.is_current, data.status, data.input_summary
                 ]);
                 if (results.dataset.signature !== signature) {
                     if (document.querySelector('[data-feedback-dirty="1"]')
