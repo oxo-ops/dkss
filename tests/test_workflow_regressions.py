@@ -1,9 +1,7 @@
 """Real Flask/DB regression tests; all writes use a temporary SQLite database."""
-import importlib.util
 import json
 import os
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 from datetime import datetime
@@ -14,7 +12,6 @@ class WorkflowRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix="dkss-route-tests-")
-        module_path = Path(__file__).resolve().parents[1] / "app.py"
         env = {
             "SECRET_KEY": "isolated-regression-test-key",
             "ITC_INITIAL_PASSWORD": "Isolated-Only-742!",
@@ -23,11 +20,10 @@ class WorkflowRegressionTests(unittest.TestCase):
             "SMTP_HOST": "", "S3_BUCKET_NAME": "",
             "VAPID_PRIVATE_KEY": "", "VAPID_PUBLIC_KEY": "",
         }
-        spec = importlib.util.spec_from_file_location("dkss_regression_app", module_path)
-        cls.m = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = cls.m
+        from dkss_app import create_app
+        from application_fixture import ApplicationFixture
         with patch.dict(os.environ, env):
-            spec.loader.exec_module(cls.m)
+            cls.m = ApplicationFixture(create_app(initialize_database=True))
         cls.m.app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
         cls.m.limiter.enabled = False
 
@@ -36,7 +32,6 @@ class WorkflowRegressionTests(unittest.TestCase):
         with cls.m.app.app_context():
             cls.m.db.session.remove()
             cls.m.db.engine.dispose()
-        sys.modules.pop("dkss_regression_app", None)
         cls.temp.cleanup()
 
     def setUp(self):

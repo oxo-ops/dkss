@@ -35,6 +35,25 @@ def inspect_module(path, local_modules):
               and isinstance(node.value, ast.Name) and node.value.id == "g"
               and isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str)):
             namespace_keys.add(node.slice.value)
+    # Route registration is deliberately separate from implementation definitions.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "register_core_routes":
+            function = None
+            for statement in node.body:
+                if not isinstance(statement, ast.Assign):
+                    continue
+                value = statement.value
+                if isinstance(value, ast.Attribute):
+                    function = ast.unparse(value)
+                if (isinstance(value, ast.Call) and isinstance(value.func, ast.Call)
+                        and isinstance(value.func.func, ast.Attribute)
+                        and isinstance(value.func.func.value, ast.Name)
+                        and value.func.func.value.id == "app"
+                        and value.func.func.attr in ROUTE_METHODS):
+                    registration = value.func
+                    routes.append({"function": function, "line": registration.lineno,
+                                   "rule": ast.unparse(registration.args[0]),
+                                   "decorator": registration.func.attr})
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             is_class = isinstance(node, ast.ClassDef)
@@ -54,6 +73,8 @@ def inspect_module(path, local_modules):
         "top_level_functions": sum(d["kind"] == "function" for d in definitions),
         "top_level_classes": sum(d["kind"] == "class" for d in definitions),
         "direct_db_models": sum(d["db_model"] for d in definitions),
+        "all_db_model_definitions": sum(isinstance(n, ast.ClassDef) and any(
+            ast.unparse(base) == "db.Model" for base in n.bases) for n in ast.walk(tree)),
         "route_decorators": len(routes), "routes": routes,
         "local_imports": sorted(imports & local_modules),
         "namespace_keys": sorted(namespace_keys),
@@ -64,7 +85,7 @@ def inspect_module(path, local_modules):
 
 
 def inventory():
-    files = sorted(ROOT.glob("*.py"))
+    files = sorted([*ROOT.glob("*.py"), *(ROOT / "dkss_app").rglob("*.py")])
     local_modules = {p.stem for p in files}
     modules = [inspect_module(path, local_modules) for path in files]
     tests = []

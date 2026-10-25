@@ -22,7 +22,7 @@ def number(value):
 
 
 def build_overview(g, vehicle):
-    """g is the app's namespace, including existing company-scoped readers."""
+    """g contains only explicitly declared models and company-scoped readers."""
     today = datetime.now(ZoneInfo('Asia/Tokyo')).date()
     code, vid = vehicle.company_code, vehicle.id
     read_snapshot = VehicleReadSnapshot(code, vid)

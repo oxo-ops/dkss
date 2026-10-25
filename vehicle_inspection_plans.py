@@ -6,7 +6,7 @@ from datetime import date, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-from flask import abort, jsonify, render_template, request, session, has_request_context
+from flask import current_app, has_app_context, abort, jsonify, render_template, request, session, has_request_context
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -34,64 +34,14 @@ def add_months(value, count):
 
 
 def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft):
-    class VehicleInspectionPlan(db.Model):
-        __table_args__ = (db.UniqueConstraint('company_code', 'vehicle_record_id', 'kind', 'period_key', name='uq_inspection_plan_period'),)
-        id = db.Column(db.Integer, primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        vehicle_record_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=False, index=True)
-        kind = db.Column(db.String(30), nullable=False)
-        period_key = db.Column(db.String(7), nullable=False)
-        planned_month = db.Column(db.String(7), nullable=False)
-        reservation_date = db.Column(db.String(10))
-        document_date = db.Column(db.String(10))
-        factory = db.Column(db.String(200), nullable=False, default='')
-        note = db.Column(db.String(1000), nullable=False, default='')
-        source = db.Column(db.String(30), nullable=False, default='manual')
-        source_record_id = db.Column(db.Integer, db.ForeignKey('vehicle_periodic_inspection_record.id'))
-        completed_record_id = db.Column(db.Integer, db.ForeignKey('vehicle_periodic_inspection_record.id'))
-        status = db.Column(db.String(20), nullable=False, default='planned')
-        version = db.Column(db.Integer, nullable=False, default=1)
-        updated_by = db.Column(db.String(50), nullable=False, default='')
-        updated_at = db.Column(db.String(40), nullable=False, default='')
+    from dkss_app.vehicle_inspection_plans_models import get_models
+    VehicleInspectionPlan, VehicleInspectionPlanEvent, VehicleInspectionExecution, VehicleInspectionExecutionEvidence, = get_models(db)
 
-    class VehicleInspectionPlanEvent(db.Model):
-        id = db.Column(db.Integer, primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        plan_id = db.Column(db.Integer, db.ForeignKey('vehicle_inspection_plan.id'), nullable=False)
-        action = db.Column(db.String(30), nullable=False)
-        detail_json = db.Column(db.Text, nullable=False)
-        created_at = db.Column(db.String(40), nullable=False)
-        created_by = db.Column(db.String(50), nullable=False)
 
     Plan = VehicleInspectionPlan
     Event = VehicleInspectionPlanEvent
 
-    class VehicleInspectionExecution(db.Model):
-        """An actual inspection reported before its document arrives."""
-        __table_args__ = (db.UniqueConstraint('company_code', 'vehicle_record_id', 'kind', 'performed_date', name='uq_inspection_execution_day'),)
-        id = db.Column(db.Integer, primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        vehicle_record_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=False, index=True)
-        kind = db.Column(db.String(30), nullable=False)
-        performed_date = db.Column(db.String(10), nullable=False)
-        plan_id = db.Column(db.Integer, db.ForeignKey('vehicle_inspection_plan.id'), unique=True)
-        source_record_id = db.Column(db.Integer, db.ForeignKey('vehicle_periodic_inspection_record.id'), unique=True)
-        next_month = db.Column(db.String(7))
-        factory = db.Column(db.String(200), nullable=False, default='')
-        note = db.Column(db.String(1000), nullable=False, default='')
-        created_by = db.Column(db.String(50), nullable=False)
-        created_at = db.Column(db.String(40), nullable=False)
 
-    class VehicleInspectionExecutionEvidence(db.Model):
-        execution_id = db.Column(db.Integer, db.ForeignKey('vehicle_inspection_execution.id'), primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        new_expiry = db.Column(db.String(10))
-        previous_expiry = db.Column(db.String(10))
-        document_id = db.Column(db.String(36), db.ForeignKey('vehicle_document_import_draft.id'))
-        confirmation = db.Column(db.String(1000), nullable=False)
-        attachment_confirmation = db.Column(db.String(1000))
-        attached_at = db.Column(db.String(40))
-        attached_by = db.Column(db.String(50))
 
     Evidence = VehicleInspectionExecutionEvidence
     Execution = VehicleInspectionExecution
@@ -245,36 +195,52 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         db.session.add(p)
         record_event(p, 'created_from_document')
 
-    @event.listens_for(Session, 'before_flush')
-    def remember_records(s, context, instances):
-        new = [r for r in s.new if isinstance(r, Record)]
-        if new:
-            s.info.setdefault(import_key, []).extend(new)
-
-    @event.listens_for(Session, 'after_flush_postexec')
-    def imported_records(s, context):
-        imported = s.info.pop(import_key, [])
-        # During flush, adding rows is supported but starting a nested flush is not.
-        for r in imported:
-            s.info.setdefault(queue_key, []).append(r)
-
-    # Explicit transaction hook is shared by all document-apply paths (see app.py).
     def sync_pending():
         pending = db.session.info.pop(queue_key, [])
-        for r in pending:
-            sync_record(r)
+        for record in pending:
+            sync_record(record)
 
-    @event.listens_for(Session, 'before_commit')
-    def synchronize_import_transaction(s):
-        if any(isinstance(r, Record) for r in s.new):
-            s.flush()
-        if s.info.get(queue_key):
-            sync_pending()
+    # Register one dispatcher per model/extension, not one global listener per app.
+    registered = getattr(db, "_dkss_inspection_sync_models", None)
+    if registered is None:
+        registered = db._dkss_inspection_sync_models = set()
+    if Record not in registered:
+        registered.add(Record)
 
-    @event.listens_for(Session, 'after_rollback')
-    def forget_rolled_back_records(s):
-        s.info.pop(queue_key, None)
-        s.info.pop(import_key, None)
+        def owns_session(s):
+            return (has_app_context()
+                    and current_app.extensions.get("sqlalchemy") is db
+                    and s is db.session())
+
+        @event.listens_for(Session, 'before_flush')
+        def remember_records(s, context, instances):
+            if not owns_session(s):
+                return
+            new = [r for r in s.new if isinstance(r, Record)]
+            if new:
+                s.info.setdefault(import_key, []).extend(new)
+
+        @event.listens_for(Session, 'after_flush_postexec')
+        def imported_records(s, context):
+            if not owns_session(s):
+                return
+            imported = s.info.pop(import_key, [])
+            for record in imported:
+                s.info.setdefault(queue_key, []).append(record)
+
+        @event.listens_for(Session, 'before_commit')
+        def synchronize_import_transaction(s):
+            if not owns_session(s):
+                return
+            if any(isinstance(r, Record) for r in s.new):
+                s.flush()
+            if s.info.get(queue_key):
+                current_app.extensions['inspection_plan_sync'].sync_pending()
+
+        @event.listens_for(Session, 'after_rollback')
+        def forget_rolled_back_records(s):
+            s.info.pop(queue_key, None)
+            s.info.pop(import_key, None)
 
     def scope_context(code, args):
         scope = args.get('scope') or 'office'
@@ -709,5 +675,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             db.session.rollback()
             raise
 
-    return Plan, Event, SimpleNamespace(summary=summary, latest=latest, manual_records=manual_records, Execution=Execution, Evidence=Evidence,
+    service = SimpleNamespace(summary=summary, latest=latest, manual_records=manual_records, Execution=Execution, Evidence=Evidence,
         sync_pending=sync_pending, sync_record=sync_record, candidate_rows=candidate_rows)
+    app.extensions['inspection_plan_sync'] = service
+    return Plan, Event, service

@@ -133,11 +133,6 @@ def register_document_deletion(app,db,g):
         row=g['VehicleDocumentImportDraft'].query.filter_by(id=draft_id,company_code=session.get('company_code')).first()
         if row is not None and row.status=='deleted':abort(404)
 
-    original_feedback=g['latest_vehicle_analysis_feedback']
-    def active_feedback(*args,**kwargs):
-        return [row for row in original_feedback(*args,**kwargs) if not parse(row.snapshot_json).get('source_withdrawn')]
-    g['latest_vehicle_analysis_feedback']=active_feedback
-
     @app.route('/vehicle/karte/<int:vehicle_record_id>/documents/<draft_id>/delete',methods=['GET','POST'],endpoint='vehicle_document_delete')
     def delete_document(vehicle_record_id,draft_id):
         vehicle,draft=require_access(vehicle_record_id,draft_id,request.method=='POST')
