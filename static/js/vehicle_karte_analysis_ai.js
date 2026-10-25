@@ -876,6 +876,13 @@
         title.append(node("h3", "", current ? `予防整備の提案 ${ordered.length}件` : data.has_result ? `前回の提案 ${ordered.length}件` : "予防整備の提案"));
         if (data.generated_at) title.append(node("span", "ka3-date", `分析 ${data.generated_at}`));
         board.append(title);
+        const overviewText = data.analysis?.overview;
+        if (typeof overviewText === "string" && overviewText.trim()) {
+            const overview = node("details", "ka-ai-overview-detail");
+            overview.append(node("summary", "", current ? "分析の概要" : "前回の分析の概要"),
+                node("p", "ka-ai-overview", overviewText));
+            board.append(overview);
+        }
         if (data.has_result && !current) {
             board.append(node("p", "kc-muted", "前回の分析結果を表示しています。現在の登録内容と異なる可能性があるため、対応の記録は分析更新後に行ってください。"));
         }
