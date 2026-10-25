@@ -51,8 +51,11 @@
                 const feedback = changed ? "提案更新あり" : ({open:"未着手",accepted:"採用",in_progress:"対応中",completed:"完了",dismissed:"見送り"}[item.feedback?.status] || "未着手");
                 heading.append(node('span', 'ko-proposal-order', String(index+1).padStart(2,'0')), link, node("span", "ko-badge", feedback));
                 row.append(heading);
-                row.append(node("p", "ko-proposal-state", item.current_state || "状態を判断できる記録が不足しています"));
-                row.append(node("p", "ko-proposal-action", item.action || "分析タブで提案内容を確認してください。"));
+                const stateField = node('div', 'ko-labeled-field ko-state-field', '');
+                stateField.append(node('span', 'ko-field-label', '状態'), node('p', 'ko-proposal-state', item.current_state || '状態を判断できる記録が不足しています'));
+                const actionField = node('div', 'ko-labeled-field ko-action-field', '');
+                actionField.append(node('span', 'ko-field-label', '対応'), node('p', 'ko-proposal-action', item.action || '分析タブで提案内容を確認してください。'));
+                row.append(stateField, actionField);
                 const riskText = typeof item.risk === 'string' && item.risk.trim() ? item.risk : '未評価';
                 const risk = node('details','ko-risk','');
                 const riskSummary = node('summary','','想定される影響');
@@ -68,7 +71,7 @@
                     row.classList.add('ko-secondary');
                     const disclosure=node('details','ko-secondary-disclosure','');
                     disclosure.append(node('summary','','状態・影響・時期を確認'));
-                    disclosure.append(row.querySelector('.ko-proposal-state'),risk,footer);
+                    disclosure.append(stateField,risk,footer);
                     row.append(disclosure);
                 }
                 list.append(row);
