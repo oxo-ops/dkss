@@ -1,0 +1,1408 @@
+{
+  "backend": "temporary SQLite",
+  "samples": 7,
+  "concurrent_requests": 1,
+  "external_calls": 0,
+  "comparison": "legacy conversion + uncached overview vs optimized",
+  "scenarios": [
+    {
+      "vehicles": 1,
+      "maintenance_records": 12,
+      "operation_records": 12,
+      "daily_records": 30,
+      "paths": {
+        "dashboard": {
+          "before": {
+            "first_request": {
+              "ms": 240.289,
+              "sql_count": 31,
+              "sql_ms": 5.603,
+              "sql_groups": {
+                "INSERT:company_usage_summary": 1,
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1,
+                "UPDATE:company_usage_summary": 3
+              }
+            },
+            "warm_median_ms": 21.014,
+            "warm_min_ms": 17.582,
+            "warm_max_ms": 30.771,
+            "warm_sql_counts": [
+              27,
+              27,
+              27,
+              27,
+              27,
+              27,
+              27
+            ],
+            "warm_sql_median_ms": 2.545,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 29.576,
+              "sql_count": 28,
+              "sql_ms": 3.304,
+              "sql_groups": {
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1,
+                "UPDATE:company_usage_summary": 1
+              }
+            },
+            "warm_median_ms": 18.645,
+            "warm_min_ms": 16.751,
+            "warm_max_ms": 25.987,
+            "warm_sql_counts": [
+              27,
+              27,
+              27,
+              27,
+              27,
+              27,
+              27
+            ],
+            "warm_sql_median_ms": 1.869,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          }
+        },
+        "vehicle_overview": {
+          "before": {
+            "first_request": {
+              "ms": 274.653,
+              "sql_count": 52,
+              "sql_ms": 7.658,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 3,
+                "SELECT:vehicle_checklist_result": 5,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 6,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 8,
+                "UPDATE:user": 1
+              }
+            },
+            "warm_median_ms": 41.174,
+            "warm_min_ms": 37.354,
+            "warm_max_ms": 123.533,
+            "warm_sql_counts": [
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50
+            ],
+            "warm_sql_median_ms": 4.123,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 5,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 6,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 8
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 53.906,
+              "sql_count": 45,
+              "sql_ms": 5.802,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_checklist_result": 3,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 4,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 7
+              }
+            },
+            "warm_median_ms": 41.153,
+            "warm_min_ms": 34.015,
+            "warm_max_ms": 44.435,
+            "warm_sql_counts": [
+              45,
+              45,
+              45,
+              45,
+              45,
+              45,
+              45
+            ],
+            "warm_sql_median_ms": 4.207,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 3,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 4,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 7
+            }
+          }
+        },
+        "analysis_result": {
+          "before": {
+            "first_request": {
+              "ms": 39.779,
+              "sql_count": 17,
+              "sql_ms": 3.353,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 1,
+                "SELECT:vehicle_operation_record": 1,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 19.199,
+            "warm_min_ms": 13.796,
+            "warm_max_ms": 41.167,
+            "warm_sql_counts": [
+              17,
+              17,
+              17,
+              17,
+              17,
+              17,
+              17
+            ],
+            "warm_sql_median_ms": 1.774,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 1,
+              "SELECT:vehicle_operation_record": 1,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 18.715,
+              "sql_count": 17,
+              "sql_ms": 1.753,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 1,
+                "SELECT:vehicle_operation_record": 1,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 15.177,
+            "warm_min_ms": 13.764,
+            "warm_max_ms": 27.114,
+            "warm_sql_counts": [
+              17,
+              17,
+              17,
+              17,
+              17,
+              17,
+              17
+            ],
+            "warm_sql_median_ms": 1.631,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 1,
+              "SELECT:vehicle_operation_record": 1,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          }
+        },
+        "notification_unread": {
+          "before": {
+            "first_request": {
+              "ms": 28.965,
+              "sql_count": 15,
+              "sql_ms": 1.688,
+              "sql_groups": {
+                "INSERT:inspection_plan_alert_run": 1,
+                "SELECT:company": 1,
+                "SELECT:inspection_expiry_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_run": 1,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 13.286,
+            "warm_min_ms": 9.742,
+            "warm_max_ms": 21.167,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 1.744,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 12.246,
+              "sql_count": 13,
+              "sql_ms": 1.099,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:inspection_plan_alert_run": 2,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 12.353,
+            "warm_min_ms": 9.935,
+            "warm_max_ms": 21.992,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 1.625,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "vehicles": 50,
+      "maintenance_records": 600,
+      "operation_records": 600,
+      "daily_records": 1500,
+      "paths": {
+        "dashboard": {
+          "before": {
+            "first_request": {
+              "ms": 407.684,
+              "sql_count": 31,
+              "sql_ms": 8.006,
+              "sql_groups": {
+                "INSERT:company_usage_summary": 1,
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1,
+                "UPDATE:company_usage_summary": 3
+              }
+            },
+            "warm_median_ms": 19.334,
+            "warm_min_ms": 17.64,
+            "warm_max_ms": 24.239,
+            "warm_sql_counts": [
+              27,
+              27,
+              27,
+              27,
+              27,
+              27,
+              27
+            ],
+            "warm_sql_median_ms": 2.091,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 42.296,
+              "sql_count": 27,
+              "sql_ms": 4.203,
+              "sql_groups": {
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1
+              }
+            },
+            "warm_median_ms": 18.6,
+            "warm_min_ms": 17.068,
+            "warm_max_ms": 84.956,
+            "warm_sql_counts": [
+              27,
+              27,
+              27,
+              27,
+              27,
+              28,
+              27
+            ],
+            "warm_sql_median_ms": 2.194,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          }
+        },
+        "vehicle_overview": {
+          "before": {
+            "first_request": {
+              "ms": 171.401,
+              "sql_count": 52,
+              "sql_ms": 7.032,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 3,
+                "SELECT:vehicle_checklist_result": 5,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 6,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 8,
+                "UPDATE:user": 1
+              }
+            },
+            "warm_median_ms": 40.052,
+            "warm_min_ms": 38.79,
+            "warm_max_ms": 52.176,
+            "warm_sql_counts": [
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50
+            ],
+            "warm_sql_median_ms": 3.956,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 5,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 6,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 8
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 39.112,
+              "sql_count": 45,
+              "sql_ms": 3.647,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_checklist_result": 3,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 4,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 7
+              }
+            },
+            "warm_median_ms": 37.824,
+            "warm_min_ms": 35.569,
+            "warm_max_ms": 43.462,
+            "warm_sql_counts": [
+              45,
+              45,
+              45,
+              45,
+              45,
+              45,
+              45
+            ],
+            "warm_sql_median_ms": 3.64,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 3,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 4,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 7
+            }
+          }
+        },
+        "analysis_result": {
+          "before": {
+            "first_request": {
+              "ms": 211.324,
+              "sql_count": 21,
+              "sql_ms": 3.242,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 2,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 2,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 2,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 84.562,
+            "warm_min_ms": 78.437,
+            "warm_max_ms": 94.535,
+            "warm_sql_counts": [
+              21,
+              21,
+              21,
+              21,
+              21,
+              21,
+              21
+            ],
+            "warm_sql_median_ms": 2.362,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 2,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 2,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 2,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 61.751,
+              "sql_count": 21,
+              "sql_ms": 1.926,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 2,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 2,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 2,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 61.232,
+            "warm_min_ms": 56.158,
+            "warm_max_ms": 185.475,
+            "warm_sql_counts": [
+              21,
+              21,
+              21,
+              21,
+              21,
+              21,
+              21
+            ],
+            "warm_sql_median_ms": 2.148,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 2,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 2,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 2,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          }
+        },
+        "notification_unread": {
+          "before": {
+            "first_request": {
+              "ms": 29.328,
+              "sql_count": 15,
+              "sql_ms": 2.029,
+              "sql_groups": {
+                "INSERT:inspection_plan_alert_run": 1,
+                "SELECT:company": 1,
+                "SELECT:inspection_expiry_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_run": 1,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 9.207,
+            "warm_min_ms": 8.361,
+            "warm_max_ms": 14.993,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 0.956,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 13.287,
+              "sql_count": 13,
+              "sql_ms": 1.149,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:inspection_plan_alert_run": 2,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 9.584,
+            "warm_min_ms": 8.513,
+            "warm_max_ms": 14.356,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 0.927,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "vehicles": 200,
+      "maintenance_records": 2400,
+      "operation_records": 2400,
+      "daily_records": 6000,
+      "paths": {
+        "dashboard": {
+          "before": {
+            "first_request": {
+              "ms": 440.678,
+              "sql_count": 31,
+              "sql_ms": 8.452,
+              "sql_groups": {
+                "INSERT:company_usage_summary": 1,
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1,
+                "UPDATE:company_usage_summary": 3
+              }
+            },
+            "warm_median_ms": 38.952,
+            "warm_min_ms": 34.607,
+            "warm_max_ms": 49.336,
+            "warm_sql_counts": [
+              27,
+              28,
+              27,
+              27,
+              27,
+              27,
+              27
+            ],
+            "warm_sql_median_ms": 5.305,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 43.496,
+              "sql_count": 27,
+              "sql_ms": 6.051,
+              "sql_groups": {
+                "SELECT:checklist": 2,
+                "SELECT:checklist_result": 1,
+                "SELECT:company": 1,
+                "SELECT:company_usage_summary": 1,
+                "SELECT:delivery_place": 1,
+                "SELECT:driver": 2,
+                "SELECT:license_type": 1,
+                "SELECT:master_display_order": 2,
+                "SELECT:notification": 2,
+                "SELECT:office": 2,
+                "SELECT:patrol_result": 2,
+                "SELECT:user": 3,
+                "SELECT:vehicle": 4,
+                "SELECT:vehicle_checklist_result": 2,
+                "SELECT:vehicle_type": 1
+              }
+            },
+            "warm_median_ms": 41.492,
+            "warm_min_ms": 37.203,
+            "warm_max_ms": 95.327,
+            "warm_sql_counts": [
+              27,
+              27,
+              27,
+              27,
+              27,
+              27,
+              27
+            ],
+            "warm_sql_median_ms": 6.042,
+            "warm_sql_groups": {
+              "SELECT:checklist": 2,
+              "SELECT:checklist_result": 1,
+              "SELECT:company": 1,
+              "SELECT:company_usage_summary": 1,
+              "SELECT:delivery_place": 1,
+              "SELECT:driver": 2,
+              "SELECT:license_type": 1,
+              "SELECT:master_display_order": 2,
+              "SELECT:notification": 2,
+              "SELECT:office": 2,
+              "SELECT:patrol_result": 2,
+              "SELECT:user": 3,
+              "SELECT:vehicle": 4,
+              "SELECT:vehicle_checklist_result": 2,
+              "SELECT:vehicle_type": 1
+            }
+          }
+        },
+        "vehicle_overview": {
+          "before": {
+            "first_request": {
+              "ms": 611.942,
+              "sql_count": 52,
+              "sql_ms": 11.307,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 3,
+                "SELECT:vehicle_checklist_result": 5,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 6,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 8,
+                "UPDATE:user": 1
+              }
+            },
+            "warm_median_ms": 73.99,
+            "warm_min_ms": 64.879,
+            "warm_max_ms": 139.615,
+            "warm_sql_counts": [
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50
+            ],
+            "warm_sql_median_ms": 6.606,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 5,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 6,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 8
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 82.162,
+              "sql_count": 45,
+              "sql_ms": 7.699,
+              "sql_groups": {
+                "SELECT:checklist_event": 1,
+                "SELECT:company": 1,
+                "SELECT:driver": 2,
+                "SELECT:notification": 1,
+                "SELECT:periodic_inspection_issue": 2,
+                "SELECT:periodic_inspection_issue_event": 1,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_checklist_result": 3,
+                "SELECT:vehicle_document_import_draft": 1,
+                "SELECT:vehicle_driving_report_record": 1,
+                "SELECT:vehicle_inspection_execution": 5,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_inspection_plan_event": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_karte_note": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_record": 4,
+                "SELECT:vehicle_operation_import_draft": 1,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 1,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 1,
+                "SELECT:vehicle_periodic_inspection_record": 7
+              }
+            },
+            "warm_median_ms": 64.75,
+            "warm_min_ms": 56.379,
+            "warm_max_ms": 86.755,
+            "warm_sql_counts": [
+              45,
+              45,
+              45,
+              45,
+              45,
+              45,
+              45
+            ],
+            "warm_sql_median_ms": 5.819,
+            "warm_sql_groups": {
+              "SELECT:checklist_event": 1,
+              "SELECT:company": 1,
+              "SELECT:driver": 2,
+              "SELECT:notification": 1,
+              "SELECT:periodic_inspection_issue": 2,
+              "SELECT:periodic_inspection_issue_event": 1,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_checklist_result": 3,
+              "SELECT:vehicle_document_import_draft": 1,
+              "SELECT:vehicle_driving_report_record": 1,
+              "SELECT:vehicle_inspection_execution": 5,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_inspection_plan_event": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_karte_note": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_record": 4,
+              "SELECT:vehicle_operation_import_draft": 1,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 1,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 1,
+              "SELECT:vehicle_periodic_inspection_record": 7
+            }
+          }
+        },
+        "analysis_result": {
+          "before": {
+            "first_request": {
+              "ms": 463.609,
+              "sql_count": 21,
+              "sql_ms": 4.621,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 2,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 2,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 2,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 685.11,
+            "warm_min_ms": 461.672,
+            "warm_max_ms": 738.439,
+            "warm_sql_counts": [
+              21,
+              21,
+              21,
+              21,
+              21,
+              21,
+              21
+            ],
+            "warm_sql_median_ms": 3.363,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 2,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 2,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 2,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 571.595,
+              "sql_count": 21,
+              "sql_ms": 3.624,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:user": 1,
+                "SELECT:vehicle": 2,
+                "SELECT:vehicle_analysis_evaluation": 1,
+                "SELECT:vehicle_analysis_feedback": 1,
+                "SELECT:vehicle_checklist_result": 1,
+                "SELECT:vehicle_karte_analysis": 1,
+                "SELECT:vehicle_maintenance_inspection_link": 1,
+                "SELECT:vehicle_maintenance_knowledge": 1,
+                "SELECT:vehicle_maintenance_record": 2,
+                "SELECT:vehicle_operation_record": 2,
+                "SELECT:vehicle_part_replacement": 2,
+                "SELECT:vehicle_part_replacement_source": 1,
+                "SELECT:vehicle_patrol": 2,
+                "SELECT:vehicle_periodic_inspection_record": 2
+              }
+            },
+            "warm_median_ms": 323.476,
+            "warm_min_ms": 307.366,
+            "warm_max_ms": 574.387,
+            "warm_sql_counts": [
+              21,
+              21,
+              21,
+              21,
+              21,
+              21,
+              21
+            ],
+            "warm_sql_median_ms": 3.03,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:user": 1,
+              "SELECT:vehicle": 2,
+              "SELECT:vehicle_analysis_evaluation": 1,
+              "SELECT:vehicle_analysis_feedback": 1,
+              "SELECT:vehicle_checklist_result": 1,
+              "SELECT:vehicle_karte_analysis": 1,
+              "SELECT:vehicle_maintenance_inspection_link": 1,
+              "SELECT:vehicle_maintenance_knowledge": 1,
+              "SELECT:vehicle_maintenance_record": 2,
+              "SELECT:vehicle_operation_record": 2,
+              "SELECT:vehicle_part_replacement": 2,
+              "SELECT:vehicle_part_replacement_source": 1,
+              "SELECT:vehicle_patrol": 2,
+              "SELECT:vehicle_periodic_inspection_record": 2
+            }
+          }
+        },
+        "notification_unread": {
+          "before": {
+            "first_request": {
+              "ms": 40.282,
+              "sql_count": 15,
+              "sql_ms": 2.654,
+              "sql_groups": {
+                "INSERT:inspection_plan_alert_run": 1,
+                "SELECT:company": 1,
+                "SELECT:inspection_expiry_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_delivery": 1,
+                "SELECT:inspection_plan_alert_run": 1,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 15.839,
+            "warm_min_ms": 15.405,
+            "warm_max_ms": 26.836,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 1.076,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          },
+          "after": {
+            "first_request": {
+              "ms": 16.014,
+              "sql_count": 13,
+              "sql_ms": 1.08,
+              "sql_groups": {
+                "SELECT:company": 1,
+                "SELECT:inspection_plan_alert_run": 2,
+                "SELECT:notification": 2,
+                "SELECT:user": 2,
+                "SELECT:vehicle": 1,
+                "SELECT:vehicle_inspection_execution": 1,
+                "SELECT:vehicle_inspection_plan": 2,
+                "SELECT:vehicle_periodic_inspection_record": 1,
+                "UPDATE:company": 1
+              }
+            },
+            "warm_median_ms": 15.798,
+            "warm_min_ms": 14.455,
+            "warm_max_ms": 17.054,
+            "warm_sql_counts": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "warm_sql_median_ms": 1.342,
+            "warm_sql_groups": {
+              "SELECT:company": 1,
+              "SELECT:inspection_plan_alert_run": 2,
+              "SELECT:notification": 2,
+              "SELECT:user": 2,
+              "SELECT:vehicle": 1,
+              "SELECT:vehicle_inspection_execution": 1,
+              "SELECT:vehicle_inspection_plan": 2,
+              "SELECT:vehicle_periodic_inspection_record": 1,
+              "UPDATE:company": 1
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from uuid import uuid4
+from vehicle_analysis_dates import parse_record_date
 from daily_inspection_defaults import get_daily_inspection_default
 from upload_validation import UploadValidationError
 from vehicle_operation_csv import (
@@ -22583,8 +22584,17 @@ def vehicle_karte_inspections(vehicle_record_id):
     )
 
 
-def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
+def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_snapshot=None):
     entries = []
+    if read_snapshot is not None:
+        read_snapshot.require_scope(company_code, vehicle_record_id)
+
+    def records_for(model):
+        if read_snapshot is not None:
+            return read_snapshot.rows(model)
+        return model.query.filter_by(
+            company_code=company_code, vehicle_record_id=vehicle_record_id,
+        ).all()
 
     def normalize_date(value):
         text = str(value or "").strip()[:10]
@@ -22600,10 +22610,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
 
         return ""
 
-    inspection_records = VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id
-    ).all()
+    inspection_records = records_for(VehicleChecklistResult)
 
     for record in inspection_records:
         snapshot = safe_json_dict(record.checklist_snapshot_json)
@@ -22747,10 +22754,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
 
     entries.extend(periodic_followups.history(company_code, vehicle_record_id))
 
-    periodic_records = VehiclePeriodicInspectionRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id,
-    ).all()
+    periodic_records = records_for(VehiclePeriodicInspectionRecord)
     for record in periodic_records:
         entries.append({
             "key": f"periodic:{record.id}",
@@ -22802,10 +22806,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
             "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle_record_id, inspection_view="periodic") + f"#manual-execution-{execution.id}",
         })
 
-    driving_reports = VehicleDrivingReportRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id
-    ).all()
+    driving_reports = records_for(VehicleDrivingReportRecord)
 
     for record in driving_reports:
         entries.append({
@@ -22824,10 +22825,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id):
             ),
         })
 
-    maintenance_records = VehicleMaintenanceRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id
-    ).all()
+    maintenance_records = records_for(VehicleMaintenanceRecord)
 
     for record in maintenance_records:
         invoice_details = safe_json_dict(record.invoice_details_json)
@@ -23393,8 +23391,10 @@ def save_vehicle_maintenance_replacement_parts(
     return created_count
 
 
-def get_vehicle_karte_parts_context(vehicle, factual_only=False):
+def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapshot=None):
     from types import SimpleNamespace
+    if read_snapshot is not None:
+        read_snapshot.require_scope(vehicle.company_code, vehicle.id)
 
     rows = (
         db.session.query(
@@ -23422,10 +23422,13 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False):
 
     maintenance = {
         record.id: record
-        for record in VehicleMaintenanceRecord.query.filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id,
-        ).all()
+        for record in (
+            read_snapshot.rows(VehicleMaintenanceRecord) if read_snapshot is not None
+            else VehicleMaintenanceRecord.query.filter_by(
+                company_code=vehicle.company_code,
+                vehicle_record_id=vehicle.id,
+            ).all()
+        )
     }
 
     if factual_only:
@@ -24904,13 +24907,7 @@ def build_vehicle_karte_mileage_reference(
     from decimal import Decimal, InvalidOperation
 
     def day(value):
-        try:
-            return datetime.strptime(
-                str(value or "").strip()[:10].replace("/", "-"),
-                "%Y-%m-%d",
-            ).date()
-        except ValueError:
-            return None
+        return parse_record_date(value, normalize=True)
 
     today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
     requested = day(as_of)
@@ -25122,13 +25119,7 @@ def build_vehicle_karte_analysis_summary(
 ):
     from collections import Counter
 
-    def parse_date(value):
-        try:
-            return datetime.strptime(
-                str(value or "")[:10], "%Y-%m-%d"
-            ).date()
-        except ValueError:
-            return None
+    parse_date = parse_record_date
 
     start = parse_date(start_date)
     end = parse_date(end_date)
@@ -27066,13 +27057,7 @@ def calculate_adopted_maintenance_rule_timing(
 def build_vehicle_karte_preventive_facts(vehicle, summary, records):
     """交換後の期間・距離を計算する。交換期限や故障時期は推定しない。"""
     import unicodedata
-    def day(value):
-        try:
-            return datetime.strptime(
-                str(value or "")[:10], "%Y-%m-%d"
-            ).date()
-        except ValueError:
-            return None
+    day = parse_record_date
 
     def meter(value):
         try:
@@ -41364,14 +41349,18 @@ def get_vehicle_operation_basis(company_code, vehicle_record_id):
     ).hexdigest()
 
 
-def get_vehicle_open_inspection_defects(company_code, vehicle_record_id, include_resolved=False):
+def get_vehicle_open_inspection_defects(company_code, vehicle_record_id, include_resolved=False, *, read_snapshot=None):
     if not company_code or not vehicle_record_id:
         return []
 
-    records = VehicleChecklistResult.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id
-    ).order_by(VehicleChecklistResult.id.asc()).all()
+    if read_snapshot is not None:
+        read_snapshot.require_scope(company_code, vehicle_record_id)
+        records = sorted(read_snapshot.rows(VehicleChecklistResult), key=lambda row: row.id)
+    else:
+        records = VehicleChecklistResult.query.filter_by(
+            company_code=company_code,
+            vehicle_record_id=vehicle_record_id
+        ).order_by(VehicleChecklistResult.id.asc()).all()
 
     open_defects = []
 

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 from flask import url_for
+from vehicle_read_snapshot import VehicleReadSnapshot
 
 
 def day(value):
@@ -24,13 +25,14 @@ def build_overview(g, vehicle):
     """g is the app's namespace, including existing company-scoped readers."""
     today = datetime.now(ZoneInfo('Asia/Tokyo')).date()
     code, vid = vehicle.company_code, vehicle.id
+    read_snapshot = VehicleReadSnapshot(code, vid)
     def rows(model):
-        return g[model].query.filter_by(company_code=code, vehicle_record_id=vid).all()
+        return read_snapshot.rows(g[model])
     maintenance, _, _ = g['filter_vehicle_maintenance_factual_history'](rows('VehicleMaintenanceRecord'))
     periodic = [r for r in rows('VehiclePeriodicInspectionRecord') if not g['periodic_inspection_synthetic_evidence'](r)]
     reference = g['build_vehicle_karte_mileage_reference'](
         maintenance, rows('VehicleOperationRecord'), today.isoformat(), periodic, include_points=True)
-    history = g['get_vehicle_karte_history_entries'](code, vid)
+    history = g['get_vehicle_karte_history_entries'](code, vid, read_snapshot=read_snapshot)
     factual_ids = {f'maintenance:{r.id}' for r in maintenance}
     periodic_ids = {f'periodic:{r.id}' for r in periodic}
     by_maintenance = {r.id: r for r in maintenance}
@@ -75,7 +77,8 @@ def build_overview(g, vehicle):
     except (TypeError, ValueError):
         pass
 
-    groups = g['get_vehicle_karte_parts_context'](vehicle, factual_only=True)['part_groups']
+    groups = g['get_vehicle_karte_parts_context'](
+        vehicle, factual_only=True, read_snapshot=read_snapshot)['part_groups']
     stored = g['VehicleKarteAnalysis'].query.filter_by(company_code=code, vehicle_record_id=vid).first()
     bundle = g['safe_json_dict'](stored.result_json) if stored else {}
     analysis = bundle.get('analysis') or {}
@@ -144,7 +147,7 @@ def build_overview(g, vehicle):
 
     actions = []
     steps = {'対応待ち': '整備内容を登録', '整備中': '作業状況を確認', '再確認待ち': '整備後の再確認'}
-    daily_issues = g['get_vehicle_open_inspection_defects'](code, vid)
+    daily_issues = g['get_vehicle_open_inspection_defects'](code, vid, read_snapshot=read_snapshot)
     for row in daily_issues:
         defect = row['defect']
         answer = defect.get('reported_answer') or {}
