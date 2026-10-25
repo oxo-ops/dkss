@@ -40,7 +40,7 @@
     <meta name="theme-color" content="#2f73f6">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261022-inspection-visibility-1') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261025-visual-only-v3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261025-surface-v4') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"

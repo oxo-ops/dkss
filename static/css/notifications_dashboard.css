@@ -1,4 +1,4 @@
-/* NOTIFICATION_VISUAL_ONLY_V3
+/* NOTIFICATION_CONSISTENT_SURFACES_V4
    Original layout and controls stay in place. No layout/size/visibility rules. */
 body .main-content .notifications-card:has(#notificationLayout) {
   background: #fff;
@@ -10,7 +10,7 @@ body .main-content .notifications-card:has(#notificationLayout) {
   background: #fff;
   border-color: #d8e5f4;
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgb(40 70 110 / 3%);
+  box-shadow: none;
 }
 .notifications-card:has(#notificationLayout) .notification-tabs {
   background: #f7faff;
@@ -75,16 +75,16 @@ body .main-content .notifications-card:has(#notificationLayout) {
 #notificationLayout :is(.notification-select input,#notificationSelectAll) { accent-color: #3d7fbd; }
 #notificationLayout .notification-actions .btn-small,
 body:has(#notificationLayout) #notificationReadAllButton {
-  background: linear-gradient(#fff,#f3f8ff);
+  background: #f5f9ff;
   border-color: #cfdef1;
   color: #35669b;
   border-radius: 8px;
-  box-shadow: 0 2px 5px rgb(40 70 110 / 4%);
+  box-shadow: none;
 }
 #notificationLayout .notification-wrapper:has([data-requires-action="true"]) .notification-actions .btn-small {
-  background: #f5f1ff;
-  border-color: #ded4f6;
-  color: #7054bb;
+  background: #f5f9ff;
+  border-color: #cfdef1;
+  color: #35669b;
 }
 #notificationLayout #notificationBulkForm > button:not(:disabled) { color: #376b9f; }
 #notificationLayout #notificationBulkForm > button[value="delete"]:not(:disabled) { color: #a74a55; }
@@ -95,7 +95,7 @@ body:has(#notificationLayout) #notificationReadAllButton {
 :is(#notificationDetailPane,.main-content) .dkss-notification-detail .nd-target { background: #f5f9ff; border-color: #d8e5f4; border-radius: 8px; }
 :is(#notificationDetailPane,.main-content) .dkss-notification-detail :is(.nd-target-icon,.nd-actor-avatar) { color: #3f7cb9; background-color: #e8f2ff; }
 :is(#notificationDetailPane,.main-content) .dkss-notification-detail .nd-primary { color: #36699e; border-color: #d0e0f3; background: #f1f7ff; border-radius: 8px; }
-:is(#notificationDetailPane,.main-content) .dkss-notification-detail:has(.nd-pending) .nd-primary { color: #7054bb; border-color: #ded4f6; background: #f5f1ff; }
+:is(#notificationDetailPane,.main-content) .dkss-notification-detail:has(.nd-pending) .nd-primary { color: #36699e; border-color: #d0e0f3; background: #f1f7ff; }
 :is(#notificationDetailPane,.main-content) .dkss-notification-detail .nd-pending { color: #7054bb; background: #f3efff; }
 :is(#notificationDetailPane,.main-content) .dkss-notification-detail .nd-completed { color: #2b7e73; background: #e9f6f2; }
 body #notificationPopover { background: #fff; border-color: #d5e2f3; border-radius: 12px; box-shadow: 0 12px 30px rgb(30 65 110 / 14%); }
@@ -115,3 +115,42 @@ body #notificationPopover { background: #fff; border-color: #d5e2f3; border-radi
 #notificationPopover .notification-popover-workflow[data-workflow-status="completed"] { background: #e9f6f2; color: #2b7e73; }
 #notificationPopover .notification-popover-footer { color: #366da5; background: #f7faff; border-color: #d8e5f4; }
 #notificationPopover .notification-popover-close { color: #5a7697; background: transparent; }
+
+/* One surface hierarchy: shadow only on outer card/popover, flat rows and controls.
+   State colors belong to state badges, not identical navigation buttons. */
+#notificationLayout .notification-wrapper,
+#notificationLayout .notification-wrapper:hover,
+#notificationLayout .notification-row:hover,
+#notificationLayout .notification-detail-placeholder,
+#notificationPopover .notification-popover-row,
+#notificationPopover .notification-popover-item:hover {
+  box-shadow: none;
+}
+body:has(#notificationLayout) .notification-page-header .btn,
+#notificationLayout .notification-filter .btn,
+#notificationLayout .notification-bulk-toolbar .btn,
+#notificationLayout .notification-actions .btn,
+#notificationLayout .notification-actions .btn:hover,
+#notificationLayout .notification-actions .btn:active,
+:is(#notificationDetailPane,.main-content) .dkss-notification-detail :is(.nd-primary,.nd-secondary),
+:is(#notificationDetailPane,.main-content) .dkss-notification-detail :is(.nd-primary,.nd-secondary):hover,
+body:has(#notificationLayout) #notificationReadAllButton:hover {
+  color: #35669b;
+  background: #f5f9ff;
+  border-color: #cfdef1;
+  box-shadow: none;
+  text-shadow: none;
+}
+#notificationLayout .notification-actions .btn:hover,
+:is(#notificationDetailPane,.main-content) .dkss-notification-detail .nd-primary:hover {
+  color: #245b93;
+  background: #eaf3ff;
+  border-color: #9fbde0;
+}
+#notificationLayout .notification-view-tab,
+#notificationLayout .notification-tab-count,
+#notificationLayout .notification-state-tag,
+#notificationLayout .notification-read-tag {
+  box-shadow: none;
+  text-shadow: none;
+}

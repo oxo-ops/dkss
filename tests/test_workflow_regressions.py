@@ -84,7 +84,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(document['date_kind'], '実施日')
         self.assertEqual(document['business_date'], record.inspection_date)
         self.assertIn(f'#periodic-record-{record.id}', document['related_url'])
-        Path(self.temp.name, "overview.html").write_text(text)
+        Path(self.temp.name, "overview.html").write_text(text, encoding="utf-8")
 
     def test_overview_note_save_escape_clear_and_conflict(self):
         url = f"/vehicle/karte/{self.vehicle.id}/note"
