@@ -379,4 +379,23 @@ class MasterDisplayOrderTests(unittest.TestCase):
             self.assertEqual(response.request.path, '/vehicle/checklists')
             self.assertIn('利用できるチェックリストがありません', response.get_data(as_text=True))
 
+    def test_vehicle_normal_header_has_switcher_and_no_old_list_back_link(self):
+        first, second = self.seed_navigation_checklists('車両管理')
+        text = self.client.get(f'/vehicle/checklists/{first.id}').get_data(as_text=True)
+        self.assertIn('<details class="checklist-result-switcher">', text)
+        self.assertIn(f'href="/vehicle/checklists/{second.id}"', text)
+        self.assertNotIn('点検一覧に戻る', text)
+
+    def test_entry_templates_keep_links_if_rendered_with_available_checklists(self):
+        from flask import render_template
+        first, second = self.seed_navigation_checklists()
+        with self.m.app.test_request_context('/'):
+            self.m.session['company_code'] = 'TEST'
+            self.m.session['role'] = 'admin'
+            rows = [self.m.checklist_to_dict(first), self.m.checklist_to_dict(second)]
+            for section in ('safety', 'vehicle'):
+                text = render_template(section + '_checklists.html', checklists=rows)
+                self.assertIn(f'href="/{section}/checklists/{first.id}"', text)
+                self.assertNotIn('利用できるチェックリストがありません', text)
+
 if __name__ == '__main__': unittest.main()
