@@ -233,6 +233,33 @@ def build_overview(g, vehicle):
                                kind_label={'3month': '3か月点検', '12month': '12か月点検'}.get(record.inspection_type, '定期点検'))
                     break
         business.append(doc)
+    # Group only the same documented exchange event; no inferred service life.
+    batches = {}
+    for item in parts:
+        key = (item['latest'].maintenance_record_id, item['date'], item['mileage'],
+               item['distance_since'], item['days_since'], item['needs_review'])
+        batch = batches.setdefault(key, {**item, 'parts': []})
+        batch['parts'].append(item)
+    plans = g['inspection_plans'].summary(code, vid)
+    executions = g['inspection_plans'].latest(code, vid)
+    appointments = []
+    for kind, label in [('3month', '3か月点検'), ('12month', '12か月点検'), ('vehicle_inspection', '車検')]:
+        plan = plans.get(kind) or {}
+        reserved = day(plan.get('reservation_date'))
+        month = str(plan.get('planned_month') or '')
+        month_valid = day(month + '-01') is not None
+        expiry = day(vehicle.inspection_expiry) if kind == 'vehicle_inspection' else None
+        appointments.append({'kind': kind, 'label': label, 'plan': plan, 'actual': executions.get(kind) or {},
+            'year': str(reserved.year) if reserved else month[:4] if month_valid else '',
+            'month': str(reserved.month) if reserved else str(int(month[5:7])) if month_valid else '—',
+            'day': str(reserved.day) if reserved else '',
+            'state': '予約済み' if reserved else '予定あり' if month_valid else '未設定',
+            'relative': ('本日予約' if reserved == today else f'予約まで{(reserved-today).days}日' if reserved > today else '予約日経過・実施確認') if reserved else
+                ('今月の予定' if month == today.strftime('%Y-%m') else '予定月経過・実施確認' if month_valid and month < today.strftime('%Y-%m') else '') ,
+            'expiry': expiry.isoformat() if expiry else None})
+    # Bars show shares of recorded spending, never component wear or failure risk.
+    positive_total = cost['total'] is not None and cost['total'] > 0 and all(r.total_cost is None or r.total_cost >= 0 for r in cost_rows)
+    cost['bars'] = [{'record': r, 'share': float(r.total_cost / cost['total'] * 100) if positive_total else None} for r in cost['high']]
     note = g['VehicleKarteNote'].query.filter_by(company_code=code, vehicle_record_id=vid).first()
     note_author = ''
     if note and note.updated_by_username:
@@ -245,4 +272,5 @@ def build_overview(g, vehicle):
             'ko_inspection': inspection, 'ko_actions': actions, 'ko_cost': cost,
             'karte_note': note, 'ko_note_author': note_author,
             'karte_recent_documents': business[:3], 'karte_document_count': len(documents),
-            'ko_business_document_count': len(business)}
+            'ko_business_document_count': len(business),
+            'ko_part_batches': list(batches.values()), 'ko_appointments': appointments}

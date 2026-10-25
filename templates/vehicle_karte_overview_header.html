@@ -80,18 +80,15 @@
 {% if vehicle is defined and vehicle %}
 <header class="ko-identity">
     <div class="ko-identity-main">
-        <h2>{{ vehicle_number }}</h2>
+        <div class="ko-vehicle-mark"><img src="{{ url_for('static', filename='icons/' ~ ((vehicle.type or '')|vehicle_icon(vehicle.body_type or ''))) }}" alt="" width="48" height="48"></div>
+        <div class="ko-vehicle-name"><h2>{{ vehicle_number }}</h2><p>{{ vehicle.office or '所属未登録' }}<span>／</span>{{ vehicle.manufacturer or '車名未登録' }} {{ vehicle.model_code or '' }}{% if ko_age %}<span>／</span>車齢 {{ ko_age }}{% endif %}</p></div>
         {% if vehicle.deleted %}<span class="ko-badge ko-muted">台帳無効</span>{% endif %}
-        <span>{{ vehicle.office or '所属未登録' }}</span>
-        <span>{{ vehicle.manufacturer or '車名未登録' }}{% if vehicle.model_code %} {{ vehicle.model_code }}{% endif %}</span>
-        <span>車齢 {{ ko_age or '未登録' }}</span>
     </div>
     {% set ref = karte_mileage_reference %}
-    <dl class="ko-metrics">
-        <div><dt>最終記録の走行距離</dt><dd>{% if ref.value is not none %}{{ '{:,.2f}'.format(ref.value).rstrip('0').rstrip('.') }} <small>km</small>{% else %}未取得{% endif %}</dd><small>{{ ref.date or '記録日なし' }}{% for reading in ref.sources|unique(attribute='source') %} · {{ reading.source }}{% endfor %}</small></div>
-        <div><dt>前回整備</dt><dd>{% if ko_metrics.last_mileage is not none %}{{ '{:,.2f}'.format(ko_metrics.last_mileage).rstrip('0').rstrip('.') }} <small>km</small>{% else %}距離未登録{% endif %}</dd><small>{{ ko_metrics.last_date or '実施記録なし' }}</small></div>
-        <div><dt>前回整備から</dt><dd>{% if ko_metrics.distance_since is not none %}{{ '{:,.2f}'.format(ko_metrics.distance_since).rstrip('0').rstrip('.') }} <small>km</small>{% else %}算出できません{% endif %}</dd><small>{% if ko_metrics.distance_since is not none %}最終記録日まで{% else %}距離・日付の根拠不足{% endif %}</small></div>
-    </dl>
+    <div class="ko-distance-overview">
+        <div class="ko-distance-main"><span>最終記録の走行距離</span><strong>{% if ref.value is not none %}{{ '{:,.2f}'.format(ref.value).rstrip('0').rstrip('.') }}<small>km</small>{% else %}未取得{% endif %}</strong><p>{{ ref.date or '記録日なし' }}{% for reading in ref.sources|unique(attribute='source') %} · {{ reading.source }}{% endfor %}</p></div>
+        <div class="ko-distance-journey"><div class="ko-distance-endpoints"><span>前回整備 <b>{% if ko_metrics.last_mileage is not none %}{{ '{:,.2f}'.format(ko_metrics.last_mileage).rstrip('0').rstrip('.') }} km{% else %}距離未登録{% endif %}</b><small>{{ ko_metrics.last_date or '実施記録なし' }}</small></span><span class="ko-distance-delta"><small>前回整備から</small><b>{% if ko_metrics.distance_since is not none %}+{{ '{:,.2f}'.format(ko_metrics.distance_since).rstrip('0').rstrip('.') }}<small> km</small>{% else %}経過距離未確定{% endif %}</b></span><span class="ko-distance-target">最終記録<b>{{ ref.date or '日付なし' }}</b><small>記録日までの経過距離</small></span></div><div class="ko-distance-track" aria-hidden="true"><i></i><span></span><i></i></div></div>
+    </div>
     {% if ref.conflict_dates or ref.decrease_dates %}<p class="ko-warning">走行距離に不一致・減少のある記録があります。経過距離は計算を保留しています。</p>{% endif %}
 </header>
 {% endif %}

@@ -134,6 +134,50 @@ class OverviewTests(unittest.TestCase):
         self.assertNotIn('部品交換の回数',html)
         self.assertEqual(self.m.VehicleKarteAnalysis.query.count(),0)
 
+    def test_parts_group_only_same_documented_exchange(self):
+        m = self.m
+        parents = []
+        for i in range(2):
+            row = m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+                entry_date='2026-09-01', completion_date='2026-09-01', status='完了', mileage=1000)
+            m.db.session.add(row); m.db.session.flush(); parents.append(row)
+        for parent, name in [(parents[0], '部品A'), (parents[0], '部品B'), (parents[1], '部品C')]:
+            m.db.session.add(m.VehiclePartReplacement(company_code='TEST', vehicle_record_id=self.vehicle.id,
+                maintenance_record_id=parent.id, part_name=name, replacement_date='2026-09-01',
+                mileage=1000, created_at='2026-09-01', updated_at='2026-09-01'))
+        m.db.session.commit()
+        batches = self.context()['ko_part_batches']
+        self.assertEqual(sorted(len(b['parts']) for b in batches), [1, 2])
+        self.assertEqual({p['part_name'] for b in batches for p in b['parts']}, {'部品A', '部品B', '部品C'})
+
+    def test_cost_bars_use_period_total_and_hide_signed_amounts(self):
+        m = self.m
+        today = m.datetime.now(m.ZoneInfo('Asia/Tokyo')).date()
+        stamp = str(today.replace(day=1) - timedelta(days=1))
+        rows = []
+        for amount in (900, 100):
+            row = m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+                entry_date=stamp, total_cost=amount)
+            m.db.session.add(row); rows.append(row)
+        m.db.session.commit()
+        self.assertEqual([b['share'] for b in self.context()['ko_cost']['bars']], [90.0, 10.0])
+        rows[1].total_cost = -100; m.db.session.commit()
+        self.assertTrue(all(b['share'] is None for b in self.context()['ko_cost']['bars']))
+
+    def test_elapsed_reservation_requires_confirmation_not_completion(self):
+        m = self.m
+        today = m.datetime.now(m.ZoneInfo('Asia/Tokyo')).date()
+        plans = {'3month': {'reservation_date': str(today - timedelta(days=1))},
+                 '12month': {'planned_month': today.strftime('%Y-%m')}}
+        with patch.object(m.inspection_plans, 'summary', return_value=plans), \
+             patch.object(m.inspection_plans, 'latest', return_value={}):
+            appointments = self.context()['ko_appointments']
+        self.assertEqual(appointments[0]['state'], '予約済み')
+        self.assertEqual(appointments[0]['relative'], '予約日経過・実施確認')
+        self.assertEqual(appointments[0]['actual'], {})
+        self.assertEqual(appointments[1]['relative'], '今月の予定')
+        self.assertEqual(appointments[2]['state'], '未設定')
+
     def test_overview_rejects_other_company(self):
         m=self.m
         other=m.Vehicle(company_code='OTHER',chassis_number='PRIVATE')

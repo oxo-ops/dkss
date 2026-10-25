@@ -1,85 +1,46 @@
 {% extends "base.html" %}
 {% block title %}車両カルテ{% endblock %}
 {% macro num(value) %}{{ '{:,.2f}'.format(value).rstrip('0').rstrip('.') }}{% endmacro %}
-{% macro action_row(item) %}
-<li class="ko-action-row">
-    <div class="ko-row-heading"><a href="{{ item.link }}">{{ item.label }}</a><span class="ko-badge{% if item.status == '再確認待ち' %} ko-attention{% endif %}">{{ item.status }}</span></div>
-    {% if item.detail %}<p>{{ item.detail }}</p>{% endif %}
-    <div class="ko-row-meta"><span>{{ item.date }} · {{ item.by }}</span><a href="{{ item.link }}">{{ item.next }} ›</a></div>
-</li>
-{% endmacro %}
+{% macro icon(name) %}<svg class="ko-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if name == 'calendar' %}<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h2m4 0h2"/>{% elif name == 'tool' %}<path d="M14 5a5 5 0 0 0-6 6L3 16a3 3 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-4 4-3-3 4-4Z"/>{% elif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elif name == 'file' %}<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5"/>{% elif name == 'parts' %}<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8m-9 5v9M7 5.8l9 5"/>{% elif name == 'check' %}<path d="m4 12 5 5L20 6"/>{% elif name == 'alert' %}<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>{% else %}<path d="M4 20h17M6 16V9m6 7V4m6 12v-5"/>{% endif %}</svg>{% endmacro %}
+{% macro action_row(item) %}<li class="ko-confirmed-row"><span class="ko-task-symbol">{{ icon('tool') }}</span><div><div class="ko-row-heading"><a href="{{ item.link }}">{{ item.label }}</a><span class="ko-badge ko-attention">{{ item.status }}</span></div>{% if item.detail %}<p>{{ item.detail }}</p>{% endif %}<small>{{ item.date }} · {{ item.by }}</small></div><a class="ko-action-button" href="{{ item.link }}">{{ item.next }} <span aria-hidden="true">→</span></a></li>{% endmacro %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_overview.css', v='20261025-v19-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_overview.css', v='20261025-compact-1') }}">
 <div id="vehicle-overview-page">
 {% include "vehicle_karte_overview_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 {% if vehicle is defined and vehicle %}
 <div id="vehicle-karte-overview">
-<div class="ko-state-grid">
-    <section class="card ko-current">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="check">本日の状態</h3><span class="ko-date">{{ ko_today|replace('-', '/') }}</span></div>
-        <dl class="ko-state-values">
-            <div><dt>日常点検</dt><dd><a href="{{ ko_inspection.link }}">{{ ko_inspection.label }} ›</a></dd></div>
-            <div><dt>運行判断</dt><dd><span class="ko-badge {% if ko_inspection.judgment == '運行不可' or ko_inspection.has_unavailable %}ko-danger{% elif ko_inspection.judgment == '運行可' %}ko-positive{% else %}ko-attention{% endif %}">{{ ko_inspection.judgment }}</span></dd></div>
-        </dl>
-        {% if ko_inspection.judgment_summary %}<p class="ko-meta">保存された判断：{{ ko_inspection.judgment_summary }}</p>{% endif %}
-        {% if ko_inspection.by %}<p class="ko-meta">{{ ko_inspection.by }} · {{ ko_inspection.at }}</p>{% endif %}
-        {% if ko_inspection.reason %}<p class="ko-meta">{{ ko_inspection.reason }}</p>{% endif %}
-        {% if ko_inspection.previous_date %}<p class="ko-meta">前回の点検 {{ ko_inspection.previous_date }} · 本日の判断は未登録</p>{% endif %}
-        <a class="ko-state-footer" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}">対応が必要な記録 <strong>{{ ko_actions|length }}件</strong> · 対応状況を確認 ›</a>
-    </section>
-    <section class="card ko-plans">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="calendar">次の点検・入庫予定</h3><a href="{{ url_for('vehicle_inspection_plans', scope='vehicle', vehicle_id=vehicle.id) }}">計画を見る ›</a></div>
-        <div class="ko-plan-grid">
-        {% for kind,label in [('3month','3か月点検'),('12month','12か月点検'),('vehicle_inspection','車検')] %}
-            {% set plan = (karte_plan_summary|default({})).get(kind) or {} %}
-            {% set actual = (karte_execution_summary|default({})).get(kind) or {} %}
-            <button class="ko-plan" type="button" data-inspection-plan-open="{{ kind }}" data-vehicle-id="{{ vehicle.id }}" aria-haspopup="dialog">
-                <span>{{ label }} <span aria-hidden="true">›</span></span>
-                <strong>{% if plan.reservation_date %}{{ plan.reservation_date|replace('-', '/') }} 予約{% elif plan.planned_month %}{{ plan.planned_month|replace('-', '/') }} 予定{% else %}予定未登録{% endif %}</strong>
-                {% if plan.planned_month and not plan.reservation_date %}<small>予約日未定</small>{% endif %}
-                {% if kind == 'vehicle_inspection' %}<small>満了 {{ vehicle.inspection_expiry or '未登録' }}</small>{% endif %}
-                <small>{% if actual %}前回 {{ actual.performed_date }}{% if actual.document_status == '未受領' %} · 書類未受領{% else %} 実施{% endif %}{% else %}実施記録なし{% endif %}</small>
-            </button>
-        {% endfor %}
-        </div>
-    </section>
+<div class="ko-status-strip">
+    <a class="ko-status-tile" href="{{ ko_inspection.link }}"><span class="ko-tile-icon">{{ icon('check') }}</span><div><span class="ko-eyebrow">日常点検 <time>{{ ko_today|replace('-', '/') }}</time></span><strong>{{ ko_inspection.label }}</strong><small>点検記録を確認 <span aria-hidden="true">→</span></small></div></a>
+    <a class="ko-status-tile {% if ko_inspection.judgment == '運行不可' or ko_inspection.has_unavailable %}ko-tone-danger{% elif ko_inspection.judgment == '運行可' %}ko-tone-positive{% else %}ko-tone-pending{% endif %}" href="{{ ko_inspection.link }}"><span class="ko-tile-icon">{{ icon('alert' if ko_inspection.judgment != '運行可' else 'check') }}</span><div><span class="ko-eyebrow">本日の運行判断</span><strong>{{ ko_inspection.judgment }}</strong><small>{% if ko_inspection.by %}{{ ko_inspection.by }} · {{ ko_inspection.at[-5:] }}{% else %}担当者の判断を確認 <span aria-hidden="true">→</span>{% endif %}</small>{% if ko_inspection.judgment_summary %}<small>{{ ko_inspection.judgment_summary }}</small>{% endif %}</div></a>
+    <a class="ko-status-tile {% if ko_actions %}ko-tone-pending{% endif %}" href="#ko-confirmed"><span class="ko-tile-icon">{{ icon('tool') }}</span><div><span class="ko-eyebrow">対応が必要な記録</span><strong class="ko-tile-number">{{ ko_actions|length }}<small>件</small></strong><small>{% if ko_actions %}未解消・対応中の記録を見る ↓{% else %}登録された未解消指摘なし{% endif %}</small></div></a>
 </div>
-<div class="ko-two-column ko-response-grid">
-    <section class="card">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="tool">必要な対応 <span class="ko-count">{{ ko_actions|length }}</span></h3><a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}">点検を見る ›</a></div>
-        {% if ko_actions %}
-        <ul class="ko-action-list">{% for item in ko_actions[:3] %}{{ action_row(item) }}{% endfor %}</ul>
-        {% if ko_actions|length > 3 %}<details class="ko-more"><summary>残り{{ ko_actions|length - 3 }}件の未解消指摘を表示</summary><ul class="ko-action-list">{% for item in ko_actions[3:] %}{{ action_row(item) }}{% endfor %}</ul></details>{% endif %}
-        {% else %}<p class="ko-empty">登録済みの未解消指摘はありません。</p>{% endif %}
-    </section>
-    <section class="card" id="ko-ai" data-result-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) if not vehicle.deleted else '' }}" data-analysis-url="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="chart">予防整備の提案</h3><a href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">分析を見る ›</a></div>
-        <p class="ko-meta" data-ko-ai-status role="status">{% if vehicle.deleted %}台帳無効のため、分析タブで保存済みの結果を確認してください。{% else %}保存済みの分析結果を確認しています。{% endif %}</p>
-        <ul class="ko-action-list" data-ko-ai-list></ul>
-        <noscript><p class="ko-meta">分析タブで保存済みの結果を確認してください。</p></noscript>
-    </section>
-</div>
-<div class="ko-two-column">
-    <section class="card">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="history">直近の履歴</h3><a href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">履歴を見る ›</a></div>
-        {% if karte_recent_entries %}<ul class="ko-history-list">{% for entry in karte_recent_entries %}
-        <li><div class="ko-history-date"><time>{{ entry.date|replace('-', '/') }}</time><span class="ko-meta">{{ entry.kind }}</span></div><div class="ko-history-content"><a href="{{ entry.link or url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">{{ entry.content or '内容未登録' }}</a><p class="ko-meta">{% if entry.mileage is not none %}{{ num(entry.mileage) }} km{% endif %}{% if entry.actor %} · {{ entry.actor }}{% endif %}{% if entry.status %} · {{ entry.status }}{% endif %}</p></div></li>
-        {% endfor %}</ul>{% else %}<p class="ko-empty">履歴はまだありません。</p>{% endif %}
-    </section>
-    <section class="card">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="parts">主な部品の最終交換</h3><a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}">部品を見る ›</a></div>
-        {% if ko_parts %}<ul class="ko-part-list">{% for item in ko_parts %}
-        <li><div><a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id, q=item.part_name, parts_scope='all') }}">{{ item.part_name }}</a><p class="ko-meta">交換 {{ item.date or '日付未登録' }}{% if item.mileage is not none %} · {{ num(item.mileage) }} km{% endif %}</p></div><div class="ko-elapsed"><strong>{% if item.distance_since is not none %}{{ num(item.distance_since) }} km{% else %}経過距離未確定{% endif %}</strong><small>{% if item.days_since is not none %}{{ item.days_since }}日経過{% else %}期間未確定{% endif %}{% if item.needs_review %} · 元整備との整合を確認{% endif %}</small></div></li>
-        {% endfor %}</ul>{% else %}<p class="ko-empty">交換の記録はまだありません。</p>{% endif %}
-    </section>
-</div>
-<section class="card ko-cost">
-    <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="chart">直近12か月の整備費用</h3><a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}">費用を見る ›</a></div>
-    <div class="ko-cost-grid"><div><p class="ko-cost-total">{% if ko_cost.total is not none %}{{ num(ko_cost.total) }} <small>円</small>{% else %}金額の記録なし{% endif %}</p><p class="ko-meta">{{ ko_cost.start|replace('-', '/') }} ～ {{ ko_cost.end|replace('-', '/') }} · {{ ko_cost.count }}件</p><p class="ko-meta">入庫日優先・入庫日なしは完了日。登録済み金額の集計</p>{% if ko_cost.missing or ko_cost.undated %}<p class="ko-meta">{% if ko_cost.missing %}期間内の金額未入力 {{ ko_cost.missing }}件{% endif %}{% if ko_cost.undated %} · 日付不明 {{ ko_cost.undated }}件は期間集計外{% endif %}</p>{% endif %}</div>
-    <ul class="ko-high-cost">{% for record in ko_cost.high %}<li><a href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=record.id) }}">{{ record.content or '整備記録' }}</a><span>{{ num(record.total_cost) }} 円</span><small>{{ record.entry_date or record.completion_date }}</small></li>{% endfor %}</ul></div>
+{% if ko_inspection.reason %}<p class="ko-judgment-note">判断理由：{{ ko_inspection.reason }}</p>{% endif %}
+<section id="ko-confirmed" class="{% if ko_actions %}card ko-confirmed{% else %}ko-confirmed-clear{% endif %}">
+{% if ko_actions %}<div class="ko-heading"><h3>{{ icon('tool') }}必要な対応 <span class="ko-count">{{ ko_actions|length }}件</span></h3><a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}">点検を見る →</a></div><ul class="ko-action-list">{% for item in ko_actions[:3] %}{{ action_row(item) }}{% endfor %}</ul>{% if ko_actions|length > 3 %}<details class="ko-more"><summary>残り{{ ko_actions|length - 3 }}件を表示</summary><ul class="ko-action-list">{% for item in ko_actions[3:] %}{{ action_row(item) }}{% endfor %}</ul></details>{% endif %}
+{% else %}{{ icon('check') }}<span>対応が必要な記録はありません</span><a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id) }}">点検履歴を確認 →</a>{% endif %}
 </section>
-<div class="ko-two-column">
+<div class="ko-workspace">
+<section class="card ko-ai-card" id="ko-ai" data-result-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) if not vehicle.deleted else '' }}" data-analysis-url="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
+    <div class="ko-heading"><h3><span class="ko-heading-icon">{{ icon('tool') }}</span>予防整備の提案 <span class="ko-count" data-ko-ai-count hidden></span></h3><a href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">分析を見る →</a></div>
+    <p class="ko-meta ko-ai-status" data-ko-ai-status role="status">{% if vehicle.deleted %}台帳無効のため、分析タブで保存済みの結果を確認してください。{% else %}保存済みの分析結果を確認しています。{% endif %}</p>
+    <ul class="ko-proposals" data-ko-ai-list></ul>
+    <noscript><p class="ko-meta">分析タブで保存済みの結果を確認してください。</p></noscript>
+</section>
+<section class="card ko-appointments"><div class="ko-heading"><h3>{{ icon('calendar') }}次の点検・入庫予定</h3><a href="{{ url_for('vehicle_inspection_plans', scope='vehicle', vehicle_id=vehicle.id) }}">計画 →</a></div>
+    <div class="ko-appointment-list">{% for item in ko_appointments %}<button class="ko-appointment {% if item.relative %}ko-appointment-notice{% endif %}" type="button" data-inspection-plan-open="{{ item.kind }}" data-vehicle-id="{{ vehicle.id }}" aria-haspopup="dialog"><span class="ko-calendar-stamp"><small>{{ item.year or '予定' }}</small><strong>{{ item.month }}{% if item.month != '—' %}<small>月</small>{% endif %}</strong>{% if item.day %}<b>{{ item.day }}日</b>{% endif %}</span><span class="ko-appointment-info"><span class="ko-appointment-title">{{ item.label }}<span class="ko-badge">{{ item.state }}</span></span><strong>{% if item.relative %}{{ item.relative }}{% elif item.plan.reservation_date %}{{ item.plan.reservation_date }}{% elif item.plan.planned_month %}予約日未定{% else %}予定を登録{% endif %}</strong><small>{% if item.expiry %}車検満了 {{ item.expiry }}{% elif item.actual %}前回 {{ item.actual.performed_date }} 実施{% else %}実施記録なし{% endif %}{% if item.actual.document_status == '未受領' %} · 書類未受領{% endif %}</small></span><span class="ko-chevron" aria-hidden="true">›</span></button>{% endfor %}</div>
+</section>
+</div>
+<div class="ko-support-grid">
+<section class="card"><div class="ko-heading"><h3>{{ icon('clock') }}直近の履歴</h3><a href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">履歴を見る →</a></div>
+{% if karte_recent_entries %}<ol class="ko-timeline">{% for entry in karte_recent_entries[:4] %}<li><span class="ko-timeline-dot" aria-hidden="true"></span><div class="ko-timeline-meta"><time>{{ entry.date|replace('-', '/') }}</time><span class="ko-badge">{{ entry.kind }}</span></div><a class="ko-history-link" href="{{ entry.link or url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">{{ entry.content or '内容未登録' }}</a><p class="ko-meta">{% if entry.mileage is not none %}{{ num(entry.mileage) }} km{% endif %}{% if entry.actor %} · {{ entry.actor }}{% endif %}{% if entry.status %} · {{ entry.status }}{% endif %}</p></li>{% endfor %}</ol>{% else %}<div class="ko-visual-empty">{{ icon('clock') }}<p>履歴はまだありません</p></div>{% endif %}
+</section>
+<section class="card"><div class="ko-heading"><h3>{{ icon('parts') }}主な部品の最終交換</h3><a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}">部品を見る →</a></div>
+{% if ko_part_batches %}<div class="ko-exchanges">{% for batch in ko_part_batches %}<article class="ko-exchange"><div class="ko-exchange-top"><span>{{ batch.date or '日付未登録' }}<small>交換{% if batch.parts|length > 1 %} · {{ batch.parts|length }}部品{% endif %}</small></span><span class="ko-exchange-elapsed"><strong>{% if batch.distance_since is not none %}{{ num(batch.distance_since) }}<small>km</small>{% else %}距離未確定{% endif %}</strong><small>交換後{% if batch.days_since is not none %} · {{ batch.days_since }}日{% endif %}</small></span></div><div class="ko-part-chips">{% for item in batch.parts %}<a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id, q=item.part_name, parts_scope='all') }}">{{ item.part_name }} <span aria-hidden="true">›</span></a>{% endfor %}</div>{% if batch.mileage is not none %}<p class="ko-meta">交換時 {{ num(batch.mileage) }} km → 最終距離記録 {{ karte_mileage_reference.date or '日付未登録' }}</p>{% endif %}{% if batch.needs_review %}<p class="ko-meta">元の整備記録と距離・日付の整合を確認してください。</p>{% endif %}</article>{% endfor %}</div>{% else %}<div class="ko-visual-empty">{{ icon('parts') }}<p>交換記録はまだありません</p></div>{% endif %}
+</section>
+</div>
+<section class="card ko-cost"><div class="ko-heading"><h3>{{ icon('chart') }}直近12か月の整備費用</h3><a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}">費用を見る →</a></div><div class="ko-cost-grid"><div class="ko-spend-summary"><p class="ko-eyebrow">登録済みの整備費用</p><p class="ko-cost-total">{% if ko_cost.total is not none %}{{ num(ko_cost.total) }}<small>円</small>{% else %}金額の記録なし{% endif %}</p><span class="ko-badge">{{ ko_cost.count }}件の整備記録</span><p class="ko-meta">{{ ko_cost.start|replace('-', '/') }} ～ {{ ko_cost.end|replace('-', '/') }}</p><details class="ko-cost-basis"><summary>集計条件</summary><p class="ko-meta">入庫日優先・入庫日なしは完了日。登録済み金額の集計{% if ko_cost.missing %}。金額未入力 {{ ko_cost.missing }}件{% endif %}{% if ko_cost.undated %}。日付不明 {{ ko_cost.undated }}件は期間集計外{% endif %}</p></details></div><div class="ko-spend-breakdown"><p class="ko-eyebrow">主な整備への支出</p><ul class="ko-cost-bars">{% for item in ko_cost.bars %}<li><div><a href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=item.record.id) }}">{{ item.record.content or '整備記録' }}</a><strong>{{ num(item.record.total_cost) }}<small> 円</small></strong></div>{% if item.share is not none %}<svg class="ko-spend-chart" viewBox="0 0 100 6" preserveAspectRatio="none" role="img" aria-label="期間内の登録金額の{{ '%.1f'|format(item.share) }}パーセント"><rect width="100" height="6" rx="3" class="ko-spend-background"/><rect width="{{ '%.2f'|format(item.share) }}" height="6" rx="3" class="ko-spend-value"/></svg>{% endif %}<p class="ko-meta">{{ item.record.entry_date or item.record.completion_date }}{% if item.share is not none %} · 期間内金額の{{ '%.1f'|format(item.share) }}%{% endif %}</p></li>{% endfor %}</ul></div></div></section>
+<div class="ko-support-grid">
     <section class="card" id="vehicle-note">
         <div class="ko-heading">
             <h3 class="result-info-title" data-karte-icon="note">車両メモ</h3>
@@ -101,13 +62,9 @@
         {% endif %}
     </section>
 
-    <section class="card">
-        <div class="ko-heading"><h3 class="result-info-title" data-karte-icon="file">関連書類 <span class="ko-count">{{ ko_business_document_count }}</span></h3><a href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">書類をすべて見る ›</a></div>
-        {% if karte_recent_documents %}<ul class="ko-file-list">{% for document in karte_recent_documents %}
-            <li><span class="ko-file-kind">{{ document.kind_label }}</span><div class="ko-file-main"><a href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id, document=document.key) }}">{{ document.filename }}</a><p class="ko-meta">{{ document.date_kind }} {{ document.business_date or document.date_label }}{% if document.related_url %} · <a href="{{ document.related_url }}">関連記録 ›</a>{% endif %}</p></div><a class="ko-download" href="{{ document.download_url }}" aria-label="{{ document.filename }}をダウンロード">保存</a></li>
-        {% endfor %}</ul>{% else %}<p class="ko-empty">表示できる業務書類はまだありません。</p>{% endif %}
-        {% if karte_document_count > ko_business_document_count %}<p class="ko-meta">運行CSVなどの取込元は書類タブで確認できます。</p>{% endif %}
-    </section>
+
+<section class="card ko-documents"><div class="ko-heading"><h3>{{ icon('file') }}関連書類 <span class="ko-count">{{ ko_business_document_count }}件</span></h3><a href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">すべて →</a></div>
+{% if karte_recent_documents %}<ul class="ko-file-list">{% for document in karte_recent_documents %}<li><span class="ko-file-thumbnail">{{ icon('file') }}<small>{{ document.extension|upper or 'FILE' }}</small></span><div class="ko-file-main"><a href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id, document=document.key) }}">{% if document.business_date %}{{ document.kind_label }} <span>{{ document.business_date|replace('-', '/') }}</span>{% else %}{{ document.filename }}{% endif %}</a><p class="ko-meta">{% if document.business_date %}{{ document.filename }}{% else %}{{ document.kind_label }} · 登録 {{ document.date_label }}{% endif %}</p>{% if document.related_url %}<a class="ko-related-link" href="{{ document.related_url }}">関連する{{ '点検' if document.date_kind == '実施日' else '整備' }}記録 →</a>{% endif %}</div><a class="ko-download" href="{{ document.download_url }}" aria-label="{{ document.filename }}をダウンロード">保存</a></li>{% endfor %}</ul>{% else %}<div class="ko-visual-empty">{{ icon('file') }}<p>業務書類はまだありません</p></div>{% endif %}{% if karte_document_count > ko_business_document_count %}<p class="ko-meta">運行CSV等は書類タブから確認できます。</p>{% endif %}</section>
 </div>
 <details class="card result-info-card ko-registration">
     <summary>登録情報を確認</summary>
@@ -142,5 +99,5 @@
 {% include "vehicle_inspection_plan_panel.html" %}
 {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/vehicle_karte_overview.js', v='20261025-v19-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_overview.js', v='20261025-compact-1') }}" defer></script>
 {% endblock %}
