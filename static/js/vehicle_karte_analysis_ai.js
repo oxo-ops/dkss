@@ -849,7 +849,7 @@
                         openReferenceDrawer(item, detail, button);
                     });
                 }
-                if (item.proposal_id) {
+                if (item.proposal_id && data.is_current === true && data.status === "completed") {
                     const controls = feedbackControls(item);
                     controls.addEventListener("ka-feedback-saved", event => {
                         badge.textContent = labels[event.detail.status] || "未着手";
@@ -869,15 +869,18 @@
 
         const priorityOrder = {"高": 0, "中": 1, "低": 2};
         const ordered = [...items].sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
-        const current = data.is_current === true;
+        const current = data.is_current === true && data.status === "completed";
         const board = node("section", "ka3-board");
         const title = node("header", "ka3-board-title");
-        title.append(node("h3", "", current ? `予防整備の提案 ${ordered.length}件` : "予防整備の提案"));
-        if (data.generated_at && current) title.append(node("span", "ka3-date", `分析 ${data.generated_at}`));
+        title.append(node("h3", "", current ? `予防整備の提案 ${ordered.length}件` : data.has_result ? `前回の提案 ${ordered.length}件` : "予防整備の提案"));
+        if (data.generated_at) title.append(node("span", "ka3-date", `分析 ${data.generated_at}`));
         board.append(title);
-        if (!current || !ordered.length) {
+        if (data.has_result && !current) {
+            board.append(node("p", "kc-muted", "前回の分析結果を表示しています。現在の登録内容と異なる可能性があるため、対応の記録は分析更新後に行ってください。"));
+        }
+        if (!ordered.length) {
             const empty = node("div", "ka3-empty");
-            empty.append(node("span", "ka3-empty-symbol", current ? "≡" : "◷"), node("h4", "", current ? "現在の分析に提案はありません" : "分析更新待ち"));
+            empty.append(node("span", "ka3-empty-symbol", current ? "≡" : "◷"), node("h4", "", current ? "現在の分析に提案はありません" : data.has_result ? "前回の分析に提案はありません" : "分析更新待ち"));
             board.append(empty);
         } else {
             // Keep existing evidence validation, source links and feedback handlers.
