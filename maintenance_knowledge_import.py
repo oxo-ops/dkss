@@ -1221,35 +1221,10 @@ source_pageはPDFの物理ページ番号。source_quoteには数値・単位・
 
 
 def register_knowledge_import(app, db, Knowledge, prepare_pdf):
-    class KnowledgeDocument(db.Model):
-        __tablename__ = "maintenance_knowledge_document"
-        id = db.Column(db.String(36), primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        checksum = db.Column(db.String(64), nullable=False)
-        filename = db.Column(db.String(255), nullable=False)
-        original_data = db.deferred(db.Column(db.LargeBinary, nullable=False))
-        mimetype = db.Column(db.String(50), nullable=False)
-        knowledge_ids_json = db.Column(db.Text, nullable=False)
-        extraction_json = db.deferred(db.Column(db.Text, nullable=False))
-        created_by = db.Column(db.String(50), nullable=False)
-        created_at = db.Column(db.String(30), nullable=False)
-        __table_args__ = (db.UniqueConstraint("company_code", "checksum"),)
+    from dkss_app.maintenance_knowledge_import_models import get_models
+    KnowledgeDocument, KnowledgeRuleExtraction, = get_models(db)
 
     # LEGACY_PUBLIC_RULE_REVISION_V1
-    class KnowledgeRuleExtraction(db.Model):
-        __tablename__ = "maintenance_knowledge_rule_extraction"
-        id = db.Column(db.Integer, primary_key=True)
-        company_code = db.Column(db.String(50), nullable=False, index=True)
-        document_id = db.Column(db.String(36), db.ForeignKey(
-            "maintenance_knowledge_document.id"), nullable=False, index=True)
-        extraction_version = db.Column(db.Integer, nullable=False, default=1)
-        document_checksum = db.Column(db.String(64), nullable=False)
-        knowledge_ids_json = db.Column(db.Text, nullable=False)
-        extraction_json = db.deferred(db.Column(db.Text, nullable=False))
-        created_at = db.Column(db.String(30), nullable=False)
-        __table_args__ = (db.UniqueConstraint(
-            "company_code", "document_id", "extraction_version",
-            name="uq_knowledge_rule_extraction_version"),)
 
     # LEGACY_RULE_MONTHLY_QUOTA_V1
     def count_rule_upgrades(company_code, month):
