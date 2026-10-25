@@ -1,3 +1,23 @@
+{% macro checklist_result_heading(checklist, choices) -%}
+{% if choices|length > 1 %}
+<details class="checklist-result-switcher">
+    <summary title="チェックリストを切り替える">
+        <h2>{{ checklist.name }}{% if not checklist.active %}<small>無効</small>{% endif %}</h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <nav class="checklist-result-options" aria-label="チェックリストの切替">
+    {% for choice in choices %}
+        <a href="{{ choice.url }}"{% if choice.id == checklist.id %} aria-current="page"{% endif %}>
+            <span>{{ choice.name }}</span>{% if not choice.active %}<small>無効</small>{% endif %}
+            {% if choice.id == checklist.id %}<span aria-hidden="true">✓</span>{% endif %}
+        </a>
+    {% endfor %}
+    </nav>
+</details>
+{% else %}
+<h2>{{ checklist.name }}{% if not checklist.active %}<small>無効</small>{% endif %}</h2>
+{% endif %}
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -7,6 +27,9 @@
         name="csrf-token"
         content="{{ csrf_token() }}"
     >
+    {% if master_office_order is defined %}
+    <meta name="master-office-order" content="{{ master_office_order|tojson|forceescape }}">
+    {% endif %}
     <title>{% block title %}DKSS{% endblock %}</title>
 
     <link
@@ -17,6 +40,7 @@
     <meta name="theme-color" content="#2f73f6">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261022-inspection-visibility-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261025-dashboard-v1') }}">
 </head>
 <body
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
@@ -371,52 +395,33 @@
             </div>
         {% endif %}
 
-        {% if request.path in [
-            '/master/drivers',
-            '/master/offices',
-            '/master/vehicles',
-            '/master/vehicle-types',
-            '/master/license-types',
-            '/master/delivery-places'
-        ] %}
+        {# Keep every master entry, heading and description together. #}
         {% set master_tabs = [
-            ('/master/drivers', 'ドライバーマスタ'),
-            ('/master/offices', '営業所マスタ'),
-            ('/master/vehicles', '車両マスタ'),
-            ('/master/vehicle-types', '車種マスタ'),
-            ('/master/license-types', '免許種別マスタ'),
-            ('/master/delivery-places', '納入先マスタ')
+            ('/master/drivers', 'ドライバーマスタ', 'ドライバーマスタ', '登録されているドライバーの一覧です。条件で絞り込み、編集・削除ができます。'),
+            ('/master/offices', '営業所マスタ', '営業所マスタ', '登録されている営業所の一覧です。新規登録・編集・削除ができます。'),
+            ('/master/vehicles', '車両マスタ', '車両マスタ', '登録されている車両の一覧です。条件で絞り込み、編集・削除ができます。'),
+            ('/master/vehicle-types', '車種マスタ', '車種マスタ', '車両登録時に使用する車種を管理します。新規登録・編集・削除ができます。'),
+            ('/master/license-types', '免許種別マスタ', '免許種別マスタ', 'ドライバーの免許種別を管理します。新規登録・編集・削除ができます。'),
+            ('/master/delivery-places', '納入先マスタ', '納入先マスタ', '登録されている納入先の一覧です。新規登録・編集・削除ができます。'),
+            ('/master/checklists', 'チェックリスト', 'チェックリストマスタ', '安全管理・車両管理で使用するチェックリストを管理します。'),
+            ('/master/patrol-content-types', 'パトロール区分', '安全パトロール内容区分マスタ', '安全パトロールの指摘やGoodに使用する内容区分を管理します。'),
+            ('/master/manuals', 'マニュアル', 'マニュアルマスタ', 'システムで参照するマニュアルを管理します。')
         ] %}
-        {% set master_titles = {
-            '/master/drivers': 'ドライバーマスタ',
-            '/master/offices': '営業所マスタ',
-            '/master/vehicles': '車両マスタ',
-            '/master/vehicle-types': '車種マスタ',
-            '/master/license-types': '免許種別マスタ',
-            '/master/delivery-places': '納入先マスタ'
-        } %}
-
-        {% if request.path in master_titles %}
-        {% set master_descriptions = {
-            '/master/drivers': '登録されているドライバーの一覧です。条件で絞り込み、編集・削除ができます。',
-            '/master/offices': '登録されている営業所の一覧です。新規登録・編集・削除ができます。',
-            '/master/vehicles': '登録されている車両の一覧です。条件で絞り込み、編集・削除ができます。',
-            '/master/vehicle-types': '車両登録時に使用する車種を管理します。新規登録・編集・削除ができます。',
-            '/master/license-types': 'ドライバーの免許種別を管理します。新規登録・編集・削除ができます。',
-            '/master/delivery-places': '登録されている納入先の一覧です。新規登録・編集・削除ができます。'
-        } %}
+        {% set master_current = namespace(tab=none) %}
+        {% for tab in master_tabs %}
+            {% if request.path == tab[0] %}{% set master_current.tab = tab %}{% endif %}
+        {% endfor %}
+        {% if master_current.tab %}
         <header class="master-unified-heading">
-            <h2>{{ master_titles[request.path] }}</h2>
-            <p>{{ master_descriptions[request.path] }}</p>
+            <h2>{{ master_current.tab[2] }}</h2>
+            <p>{{ master_current.tab[3] }}</p>
         </header>
-        {% endif %}
-
-        <nav class="master-unified-tabs" aria-label="マスタ管理の切替">
-            {% for href, label in master_tabs %}
+        <nav class="master-unified-tabs master-unified-tabs-complete" aria-label="マスタ管理の切替">
+            {% for href, label, title, description in master_tabs %}
             <a href="{{ href }}"
                class="master-unified-tab{% if request.path == href %} is-current{% endif %}"
+               title="{{ title }}"
                {% if request.path == href %}aria-current="page"{% endif %}>
-
                 <svg class="master-tab-icon" width="22" height="22"
                      viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2"
@@ -450,10 +455,17 @@
                     {% elif href == '/master/delivery-places' %}
                     <rect x="5" y="3" width="14" height="18" rx="1"/>
                     <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/>
+                    {% elif href == '/master/checklists' %}
+                    <rect x="5" y="4" width="14" height="17" rx="2"/>
+                    <path d="M9 4V2h6v2M8 10l1 1 2-2M13 10h3M8 16l1 1 2-2M13 16h3"/>
+                    {% elif href == '/master/patrol-content-types' %}
+                    <path d="M4 6h16M4 12h16M4 18h16"/>
+                    <circle cx="8" cy="6" r="2" fill="white"/><circle cx="16" cy="12" r="2" fill="white"/><circle cx="10" cy="18" r="2" fill="white"/>
+                    {% elif href == '/master/manuals' %}
+                    <path d="M3 4h6a3 3 0 0 1 3 3v14a3 3 0 0 0-3-3H3zM21 4h-6a3 3 0 0 0-3 3v14a3 3 0 0 1 3-3h6z"/>
                     {% endif %}
 
                 </svg>
-
                 <span class="master-tab-label">{{ label }}</span>
             </a>
             {% endfor %}

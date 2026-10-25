@@ -5,12 +5,9 @@
 {% block content %}
 
 <div class="safety-results-page-head">
-    <a href="/safety/checklists" class="safety-results-back-link">
-        ← チェックリスト一覧へ
-    </a>
     <div class="safety-results-title-row">
         <div>
-            <h2>{{ checklist["name"] }}</h2>
+            {{ checklist_result_heading(checklist, checklist_navigation) }}
 
             <p class="safety-results-count">
                 {{ checklist_periods | map(attribute='results') | map('length') | sum }}件の結果

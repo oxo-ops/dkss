@@ -59,6 +59,75 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.remove()
         self.ctx.pop()
 
+    def test_overview_connects_maintenance_periodic_mileage_and_files(self):
+        m = self.m
+        m.db.session.add(m.VehicleMaintenanceRecord(
+            company_code="TEST", vehicle_record_id=self.vehicle.id,
+            entry_date="2026-09-01", completion_date="2026-09-01",
+            content="概要整備接続", status="完了", mileage=10000, total_cost=12345,
+        ))
+        m.db.session.commit()
+        self.upload_inspection()
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=self.inspection_form(draft))
+        record = m.VehiclePeriodicInspectionRecord.query.one()
+        record.content = "概要点検接続"
+        record.mileage = 10100
+        m.db.session.commit()
+        text = self.client.get(f"/vehicle/karte/{self.vehicle.id}").get_data(as_text=True)
+        for expected in ("概要整備接続", "概要点検接続", "12,345", "10,100", "inspection.pdf", "直近の履歴"):
+            self.assertIn(expected, text)
+        self.assertNotIn("未実装", text)
+        with m.app.test_request_context('/'):
+            context = m.get_vehicle_karte_overview_context(self.vehicle)
+        document = next(item for item in context['karte_recent_documents'] if item['filename'] == 'inspection.pdf')
+        self.assertEqual(document['date_kind'], '実施日')
+        self.assertEqual(document['business_date'], record.inspection_date)
+        self.assertIn(f'#periodic-record-{record.id}', document['related_url'])
+        Path(self.temp.name, "overview.html").write_text(text)
+
+    def test_overview_note_save_escape_clear_and_conflict(self):
+        url = f"/vehicle/karte/{self.vehicle.id}/note"
+        self.assertEqual(self.client.post(url, data={"version":0,"content":"<script>alert(1)</script>"}).status_code, 302)
+        text = self.client.get(f"/vehicle/karte/{self.vehicle.id}").get_data(as_text=True)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", text)
+        self.assertEqual(self.client.post(url, data={"version":0,"content":"stale"}).status_code, 409)
+        self.assertEqual(self.m.VehicleKarteNote.query.one().version, 1)
+        self.assertEqual(self.client.post(url, data={"version":1,"content":""}).status_code, 302)
+        self.assertEqual(self.m.VehicleKarteNote.query.one().content, "")
+        self.assertEqual(self.client.post(url, data={"version":2,"content":"a"*10001}).status_code, 400)
+
+    def test_overview_note_company_and_role_boundaries(self):
+        m = self.m
+        other = m.Vehicle(company_code="OTHER", chassis_number="OTHER-1")
+        m.db.session.add(other); m.db.session.commit()
+        self.assertEqual(self.client.post(f"/vehicle/karte/{other.id}/note", data={"version":0,"content":"no"}).status_code, 404)
+        m.User.query.filter_by(company_code="TEST", username="admin").one().role = "user"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/vehicle/karte/{self.vehicle.id}/note", data={"version":0,"content":"no"}).status_code, 403)
+        self.assertEqual(m.VehicleKarteNote.query.count(), 0)
+
+    def test_overview_mileage_conflicts_are_gaps(self):
+        m = self.m
+        for value in (10000, 11000):
+            m.db.session.add(m.VehicleMaintenanceRecord(
+                company_code="TEST", vehicle_record_id=self.vehicle.id,
+                entry_date="2026-09-01", mileage=value,
+            ))
+        m.db.session.commit()
+        with m.app.test_request_context():
+            context = m.get_vehicle_karte_overview_context(self.vehicle)
+        self.assertEqual(context["karte_mileage_points"], [{"date":"2026-09-01", "mileage":None}])
+        self.assertEqual(context["karte_mileage_reference"]["conflict_dates"], ["2026-09-01"])
+
+    def test_vehicle_deletion_cleans_up_overview_note(self):
+        m = self.m
+        m.db.session.add(m.VehicleKarteNote(company_code="TEST", vehicle_record_id=self.vehicle.id, content="note"))
+        m.db.session.commit()
+        m.delete_vehicle_related_data(self.vehicle)
+        m.db.session.delete(self.vehicle); m.db.session.commit()
+        self.assertEqual(m.VehicleKarteNote.query.count(), 0)
+
     def test_empty_vehicle_report_is_validation_error(self):
         response = self.client.post("/vehicle-patrols/new", data={})
         self.assertEqual(response.status_code, 400)
@@ -364,6 +433,211 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.one().source_draft_id, draft.id)
 
+    def mixed_pending_import(self):
+        """Use original CSV/PDF bytes; only OCR is mocked by upload_inspection."""
+        m = self.m
+        from test_inspection_document_ai import extraction
+        data = extraction()
+        data["records"][0]["registration_number"] = "横浜100あ1234"
+        self.upload_inspection(data=data)
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(self.client.post(
+            f"/vehicle/data-import/{draft.batch_id}/confirm",
+            data=self.inspection_form(draft, vehicle=False),
+        ).status_code, 302)
+        document = m.VehicleImportPendingRecord.query.one()
+        pending_id = document.pending_id
+        source = ("日報番号,運行日,車両コード,車両,入庫メータ,走行距離\n"
+                  "MIXED-001,2026/10/21,DTG-001,横浜100あ1234,100020,20\n").encode("utf-8-sig")
+        operation_draft = m.VehicleOperationImportDraft(
+            id="mixed-csv", company_code="TEST", created_by_username="admin",
+            source_filename="operations.csv", source_file=source, status="completed",
+        )
+        m.db.session.add(operation_draft)
+        m.db.session.flush()
+        row = m.read_vehicle_operation_csv(source)[0]
+        values = m.parse_vehicle_operation_csv_row(row["source_row"], row["line_number"])
+        item, _ = m.save_vehicle_import_pending_record(
+            company_code="TEST", username="admin", source_kind="operation",
+            source_draft_id=operation_draft.id, source_record_index=row["line_number"],
+            group_identity={"source": "dtg7", "vehicle_code": "DTG-001", "plate": "横浜100あ1234"},
+            identity={"source_vehicle_number": "横浜100あ1234", "source_vehicle_code": "DTG-001"},
+            record_identity={"report_number": values["report_number"]},
+            payload=values, record_date="2026-10-21",
+        )
+        self.assertEqual(item.pending_id, pending_id)
+        m.db.session.commit()
+        return pending_id, document, operation_draft
+
+    def assert_mixed_import_pending(self, pending_id):
+        m = self.m
+        m.db.session.expire_all()
+        self.assertEqual(m.VehicleImportPending.query.filter_by(id=pending_id).one().status, "pending")
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(
+            pending_id=pending_id, status="pending").count(), 2)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        self.assertEqual(m.VehicleOperationVehicleMapping.query.count(), 0)
+        self.assertEqual(json.loads(m.VehicleOperationImportDraft.query.one().result_json), {})
+
+    def test_mixed_pending_sources_apply_together_and_replay_is_not_duplicated(self):
+        pending_id, document, operation_draft = self.mixed_pending_import()
+        m = self.m
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}", data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, f"/vehicle/karte/{self.vehicle.id}")
+        self.assertEqual(m.VehicleOperationRecord.query.one().vehicle_record_id, self.vehicle.id)
+        inspection = m.VehiclePeriodicInspectionRecord.query.one()
+        self.assertEqual(inspection.vehicle_record_id, self.vehicle.id)
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(status="applied").count(), 2)
+        pending = m.VehicleImportPending.query.one()
+        self.assertEqual(pending.status, "resolved")
+        self.assertEqual(pending.resolved_vehicle_id, self.vehicle.id)
+        self.assertEqual(json.loads(operation_draft.result_json)["imported_vehicle_ids"], [self.vehicle.id])
+        draft = m.VehicleDocumentImportDraft.query.one()
+        self.assertEqual(json.loads(draft.result_json)["pending_count"], 0)
+        self.assertEqual(self.client.get(f"/vehicle/periodic-inspections/{inspection.id}/source").data,
+                         draft.source_file)
+        self.assertEqual(self.client.get(f"/master/vehicles/pending/{pending_id}/sources/{operation_draft.id}").data,
+                         operation_draft.source_file)
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_mixed_pending_document_failure_rolls_back_csv_and_mapping_then_retries(self):
+        pending_id, document, _ = self.mixed_pending_import()
+        m = self.m
+        draft = m.VehicleDocumentImportDraft.query.one()
+        original = draft.source_sha256
+        draft.source_sha256 = "invalid"
+        m.db.session.commit()
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        draft.source_sha256 = original
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}", data=form).status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+
+    def test_mixed_pending_validation_only_rolls_back_every_source(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(self.vehicle.id)},
+            headers={"X-DKSS-Validation-Only": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+        self.assert_mixed_import_pending(pending_id)
+
+    def test_mixed_pending_rejects_foreign_vehicle_and_foreign_group(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        foreign = m.Vehicle(company_code="OTHER", chassis_number="OTHER-001")
+        m.db.session.add(foreign)
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(foreign.id)}).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        pending = m.VehicleImportPending.query.one()
+        pending.company_code = "OTHER"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"vehicle_record_id": str(self.vehicle.id)}).status_code, 404)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+
+    def test_mixed_pending_new_vehicle_is_rolled_back_when_document_fails(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        pending = m.VehicleImportPending.query.one()
+        pending.identity_json = json.dumps({"source_vehicle_number": "横浜100あ1234"})
+        draft = m.VehicleDocumentImportDraft.query.one()
+        draft.source_sha256 = "invalid"
+        m.db.session.commit()
+        self.assertEqual(self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"pending_action": "create"}).status_code, 400)
+        self.assert_mixed_import_pending(pending_id)
+        self.assertEqual(m.Vehicle.query.count(), 1)
+
+    def test_mixed_pending_invoice_answer_applies_csv_and_preserves_existing_costs(self):
+        import hashlib
+        from flask import session
+        from test_inspection_document_ai import pdf_bytes
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        target = m.VehicleMaintenanceRecord(company_code="TEST", vehicle_record_id=self.vehicle.id,
+            entry_date="2026-10-21", content="既存整備", total_cost="500")
+        m.db.session.add(target)
+        source = pdf_bytes(2)
+        payload = {"vehicle_record_id": None, "record_date": "2026-10-21",
+                   "content": "請求書", "total_cost": "2200", "line_items": [],
+                   "registration_number": "横浜100あ1234", "chassis_number": "TEST-001"}
+        draft = m.VehicleDocumentImportDraft(id="mixed-invoice", batch_id="invoice-batch",
+            company_code="TEST", created_by_username="admin", document_type="maintenance",
+            source_filename="invoice.pdf", source_file=source, source_sha256=hashlib.sha256(source).hexdigest(),
+            preview_json=json.dumps({"records": [payload]}), status="completed")
+        m.db.session.add(draft)
+        m.db.session.flush()
+        with m.app.test_request_context():
+            session.update(company_code="TEST", username="admin", role="admin")
+            invoice, _ = m.save_vehicle_document_pending_record(draft, 0, payload)
+        self.assertEqual(invoice.pending_id, pending_id)
+        m.db.session.commit()
+        form = {"vehicle_record_id": str(self.vehicle.id)}
+        url = f"/master/vehicles/pending/{pending_id}"
+        response = self.client.post(url, data=form)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("この整備に対応する請求書ですか", response.get_data(as_text=True))
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 0)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        form["invoice_choice_" + invoice.id] = f"maintenance:{target.id}"
+        response = self.client.post(url, data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(m.VehicleOperationRecord.query.count(), 1)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), 1)
+        self.assertEqual(str(target.total_cost), "500.00")
+        saved = m.VehicleMaintenanceDocument.query.one()
+        self.assertEqual(saved.maintenance_record_id, target.id)
+        self.assertEqual(saved.financial_status, "pending")
+        self.assertEqual(saved.parts_status, "pending")
+        self.assertEqual(m.VehiclePartReplacement.query.count(), 0)
+        self.assertEqual(m.VehicleImportPendingRecord.query.filter_by(status="applied").count(), 3)
+
+    def test_cross_source_grouping_rejects_conflicts_partial_plates_and_ambiguity(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        find = m.find_vehicle_pending_cross_source_group
+        valid = {"source_vehicle_number": "横浜100あ1234", "chassis_number": "TEST-001"}
+        self.assertEqual(find("TEST", "maintenance", valid).id, pending_id)
+        for identity in (
+            {**valid, "chassis_number": "DIFFERENT"},
+            {**valid, "source_vehicle_code": "DIFFERENT"},
+            {**valid, "source_vehicle_number": "1234"},
+        ):
+            self.assertIsNone(find("TEST", "maintenance", identity))
+        self.assertIsNone(find("OTHER", "maintenance", valid))
+        m.db.session.add(m.VehicleImportPending(id="ambiguous", company_code="TEST",
+            match_key="ambiguous", identity_json=json.dumps(valid), created_by_username="admin"))
+        m.db.session.flush()
+        self.assertIsNone(find("TEST", "maintenance", valid))
+
+    def test_mixed_pending_create_applies_all_records_to_one_new_vehicle(self):
+        pending_id, _, _ = self.mixed_pending_import()
+        m = self.m
+        pending = m.VehicleImportPending.query.one()
+        pending.identity_json = json.dumps({"source_vehicle_number": "横浜100あ1234"})
+        m.db.session.commit()
+        response = self.client.post(f"/master/vehicles/pending/{pending_id}",
+            data={"pending_action": "create"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(m.Vehicle.query.count(), 2)
+        new_id = m.VehicleImportPending.query.one().resolved_vehicle_id
+        self.assertNotEqual(new_id, self.vehicle.id)
+        self.assertEqual(m.VehicleOperationRecord.query.one().vehicle_record_id, new_id)
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.one().vehicle_record_id, new_id)
+
     def test_inspection_multiple_records_same_page_and_two_drafts(self):
         from test_inspection_document_ai import extraction
         import copy
@@ -510,7 +784,180 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertNotIn('12month', got)
         record.next_inspection_date = None; m.db.session.commit()
         self.assertIsNone(m.get_vehicle_periodic_inspection_summary('TEST', self.vehicle.id)['3month']['next_date'])
+    def workflow_checklist(self, target="安全管理", approvals=None, content="確認"):
+        items = [{"item_type": "check", "category": "点検", "content": content,
+                  "input_type": "text", "answer_required": False}]
+        for general in ([False, False] if approvals is None else approvals):
+            items.append({"item_type": "approval", "approval_label": "確認",
+                          "approval_allow_general": general})
+        row = self.m.Checklist(company_code="TEST", name="業務確認", target=target,
+            frequency_unit="day", display_type="month", active=True,
+            items_json=json.dumps(items, ensure_ascii=False))
+        self.m.db.session.add(row); self.m.db.session.commit()
+        return row
 
+    def safety_record(self, approvals=None, candidates=None):
+        checklist = self.workflow_checklist(approvals=approvals)
+        data = {"answer_0": "確認済み", **(candidates or {})}
+        response = self.client.post(f"/safety/checklists/{checklist.id}/new", data=data)
+        self.assertEqual(response.status_code, 302)
+        return self.m.ChecklistResult.query.one(), data
+
+    def safety_edit_token(self, record):
+        import re
+        page = self.client.get(f"/safety/checklist-results/{record.id}/edit")
+        self.assertEqual(page.status_code, 200)
+        return re.search(r'name="record_version" value="([a-f0-9]{64})"',
+                         page.get_data(as_text=True)).group(1)
+
+    def workflow_user_client(self):
+        stamp = self.m.User.query.filter_by(username="admin").one().password_changed_at
+        self.m.db.session.add(self.m.User(company_code="TEST", username="reviewer",
+            role="user", password="unused", last_name="確認", first_name="担当",
+            password_changed_at=stamp))
+        self.m.db.session.commit()
+        client = self.m.app.test_client()
+        with client.session_transaction() as session:
+            session.update(company_code="TEST", username="reviewer", role="user",
+                           password_changed_at=stamp)
+        return client
+
+    def test_stale_safety_edit_cannot_erase_partial_approval_or_send_notices(self):
+        row, data = self.safety_record(candidates={"approval_notify_users_0": "admin"})
+        token = self.safety_edit_token(row)
+        self.client.post(f"/safety/checklist-results/{row.id}/approve/0")
+        self.m.db.session.refresh(row)
+        before = row.approvals_json
+        events, notices = self.m.ChecklistEvent.query.count(), self.m.Notification.query.count()
+        response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+            data={**data, "record_version": token}, headers={"X-DKSS-Final-Submit": "1"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("記録が更新", response.json["errors"][0]["message"])
+        self.m.db.session.refresh(row)
+        self.assertEqual(row.approvals_json, before)
+        self.assertEqual(self.m.ChecklistEvent.query.count(), events)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+
+    def test_identical_safety_edit_replay_is_rejected_even_with_same_timestamp(self):
+        row, data = self.safety_record(candidates={"approval_notify_users_0": "admin"})
+        token = self.safety_edit_token(row)
+        payload = {**data, "record_version": token}
+        url = f"/safety/checklist-results/{row.id}/edit"
+        self.assertEqual(self.client.post(url, data=payload).status_code, 302)
+        self.m.db.session.refresh(row)
+        # The only new revision may be the event: checked_date has minute precision.
+        events, notices = self.m.ChecklistEvent.query.count(), self.m.Notification.query.count()
+        self.assertEqual(self.client.post(url, data=payload).status_code, 409)
+        self.assertEqual(self.m.ChecklistEvent.query.count(), events)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+
+    def test_fresh_safety_resubmission_still_resets_all_approval_slots(self):
+        row, data = self.safety_record()
+        self.client.post(f"/safety/checklist-results/{row.id}/approve/0")
+        self.client.post(f"/safety/checklist-results/{row.id}/reject", data={"reject_reason": "再確認"})
+        token = self.safety_edit_token(row)
+        response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+            data={**data, "answer_0": "訂正済み", "record_version": token})
+        self.assertEqual(response.status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertEqual(row.status, "承認待ち")
+        self.assertEqual(json.loads(row.answers_json)[0]["value"], "訂正済み")
+        self.assertTrue(all(not slot["approved_by_username"] for slot in json.loads(row.approvals_json)))
+        self.assertEqual(self.m.ChecklistEvent.query.filter_by(event_type="再申請").count(), 1)
+
+    def test_safety_edit_requires_valid_revision_and_keeps_previous_answers(self):
+        row, data = self.safety_record()
+        before = row.answers_json
+        for token in ("", "invalid", "日本語", "0" * 64):
+            with self.subTest(token=token):
+                response = self.client.post(f"/safety/checklist-results/{row.id}/edit",
+                    data={**data, "answer_0": "変更", "record_version": token})
+                self.assertEqual(response.status_code, 409)
+                self.m.db.session.refresh(row)
+                self.assertEqual(row.answers_json, before)
+
+    def test_general_approver_can_read_result_excel_attachments_and_finished_result(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[True], candidates={"approval_notify_users_0": "reviewer"})
+        row.answers_json = json.dumps([{"item_no": 0, "value": "確認済み", "files": ["review-evidence.pdf"]}])
+        self.m.db.session.commit()
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        self.assertEqual(client.get(url + "/excel").status_code, 200)
+        with self.m.app.test_request_context("/"):
+            self.m.session.update(company_code="TEST", username="reviewer", role="user")
+            self.assertTrue(self.m.file_belongs_to_current_company("review-evidence.pdf", "uploads"))
+        # Viewing/approving grants neither editing nor deletion.
+        before = row.answers_json
+        client.post(url + "/edit", data={"answer_0": "unauthorized"})
+        client.post(url + "/delete")
+        self.m.db.session.refresh(row); self.assertEqual(row.answers_json, before)
+        self.assertEqual(client.post(url + "/approve/0").status_code, 302)
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認済み")
+        self.assertEqual(client.get(url).status_code, 200)
+
+    def test_general_approval_visibility_matches_current_slot_without_candidate_requirement(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[False, True])
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 302)
+        self.client.post(url + "/approve/0")
+        self.assertEqual(client.get(url).status_code, 200)
+        self.assertEqual(client.post(url + "/approve/1").status_code, 302)
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認済み")
+        self.assertEqual(client.get(url).status_code, 200)
+
+    def test_future_selected_general_approver_can_read_but_cannot_approve_out_of_order(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[False, True], candidates={"approval_notify_users_1": "reviewer"})
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        before = row.approvals_json
+        client.post(url + "/approve/1")
+        self.m.db.session.refresh(row); self.assertEqual(row.approvals_json, before)
+
+    def test_general_approval_visibility_uses_legacy_snapshot_and_keeps_company_boundary(self):
+        client = self.workflow_user_client()
+        row, _ = self.safety_record(approvals=[True])
+        row.approvals_json = "[]"; self.m.db.session.commit()
+        url = f"/safety/checklist-results/{row.id}"
+        self.assertEqual(client.get(url).status_code, 200)
+        row.company_code = "OTHER"; self.m.db.session.commit()
+        self.assertEqual(client.get(url).status_code, 302)
+        self.assertEqual(client.get(url + "/excel").status_code, 302)
+        client.post(url + "/approve/0")
+        self.m.db.session.refresh(row); self.assertEqual(row.status, "承認待ち")
+
+    def test_vehicle_checklist_item_html_is_escaped_and_newlines_remain(self):
+        content = '<b id="injected">点検</b>\n次の行 & <img src=x onerror=alert(1)>'
+        checklist = self.workflow_checklist("車両管理", [], content)
+        page = self.client.get(f"/vehicle/checklists/{checklist.id}", query_string={
+            "vehicle_record_id": self.vehicle.id, "year": "2026", "month": "10"})
+        self.assertEqual(page.status_code, 200)
+        text = page.get_data(as_text=True)
+        self.assertNotIn('<b id="injected">', text)
+        self.assertNotIn('<img src=x', text)
+        self.assertIn('&lt;b id=&#34;injected&#34;&gt;点検&lt;/b&gt;<br>', text)
+        self.assertIn('次の行 &amp; &lt;img', text)
+
+    def test_vehicle_completion_replay_does_not_send_another_notice_but_edited_result_can_complete(self):
+        checklist = self.workflow_checklist("車両管理", [])
+        data = {"vehicle_record_id": self.vehicle.id, "year": "2026", "month": "10", "day": "23"}
+        url = f"/vehicle/checklists/{checklist.id}"
+        # Optional, entirely unanswered inspections can still be explicitly completed.
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 302)
+        row = self.m.VehicleChecklistResult.query.one()
+        self.assertEqual(json.loads(row.answers_json), [])
+        before = (row.status, row.checked_date, row.operation_judgment_json)
+        notices = self.m.Notification.query.count()
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 409)
+        self.m.db.session.refresh(row)
+        self.assertEqual((row.status, row.checked_date, row.operation_judgment_json), before)
+        self.assertEqual(self.m.Notification.query.count(), notices)
+        self.assertEqual(self.m.VehicleChecklistResult.query.count(), 1)
+        self.assertEqual(self.client.post(url + "/save-one", data={**data, "item_no": "0", "value": "0"}).status_code, 302)
+        self.assertEqual(self.client.post(url + "/complete", data={**data, "notify_users": "admin"}).status_code, 302)
+        self.assertEqual(self.m.Notification.query.count(), notices + 1)
 
 
 if __name__ == "__main__":

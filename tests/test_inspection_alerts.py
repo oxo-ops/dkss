@@ -219,6 +219,115 @@ class InspectionAlertTests(unittest.TestCase):
         self.assertEqual(result.exit_code,0,result.output);self.assertEqual(self.m.Notification.query.count(),1)
 
 
+    def expiry(self, day='2026-10-22'):
+        self.vehicle.inspection_expiry=day;self.m.db.session.commit()
+
+    def test_unregistered_expiry_notifies_without_creating_plan_or_external_delivery(self):
+        self.expiry()
+        with patch.object(self.m,'dispatch_external_notification') as external:
+            report=self.run_alerts();external.assert_not_called()
+        self.assertEqual((report['notifications'],report['expiry_candidates'],report['plans']),(1,1,0))
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(),0)
+        n=self.m.Notification.query.one();self.assertIn('2026-10-22',n.message);self.assertIn('予定未登録',n.message)
+        self.assertTrue(self.state(n)['requires_action']);self.assertEqual(self.m.get_notification_display_info(n)['notification_type'],'inspection_plan')
+
+    def test_unregistered_expiry_thresholds_and_seven_day_retries(self):
+        from vehicle_inspection_alerts import expiry_phase
+        for day,phase in [('2026-09-30',None),('2026-10-01','expiry_prior'),('2026-11-01','expiry_month'),('2026-11-23','expiry_7days'),('2026-11-29','expiry_1day'),('2026-11-30','expiry_today'),('2026-12-01','expiry_elapsed')]:
+            value=expiry_phase(date(2026,11,30),date.fromisoformat(day));self.assertEqual(value[0] if value else None,phase)
+        self.expiry('2026-11-30')
+        self.assertEqual(self.run_alerts('2026-10-02')['notifications'],1)
+        self.assertEqual(self.run_alerts('2026-10-08')['notifications'],0)
+        self.assertEqual(self.run_alerts('2026-10-09')['notifications'],1)
+        old=self.m.Notification.query.order_by(self.m.Notification.id).first();self.assertFalse(self.state(old,'2026-10-09')['requires_action'])
+
+    def test_unsaved_expiry_has_same_company_office_admin_boundary(self):
+        self.users();self.expiry();self.run_alerts()
+        self.assertEqual({n.target_username for n in self.m.Notification.query.all()},{'admin','same'})
+        self.assertTrue(all(n.company_code=='TEST' for n in self.m.Notification.query.all()))
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(),0)
+
+    def test_saved_plan_takes_over_from_unsaved_expiry_notice(self):
+        self.expiry();self.run_alerts();old=self.m.Notification.query.one()
+        self.save([self.change(mon='2026-10',kind='vehicle_inspection')])
+        self.assertFalse(self.state(old)['requires_action'])
+        report=self.run_alerts(force=False);self.assertEqual(report['expiry_candidates'],0)
+        self.assertEqual(self.m.Notification.query.count(),2);self.assertTrue(old.read)
+        self.assertEqual(sum(self.state(n)['requires_action'] for n in self.m.Notification.query.all()),1)
+
+    def test_changed_expiry_closes_old_receipt_and_notifies_new_date(self):
+        self.expiry();self.run_alerts();old=self.m.Notification.query.one()
+        self.expiry('2026-10-23');self.assertFalse(self.state(old)['requires_action'])
+        self.assertEqual(self.run_alerts(force=False)['expiry_candidates'],1)
+        new=self.m.Notification.query.order_by(self.m.Notification.id.desc()).first();self.assertIn('2026-10-23',new.message)
+
+    def test_cancelled_vehicle_inspection_plan_does_not_hide_expiry(self):
+        self.expiry();self.save([self.change(mon='2026-10',kind='vehicle_inspection')]);p=self.m.VehicleInspectionPlan.query.one()
+        change=self.change(mon=p.planned_month,kind=p.kind);change.update(id=p.id,version=p.version,status='cancelled');self.save([change])
+        self.assertEqual(self.run_alerts()['expiry_candidates'],1)
+        rows,_=self.m.inspection_plans.candidate_rows('TEST',[self.vehicle],2026)
+        self.assertTrue(any(p['status']=='candidate' and p['kind']=='vehicle_inspection' for p in rows))
+        candidate=next(p for p in rows if p['status']=='candidate' and p['kind']=='vehicle_inspection')
+        change=self.change(mon='2026-10',kind='vehicle_inspection');change.update(id=candidate['id'],version=candidate['version'],reservation_date='2026-10-23');self.save([change])
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(),1)
+        self.assertEqual(self.m.VehicleInspectionPlan.query.one().status,'planned')
+        self.assertEqual(self.run_alerts()['expiry_candidates'],0)
+
+    def test_no_expiry_guess_and_no_unsaved_periodic_reminder(self):
+        self.expiry('invalid');self.assertEqual(self.run_alerts()['notifications'],0)
+        self.expiry('2028-10-22');self.assertEqual(self.run_alerts()['notifications'],0)
+        self.expiry(None);self.assertEqual(self.run_alerts()['notifications'],0)
+
+    def test_expiry_notice_closes_for_deleted_vehicle_and_missing_recipient_reported(self):
+        self.expiry();self.vehicle.office='不在';self.m.db.session.commit()
+        self.assertEqual(self.run_alerts()['no_recipient'],1)
+        self.vehicle.office='犬塚';self.m.db.session.commit();self.run_alerts();n=self.m.Notification.query.one()
+        self.vehicle.deleted=True;self.m.db.session.commit();self.assertFalse(self.state(n)['requires_action']);self.assertEqual(self.run_alerts()['notifications'],0)
+
+    def test_expiry_receipts_and_notices_rollback_together(self):
+        self.expiry()
+        with patch.object(self.m.db.session,'commit',side_effect=RuntimeError('failed')):
+            with self.assertRaises(RuntimeError):self.run_alerts()
+        self.assertEqual(self.m.Notification.query.count(),0);self.assertEqual(self.m.inspection_alerts.ExpiryDelivery.query.count(),0)
+        self.assertEqual(self.run_alerts()['expiry_candidates'],1)
+
+    def test_digest_link_has_exact_month_office_and_all_vehicles(self):
+        from urllib.parse import parse_qs,urlparse
+        m=self.m;v=m.Vehicle(company_code='TEST',chassis_number='SECOND',office='犬塚');m.db.session.add(v);m.db.session.commit()
+        self.save([self.change(mon='2026-11'),self.change(vehicle=v,mon='2026-11')]);self.run_alerts();n=m.Notification.query.one()
+        q=parse_qs(urlparse(m.get_notification_target_link(n)).query)
+        self.assertEqual((q['month'],q['view'],q['office']),(['2026-11'],['month'],['犬塚']));self.assertNotIn('vehicle_id',q)
+        response=self.client.get('/notifications/'+str(n.id)+'/open');self.assertEqual(response.status_code,302)
+        self.assertIn('month=2026-11',response.location);self.assertNotIn('vehicle_id=',response.location)
+        response=self.client.get('/api/vehicle/inspection-plans',query_string={'month':'2026-11','scope':'office','office':'犬塚'})
+        self.assertEqual({v['id'] for v in response.json['vehicles']},{self.vehicle.id,v.id})
+
+    def test_different_months_are_separate_digests(self):
+        from urllib.parse import parse_qs,urlparse
+        self.save([self.change(mon='2026-09'),self.change(mon='2026-11')]);self.run_alerts()
+        self.assertEqual(self.m.Notification.query.count(),2)
+        months={parse_qs(urlparse(n.link).query)['month'][0] for n in self.m.Notification.query.all()}
+        self.assertEqual(months,{'2026-09','2026-11'})
+
+    def test_existing_first_vehicle_digest_link_is_repaired_on_open(self):
+        from urllib.parse import parse_qs,urlparse
+        self.save([self.change(mon='2026-11')]);self.run_alerts();n=self.m.Notification.query.one()
+        n.link='/vehicle/inspection-plans?scope=office&vehicle_id='+str(self.vehicle.id)+'&year=2026';self.m.db.session.commit()
+        q=parse_qs(urlparse(self.m.get_notification_target_link(n)).query);self.assertEqual(q['month'],['2026-11']);self.assertNotIn('vehicle_id',q)
+
+    def test_two_workers_do_not_duplicate_unsaved_expiry(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        self.expiry();barrier=Barrier(2)
+        def worker():
+            with self.m.app.app_context():
+                barrier.wait(timeout=5)
+                try:return self.m.inspection_alerts.run('TEST',today=date(2026,10,22),force=True)
+                finally:self.m.db.session.remove()
+        with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(lambda _:worker(),range(2)))
+        self.m.db.session.expire_all();self.assertEqual(self.m.Notification.query.count(),1);self.assertEqual(self.m.inspection_alerts.ExpiryDelivery.query.count(),1)
+
+
 _base_setup=_Base.setUp
 del _Base
 if __name__=='__main__':unittest.main()

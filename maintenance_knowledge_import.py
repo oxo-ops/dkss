@@ -1688,10 +1688,26 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
             return scopes, rule_evidence
         return scopes
 
+    def get_verified_document_context(company_code, item):
+        from maintenance_verified_context import CHECKSUM, get_verified_context
+        if not isinstance(item, dict) or item.get("source_kind") != "メーカー公式資料":
+            return []
+        evidence = item.get("maintenance_rule_evidence") or {}
+        if evidence.get("document_checksum") != CHECKSUM:
+            return []
+        document = KnowledgeDocument.query.filter_by(
+            company_code=company_code, id=evidence.get("document_id"),
+            checksum=evidence.get("document_checksum"),
+        ).one_or_none()
+        if document is None:
+            return []
+        return get_verified_context(bytes(document.original_data), item)
+
     app.extensions["maintenance_knowledge_import"] = {
         "store_public_document": store_public_document,
         "document_needs_rule_upgrade": document_needs_rule_upgrade,
         "count_rule_upgrades": count_rule_upgrades,
         "get_vehicle_scopes": get_vehicle_scopes,
+        "get_verified_document_context": get_verified_document_context,
     }
     return source_link

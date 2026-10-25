@@ -50,7 +50,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from sqlalchemy import inspect, or_
+from sqlalchemy import case, inspect, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -1195,6 +1195,17 @@ class Vehicle(db.Model):
         default=False
     )
 
+class VehicleKarteNote(db.Model):
+    __table_args__ = (db.UniqueConstraint("company_code", "vehicle_record_id"),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    vehicle_record_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False)
+    content = db.Column(db.Text, nullable=False, default="")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    updated_by_username = db.Column(db.String(50))
+    updated_at = db.Column(db.String(30))
+
+
 class VehicleType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
@@ -1489,6 +1500,17 @@ class DeliveryPlace(db.Model):
 
     company_code = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+
+class MasterDisplayOrder(db.Model):
+    """Company-wide order by stable master IDs, independent of names."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    kind = db.Column(db.String(30), nullable=False)
+    ordered_ids_json = db.Column(db.Text, nullable=False, default="[]")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    __table_args__ = (db.UniqueConstraint("company_code", "kind"),)
+    __mapper_args__ = {"version_id_col": version}
+
 
 class PatrolContentType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3255,6 +3277,15 @@ def get_vehicle_maintenance_knowledge(vehicle, records=()):
 
     selected_candidates.sort(key=lambda candidate: candidate[:2], reverse=True)
     for _, _, row, item in selected_candidates[:20]:
+        # VERIFIED_DOCUMENT_CONTEXT_V1: retain checked impact and daily tasks,
+        # independently of numeric-rule calculation permissions.
+        context_reader = app.extensions.get(
+            "maintenance_knowledge_import", {},
+        ).get("get_verified_document_context")
+        if context_reader:
+            context = context_reader(vehicle.company_code, item)
+            if context:
+                item["verified_document_context"] = context
         source_id = item["source_id"]
         knowledge.append(item)
         sources[source_id] = {
@@ -5225,10 +5256,90 @@ def get_company(company_code):
     ).first()
 
 
+def ordered_master_query(model, company_code, query=None):
+    """Apply saved order before limiting candidates; new IDs follow saved IDs."""
+    kinds = {Office: "offices", VehicleType: "vehicle-types",
+             LicenseType: "license-types", DeliveryPlace: "delivery-places",
+             Checklist: "checklists", PatrolContentType: "patrol-content-types", Manual: "manuals"}
+    query = model.query if query is None else query
+    query = query.filter(model.company_code == company_code).order_by(None)
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=company_code, kind=kinds[model]
+    ).first()
+    ids = json.loads(saved.ordered_ids_json) if saved else []
+    if ids:
+        rank = case({item_id: i for i, item_id in enumerate(ids)},
+                    value=model.id, else_=len(ids))
+        query = query.order_by(rank)
+    return query.order_by(model.id.asc())
+
+
+@app.route("/master/<kind>/order", methods=["POST"])
+@limiter.limit("60 per minute")
+def save_master_display_order(kind):
+    if not require_master_admin():
+        return {"ok": False, "message": "管理者のみ変更できます。"}, 403
+    models = {"offices": Office, "vehicle-types": VehicleType,
+              "license-types": LicenseType, "delivery-places": DeliveryPlace,
+              "checklists": Checklist, "patrol-content-types": PatrolContentType, "manuals": Manual}
+    model = models.get(kind)
+    if model is None:
+        return {"ok": False, "message": "対象のマスタがありません。"}, 404
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"ok": False, "message": "並び順の形式が不正です。"}, 400
+    ids, previous_ids = data.get("ids"), data.get("previous_ids")
+    if any(not isinstance(values, list)
+           or any(type(value) is not int or value <= 0 for value in values)
+           or len(values) != len(set(values))
+           for values in (ids, previous_ids)):
+        return {"ok": False, "message": "並び順の形式が不正です。"}, 400
+    company_code = session.get("company_code")
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=company_code, kind=kind
+    ).first()
+    current_ids = [item.id for item in ordered_master_query(model, company_code).all()]
+    if previous_ids != current_ids or set(ids) != set(current_ids):
+        return {"ok": False, "message": "一覧が更新されています。再読み込みして並べ替えてください。"}, 409
+    if ids == current_ids:
+        return {"ok": True, "ids": ids}
+    if saved is None:
+        saved = MasterDisplayOrder(company_code=company_code, kind=kind)
+        db.session.add(saved)
+    saved.ordered_ids_json = json.dumps(ids)
+    add_audit_log(action="master_order_changed", target_type=kind,
+                  detail="表示順変更: " + json.dumps(ids), company_code=company_code)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return {"ok": False, "message": "保存できませんでした。再読み込みして再度お試しください。"}, 409
+    return {"ok": True, "ids": ids}
+
+
+def remove_master_from_display_order(kind, item):
+    # SQLite may reuse a deleted highest ID. Remove it before later registrations.
+    saved = MasterDisplayOrder.query.filter_by(
+        company_code=item.company_code, kind=kind
+    ).first()
+    if saved:
+        saved.ordered_ids_json = json.dumps([
+            ident for ident in json.loads(saved.ordered_ids_json) if ident != item.id
+        ])
+
+
+@app.context_processor
+def inject_master_office_order():
+    # The planning page builds its office selector asynchronously in JavaScript.
+    if request.endpoint != "vehicle_inspection_plans" or not session.get("company_code"):
+        return {}
+    return {"master_office_order": [item.name for item in ordered_master_query(
+        Office, session["company_code"]
+    ).all()]}
+
+
 def offices_for_current_company():
-    query = Office.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Office, session.get("company_code"))
 
     return [
         {
@@ -5241,9 +5352,7 @@ def offices_for_current_company():
     ]
 
 def delivery_places_for_current_company():
-    query = DeliveryPlace.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(DeliveryPlace, session.get("company_code"))
 
     return [
         {
@@ -5256,9 +5365,7 @@ def delivery_places_for_current_company():
     ]
 
 def patrol_content_types_for_current_company():
-    query = PatrolContentType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(PatrolContentType, session.get("company_code"))
 
     return [
         {
@@ -5271,9 +5378,7 @@ def patrol_content_types_for_current_company():
     ]
 
 def manuals_for_current_company():
-    query = Manual.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Manual, session.get("company_code"))
 
     return [
         {
@@ -5559,9 +5664,7 @@ def checklist_for_date(
 
 
 def checklists_for_current_company():
-    query = Checklist.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(Checklist, session.get("company_code"))
 
     return [
         checklist_to_dict(checklist)
@@ -5597,6 +5700,49 @@ def safe_json_dict(value):
         return {}
 
     return parsed if isinstance(parsed, dict) else {}
+
+def find_vehicle_pending_cross_source_group(company_code, source_kind, identity):
+    """Only reuse one unambiguous full-plate group across CSV/document sources."""
+    plate = get_vehicle_import_pending_plate(identity)
+    if plate is None:
+        return None
+    matches = [
+        group for group in VehicleImportPending.query.filter_by(
+            company_code=company_code, status="pending"
+        ).with_for_update().all()
+        if get_vehicle_import_pending_plate(safe_json_dict(group.identity_json)) == plate
+    ]
+    if len(matches) != 1:
+        return None
+    group = matches[0]
+    existing = safe_json_dict(group.identity_json)
+    unknown = {"", "不明", "記載なし", "未設定", "なし", "unknown", "none", "n/a"}
+    for field in ("chassis_number", "source_vehicle_code"):
+        left = normalize_vehicle_operation_plate(existing.get(field))
+        right = normalize_vehicle_operation_plate(identity.get(field))
+        if left not in unknown and right not in unknown and left != right:
+            return None
+    kinds = {
+        row.source_kind for row in VehicleImportPendingRecord.query.filter_by(
+            company_code=company_code, pending_id=group.id, status="pending"
+        ).all()
+    }
+    has_other_source = (
+        bool(kinds - {"operation"}) if source_kind == "operation"
+        else "operation" in kinds
+    )
+    if not has_other_source:
+        return None
+    # Preserve the identifiers supplied by each source for subsequent conflicts.
+    for field in ("chassis_number", "source_vehicle_code"):
+        if (
+            normalize_vehicle_operation_plate(existing.get(field)) in unknown
+            and normalize_vehicle_operation_plate(identity.get(field)) not in unknown
+        ):
+            existing[field] = identity[field]
+    group.identity_json = json.dumps(existing, ensure_ascii=False)
+    return group
+
 
 def save_vehicle_import_pending_record(
     *, company_code, username, source_kind, source_draft_id,
@@ -5639,6 +5785,10 @@ def save_vehicle_import_pending_record(
             separators=(",", ":"), default=str
         )
 
+    # Serialize creation as well as reuse, including when no group exists yet.
+    if Company.query.filter_by(company_code=company_code).with_for_update().first() is None:
+        raise UploadValidationError("会社情報を確認できません。")
+
     record_key = hashlib.sha256(
         serialize(record_identity).encode("utf-8")
     ).hexdigest()
@@ -5669,13 +5819,17 @@ def save_vehicle_import_pending_record(
             raise UploadValidationError(
                 "対応済みの車両があります。登録先を再確認してください。"
             )
-        pending = VehicleImportPending(
-            id=str(uuid4()), company_code=company_code,
-            match_key=match_key, identity_json=serialize(identity),
-            created_by_username=username
+        pending = find_vehicle_pending_cross_source_group(
+            company_code, source_kind, identity
         )
-        db.session.add(pending)
-        db.session.flush()
+        if pending is None:
+            pending = VehicleImportPending(
+                id=str(uuid4()), company_code=company_code,
+                match_key=match_key, identity_json=serialize(identity),
+                created_by_username=username
+            )
+            db.session.add(pending)
+            db.session.flush()
 
     record = VehicleImportPendingRecord(
         id=str(uuid4()), company_code=company_code,
@@ -6842,11 +6996,52 @@ def can_view_checklist_result(result):
     ):
         return True
 
-    return (
+    if (
         result.get("target_type") == "user"
         and result.get("target_username")
         == session.get("username")
-    )
+    ):
+        return True
+
+    # Reading the result and its attachments must be possible before approving it.
+    # Preserve access for selected/previous approvers after the workflow advances.
+    if role != "user":
+        return False
+    approvals = result.get("approvals") or []
+    checklist = result.get("checklist_snapshot") or {}
+    if not checklist and result.get("checklist_id"):
+        record = Checklist.query.filter_by(
+            id=result["checklist_id"], company_code=result["company_code"]
+        ).first()
+        if record:
+            checklist = checklist_to_dict(record)
+    definitions = [item for item in checklist.get("items", [])
+                   if item.get("item_type") == "approval"]
+    if not approvals:
+        approvals = [{} for _ in definitions]
+    approvals = [
+        dict(approval, allow_general=approval.get(
+            "allow_general",
+            definitions[index].get("approval_allow_general", False)
+            if index < len(definitions) else False,
+        ))
+        for index, approval in enumerate(approvals)
+    ]
+    username = session.get("username")
+    if any(
+        username and (
+            approval.get("approved_by_username") == username
+            or (approval.get("allow_general")
+                and username in (approval.get("candidate_usernames") or []))
+        )
+        for approval in approvals
+    ):
+        return True
+    current = next((approval for approval in approvals
+                    if not (approval.get("approved_by")
+                            or approval.get("approved_by_username"))), None)
+    return (result.get("status") == "承認待ち"
+            and can_approve_checklist_result(result, current))
 
 
 def can_manage_checklist_result(result):
@@ -6925,6 +7120,10 @@ def vehicle_number(vehicle):
 
 
 def delete_vehicle_related_data(vehicle):
+    VehicleKarteNote.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).delete(synchronize_session=False)
+
 
     VehicleChecklistNotifySetting.query.filter_by(
         company_code=vehicle.company_code,
@@ -7074,9 +7273,7 @@ def vehicle_icon(vehicle_type="", body_type=""):
 
 
 def vehicle_types_for_current_company():
-    query = VehicleType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(VehicleType, session.get("company_code"))
 
     return [
         {
@@ -7089,9 +7286,7 @@ def vehicle_types_for_current_company():
     ]
 
 def license_types_for_current_company():
-    query = LicenseType.query.filter_by(
-        company_code=session.get("company_code")
-    )
+    query = ordered_master_query(LicenseType, session.get("company_code"))
 
     return [
         {
@@ -9578,11 +9773,7 @@ def register():
     offices = []
 
     if company:
-        offices = Office.query.filter_by(
-            company_code=company.company_code
-        ).order_by(
-            Office.name.asc()
-        ).all()
+        offices = ordered_master_query(Office, company.company_code).all()
 
     return render_template(
         "register.html",
@@ -10081,8 +10272,8 @@ def news_targets():
                 Office.name.ilike(keyword_like)
             )
 
-        for office in query.order_by(
-            Office.name.asc()
+        for office in ordered_master_query(
+            Office, company_code, query
         ).limit(10).all():
             results.append({
                 "id": office.name or "",
@@ -10842,10 +11033,8 @@ def dashboard():
     my_checklist_summaries = []
     office_check_trend_groups = []
 
-    score_checklists = Checklist.query.filter_by(
-        company_code=company_code,
-        active=True
-    ).filter(
+    score_checklists = ordered_master_query(Checklist, company_code).filter(
+        Checklist.active.is_(True),
         Checklist.target.in_(["安全管理", "車両管理"])
     ).all()
 
@@ -12252,12 +12441,7 @@ def get_dashboard_office_check_trend(groups, score_value, start_date, end_date):
                             month=record.month,
                             active_day=active_day,
                         )
-                    elif can_view_checklist_result({
-                        "company_code": record.company_code,
-                        "checked_by_username": record.checked_by_username,
-                        "target_type": record.target_type,
-                        "target_username": record.target_username,
-                    }):
+                    elif can_view_checklist_result(checklist_result_to_dict(record)):
                         result_url = url_for(
                             "checklist_result_detail",
                             result_index=record.id,
@@ -12378,12 +12562,7 @@ def get_dashboard_checklist_history(checklist_record, checklist, records, score_
         if record.company_code != company_code or record.checklist_id != checklist_record.id:
             continue
 
-        if not is_vehicle and not can_view_checklist_result({
-            "company_code": record.company_code,
-            "checked_by_username": record.checked_by_username,
-            "target_type": record.target_type,
-            "target_username": record.target_username,
-        }):
+        if not is_vehicle and not can_view_checklist_result(checklist_result_to_dict(record)):
             continue
 
         allowed.append(record)
@@ -12536,6 +12715,9 @@ def get_notification_target_link(notification):
         or any(ord(character) < 32 for character in link)
     ):
         return ""
+
+    if safe_json_dict(notification.workflow_context_json).get('action') == 'inspection_plan_alert':
+        link = inspection_alerts.target_link(notification)
 
     parsed_link = urlparse(link)
 
@@ -16166,6 +16348,7 @@ def delete_license_type(index):
         company_code=license_type.company_code,
     )
 
+    remove_master_from_display_order("license-types", license_type)
     db.session.delete(license_type)
     db.session.commit()
 
@@ -16300,6 +16483,7 @@ def delete_vehicle_type(index):
         company_code=vehicle_type.company_code,
     )
 
+    remove_master_from_display_order("vehicle-types", vehicle_type)
     db.session.delete(vehicle_type)
     db.session.commit()
 
@@ -16515,6 +16699,7 @@ def delete_office(index):
         company_code=office.company_code,
     )
 
+    remove_master_from_display_order("offices", office)
     db.session.delete(office)
     db.session.commit()
 
@@ -17151,6 +17336,7 @@ def delete_delivery_place(index):
         company_code=place.company_code,
     )
 
+    remove_master_from_display_order("delivery-places", place)
     db.session.delete(place)
     db.session.commit()
 
@@ -17283,6 +17469,7 @@ def delete_patrol_content_type(index):
         company_code=item.company_code,
     )
 
+    remove_master_from_display_order("patrol-content-types", item)
     db.session.delete(item)
     db.session.commit()
     return redirect("/master/patrol-content-types")
@@ -21639,51 +21826,112 @@ def vehicle_karte(vehicle_record_id):
             )
             db.session.commit()
 
-    mileage_records = (
-        VehicleOperationRecord.query
-        .filter(
-            VehicleOperationRecord.company_code == vehicle.company_code,
-            VehicleOperationRecord.vehicle_record_id == vehicle.id,
-            VehicleOperationRecord.arrival_meter.isnot(None)
-        )
-        .order_by(
-            VehicleOperationRecord.operation_date.asc(),
-            db.func.coalesce(
-                VehicleOperationRecord.arrival_at,
-                VehicleOperationRecord.operation_date
-            ).asc(),
-            VehicleOperationRecord.id.asc()
-        )
-        .all()
-    )
-
-    mileage_by_date = {}
-
-    for record in mileage_records:
-        mileage_by_date[record.operation_date] = float(
-            record.arrival_meter
-        )
-
-    karte_mileage_points = [
-        {
-            "date": operation_date,
-            "mileage": mileage
-        }
-        for operation_date, mileage in sorted(
-            mileage_by_date.items()
-        )
-    ]
-
+    overview = get_vehicle_karte_overview_context(vehicle)
     return render_template(
-        "vehicle_karte.html",
-        vehicle=vehicle,
-        vehicle_number=number,
-        open_defects=open_defects,
-        karte_mileage_points=karte_mileage_points,
-        karte_parts_ranking=get_vehicle_karte_parts_context(
-            vehicle
-        )["part_ranking"],
+        "vehicle_karte.html", vehicle=vehicle, vehicle_number=number,
+        open_defects=open_defects, **overview,
     )
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/note", methods=["POST"])
+def vehicle_karte_note(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id, company_code=session.get("company_code")
+    ).first_or_404()
+    if not require_master_admin():
+        return "車両メモの編集権限がありません。", 403
+    content = request.form.get("content", "").strip()
+    version = request.form.get("version", type=int)
+    if len(content) > 10000 or version is None or version < 0:
+        return "メモは10,000文字以内で入力してください。", 400
+    note = VehicleKarteNote.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).first()
+    now = datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M")
+    try:
+        if note is None and version == 0:
+            db.session.add(VehicleKarteNote(
+                company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+                content=content, version=1, updated_at=now,
+                updated_by_username=session.get("username"),
+            ))
+        elif note is not None:
+            changed = VehicleKarteNote.query.filter_by(
+                id=note.id, company_code=vehicle.company_code, version=version
+            ).update({"content": content, "version": version + 1,
+                      "updated_at": now, "updated_by_username": session.get("username")})
+            if not changed:
+                db.session.rollback()
+                return "他の人がメモを更新しました。画面を更新して内容を確認してください。", 409
+        else:
+            return "メモの状態が変わりました。画面を更新してください。", 409
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return "他の人がメモを更新しました。画面を更新して内容を確認してください。", 409
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("車両メモを保存できませんでした。")
+        return "メモを保存できませんでした。もう一度お試しください。", 500
+    flash("車両メモを保存しました。", "success")
+    return redirect(url_for("vehicle_karte", vehicle_record_id=vehicle.id, _anchor="vehicle-note"))
+
+
+def get_vehicle_karte_overview_context(vehicle):
+    # OVERVIEW_SUMMARY_V19: reuse the existing domain records, without AI calls.
+    from vehicle_karte_overview import build_overview
+    return build_overview(globals(), vehicle)
+
+
+def _legacy_vehicle_karte_overview_context(vehicle):
+    maintenance = VehicleMaintenanceRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    maintenance, _, _ = filter_vehicle_maintenance_factual_history(maintenance)
+    periodic = VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    periodic = [row for row in periodic if not periodic_inspection_synthetic_evidence(row)]
+    operations = VehicleOperationRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
+    ).all()
+    reference = build_vehicle_karte_mileage_reference(
+        maintenance, operations, datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat(), periodic, include_points=True
+    )
+    recent = [{
+        "date": row.entry_date or row.completion_date or "",
+        "kind": row.category or "整備", "content": row.content or row.repair_content or "整備記録",
+        "mileage": row.mileage, "cost": row.total_cost,
+        "status": row.status or ("完了" if row.completion_date else "未設定"),
+        "link": url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id, record_id=row.id),
+        "key": f"maintenance:{row.id}",
+    } for row in maintenance]
+    recent.extend({
+        "date": row.inspection_date or "", "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.inspection_type, "定期点検"),
+        "content": row.content or "定期点検記録", "mileage": row.mileage,
+        "cost": None, "status": "登録済み",
+        "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
+        "key": f"periodic:{row.id}",
+    } for row in periodic)
+    recent.extend({
+        "date": row.performed_date, "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.kind, "点検"),
+        "content": "点検実施（書類未受領）", "mileage": None, "cost": None,
+        "status": "実施済み・書類未受領",
+        "link": url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
+        "key": f"execution:{row.id}",
+    } for row in inspection_plans.manual_records(vehicle.company_code, vehicle.id))
+    parts = get_vehicle_karte_parts_context(vehicle, factual_only=True)["part_ranking"]
+    documents = get_vehicle_karte_documents(vehicle)
+    build_vehicle_karte_documents_context(vehicle, documents)
+    return {
+        "karte_mileage_points": reference["points"],
+        "karte_mileage_reference": reference,
+        "karte_recent_entries": sorted(recent, key=lambda row: (row["date"], row["key"]), reverse=True)[:5],
+        "karte_parts_ranking": parts,
+        "karte_note": VehicleKarteNote.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).first(),
+        "karte_recent_documents": documents[:4],
+        "karte_document_count": len(documents),
+    }
 
 
 @app.route(
@@ -22066,20 +22314,7 @@ def build_vehicle_karte_documents_context(vehicle, documents):
     }
 
 
-@app.route("/vehicle/karte/<int:vehicle_record_id>/documents")
-def vehicle_karte_documents(vehicle_record_id):
-    vehicle = Vehicle.query.filter_by(
-        id=vehicle_record_id,
-        company_code=session.get("company_code")
-    ).first_or_404()
-
-    number = vehicle_number({
-        "plate_area": vehicle.plate_area or "",
-        "plate_class": vehicle.plate_class or "",
-        "plate_kana": vehicle.plate_kana or "",
-        "plate_number": vehicle.plate_number or ""
-    })
-
+def get_vehicle_karte_documents(vehicle):
     drafts = (
         VehicleDocumentImportDraft.query
         .with_entities(
@@ -22132,11 +22367,6 @@ def vehicle_karte_documents(vehicle_record_id):
             "records": vehicle_records,
         })
 
-    open_defects = get_vehicle_open_inspection_defects(
-        vehicle.company_code,
-        vehicle.id
-    )
-
     operation_drafts = (
         VehicleOperationImportDraft.query
         .with_entities(
@@ -22182,6 +22412,26 @@ def vehicle_karte_documents(vehicle_record_id):
         ),
         reverse=True
     )
+
+    return documents
+
+
+@app.route("/vehicle/karte/<int:vehicle_record_id>/documents")
+def vehicle_karte_documents(vehicle_record_id):
+    vehicle = Vehicle.query.filter_by(
+        id=vehicle_record_id,
+        company_code=session.get("company_code")
+    ).first_or_404()
+
+    number = vehicle_number({
+        "plate_area": vehicle.plate_area or "",
+        "plate_class": vehicle.plate_class or "",
+        "plate_kana": vehicle.plate_kana or "",
+        "plate_number": vehicle.plate_number or ""
+    })
+
+    documents = get_vehicle_karte_documents(vehicle)
+    open_defects = get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id)
 
     return render_template(
         "vehicle_karte_documents.html",
@@ -23132,7 +23382,7 @@ def save_vehicle_maintenance_replacement_parts(
     return created_count
 
 
-def get_vehicle_karte_parts_context(vehicle):
+def get_vehicle_karte_parts_context(vehicle, factual_only=False):
     from types import SimpleNamespace
 
     rows = (
@@ -23166,6 +23416,11 @@ def get_vehicle_karte_parts_context(vehicle):
             vehicle_record_id=vehicle.id,
         ).all()
     }
+
+    if factual_only:
+        factual, _, _ = filter_vehicle_maintenance_factual_history(list(maintenance.values()))
+        maintenance = {record.id: record for record in factual}
+        rows = [(part, record) for part, record in rows if record.id in maintenance]
 
     sources = (
         VehiclePartReplacementSource.query.filter_by(
@@ -24632,7 +24887,7 @@ def filter_vehicle_maintenance_factual_history(maintenance, parts=()):
 
 def build_vehicle_karte_mileage_reference(
     maintenance_records, operation_records, as_of,
-    periodic_records=(),
+    periodic_records=(), include_points=False,
 ):
     """記録距離と出典を選ぶ。現在の実測値とは断定しない。"""
     from decimal import Decimal, InvalidOperation
@@ -24817,7 +25072,7 @@ def build_vehicle_karte_mileage_reference(
         else "conflicting" if latest["value"] is None
         else "recorded"
     )
-    return {
+    result = {
         "as_of": limit.isoformat(),
         "status": status,
         "value": latest["value"] if latest else None,
@@ -24841,6 +25096,12 @@ def build_vehicle_karte_mileage_reference(
             "距離の減少だけでメーター交換や入力誤りを確定しません。"
         ),
     }
+    if include_points:
+        result["points"] = [
+            {"date": row["date"], "mileage": float(row["value"]) if row["value"] is not None else None}
+            for row in daily
+        ]
+    return result
 
 
 def build_vehicle_karte_analysis_summary(
@@ -24958,6 +25219,16 @@ def build_vehicle_karte_analysis_summary(
         for row in selected_operations
     )
 
+    # Compare only matched months of registered facts. Missing months are not zero.
+    cost_months = {key for key, bucket in monthly.items() if bucket["cost"] is not None}
+    distance_months = {key for key, bucket in monthly.items() if bucket["distance"] is not None}
+    cost_per_km_status = (
+        "missing_values" if cost is None or distance is None or distance <= 0
+        else "incomplete_values" if missing_cost or missing_distance
+        else "record_months_do_not_match" if cost_months != distance_months
+        else "matched_record_months"
+    )
+
     mileage_reference = build_vehicle_karte_mileage_reference(
         maintenance,
         operations,
@@ -25003,7 +25274,16 @@ def build_vehicle_karte_analysis_summary(
             and distance > 0
             and not missing_cost
             and not missing_distance
+            and cost_per_km_status == "matched_record_months"
             else None
+        ),
+        "cost_per_km_status": cost_per_km_status,
+        "cost_per_km_note": (
+            "費用と走行距離の記録月が異なるため算出保留。"
+            if cost_per_km_status == "record_months_do_not_match"
+            else "費用・距離が揃う登録月の比率。期間全体の記録の完全性は未確認。"
+            if cost_per_km_status == "matched_record_months"
+            else "費用または走行距離の記録が不足するため算出保留。"
         ),
         "maintenance_count": len(selected_maintenance),
         "failure_count": len(failures),
@@ -25104,6 +25384,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     if has_result and status in {"running", "pending", "error"}:
         message += " 現在は前回の結果を表示しています。"
 
+    from vehicle_risk_assessment import annotate_analysis  # VEHICLE_RISK_MATRIX_API_V1
     response = jsonify(
         ok=True,
         status=status,
@@ -25111,7 +25392,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         is_current=is_current,
         input_summary=input_summary,
         message=message,
-        analysis=analysis_with_vehicle_feedback(analysis, vehicle) if has_result else None,
+        analysis=annotate_analysis(analysis_with_vehicle_feedback(analysis, vehicle), bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None,
         sources=bundle.get("sources") if has_result else {},
         coverage=bundle.get("coverage") if has_result else {},
         comparison=(
@@ -25189,16 +25470,16 @@ def get_vehicle_karte_analysis_job_data(vehicle):
     import os
 
     registration_scope = os.environ.get(
-        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "same_year"
+        "VEHICLE_KARTE_AI_PEER_REGISTRATION", "auto"
     ).strip()
     inactive_setting = os.environ.get(
         "VEHICLE_KARTE_AI_PEER_INCLUDE_INACTIVE", "0"
     ).strip()
 
-    if registration_scope not in {"same_year", "all_years"}:
+    if registration_scope not in {"auto", "same_year", "all_years"}:
         raise ValueError(
             "VEHICLE_KARTE_AI_PEER_REGISTRATION must be "
-            "same_year or all_years"
+            "auto, same_year or all_years"
         )
     if inactive_setting not in {"0", "1"}:
         raise ValueError(
@@ -27622,7 +27903,7 @@ def build_vehicle_karte_analysis_payload(
     return payload, sources
 
 
-def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same_year", include_inactive=False):
+def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="auto", include_inactive=False):
     model = (vehicle.model_code or "").strip().upper()
     registration = str(
         vehicle.first_registration_date or ""
@@ -27639,6 +27920,9 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         "note": "",
     }
 
+    requested_scope = registration_scope
+    if registration_scope == "auto":
+        registration_scope = "same_year" if year_match else "all_years"
     if registration_scope not in {"same_year", "all_years"}:
         registration_scope = "same_year"
     include_inactive = include_inactive is True
@@ -27648,6 +27932,8 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
         "status": "available",
         "model_code": model or None,
         "registration_scope": registration_scope,
+        "requested_registration_scope": requested_scope,
+        "year_scope_fallback": requested_scope == "auto" and not bool(year_match),
         "reference_registration_year": (
             int(year_match.group(1)) if year_match else None
         ),
@@ -27704,6 +27990,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     )
     active_note = "無効車両を含む" if include_inactive else "有効車両のみ"
     result["note"] = (
+        ("初度登録年が不明のため、年を限定せず同型式で比較。" if requested_scope == "auto" and not year_match else "") +
         f"同じ会社・同型式・{year_note}・{active_note}。"
         "対象車両は平均から除外。"
     )
@@ -27976,6 +28263,93 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="same
     return result
 
 
+def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_date, end_date):
+    """Use registered monetary fields; never infer a repair category or tax rate."""
+    from decimal import Decimal, InvalidOperation
+    def money(value):
+        if value is None or value == "": return None
+        try:
+            parsed = Decimal(str(value))
+            return parsed if parsed.is_finite() else None
+        except (ValueError, InvalidOperation, TypeError): return None
+    parents = [row for row in maintenance if row.company_code == vehicle.company_code and row.vehicle_record_id == vehicle.id]
+    parents, _, _ = filter_vehicle_maintenance_factual_history(parents, [])
+    fields = (("labor_cost", "工賃"), ("parts_cost", "部品代"), ("other_cost", "その他費用"), ("tax_amount", "消費税"))
+    totals = {label: Decimal("0") for _, label in fields}
+    totals["内訳未確定"] = Decimal("0")
+    total = Decimal("0"); records = 0; incomplete = 0
+    for row in parents:
+        day = str(row.entry_date or row.completion_date or "")[:10]
+        try: datetime.strptime(day, "%Y-%m-%d")
+        except ValueError: continue
+        if not start_date <= day <= end_date: continue
+        amount = money(row.total_cost)
+        if amount is None: continue
+        records += 1; total += amount
+        components = [(label, money(getattr(row, field, None))) for field, label in fields]
+        known = sum((value for _, value in components if value is not None), Decimal("0"))
+        remaining = amount - known
+        # Inconsistent components do not become invented negative residual categories.
+        inconsistent = (amount >= 0 and (remaining < 0 or any(value is not None and value < 0 for _,value in components))) or (amount < 0 and (remaining > 0 or any(value is not None and value > 0 for _,value in components)))
+        if inconsistent:
+            totals["内訳未確定"] += amount; incomplete += 1; continue
+        for label, value in components:
+            if value is not None: totals[label] += value
+        if remaining != 0:
+            totals["内訳未確定"] += remaining; incomplete += 1
+    return {"rows": [{"label": label, "amount": value} for label, value in totals.items() if value != 0], "total": total if records else None, "record_count": records, "incomplete_count": incomplete, "note": "登録済みの工賃・部品代・その他費用・消費税を集計。合計との差額は内訳未確定。整備区分を推測して分類していません。"}
+
+
+def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date):
+    """Period-scoped saved registrations, independent of AI selection/freshness."""
+    from decimal import Decimal, InvalidOperation
+
+    def day(value):
+        try:
+            return datetime.strptime(str(value or "")[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    start, end = day(start_date), day(end_date)
+    if start is None or end is None or start > end:
+        raise ValueError("分析期間が不正です。")
+    # Fence both parent and child before applying the source-based exclusion.
+    parents = [row for row in maintenance if row.company_code == vehicle.company_code
+               and row.vehicle_record_id == vehicle.id]
+    children = [row for row in parts if row.company_code == vehicle.company_code
+                and row.vehicle_record_id == vehicle.id]
+    _, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    candidates = []
+    for part in children:
+        replaced = day(part.replacement_date)
+        if replaced is None or not start <= replaced <= end:
+            continue
+        name = str(part.part_name or "").strip()
+        if not name:
+            continue
+        candidates.append((replaced, int(part.id or 0), part))
+    result, seen = [], set()
+    for replaced, _, part in sorted(candidates, key=lambda value: value[:2], reverse=True):
+        key = (str(part.part_name).strip(), str(part.part_number or "").strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            mileage = Decimal(str(part.mileage))
+            if not mileage.is_finite() or mileage < 0:
+                mileage = None
+        except (InvalidOperation, ValueError, TypeError):
+            mileage = None
+        result.append({
+            "source_id": f"part:{part.id}", "part_name": key[0],
+            "part_number": key[1], "replacement_date": replaced.isoformat(),
+            "mileage": mileage,
+            "url": url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id,
+                           record_id=part.maintenance_record_id),
+        })
+    return result
+
+
 @app.route(
     "/vehicle/karte/<int:vehicle_record_id>/analysis",
     methods=["GET"],
@@ -28187,13 +28561,17 @@ def vehicle_karte_analysis(vehicle_record_id):
             include_resolved=True,
         ),
         analysis_summary=summary,
+        analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()),
+        analysis_part_history=build_vehicle_karte_dashboard_parts(
+            vehicle, maintenance, parts, start.isoformat(), end.isoformat(),
+        ),
         analysis_progress=build_vehicle_karte_service_progress(
             maintenance, summary
         ),
         analysis_comparison=get_vehicle_karte_peer_comparison(
             vehicle,
             summary,
-            registration_scope=request.args.get("peer_registration", "same_year"),
+            registration_scope=request.args.get("peer_registration", "auto"),
             include_inactive=request.args.get("peer_inactive") == "1",
         ),
         analysis_today=today.isoformat(),
@@ -28533,6 +28911,52 @@ def get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id):
     return result
 
 
+def get_vehicle_overview_cost_summary(maintenance_records):
+    """Overview financial components; keep shared cost/year/category summaries intact."""
+    maintenance_records = list(maintenance_records)
+    summary = dict(get_vehicle_maintenance_cost_summary(maintenance_records))
+    factual, _, _ = filter_vehicle_maintenance_factual_history(maintenance_records)
+    fields = (
+        ("labor_cost", "工賃", "#7863d7"),
+        ("parts_cost", "部品代", "#43988e"),
+        ("other_cost", "その他費用", "#478cbf"),
+        ("tax_amount", "消費税", "#a0802e"),
+    )
+    amounts = {field: Decimal("0") for field, _, _ in fields}
+    present = set()
+    residual = Decimal("0")
+    for record in factual:
+        if record.total_cost is None:
+            continue
+        known = Decimal("0")
+        for field, _, _ in fields:
+            value = getattr(record, field, None)
+            if value is not None:
+                amount = Decimal(str(value))
+                amounts[field] += amount
+                known += amount
+                present.add(field)
+        residual += Decimal(str(record.total_cost)) - known
+    rows = [
+        {"label": label, "amount": amounts[field], "color": color}
+        for field, label, color in fields if field in present
+    ]
+    if residual:
+        rows.append({
+            "label": "内訳未確定" if residual > 0 else "内訳差額",
+            "amount": residual, "color": "#94a3b8",
+        })
+    total = summary.get("total_cost")
+    if total is not None and sum((row["amount"] for row in rows), Decimal("0")) != total:
+        raise ValueError("OVERVIEW_COST_COMPONENT_TOTAL_MISMATCH")
+    show_ring = total is not None and total > 0 and all(row["amount"] >= 0 for row in rows)
+    for row in rows:
+        row["percentage"] = row["amount"] / total * Decimal("100") if show_ring else None
+    summary["category_costs"] = rows
+    summary["show_cost_ring"] = show_ring
+    return summary
+
+
 @app.context_processor
 def inject_vehicle_karte_choices():
     if request.endpoint not in {
@@ -28638,7 +29062,7 @@ def inject_vehicle_karte_choices():
         ).all()
 
         maintenance_summary.update(
-            get_vehicle_maintenance_cost_summary(maintenance_records)
+            get_vehicle_overview_cost_summary(maintenance_records)
         )
 
         maintenance_records, _, _ = filter_vehicle_maintenance_factual_history(maintenance_records)
@@ -29703,15 +30127,10 @@ def vehicle_import_pending_review(pending_id):
                         company_code
                     ).count(),
                 )
-            if questions:
-                result = apply_vehicle_import_pending_documents(
-                    pending.id, vehicle_id, company_code, session.get("username"),
-                    invoice_choices=invoice_choices
-                )
-            else:
-                result = apply_vehicle_import_pending_records(
-                    pending.id, vehicle_id, company_code, session.get("username")
-                )
+            result = apply_vehicle_import_pending_records(
+                pending.id, vehicle_id, company_code, session.get("username"),
+                invoice_choices=invoice_choices
+            )
             if request.headers.get("X-DKSS-Validation-Only") == "1":
                 db.session.rollback()
                 return jsonify({"ok": True})
@@ -30450,6 +30869,27 @@ def merge_vehicle_pending_invoice_record(target_id, invoice):
 def apply_vehicle_import_pending_documents(
     pending_id, vehicle_id, company_code, username, *, invoice_choices=None
 ):
+    return apply_vehicle_import_pending_records(
+        pending_id, vehicle_id, company_code, username,
+        invoice_choices=invoice_choices,
+        allowed_kinds={"inspection", "maintenance", "driving_report"},
+    )
+
+
+def apply_vehicle_import_pending_operations(
+    pending_id, vehicle_id, company_code, username
+):
+    return apply_vehicle_import_pending_records(
+        pending_id, vehicle_id, company_code, username,
+        allowed_kinds={"operation"},
+    )
+
+
+def apply_vehicle_import_pending_records(
+    pending_id, vehicle_id, company_code, username, *, invoice_choices=None,
+    allowed_kinds=None,
+):
+    """Claim once and apply every source in the caller's single transaction."""
     if (
         not company_code or not username
         or isinstance(vehicle_id, bool) or not isinstance(vehicle_id, int)
@@ -30477,11 +30917,57 @@ def apply_vehicle_import_pending_documents(
     items = VehicleImportPendingRecord.query.filter_by(
         pending_id=pending_id, company_code=company_code, status="pending"
     ).order_by(VehicleImportPendingRecord.id).all()
-    if not items or any(item.source_kind not in {
-        "inspection", "maintenance", "driving_report"
-    } for item in items):
-        raise UploadValidationError("対象の資料を確認できません。")
+    supported = {"operation", "inspection", "maintenance", "driving_report"}
+    kinds = {item.source_kind for item in items}
+    if not items or not kinds <= (
+        supported if allowed_kinds is None else supported & allowed_kinds
+    ):
+        raise UploadValidationError("登録待ちの資料構成を再確認してください。")
 
+    result = {"added_count": 0, "linked_count": 0, "review_pending_count": 0}
+    operations = [item for item in items if item.source_kind == "operation"]
+    documents = [item for item in items if item.source_kind != "operation"]
+    if operations:
+        applied = _apply_vehicle_pending_operation_records(
+            operations, vehicle_id, company_code, username
+        )
+        for key, value in applied.items():
+            result[key] += value
+    if documents:
+        applied = _apply_vehicle_pending_document_records(
+            documents, vehicle_id, company_code, username,
+            invoice_choices=invoice_choices,
+        )
+        for key, value in applied.items():
+            result[key] += value
+
+    db.session.flush()
+    pending = VehicleImportPending.query.filter_by(
+        id=pending_id, company_code=company_code
+    ).first()
+    applied_ids = {
+        row.vehicle_record_id
+        for row in VehicleImportPendingRecord.query.filter_by(
+            pending_id=pending_id, company_code=company_code, status="applied"
+        ).all()
+        if row.vehicle_record_id is not None
+    }
+    pending.status = "resolved"
+    pending.resolved_vehicle_id = (
+        next(iter(applied_ids)) if len(applied_ids) == 1 else None
+    )
+    pending.resolved_at = datetime.now(ZoneInfo("UTC"))
+    pending.resolution_json = json.dumps({
+        "vehicle_ids": sorted(applied_ids),
+        "resolved_by_username": username,
+    })
+    db.session.flush()
+    return result
+
+
+def _apply_vehicle_pending_document_records(
+    items, vehicle_id, company_code, username, *, invoice_choices=None
+):
     maintenance_candidates = {
         item.id: get_vehicle_pending_maintenance_candidates(
             company_code, vehicle_id, safe_json_dict(item.payload_json)
@@ -30607,27 +31093,6 @@ def apply_vehicle_import_pending_documents(
         item.applied_at = now
         item.result_json = json.dumps(applied_result, ensure_ascii=False)
 
-    pending = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code
-    ).first()
-    applied_ids = {
-        row.vehicle_record_id
-        for row in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id,
-            company_code=company_code,
-            status="applied"
-        ).all()
-        if row.vehicle_record_id is not None
-    }
-    pending.status = "resolved"
-    pending.resolved_vehicle_id = (
-        next(iter(applied_ids)) if len(applied_ids) == 1 else None
-    )
-    pending.resolved_at = now
-    pending.resolution_json = json.dumps({
-        "vehicle_ids": sorted(applied_ids),
-        "resolved_by_username": username,
-    })
     db.session.flush()
     review_pending_count = VehicleMaintenanceDocument.query.filter(
         VehicleMaintenanceDocument.company_code == company_code,
@@ -30641,57 +31106,9 @@ def apply_vehicle_import_pending_documents(
     }
 
 
-def apply_vehicle_import_pending_records(
-    pending_id, vehicle_id, company_code, username
+def _apply_vehicle_pending_operation_records(
+    records, vehicle_id, company_code, username
 ):
-    kinds = {
-        row.source_kind
-        for row in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id,
-            company_code=company_code,
-            status="pending"
-        ).all()
-    }
-    if kinds == {"operation"}:
-        return apply_vehicle_import_pending_operations(
-            pending_id, vehicle_id, company_code, username
-        )
-    if kinds and kinds <= {"inspection", "maintenance", "driving_report"}:
-        return apply_vehicle_import_pending_documents(
-            pending_id, vehicle_id, company_code, username
-        )
-    raise UploadValidationError("登録待ちの資料構成を再確認してください。")
-
-
-def apply_vehicle_import_pending_operations(
-    pending_id, vehicle_id, company_code, username
-):
-    if (
-        not company_code
-        or not username
-        or isinstance(vehicle_id, bool)
-        or not isinstance(vehicle_id, int)
-    ):
-        raise UploadValidationError("会社・利用者・登録先を確認してください。")
-
-    vehicle = Vehicle.query.filter_by(
-        id=vehicle_id, company_code=company_code
-    ).first()
-    if vehicle is None:
-        raise UploadValidationError("登録先の車両を確認できません。")
-
-    claimed = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code, status="pending"
-    ).update({"status": "processing"}, synchronize_session=False)
-    if claimed != 1:
-        raise UploadValidationError("この登録待ちは対応済みか、処理中です。")
-
-    records = VehicleImportPendingRecord.query.filter_by(
-        pending_id=pending_id, company_code=company_code, status="pending"
-    ).order_by(VehicleImportPendingRecord.id).all()
-    if not records or any(item.source_kind != "operation" for item in records):
-        raise UploadValidationError("対応する運行実績を確認できません。")
-
     source_rows_by_draft = {}
     added_count = 0
     linked_count = 0
@@ -30794,27 +31211,6 @@ def apply_vehicle_import_pending_operations(
         })
         linked_count += 1
 
-    pending = VehicleImportPending.query.filter_by(
-        id=pending_id, company_code=company_code
-    ).first()
-    applied_ids = {
-        item.vehicle_record_id
-        for item in VehicleImportPendingRecord.query.filter_by(
-            pending_id=pending_id, company_code=company_code,
-            status="applied"
-        ).all()
-        if item.vehicle_record_id is not None
-    }
-    pending.status = "resolved"
-    pending.resolved_vehicle_id = (
-        next(iter(applied_ids)) if len(applied_ids) == 1 else None
-    )
-    pending.resolved_at = now
-    pending.resolution_json = json.dumps({
-        "vehicle_ids": sorted(applied_ids),
-        "resolved_by_username": username,
-    })
-    db.session.flush()
     return {"added_count": added_count, "linked_count": linked_count}
 
 
@@ -34630,6 +35026,7 @@ def delete_manual(index):
 
     company_code = manual.company_code
 
+    remove_master_from_display_order("manuals", manual)
     db.session.delete(manual)
     db.session.commit()
 
@@ -34684,6 +35081,7 @@ def checklist_master():
         ), 500
 
     checklists = checklists_for_current_company()
+    master_order_ids = [checklist["id"] for checklist in checklists]
     company_code = session.get("company_code")
 
     keyword = request.args.get("keyword", "").strip()
@@ -34738,6 +35136,7 @@ def checklist_master():
     return render_template(
         "checklist_master.html",
         checklists=checklists,
+        master_order_ids=master_order_ids,
         keyword=keyword,
         target=target,
         status=status
@@ -35137,6 +35536,49 @@ def new_checklist():
         mode="new"
     )
 
+def checklist_navigation_owner():
+    owner = [session.get("company_code"), session.get("username")]
+    if session.get("checklist_navigation_owner") != owner:
+        session["checklist_navigation_owner"] = owner
+        session.pop("checklist_last_safety", None)
+        session.pop("checklist_last_vehicle", None)
+
+
+def checklist_entry_redirect(section, checklists):
+    """Open an available checklist directly, never a stale remembered ID."""
+    checklist_navigation_owner()
+    if not checklists:
+        return None
+    remembered = session.get("checklist_last_" + section)
+    selected = next((row for row in checklists if row["id"] == remembered), checklists[0])
+    allowed = ("target_type", "target_value") if section == "safety" else ("vehicle_record_id", "year", "month", "active_day")
+    params = {key: request.args[key] for key in allowed if request.args.get(key)}
+    return redirect(url_for(section + "_checklist_results", index=selected["id"], **params))
+
+
+def checklist_result_navigation(checklist, section):
+    checklist_navigation_owner()
+    target = "安全管理" if section == "safety" else "車両管理"
+    choices = [row for row in checklists_for_current_company()
+               if row["target"] == target and (row.get("active", True) or row["id"] == checklist.id)]
+    if checklist.active:
+        session["checklist_last_" + section] = checklist.id
+    allowed = ("target_type", "target_value") if section == "safety" else ("vehicle_record_id", "year", "month")
+    params = {key: request.args[key] for key in allowed if request.args.get(key)}
+    current = checklist_to_dict(checklist)
+    items = []
+    for row in choices:
+        row_params = dict(params)
+        if section == "vehicle" and request.args.get("active_day") and all(
+            row.get(key) == current.get(key) for key in ("frequency_unit", "frequency_value", "display_type")
+        ):
+            row_params["active_day"] = request.args["active_day"]
+        items.append({"id": row["id"], "name": row["name"],
+                      "active": row.get("active", True),
+                      "url": url_for(section + "_checklist_results", index=row["id"], **row_params)})
+    return items
+
+
 @app.route("/safety/checklists")
 def safety_checklists():
     safety_lists = []
@@ -35148,6 +35590,9 @@ def safety_checklists():
         ):
             safety_lists.append(checklist)
 
+    destination = checklist_entry_redirect("safety", safety_lists)
+    if destination is not None:
+        return destination
     return render_template(
         "safety_checklists.html",
         checklists=safety_lists
@@ -35157,7 +35602,8 @@ def safety_checklists():
 def safety_checklist_results(index):
     checklist_record = Checklist.query.filter_by(
         id=index,
-        company_code=session.get("company_code")
+        company_code=session.get("company_code"),
+        target="安全管理"
     ).first()
 
     if not checklist_record:
@@ -35293,6 +35739,7 @@ def safety_checklist_results(index):
 
     return render_template(
         "safety_checklist_results.html",
+        checklist_navigation=checklist_result_navigation(checklist_record, "safety"),
         checklist=checklist,
         checklist_index=checklist_record.id,
         results=results,
@@ -36450,6 +36897,21 @@ def export_checklist_result_excel(result_index):
         )
     )
 
+def checklist_result_edit_version(record):
+    snapshot = {
+        column.key: getattr(record, column.key)
+        for column in inspect(record).mapper.column_attrs
+    }
+    latest_event = ChecklistEvent.query.filter_by(
+        company_code=record.company_code, result_type="safety", result_id=record.id
+    ).order_by(ChecklistEvent.id.desc()).first()
+    # Identical resubmissions within the same minute must still invalidate a form.
+    snapshot["latest_event_id"] = latest_event.id if latest_event else None
+    return hashlib.sha256(json.dumps(
+        snapshot, sort_keys=True, ensure_ascii=False, default=str,
+    ).encode("utf-8")).hexdigest()
+
+
 @app.route("/safety/checklist-results/<int:result_index>/edit", methods=["GET", "POST"])
 @limiter.limit("20 per minute", methods=["POST"])
 def edit_checklist_result(result_index):
@@ -36507,6 +36969,14 @@ def edit_checklist_result(result_index):
             return redirect(
                 url_for("checklist_result_detail", result_index=result_index)
             )
+
+        if not secrets.compare_digest(
+            request.form.get("record_version", "").encode("utf-8"),
+            checklist_result_edit_version(result_record).encode("ascii"),
+        ):
+            return return_form_errors([
+                ("記録が更新されています。入力内容を確認し、画面を再読み込みしてください。", "")
+            ], status_code=409)
 
         checklist = (
             result.get("checklist_snapshot")
@@ -37325,6 +37795,7 @@ def edit_checklist_result(result_index):
         index=checklist_record.id,
         result=result,
         result_index=result_record.id,
+        record_version=checklist_result_edit_version(result_record),
         mode="edit",
         criteria_list=criteria_list,
         drivers=drivers_for_current_company(),
@@ -37469,6 +37940,9 @@ def vehicle_checklists():
         ):
             vehicle_lists.append(checklist)
 
+    destination = checklist_entry_redirect("vehicle", vehicle_lists)
+    if destination is not None:
+        return destination
     return render_template(
         "vehicle_checklists.html",
         checklists=vehicle_lists
@@ -38050,6 +38524,7 @@ def vehicle_checklist_results(index):
 
     return render_template(
         "vehicle_checklist_results.html",
+        checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
         vehicle_judgment_names=vehicle_judgment_names,
         vehicle_response_notify_names=vehicle_response_notify_names,
@@ -42881,19 +43356,13 @@ def complete_vehicle_checklist(index):
 
         db.session.add(result_record)
 
-    if result_record.status in {
-        "承認待ち",
-        "承認済み"
-    }:
+    if result_record.status in {"承認待ち", "承認済み", "点検完了"}:
         return return_form_errors([
-            (
-                (
-                    "すでに承認待ちです。"
-                    if result_record.status == "承認待ち"
-                    else "すでに承認済みです。"
-                ),
-                ""
-            )
+            ({
+                "承認待ち": "すでに承認待ちです。",
+                "承認済み": "すでに承認済みです。",
+                "点検完了": "すでに点検完了しています。",
+            }[result_record.status], "")
         ], status_code=409)
 
     result_checklist = checklist_for_date(
@@ -45475,214 +45944,129 @@ def toggle_checklist_active(index):
     return redirect("/master/checklists")
 
 
+def checklist_deletion_files(value):
+    """Collect upload references from definitions, snapshots and answers."""
+    files = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in ("files", "criteria_files") and isinstance(child, list):
+                files.update(name for name in child if isinstance(name, str))
+            else:
+                files.update(checklist_deletion_files(child))
+    elif isinstance(value, list):
+        for child in value:
+            files.update(checklist_deletion_files(child))
+    return files
+
+
+def checklist_upload_still_referenced(company_code, filename):
+    # Be conservative: keep files referenced anywhere in this company's data.
+    # Audit entries describe past actions and are not live file references.
+    for table in db.metadata.tables.values():
+        if "company_code" not in table.c or table.name == AuditLog.__tablename__:
+            continue
+        columns = [column for column in table.c
+                   if isinstance(column.type, db.String) and column.name != "company_code"]
+        if columns and db.session.execute(
+            db.select(table.c.company_code).where(
+                table.c.company_code == company_code,
+                or_(*(column.contains(filename, autoescape=True) for column in columns))
+            ).limit(1)
+        ).first():
+            return True
+    return False
+
+
 @app.route("/master/checklists/<int:index>/delete", methods=["POST"])
 @limiter.limit("10 per minute")
 def delete_checklist(index):
+    if not require_master_admin():
+        return return_form_errors([("管理者のみ削除できます。", "")], 403)
     checklist = Checklist.query.filter_by(
-        id=index,
-        company_code=session.get("company_code")
+        id=index, company_code=session.get("company_code")
     ).first()
-
     if not checklist:
         return redirect("/master/checklists")
-
     if checklist_to_dict(checklist).get("fixed_template_code"):
         return return_form_errors(
-            [("標準の日常点検表は固定様式のため、削除できません。", "")],
-            403
+            [("標準の日常点検表は固定様式のため、削除できません。", "")], 403
         )
-
-    has_safety_results = ChecklistResult.query.filter_by(
-        company_code=checklist.company_code,
-        checklist_id=checklist.id
-    ).first()
-
-    has_vehicle_results = VehicleChecklistResult.query.filter_by(
-        company_code=checklist.company_code,
-        checklist_id=checklist.id
-    ).first()
-
-    if has_safety_results or has_vehicle_results:
-        return (
-            "点検履歴が存在するチェックリストは削除できません。",
-            409
+    if request.form.get("confirm_delete") != "1":
+        return return_form_errors(
+            [("点検記録も削除されます。削除ボタンから確認して実行してください。", "")], 400
         )
-
-    add_audit_log(
-        action="checklist_deleted",
-        target_type="checklist",
-        target_id=checklist.id,
-        detail=f"チェックリスト削除: {checklist.name}",
-        company_code=checklist.company_code,
-    )
-
-    files_to_delete = []
-
-    checklist_data = checklist_to_dict(
-        checklist
-    )
-
-    for item in checklist_data.get(
-        "items",
-        []
-    ):
-        files_to_delete.extend(
-            item.get(
-                "criteria_files",
-                []
-            )
-        )
-
     company_code = checklist.company_code
-
-    VehicleChecklistNotifySetting.query.filter_by(
-        company_code=company_code,
-        checklist_id=checklist.id
-    ).delete(synchronize_session=False)
-
-    db.session.delete(checklist)
-    db.session.commit()
-
-    for filename in files_to_delete:
-        filename = os.path.basename(
-            str(filename or "")
+    files = checklist_deletion_files(checklist_to_dict(checklist))
+    safety = ChecklistResult.query.filter_by(
+        company_code=company_code, checklist_id=checklist.id
+    ).all()
+    vehicle = VehicleChecklistResult.query.filter_by(
+        company_code=company_code, checklist_id=checklist.id
+    ).all()
+    ids_by_type = {"safety": {row.id for row in safety},
+                   "vehicle": {row.id for row in vehicle}}
+    from urllib.parse import urlsplit
+    try:
+        for notification in Notification.query.filter_by(company_code=company_code).all():
+            context = safe_json_dict(notification.workflow_context_json)
+            result_id = context.get("result_id")
+            try:
+                path = urlsplit(notification.link or "").path.rstrip("/")
+            except ValueError:
+                path = ""
+            result_type = context.get("result_type")
+            linked = (type(result_id) is int and isinstance(result_type, str)
+                      and result_id in ids_by_type.get(result_type, set()))
+            linked = linked or path == f"/vehicle/checklists/{checklist.id}"
+            linked = linked or any(path == f"/safety/checklist-results/{ident}"
+                                   for ident in ids_by_type["safety"])
+            if linked:
+                files.update(safe_json_str_list(notification.files_json))
+                db.session.delete(notification)
+        for result_type, ids in ids_by_type.items():
+            if not ids:
+                continue
+            for event in ChecklistEvent.query.filter(
+                ChecklistEvent.company_code == company_code,
+                ChecklistEvent.result_type == result_type,
+                ChecklistEvent.result_id.in_(ids)
+            ).all():
+                files.update(checklist_deletion_files(safe_json_dict(event.detail_json)))
+                db.session.delete(event)
+        if ids_by_type["vehicle"]:
+            VehicleMaintenanceInspectionLink.query.filter(
+                VehicleMaintenanceInspectionLink.company_code == company_code,
+                VehicleMaintenanceInspectionLink.inspection_result_id.in_(ids_by_type["vehicle"])
+            ).delete(synchronize_session=False)
+        for result in safety + vehicle:
+            files.update(checklist_deletion_files(safe_json_dict(result.checklist_snapshot_json)))
+            files.update(checklist_deletion_files(safe_json_dict_list(result.answers_json)))
+            db.session.delete(result)
+        VehicleChecklistNotifySetting.query.filter_by(
+            company_code=company_code, checklist_id=checklist.id
+        ).delete(synchronize_session=False)
+        remove_master_from_display_order("checklists", checklist)
+        add_audit_log(
+            action="checklist_deleted", target_type="checklist", target_id=checklist.id,
+            detail=f"チェックリスト削除: {checklist.name} / 安全記録{len(safety)}件・車両記録{len(vehicle)}件",
+            company_code=company_code,
         )
-
+        db.session.delete(checklist)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("チェックリストと関連記録の削除に失敗しました。")
+        return return_form_errors([("削除できませんでした。再度お試しください。", "")], 500)
+    for value in files:
+        filename = os.path.basename(str(value or ""))
         if not filename:
             continue
-
-        still_referenced = False
-
-        other_checklists = Checklist.query.filter_by(
-            company_code=company_code
-        ).all()
-
-        for other_checklist in other_checklists:
-            other_data = checklist_to_dict(
-                other_checklist
-            )
-
-            if any(
-                filename in item.get(
-                    "criteria_files",
-                    []
-                )
-                for item in other_data.get(
-                    "items",
-                    []
-                )
-            ):
-                still_referenced = True
-                break
-
-            for version in other_data.get(
-                "version_history",
-                []
-            ):
-                snapshot = version.get(
-                    "snapshot",
-                    {}
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-            if still_referenced:
-                break
-
-        if not still_referenced:
-            safety_results = ChecklistResult.query.filter_by(
-                company_code=company_code
-            ).all()
-
-            for result_record in safety_results:
-                snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-        if not still_referenced:
-            vehicle_results = VehicleChecklistResult.query.filter_by(
-                company_code=company_code
-            ).all()
-
-            for result_record in vehicle_results:
-                snapshot = safe_json_dict(
-                    result_record.checklist_snapshot_json
-                )
-
-                if any(
-                    filename in item.get(
-                        "criteria_files",
-                        []
-                    )
-                    for item in snapshot.get(
-                        "items",
-                        []
-                    )
-                ):
-                    still_referenced = True
-                    break
-
-        if still_referenced:
-            continue
-
-        if s3_client and S3_BUCKET_NAME:
-            try:
-                s3_client.delete_object(
-                    Bucket=S3_BUCKET_NAME,
-                    Key=(
-                        f"uploads/"
-                        f"{company_code}/"
-                        f"{filename}"
-                    )
-                )
-            except ClientError:
-                app.logger.warning(
-                    "チェックリスト評価基準添付のS3削除に失敗しました。",
-                    exc_info=True
-                )
-        else:
-            safe_filename = secure_filename(
-                filename
-            )
-
-            if not safe_filename:
-                continue
-
-            file_path = os.path.join(
-                app.config["UPLOAD_FOLDER"],
-                company_code,
-                safe_filename
-            )
-
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
+        try:
+            if not checklist_upload_still_referenced(company_code, filename):
+                delete_uploaded_file(filename)
+        except Exception:
+            app.logger.warning("削除済みチェックリストの添付ファイル整理に失敗しました。", exc_info=True)
     return redirect("/master/checklists")
-
 
 @app.route(
     "/safety/checklist-results/<int:result_index>/approve/<int:approval_index>",
@@ -46424,7 +46808,7 @@ def init_db():
 
 from vehicle_inspection_plans import register_inspection_plans
 VehicleInspectionPlan, VehicleInspectionPlanEvent, inspection_plans = register_inspection_plans(
-    app, db, Vehicle, VehiclePeriodicInspectionRecord, Company
+    app, db, Vehicle, VehiclePeriodicInspectionRecord, Company, User, Office, VehicleDocumentImportDraft
 )
 
 from vehicle_inspection_alerts import register_inspection_alerts
@@ -47447,6 +47831,10 @@ with app.app_context():
 
     db.session.commit()
 
+
+# VEHICLE_DOCUMENT_DELETION_V1
+from vehicle_document_deletion import register_document_deletion
+register_document_deletion(app, db, globals())
 
 if __name__ == "__main__":
     app.run(debug=False)

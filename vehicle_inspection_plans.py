@@ -33,7 +33,7 @@ def add_months(value, count):
     return date(year, mon + 1, min(value.day, calendar.monthrange(year, mon + 1)[1]))
 
 
-def register_inspection_plans(app, db, Vehicle, Record, Company):
+def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft):
     class VehicleInspectionPlan(db.Model):
         __table_args__ = (db.UniqueConstraint('company_code', 'vehicle_record_id', 'kind', 'period_key', name='uq_inspection_plan_period'),)
         id = db.Column(db.Integer, primary_key=True)
@@ -82,6 +82,18 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
         created_by = db.Column(db.String(50), nullable=False)
         created_at = db.Column(db.String(40), nullable=False)
 
+    class VehicleInspectionExecutionEvidence(db.Model):
+        execution_id = db.Column(db.Integer, db.ForeignKey('vehicle_inspection_execution.id'), primary_key=True)
+        company_code = db.Column(db.String(50), nullable=False, index=True)
+        new_expiry = db.Column(db.String(10))
+        previous_expiry = db.Column(db.String(10))
+        document_id = db.Column(db.String(36), db.ForeignKey('vehicle_document_import_draft.id'))
+        confirmation = db.Column(db.String(1000), nullable=False)
+        attachment_confirmation = db.Column(db.String(1000))
+        attached_at = db.Column(db.String(40))
+        attached_by = db.Column(db.String(50))
+
+    Evidence = VehicleInspectionExecutionEvidence
     Execution = VehicleInspectionExecution
     queue_key = 'inspection_plan_sync_' + str(id(Record))
     import_key = 'inspection_plan_imports_' + str(id(Record))
@@ -132,11 +144,16 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
 
     def fact_data(r):
         manual = r.id < 0
-        return {'record_id': None if manual else r.id, 'execution_id': -r.id if manual else None,
+        evidence = db.session.get(Evidence, -r.id) if manual else None
+        return {'previous_expiry': evidence.previous_expiry if evidence else None,
+                'new_expiry': evidence.new_expiry if evidence else None,
+                'evidence_note': evidence.confirmation if evidence else None,
+                'document_id': evidence.document_id if evidence else None,
+                'record_id': None if manual else r.id, 'execution_id': -r.id if manual else None,
                 'performed_date': r.inspection_date, 'factory': r.inspection_company or '',
                 'mileage': str(r.mileage) if r.mileage is not None else None,
-                'document_status': '未受領' if manual else '登録済み',
-                'record_url': None if manual else f'/vehicle/periodic-inspections/{r.id}/source'}
+                'document_status': ('登録済み' if evidence and evidence.document_id else '未受領') if manual else '登録済み',
+                'record_url': (f'/vehicle/inspection-plans/executions/{-r.id}/source' if evidence and evidence.document_id else None) if manual else f'/vehicle/periodic-inspections/{r.id}/source'}
 
     def latest(code, vid):
         result = {}
@@ -171,7 +188,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
         """Called inside the import transaction; conservative matching, no financial writes."""
         performed = iso_date(record.inspection_date)
         kind = record.inspection_type
-        if kind not in {'3month', '12month'} or not performed or performed > today():
+        if kind not in KINDS or not performed or performed > today():
             return
         code, vid = record.company_code, record.vehicle_record_id
         if not Vehicle.query.filter_by(company_code=code, id=vid).first():
@@ -259,26 +276,37 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
         s.info.pop(queue_key, None)
         s.info.pop(import_key, None)
 
-    def vehicles_in_scope(code, args):
-        scope = args.get('scope', 'company')
+    def scope_context(code, args):
+        scope = args.get('scope') or 'office'
         if scope not in {'vehicle', 'office', 'company'}:
             abort(400, '対象範囲を確認してください。')
-        q = Vehicle.query.filter_by(company_code=code, deleted=False)
-        vid = args.get('vehicle_id')
-        if scope in {'vehicle', 'office'}:
+        offices = sorted({o.name for o in Office.query.filter_by(company_code=code).all()} |
+                         {v.office for v in Vehicle.query.filter_by(company_code=code, deleted=False).all() if v.office})
+        vehicle = None
+        if args.get('vehicle_id'):
             try:
-                v = Vehicle.query.filter_by(company_code=code, id=int(vid)).first_or_404()
+                vehicle = Vehicle.query.filter_by(company_code=code, id=int(args['vehicle_id']), deleted=False).first_or_404()
             except (ValueError, TypeError):
-                abort(400, '車両を選択してください。')
-            if scope == 'vehicle':
-                q = q.filter_by(id=v.id)
-            else:
-                office = args.get('office') or v.office
-                if not office:
-                    abort(400, '営業所が未設定です。営業所を選択してください。')
-                q = q.filter_by(office=office)
+                abort(400, '車両を確認してください。')
+        user = User.query.filter_by(company_code=code, username=session.get('username')).first()
+        office = args.get('office') or (vehicle.office if vehicle else user.office if user else None)
+        if scope == 'vehicle' and not vehicle:
+            abort(400, '車両を選択してください。')
+        if office and office not in offices:
+            abort(400, '同じ会社の営業所を選択してください。')
+        return scope, office, vehicle, offices
+
+    def vehicles_in_scope(code, args):
+        scope, office, vehicle, _ = scope_context(code, args)
+        q = Vehicle.query.filter_by(company_code=code, deleted=False)
+        if scope == 'vehicle':
+            q = q.filter_by(id=vehicle.id)
+        elif scope == 'office':
+            if not office:
+                return []
+            q = q.filter_by(office=office)
         elif args.get('office'):
-            q = q.filter_by(office=args['office'])
+            q = q.filter_by(office=office)
         return q.order_by(Vehicle.id).all()
 
     def candidate_rows(code, vehicles, year):
@@ -300,7 +328,11 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
                         item['performed_date'] = actual.inspection_date if actual else execution.performed_date
                         item['display_month'] = item['performed_date'][:7]
                         item['document_status'] = '登録済み' if actual or execution.source_record_id else '未受領'
-                    if start <= item.get('display_month', p.planned_month) <= end:
+                        if execution and not actual:
+                            fact = next((r for r in records if r.id == -execution.id), None)
+                            if fact:
+                                item.update(fact_data(fact))
+                    if start <= p.planned_month <= end or start <= item.get('display_month', p.planned_month) <= end:
                         visible.append(item)
                 rows.extend(visible)
                 previous = [r for r in records if r.vehicle_record_id == v.id and r.inspection_type == kind and
@@ -331,14 +363,15 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
                     continue
                 step = 3 if kind == '3month' else 12
                 cursor = date.fromisoformat(baseline + '-01')
-                if latest and not explicit:
+                if latest and not explicit and kind != 'vehicle_inspection':
                     cursor = add_months(cursor, step)
-                while cursor.isoformat()[:7] < start:
+                while kind != 'vehicle_inspection' and cursor.isoformat()[:7] < start:
                     cursor = add_months(cursor, step)
-                while cursor.isoformat()[:7] <= end:
+                while start <= cursor.isoformat()[:7] <= end:
                     key = cursor.isoformat()[:7]
-                    if key > (latest.inspection_date[:7] if latest else '') and not any(p.period_key == key or p.planned_month == key for p in own):
-                        rows.append({'id': None, 'version': 0, 'vehicle_record_id': v.id, 'kind': kind,
+                    if key > (latest.inspection_date[:7] if latest else '') and not any((p.period_key == key or p.planned_month == key) and (kind != 'vehicle_inspection' or p.status != 'cancelled') for p in own):
+                        reusable = next((p for p in own if kind == 'vehicle_inspection' and p.status == 'cancelled' and p.period_key == key), None)
+                        rows.append({'id': reusable.id if reusable else None, 'version': reusable.version if reusable else 0, 'vehicle_record_id': v.id, 'kind': kind,
                                      'period_key': key, 'planned_month': key, 'reservation_date': None,
                                      'factory': '', 'note': '', 'source': 'document' if explicit == key else 'calculated',
                                      'source_record_id': latest.id if latest and latest.id > 0 else None, 'status': 'candidate', 'completed_record_id': None})
@@ -347,16 +380,40 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
                     cursor = add_months(cursor, step)
         return rows, missing
 
+    def display_state(row):
+        if row['status'] == 'candidate':
+            return 'candidate'
+        if row['status'] == 'completed':
+            return 'completed'
+        if row['status'] == 'cancelled':
+            return 'cancelled'
+        if (row.get('reservation_date') and row['reservation_date'] < today().isoformat()) or (not row.get('reservation_date') and row['planned_month'] < today().isoformat()[:7]):
+            return 'awaiting'
+        return 'reserved' if row.get('reservation_date') else 'unreserved'
+
     def data_for(code, args):
+        scope, office, vehicle, offices = scope_context(code, args)
         vehicles = vehicles_in_scope(code, args)
+        selected_month = args.get('month') or today().isoformat()[:7]
+        if not month(selected_month) or not 2000 <= int(selected_month[:4]) <= 2098:
+            abort(400, '表示する年月を確認してください。')
         try:
-            year = int(args.get('year') or (today().year if today().month >= 4 else today().year - 1))
+            year = int(args.get('year') or (int(selected_month[:4]) if int(selected_month[5:]) >= 4 else int(selected_month[:4])-1))
             if not 2000 <= year <= 2098:
                 raise ValueError
         except (TypeError, ValueError):
             abort(400, '年度を確認してください。')
         rows, missing = candidate_rows(code, vehicles, year)
-        return {'year': year, 'vehicles': [{'id': v.id, 'number': number(v), 'office': v.office or '営業所未設定'} for v in vehicles],
+        by_id = {v.id: v for v in vehicles}
+        for row in rows:
+            row['display_state'] = display_state(row)
+            v = by_id[row['vehicle_record_id']]
+            row['expiry_date'] = (row.get('previous_expiry') if row['status'] == 'completed' else v.inspection_expiry) if row['kind'] == 'vehicle_inspection' else None
+        return {'year': year, 'month': selected_month, 'today': today().isoformat(),
+                'scope': scope, 'office': office or '', 'offices': offices,
+                'needs_office': scope == 'office' and not office,
+                'focus_vehicle_id': vehicle.id if vehicle else None,
+                'vehicles': [{'id': v.id, 'number': number(v), 'chassis_number': v.chassis_number or '', 'office': v.office or '営業所未設定', 'expiry_date': v.inspection_expiry} for v in vehicles],
                 'plans': rows, 'missing': missing, 'can_edit': session.get('role') in {'admin', 'itc'}}
 
     def require_editor():
@@ -365,7 +422,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
 
     @app.get('/vehicle/inspection-plans')
     def vehicle_inspection_plans():
-        return render_template('vehicle_inspection_plans.html', plan_args={k: request.args.get(k, '') for k in ('scope', 'vehicle_id', 'office', 'year', 'kind')})
+        return render_template('vehicle_inspection_plans.html', plan_args={k: request.args.get(k, '') for k in ('scope', 'vehicle_id', 'office', 'year', 'month', 'view', 'kind', 'state')})
 
     @app.get('/api/vehicle/inspection-plans')
     def vehicle_inspection_plans_data():
@@ -376,7 +433,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
             except (KeyError, ValueError):
                 abort(400)
             data = {'vehicle': {'id': v.id, 'number': number(v), 'office': v.office or ''}, 'plans': summary(code, v.id),
-                    'latest': latest(code, v.id),
+                    'latest': latest(code, v.id), 'documents': certificate_documents(v),
                     'can_edit': session.get('role') in {'admin', 'itc'}}
         else:
             data = data_for(code, request.args)
@@ -492,6 +549,43 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
             db.session.rollback()
             raise
 
+    def certificate_documents(v):
+        rows = []
+        for draft in Draft.query.filter_by(company_code=v.company_code, document_type='certificate', status='certificate_linked').order_by(Draft.created_at.desc()).all():
+            try:
+                binding = json.loads(draft.result_json or '{}')
+            except ValueError:
+                continue
+            if binding.get('vehicle_record_id') == v.id and hashlib.sha256(draft.source_file).hexdigest() == draft.source_sha256:
+                rows.append({'id': draft.id, 'name': draft.source_filename})
+        return rows
+
+    def certificate_evidence(v, payload, performed):
+        confirmation = str(payload.get('confirmation') or '').strip()
+        if payload.get('confirmed') is not True or not confirmation or len(confirmation) > 1000:
+            abort(400, '車検の実施日を確認した根拠を入力し、確認済みにしてください。')
+        expiry = payload.get('new_expiry') or None
+        if expiry and (not iso_date(expiry) or expiry <= performed.isoformat()):
+            abort(400, '更新後満了日を確認してください。実施日より後の日付を入力してください。')
+        document_id = payload.get('document_id') or None
+        if document_id and document_id not in {d['id'] for d in certificate_documents(v)}:
+            abort(400, 'この車両に紐付く車検証を選択してください。')
+        return {'new_expiry': expiry, 'document_id': document_id, 'confirmation': confirmation}
+
+    @app.get('/vehicle/inspection-plans/executions/<int:execution_id>/source')
+    def vehicle_inspection_execution_source(execution_id):
+        from io import BytesIO
+        from flask import send_file
+        execution = Execution.query.filter_by(id=execution_id, company_code=session['company_code']).first_or_404()
+        ev = db.session.get(Evidence, execution.id)
+        v = Vehicle.query.filter_by(company_code=execution.company_code, id=execution.vehicle_record_id).first_or_404()
+        if not ev or ev.document_id not in {d['id'] for d in certificate_documents(v)}:
+            abort(404)
+        draft = db.session.get(Draft, ev.document_id)
+        response = send_file(BytesIO(draft.source_file), download_name=draft.source_filename, as_attachment=True)
+        response.headers['Cache-Control'] = 'private, no-store'
+        return response
+
     def execution_preview(payload, code):
         if not isinstance(payload, dict):
             abort(400)
@@ -502,20 +596,28 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
             abort(400)
         v = Vehicle.query.filter_by(company_code=code, id=vid, deleted=False).first_or_404()
         kind, performed = payload.get('kind'), iso_date(payload.get('performed_date'))
-        if not isinstance(kind, str) or kind not in {'3month', '12month'} or not performed or performed > today() or performed.year < 2000:
+        if not isinstance(kind, str) or kind not in KINDS or not performed or performed > today() or performed.year < 2000:
             abort(400, '点検種別と実施日を確認してください。未来の日は実施済みにできません。')
         plan = Plan.query.filter_by(company_code=code, vehicle_record_id=vid, id=pid, kind=kind).first_or_404() if pid else None
         if plan and (plan.version != version or plan.status != 'planned'):
             abort(409, '予定が更新済み又は実施済みです。最新の内容を開き直してください。')
         actual = performed.isoformat()
-        if Execution.query.filter_by(company_code=code, vehicle_record_id=vid, kind=kind, performed_date=actual).first() or Record.query.filter_by(company_code=code, vehicle_record_id=vid, inspection_type=kind, inspection_date=actual).first():
+        existing_execution = Execution.query.filter_by(company_code=code, vehicle_record_id=vid, kind=kind, performed_date=actual).first()
+        evidence = certificate_evidence(v, payload, performed) if kind == 'vehicle_inspection' else None
+        old_evidence = db.session.get(Evidence, existing_execution.id) if existing_execution else None
+        attaching = bool(evidence and evidence['document_id'] and existing_execution and old_evidence and not old_evidence.document_id and (not pid or existing_execution.plan_id == pid))
+        if attaching and old_evidence.new_expiry and evidence['new_expiry'] and old_evidence.new_expiry != evidence['new_expiry']:
+            abort(409, '保存済みの更新後満了日と異なります。元の実施記録を確認してください。')
+        if attaching and old_evidence.new_expiry:
+            evidence['new_expiry'] = old_evidence.new_expiry
+        if (existing_execution and not attaching) or Record.query.filter_by(company_code=code, vehicle_record_id=vid, inspection_type=kind, inspection_date=actual).first():
             abort(409, '同じ車両・点検種別・実施日の記録が登録済みです。点検記録を確認してください。')
         factory, note = str(payload.get('factory') or '').strip(), str(payload.get('note') or '').strip()
         if len(factory) > 200 or len(note) > 1000:
             abort(400, '実施先・メモの文字数を確認してください。')
         explicit = payload.get('next_month') or None
-        nxt = month(explicit) if explicit else add_months(performed, 3 if kind == '3month' else 12).isoformat()[:7]
-        if not nxt or nxt <= actual[:7] or not 2000 <= int(nxt[:4]) <= 2099:
+        nxt = (evidence['new_expiry'][:7] if evidence and evidence['new_expiry'] else None) if kind == 'vehicle_inspection' else month(explicit) if explicit else add_months(performed, 3 if kind == '3month' else 12).isoformat()[:7]
+        if kind != 'vehicle_inspection' and (not nxt or nxt <= actual[:7] or not 2000 <= int(nxt[:4]) <= 2099):
             abort(400, '次回予定月は実施月より後の年月を入力してください。')
         values = {'vehicle_record_id': vid, 'kind': kind, 'performed_date': actual,
                   'plan_id': plan.id if plan else None, 'version': plan.version if plan else 0,
@@ -533,6 +635,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
                 upcoming = [p for p in upcoming if p['id'] != plan.id]
         result = {'number': number(v), 'execution': values, 'before': serialize(plan) if plan else None,
                   'existing_next': upcoming, 'skip_next_for_newer_record': newer,
+                  'certificate_evidence': evidence, 'attach_execution_id': existing_execution.id if attaching else None,
+                  'master_expiry': v.inspection_expiry,
                   'warning': '対象予定月と実施月が異なります。この予定の実施として登録するか確認してください。' if plan and plan.planned_month != actual[:7] else ''}
         token = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         return v, plan, result, token
@@ -555,6 +659,24 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
             if token != payload.get('token'):
                 abort(409, '確認後に予定が変わりました。内容を再確認してください。')
             values = result['execution']
+            if result.get('attach_execution_id'):
+                execution = db.session.get(Execution, result['attach_execution_id'])
+                ev = db.session.get(Evidence, execution.id)
+                ev.document_id = result['certificate_evidence']['document_id']
+                ev.attachment_confirmation = result['certificate_evidence']['confirmation']
+                ev.attached_at = datetime.now(ZoneInfo('UTC')).isoformat()
+                ev.attached_by = session['username']
+                ev.new_expiry = ev.new_expiry or result['certificate_evidence']['new_expiry']
+                execution.next_month = ev.new_expiry[:7] if ev.new_expiry else None
+                if ev.new_expiry and not result['skip_next_for_newer_record'] and (not iso_date(v.inspection_expiry) or ev.new_expiry > v.inspection_expiry):
+                    v.inspection_expiry = ev.new_expiry
+                if execution.plan_id:
+                    original = Plan.query.filter_by(company_code=code, id=execution.plan_id).one()
+                    before = serialize(original)
+                    original.version += 1
+                    record_event(original, 'document_attached', before)
+                db.session.commit()
+                return jsonify(saved=1, execution_id=execution.id)
             if plan:
                 before = serialize(plan)
                 plan.status, plan.version = 'completed', plan.version + 1
@@ -564,9 +686,16 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
                 next_month=values['next_month'], factory=values['factory'], note=values['note'],
                 created_by=session['username'], created_at=datetime.now(ZoneInfo('UTC')).isoformat())
             db.session.add(execution)
+            db.session.flush([execution])
+            if result['certificate_evidence']:
+                ev = result['certificate_evidence']
+                db.session.add(Evidence(execution_id=execution.id, company_code=code, previous_expiry=result['master_expiry'] if iso_date(result['master_expiry']) else None, **ev))
+                # Only advance a known expiry for the latest confirmed execution.
+                if ev['new_expiry'] and not result['skip_next_for_newer_record'] and (not iso_date(v.inspection_expiry) or ev['new_expiry'] > v.inspection_expiry):
+                    v.inspection_expiry = ev['new_expiry']
             nxt = values['next_month']
             existing = Plan.query.filter_by(company_code=code, vehicle_record_id=v.id, kind=values['kind']).all()
-            if not result['skip_next_for_newer_record'] and not any(p.period_key == nxt or p.planned_month == nxt for p in existing):
+            if values['kind'] != 'vehicle_inspection' and nxt and not result['skip_next_for_newer_record'] and not any(p.period_key == nxt or p.planned_month == nxt for p in existing):
                 next_plan = Plan(company_code=code, vehicle_record_id=v.id, kind=values['kind'], period_key=nxt,
                     planned_month=nxt, source=values['next_source'], version=1, status='planned', factory='', note='')
                 db.session.add(next_plan)
@@ -580,5 +709,5 @@ def register_inspection_plans(app, db, Vehicle, Record, Company):
             db.session.rollback()
             raise
 
-    return Plan, Event, SimpleNamespace(summary=summary, latest=latest, manual_records=manual_records, Execution=Execution,
+    return Plan, Event, SimpleNamespace(summary=summary, latest=latest, manual_records=manual_records, Execution=Execution, Evidence=Evidence,
         sync_pending=sync_pending, sync_record=sync_record, candidate_rows=candidate_rows)
