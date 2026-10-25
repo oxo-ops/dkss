@@ -466,7 +466,7 @@
                     {% elif item.item_type == "approval" %}
                     {{ item.approval_label or "承認欄" }}
                     {% else %}
-                    {{ item.content|replace('\n', '<br>')|safe }}
+                    {{ item.content|e|replace('\n', '<br>'|safe) }}
                     {% endif %}
                 </td>
 
