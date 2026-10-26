@@ -1787,16 +1787,6 @@
       ""
     ],
     [
-      "/vehicle/data-import/jobs/<batch_id>/delete",
-      "delete_document_import",
-      [
-        "OPTIONS",
-        "POST"
-      ],
-      true,
-      ""
-    ],
-    [
       "/vehicle/data-import/jobs/<batch_id>/retry",
       "retry_document_import",
       [
@@ -1953,26 +1943,6 @@
         "GET",
         "HEAD",
         "OPTIONS"
-      ],
-      true,
-      ""
-    ],
-    [
-      "/vehicle/karte/<int:vehicle_record_id>/couplings",
-      "vehicle_coupling_add",
-      [
-        "OPTIONS",
-        "POST"
-      ],
-      true,
-      ""
-    ],
-    [
-      "/vehicle/karte/<int:vehicle_record_id>/couplings/<int:coupling_id>/remove",
-      "vehicle_coupling_remove",
-      [
-        "OPTIONS",
-        "POST"
       ],
       true,
       ""
@@ -2247,7 +2217,6 @@
     "vehicle_analysis_feedback": "\nCREATE TABLE vehicle_analysis_feedback (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tvehicle_record_id INTEGER NOT NULL, \n\tproposal_key VARCHAR(64) NOT NULL, \n\tproposal_revision VARCHAR(64) NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tcomment TEXT NOT NULL, \n\tsnapshot_json TEXT NOT NULL, \n\tcreated_by VARCHAR(50) NOT NULL, \n\tcreated_at VARCHAR(30) NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(vehicle_record_id) REFERENCES vehicle (id)\n)\n\n",
     "vehicle_checklist_notify_setting": "\nCREATE TABLE vehicle_checklist_notify_setting (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tchecklist_id INTEGER NOT NULL, \n\tvehicle_record_id INTEGER NOT NULL, \n\tnotify_users_json TEXT, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(vehicle_record_id) REFERENCES vehicle (id)\n)\n\n",
     "vehicle_checklist_result": "\nCREATE TABLE vehicle_checklist_result (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tchecklist_id INTEGER NOT NULL, \n\tvehicle_record_id INTEGER NOT NULL, \n\tyear VARCHAR(10), \n\tmonth VARCHAR(10), \n\tday VARCHAR(10), \n\tchecked_by VARCHAR(100), \n\tchecked_by_username VARCHAR(50), \n\tchecked_date VARCHAR(30), \n\tstatus VARCHAR(30), \n\tapproved_by VARCHAR(100), \n\tapproved_by_username VARCHAR(50), \n\tapproved_date VARCHAR(30), \n\treject_reason TEXT, \n\tapprovals_json TEXT, \n\tnotify_users_json TEXT, \n\tanswers_json TEXT, \n\tchecklist_snapshot_json TEXT, \n\toperation_judgment_json TEXT, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(vehicle_record_id) REFERENCES vehicle (id)\n)\n\n",
-    "vehicle_coupling": "\nCREATE TABLE vehicle_coupling (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\ttowing_vehicle_id INTEGER NOT NULL, \n\ttrailer_vehicle_id INTEGER NOT NULL, \n\tkind VARCHAR(20) NOT NULL, \n\tcreated_at VARCHAR(30) NOT NULL, \n\tcreated_by_username VARCHAR(50) NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_vehicle_coupling_pair UNIQUE (company_code, towing_vehicle_id, trailer_vehicle_id), \n\tCONSTRAINT ck_vehicle_coupling_distinct CHECK (towing_vehicle_id <> trailer_vehicle_id), \n\tCONSTRAINT ck_vehicle_coupling_kind CHECK (kind IN ('semi', 'full')), \n\tFOREIGN KEY(towing_vehicle_id) REFERENCES vehicle (id), \n\tFOREIGN KEY(trailer_vehicle_id) REFERENCES vehicle (id)\n)\n\n",
     "vehicle_document_import_draft": "\nCREATE TABLE vehicle_document_import_draft (\n\tid VARCHAR(36) NOT NULL, \n\tbatch_id VARCHAR(36) NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tcreated_by_username VARCHAR(50) NOT NULL, \n\tdocument_type VARCHAR(30) NOT NULL, \n\tsource_filename VARCHAR(255) NOT NULL, \n\tsource_file BYTEA NOT NULL, \n\tsource_sha256 VARCHAR(64) NOT NULL, \n\tpreview_json TEXT NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tresult_json TEXT NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tcompleted_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id)\n)\n\n",
     "vehicle_driving_report_record": "\nCREATE TABLE vehicle_driving_report_record (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tvehicle_record_id INTEGER NOT NULL, \n\toperation_record_id INTEGER, \n\treport_number VARCHAR(100), \n\toperation_date VARCHAR(20) NOT NULL, \n\tmileage NUMERIC(14, 2), \n\tcontent TEXT, \n\tdetails_json TEXT NOT NULL, \n\tsource_draft_id VARCHAR(36) NOT NULL, \n\tsource_record_index INTEGER NOT NULL, \n\tcreated_by_username VARCHAR(50) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_driving_report_source_record UNIQUE (source_draft_id, source_record_index), \n\tFOREIGN KEY(vehicle_record_id) REFERENCES vehicle (id), \n\tFOREIGN KEY(operation_record_id) REFERENCES vehicle_operation_record (id), \n\tFOREIGN KEY(source_draft_id) REFERENCES vehicle_document_import_draft (id)\n)\n\n",
     "vehicle_import_pending": "\nCREATE TABLE vehicle_import_pending (\n\tid VARCHAR(36) NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tmatch_key VARCHAR(255) NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tidentity_json TEXT NOT NULL, \n\tresolved_vehicle_id INTEGER, \n\tresolution_json TEXT NOT NULL, \n\tcreated_by_username VARCHAR(50) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tresolved_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_vehicle_import_pending_match UNIQUE (company_code, match_key), \n\tFOREIGN KEY(resolved_vehicle_id) REFERENCES vehicle (id)\n)\n\n",
@@ -2295,8 +2264,6 @@
     "CREATE INDEX ix_vehicle_analysis_feedback_company_code ON vehicle_analysis_feedback (company_code)",
     "CREATE INDEX ix_vehicle_analysis_feedback_proposal_key ON vehicle_analysis_feedback (proposal_key)",
     "CREATE INDEX ix_vehicle_analysis_feedback_vehicle_record_id ON vehicle_analysis_feedback (vehicle_record_id)",
-    "CREATE INDEX ix_vehicle_coupling_towing ON vehicle_coupling (company_code, towing_vehicle_id)",
-    "CREATE INDEX ix_vehicle_coupling_trailer ON vehicle_coupling (company_code, trailer_vehicle_id)",
     "CREATE INDEX ix_vehicle_document_import_draft_batch_id ON vehicle_document_import_draft (batch_id)",
     "CREATE INDEX ix_vehicle_document_import_draft_company_code ON vehicle_document_import_draft (company_code)",
     "CREATE INDEX ix_vehicle_document_import_draft_created_by_username ON vehicle_document_import_draft (created_by_username)",

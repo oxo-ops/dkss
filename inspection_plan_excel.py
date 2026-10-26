@@ -63,7 +63,8 @@ def build_annual_workbook(data, args):
     write_text(sheet['A2'], ' ／ '.join(filters))
     sheet.merge_cells('A3:N3')
     sheet['A3'] = f'{len(vehicles)}台 ／ 対象{len(rows)}件 ／ 出力日 {data["today"]}'
-    sheet.append(['車両', '営業所', *[str(int(m[5:]))+'月' for m in months]])
+    sheet.append(['車両', '営業所', *[date.fromisoformat(m+'-01') for m in months]])
+    for cell in sheet[4][2:]: cell.number_format = 'm"月"'
     for index, vehicle in enumerate(vehicles, 5):
         write_text(sheet.cell(index,1),vehicle['number'])
         write_text(sheet.cell(index,2),vehicle['office'])
