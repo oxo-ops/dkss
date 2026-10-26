@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}運転日報の詳細{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261026-release-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261026-mobile-1') }}">
 <div class="driving-page">
 <nav class="page-breadcrumb"><a href="{{ report_return_url or url_for('driving_reports') }}">運転実績</a><span>› 日報詳細</span>{% if driving_is_admin %}<a href="{{ url_for('vehicle_karte_history',vehicle_record_id=report.row.vehicle_record_id) }}">車両の履歴</a>{% endif %}</nav>
 <div class="driving-heading"><h2>{{ report.row.operation_date or '日付不明' }} {{ report.plate }}</h2><div class="driving-actions">{% if driving_is_admin %}<a class="btn btn-outline" href="{{ url_for('vehicle_driving_report_source',record_id=report.row.id) }}" target="_blank" rel="noopener">原本を開く</a><a class="btn btn-outline" href="{{ url_for('driving_report_edit',record_id=report.row.id) }}">原本と照合・訂正</a>{% endif %}</div></div>
