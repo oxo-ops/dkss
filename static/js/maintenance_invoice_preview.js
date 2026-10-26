@@ -713,7 +713,7 @@
                 invoice_date: raw("invoice_date"),
                 sales_date: raw("sales_date"),
                 notes: raw("notes"),
-                inspection_type: ({"3month": "3か月点検", "12month": "12か月点検", "ad_hoc": "突発点検", "other": "その他の点検"})[raw("inspection_type")] || "未入力",
+                inspection_type: ({"3month": "3か月点検", "12month": "12か月点検", "ad_hoc": "突発修理", "other": "その他の点検"})[raw("inspection_type")] || "未入力",
                 inspection_company: raw("inspection_company"),
                 inspector_name: raw("inspector_name"),
                 next_inspection_date: raw("next_inspection_date"),

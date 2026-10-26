@@ -11,7 +11,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-KINDS = {'3month': '3か月点検', '12month': '12か月点検', 'ad_hoc': '突発点検'}
+KINDS = {'3month': '3か月点検', '12month': '12か月点検', 'ad_hoc': '突発修理'}
 
 
 def normalize_kind(kind):

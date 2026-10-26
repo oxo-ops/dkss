@@ -10,7 +10,7 @@
 <div class="vi-workspace">
     <aside class="vi-nav" aria-label="点検記録の種類">
         <h3>点検</h3>
-        {% for key,label in [('all','すべての点検'),('daily','日常点検'),('3month','3か月点検'),('12month','12か月点検'),('ad_hoc','突発点検')] %}
+        {% for key,label in [('all','すべての点検'),('daily','日常点検'),('3month','3か月点検'),('12month','12か月点検'),('ad_hoc','突発修理')] %}
         <a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view=key, start_date=inspection_start, end_date=inspection_end) }}" {% if inspection_view == key %}aria-current="page"{% endif %}>{{ label }}</a>
         {% endfor %}
         <a class="vi-plan-link" href="{{ url_for('vehicle_inspection_plans', scope='vehicle', vehicle_id=vehicle.id) }}">年間点検計画 ›</a>
@@ -258,7 +258,7 @@
     <h3>実施済み・書類未受領 <span>{{ manual_inspection_executions|length }}件</span></h3>
     <p class="help-text">点検の実施は登録済みです。後から同じ車両・点検種別・実施日の点検簿を取り込むと関連付けます。</p>
     <div class="table-scroll"><table class="checklist-table responsive-table"><thead><tr><th>実施日</th><th>点検</th><th>実施先</th><th>メモ</th><th>登録者</th></tr></thead><tbody>
-    {% for execution in manual_inspection_executions %}<tr id="manual-execution-{{ execution.id }}"><td data-label="実施日">{{ execution.performed_date }}</td><td data-label="点検">{{ {'3month':'3か月点検','12month':'12か月点検','vehicle_inspection':'12か月点検','ad_hoc':'突発点検'}.get(execution.kind, 'その他の点検') }}</td><td data-label="実施先">{{ execution.factory or '—' }}</td><td data-label="メモ">{{ execution.note or '—' }}</td><td data-label="登録者">{{ execution.created_by }}</td></tr>{% endfor %}
+    {% for execution in manual_inspection_executions %}<tr id="manual-execution-{{ execution.id }}"><td data-label="実施日">{{ execution.performed_date }}</td><td data-label="点検">{{ {'3month':'3か月点検','12month':'12か月点検','vehicle_inspection':'12か月点検','ad_hoc':'突発修理'}.get(execution.kind, 'その他の点検') }}</td><td data-label="実施先">{{ execution.factory or '—' }}</td><td data-label="メモ">{{ execution.note or '—' }}</td><td data-label="登録者">{{ execution.created_by }}</td></tr>{% endfor %}
     </tbody></table></div>
 </section>
 {% endif %}
@@ -307,7 +307,7 @@
                                     "3month": "3か月点検",
                                     "12month": "12か月点検",
                                     "vehicle_inspection": "12か月点検",
-                                    "ad_hoc": "突発点検",
+                                    "ad_hoc": "突発修理",
                                     "other": "その他の点検"
                                 }.get(record.inspection_type, "その他の点検") }}
                             </td>
