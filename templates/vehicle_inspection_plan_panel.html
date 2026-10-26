@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261022-polish-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261026-inspection-types-1') }}">
 <dialog class="inspection-plan-panel" id="inspection-plan-panel" aria-labelledby="inspection-plan-title">
     <div class="ip-heading"><h2 id="inspection-plan-title">点検スケジュール</h2><button type="button" data-plan-close aria-label="閉じる">×</button></div>
     <div class="ip-body">
@@ -16,7 +16,7 @@
                 <label>実施先（任意）<input name="factory" maxlength="200"></label>
                 <div data-periodic-next><label>次回予定月（任意）<input type="month" name="next_month"></label>
                 <small>空欄なら実施月から周期に応じた予定月を算出します。予約日は設定しません。</small></div>
-                <div data-certificate-evidence hidden><label>更新後満了日（判明している場合）<input type="date" name="new_expiry"></label><label>根拠の車検証<select name="document_id"><option value="">未受領・後日追加</option></select></label><label>実施確認の根拠<textarea name="confirmation" maxlength="1000" placeholder="例：整備工場に実施日を確認"></textarea></label><label><input type="checkbox" name="confirmed">車検の実施日を確認した</label></div>
+                <div data-certificate-evidence hidden><label>更新後満了日（判明している場合）<input type="date" name="new_expiry"></label><label>根拠の車検証<select name="document_id"><option value="">未受領・後日追加</option></select></label><label>実施確認の根拠<textarea name="confirmation" maxlength="1000" placeholder="例：整備工場に実施日を確認"></textarea></label><label><input type="checkbox" name="confirmed">車検の実施日を確認した</label><small>車検を実施した場合に入力してください。</small></div>
                 <label>メモ（任意）<textarea name="note" rows="2" maxlength="1000"></textarea></label>
                 <p class="ip-error" data-execution-error role="alert" hidden></p>
                 <div class="ip-footer"><button type="button" class="btn btn-outline" data-execution-back>戻る</button><button type="submit" class="btn btn-outline">実施内容を確認</button></div>
@@ -41,4 +41,4 @@
     <p class="ip-error" data-review-error role="alert" hidden></p>
     <div class="ip-footer"><button type="button" class="btn btn-outline" data-review-close>戻る</button><button type="button" class="btn btn-outline" data-review-save>保存</button></div>
 </dialog>
-<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261022-polish-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261026-inspection-types-1') }}" defer></script>

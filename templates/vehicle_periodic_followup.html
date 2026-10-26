@@ -7,7 +7,7 @@
 <div class="pf-workspace" data-periodic-suggestions="{{ url_for('vehicle_periodic_suggestions', vehicle_record_id=vehicle.id, record_id=record.id) }}" data-can-generate="{{ 'true' if can_generate else 'false' }}">
     <section class="card pf-intro">
         <div class="card-title-row"><h3>点検・整備のAI提案</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view='periodic') }}">点検一覧へ</a></div>
-        <p>{{ record.inspection_date }} · {{ {'3month':'3か月点検','12month':'12か月点検'}.get(record.inspection_type, 'その他の点検') }} · {{ record.inspection_company or '工場記載なし' }}</p>
+        <p>{{ record.inspection_date }} · {{ {'3month':'3か月点検','12month':'12か月点検','vehicle_inspection':'12か月点検','ad_hoc':'突発点検'}.get(record.inspection_type, 'その他の点検') }} · {{ record.inspection_company or '工場記載なし' }}</p>
         <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_inspection_source', record_id=record.id) }}" target="_blank" rel="noopener">原本を開く</a>
     </section>
     <section class="card" aria-labelledby="pf-ai-title">

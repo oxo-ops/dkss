@@ -216,7 +216,7 @@
             </div>
 
             {% set actual_summary = karte_execution_summary | default({}) %}
-            {% for kind, label in [('3month', '3か月'), ('12month', '12か月')] %}
+            {% for kind, label in [('3month', '3か月'), ('12month', '12か月'), ('ad_hoc', '突発')] %}
             {% set actual = actual_summary.get(kind) or {} %}
             {% set plan = (karte_plan_summary|default({})).get(kind) or {} %}
             <div class="vehicle-karte-deadline ip-compact-deadline" data-periodic-summary="{{ kind }}">
