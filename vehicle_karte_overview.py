@@ -196,9 +196,12 @@ def build_overview(g, vehicle):
     actions.sort(key=lambda r: (0 if r.get('priority') == '高' else 1,
                                0 if r['status'] == '再確認待ち' else 1, r['date'], r['key']))
 
-    # Match the cost tab's rolling period: the 12 complete calendar months before this month.
+    # Show this month's saved invoices immediately; keep the cost tab's complete-month average separate.
     details = g['get_vehicle_maintenance_cost_details'](maintenance, today.year)
-    start, end = day(details['average_start']), day(details['average_end_exclusive'])
+    serial = today.year * 12 + today.month - 1 - 11
+    start_year, start_month = divmod(serial, 12)
+    start = date(start_year, start_month + 1, 1)
+    end = today + timedelta(days=1)
     cost_rows = [r for r in maintenance if day(r.entry_date or r.completion_date)
                  and start <= day(r.entry_date or r.completion_date) < end]
     cost = {'total': g['get_vehicle_maintenance_cost_summary'](cost_rows)['total_cost'],

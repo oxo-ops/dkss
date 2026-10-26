@@ -78,20 +78,27 @@ class OverviewTests(unittest.TestCase):
         self.assertIsNone(self.context()['ko_parts'][0]['distance_since'])
         self.assertTrue(self.context()['ko_parts'][0]['needs_review'])
 
-    def test_cost_period_matches_cost_tab_and_keeps_missing_separate(self):
-        m=self.m
-        today=m.datetime.now(m.ZoneInfo('Asia/Tokyo')).date()
-        start=today.replace(day=1).replace(year=today.year-1)
-        for stamp,amount in [(str(start),100),(str(today),900),(str(start),None),('',500)]:
+    def test_cost_period_includes_current_month_and_excludes_future_and_old_records(self):
+        m = self.m
+        today = m.datetime.now(m.ZoneInfo('Asia/Tokyo')).date()
+        serial = today.year * 12 + today.month - 1 - 11
+        year, month = divmod(serial, 12)
+        start = date(year, month + 1, 1)
+        for stamp, amount in [(str(start), 100), (str(today), 163900),
+                              (str(today), None), ('', 500),
+                              (str(start-timedelta(days=1)), 700),
+                              (str(today+timedelta(days=1)), 800)]:
             m.db.session.add(m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
                 entry_date=stamp, total_cost=amount))
         m.db.session.commit()
-        cost=self.context()['ko_cost']
-        self.assertEqual(cost['total'],Decimal('100'))
-        self.assertEqual((cost['count'],cost['missing'],cost['undated']),(2,1,1))
-        with m.app.test_request_context('/'):
-            detailed=m.get_vehicle_maintenance_cost_details(m.VehicleMaintenanceRecord.query.all(),today.year)
-        self.assertEqual(cost['total'],detailed['rolling_average']*12)
+        cost = self.context()['ko_cost']
+        self.assertEqual(cost['total'], Decimal('164000'))
+        self.assertEqual((cost['count'], cost['missing'], cost['undated']), (3, 1, 1))
+        self.assertEqual((cost['start'], cost['end']), (str(start), str(today)))
+        self.assertEqual(len(cost['months']), 12)
+        self.assertEqual(cost['months'][-1]['key'], today.strftime('%Y-%m'))
+        self.assertEqual(cost['months'][-1]['total'], Decimal('163900'))
+        self.assertEqual(cost['selected_month'], today.strftime('%Y-%m'))
 
     def test_files_are_limited_business_rows_and_registration_date_is_labelled(self):
         m=self.m
