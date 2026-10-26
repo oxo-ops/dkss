@@ -55,6 +55,7 @@ def register_integrations(app):
         'VehicleDrivingReportRecord': models.VehicleDrivingReportRecord,
         'VehicleOperationRecord': models.VehicleOperationRecord,
         'Vehicle': models.Vehicle,
+        'VehicleMaintenanceRecord': models.VehicleMaintenanceRecord,
         'VehicleDocumentImportDraft': models.VehicleDocumentImportDraft,
         'User': models.User,
         'Notification': models.Notification,
