@@ -4,7 +4,7 @@
 {% block title %}車両登録{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261021-shared-controls-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
 {% include 'ocr_searchable_select_assets.html' %}
 
 
@@ -390,7 +390,7 @@
             <button type="button" class="invoice-splitter" role="separator"
                     aria-label="原本と確認内容の幅を調整。左右キーで調整、Homeで初期幅に戻す"
                     aria-orientation="vertical" aria-valuemin="20"
-                    aria-valuemax="80" aria-valuenow="55"
+                    aria-valuemax="80" aria-valuenow="42"
                     title="ドラッグで幅を調整・ダブルクリックで初期幅に戻す"></button>
 
             <div class="invoice-records">
@@ -489,7 +489,7 @@
     </section>
 </div>
 
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261021-shared-controls-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_certificate_register.js', v='20261025-ocr-search-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261026-portrait-review-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_certificate_register.js', v='20261026-portrait-review-1') }}" defer></script>
 
 {% endblock %}

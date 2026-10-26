@@ -20,6 +20,7 @@ export class InvoicePdfViewer {
         this.current = 1;
         this.scale = 1;
         this.fit = true;
+        this.fitMode = root.dataset.defaultFit === "page" ? "page" : "width";
         this.generation = 0;
         this.running = 0;
         this.queue = [];
@@ -119,6 +120,9 @@ export class InvoicePdfViewer {
         this.root.querySelector("[data-pdf-fit]").addEventListener(
             "click", () => this.fitWidth()
         );
+        this.root.querySelector("[data-pdf-fit-page]")?.addEventListener(
+            "click", () => this.fitPage()
+        );
 
         this.pageInput.addEventListener(
             "change", () => this.go(Number(this.pageInput.value))
@@ -184,7 +188,7 @@ export class InvoicePdfViewer {
             clearTimeout(this.resizeTimer);
             this.resizeTimer = setTimeout(() => {
                 if (this.fit && this.pages.length && this.scroll.clientWidth) {
-                    this.fitWidth();
+                    this.fitView();
                 }
             }, 120);
         });
@@ -194,7 +198,7 @@ export class InvoicePdfViewer {
         if (disclosure) {
             disclosure.addEventListener("toggle", () => {
                 if (disclosure.open && this.fit) {
-                    requestAnimationFrame(() => this.fitWidth());
+                    requestAnimationFrame(() => this.fitView());
                 }
             });
         }
@@ -287,7 +291,7 @@ export class InvoicePdfViewer {
 
             this.status.textContent =
                 "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小";
-            this.fitWidth();
+            this.fitView();
             this.go(this.pending);
         } catch (error) {
             if (this.destroyed) return;
@@ -340,6 +344,7 @@ export class InvoicePdfViewer {
         this.viewStates.set(this.activeKey, {
             scale: this.scale,
             fit: this.fit,
+            fitMode: this.fitMode,
             page: anchor.number,
             x: (this.scroll.scrollLeft - left)
                 / (anchor.element.offsetWidth || 1),
@@ -354,9 +359,10 @@ export class InvoicePdfViewer {
             Math.min(this.pages.length, state.page)
         );
         this.fit = state.fit;
+        this.fitMode = state.fitMode || "width";
 
         if (state.fit) {
-            this.fitWidth();
+            this.fitView();
         } else {
             this.resize(state.scale);
         }
@@ -401,7 +407,7 @@ export class InvoicePdfViewer {
             if (saved) {
                 this.restoreView(saved);
             } else {
-                this.fitWidth();
+                this.fitView();
                 this.go(page);
             }
             return;
@@ -415,12 +421,24 @@ export class InvoicePdfViewer {
     }
 
     fitWidth() {
+        this.fitMode = "width";
+        this.fitView();
+    }
+
+    fitPage() {
+        this.fitMode = "page";
+        this.fitView();
+        this.go(this.current);
+    }
+
+    fitView() {
         if (!this.pages.length || this.scroll.clientWidth < 40) return;
         this.fit = true;
-        this.resize(
-            (this.scroll.clientWidth - 28)
-            / Math.max(...this.pages.map(entry => entry.viewport.width))
-        );
+        const widthScale = (this.scroll.clientWidth - 28)
+            / Math.max(...this.pages.map(entry => entry.viewport.width));
+        const page = this.pages[this.current - 1] || this.pages[0];
+        const heightScale = Math.max(1, this.scroll.clientHeight - 24) / page.viewport.height;
+        this.resize(this.fitMode === "page" ? Math.min(widthScale, heightScale) : widthScale);
     }
 
     zoom(scale, point = null) {
@@ -508,6 +526,8 @@ export class InvoicePdfViewer {
         number = Math.max(1, Math.min(this.pages.length, number));
         this.current = number;
         this.pageInput.value = String(number);
+
+        if (this.fit && this.fitMode === "page") this.fitView();
 
         const target = this.pages[number - 1];
         this.scroll.scrollTop =
