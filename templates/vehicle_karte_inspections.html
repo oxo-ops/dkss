@@ -346,6 +346,9 @@
                                     原本を開く
                                 </a>
                                 <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_followup', vehicle_record_id=vehicle.id, record_id=record.id) }}">AI提案</a>
+                                {% for invoice in periodic_invoices.get(record.id, []) %}
+                                <a class="btn btn-outline" href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=invoice.id) }}">請求・整備内容を確認</a>
+                                {% endfor %}
                             </td>
                         </tr>
                         <tr class="vehicle-periodic-detail-row">

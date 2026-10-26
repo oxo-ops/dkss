@@ -30,6 +30,10 @@
         </div>
     </header>
 
+    {% if invoice_inspection %}
+    <p><a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view=invoice_inspection.inspection_type, _anchor='periodic-record-' ~ invoice_inspection.id) }}">関連する点検記録（{{ invoice_inspection.inspection_date }}）を確認</a></p>
+    {% endif %}
+
     <div class="km-detail-heading">
         <span
             class="km-category"

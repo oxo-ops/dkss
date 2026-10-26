@@ -63,7 +63,7 @@
          data-candidates-url="{{ url_for('vehicle_invoice_import_candidates', batch_id=batch_id, draft_id=document.id, record_index=record_index) }}" hidden>
     <p data-service-match-message role="status"></p>
     <label for="service_match_{{ row_key }}">この請求書の整備</label>
-    {% call searchable_select('この請求書の整備', '日付・整備内容で検索', 'service_match_' ~ row_key, 'service_match_' ~ row_key, saved_choice=record.get('service_match') or '') %}
+    {% call searchable_select('この請求書の整備', 'クリックして対応する記録を選択', 'service_match_' ~ row_key, 'service_match_' ~ row_key, saved_choice=record.get('service_match') or '', show_all=true) %}
         <option value="">確認してください</option>
     {% endcall %}
 </section>

@@ -90,6 +90,18 @@ def apply_invoice_import_choice(draft, record_index, values):
     ).with_for_update().populate_existing().first()
     if target is None or selected["token"].rsplit(":", 1)[1] != _dkss_vehicle_karte.vehicle_maintenance_record_version(target):
         raise _dkss_common.UploadValidationError("整備候補が更新されています。再確認してください。")
+    if selected["kind"] == "inspection":
+        # Periodic inspections have no financial ledger or replacement rows.
+        # Save the confirmed invoice in the maintenance ledger, retaining the
+        # explicitly selected inspection as provenance. Never infer this by date.
+        details = _dkss_serialization.safe_json_dict(invoice.invoice_details_json)
+        details["periodic_inspection_id"] = target.id
+        invoice.invoice_details_json = _dkss_common.json.dumps(details, ensure_ascii=False)
+        _dkss_common.db.session.add(invoice)
+        _dkss_common.db.session.flush()
+        _dkss_maintenance.add_vehicle_maintenance_record_event(invoice, action="imported")
+        _dkss_vehicle_karte.save_vehicle_maintenance_replacement_parts(invoice)
+        return invoice.id, None
     if selected["kind"] == "maintenance" and invoice_import_target_is_empty(target):
         target = _dkss_vehicle_pending.merge_vehicle_pending_invoice_record(target.id, invoice)
         _dkss_maintenance.add_vehicle_maintenance_record_event(target, action="imported")

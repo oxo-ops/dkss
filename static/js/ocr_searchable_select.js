@@ -53,7 +53,7 @@
         function show() {
             if (select.disabled || composing) return;
             const query = input.value.trim();
-            if (!query) { close(); return; }
+            if (!query && select.dataset.showAllOnFocus !== '1') { close(); return; }
             if (activeControl && activeControl !== controller) activeControl.close();
             activeControl = controller;
             const tokens = searchTerms(query);
@@ -97,6 +97,7 @@
         const controller = {close,sync,validate,wrapper,panel,position}; controllers.set(select,controller);
         input.addEventListener('input',event => { const message = input.value.trim() ? '候補から選択して確定してください。' : ''; input.setCustomValidity(message); select.setCustomValidity(message); if (!composing && !event.isComposing) show(); });
         input.addEventListener('focus',show); input.addEventListener('compositionstart',() => { composing = true; });
+        input.addEventListener('click',() => { if (select.dataset.showAllOnFocus === '1') show(); });
         input.addEventListener('compositionend',() => { composing = false; show(); });
         input.addEventListener('keydown',event => {
             if (event.isComposing || composing || event.keyCode === 229) return;
