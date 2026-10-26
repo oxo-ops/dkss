@@ -146,6 +146,17 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                     'kind': record.inspection_type, 'period_key': record_next(record), 'planned_month': record_next(record),
                     'reservation_date': None, 'document_date': record.next_inspection_date or None, 'factory': '', 'note': '', 'source': 'document' if record.id > 0 else 'calculated', 'source_record_id': record.id if record.id > 0 else None,
                     'completed_record_id': None, 'status': 'planned'}
+        if '12month' not in result:
+            vehicle = Vehicle.query.filter_by(company_code=code, id=vehicle_id, deleted=False).first()
+            expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
+            if expiry and not any(normalize_kind(p.kind) == '12month' and p.status == 'completed'
+                    and expiry.isoformat()[:7] in (p.period_key, p.planned_month) for p in saved):
+                mon = expiry.isoformat()[:7]
+                result['12month'] = {'id': None, 'version': 0, 'vehicle_record_id': vehicle_id,
+                    'kind': '12month', 'period_key': mon, 'planned_month': mon,
+                    'reservation_date': None, 'document_date': None, 'expiry_date': expiry.isoformat(),
+                    'factory': '', 'note': '', 'source': 'expiry', 'source_record_id': None,
+                    'completed_record_id': None, 'status': 'candidate', 'display_state': 'candidate'}
         return result
 
     def sync_record(record):
@@ -339,11 +350,11 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 if expiry_baseline:
                     baseline = v.inspection_expiry[:7]
                     if baseline and baseline < start:
-                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '車検満了日が対象年度より前です。更新内容を確認してください。'})
+                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '12か月点検期限が対象年度より前です。更新内容を確認してください。'})
                         continue
                 if not baseline:
                     if not own:
-                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '基準となる点検実績・次回記載なし' if not expiry_baseline else '車検満了日未登録'})
+                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '基準となる点検実績・次回記載なし' if not expiry_baseline else '12か月点検期限未登録'})
                     continue
                 step = 3 if kind == '3month' else 12
                 cursor = date.fromisoformat(baseline + '-01')
@@ -551,7 +562,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def certificate_evidence(v, payload, performed):
         confirmation = str(payload.get('confirmation') or '').strip()
         if payload.get('confirmed') is not True or not confirmation or len(confirmation) > 1000:
-            abort(400, '車検の実施日を確認した根拠を入力し、確認済みにしてください。')
+            abort(400, '12か月点検の実施日を確認した根拠を入力し、確認済みにしてください。')
         expiry = payload.get('new_expiry') or None
         if expiry and (not iso_date(expiry) or expiry <= performed.isoformat()):
             abort(400, '更新後満了日を確認してください。実施日より後の日付を入力してください。')
