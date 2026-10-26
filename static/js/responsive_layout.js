@@ -29,7 +29,7 @@
         if (previousDrawer !== drawer.matches) {
             body.classList.remove('sidebar-open');
             if (drawer.matches) body.classList.remove('sidebar-collapsed');
-            else if (previousDrawer !== null) body.classList.toggle('sidebar-collapsed', localStorage.getItem('sidebarCollapsed') === '1');
+            else if (previousDrawer !== null) body.classList.toggle('sidebar-collapsed', window.DkssShell.readPreference('sidebarCollapsed') === '1');
             previousDrawer = drawer.matches;
         }
         const toggle = document.querySelector('#sidebarToggle');
@@ -50,7 +50,7 @@
         if (!frame) frame = requestAnimationFrame(update);
     }
     function initialize() {
-        schedule();
+        update();
         window.addEventListener('resize', schedule);
         window.addEventListener('orientationchange', schedule);
         window.addEventListener('pageshow', schedule);
@@ -68,6 +68,6 @@
         if (certificate) new MutationObserver(schedule).observe(certificate, { attributes: true, attributeFilter: ['hidden'] });
         document.fonts?.ready.then(schedule);
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, {once:true});
-    else initialize();
+    // Loaded at the end of body: measure before waiting for deferred page scripts.
+    initialize();
 })();

@@ -7,9 +7,9 @@ function toggleSidebar() {
     document.body.classList.toggle("sidebar-collapsed");
 
     if (document.body.classList.contains("sidebar-collapsed")) {
-        localStorage.setItem("sidebarCollapsed", "1");
+        window.DkssShell.writePreference("sidebarCollapsed", "1");
     } else {
-        localStorage.setItem("sidebarCollapsed", "0");
+        window.DkssShell.writePreference("sidebarCollapsed", "0");
     }
 }
 
@@ -19,13 +19,13 @@ function toggleMenu(button) {
 
     if (document.body.classList.contains("sidebar-collapsed")) {
         document.body.classList.remove("sidebar-collapsed");
-        localStorage.setItem("sidebarCollapsed", "0");
+        window.DkssShell.writePreference("sidebarCollapsed", "0");
     }
 
     group.classList.toggle("open");
 
     if (key) {
-        localStorage.setItem(
+        window.DkssShell.writePreference(
             "menuOpen_" + key,
             group.classList.contains("open") ? "1" : "0"
         );
@@ -33,42 +33,6 @@ function toggleMenu(button) {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
-    const currentPath = window.location.pathname;
-
-    if (window.innerWidth <= 900) {
-        document.body.classList.remove("sidebar-collapsed");
-    }
-
-    const isSafetyInputPage =
-        /^\/safety\/checklists\/\d+\/new\/?$/.test(currentPath);
-
-    const isSafetyResultListPage =
-        /^\/safety\/checklists\/\d+\/?$/.test(currentPath);
-
-    const isVehicleInputPage =
-        /^\/vehicle\/checklists\/\d+\/?$/.test(currentPath);
-
-    const isDocumentImportPreviewPage =
-        /^\/vehicle\/data-import\/[^/]+\/preview\/?$/.test(currentPath);
-
-    if (
-        (isSafetyInputPage || isVehicleInputPage || isDocumentImportPreviewPage) &&
-        window.innerWidth > 900
-    ) {
-        document.body.classList.add("sidebar-collapsed");
-
-    } else if (
-        isSafetyResultListPage &&
-        window.innerWidth > 900
-    ) {
-        document.body.classList.remove("sidebar-collapsed");
-
-    } else if (
-        localStorage.getItem("sidebarCollapsed") === "1" && window.innerWidth > 900
-    ) {
-        document.body.classList.add("sidebar-collapsed");
-    }
-
     document.querySelectorAll(".sidebar-group").forEach(function(group) {
         const key = group.dataset.menuKey;
 
@@ -76,7 +40,7 @@ window.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        const saved = localStorage.getItem("menuOpen_" + key);
+        const saved = window.DkssShell.readPreference("menuOpen_" + key);
 
         if (saved === "1") {
             group.classList.add("open");

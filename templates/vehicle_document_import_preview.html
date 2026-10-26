@@ -2,8 +2,11 @@
 <!-- certificate-invoice-controls-v1 -->
 {% extends "base.html" %}
 {% block title %}資料の取込確認{% endblock %}
-{% block content %}
+{% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
+{% endblock %}
+
+{% block content %}
 {% include 'ocr_searchable_select_assets.html' %}
 <div class="invoice-review-page">
 <nav class="page-breadcrumb" aria-label="パンくずリスト">

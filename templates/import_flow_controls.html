@@ -1,5 +1,4 @@
 {% if import_flow %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
 <div id="importFlow" data-cancel-url="{{ import_flow.cancel_url }}" data-back-url="{{ import_flow.back_url }}" data-entry="{{ '1' if import_flow.entry else '0' }}">
     <div class="form-actions" data-import-flow-toolbar {% if not import_flow.show_cancel %}hidden{% endif %}>
         <button type="button" class="btn btn-outline" data-import-flow-cancel>{{ 'キャンセル' if import_flow.entry else 'キャンセルして取込画面へ戻る' }}</button>
