@@ -322,7 +322,10 @@
         if(view!=='calendar')return;
         const grid=planner.querySelector('.ip-cal-grid');if(!grid)return;
         const mobile=window.matchMedia('(max-width:700px)').matches;
-        grid.style.height=mobile?'auto':Math.max(150,remainingHeight(grid)-footerHeight()-32-extraHeight())+'px';
+        const available=remainingHeight(grid)-footerHeight()-32-extraHeight();
+        const flow=mobile||available<300;
+        grid.dataset.flowLayout=String(flow&&!mobile);
+        grid.style.height=flow?'auto':available+'px';
         for(const cell of grid.querySelectorAll('[data-date]')) {
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();
             const head=cell.querySelector('.ip-cal-day-head');
@@ -335,8 +338,10 @@
     // Use the app's scrolling viewport, including the space below the grid.
     function remainingHeight(element) {
         const main=planner.closest('.main-content');
-        const bottom=Math.min(window.innerHeight,main?main.getBoundingClientRect().top+main.clientHeight:window.innerHeight);
-        return bottom-element.getBoundingClientRect().top-window.scrollY-(main?.scrollTop||0);
+        const viewport=window.DkssViewport?.height() ?? Math.min(window.innerHeight,window.visualViewport?.height||window.innerHeight);
+        const bottom=Math.min(viewport,main?main.getBoundingClientRect().bottom:viewport);
+        // getBoundingClientRect() already includes document and container scrolling.
+        return Math.max(0,bottom-Math.max(0,element.getBoundingClientRect().top));
     }
     function footerHeight() {
         return Math.max(...[...planner.querySelectorAll(':scope > details')].map(d=>d.querySelector('summary').offsetHeight),0)+12;
@@ -348,11 +353,14 @@
     function fitTable() {
         const scroll=planner.querySelector('.ip-grid-scroll');
         if(view==='calendar'||window.matchMedia('(max-width:700px)').matches){scroll.style.maxHeight='';return;}
-        scroll.style.maxHeight=Math.max(100,remainingHeight(scroll)-footerHeight()-32-extraHeight())+'px';
+        const available=remainingHeight(scroll)-footerHeight()-32-extraHeight();
+        scroll.style.maxHeight=available<240?'':available+'px';
     }
     function fitLayout(){fitTable();fitCalendar();}
     let fitFrame;
-    window.addEventListener('resize',()=>{cancelAnimationFrame(fitFrame);fitFrame=requestAnimationFrame(fitLayout);});
+    const scheduleFit=()=>{cancelAnimationFrame(fitFrame);fitFrame=requestAnimationFrame(fitLayout);};
+    window.addEventListener('resize',scheduleFit);
+    window.visualViewport?.addEventListener('resize',scheduleFit);
     // Recalculate when filters wrap or the sidebar changes the available width.
     const calendarResize=new ResizeObserver(()=>{cancelAnimationFrame(fitFrame);fitFrame=requestAnimationFrame(fitLayout);});
     calendarResize.observe(filters);

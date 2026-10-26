@@ -32,6 +32,8 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check durable import browser controller
         run: node --test tests/document_import_queue_js.cjs
+      - name: Check shared responsive viewport behavior
+        run: node tests/responsive_layout_js.cjs
       - name: Inspect architecture without starting the app
         run: python tools/architecture_inventory.py > architecture-inventory.json
       - name: Save inventory

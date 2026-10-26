@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header"><h2>安全管理チェックリスト</h2></div>
 {% if checklists %}
-<table class="checklist-list-mobile-table safety-checklist-list-table">
+<div class="table-scroll responsive-table-viewport"><table class="checklist-list-mobile-table safety-checklist-list-table">
     <tr>
         <th>チェックリスト名</th>
         <th>項目数</th>
@@ -22,7 +22,7 @@
         </td>
     </tr>
     {% endfor %}
-</table>
+</table></div>
 {% else %}
 <div class="checklist-entry-empty">
     <p>利用できるチェックリストがありません。</p>
