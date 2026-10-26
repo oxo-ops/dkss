@@ -5,7 +5,7 @@
 @media(max-width:650px){.driving-insights .driving-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.driving-overview{gap:8px}.driving-overview>div{padding:10px}.driving-overview strong{font-size:1.25rem}.driving-metric-form{width:100%;flex-wrap:wrap}.driving-metric-form label{flex:1;min-width:160px}.driving-metric-form select{width:100%;max-width:100%}.driving-review-grid{grid-template-columns:1fr}.driving-insights .card{padding:12px}.driving-insights td,.driving-insights th{padding:9px 7px}.driving-conditions dl{grid-template-columns:1fr}.driving-period-caption{gap:5px}}
 
 .driving-filter-actions{display:flex;gap:12px;align-items:center}.driving-filter-actions button{flex:1}.driving-insights a:not(.btn){color:#235a86;text-decoration:none}.driving-insights a:not(.btn):hover{text-decoration:underline}.driving-insights :is(#report-list,#driver-trend,.driving-vehicle-history) td:first-child{white-space:nowrap}
-@media(max-width:650px){.driving-driver-table{min-width:670px}.driving-driver-table th:first-child,.driving-driver-table td:first-child{position:sticky;left:0;z-index:1;background:#fff;min-width:120px;max-width:160px}.driving-driver-table th:first-child{background:#f0f6fb}.driving-driver-table .driving-selected td:first-child{background:#f0f7fd}}
+
 
 .driving-review-notes>summary{cursor:pointer;font-weight:700;color:#5c4b28;list-style-position:inside}
 .driving-review-note{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid #e4e9f1}
@@ -27,6 +27,49 @@
 .driving-release.driving-own .driving-main-filters{grid-template-columns:160px 170px;justify-content:start}.driving-release.driving-own .driving-filter-actions{grid-column:auto}.driving-release .driving-main-filters .driving-filter-actions{align-self:center;margin-top:20px}.driving-release .driving-main-filters .driving-filter-actions button{margin:0}
 @media(max-width:1000px){.driving-release .driving-main-filters .driving-filter-actions{margin-top:0}.driving-release.driving-own .driving-main-filters .driving-filter-actions{margin-top:20px}}
 @media(max-width:650px){.driving-release.driving-own .driving-main-filters{grid-template-columns:1fr 1fr}.driving-release.driving-own .driving-main-filters .driving-filter-actions{margin-top:20px}}
+
+ .driving-release .driving-section-heading p{font-size:.78rem;line-height:1.5}
+ .driving-release .driving-review-notes>summary{font-size:.82rem}
+ .driving-release .driving-table-wrap:has(>.driving-mobile-cards){overflow:visible;border-radius:0;max-height:none;height:auto}
+ .driving-release table.driving-mobile-cards{display:block;position:relative;min-width:0;width:100%;max-width:100%;border-radius:0;box-shadow:none;overflow:visible;background:transparent}
+ .driving-mobile-cards>thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap;border:0}
+ .driving-mobile-cards>tbody{display:grid;gap:12px;width:100%}
+ .driving-mobile-cards>tbody>tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;min-width:0;border:1px solid #dce6f0;border-radius:8px;background:white;overflow:hidden}
+ .driving-release .driving-mobile-cards>tbody>tr>td{display:block;position:static;min-width:0;max-width:none;width:auto;box-sizing:border-box;padding:9px 10px;border:0;white-space:normal;overflow-wrap:anywhere;line-height:1.5;font-size:.86rem;background:transparent}
+ .driving-release .driving-mobile-cards>tbody>tr>td[data-label]::before{content:attr(data-label);display:block;color:#58718b;font-size:.74rem;font-weight:400;margin-bottom:4px;line-height:1.4}
+ .driving-release .driving-mobile-cards>tbody>tr>td small{font-size:.72rem;line-height:1.5;margin-top:3px}
+ .driving-release .driving-mobile-cards .driving-driver-identity,.driving-release .driving-mobile-cards .driving-report-identity{grid-column:1/-1;background:#f1f6fb;border-bottom:1px solid #e3ebf3}
+ .driving-release .driving-mobile-cards .driving-driver-identity strong,.driving-release .driving-mobile-cards .driving-report-identity strong{font-size:.94rem;line-height:1.5}
+ .driving-release .driving-mobile-cards .driving-driver-identity small br{display:none}
+ .driving-release .driving-mobile-cards .driving-driver-identity small{display:inline;margin-right:8px}
+ .driving-release .driving-mobile-cards .driving-driver-vehicles{grid-column:1/-1;border-bottom:1px solid #e3ebf3}
+ .driving-release .driving-mobile-cards .driving-value{font-size:1.05rem}
+ .driving-release .driving-mobile-cards .driving-selected{border-color:#b9d2eb}
+ .driving-release .driving-driver-table .driving-card-actions{grid-column:1/-1;border-top:1px solid #e3ebf3}
+ .driving-release .driving-mobile-cards .driving-card-actions a{min-height:40px;display:flex;align-items:center;justify-content:center;padding:7px 9px;box-sizing:border-box;font-size:.8rem}
+ .driving-report-table .driving-report-identity{grid-row:1}
+ .driving-release .driving-mobile-cards td[colspan]{grid-column:1/-1}
+ .driving-release .driving-mobile-cards.driving-record-table td:last-child{grid-column:1/-1}
+ .driving-release .driving-mobile-cards.driving-record-table td:last-child a{display:inline-flex;align-items:center;min-height:36px;margin-right:10px}
+ .driving-release .driving-record-table tr+tr{margin:0}
+
+ .driving-release :is(#report-list,#driver-trend) .driving-mobile-cards td:first-child,.driving-release #driver-trend .driving-mobile-cards td:nth-child(4){white-space:normal}
+
+ .driving-release .driving-main-filters label:nth-child(3){grid-column:auto}
+ .driving-release .driving-main-filters .driving-filter-actions{grid-column:auto;align-self:end;gap:4px}
+ .driving-release .driving-main-filters .driving-filter-actions :is(a,button){padding-inline:8px}
+ .driving-release .driving-overview strong{font-size:clamp(1rem,4.4vw,1.15rem);white-space:normal}
+ .driving-summary-distance-long,.driving-overview-distance strong small{display:none}
+ .driving-summary-distance-short{display:inline}
+
+ .driving-page:not(.driving-release)>.page-breadcrumb{padding-top:0;margin:4px 0 10px}
+ .driving-page:not(.driving-release)>.page-breadcrumb>a:first-child{display:inline-flex;align-items:center;min-height:40px;padding:0 8px;font-size:.85rem}
+ .driving-release .driving-mobile-cards.driving-report-table td[data-label="確認・対応"]{grid-column:1/-1;display:flex;align-items:center;gap:8px}
+ .driving-release .driving-mobile-cards.driving-report-table td[data-label="確認・対応"]::before{display:inline;margin:0}
+ .driving-release .driving-report-table .driving-card-actions:last-child:nth-child(5){grid-column:1/-1}
+ .driving-release.driving-own .driving-main-filters .driving-filter-actions{margin:0;align-self:end}
+}
+@media screen and (max-width:359px){.driving-release .driving-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Office workspace: compact controls, readable summaries and one drill-down path. */
 .driving-workspace .driving-heading{align-items:center;margin-bottom:14px;gap:12px}

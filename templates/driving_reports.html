@@ -5,6 +5,13 @@
 {% endmacro %}
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
 {% block content %}
+{% extends 'base.html' %}
+{% macro metric_value(entry) %}
+<strong>{{ entry.current.display }}{% if entry.metric.method!='raw' %}<small>{{ entry.metric.unit }}</small>{% endif %}</strong>
+{% if entry.change is not none %}<small>前期間 {{ entry.previous.display }} ／ 差 {{ entry.change }} {{ entry.metric.unit }}</small>{% else %}<small>{{ '原本値' if entry.metric.method=='raw' else '前期間の比較記録なし' }}</small>{% endif %}
+{% endmacro %}
+{% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
+{% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261026-office-ai-1') }}">
 <div class="driving-page driving-insights driving-release driving-workspace{{ ' driving-own' if not driving_is_admin else '' }}">
 <nav class="page-breadcrumb"><a href="{{ url_for('dashboard') }}">ホーム</a><span>› 安全管理 › 運転実績</span></nav>
@@ -27,4 +34,5 @@
 {% if insights.review_notes %}<details class="card driving-review-notes" id="comparison-review"><summary>データの確認事項 {{ insights.review_notes|length }}件</summary>{% for note in insights.review_notes %}<div class="driving-review-note"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline driving-small-button" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-review'))) }}">日報を確認</a></div>{% endfor %}</details>{% endif %}
 {% include 'driving_workspace_reports.html' %}
 {% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261026-office-ai-1') }}" defer></script>
+{% endblock %}
 {% endblock %}
