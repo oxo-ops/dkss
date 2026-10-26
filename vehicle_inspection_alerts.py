@@ -11,7 +11,7 @@ import click
 from flask import request, session
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from vehicle_inspection_plans import KINDS, add_months, iso_date, month
+from vehicle_inspection_plans import KINDS, normalize_kind, kind_values, add_months, iso_date, month
 
 
 def local_today():
@@ -95,14 +95,18 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         def match(day):
             return bool(iso_date(day) and day <= today.isoformat() and
                         (day == plan.reservation_date if plan.reservation_date else day[:7] == plan.planned_month))
-        actuals = Record.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id, inspection_type=plan.kind).all()
+        if normalize_kind(plan.kind) == 'ad_hoc':
+            # Several one-off inspections may share a month; only an explicit link completes one.
+            return Execution.query.filter_by(company_code=plan.company_code,
+                vehicle_record_id=plan.vehicle_record_id, plan_id=plan.id).first() is not None
+        actuals = Record.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Record.inspection_type.in_(kind_values(plan.kind))).all()
         if any(match(r.inspection_date) for r in actuals):
             return True
-        return any(match(e.performed_date) for e in Execution.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id, kind=plan.kind).all())
+        return any(match(e.performed_date) for e in Execution.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Execution.kind.in_(kind_values(plan.kind))).all())
 
     def certificate_updated(plan, vehicle):
         expiry = iso_date(vehicle.inspection_expiry)
-        return bool(plan.kind == 'vehicle_inspection' and expiry and month(plan.period_key) and expiry.isoformat()[:7] > plan.period_key)
+        return bool(normalize_kind(plan.kind) == '12month' and expiry and month(plan.period_key) and expiry.isoformat()[:7] > plan.period_key)
 
     def current_delivery(delivery, today):
         if delivery.ended_status:
@@ -125,7 +129,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
 
     def expiry_is_planned(vehicle, expiry):
         return Plan.query.filter(Plan.company_code == vehicle.company_code,
-            Plan.vehicle_record_id == vehicle.id, Plan.kind == 'vehicle_inspection',
+            Plan.vehicle_record_id == vehicle.id, Plan.kind.in_(kind_values('12month')),
             Plan.status.in_(['planned', 'completed']),
             db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).first() is not None
 
@@ -232,7 +236,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 vehicle = vehicles.get(plan.vehicle_record_id)
                 if not vehicle or certificate_updated(plan, vehicle) or has_actual(plan, today):
                     continue
-                if plan.kind not in KINDS or not month(plan.planned_month) or (plan.reservation_date and (not iso_date(plan.reservation_date) or plan.reservation_date[:7] != plan.planned_month)):
+                if normalize_kind(plan.kind) not in KINDS or not month(plan.planned_month) or (plan.reservation_date and (not iso_date(plan.reservation_date) or plan.reservation_date[:7] != plan.planned_month)):
                     report['invalid'] += 1
                     continue
                 year = int(plan.planned_month[:4]) - (1 if int(plan.planned_month[5:]) < 4 else 0)
@@ -261,7 +265,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     lines = [office + 'の点検予定を確認してください。']
                     for p, v, _, _, _, _, label in batch:
                         plate = ' '.join(str(x) for x in (v.plate_area, v.plate_class, v.plate_kana, v.plate_number) if x) or v.chassis_number or f'車両#{v.id}'
-                        lines.append(f'・{plate} / {KINDS[p.kind]} / {label} / 予定月 {p.planned_month}' + (f' / 予約日 {p.reservation_date}' if p.reservation_date else ' / 予約日未定'))
+                        lines.append(f'・{plate} / {KINDS[normalize_kind(p.kind)]} / {label} / 予定月 {p.planned_month}' + (f' / 予約日 {p.reservation_date}' if p.reservation_date else ' / 予約日未定'))
                     lines.append('実施済みの場合は点検計画から実施日を登録してください。書類未受領でも登録できます。')
                     link = plan_link(office, [planned_month])
                     user = batch[0][2]

@@ -260,9 +260,9 @@ def build_overview(g, vehicle):
             if document['document_type'] == 'inspection':
                 record = next((r for r in periodic if str(r.id) == str(rid)), None)
                 if record:
-                    doc.update(related_url=url_for('vehicle_karte_inspections', vehicle_record_id=vid, inspection_view={'3month': '3month', '12month': '12month', 'vehicle_inspection': 'certificate'}.get(record.inspection_type, 'all'), start_date=record.inspection_date, end_date=record.inspection_date) + f'#periodic-record-{record.id}',
+                    doc.update(related_url=url_for('vehicle_karte_inspections', vehicle_record_id=vid, inspection_view={'3month': '3month', '12month': '12month', 'vehicle_inspection': '12month', 'ad_hoc': 'ad_hoc'}.get(record.inspection_type, 'all'), start_date=record.inspection_date, end_date=record.inspection_date) + f'#periodic-record-{record.id}',
                                related_label=record.content or '点検記録', business_date=record.inspection_date, date_kind='実施日',
-                               kind_label={'3month': '3か月点検', '12month': '12か月点検'}.get(record.inspection_type, '定期点検'))
+                               kind_label={'3month': '3か月点検', '12month': '12か月点検', 'vehicle_inspection': '12か月点検', 'ad_hoc': '突発点検'}.get(record.inspection_type, '定期点検'))
                     break
         business.append(doc)
     # Group only the same documented exchange event; no inferred service life.
@@ -275,12 +275,12 @@ def build_overview(g, vehicle):
     plans = g['inspection_plans'].summary(code, vid)
     executions = g['inspection_plans'].latest(code, vid)
     appointments = []
-    for kind, label in [('3month', '3か月点検'), ('12month', '12か月点検'), ('vehicle_inspection', '車検')]:
+    for kind, label in [('3month', '3か月点検'), ('12month', '12か月点検'), ('ad_hoc', '突発点検')]:
         plan = plans.get(kind) or {}
         reserved = day(plan.get('reservation_date'))
         month = str(plan.get('planned_month') or '')
         month_valid = day(month + '-01') is not None
-        expiry = day(vehicle.inspection_expiry) if kind == 'vehicle_inspection' else None
+        expiry = day(vehicle.inspection_expiry) if kind == '12month' else None
         appointments.append({'kind': kind, 'label': label, 'plan': plan, 'actual': executions.get(kind) or {},
             'year': str(reserved.year) if reserved else month[:4] if month_valid else '',
             'month': str(reserved.month) if reserved else str(int(month[5:7])) if month_valid else '—',

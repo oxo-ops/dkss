@@ -40,6 +40,21 @@ class InspectionAlertTests(unittest.TestCase):
     def state(self, notification, day='2026-10-22'):
         return self.m.inspection_alerts.workflow(notification,date.fromisoformat(day))
 
+    def test_one_ad_hoc_execution_does_not_close_another_booking_in_same_month(self):
+        first = dict(self.change(mon='2026-09', kind='ad_hoc'), note='異音確認')
+        second = dict(self.change(mon='2026-09', kind='ad_hoc'), note='警告灯確認')
+        self.save([first, second]); self.run_alerts()
+        notification = self.m.Notification.query.one()
+        plan = self.m.VehicleInspectionPlan.query.filter_by(note='異音確認').one()
+        plan.status = 'completed'
+        self.m.db.session.add(self.m.inspection_plans.Execution(company_code='TEST',
+            vehicle_record_id=self.vehicle.id, kind='ad_hoc', performed_date='2026-09-12',
+            plan_id=plan.id, created_by='admin', created_at='2026-09-12T00:00:00+00:00'))
+        self.m.db.session.commit()
+        state = self.state(notification)
+        self.assertTrue(state['requires_action'])
+        self.assertIn('1件', state['workflow_label'])
+
     def test_month_and_booking_thresholds(self):
         p=SimpleNamespace(status='planned',planned_month='2026-12',reservation_date=None)
         expected=[('2026-10-31',None),('2026-11-01','prior_booking'),('2026-12-01','month_booking'),('2027-01-01','month_elapsed')]
@@ -165,7 +180,7 @@ class InspectionAlertTests(unittest.TestCase):
 
     def test_certificate_renewal_closes_only_the_vehicle_inspection_notice(self):
         self.vehicle.inspection_expiry='2026-11-30';self.m.db.session.commit()
-        self.save([self.change(mon='2026-11',kind='vehicle_inspection'),self.change(mon='2026-11',kind='12month')])
+        self.save([self.change(mon='2026-11',kind='vehicle_inspection'),self.change(mon='2026-11',kind='ad_hoc')])
         self.run_alerts();notification=self.m.Notification.query.one()
         self.vehicle.inspection_expiry='2027-11-30';self.m.db.session.commit();self.run_alerts(force=False)
         states=[self.m.inspection_alerts.workflow(notification,date(2026,10,22))]
@@ -266,8 +281,8 @@ class InspectionAlertTests(unittest.TestCase):
         change=self.change(mon=p.planned_month,kind=p.kind);change.update(id=p.id,version=p.version,status='cancelled');self.save([change])
         self.assertEqual(self.run_alerts()['expiry_candidates'],1)
         rows,_=self.m.inspection_plans.candidate_rows('TEST',[self.vehicle],2026)
-        self.assertTrue(any(p['status']=='candidate' and p['kind']=='vehicle_inspection' for p in rows))
-        candidate=next(p for p in rows if p['status']=='candidate' and p['kind']=='vehicle_inspection')
+        self.assertTrue(any(p['status']=='candidate' and p['kind']=='12month' for p in rows))
+        candidate=next(p for p in rows if p['status']=='candidate' and p['kind']=='12month')
         change=self.change(mon='2026-10',kind='vehicle_inspection');change.update(id=candidate['id'],version=candidate['version'],reservation_date='2026-10-23');self.save([change])
         self.assertEqual(self.m.VehicleInspectionPlan.query.count(),1)
         self.assertEqual(self.m.VehicleInspectionPlan.query.one().status,'planned')

@@ -452,7 +452,7 @@ def validate_vehicle_document_record(draft, record_index, original_record, form,
     if draft.document_type == 'inspection':
         inspection_type = form.get(f'inspection_type_{row_key}', '').strip()
         values['inspection_type'] = inspection_type
-        if inspection_type not in {'3month', '12month', 'other'}:
+        if inspection_type not in {'3month', '12month', 'ad_hoc', 'other'}:
             errors.append(('点検区分を選択してください。', f'inspection_type_{row_key}'))
     if draft.document_type == 'inspection':
         for field, (label, limit) in {'inspection_company': ('実施工場', 200), 'inspector_name': ('点検者', 100), 'notes': ('特記事項', 5000), 'symbol_legend': ('記号凡例', 5000)}.items():

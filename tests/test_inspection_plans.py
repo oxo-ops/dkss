@@ -164,7 +164,7 @@ class InspectionPlanTests(unittest.TestCase):
     def test_expired_certificate_does_not_invent_future_expiry_or_twelve_month_record(self):
         self.vehicle.inspection_expiry='2024-06-01';self.m.db.session.commit()
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        self.assertFalse(any(p['kind']=='vehicle_inspection' for p in data['plans']))
+        self.assertFalse(any(p['kind']=='12month' for p in data['plans']))
         self.assertFalse(any(p['kind']=='12month' for p in data['plans']))
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),0)
 
@@ -314,7 +314,7 @@ class InspectionPlanTests(unittest.TestCase):
     def test_expiry_is_unsaved_candidate_with_exact_expiry(self):
         self.vehicle.inspection_expiry='2026-10-25';self.m.db.session.commit()
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        row=next(p for p in data['plans'] if p['kind']=='vehicle_inspection')
+        row=next(p for p in data['plans'] if p['kind']=='12month')
         self.assertEqual(row['display_state'],'candidate');self.assertEqual(row['expiry_date'],'2026-10-25')
         self.assertEqual(self.m.VehicleInspectionPlan.query.count(),0)
 
@@ -341,15 +341,15 @@ class InspectionPlanTests(unittest.TestCase):
         d=self.m.VehicleDocumentImportDraft(id=str(uuid4()),batch_id=str(uuid4()),company_code='TEST',created_by_username='admin',document_type='certificate',source_filename='certificate.pdf',source_file=b'%PDF-test',source_sha256=hashlib.sha256(b'%PDF-test').hexdigest(),status='certificate_linked',result_json=json.dumps({'vehicle_record_id':(vehicle or self.vehicle).id}),preview_json='{}')
         self.m.db.session.add(d);self.m.db.session.commit();return d
 
-    def test_certificate_execution_completes_only_certificate_and_keeps_evidence(self):
+    def test_annual_execution_completes_unified_plan_and_keeps_evidence(self):
         self.vehicle.inspection_expiry='2026-09-22';self.m.db.session.commit()
-        self.save([self.change(mon='2026-09',kind='vehicle_inspection'),self.change(mon='2026-09',kind='12month')])
-        plan=self.m.VehicleInspectionPlan.query.filter_by(kind='vehicle_inspection').one()
+        self.save([self.change(mon='2026-09',kind='vehicle_inspection')])
+        plan=self.m.VehicleInspectionPlan.query.filter_by(kind='12month').one()
         self.certificate_save(self.certificate_payload(plan_id=plan.id,version=plan.version))
         self.m.db.session.refresh(plan);self.assertEqual(plan.status,'completed')
-        self.assertEqual(self.m.VehicleInspectionPlan.query.filter_by(kind='12month').one().status,'planned')
+        self.assertEqual(self.m.VehicleInspectionPlan.query.filter_by(kind='12month',status='completed').count(),1)
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        actual=next(p for p in data['plans'] if p['kind']=='vehicle_inspection')
+        actual=next(p for p in data['plans'] if p['kind']=='12month' and p['status']=='completed')
         self.assertEqual(actual['expiry_date'],'2026-09-22');self.assertEqual(actual['document_status'],'未受領');self.assertEqual(actual['evidence_note'],'工場に実施日を確認')
         self.assertEqual(self.vehicle.inspection_expiry,'2027-09-11')
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),0)
@@ -371,7 +371,7 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertEqual(self.m.inspection_plans.Execution.query.count(),1)
         ev=self.m.inspection_plans.Evidence.query.one();self.assertEqual(ev.document_id,doc.id)
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        actual=next(p for p in data['plans'] if p['kind']=='vehicle_inspection')
+        actual=next(p for p in data['plans'] if p['kind']=='12month' and p['status']=='completed')
         self.assertEqual(actual['document_status'],'登録済み');self.assertEqual(self.client.get(actual['record_url']).status_code,200)
         other=self.m.Vehicle(company_code='TEST',chassis_number='OTHER');self.m.db.session.add(other);self.m.db.session.commit()
         wrong=self.certificate_payload(document_id=doc.id);wrong['vehicle_record_id']=other.id
@@ -391,6 +391,67 @@ class InspectionPlanTests(unittest.TestCase):
             data=self.client.get(f'/api/vehicle/inspection-plans?scope=company&year={year}').json
             rows=[p for p in data['plans'] if p['id']==plan.id]
             self.assertEqual(len(rows),1);self.assertEqual(rows[0]['planned_month'],'2025-03');self.assertEqual(rows[0]['performed_date'],'2025-04-02')
+
+    def test_annual_alias_prevents_duplicate_plans(self):
+        self.save([self.change(kind='vehicle_inspection')])
+        self.assertEqual(self.m.VehicleInspectionPlan.query.one().kind, '12month')
+        response = self.client.post('/api/vehicle/inspection-plans/preview',
+            json={'changes': [self.change(kind='12month')]})
+        self.assertEqual(response.status_code, 409)
+
+    def test_legacy_annual_plan_remains_editable_and_completes_from_annual_record(self):
+        plan = self.m.VehicleInspectionPlan(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            kind='vehicle_inspection', period_key='2026-09', planned_month='2026-09',
+            status='planned', version=1, source='manual', factory='', note='')
+        self.m.db.session.add(plan); self.m.db.session.commit()
+        change = self.change(mon='2026-09', kind='12month')
+        change.update(id=plan.id, version=plan.version, reservation_date='2026-09-12')
+        self.save([change])
+        record = self.m.VehiclePeriodicInspectionRecord(company_code='TEST',
+            vehicle_record_id=self.vehicle.id, inspection_type='12month', inspection_date='2026-09-12',
+            details_json='{}', source_draft_id=self.certificate_document().id, source_record_index=0, created_by_username='admin')
+        self.m.db.session.add(record); self.m.db.session.commit()
+        self.assertEqual(plan.kind, 'vehicle_inspection')
+        self.assertEqual(plan.status, 'completed')
+        rows = self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json['plans']
+        self.assertEqual([r['kind'] for r in rows if r['id'] == plan.id], ['12month'])
+
+    def test_ad_hoc_multiple_bookings_in_same_month_and_completion_without_recurrence(self):
+        first = dict(self.change(mon='2026-09', kind='ad_hoc'), reservation_date='2026-09-12')
+        second = dict(self.change(mon='2026-09', kind='ad_hoc'), reservation_date='2026-09-20')
+        self.save([first, second])
+        plan = self.m.VehicleInspectionPlan.query.filter_by(reservation_date='2026-09-12').one()
+        payload = dict(vehicle_record_id=self.vehicle.id, kind='ad_hoc', performed_date='2026-09-12',
+                       plan_id=plan.id, version=plan.version)
+        self.certificate_save(payload)
+        self.assertEqual(plan.status, 'completed')
+        self.assertIsNone(self.m.inspection_plans.Execution.query.one().next_month)
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 2)
+        data = self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
+        self.assertEqual(len([r for r in data['plans'] if r['kind'] == 'ad_hoc']), 2)
+        self.assertFalse(any(r['kind'] == 'ad_hoc' for r in data['missing']))
+        html = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections?inspection_view=ad_hoc').get_data(as_text=True)
+        self.assertIn('id="manual-execution-', html)
+        self.assertIn('突発点検', html)
+        self.assertNotIn('突発点検点検', html)
+
+    def test_ad_hoc_ocr_import_preserves_history_without_creating_next_plan(self):
+        from test_inspection_document_ai import extraction, pdf_bytes
+        source = pdf_bytes(987)
+        data = extraction(source)
+        data['records'][0].update(inspection_type='ad_hoc', inspection_type_raw='突発点検',
+                                  next_inspection_month='2027-01')
+        self.upload_inspection(data=data, source=source)
+        draft = self.m.VehicleDocumentImportDraft.query.filter_by(status='preview').one()
+        form = self.inspection_form(draft)
+        form['inspection_type_' + draft.id + '_0'] = 'ad_hoc'
+        response = self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.one().inspection_type, 'ad_hoc')
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
+        detail = self.client.get(f'/api/vehicle/inspection-plans?detail=1&vehicle_id={self.vehicle.id}').json
+        self.assertIn('ad_hoc', detail['latest'])
+        self.assertNotIn('ad_hoc', detail['plans'])
 
 
 del _Workflow

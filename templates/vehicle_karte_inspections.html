@@ -10,7 +10,7 @@
 <div class="vi-workspace">
     <aside class="vi-nav" aria-label="点検記録の種類">
         <h3>点検</h3>
-        {% for key,label in [('all','すべての点検'),('daily','日常点検'),('3month','3か月点検'),('12month','12か月点検'),('certificate','車検')] %}
+        {% for key,label in [('all','すべての点検'),('daily','日常点検'),('3month','3か月点検'),('12month','12か月点検'),('ad_hoc','突発点検')] %}
         <a href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view=key, start_date=inspection_start, end_date=inspection_end) }}" {% if inspection_view == key %}aria-current="page"{% endif %}>{{ label }}</a>
         {% endfor %}
         <a class="vi-plan-link" href="{{ url_for('vehicle_inspection_plans', scope='vehicle', vehicle_id=vehicle.id) }}">年間点検計画 ›</a>
@@ -242,7 +242,7 @@
 </section>
 
 {% endif %}
-{% if inspection_view in ['all', 'periodic', '3month', '12month'] %}
+{% if inspection_view in ['all', 'periodic', '3month', '12month', 'ad_hoc'] %}
 {% if periodic_followup_summary.issues %}
 <section class="card" aria-label="定期点検の対応状況">
     <div class="card-title-row"><h3>点検簿の要対応 <span>{{ periodic_followup_summary.open_count }}件</span></h3></div>
@@ -258,7 +258,7 @@
     <h3>実施済み・書類未受領 <span>{{ manual_inspection_executions|length }}件</span></h3>
     <p class="help-text">点検の実施は登録済みです。後から同じ車両・点検種別・実施日の点検簿を取り込むと関連付けます。</p>
     <div class="table-scroll"><table class="checklist-table responsive-table"><thead><tr><th>実施日</th><th>点検</th><th>実施先</th><th>メモ</th><th>登録者</th></tr></thead><tbody>
-    {% for execution in manual_inspection_executions %}<tr id="manual-execution-{{ execution.id }}"><td data-label="実施日">{{ execution.performed_date }}</td><td data-label="点検">{{ '3か月点検' if execution.kind == '3month' else '12か月点検' }}</td><td data-label="実施先">{{ execution.factory or '—' }}</td><td data-label="メモ">{{ execution.note or '—' }}</td><td data-label="登録者">{{ execution.created_by }}</td></tr>{% endfor %}
+    {% for execution in manual_inspection_executions %}<tr id="manual-execution-{{ execution.id }}"><td data-label="実施日">{{ execution.performed_date }}</td><td data-label="点検">{{ {'3month':'3か月点検','12month':'12か月点検','vehicle_inspection':'12か月点検','ad_hoc':'突発点検'}.get(execution.kind, 'その他の点検') }}</td><td data-label="実施先">{{ execution.factory or '—' }}</td><td data-label="メモ">{{ execution.note or '—' }}</td><td data-label="登録者">{{ execution.created_by }}</td></tr>{% endfor %}
     </tbody></table></div>
 </section>
 {% endif %}
@@ -306,6 +306,8 @@
                                 {{ {
                                     "3month": "3か月点検",
                                     "12month": "12か月点検",
+                                    "vehicle_inspection": "12か月点検",
+                                    "ad_hoc": "突発点検",
                                     "other": "その他の点検"
                                 }.get(record.inspection_type, "その他の点検") }}
                             </td>
@@ -451,9 +453,9 @@
 </section>
 {% endif %}
 
-{% if inspection_view in ['all', 'certificate'] %}
+{% if inspection_view in ['all', '12month'] %}
 <section class="card vehicle-karte-inspections-panel vi-section">
-    <div class="card-title-row"><h3>車検</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">車検証・書類を開く</a></div>
+    <div class="card-title-row"><h3>12か月点検</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">車検証・書類を開く</a></div>
     <dl class="vi-certificate"><dt>車検満了日</dt><dd>{{ vehicle.inspection_expiry or '未登録' }}</dd></dl>
 </section>
 {% endif %}
