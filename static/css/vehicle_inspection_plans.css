@@ -107,3 +107,6 @@ body:has([data-inspection-planner]) .main-content{min-width:0;max-width:100%}bod
 .inspection-plans .ip-cal-items button.ip-cal-more{height:20px!important;min-height:20px!important;line-height:20px!important;font-size:12px!important}
 }
 @media(max-width:700px){.inspection-plans .ip-filter-options{gap:6px}.inspection-plans .ip-filter-options .ip-kinds{flex-shrink:1}.inspection-plans .ip-filter-options .ip-states button{padding:4px 6px!important;font-size:11px!important}}
+
+.ip-new [hidden],.inspection-plan-panel [hidden]{display:none!important}
+.ip-new [data-new-target-count]{font-size:13px;color:#516c88;margin:8px 0}
