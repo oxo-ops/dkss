@@ -67,7 +67,7 @@
     <dl class="km-detail-facts">
         {{ fact('入庫日', (record.entry_date or '—')|replace('-', '/')) }}
         {{ fact('完了日', (record.completion_date or '—')|replace('-', '/')) }}
-        {{ fact('走行距離', maintenance_number(record.mileage) ~ (' km' if record.mileage is not none else '')) }}
+        {{ fact('走行距離', (record.mileage|distance_km) ~ (' km' if record.mileage is not none else '')) }}
         {{ fact('分類', record.category or '未分類') }}
 
         {% for label, value in [

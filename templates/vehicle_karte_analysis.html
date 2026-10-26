@@ -6,7 +6,7 @@
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 {% set data = analysis_summary %}
-{% macro value(number, unit) -%}{% if number is not none %}{{ format_analysis_number(number) }}<small> {{ unit }}</small>{% else %}<span class="ka7-unset">—</span>{% endif %}{%- endmacro %}
+{% macro value(number, unit) -%}{% if number is not none %}{{ (number|distance_km) if unit == "km" else format_analysis_number(number) }}<small> {{ unit }}</small>{% else %}<span class="ka7-unset">—</span>{% endif %}{%- endmacro %}
 {% macro visual_icon(kind) -%}<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{% if kind == 'distance' %}<path d="M5 20 9 4m6 0 4 16M12 5v3m0 4v3m0 4v1"/>{% elif kind == 'cost' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 9h18m-5 5h2"/>{% elif kind == 'fault' %}<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/>{% elif kind == 'parts' %}<path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4 3-3Z"/>{% else %}<path d="M4 19V9m6 10V5m6 14v-7m5 7H2"/>{% endif %}</svg>{%- endmacro %}
 <div class="karte-maintenance karte-costs karte-analysis ka3-page ka7-page ka10-page">
     <header class="ka7-toolbar">
@@ -95,7 +95,7 @@
             <div id="ka7-part-history" class="ka7-parts-scroll" tabindex="0" role="region" aria-label="登録部品の交換実績">
                 {% if analysis_part_history %}
                 <table class="ka7-parts-table"><thead><tr><th>部品</th><th>登録交換日</th><th>登録距離</th></tr></thead><tbody>
-                    {% for part in analysis_part_history %}<tr data-part-source="{{ part.source_id }}"><td><a href="{{ part.url }}" target="_blank" rel="noopener noreferrer" title="{{ part.part_number or part.part_name }}">{{ part.part_name }}</a></td><td>{{ part.replacement_date }}</td><td>{% if part.mileage is not none %}{{ format_analysis_number(part.mileage) }} km{% else %}—{% endif %}</td></tr>{% endfor %}
+                    {% for part in analysis_part_history %}<tr data-part-source="{{ part.source_id }}"><td><a href="{{ part.url }}" target="_blank" rel="noopener noreferrer" title="{{ part.part_number or part.part_name }}">{{ part.part_name }}</a></td><td>{{ part.replacement_date }}</td><td>{% if part.mileage is not none %}{{ part.mileage|distance_km }} km{% else %}—{% endif %}</td></tr>{% endfor %}
                 </tbody></table>
                 <p class="ka7-note">部品ごとの直近登録。提案で参照した部品を先頭に表示。構成部品の交換範囲は未確認。</p>
                 {% else %}<p class="ka7-no-data">対象期間の交換登録はありません</p>{% endif %}
@@ -140,7 +140,7 @@
 </div>
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261023-mineral-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261026-previous-proposals-2') }}" defer></script>
 </div>
 {% endblock %}

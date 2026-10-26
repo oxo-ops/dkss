@@ -72,7 +72,7 @@
 <div class="ko-heading">
 <h3>{{ icon('clock') }}直近の履歴</h3>
 <a href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">履歴を見る →</a></div>
-{% if karte_recent_entries %}<ol class="ko-timeline">{% for entry in karte_recent_entries[:4] %}<li><time datetime="{{ entry.date }}">{% if loop.first or entry.date[:4] != karte_recent_entries[loop.index0 - 1].date[:4] %}<small>{{ entry.date[:4] }}年</small>{% endif %}{{ entry.date[5:]|replace('-', '/') }}</time><span class="ko-badge {% if entry.kind == '整備' %}ko-kind-maintenance{% endif %}">{{ entry.kind }}</span><a class="ko-history-link" title="{{ entry.content }}{% if entry.mileage is not none %} · {{ num(entry.mileage) }} km{% endif %}" href="{{ entry.link or url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"><span>{{ entry.content or '内容未登録' }}</span>{% if entry.status %}<small>{{ entry.status }}</small>{% endif %}<span class="ko-row-arrow" aria-hidden="true">›</span></a></li>
+{% if karte_recent_entries %}<ol class="ko-timeline">{% for entry in karte_recent_entries[:4] %}<li><time datetime="{{ entry.date }}">{% if loop.first or entry.date[:4] != karte_recent_entries[loop.index0 - 1].date[:4] %}<small>{{ entry.date[:4] }}年</small>{% endif %}{{ entry.date[5:]|replace('-', '/') }}</time><span class="ko-badge {% if entry.kind == '整備' %}ko-kind-maintenance{% endif %}">{{ entry.kind }}</span><a class="ko-history-link" title="{{ entry.content }}{% if entry.mileage is not none %} · {{ entry.mileage|distance_km }} km{% endif %}" href="{{ entry.link or url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"><span>{{ entry.content or '内容未登録' }}</span>{% if entry.status %}<small>{{ entry.status }}</small>{% endif %}<span class="ko-row-arrow" aria-hidden="true">›</span></a></li>
 {% endfor %}</ol>
 {% else %}<p class="ko-empty">履歴はまだありません</p>
 {% endif %}
@@ -82,10 +82,10 @@
 <h3>{{ icon('parts') }}主な部品の交換状況</h3>
 <a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}">部品を見る →</a></div>
 {% if ko_part_batches %}{% for batch in ko_part_batches %}<div class="ko-part-batch">
-<div class="ko-part-event"><strong>{{ batch.date|replace('-', '/') if batch.date else '日付未登録' }} 交換</strong><span>交換時 {% if batch.mileage is not none %}{{ num(batch.mileage) }} km{% else %}距離未登録{% endif %}</span>{% if batch.days_since is not none %}<span class="ko-badge">{{ batch.days_since }}日経過</span>{% endif %}</div>
+<div class="ko-part-event"><strong>{{ batch.date|replace('-', '/') if batch.date else '日付未登録' }} 交換</strong><span>交換時 {% if batch.mileage is not none %}{{ batch.mileage|distance_km }} km{% else %}距離未登録{% endif %}</span>{% if batch.days_since is not none %}<span class="ko-badge">{{ batch.days_since }}日経過</span>{% endif %}</div>
 <ul class="ko-part-names">{% for item in batch.parts %}<li>{{ icon('tool') }}<a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id, q=item.part_name, parts_scope='all') }}">{{ item.part_name }}</a></li>
 {% endfor %}</ul>
-<div class="ko-distance {% if batch.distance_since is none %}ko-distance-pending{% endif %}">{% if batch.distance_since is not none %}<span>交換後 {{ num(batch.distance_since) }} km</span><small>距離記録 {{ karte_mileage_reference.date }} 時点</small>{% else %}{{ icon('alert') }}<strong>交換後距離：算出不可</strong><span>{% if batch.needs_review %}整備と部品の距離・日付を要確認{% elif karte_mileage_reference.distance_usable %}起算距離・記録日を要確認{% else %}走行距離の記録を要確認{% endif %}</span><a href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">記録を確認 →</a>{% endif %}</div>
+<div class="ko-distance {% if batch.distance_since is none %}ko-distance-pending{% endif %}">{% if batch.distance_since is not none %}<span>交換後 {{ batch.distance_since|distance_km }} km</span><small>距離記録 {{ karte_mileage_reference.date }} 時点</small>{% else %}{{ icon('alert') }}<strong>交換後距離：算出不可</strong><span>{% if batch.needs_review %}整備と部品の距離・日付を要確認{% elif karte_mileage_reference.distance_usable %}起算距離・記録日を要確認{% else %}走行距離の記録を要確認{% endif %}</span><a href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}">記録を確認 →</a>{% endif %}</div>
 </div>
 {% endfor %}{% else %}<p class="ko-empty">交換記録はまだありません</p>
 {% endif %}

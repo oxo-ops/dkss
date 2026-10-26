@@ -315,7 +315,7 @@
                             <td data-label="実施者・整備会社">{{ record.inspection_company or record.inspector_name or "—" }}</td>
                             <td data-label="積算走行距離">
                                 {% if record.mileage is not none %}
-                                    {{ "{:,.2f}".format(record.mileage) }} km
+                                    {{ record.mileage|distance_km }} km
                                 {% else %}
                                     <span class="ui-empty-value">—</span>
                                 {% endif %}

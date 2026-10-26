@@ -49,7 +49,7 @@
                 <td class="kc-number">{{ money(record.total_cost) }}</td>
                 {% if mileage %}
                 <td class="kc-number">
-                    {{ format_cost_number(record.mileage) }}
+                    {{ record.mileage|distance_km }}
                     {% if record.mileage is not none %}<small> km</small>{% endif %}
                 </td>
                 {% endif %}

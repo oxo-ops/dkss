@@ -270,7 +270,7 @@
                                 {% endif %}
                             </td>
                             <td class="km-number">
-                                {{ maintenance_number(record.mileage) }}
+                                {{ record.mileage|distance_km }}
                                 {% if record.mileage is not none %}
                                 <span class="km-unit">km</span>
                                 {% endif %}
