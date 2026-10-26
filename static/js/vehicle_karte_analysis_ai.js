@@ -15,7 +15,8 @@
     const node = (tag, className, text) => {
         const element = document.createElement(tag);
         if (className) element.className = className;
-        if (text !== undefined) element.textContent = String(text);
+        if (text !== undefined) element.textContent = String(text)
+            .replace(/[（(]\s*(?:提案上の時[機期]|リスク区分とは別)\s*[）)]/g, "").trim();
         return element;
     };
 
@@ -984,8 +985,8 @@
         const board = node("section", "ka7-board");
         const heading = node("header", "ka7-board-heading");
         heading.append(node("h3", "", "予防整備・対応候補"));
-        if (current && ordered.length) heading.append(node("span", "ka7-count", `${ordered.length}件`));
-        if (current && data.generated_at) heading.append(node("span", "ka7-date", `AI分析 ${data.generated_at}`));
+        if (ordered.length) heading.append(node("span", "ka7-count", `${ordered.length}件`));
+        if (data.generated_at) heading.append(node("span", "ka7-date", `AI分析 ${data.generated_at}`));
         const labels=[['daily_inspections','日常点検'],['periodic_inspections','定期点検'],['maintenance','整備'],['parts','部品']];
         const counts=labels.filter(([key])=>Number.isInteger(data.input_summary?.[key]) && data.input_summary[key]>0).map(([key,label])=>`${label}${data.input_summary[key]}件`);
         // Input record counts are internal diagnostics.
@@ -1009,7 +1010,7 @@
             }
             board.append(insight);
         }
-        if (!current) {
+        if (!current && !ordered.length) {
             const explanation = current && typeof data.analysis?.overview === "string"
                 ? data.analysis.overview.trim() : "";
             const empty=node("div", "ka7-empty ka9-conclusion");
@@ -1022,6 +1023,7 @@
             } else empty.append(node("p", "", current ? "現在の登録内容に基づく結果です。異常がないことを保証するものではありません。" : "更新が完了すると結果を表示します。"));
             board.append(empty);
         } else if(ordered.length) {
+            if (!current) board.append(node("p", "kc-muted", "前回の提案を表示しています。"));
             const existing = table(ordered, "提案の根拠");
             const controls = [...existing.querySelectorAll("tbody tr")].map(tr => [...tr.lastElementChild.childNodes]);
             const wrap = node("div", "ka7-proposal-scroll");

@@ -208,6 +208,31 @@ def build_overview(g, vehicle):
             'high': sorted([r for r in cost_rows if r.total_cost is not None],
                            key=lambda r: (r.total_cost, r.id), reverse=True)[:2]}
 
+    # Aggregate the same dated, factual records as the rolling cost summary.
+    months = []
+    for offset in range(12):
+        serial = start.year * 12 + start.month - 1 + offset
+        year, month = divmod(serial, 12)
+        key = f'{year:04d}-{month + 1:02d}'
+        selected = [r for r in cost_rows if str(day(r.entry_date or r.completion_date))[:7] == key]
+        amounts = [r.total_cost for r in selected if r.total_cost is not None]
+        total = sum(amounts, Decimal('0')) if amounts else None
+        months.append({'key': key, 'label': f'{month + 1}月', 'year': year,
+                       'total': total, 'count': len(selected),
+                       'missing': sum(r.total_cost is None for r in selected),
+                       'records': sorted(selected, key=lambda r: (str(r.entry_date or r.completion_date), r.id), reverse=True)})
+    # Negative corrections remain in the totals; the chart uses a visible zero baseline.
+    largest = max([abs(m['total']) for m in months if m['total'] is not None] + [Decimal('1')])
+    quarter = largest / 4
+    scale = Decimal(10) ** quarter.adjusted()
+    step = next(Decimal(factor) * scale for factor in (1, 2, 5, 10) if Decimal(factor) * scale >= quarter)
+    ceiling = step * 4
+    signed = any(m['total'] is not None and m['total'] < 0 for m in months)
+    for month in months:
+        month['height'] = float(abs(month['total']) / ceiling * (65 if signed else 130)) if month['total'] else 0
+    cost.update(months=months, ceiling=ceiling, signed=signed,
+                selected_month=next((m['key'] for m in reversed(months) if m['count']), None))
+
     documents = g['get_vehicle_karte_documents'](vehicle)
     g['build_vehicle_karte_documents_context'](vehicle, documents)
     business = []
@@ -261,6 +286,15 @@ def build_overview(g, vehicle):
             'relative': ('本日予約' if reserved == today else f'予約まで{(reserved-today).days}日' if reserved > today else '予約日経過・実施確認') if reserved else
                 ('今月の予定' if month == today.strftime('%Y-%m') else '予定月経過・実施確認' if month_valid and month < today.strftime('%Y-%m') else '') ,
             'expiry': expiry.isoformat() if expiry else None})
+    def appointment_order(item):
+        plan = item['plan']
+        scheduled = day(plan.get('reservation_date')) or day(str(plan.get('planned_month') or '') + '-01')
+        expiry = day(item['expiry'])
+        stamp = scheduled or expiry
+        return (stamp is None, stamp or date.max, item['kind'])
+    display_appointments = sorted(appointments, key=appointment_order)
+    next_appointment = next((item for item in display_appointments if item['plan'].get('reservation_date')
+                            or item['plan'].get('planned_month') or item['expiry']), None)
     # Bars show shares of recorded spending, never component wear or failure risk.
     positive_total = cost['total'] is not None and cost['total'] > 0 and all(r.total_cost is None or r.total_cost >= 0 for r in cost_rows)
     cost['bars'] = [{'record': r, 'share': float(r.total_cost / cost['total'] * 100) if positive_total else None} for r in cost['high']]
@@ -277,4 +311,5 @@ def build_overview(g, vehicle):
             'karte_note': note, 'ko_note_author': note_author,
             'karte_recent_documents': business[:3], 'karte_document_count': len(documents),
             'ko_business_document_count': len(business),
-            'ko_part_batches': list(batches.values()), 'ko_appointments': appointments}
+            'ko_part_batches': list(batches.values()), 'ko_appointments': appointments,
+            'ko_next_appointment': next_appointment, 'ko_display_appointments': display_appointments}
