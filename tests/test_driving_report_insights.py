@@ -119,6 +119,16 @@ class DrivingInsightDataTests(unittest.TestCase):
         self.assertTrue(all('異なる氏名' in n['reasons'][0] for n in review_notes(rows,facts,issues,conflicts)))
         self.assertEqual(review_notes([row(6)],[],[{'id':999,'reason':'範囲外'}],set()),[])
 
+    def test_hourly_rates_use_paired_total_time_and_multi_metric_columns_stay_separate(self):
+        first=row(1);second=row(2)
+        for report,n,d in [(first,'0','1'),(second,'4','2')]:
+            p=payload(report);p['report_items'][0].update(unit='回/h',numerator=n,denominator=d,denominator_unit='h',value=n,raw_result=n+'回')
+            report.details_json=json.dumps(p)
+        b,_,_=board([first,second])
+        self.assertEqual(b['summary']['display'],'1.33');self.assertEqual(b['summary']['denominator'],3)
+        self.assertEqual(b['columns'][0]['unit'],'回/h')
+        self.assertEqual(b['drivers'][0]['cells'][0]['current']['display'],'1.33')
+
     def test_unknown_raw_metrics_remain_visible_without_chart_or_rank(self):
         a=row(1,definition_version=None)
         result,facts,_=board([a]);selected=dashboard(facts,[],{1:'車両'},selected_driver=result['drivers'][0]['key'])
@@ -157,7 +167,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
         key=driver_keys([a])[0][a.id]
         response=self.client.get('/safety/driving-reports?'+urlencode({'period':'all','focus':key}))
         self.assertEqual(response.status_code,200,response.get_data(as_text=True));html=response.get_data(as_text=True)
-        self.assertIn('さんの推移',html);self.assertIn('クラッチ交換',html);self.assertNotIn('他社秘密整備',html)
+        self.assertIn('さんの詳細',html);self.assertIn('クラッチ交換',html);self.assertNotIn('他社秘密整備',html)
         self.assertIn('data-driving-chart',html);self.assertIn('return_to=',html)
 
     def test_comparison_csv_matches_rates_and_includes_provenance(self):

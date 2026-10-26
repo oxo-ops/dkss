@@ -126,7 +126,7 @@ class DrivingReportManagementTests(unittest.TestCase):
         m.db.session.commit()
         self.client.post(f'/safety/driving-reports/{r.id}/reconcile',data={'version':version(r),'mode':'cancelled'})
         page=self.client.get('/safety/driving-reports?state=cancelled').get_data(as_text=True)
-        self.assertIn('統合した運行</dt><dd>0件',page)
+        self.assertIn('重複をまとめた運行 0件',page)
         self.assertEqual(len(m.get_vehicle_canonical_operations('TEST',self.vehicle.id)),1)
     def test_analysis_end_date_excludes_later_reports(self):
         r=self.imported();m=self.m
@@ -166,9 +166,15 @@ class DrivingReportManagementTests(unittest.TestCase):
         r=self.imported();p=payload(r);p['driver_name']='=1+1';r.details_json=json.dumps(p);self.m.db.session.commit()
         text=self.client.get('/safety/driving-reports/export.csv?driver=%3D1').data.decode('utf-8-sig');self.assertIn("'=1+1",text)
         self.assertEqual(self.client.get('/safety/driving-reports?start=bad').status_code,400)
-        with patch.object(self.m,'require_master_admin',return_value=False):
-            for path in ['/safety/driving-reports',f'/safety/driving-reports/{r.id}','/safety/driving-reports/export.csv',f'/vehicle/driving-reports/{r.id}/source']:
-                self.assertEqual(self.client.get(path).status_code,403)
+        self.m.db.session.add(self.m.User(company_code='TEST',username='viewer',role='user',password='unused',last_name='一般',password_changed_at='viewer-stamp'))
+        self.m.db.session.commit()
+        with self.client.session_transaction() as state:state.update(username='viewer',role='user',password_changed_at='viewer-stamp')
+        for path in ['/safety/driving-reports','/safety/driving-reports/export.csv']:
+            response=self.client.get(path)
+            self.assertEqual(response.status_code,200)
+            self.assertNotIn('=1+1',response.get_data(as_text=True))
+        self.assertEqual(self.client.get(f'/safety/driving-reports/{r.id}').status_code,404)
+        self.assertEqual(self.client.get(f'/vehicle/driving-reports/{r.id}/source').status_code,403)
     def test_ai_input_contains_original_report_evidence(self):
         r=self.imported();m=self.m
         with m.app.test_request_context('/'):

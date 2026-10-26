@@ -17,6 +17,7 @@
  document.addEventListener('DOMContentLoaded',()=>{
   const ns='http://www.w3.org/2000/svg';
   const form=document.getElementById('driving-filter-form');
+  form?.querySelector('[name=period]')?.addEventListener('change',event=>{if(event.target.value==='custom'){const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;}});
   form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',()=>{
    const select=form.querySelector('[name=period]');if(select)select.value='custom';
   }));

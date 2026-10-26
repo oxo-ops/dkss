@@ -12,6 +12,7 @@ COUNT_UNITS = {'回', '件', 'count'}
 
 
 def number(value):
+    value=decimal(value)
     if value is None: return '—'
     rounded=value.quantize(Decimal('.01'))
     return format(rounded, 'f').rstrip('0').rstrip('.') if rounded else '0'
@@ -35,6 +36,10 @@ def periods(args, today):
     else: raise ValueError('対象期間を選択してください。')
     if start > end: raise ValueError('開始日と終了日を確認してください。')
     previous_end=start-timedelta(days=1); previous_start=previous_end-(end-start)
+    comparison=args.get('compare','previous')
+    if comparison not in {'previous','month'}:raise ValueError('比較期間を選択してください。')
+    if comparison=='month':
+        previous_end=start.replace(day=1)-timedelta(days=1);previous_start=previous_end.replace(day=1)
     return {'mode':mode, 'start':start.isoformat(), 'end':end.isoformat(),
             'previous_start':previous_start.isoformat(), 'previous_end':previous_end.isoformat()}
 
@@ -54,6 +59,21 @@ def driver_keys(rows):
             names[driver_key(row)].add(''.join(unicodedata.normalize('NFKC',p['driver_name']).split()))
     # Reused codes or disagreeing identities cannot establish a person across reports.
     return {r.id:(digest([driver_key(r),r.id]) if len(names[driver_key(r)])>1 else driver_key(r)) for r in rows}, {k for k,v in names.items() if len(v)>1}
+
+
+def display_metric_name(name):
+    aliases={'Driving time / 走行時間':'走行時間','Rest / 休憩':'休憩','Speeding ratio / 速度超過率':'速度超過率',
+             'Driving time':'走行時間','Rest':'休憩','Speeding ratio':'速度超過率'}
+    return aliases.get(name,name)
+
+
+def display_metric_raw(name,raw):
+    import re
+    if display_metric_name(name) not in {'走行時間','運行時間','ハンドル時間','休憩','休憩時間','アイドリング時間'}:return raw
+    match=re.fullmatch(r'(\d{1,3}):([0-5]\d)',raw)
+    if not match:return raw
+    hours,minutes=map(int,match.groups())
+    return (str(hours)+'時間' if hours else '')+str(minutes)+'分'
 
 
 def metric(p, item, distance, distance_ok):
@@ -77,13 +97,15 @@ def metric(p, item, distance, distance_ok):
             method='rate';n=num;d=den;scale=Decimal(100);output_unit='件/100km' if unit.startswith('件') else '回/100km'
     if known and num is not None and num>=0 and den is not None and den>0 and du and unit in {'%','％'} and num<=den:
         method='ratio';n=num;d=den;scale=Decimal(100);output_unit='%'
+    if known and item.get('threshold') and num is not None and num>=0 and den is not None and den>0 and du in {'h','時間'} and unit in {'回/h','件/h'}:
+        method='rate';n=num;d=den;scale=Decimal(1);output_unit=unit
     if method=='raw' and not known:reason='比較条件未確認'
     elif method=='raw':reason='原本値を表示'
     else:reason=''
     signature=[p.get('source_system'),p.get('definition_version'),name,item.get('definition'),
                item.get('threshold'),unit,item.get('road_type'),p.get('report_scope'),method,du if method=='ratio' else None]
-    return {'id':digest(signature),'name':name,'unit':output_unit,'method':method,'numerator':n,'denominator':d,
-            'scale':scale,'raw':raw,'value':value if value is not None else score,'known':known,
+    return {'id':digest(signature),'name':display_metric_name(name),'unit':output_unit,'method':method,'numerator':n,'denominator':d,
+            'scale':scale,'raw':display_metric_raw(name,raw),'value':value if value is not None else score,'known':known,
             'source':p.get('source_system') or '提供元不明','version':p.get('definition_version') or '未記載',
             'definition':item.get('definition') or '未記載','threshold':item.get('threshold') or '未記載',
             'road':item.get('road_type') or '区分なし','scope':p.get('report_scope') or 'unknown','reason':reason}
@@ -181,7 +203,7 @@ def review_notes(rows, facts, issues, conflicting):
     for fact in facts:
         row=fact['row']
         if not fact['identified']:add(row.id,'提供元または乗務員コードがなく、同じ乗務員としてまとめられません。')
-        elif driver_key(row) in conflicting:add(row.id,'同じ乗務員コードに異なる氏名があり、原本ごとに表示しています。')
+        elif driver_key(row) in conflicting and not fact.get('identity_confirmed'):add(row.id,'同じ乗務員コードに異なる氏名があり、原本ごとに表示しています。')
         if fact['distance'] is None:add(row.id,'走行距離を確認できないため、距離あたりの比較に使っていません。')
         elif fact['distance']==0:add(row.id,'走行距離が0kmのため、距離あたりの比較に使っていません。')
         unknown=[m['name'] for m in fact['metrics'] if not m['known']]
@@ -213,6 +235,17 @@ def dashboard(current, previous, labels, selected_metric='', selected_driver='')
             'vehicles':[{'id':vid,'label':labels.get(vid,'車両 '+str(vid))} for vid in sorted({f['vehicle_id'] for f in facts})],
             'current':now,'previous':before,'change':number(change) if change is not None else None})
     drivers.sort(key=lambda x:(x['name'],x['code'],x['key']))
+    columns=[];column_names=set()
+    for group in groups:
+        if group['name'] not in column_names and len(columns)<4:
+            columns.append(group);column_names.add(group['name'])
+    if metric_info and metric_info not in columns:columns=columns[:3]+[metric_info]
+    for driver in drivers:
+        driver['cells']=[]
+        for column in columns:
+            now=summarize(present[driver['key']],column['id']);old=summarize(past.get(driver['key'],[]),column['id'])
+            difference=now['value']-old['value'] if now['value'] is not None and old['value'] is not None else None
+            driver['cells'].append({'current':now,'previous':old,'change':number(difference) if difference is not None else None})
     selected=next((r for r in drivers if r['key']==selected_driver),None)
     focused=[f for f in current if selected and f['driver_key']==selected['key']]
     days=defaultdict(list)
@@ -221,4 +254,4 @@ def dashboard(current, previous, labels, selected_metric='', selected_driver='')
     series=[{'date':day['date'],'value':str(day['value']) if day['value'] is not None else None,'report_id':day['report_ids'][0]} for day in trend]
     chart=[point for point in series if point['value'] is not None]
     return {'chart':chart,'trend_series':series,'groups':groups,'metric':metric_info,'metric_id':metric_id,'drivers':drivers,'selected_driver':selected,
-            'trend':trend,'summary':summarize(current,metric_id),'previous':summarize(previous,metric_id)}
+            'columns':columns,'trend':trend,'summary':summarize(current,metric_id),'previous':summarize(previous,metric_id)}

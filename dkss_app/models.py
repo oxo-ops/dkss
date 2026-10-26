@@ -305,6 +305,18 @@ class LicenseType(db.Model):
     name = db.Column(db.String(100), nullable=False)
 
 
+class DrivingReportReader(db.Model):
+    __table_args__ = (db.Index('ix_driving_reader_company_user', 'company_code', 'user_id'),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False, index=True)
+    report_id = db.Column(db.Integer, db.ForeignKey('vehicle_driving_report_record.id', ondelete='CASCADE'), nullable=False, unique=True)
+    username = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    identity_hash = db.Column(db.String(64), nullable=False)
+    confirmed_by = db.Column(db.String(50), nullable=False)
+    confirmed_at = db.Column(db.String(40), nullable=False)
+
+
 class Driver(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
