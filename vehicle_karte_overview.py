@@ -285,7 +285,7 @@ def build_overview(g, vehicle):
             'year': str(reserved.year) if reserved else month[:4] if month_valid else '',
             'month': str(reserved.month) if reserved else str(int(month[5:7])) if month_valid else '—',
             'day': str(reserved.day) if reserved else '',
-            'state': '予約済み' if reserved else '予定あり' if month_valid else '未設定',
+            'state': '予約済み' if reserved else '予定未登録' if plan.get('status') == 'candidate' else '予定あり' if month_valid else '未設定',
             'relative': ('本日予約' if reserved == today else f'予約まで{(reserved-today).days}日' if reserved > today else '予約日経過・実施確認') if reserved else
                 ('今月の予定' if month == today.strftime('%Y-%m') else '予定月経過・実施確認' if month_valid and month < today.strftime('%Y-%m') else '') ,
             'expiry': expiry.isoformat() if expiry else None})

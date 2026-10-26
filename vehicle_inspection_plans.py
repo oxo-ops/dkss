@@ -146,6 +146,17 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                     'kind': record.inspection_type, 'period_key': record_next(record), 'planned_month': record_next(record),
                     'reservation_date': None, 'document_date': record.next_inspection_date or None, 'factory': '', 'note': '', 'source': 'document' if record.id > 0 else 'calculated', 'source_record_id': record.id if record.id > 0 else None,
                     'completed_record_id': None, 'status': 'planned'}
+        if '12month' not in result:
+            vehicle = Vehicle.query.filter_by(company_code=code, id=vehicle_id, deleted=False).first()
+            expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
+            if expiry and not any(normalize_kind(p.kind) == '12month' and p.status == 'completed'
+                    and expiry.isoformat()[:7] in (p.period_key, p.planned_month) for p in saved):
+                mon = expiry.isoformat()[:7]
+                result['12month'] = {'id': None, 'version': 0, 'vehicle_record_id': vehicle_id,
+                    'kind': '12month', 'period_key': mon, 'planned_month': mon,
+                    'reservation_date': None, 'document_date': None, 'expiry_date': expiry.isoformat(),
+                    'factory': '', 'note': '', 'source': 'expiry', 'source_record_id': None,
+                    'completed_record_id': None, 'status': 'candidate', 'display_state': 'candidate'}
         return result
 
     def sync_record(record):

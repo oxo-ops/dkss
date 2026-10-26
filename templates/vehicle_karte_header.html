@@ -220,10 +220,10 @@
             {% set actual = actual_summary.get(kind) or {} %}
             {% set plan = (karte_plan_summary|default({})).get(kind) or {} %}
             <div class="vehicle-karte-deadline ip-compact-deadline" data-periodic-summary="{{ kind }}">
-                <button type="button" class="ip-deadline-button" data-inspection-plan-open="{{ kind }}" data-vehicle-id="{{ vehicle.id }}" aria-haspopup="dialog" aria-label="{{ label }}点検の予定・実施状況を開く" title="予定・予約・実施記録を確認{% if plan.planned_month %} / {{ plan.planned_month.replace('-', '年') }}月予定{% else %} / 日付未登録{% endif %}{% if actual %} / 前回 {{ actual.performed_date }}{% if actual.mileage %} / {{ '{:,.2f}'.format(actual.mileage|float).rstrip('0').rstrip('.') }} km{% endif %}{% endif %}">
+                <button type="button" class="ip-deadline-button" data-inspection-plan-open="{{ kind }}" data-vehicle-id="{{ vehicle.id }}" aria-haspopup="dialog" aria-label="{{ label }}点検の予定・実施状況を開く" title="予定・予約・実施記録を確認{% if plan.status == 'candidate' and plan.expiry_date %} / 満了日 {{ plan.expiry_date }} / 予約未登録{% elif plan.planned_month %} / {{ plan.planned_month.replace('-', '年') }}月予定{% else %} / 日付未登録{% endif %}{% if actual %} / 前回 {{ actual.performed_date }}{% if actual.mileage %} / {{ '{:,.2f}'.format(actual.mileage|float).rstrip('0').rstrip('.') }} km{% endif %}{% endif %}">
                     <span>{{ label }}点検 <span aria-hidden="true">›</span></span>
-                    <strong>{% if plan.reservation_date %}次 {{ plan.reservation_date[5:].replace('-', '/') }} 予約{% elif plan.planned_month %}次 {{ plan.planned_month[2:].replace('-', '/') }} 予定{% else %}次回未設定{% endif %}</strong>
-                    <small>{% if actual %}前回 {{ actual.performed_date[5:].replace('-', '/') }} 実施{% else %}実施記録なし{% endif %}</small>
+                    <strong>{% if plan.status == 'candidate' and plan.expiry_date %}期限 {{ plan.expiry_date[2:].replace('-', '/') }}{% elif plan.reservation_date %}次 {{ plan.reservation_date[5:].replace('-', '/') }} 予約{% elif plan.planned_month %}次 {{ plan.planned_month[2:].replace('-', '/') }} 予定{% else %}次回未設定{% endif %}</strong>
+                    <small>{% if actual %}前回 {{ actual.performed_date[5:].replace('-', '/') }} 実施{% elif plan.status == 'candidate' and plan.expiry_date %}予約未登録{% else %}実施記録なし{% endif %}</small>
                 </button>
             </div>
             {% endfor %}

@@ -453,6 +453,34 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertIn('ad_hoc', detail['latest'])
         self.assertNotIn('ad_hoc', detail['plans'])
 
+    def test_expiry_candidate_is_shared_by_header_and_detail_without_saving_a_booking(self):
+        self.vehicle.inspection_expiry = '2027-07-10'
+        self.m.db.session.commit()
+        summary = self.m.inspection_plans.summary('TEST', self.vehicle.id)
+        annual = summary['12month']
+        self.assertEqual(annual['expiry_date'], '2027-07-10')
+        self.assertEqual(annual['status'], 'candidate')
+        self.assertIsNone(annual['reservation_date'])
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
+        detail = self.client.get(f'/api/vehicle/inspection-plans?detail=1&vehicle_id={self.vehicle.id}').json
+        self.assertEqual(detail['plans']['12month'], annual)
+        self.assertNotIn('12month', detail['latest'])
+        html = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections').get_data(as_text=True)
+        card = html.split('data-periodic-summary="12month"', 1)[1].split('</button>', 1)[0]
+        self.assertIn('期限 27/07/10', card)
+        self.assertIn('予約未登録', card)
+        self.assertNotIn('次回未設定', card)
+        self.assertNotIn('12month', self.m.inspection_plans.summary('FOREIGN', self.vehicle.id))
+
+    def test_saved_annual_reservation_takes_precedence_over_expiry_candidate(self):
+        self.vehicle.inspection_expiry = '2027-07-10'
+        self.m.db.session.commit()
+        change = dict(self.change(kind='12month', mon='2027-06'), reservation_date='2027-06-25')
+        self.save([change])
+        annual = self.m.inspection_plans.summary('TEST', self.vehicle.id)['12month']
+        self.assertEqual(annual['reservation_date'], '2027-06-25')
+        self.assertEqual(annual['status'], 'planned')
+
 
 del _Workflow
 
