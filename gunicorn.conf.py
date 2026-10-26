@@ -9,6 +9,8 @@ graceful_timeout = 30
 
 
 def post_worker_init(worker):
+    from dkss_app.vehicle_couplings import initialize_coupling_schema
+    initialize_coupling_schema(worker.wsgi)
     from dkss_app.document_import_worker import start_worker
     start_worker(worker.wsgi)
 
