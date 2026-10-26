@@ -181,6 +181,7 @@
     novalidate
 >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if vehicle_excel_import_draft is defined %}<input type="hidden" name="vehicle_excel_import_draft" value="{{ vehicle_excel_import_draft }}">{% endif %}
 
     <script type="application/json" id="vehicle-plate-candidates">
         {{ vehicle_plate_candidates | tojson }}

@@ -3,6 +3,16 @@ from . import common as _dkss_common, runtime as _dkss_runtime
 
 
 def file_too_large(error):
+    from .import_flow import context, form_error_response
+    flow = context()
+    if flow:
+        if _dkss_common.request.endpoint == 'extract_vehicle_certificate_route':
+            message = '車検証は1ファイル20MB以下にしてください。'
+        elif flow['kind'] == 'document':
+            message = '資料は1ファイル20MB以下・最大50ファイル・合計200MB以下に分けて選択してください。'
+        else:
+            message = 'ファイル容量が上限を超えています。ファイルを分けて選択し直してください。'
+        return form_error_response([(message, '')], 413)
     if (
         _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1"
         or _dkss_common.request.headers.get("X-DKSS-Final-Submit") == "1"
@@ -65,6 +75,10 @@ def handle_csrf_error(error):
 
 
 def return_form_errors(errors, status_code=400):
+    from .import_flow import form_error_response
+    recovery = form_error_response(errors, status_code)
+    if recovery is not None:
+        return recovery
     if (
         _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1"
         or _dkss_common.request.headers.get("X-DKSS-Final-Submit") == "1"
@@ -473,6 +487,8 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 
 def redirect_form_errors(response):
+    if response.headers.get("X-DKSS-Import-Recovery") == "1":
+        return response
     if _dkss_common.request.method != "POST":
         return response
 
@@ -690,6 +706,18 @@ def handle_upload_validation_error(error):
 
 
 def handle_http_error(error):
+    from .import_flow import form_error_response
+    import_messages = {403: 'この操作の権限またはログイン状態を確認してください。',
+        404: '確認中の資料が見つかりません。登録済み・取消済みの可能性があります。元の画面で状況を確認してください。',
+        429: '操作が集中しています。少し待ってから再試行するか、元の画面へ戻ってください。'}
+    recovery = form_error_response([(import_messages.get(error.code, '資料の処理を続けられませんでした。内容・受付状況を確認するか、元の画面へ戻ってください。'), '')], error.code or 500)
+    if recovery is not None:
+        if error.code == 500:
+            _dkss_common.db.session.rollback()
+        retry_after = error.get_response().headers.get('Retry-After')
+        if retry_after:
+            recovery.headers['Retry-After'] = retry_after
+        return recovery
     if error.code == 500:
         _dkss_common.db.session.rollback()
 
@@ -733,6 +761,11 @@ def handle_unexpected_error(error):
     _dkss_runtime.app.logger.exception(
         "予期しないエラーが発生しました。"
     )
+
+    from .import_flow import form_error_response
+    recovery = form_error_response([('処理を完了できませんでした。元の画面で受付・登録結果を確認してから再試行してください。', '')], 500)
+    if recovery is not None:
+        return recovery
 
     if not is_html_document_request():
         if (

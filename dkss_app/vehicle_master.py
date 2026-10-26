@@ -2,7 +2,7 @@
 from . import audit as _dkss_audit, common as _dkss_common, http as _dkss_http, knowledge as _dkss_knowledge, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
-def import_vehicles():
+def import_vehicles(source_file=None, source_draft_id=None):
 
     company_code = _dkss_common.session.get("company_code")
 
@@ -11,9 +11,9 @@ def import_vehicles():
         if isinstance(result, dict):
             return _dkss_common.render_template("vehicle_import_complete.html", **result)
 
-    if _dkss_common.request.method == "POST":
+    if _dkss_common.request.method == "POST" or source_file is not None:
 
-        excel_file = _dkss_common.request.files.get("excel_file")
+        excel_file = source_file if source_file is not None else _dkss_common.request.files.get("excel_file")
 
         if not excel_file or not excel_file.filename:
             return _dkss_http.return_form_errors([
@@ -632,8 +632,19 @@ def import_vehicles():
                 and other_chassis != chassis_number
             ]
 
+        if source_draft_id is None and _dkss_common.request.headers.get('X-DKSS-Validation-Only') == '1':
+            return _dkss_common.jsonify(ok=True)
+        if source_draft_id is None:
+            from .import_flow import store_excel_review
+            draft = store_excel_review(excel_file, company_code, _dkss_common.session.get('username'))
+            destination = _dkss_common.url_for('vehicle_excel_import_preview', draft_id=draft.id)
+            if _dkss_common.request.headers.get('X-DKSS-Final-Submit') == '1':
+                return _dkss_common.jsonify(preview_url=destination)
+            return _dkss_common.redirect(destination, code=303)
         return _dkss_common.render_template(
             "vehicle_import_preview.html",
+            vehicle_excel_import_draft=source_draft_id,
+            import_flow_notice=('既存車両と照合しました。「変更なし」「Excel内重複」は新規登録しません。更新する項目だけ確認するか、キャンセルして登録方法の画面へ戻れます。' if any(item.get('import_status') in {'変更なし', 'Excel内重複'} for item in vehicles_data) else None),
             vehicles=vehicles_data,
             offices=_dkss_master_readers.offices_for_current_company(),
             vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
@@ -670,6 +681,15 @@ def import_vehicles():
 
 
 def confirm_vehicle_import():
+
+    excel_review = None
+    review_id = _dkss_common.request.form.get('vehicle_excel_import_draft')
+    if review_id:
+        excel_review = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
+            id=review_id, document_type='vehicle_excel', company_code=_dkss_common.session.get('company_code'),
+            created_by_username=_dkss_common.session.get('username')).with_for_update().first_or_404()
+        if excel_review.status != 'preview':
+            return _dkss_http.return_form_errors([('このExcelはすでに登録済み、または取消済みです。元の画面で結果を確認してください。', '')], 409)
 
     company_code = _dkss_common.session.get("company_code")
 
@@ -1537,6 +1557,9 @@ def confirm_vehicle_import():
         elif mapping:
             _dkss_common.db.session.delete(mapping)
 
+    if excel_review is not None:
+        excel_review.status = 'completed'
+        excel_review.source_file = b''
     _dkss_common.db.session.commit()
 
     result = {
@@ -1953,6 +1976,9 @@ def new_vehicle():
 
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
+
+        if _dkss_common.request.headers.get('X-DKSS-Validation-Only') == '1':
+            return _dkss_common.jsonify(ok=True)
 
         if _dkss_common.request.form.get("vehicle_form_action") != "save":
             confirmation_values = _dkss_common.request.form.to_dict(

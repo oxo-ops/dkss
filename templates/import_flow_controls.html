@@ -1,0 +1,26 @@
+{% if import_flow %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
+<div id="importFlow" data-cancel-url="{{ import_flow.cancel_url }}" data-back-url="{{ import_flow.back_url }}" data-entry="{{ '1' if import_flow.entry else '0' }}">
+    <div class="form-actions" data-import-flow-toolbar {% if not import_flow.show_cancel %}hidden{% endif %}>
+        <button type="button" class="btn btn-outline" data-import-flow-cancel>{{ 'キャンセル' if import_flow.entry else 'キャンセルして取込画面へ戻る' }}</button>
+    </div>
+    <section class="card vehicle-search-card" id="importFlowNotice" role="status" {% if not import_flow_notice|default('') %}hidden{% endif %}>
+        <p>{{ import_flow_notice|default('') }}</p>
+    </section>
+    <section class="card vehicle-search-card" id="importFlowError" role="alert" tabindex="-1" {% if not import_flow_errors|default([]) %}hidden{% endif %}>
+        <h3 data-import-flow-title>取り込みを続けられませんでした</h3>
+        <p data-import-flow-guide>内容を修正して続けるか、キャンセルして元の画面へ戻れます。</p>
+        <ul data-import-flow-errors>{% for item in import_flow_errors|default([]) %}<li>{{ item.message }}</li>{% endfor %}</ul>
+        <div class="form-actions">
+            <button type="button" class="btn btn-outline" data-import-flow-continue>{{ '別のファイルを選ぶ' if import_flow.entry else '内容を修正して続ける' }}</button>
+            <button type="button" class="btn btn-outline" data-import-flow-cancel>{{ 'キャンセル' if import_flow.entry else 'キャンセルして取込画面へ戻る' }}</button>
+            {% if not import_flow.entry %}<a class="btn btn-outline" href="{{ import_flow.back_url }}">受付を残して取込画面へ戻る</a>{% endif %}
+            <a class="btn btn-outline" href="{{ url_for('login') }}" data-import-flow-login hidden>ログインする</a>
+        </div>
+    </section>
+</div>
+<form id="importFlowCancel" action="{{ import_flow.cancel_url }}" method="post" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<script defer src="{{ url_for('static', filename='js/import_flow.js', v='20261026-entry-reset-1') }}"></script>
+{% endif %}

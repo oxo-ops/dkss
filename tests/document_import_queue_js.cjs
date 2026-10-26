@@ -20,7 +20,7 @@ function fixture() {
         send(payload){this.payload=payload;}
     }
     const context={URL,FormData:Payload,XMLHttpRequest:XHR,crypto:{randomUUID:()=>String(++serial)},
-        document:{querySelectorAll:()=>[form],getElementById:()=>null},
+        document:{querySelectorAll:selector=>selector.startsWith("form[")?[form]:[],getElementById:()=>null},
         location:{href:'https://test.example/vehicle/data-import',origin:'https://test.example',assign:url=>destinations.push(url)},window:{}};
     vm.runInNewContext(source,context);
     return {form,input,button,status,calls,destinations,errors,submit:()=>context.window.DKSSDocumentImportQueue.submit(form,message=>errors.push(message))};

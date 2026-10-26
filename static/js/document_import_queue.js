@@ -15,9 +15,12 @@
         payload.set("upload_key", form.dataset.uploadKey);
         const button = form.querySelector('button[type="submit"]');
         const status = form.querySelector('.import-file-status');
+        const originalButtonText = button.textContent;
+        const clear = form.querySelector(".import-clear");
         form.dataset.loading = "1";
         button.disabled = true;
         input.disabled = true;
+        if (clear) clear.disabled = true;
         button.textContent = "送信中…";
         status.textContent = "原本を送信しています。送信完了後は画面を閉じられます。";
         const xhr = new XMLHttpRequest();
@@ -32,7 +35,8 @@
             delete form.dataset.loading;
             button.disabled = false;
             input.disabled = false;
-            button.textContent = "読み込んで確認";
+            button.textContent = originalButtonText;
+            if (clear) clear.disabled = false;
             showError(message);
         }
         xhr.addEventListener("load", () => {
@@ -50,6 +54,7 @@
             destination.searchParams.set("open", "1");
             location.assign(destination.href);
         });
+        xhr.addEventListener("abort", () => fail("送信を中断しました。受付済みの場合もあるため、元の画面で状況を確認してください。"));
         xhr.addEventListener("error", () => fail("通信が中断しました。再送信すると同じ受付番号で確認します。"));
         xhr.addEventListener("timeout", () => fail("送信が時間切れになりました。通信状態を確認してください。"));
         xhr.send(payload);
@@ -58,6 +63,41 @@
         form.querySelector('input[type="file"]').addEventListener('change', () => { delete form.dataset.uploadKey; });
     });
     window.DKSSDocumentImportQueue = {submit};
+    document.querySelectorAll(".import-receipt-delete-form").forEach(form => {
+        form.addEventListener("submit", event => {
+            if (form.dataset.deleting === "1") { event.preventDefault(); return; }
+            if (!window.confirm("「" + form.dataset.filename + "」の受付を削除しますか？\n未登録の資料は読み取りを取り消して削除します。登録済みの車両記録と原本は残ります。")) {
+                event.preventDefault();
+                return;
+            }
+            form.dataset.deleting = "1";
+            form.querySelector('button[type="submit"]').disabled = true;
+        });
+    });
+    document.querySelectorAll(".import-workspace").forEach(workspace => {
+        const list = workspace.querySelector(".import-receipt-list");
+        if (!list) return;
+        const main = workspace.closest(".main-content");
+        let frame = null;
+        function fitReceipts() {
+            frame = null;
+            if (window.innerWidth < 900) { list.style.maxHeight = ""; return; }
+            const bottomPadding = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+            const room = window.innerHeight - workspace.getBoundingClientRect().bottom - bottomPadding - (window.innerWidth < 1100 ? 32 : 8);
+            const desired = Math.max(104, Math.min(600, Math.floor(list.getBoundingClientRect().height + room)));
+            const value = desired + "px";
+            if (list.style.maxHeight !== value) list.style.maxHeight = value;
+        }
+        function schedule() {
+            if (frame !== null) return;
+            frame = window.requestAnimationFrame(fitReceipts);
+        }
+        window.addEventListener("resize", schedule);
+        workspace.querySelectorAll("details").forEach(item => item.addEventListener("toggle", schedule));
+        if (window.ResizeObserver) new ResizeObserver(schedule).observe(workspace);
+        if (document.fonts) document.fonts.ready.then(schedule);
+        schedule();
+    });
     const root = document.getElementById("documentImportJob");
     if (!root) return;
     const labels = {queued:"順番待ち", reading:"読み取り中", preview:"確認できます", read_error:"読み取り失敗", completed:"登録済み", skipped:"確認済み"};

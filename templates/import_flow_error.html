@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}資料の取り込み確認{% endblock %}
+{% block content %}
+<div class="card vehicle-search-card" id="importFlowErrorPage">
+    <p>登録は完了していません。表示された内容を確認してください。</p>
+    {% if import_flow.review_url %}<a class="btn btn-outline" href="{{ import_flow.review_url }}">編集内容を保持した確認画面へ戻る</a>{% endif %}
+    <a class="btn btn-outline" href="{{ import_flow.back_url }}">元の取込画面へ戻る</a>
+</div>
+{% endblock %}

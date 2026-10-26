@@ -1,0 +1,3 @@
+#importFlow [hidden], #importFlowCancel[hidden] { display: none !important; }
+#importFlow > .form-actions { margin-bottom: 8px; }
+#importFlow .card { margin-bottom: 10px; }
