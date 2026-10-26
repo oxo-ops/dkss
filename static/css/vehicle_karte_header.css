@@ -1,0 +1,123 @@
+/* Shared header: keep the workspace visible and expand attributes on demand. */
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact {
+    grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1.1fr);
+    gap: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-photo-empty {
+    width: 64px;
+    height: 64px;
+    min-height: 0;
+    padding: 6px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-number-row {
+    margin-bottom: 2px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-number-row h2 {
+    font-size: 20px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-model {
+    margin-bottom: 2px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-summary {
+    grid-column: auto;
+    gap: 6px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact :is(.vehicle-karte-metric, .vehicle-karte-deadline) {
+    padding: 6px 8px;
+    gap: 2px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-metric > strong {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-heading {
+    display: contents;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-heading .vc-open {
+    order: 2;
+    margin-left: auto;
+    min-height: 26px;
+    padding: 3px 6px;
+    font-size: 11px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-chips {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+}
+@media (max-width: 1050px) {
+    body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact {
+        grid-template-columns: 64px minmax(0, 1fr);
+    }
+    body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-summary {
+        grid-column: 1 / -1;
+    }
+}
+@media (max-width: 600px) {
+    body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-number-row h2 { font-size: 18px; }
+    body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact :is(.vehicle-karte-metrics, .vehicle-karte-deadlines) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .karte-header-attributes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 10px;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-basic-grid { display: contents; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-basic-grid > div {
+    grid-template-columns: 78px minmax(0, 1fr);
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-basic-grid :is(dt, dd) {
+    min-height: 25px;
+    padding: 3px 4px;
+}
+.karte-header-coupling-slot { min-width: 0; align-self: center; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-heading > span { display: none; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-chips { flex: 1 1 45px; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vc-chips a { padding: 2px 4px; font-size: 11px; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-metric {
+    position: relative;
+    justify-content: flex-start;
+}
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-metric > strong { margin-top: auto; }
+body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .vehicle-karte-metric > small { font-size: 11px; line-height: 1.4; }
+.karte-mileage-warning { position: relative; font-size: 11px; line-height: 1.4; }
+.karte-mileage-warning > summary { width: fit-content; color: #985c0b; cursor: pointer; }
+.karte-mileage-note {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 30;
+    width: 250px;
+    max-width: calc(100vw - 48px);
+    box-sizing: border-box;
+    margin-top: 4px;
+    padding: 10px;
+    border: 1px solid #e8cf9d;
+    border-radius: 6px;
+    background: #fffaf0;
+    color: #704b15;
+    box-shadow: 0 3px 12px #23364d20;
+}
+.karte-mileage-note small { font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) {
+    body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact .karte-header-attributes { grid-template-columns: minmax(0, 1fr); }
+    .karte-header-coupling-slot { padding-top: 5px; }
+}

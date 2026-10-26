@@ -68,7 +68,7 @@
 </div>
 
 <script
-    src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261026-shared-component-3') }}"
+    src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261026-company-label-5') }}"
     defer
 ></script>
 
@@ -79,7 +79,8 @@
 
 {% if vehicle is defined and vehicle %}
 
-<div class="vehicle-karte-header">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_header.css', v='20261026-compact-2') }}">
+<div class="vehicle-karte-header karte-header-compact">
     <div class="vehicle-karte-photo-area">
         {% set vehicle_icon = (
             vehicle.type or ""
@@ -109,6 +110,7 @@
             {% endif %}
         </p>
 
+        <div class="karte-header-attributes">
         <dl class="vehicle-karte-basic-grid">
             <div>
                 <dt>車台番号</dt>
@@ -139,7 +141,10 @@
                 <dd>{{ vehicle.first_registration_date or "未登録" }}</dd>
             </div>
         </dl>
+        <div class="karte-header-coupling-slot">
         {% include "vehicle_couplings.html" %}
+        </div>
+        </div>
     </div>
 
     <div class="vehicle-karte-summary">
@@ -162,12 +167,19 @@
                         {% endfor %}
                     </small>
                 {% endif %}
-                {% if mileage_reference.get("status") == "conflicting" %}
+                {% if mileage_reference.get("status") == "conflicting" or mileage_reference.get("decrease_dates") or (mileage_reference.get("value") is not none and not mileage_reference.get("distance_usable")) %}
+                <details class="karte-mileage-warning">
+                    <summary>注意</summary>
+                    <div class="karte-mileage-note" role="note">
+                    {% if mileage_reference.get("status") == "conflicting" %}
                     <small>同日の記録に差があるため、値を確定していません。</small>
                 {% elif mileage_reference.get("decrease_dates") %}
                     <small>過去の記録より距離が減少しています。原本・運行実績を確認してください。</small>
                 {% elif mileage_reference.get("value") is not none and not mileage_reference.get("distance_usable") %}
                     <small>参考値。計測日または距離の連続性が確定しないため、経過距離の計算には使用しません。</small>
+                {% endif %}
+                    </div>
+                </details>
                 {% endif %}
             </div>
 
