@@ -209,12 +209,12 @@
                             <td>{{ part.replacement_date|replace('-', '/') }}</td>
                             <td class="kp-number">
                                 <span class="kp-mileage-value">
-                                    {{ format_part_number(part.mileage) }}
+                                    {{ part.mileage|distance_km }}
                                     {% if part.mileage is not none %}<small> km</small>{% endif %}
                                 </span>
                                 <span class="kp-mileage-detail">
                                     {% if row.distance is not none %}
-                                    前回から {{ format_part_number(row.distance) }} km
+                                    前回から {{ row.distance|distance_km }} km
                                     {% else %}
                                     前回記録なし
                                     {% endif %}
@@ -354,7 +354,7 @@
                         <span class="kp-current-meter">
                             <span class="kp-current-distance">
                                 {% if elapsed is not none %}
-                                交換後 <b>{{ format_part_number(elapsed) }}</b> km
+                                交換後 <b>{{ elapsed|distance_km }}</b> km
                                 {% else %}
                                 交換後の距離：—
                                 {% endif %}

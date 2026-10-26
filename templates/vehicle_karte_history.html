@@ -147,7 +147,7 @@
 
                             <td data-label="走行距離">
                                 {% if entry.mileage is not none %}
-                                    {{ "{:,.2f}".format(entry.mileage) }} km
+                                    {{ entry.mileage|distance_km }} km
                                 {% else %}
                                     —
                                 {% endif %}

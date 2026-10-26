@@ -46,6 +46,8 @@ def create_app(config=None, *, initialize_database=False):
     if production and not values["DATABASE_URL"] and not (config and config.get("SQLALCHEMY_DATABASE_URI")):
         raise RuntimeError("本番環境ではDATABASE_URLが必要です。")
     app.config.update(values)
+    from .display import format_distance_km
+    app.jinja_env.filters["distance_km"] = format_distance_km
     db.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)

@@ -61,7 +61,7 @@
         canvas.setAttribute("aria-label", rows.map((row, index) => (
             `${row.month}：${values[index] === null
                 ? "記録なし"
-                : values[index].toLocaleString("ja-JP") + unit}`
+                : values[index].toLocaleString("ja-JP", field === "distance" ? { maximumFractionDigits: 0 } : {}) + unit}`
         )).join("、"));
 
         context.font = '12px "Segoe UI", "Meiryo", sans-serif';

@@ -870,7 +870,12 @@ class WorkflowRegressionTests(unittest.TestCase):
             report_number='meter-evidence', operation_date='2026-09-16', arrival_meter='349867.05'))
         m.db.session.commit()
         text = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections').get_data(as_text=True)
-        self.assertIn('349,867.05', text)
+        self.assertIn('349,867 km', text)
+        self.assertNotIn('349,867.05', text)
+        self.assertEqual(
+            str(m.VehicleOperationRecord.query.filter_by(report_number='meter-evidence').one().arrival_meter),
+            '349867.05',
+        )
         self.assertIn('前回 2026-09-12', text)
         self.assertIn('351,842', text)
         self.assertIn('過去の記録より距離が減少しています', text)
