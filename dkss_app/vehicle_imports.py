@@ -861,6 +861,13 @@ def vehicle_document_import_confirm(batch_id):
         errors.append(('取り込み対象が不正です。画面を再読み込みしてください。', ''))
     if not included:
         errors.append(('取り込む記録を選択してください。', ''))
+    from .document_import_kind import validate_corrections
+    corrections = []
+    if not errors:
+        try:
+            corrections = validate_corrections(drafts, submissions)
+        except ValueError as error:
+            errors.append((str(error), ''))
     if errors:
         if not validation_only:
             try:
@@ -946,6 +953,15 @@ def vehicle_document_import_confirm(batch_id):
             draft.result_json = _dkss_common.json.dumps({'records': results[draft.id], 'pending_records': pending_results[draft.id], 'pending_count': len(pending_results[draft.id])}, ensure_ascii=False)
             draft.status = 'completed' if results[draft.id] or pending_results[draft.id] else 'skipped'
             draft.completed_at = completed_at
+        for vehicle, original, replacement, digest in corrections:
+            try:
+                _dkss_runtime.app.extensions['dkss']['document_deletion']['replace_source'](
+                    vehicle, original, replacement, digest)
+                saved = _dkss_serialization.safe_json_dict(replacement.result_json)
+                saved['corrected_from'] = original.id
+                replacement.result_json = _dkss_common.json.dumps(saved, ensure_ascii=False)
+            except ValueError as error:
+                raise _dkss_common.UploadValidationError(str(error)) from None
         _dkss_common.db.session.commit()
     except _dkss_common.UploadValidationError as error:
         _dkss_common.db.session.rollback()
@@ -1032,6 +1048,11 @@ def vehicle_document_import_preview(batch_id):
     ]
 
     if not pending_drafts:
+        needs_attention = next((d for d in drafts if d.status == 'type_review'), None)
+        if needs_attention:
+            return _dkss_common.redirect(_dkss_common.url_for('document_import_kind', draft_id=needs_attention.id))
+        if any(d.status == 'read_error' for d in drafts):
+            return _dkss_common.redirect(_dkss_common.url_for('document_import_job', batch_id=batch_id))
         _dkss_common.flash(
             "この資料の取り込み確認は終了しています。",
             "info"
@@ -1085,6 +1106,8 @@ def vehicle_document_import_preview(batch_id):
     from .import_flow import mark_document_duplicates
     import_flow_notice = mark_document_duplicates(pending_drafts, documents, _dkss_common.session.get('company_code'))
     from .document_import_queue import metadata
+    corrections = [dict(metadata(draft.result_json)['correction'], filename=draft.source_filename)
+                   for draft in pending_drafts if metadata(draft.result_json).get('correction')]
     failures = [{'filename':draft.source_filename, 'reason':metadata(draft.result_json).get('message', '読み取りに失敗しました。')}
                 for draft in drafts if draft.status == 'read_error']
     ignored_files = [filename for draft in drafts for filename in metadata(draft.result_json).get('ignored_files', [])]
@@ -1096,6 +1119,7 @@ def vehicle_document_import_preview(batch_id):
 
     return _dkss_common.render_template(
         "vehicle_document_import_preview.html",
+        kind_corrections=corrections,
         import_flow_notice=import_flow_notice,
         import_all_duplicates=all(record.get('import_duplicate') for document in documents for record in (document['preview'].get('records') or [])),
         batch_id=batch_id,

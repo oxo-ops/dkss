@@ -36,7 +36,8 @@ class DocumentImportQueueTests(unittest.TestCase):
             if progress_callback:progress_callback({'phase':'ai_accepted'})
             if failure:raise failure
             return extraction(source)
-        with patch.object(vehicle_imports, 'vehicle_document_extractor',return_value=extract):
+        with patch.object(vehicle_imports, 'vehicle_document_extractor',return_value=extract), patch.object(
+            queue, 'detect_document_types', return_value={'types':['inspection'],'certainty':'clear','supported':True}):
             return queue.process_one(self.m.app)
 
     def status(self, receipt):
@@ -201,10 +202,9 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.assertEqual(response.status_code,302,response.get_data(as_text=True))
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),1)
         self.client.post(receipt['page_url']+'/retry');self.worker()
-        retried=Draft.query.filter_by(status='preview').one()
-        # The original source is identical, so existing source-deduplication must reject it.
-        response=self.client.post('/vehicle/data-import/'+receipt['batch_id']+'/confirm',data=self.inspection_form(retried))
-        self.assertEqual(response.status_code,400)
+        # The destination-type duplicate is now excluded before spending another OCR call.
+        self.assertEqual(Draft.query.filter_by(status='skipped').count(),1)
+        self.assertEqual(Draft.query.filter_by(status='preview').count(),0)
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),1)
 
     def test_delete_cancels_queued_and_claimed_jobs_and_fences_worker(self):

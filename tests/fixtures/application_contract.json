@@ -1766,6 +1766,18 @@
       ""
     ],
     [
+      "/vehicle/data-import/<draft_id>/kind",
+      "document_import_kind",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/vehicle/data-import/files/<draft_id>",
       "vehicle_document_import_source",
       [

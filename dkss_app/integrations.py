@@ -30,7 +30,7 @@ def register_integrations(app):
         app, db, models.VehiclePeriodicInspectionRecord, models.Vehicle, models.Company,
         models.User, models.VehicleMaintenanceRecord, models.Notification,
         maintenance.add_vehicle_maintenance_record_event, analysis.get_vehicle_karte_analysis_job_data)
-    register_document_deletion(app, db, {
+    state['document_deletion'] = register_document_deletion(app, db, {
         'Vehicle': models.Vehicle,
         'VehicleDocumentImportDraft': models.VehicleDocumentImportDraft,
         'VehicleMaintenanceDocument': models.VehicleMaintenanceDocument,

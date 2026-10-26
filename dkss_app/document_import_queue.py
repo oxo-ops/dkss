@@ -12,6 +12,7 @@ from sqlalchemy.orm import load_only
 from sqlalchemy.exc import IntegrityError
 from .extensions import db
 from .models import VehicleDocumentImportDraft as Draft, Company, User
+from document_type_detection import detect_document_types, validate_detection
 
 MB = 1024 * 1024
 MAX_FILE_BYTES = 20 * MB
@@ -61,7 +62,7 @@ def delete_receipt(batch_id, company_code, username):
     for row in rows:
         data = json.loads(row.result_json or '{}')
         data['receipt_hidden'] = True
-        if row.status in (*ACTIVE, 'processing', 'preview', 'read_error'):
+        if row.status in (*ACTIVE, 'processing', 'preview', 'read_error', 'type_review'):
             # Tombstones fence running workers and keep the upload key idempotent.
             row.status = 'deleted'
             row.source_file = b''
@@ -132,7 +133,8 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
                 created_by_username=username, document_type=document_type, source_filename=filename,
                 source_file=source, source_sha256=hashlib.sha256(source).hexdigest(), status='queued',
                 preview_json='{}', result_json=result({'phase':'queued', 'attempts':0,
-                'position':position, 'updated_at':now().isoformat(), 'bytes':len(source)}))
+                'position':position, 'requested_type':document_type, 'generation':0,
+                'updated_at':now().isoformat(), 'bytes':len(source)}))
             db.session.add(row)
             db.session.flush()
             db.session.expunge(row)
@@ -196,7 +198,7 @@ def renew(draft_id, token, update=None):
         db.session.rollback()
         return False
     if update:
-        if update.get('phase') in {'reading','ai_accepted','ai_output','checking'}:
+        if update.get('phase') in {'classifying','reading','ai_accepted','ai_output','checking'}:
             job['phase'] = update['phase']
         count = update.get('received_lines')
         if type(count) is int and 0 <= count <= 100000:
@@ -239,6 +241,8 @@ def finish(draft_id, token, extraction=None, error=None):
                 company_code=row.company_code, username=row.created_by_username)
             if not preview.get('records'):
                 raise ValueError('OCR_NO_RECORDS')
+            preview['routing_notice'] = job.get('routing_notice', '')
+            row.preview_json = encode(preview)
         except Exception as exc:
             error = exc
     if error is not None:
@@ -253,6 +257,57 @@ def finish(draft_id, token, extraction=None, error=None):
     row.result_json = result(job)
     db.session.commit()
     return True
+
+
+def route_detection(draft_id, token, detection):
+    """Fence classification and rerouting with the same lease as extraction."""
+    from document_type_detection import KINDS
+    from .import_flow import completed_document
+    validate_detection(detection)
+    row = Draft.query.filter_by(id=draft_id, status='reading').with_for_update().first()
+    if not row or metadata(row.result_json).get('token') != token:
+        db.session.rollback()
+        return None
+    job = metadata(row.result_json)
+    job['detection'] = detection
+    kinds = detection['types']
+    if not detection['supported'] or detection['certainty'] != 'clear' or not kinds:
+        row.status = 'type_review'
+        row.preview_json = '{}'
+        job.update(phase='type_review', message='資料の種類を確認してください。原本は保存されています。')
+        for key in ('token', 'lease_until'):
+            job.pop(key, None)
+        row.result_json = result(job)
+        db.session.commit()
+        return None
+    requested = job.get('requested_type', row.document_type)
+    for position, kind in enumerate(kinds[1:], 1):
+        child_id = str(uuid5(UUID(row.id), 'kind:' + kind + ':' + str(job.get('generation', 0))))
+        if db.session.get(Draft, child_id) is None:
+            child_job = {'phase':'queued', 'attempts':0, 'generation':0,
+                'position':job.get('position', 0) + position / 10, 'updated_at':now().isoformat(),
+                'requested_type':requested, 'forced_type':True,
+                'routing_notice':'混在する資料から、' + KINDS[kind] + 'を読み取りました。'}
+            db.session.add(Draft(id=child_id, batch_id=row.batch_id, company_code=row.company_code,
+                created_by_username=row.created_by_username, document_type=kind,
+                source_filename=row.source_filename, source_file=row.source_file, source_sha256=row.source_sha256,
+                status='queued', preview_json='{}', result_json=result(child_job)))
+    kind = kinds[0]
+    row.document_type = kind
+    job['routing_notice'] = ('混在する資料から、' + KINDS[kind] + 'を読み取りました。' if len(kinds) > 1 else
+        KINDS[kind] + 'として読み取りました。' if kind != requested else job.get('routing_notice', ''))
+    if completed_document(row.company_code, kind, row.source_sha256):
+        row.status = 'skipped'
+        job.update(phase='complete', message='この種類の資料は登録済みのため、今回の取込から除外しました。')
+        for key in ('token', 'lease_until'):
+            job.pop(key, None)
+        row.result_json = result(job)
+        db.session.commit()
+        return None
+    job['phase'] = 'reading'
+    row.result_json = result(job)
+    db.session.commit()
+    return kind
 
 
 def process_one(app):
@@ -272,6 +327,7 @@ def process_one(app):
         user = User.query.filter_by(company_code=row.company_code, username=row.created_by_username).first()
         allowed = company is not None and user is not None and user.role in {'admin','itc'}
         source, filename, kind, digest = row.source_file, row.source_filename, row.document_type, row.source_sha256
+        forced = metadata(row.result_json).get('forced_type', False)
         db.session.remove()
     stopped = threading.Event()
     lost = threading.Event()
@@ -312,6 +368,16 @@ def process_one(app):
         if hashlib.sha256(source).hexdigest() != digest:
             raise ValueError('SOURCE_CHANGED')
         from .vehicle_imports import vehicle_document_extractor
+        detection = ({'types':[kind], 'certainty':'clear', 'supported':True, 'method':'manual'} if forced else
+            detect_document_types(source, filename, progress))
+        with app.app_context():
+            try:
+                with update_lock:
+                    kind = route_detection(draft_id, token, detection)
+            finally:
+                db.session.remove()
+        if kind is None:
+            return True
         with app.app_context():
             extraction = vehicle_document_extractor(kind)(source, filename=filename, progress_callback=progress)
     except Exception as exc:
@@ -340,13 +406,15 @@ def batch_status(batch_id, company_code, username):
     for row in rows:
         job = metadata(row.result_json)
         entries.append({'id':row.id, 'filename':row.source_filename, 'status':row.status,
+            'document_type':row.document_type,
             'phase':job.get('phase',row.status), 'message':job.get('message',''),
             'received_lines':job.get('received_lines',0), 'ignored_files':job.get('ignored_files', [])})
     succeeded = sum(row.status in {'preview','completed','skipped'} for row in rows)
     failed = sum(row.status == 'read_error' for row in rows)
     active = sum(row.status in ACTIVE for row in rows)
+    needs_review = sum(row.status == 'type_review' for row in rows)
     return {'batch_id':batch_id, 'files':entries, 'total':len(rows), 'succeeded':succeeded,
-            'failed':failed, 'completed':len(rows)-active, 'finished':active==0,
+            'failed':failed, 'needs_review':needs_review, 'completed':len(rows)-active, 'finished':active==0,
             'preview_ready':active==0 and any(row.status=='preview' for row in rows)}
 
 

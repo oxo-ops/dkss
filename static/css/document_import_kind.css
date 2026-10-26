@@ -1,0 +1,9 @@
+.document-kind-review { max-width: 1100px; margin-inline: auto; }
+.document-kind-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .8fr); gap: 20px; }
+.document-kind-source { min-width: 0; }
+.document-kind-source iframe { width: 100%; height: min(58vh, 580px); border: 1px solid #dce6f3; border-radius: 8px; }
+.document-kind-source img { max-width: 100%; max-height: 58vh; object-fit: contain; }
+.document-kind-grid label { display: block; margin-bottom: 8px; }
+.document-kind-grid select { width: 100%; }
+.document-kind-grid .btn { margin-block: 8px; }
+@media (max-width: 700px) { .document-kind-grid { grid-template-columns: 1fr; } .document-kind-source iframe { height: 34vh; } }

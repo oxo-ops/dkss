@@ -8,7 +8,7 @@ from .models import VehicleDocumentImportDraft as DocumentDraft, VehicleOperatio
 
 DOCUMENT = {'vehicle_data_import', 'vehicle_data_import_progress', 'enqueue_documents',
     'vehicle_document_import_preview', 'vehicle_document_import_confirm', 'document_import_job',
-    'document_import_status', 'retry_document_import', 'delete_document_import'}
+    'document_import_status', 'retry_document_import', 'delete_document_import', 'document_import_kind'}
 OPERATION = {'vehicle_operation_import', 'vehicle_operation_import_preview',
     'vehicle_operation_import_confirm', 'vehicle_operation_import_add_vehicle', 'vehicle_operation_import_result'}
 REGISTRATION = {'vehicle_registration_method', 'import_vehicles', 'confirm_vehicle_import',
@@ -35,6 +35,8 @@ def context():
     review_url = (url_for('vehicle_document_import_preview', batch_id=key) if kind == 'document' and key else
         url_for('vehicle_operation_import_preview', draft_id=key) if kind == 'operation' and key else
         url_for('vehicle_excel_import_preview', draft_id=key) if kind == 'registration' and key else None)
+    if endpoint == 'document_import_kind':
+        review_url = url_for('document_import_kind', draft_id=request.view_args['draft_id'])
     entry = request.method == 'GET' and request.endpoint in {'vehicle_data_import', 'vehicle_registration_method', 'vehicle_operation_import', 'import_vehicles'} and request.args.get('complete') != '1'
     return {'kind': kind, 'key': key, 'entry': entry, 'review_url': review_url, 'back_url': url_for(origin),
         'cancel_url': url_for('cancel_import_flow', kind=kind, key=key),

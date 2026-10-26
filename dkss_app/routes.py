@@ -280,6 +280,8 @@ def register_core_routes(app):
     view = vehicle_imports.vehicle_invoice_import_candidates
     view = app.route("/vehicle/document-import/<batch_id>/<draft_id>/<int:record_index>/maintenance-candidates")(view)
     from . import document_import_routes
+    from .document_import_kind import document_import_kind
+    app.add_url_rule('/vehicle/data-import/<draft_id>/kind', 'document_import_kind', document_import_kind, methods=['GET', 'POST'])
     app.add_url_rule('/vehicle/data-import/jobs', 'enqueue_documents', document_import_routes.enqueue_documents, methods=['POST'])
     app.add_url_rule('/vehicle/data-import/jobs/<batch_id>', 'document_import_job', document_import_routes.document_import_job)
     app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/status', 'document_import_status', document_import_routes.document_import_status)

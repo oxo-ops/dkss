@@ -52,7 +52,9 @@
             const destination = new URL(data.page_url, location.href);
             if (destination.origin !== location.origin) { fail("確認先が不正です。"); return; }
             destination.searchParams.set("open", "1");
-            location.assign(destination.href);
+            const move = () => location.assign(destination.href);
+            if (window.DKSSImportSelections) window.DKSSImportSelections.accepted(form).then(move);
+            else move();
         });
         xhr.addEventListener("abort", () => fail("送信を中断しました。受付済みの場合もあるため、元の画面で状況を確認してください。"));
         xhr.addEventListener("error", () => fail("通信が中断しました。再送信すると同じ受付番号で確認します。"));
@@ -62,7 +64,58 @@
     document.querySelectorAll('form[data-import-queue="1"]').forEach(form => {
         form.querySelector('input[type="file"]').addEventListener('change', () => { delete form.dataset.uploadKey; });
     });
-    window.DKSSDocumentImportQueue = {submit};
+    window.DKSSDocumentImportQueue = {submit, offer: offerTypeTransfer};
+    // Recover CSV/document drops in the browser before rejecting their extension.
+    function offerTypeTransfer(form, files) {
+        if (!files.length || form.dataset.loading === "1") return false;
+        const source = form.querySelector('input[type="file"]');
+        const csv = files.length === 1 && files.every(file => /\.csv$/i.test(file.name));
+        const documents = files.length <= 50 && files.every(file => /\.(pdf|png|jpe?g)$/i.test(file.name));
+        const operation = source.name === "csv_file";
+        if (!(operation && documents) && !(!operation && csv)) return false;
+        const target = document.querySelector(operation ? '#import-maintenance form' : '#import-operation form');
+        if (!target) return false;
+        const targetInput = target.querySelector('input[type="file"]');
+        form.querySelector('[data-kind-transfer]')?.remove();
+        const box = document.createElement('div'); box.dataset.kindTransfer = '1';
+        box.className = 'help-text'; box.setAttribute('role', 'status');
+        const message = document.createElement('p');
+        message.textContent = operation ? 'PDF・画像の資料です。資料の読み取りへ移して続けられます。' : 'CSVファイルです。運行実績へ移して続けられます。';
+        const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-outline';
+        go.textContent = operation ? '資料として読み込む' : '運行実績として読み込む';
+        go.addEventListener('click', () => {
+            if (target.dataset.loading === '1' || targetInput.files.length) {
+                message.textContent = '移動先には別のファイルが選択されています。先にそのファイルを読み込むか、移動先の「削除」で選択を解除してください。今回のファイルは保持しています。';
+                return;
+            }
+            const transfer = new DataTransfer(); files.forEach(file => transfer.items.add(file));
+            targetInput.files = transfer.files;
+            targetInput.dispatchEvent(new Event('change', {bubbles:true}));
+            const selected = Array.from(source.files || []);
+            if (selected.length === files.length && selected.every((file, i) => file === files[i])) {
+                source.value = ''; delete form.dataset.uploadKey;
+                source.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+            box.remove(); target.requestSubmit();
+        });
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-outline';
+        cancel.textContent = 'キャンセル'; cancel.addEventListener('click', () => box.remove());
+        box.append(message, go, cancel); form.append(box);
+        return true;
+    }
+    document.querySelectorAll('.vehicle-data-import .import-form').forEach(form => {
+        const input = form.querySelector('input[type="file"]');
+        form.addEventListener('submit', event => {
+            if (offerTypeTransfer(form, Array.from(input.files || []))) {
+                event.preventDefault(); event.stopImmediatePropagation();
+            }
+        }, true);
+        form.querySelector('.import-dropzone')?.addEventListener('drop', event => {
+            if (offerTypeTransfer(form, Array.from(event.dataTransfer.files || []))) {
+                event.preventDefault(); event.stopImmediatePropagation();
+            }
+        }, true);
+    });
     document.querySelectorAll(".import-receipt-delete-form").forEach(form => {
         form.addEventListener("submit", event => {
             if (form.dataset.deleting === "1") { event.preventDefault(); return; }
@@ -108,16 +161,27 @@
             if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/json")) throw new Error("status");
             const job = await response.json();
             failures = 0;
-            document.getElementById("jobSummary").textContent = job.completed + " / " + job.total + "ファイル処理済み（成功 " + job.succeeded + "・失敗 " + job.failed + "）";
+            document.getElementById("jobSummary").textContent = job.completed + " / " + job.total + "資料処理済み（成功 " + job.succeeded + "・種類の確認 " + (job.needs_review || 0) + "・失敗 " + job.failed + "）";
             const progress = document.getElementById("jobProgress");
             progress.max = job.total;
             progress.value = job.completed;
             const items = job.files.map(file => {
                 const item = document.createElement("li");
                 let state = labels[file.status] || "処理中";
+                if (file.status === "type_review") state = "種類を確認";
+                if (file.status === "reading" && file.phase === "classifying") state = "資料の種類を確認中";
                 if (file.status === "reading" && file.phase === "ai_output") state = "読取結果を受信中";
                 if (file.status === "reading" && Number(file.received_lines) > 0) state += "・明細 " + file.received_lines + "件";
                 item.textContent = file.filename + " — " + state + (file.message ? "：" + file.message : "");
+                if (file.kind_url && !["completed", "skipped", "deleted"].includes(file.status)) {
+                    const url = new URL(file.kind_url, location.href);
+                    if (url.origin === location.origin) {
+                        const change = document.createElement("a");
+                        change.href = url.href; change.className = "btn btn-outline";
+                        change.textContent = file.status === "type_review" ? "種類を確認して続ける" : "資料の種類を変更";
+                        item.append(" ", change);
+                    }
+                }
                 return item;
             });
             document.getElementById("jobFiles").replaceChildren(...items);
@@ -129,7 +193,7 @@
                 const destination = new URL(job.preview_url, location.href);
                 if (destination.origin === location.origin) {
                     preview.href = destination.href;
-                    if (root.dataset.autoOpen === "1" && job.failed === 0) { location.replace(destination.href); return; }
+                    if (root.dataset.autoOpen === "1" && job.failed === 0 && !job.needs_review) { location.replace(destination.href); return; }
                 }
             }
             if (job.finished) return;
