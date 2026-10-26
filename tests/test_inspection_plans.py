@@ -590,6 +590,57 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
 
 
+    def test_invoice_ocr_repair_flows_to_actuals_with_costs_saved_once(self):
+        import hashlib
+        from io import BytesIO
+        from unittest.mock import patch
+        import maintenance_invoice_ai as ai
+        from test_inspection_document_ai import pdf_bytes
+        source = pdf_bytes(97531)
+        row = {field: None for field in ai.record_properties}
+        row.update(source_pages=[1], line_items=[], fees=[], warnings=[],
+                   entry_date='2026-08-10', completion_date='2026-08-17', invoice_date='2026-09-01',
+                   chassis_number='TEST-001', maintenance_category='突発修理',
+                   total_cost='2200', content='故障したブレーキを修理')
+        ai._validate({'records': [row]})
+        data = dict(schema_version=1, source_sha256=hashlib.sha256(source).hexdigest(), records=[row], warnings=[])
+        with patch.object(self.m, 'extract_maintenance_invoices', return_value=data):
+            response = self.client.post('/vehicle/data-import', data={
+                'document_type': 'maintenance', 'document_files': (BytesIO(source), 'repair.pdf')})
+        self.assertEqual(response.status_code, 302)
+        html = self.client.get(response.location).get_data(as_text=True)
+        self.assertIn('作業区分', html)
+        self.assertIn('作業完了日・出庫日', html)
+        draft = self.m.VehicleDocumentImportDraft.query.one()
+        key = draft.id + '_0'
+        form = {'include': key, 'vehicle_' + key: str(self.vehicle.id),
+                'date_' + key: '2026-08-10', 'content_' + key: row['content']}
+        result = self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=form)
+        self.assertEqual(result.status_code, 302)
+        record = self.m.VehicleMaintenanceRecord.query.one()
+        self.assertEqual(record.category, '突発修理')
+        self.assertEqual(str(record.total_cost), '2200.00')
+        self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        actual = self.repair_rows()[0]
+        self.assertEqual(actual['performed_date'], '2026-08-17')
+        self.assertEqual(actual['document_status'], '登録済み')
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
+        self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=form)
+        self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 1)
+        self.assertEqual(len(self.repair_rows()), 1)
+
+    def test_inspection_import_offers_periodic_types_not_repair_category(self):
+        self.upload_inspection()
+        draft = self.m.VehicleDocumentImportDraft.query.one()
+        html = self.client.get(f'/vehicle/data-import/{draft.batch_id}/preview').get_data(as_text=True)
+        self.assertIn('<option value="3month"', html)
+        self.assertIn('<option value="12month"', html)
+        self.assertNotIn('<option value="ad_hoc"', html)
+        intake = self.client.get('/vehicle/data-import').get_data(as_text=True)
+        self.assertIn('3か月・12か月点検の記録を取り込みます。', intake)
+        self.assertIn('突発修理などの整備実績や費用を取り込みます。', intake)
+
+
 del _Workflow
 
 if __name__=='__main__':unittest.main()

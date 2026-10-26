@@ -71,6 +71,7 @@
 
 <details class="invoice-overview-details" open>
     <summary>整備内容・費用内訳・請求書情報</summary>
+<p class="invoice-key-facts"><span>作業区分 <span data-fact="maintenance_category">{{ record.get("maintenance_category") or "未判定" }}</span></span><span>完了 <span data-fact="completion_date">{{ record.get("completion_date") or "未確認" }}</span></span></p>
 <p class="invoice-content-summary" data-fact="content">{{ record.get('content') or '記録内容の記載なし' }}</p>
 
 <div class="invoice-cost-summary">
@@ -126,6 +127,17 @@
             記録内容
             <textarea id="content_{{ row_key }}" name="content_{{ row_key }}" rows="2" maxlength="5000">{{ record.get('content') or '' }}</textarea>
         </label>
+        <label>作業区分
+            <select id="maintenance_category_{{ row_key }}" name="maintenance_category_{{ row_key }}">
+                <option value="">未判定</option>
+                {% for category in ['突発修理','修理','故障','応急処置','整備','定期点検','車検','部品交換','その他'] %}
+                <option value="{{ category }}" {% if record.get('maintenance_category') == category %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>作業完了日・出庫日
+            <input type="date" id="completion_date_{{ row_key }}" name="completion_date_{{ row_key }}" value="{{ record.get('completion_date') or '' }}">
+        </label>
 
         <label class="invoice-input-wide invoice-total-input">
             請求総額（円）
@@ -155,7 +167,7 @@
             </label>
             {% endfor %}
 
-            {% for field, label in [('completion_date','出庫日'),('invoice_date','請求日'),('sales_date','売上日')] %}
+            {% for field, label in [('invoice_date','請求日'),('sales_date','売上日')] %}
             <label>
                 {{ label }}
                 <input type="date" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" value="{{ record.get(field) or '' }}">

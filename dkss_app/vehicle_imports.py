@@ -163,6 +163,9 @@ def build_vehicle_document_record(draft, record_index, values):
     if draft.document_type == 'driving_report':
         return _dkss_models.VehicleDrivingReportRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], operation_date=values['record_date'], report_number=values.get('report_number') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
     if draft.document_type == 'maintenance':
+        from maintenance_invoice_ai import MAINTENANCE_CATEGORIES
+        if values.get('maintenance_category') not in (*MAINTENANCE_CATEGORIES, None, ''):
+            raise ValueError('作業区分を確認してください。')
         costs = {}
         for field in ('labor_cost', 'parts_cost', 'other_cost', 'tax_amount', 'total_cost'):
             raw = values.get(field)
@@ -186,7 +189,7 @@ def build_vehicle_document_record(draft, record_index, values):
         line_items = values.get('line_items') or []
         if not isinstance(line_items, list) or len(line_items) > 1000 or (not all((isinstance(item, dict) for item in line_items))):
             raise ValueError('整備明細を確認してください。')
-        return _dkss_models.VehicleMaintenanceRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], entry_date=values['record_date'], completion_date=values.get('completion_date') or None, mileage=mileage, content=values['content'], maintenance_company=maintenance_company or None, invoice_number=invoice_number or None, invoice_date=values.get('invoice_date') or None, invoice_details_json=_dkss_common.json.dumps({'schema_version': 1, 'issuer_name': values.get('issuer_name'), 'customer_name': values.get('customer_name'), 'sales_date': values.get('sales_date'), 'fees': values.get('fees') or [], 'registration_number': values.get('registration_number'), 'chassis_number': values.get('chassis_number'), 'vehicle_model': values.get('vehicle_model'), 'source': {'draft_id': draft.id, 'record_index': record_index, 'filename': draft.source_filename, 'sha256': draft.source_sha256, 'pages': values.get('source_pages') or []}}, ensure_ascii=False), line_items_json=_dkss_common.json.dumps(line_items, ensure_ascii=False), notes=values.get('notes') or None, **costs, created_by_username=_dkss_common.session.get('username'), created_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'))
+        return _dkss_models.VehicleMaintenanceRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], category=values.get('maintenance_category') or None, entry_date=values['record_date'], completion_date=values.get('completion_date') or None, mileage=mileage, content=values['content'], maintenance_company=maintenance_company or None, invoice_number=invoice_number or None, invoice_date=values.get('invoice_date') or None, invoice_details_json=_dkss_common.json.dumps({'schema_version': 1, 'issuer_name': values.get('issuer_name'), 'customer_name': values.get('customer_name'), 'sales_date': values.get('sales_date'), 'fees': values.get('fees') or [], 'registration_number': values.get('registration_number'), 'chassis_number': values.get('chassis_number'), 'vehicle_model': values.get('vehicle_model'), 'source': {'draft_id': draft.id, 'record_index': record_index, 'filename': draft.source_filename, 'sha256': draft.source_sha256, 'pages': values.get('source_pages') or []}}, ensure_ascii=False), line_items_json=_dkss_common.json.dumps(line_items, ensure_ascii=False), notes=values.get('notes') or None, **costs, created_by_username=_dkss_common.session.get('username'), created_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'))
     raise ValueError('資料の種類が不正です。')
 
 
@@ -496,6 +499,11 @@ def validate_vehicle_document_record(draft, record_index, original_record, form,
                     errors.append(('点検項目の名称・文字数を確認してください。', key))
             values['inspection_items'].append(item)
     if draft.document_type == 'maintenance':
+        from maintenance_invoice_ai import MAINTENANCE_CATEGORIES
+        key = f'maintenance_category_{row_key}'
+        values['maintenance_category'] = str(form.get(key, values.get('maintenance_category')) or '').strip() or None
+        if values['maintenance_category'] not in (*MAINTENANCE_CATEGORIES, None):
+            errors.append(('作業区分を選択してください。', key))
         text_fields = {'invoice_number': ('伝票番号', 100), 'issuer_name': ('請求書発行元', 200), 'maintenance_company': ('整備会社・工場', 200), 'notes': ('備考', 5000)}
         for field, (label, limit) in text_fields.items():
             field_id = f'{field}_{row_key}'

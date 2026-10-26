@@ -24,7 +24,7 @@ item_schema = _object({**{k: _text() for k in ITEM_FIELDS},
 SCHEMA = _object({
     "records": _array(_object({
         **{k: _text() for k in TEXT_FIELDS},
-        "inspection_type": {"type": ["string", "null"], "enum": ["3month", "12month", "ad_hoc", "other", None]},
+        "inspection_type": {"type": ["string", "null"], "enum": ["3month", "12month", "other", None]},
         "source_pages": _array({"type": "integer", "minimum": 1}),
         "inspection_items": _array(item_schema),
         "warnings": _array({"type": "string"}),
@@ -38,7 +38,7 @@ INSTRUCTIONS = """
 複数車両・複数日の点検は分離し、原本の登場順を保つ。1ページに複数記録もあり得る。
 source_pagesと各source_pageはPDF先頭から数える物理ページ番号。
 registration_numberは登録番号全体、chassis_numberは専用欄。先頭0・繰返し文字を保ち、型式と混同しない。
-inspection_type_rawは原文の点検区分。明記された3か月は3month、12か月・車検は12month、突発修理・臨時修理と明記されたものはad_hoc（従来表記の突発点検・臨時点検もad_hocとして扱う）、その他の明記区分はother。不明はnull。
+inspection_type_rawは原文の点検区分。明記された3か月は3month、12か月・車検は12month、修理資料はotherとしてwarningsに「請求書・整備資料から取り込む修理資料」と記載する。その他の明記区分はother。不明はnull。
 空欄・不明・判読不能はnull。日付は和暦を西暦へ変換しYYYY-MM-DD。年月日の不足を補わない。
 inspection_dateは点検実施日、completion_dateは明記された点検完了日、next_inspection_dateは明記された次回点検日。
 next_inspection_monthは明記された次回予定年月をYYYY-MMへ変換する。年月だけの場合next_inspection_dateはnull、日付を補わない。完全な次回日がある場合はその年月も記録する。
