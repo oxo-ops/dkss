@@ -442,7 +442,6 @@
         for(const [k,v] of Object.entries({month:filters.elements.month.value,view,kind,state,q:filters.elements.search.value,vehicle_id:focus||''}))if(v)url.searchParams.set(k,v);
         history.replaceState(null,'',url);
         const exportLink=planner.querySelector('[data-plan-export]');
-        exportLink.hidden=view!=='year';
         const exportURL=new URL('/vehicle/inspection-plans/export.xlsx',location.origin);
         exportURL.search=url.search;
         exportURL.searchParams.set('year',monthYear());
