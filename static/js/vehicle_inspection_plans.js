@@ -11,6 +11,7 @@
     const states = {unreserved:'未予約', reserved:'予約済み', awaiting:'実施確認待ち', completed:'実施済み', candidate:'予定未登録'};
     const labels = { '3month': '3か月点検', '12month': '12か月点検', ad_hoc: '突発点検' };
     const sourceLabels = { expiry: '12か月点検期限からの候補', manual: '手動で登録した予定', document: '点検簿の次回記載から反映', calculated: '周期から自動算出した候補' };
+    let batchTargets = null;
     let current = null, vehicle = null, initial = '', pending = null, data = null, selected = new Set();
     const args = planner ? JSON.parse(planner.dataset.planArgs || '{}') : {};
     if (args.kind === 'vehicle_inspection') args.kind = '12month';
@@ -53,10 +54,12 @@
         if (dirty() && !window.confirm('変更を保存せずに閉じますか？')) return;
         panel.close();
     }
-    function openEditor(row, v, editable = true) {
-        current = { ...row }; vehicle = v;
+    function openEditor(row, v, editable = true, targetRows = null) {
+        current = { ...row }; vehicle = v; batchTargets = targetRows;
+        panel.querySelector('.ip-scope').hidden = !!targetRows;
+        panel.querySelector('.ip-actual').hidden = !!targetRows;
         panel.querySelector('[data-plan-kind-label]').textContent = labels[row.kind];
-        panel.querySelector('[data-plan-vehicle-label]').textContent = v.number;
+        panel.querySelector('[data-plan-vehicle-label]').textContent = targetRows ? targetRows.length + '台を一括登録' : v.number;
         panel.querySelector('[data-plan-office-label]').textContent = v.office || '営業所未設定';
         ['planned_month', 'reservation_date', 'factory', 'note'].forEach(key => {
             form.elements[key].value = row[key] || ''; form.elements[key].disabled = !editable;
@@ -71,7 +74,7 @@
         error(panel, '[data-plan-error]');
         executionForm.reset(); executionForm.hidden = true; form.hidden = false;
         const toggle = panel.querySelector('[data-execution-toggle]');
-        toggle.hidden = !editable || row.status === 'cancelled';
+        toggle.hidden = !!targetRows || !editable || row.status === 'cancelled';
         executionForm.querySelector('[data-certificate-evidence]').hidden = row.kind !== '12month';
         executionForm.querySelector('[data-periodic-next]').hidden = row.kind === 'ad_hoc';
         executionForm.elements.confirmation.required = false;
@@ -141,7 +144,9 @@
         const button = form.querySelector('[data-plan-save]'); button.disabled = true;
         try {
             const values = Object.fromEntries(new FormData(form));
-            await showReview([{ ...current, ...values, status: 'planned', period_key: current.period_key || values.planned_month }]);
+            const changes = (batchTargets || [current]).map(target => ({ ...target, ...values,
+                status: 'planned', period_key: target.id ? target.period_key : values.planned_month }));
+            await showReview(changes);
         } catch (e) { error(panel, '[data-plan-error]', e.message); }
         finally { button.disabled = false; }
     });
@@ -460,16 +465,80 @@
         if(n<2000*12||n>2098*12+11)return;monthInput.value=Math.floor(n/12)+'-'+String(n%12+1).padStart(2,'0');selected.clear();safeLoad();
     }));
     const newDialog=document.querySelector('#inspection-plan-new'),newForm=newDialog.querySelector('form');
-    function newPlan(v=null,mon=filters.elements.month.value,day=''){
-        newForm.dataset.reservation=day;
-        const select=newForm.elements.vehicle;select.replaceChildren();data.vehicles.forEach(v=>{const o=node('option',v.number+' ／ '+v.office);o.value=v.id;select.append(o);});
-        if(v||focus)select.value=String(v?.id||focus);newForm.elements.kind.value=kind||'3month';newForm.elements.month.value=mon;newDialog.showModal();
+    let newData = null, newScope = 'vehicle', newLoading = false;
+    function targetVehicles() {
+        if (!newData) return [];
+        return newData.vehicles.filter(v => newScope === 'company' || (newScope === 'office'
+            ? v.office === newForm.elements.office.value
+            : v.id === Number(newForm.elements.vehicle.value)));
     }
+    function refreshNewTargets() {
+        newDialog.querySelectorAll('[data-new-scope]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.newScope === newScope)));
+        newDialog.querySelector('[data-new-office]').hidden = newScope !== 'office';
+        newDialog.querySelector('[data-new-vehicle]').hidden = newScope !== 'vehicle';
+        newForm.elements.vehicle.required = newScope === 'vehicle';
+        newForm.elements.office.required = newScope === 'office';
+        newDialog.querySelector('[data-new-target-count]').textContent = targetVehicles().length + '台が対象';
+    }
+    async function newPlan(v=null,mon=filters.elements.month.value,day='') {
+        if (newLoading) return;
+        newLoading = true;
+        try {
+            newData = await api('?' + new URLSearchParams({scope:'company',month:mon}));
+            newScope = 'vehicle'; newForm.dataset.reservation = day;
+            const select = newForm.elements.vehicle; select.replaceChildren();
+            newData.vehicles.forEach(v => {const o=node('option',v.number+' ／ '+v.office);o.value=v.id;select.append(o);});
+            if (v || focus) select.value = String(v?.id || focus);
+            const offices = newForm.elements.office; offices.replaceChildren();
+            [...new Set(newData.vehicles.map(v=>v.office))].sort().forEach(office => {const o=node('option',office);o.value=office;offices.append(o);});
+            const office = v?.office || (data.office || newData.vehicles.find(v=>v.id===Number(select.value))?.office);
+            if (office) offices.value = office;
+            newForm.elements.kind.value = kind || '3month'; newForm.elements.month.value = mon;
+            refreshNewTargets(); newDialog.showModal();
+        } catch (e) { window.alert(e.message); }
+        finally { newLoading = false; }
+    }
+    newDialog.querySelectorAll('[data-new-scope]').forEach(button=>button.addEventListener('click',()=>{newScope=button.dataset.newScope;refreshNewTargets();}));
+    newForm.elements.office.addEventListener('change',refreshNewTargets);
+    newForm.elements.vehicle.addEventListener('change',()=>{
+        const v=newData.vehicles.find(v=>v.id===Number(newForm.elements.vehicle.value));
+        if(v)newForm.elements.office.value=v.office;
+        refreshNewTargets();
+    });
     planner.querySelector('[data-clear-filters]').addEventListener('click',()=>{kind='';state='';focus=null;filters.elements.search.value='';selected.clear();safeLoad();});
     planner.querySelector('[data-empty-add]').addEventListener('click',()=>newPlan());
     planner.querySelector('[data-plan-add]').addEventListener('click',()=>newPlan());
     newDialog.querySelectorAll('[data-new-close]').forEach(b=>b.addEventListener('click',()=>newDialog.close()));
-    newForm.addEventListener('submit',e=>{e.preventDefault();const v=data.vehicles.find(v=>v.id===Number(newForm.elements.vehicle.value)),k=newForm.elements.kind.value,mon=newForm.elements.month.value;newDialog.close();const existing=k==='ad_hoc'?null:data.plans.find(p=>p.vehicle_record_id===v.id&&p.kind===k&&p.planned_month===mon&&p.status!=='cancelled');openEditor(existing||{id:null,version:0,kind:k,vehicle_record_id:v.id,planned_month:mon,period_key:mon,reservation_date:newForm.dataset.reservation?.slice(0,7)===mon?newForm.dataset.reservation:'',source:'manual',status:'candidate'},v,data.can_edit && existing?.status!=='completed');});
+    newForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        if(!newForm.reportValidity())return;
+        const vehicles = targetVehicles(), k = newForm.elements.kind.value, mon = newForm.elements.month.value;
+        if(!vehicles.length){window.alert('対象の車両を選択してください。');return;}
+        // Refresh plans for the selected month/year before deciding which vehicles need a new plan.
+        const submitButton = newForm.querySelector('[type=submit]');
+        if(submitButton.disabled)return;
+        submitButton.disabled = true;
+        try {
+            const latest = await api('?' + new URLSearchParams({scope:'company',month:mon}));
+            const selectedIds = new Set(vehicles.map(v=>v.id));
+            const targets = latest.vehicles.filter(v=>newScope==='company'||(newScope==='office'?v.office===newForm.elements.office.value:selectedIds.has(v.id)));
+            const rowFor = v => {
+                const existing = k === 'ad_hoc' ? null : latest.plans.find(p=>p.vehicle_record_id===v.id&&p.kind===k&&p.planned_month===mon);
+                return existing || {id:null,version:0,kind:k,vehicle_record_id:v.id,planned_month:mon,
+                    period_key:mon,reservation_date:newForm.dataset.reservation?.slice(0,7)===mon?newForm.dataset.reservation:'',source:'manual',status:'candidate'};
+            };
+            if(newScope==='vehicle'){
+                if(!targets.length)throw new Error('対象車両の情報が変わりました。開き直してください。');
+                const row=rowFor(targets[0]);newDialog.close();openEditor(row,targets[0],data.can_edit&&row.status!=='completed');return;
+            }
+            const changes = targets.map(rowFor).filter(p=>!['planned','completed'].includes(p.status));
+            if(!changes.length)throw new Error('対象車両にはこの月の予定・実施が登録済みです。');
+            if(changes.length>1000)throw new Error('一括登録は1000台までです。営業所単位で登録してください。');
+            newDialog.close();
+            openEditor(changes[0],{...targets[0],number:changes.length+'台',office:newScope==='company'?'会社全体':newForm.elements.office.value},data.can_edit,changes);
+        } catch(e){window.alert(e.message);}
+        finally { submitButton.disabled = false; }
+    });
     planner.querySelector('[data-plan-generate]').addEventListener('click',async()=>{
         try{const rows=visiblePlans().filter(p=>selected.has(p.vehicle_record_id)&&p.status==='candidate');if(!rows.length)throw new Error('登録する候補のある車両を選択してください。');await showReview(rows.map(p=>({...p,status:'planned'})));}catch(e){error(planner,'[data-planner-error]',e.message);}
     });
