@@ -32,6 +32,7 @@ COST_FIELDS = (
     "labor_cost", "parts_cost", "other_cost", "tax_amount", "total_cost"
 )
 DATE_FIELDS = ("entry_date", "completion_date", "invoice_date", "sales_date")
+MAINTENANCE_CATEGORIES = ('突発修理', '修理', '故障', '応急処置', '整備', '定期点検', '車検', '部品交換', 'その他')
 LINE_NUMBERS = ("quantity", "unit_price", "labor_amount", "parts_amount", "amount")
 
 line_properties = {
@@ -60,6 +61,7 @@ record_properties = {
     ) + DATE_FIELDS + COST_FIELDS
 }
 record_properties.update({
+    "maintenance_category": {"type": ["string", "null"], "enum": [*MAINTENANCE_CATEGORIES, None]},
     "source_pages": _array({"type": "integer", "minimum": 1}),
     "line_items": _array(_object(line_properties)),
     "fees": _array(_object({
@@ -86,7 +88,8 @@ source_pagesとsource_pageはPDF先頭を1とした物理ページ番号。FAX�
 不明・空欄・判読不能はnull。明記された0だけを0とする。推測して補完しない。
 金額・数量・走行距離は桁区切りや通貨記号のない10進数文字列。金額は円。
 日付はYYYY-MM-DD。和暦を西暦に変換し、年月日が不足する場合はnullとする。
-売上日はsales_date、請求日はinvoice_date、入庫日はentry_date、出庫日はcompletion_date。
+売上日はsales_date、請求日はinvoice_date、入庫日はentry_date、作業完了日・出庫日はcompletion_date。
+maintenance_categoryは整備・修理の作業区分。故障への修理・突発修理と確認できる場合は突発修理、応急処置は応急処置、定期点検・車検はその区分、その他は整備・部品交換・その他から明記された作業に合うものを選ぶ。不明はnull。部品交換だけを理由に突発修理と判断しない。
 売上日やファイル名の日付を、請求日・入庫日など別の意味の日付に転用しない。
 issuer_nameは請求書発行元、maintenance_companyは作業工場。別の記載なら混同しない。
 contentは記載された作業内容の短い要約。症状や原因・作業者を創作しない。
@@ -137,6 +140,8 @@ def _validate(data):
         raise ValueError("NO_INVOICE_FOUND")
     used_pages = set()
     for record in data["records"]:
+        if record.get("maintenance_category") not in (*MAINTENANCE_CATEGORIES, None):
+            raise ValueError("INVALID_MAINTENANCE_CATEGORY")
         pages = record["source_pages"]
         if not pages or len(pages) != len(set(pages)):
             raise ValueError("INVALID_SOURCE_PAGES")
@@ -185,7 +190,7 @@ def _validate(data):
             except (InvalidOperation, ValueError):
                 raise ValueError("INVALID_NUMBER: " + name) from None
         for name in DATE_FIELDS:
-            value = record[name]
+            value = record.get(name)
             if value is not None:
                 try:
                     if date.fromisoformat(value).isoformat() != value:
