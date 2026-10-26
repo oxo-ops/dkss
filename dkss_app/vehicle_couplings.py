@@ -97,7 +97,9 @@ def coupling_context(vehicle, vehicles):
                 candidates.append({"id": peer.id, "label": label(peer), "office": peer.office or "",
                                    "type": peer.type or peer.body_type or "", "chassis": peer.chassis_number or ""})
         candidates.sort(key=lambda item: (item["office"] != vehicle.office, item["office"], item["label"], item["id"]))
-    return {"visible": bool(candidates or links), "ready": ready, "links": links,
+    eligible = (role in {"tractor", "trailer"} and not vehicle.deleted
+                and require_master_admin() and ready)
+    return {"visible": bool(eligible or candidates or links), "ready": ready, "links": links,
             "can_edit": require_master_admin(), "can_add": bool(candidates),
             "candidates": candidates, "role": role,
             "button_label": "連結車両を設定"}

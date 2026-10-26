@@ -75,9 +75,10 @@ class CouplingTests(unittest.TestCase):
         self.trailer.deleted = True
         self.trailer2.deleted = True
         db.session.commit()
-        self.assertFalse(self.context(self.tractor)["visible"])
+        self.assertTrue(self.context(self.tractor)["visible"])
+        self.assertFalse(self.context(self.truck)["visible"])
         html = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
-        self.assertNotIn('data-coupling-open', html)
+        self.assertIn('data-coupling-open', html)
         self.trailer.deleted = False
         db.session.commit()
         self.assertTrue(self.context(self.tractor)["visible"])
@@ -89,6 +90,35 @@ class CouplingTests(unittest.TestCase):
         self.assertIn('data-coupling-open', html)
         self.assertIn('data-coupling-remove', html)
         self.assertNotIn('class="vc-add-form"', html)
+
+    def test_dedicated_roles_in_either_field_keep_button_without_candidates(self):
+        vehicles = [self.tractor, self.trailer, self.trailer2, self.truck]
+        for vehicle in vehicles:
+            vehicle.deleted = True
+        source = self.tractor
+        source.deleted = False
+        for field in ("type", "body_type"):
+            for name in ("トラクタ", "トレーラー", "ﾄﾚｰﾗｰ"):
+                with self.subTest(field=field, name=name):
+                    source.type = ""
+                    source.body_type = ""
+                    setattr(source, field, name)
+                    db.session.commit()
+                    state = self.context(source)
+                    self.assertTrue(state["visible"])
+                    self.assertFalse(state["can_add"])
+                    self.assertEqual(state["candidates"], [])
+                    html = self.client.get(f"/vehicle/karte/{source.id}").get_data(as_text=True)
+                    self.assertIn('data-coupling-open', html)
+                    self.assertIn("追加できる車両がありません。", html)
+        source.type = "乗用車"
+        source.body_type = "セダン"
+        db.session.commit()
+        self.assertFalse(self.context(source)["visible"])
+        source.type = "トラクタ"
+        source.deleted = True
+        db.session.commit()
+        self.assertFalse(self.context(source)["visible"])
 
     def test_many_to_many_and_duplicate_pair_guard(self):
         self.assertEqual(self.add().status_code, 302)
