@@ -68,7 +68,7 @@
 </div>
 
 <script
-    src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261007-3') }}"
+    src="{{ url_for('static', filename='js/vehicle_karte_selector.js', v='20261026-shared-component-3') }}"
     defer
 ></script>
 
@@ -139,6 +139,7 @@
                 <dd>{{ vehicle.first_registration_date or "未登録" }}</dd>
             </div>
         </dl>
+        {% include "vehicle_couplings.html" %}
     </div>
 
     <div class="vehicle-karte-summary">

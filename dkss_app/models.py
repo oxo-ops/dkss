@@ -240,6 +240,27 @@ class Vehicle(db.Model):
     )
 
 
+class VehicleCoupling(db.Model):
+    """Registered tractor/trailer combinations, independent of live coupling."""
+    __table_args__ = (
+        db.UniqueConstraint("company_code", "towing_vehicle_id", "trailer_vehicle_id",
+                            name="uq_vehicle_coupling_pair"),
+        db.CheckConstraint("towing_vehicle_id <> trailer_vehicle_id",
+                           name="ck_vehicle_coupling_distinct"),
+        db.CheckConstraint("kind IN ('semi', 'full')", name="ck_vehicle_coupling_kind"),
+        db.Index("ix_vehicle_coupling_towing", "company_code", "towing_vehicle_id"),
+        db.Index("ix_vehicle_coupling_trailer", "company_code", "trailer_vehicle_id"),
+        {"sqlite_autoincrement": True},
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    towing_vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False)
+    trailer_vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False)
+    kind = db.Column(db.String(20), nullable=False)
+    created_at = db.Column(db.String(30), nullable=False)
+    created_by_username = db.Column(db.String(50), nullable=False)
+
+
 class VehicleKarteNote(db.Model):
     __table_args__ = (db.UniqueConstraint("company_code", "vehicle_record_id"),)
     id = db.Column(db.Integer, primary_key=True)

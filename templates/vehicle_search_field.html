@@ -1,0 +1,10 @@
+{% macro vehicle_search(input_id, status_id, results_id, karte_url=none) -%}
+<div class="vehicle-karte-search">
+    <label for="{{ input_id }}">車両検索</label>
+    <input type="search" id="{{ input_id }}" placeholder="車番・車台番号で検索"
+           aria-label="車番・車台番号で検索" aria-controls="{{ results_id }}"
+           aria-describedby="{{ status_id }}" aria-expanded="false" autocomplete="off">
+    <p id="{{ status_id }}" class="help-text" role="status" aria-live="polite" hidden></p>
+    <div id="{{ results_id }}" class="vehicle-karte-search-results"{% if karte_url %} data-karte-url="{{ karte_url }}"{% endif %} hidden></div>
+</div>
+{%- endmacro %}

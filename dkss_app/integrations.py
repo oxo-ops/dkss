@@ -11,6 +11,8 @@ from driving_report_management import register_driving_reports
 
 
 def register_integrations(app):
+    from .vehicle_couplings import register_vehicle_couplings
+    register_vehicle_couplings(app)
     state = app.extensions["dkss"]
     state["knowledge_import_link"] = register_knowledge_import(
         app, db, models.VehicleMaintenanceKnowledge, common.prepare_maintenance_invoice_pdf)
