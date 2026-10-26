@@ -274,10 +274,8 @@
         font-weight: 700;
         box-shadow: 0 1px 3px #202b3910;
     }
-    .invoice-review-page .invoice-document-tools [data-view-switch] {
-        display: none;
-    }
-    .invoice-review-page .invoice-review-layout:not(.is-source-hidden) .invoice-records {
+    .invoice-review-page .invoice-document-tools [data-view-switch],
+.invoice-review-page .invoice-review-layout:not(.is-source-hidden) .invoice-records {
         display: none;
     }
 }

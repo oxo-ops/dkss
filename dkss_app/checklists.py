@@ -1,4 +1,5 @@
 """Checklists responsibilities; routes are registered by the application factory."""
+from .report_layout import spreadsheet_text_width
 from . import access as _dkss_access, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklist_notifications as _dkss_checklist_notifications, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -1417,20 +1418,6 @@ def export_checklist_result_excel(result_index):
 
 
     import math
-    import unicodedata
-
-
-    def text_width(text):
-        width = 0
-
-        for char in str(text or ""):
-            if unicodedata.east_asian_width(char) in ("W", "F", "A"):
-                width += 2
-            else:
-                width += 1
-
-        return width
-
 
     def wrapped_line_count(text, available_width):
         text = str(text or "")
@@ -1444,7 +1431,7 @@ def export_checklist_result_excel(result_index):
             line_count += max(
                 1,
                 math.ceil(
-                    text_width(line) / available_width
+                    spreadsheet_text_width(line) / available_width
                 )
             )
 
@@ -1949,9 +1936,7 @@ def edit_checklist_result(result_index):
             ""
         ).strip()
 
-        # =========================
         # 対象種別検証
-        # =========================
 
         if target_type not in {
             "",
@@ -1966,9 +1951,7 @@ def edit_checklist_result(result_index):
                 )
             ])
 
-        # =========================
         # 個人
-        # =========================
 
         if target_type == "user":
             if not target_user:
@@ -2011,9 +1994,7 @@ def edit_checklist_result(result_index):
             target_office = target_driver.office or ""
             target_vehicle_record_id = None
 
-        # =========================
         # 車両
-        # =========================
 
         elif target_type == "vehicle":
             if not target_vehicle_record_id:
@@ -2042,9 +2023,7 @@ def edit_checklist_result(result_index):
             target_user = ""
             target_username = ""
 
-        # =========================
         # 営業所
-        # =========================
 
         elif target_type == "office":
             if not target_office:
@@ -3542,9 +3521,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
             )
         ])
 
-    # =========================
     # チェックリスト検証
-    # =========================
 
     checklist_record = _dkss_models.Checklist.query.filter_by(
         id=checklist_index,
@@ -3568,9 +3545,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
             )
         ])
 
-    # =========================
     # 車両検証
-    # =========================
 
     if not vehicle_record_id:
         return _dkss_http.return_form_errors([
@@ -3594,9 +3569,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
             )
         ])
 
-    # =========================
     # 通知先ユーザー検証
-    # =========================
 
     valid_users = {
         user.username: user
@@ -3620,9 +3593,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         dict.fromkeys(notify_usernames)
     )
 
-    # =========================
     # 設定保存
-    # =========================
 
     setting = _dkss_models.VehicleChecklistNotifySetting.query.filter_by(
         company_code=company_code,
@@ -5799,18 +5770,7 @@ def export_vehicle_checklist_result_excel(result_index):
 
             # 点検項目の文字量に応じて行高を調整
             import math
-            import unicodedata
 
-            def item_text_width(text):
-                width = 0
-
-                for char in str(text or ""):
-                    if unicodedata.east_asian_width(char) in ("W", "F", "A"):
-                        width += 2
-                    else:
-                        width += 1
-
-                return width
 
 
             item_line_count = 0
@@ -5818,7 +5778,7 @@ def export_vehicle_checklist_result_excel(result_index):
             for line in item_text.split("\n"):
                 item_line_count += max(
                     1,
-                    math.ceil(item_text_width(line) / 42)
+                    math.ceil(spreadsheet_text_width(line) / 42)
                 )
 
             sheet.row_dimensions[current_row].height = max(
@@ -7100,9 +7060,7 @@ def save_vehicle_checklist_one(index):
         ""
     ).strip()
 
-    # =========================
     # 車両検証
-    # =========================
 
     if not vehicle_record_id:
         return _dkss_http.return_form_errors([
@@ -7126,9 +7084,7 @@ def save_vehicle_checklist_one(index):
             )
         ])
 
-    # =========================
     # 日付検証
-    # =========================
 
     try:
         year_int = int(year)
@@ -7267,9 +7223,7 @@ def save_vehicle_checklist_one(index):
         if snapshot:
             result_checklist = snapshot
 
-    # =========================
     # チェック項目検証
-    # =========================
 
     try:
         item_no = int(item_no_raw)
@@ -7314,9 +7268,7 @@ def save_vehicle_checklist_one(index):
         ""
     )
 
-    # =========================
     # 回答値検証
-    # =========================
 
     input_type = checklist_item.get(
         "input_type",
@@ -7572,9 +7524,7 @@ def save_vehicle_checklist_detail(index):
         ""
     ).strip()
 
-    # =========================
     # 車両検証
-    # =========================
 
     if not vehicle_record_id:
         return _dkss_http.return_form_errors([
@@ -7598,9 +7548,7 @@ def save_vehicle_checklist_detail(index):
             )
         ])
 
-    # =========================
     # 日付検証
-    # =========================
 
     try:
         year_int = int(year)
@@ -7753,9 +7701,7 @@ def save_vehicle_checklist_detail(index):
         if snapshot:
             result_checklist = snapshot
 
-    # =========================
     # チェック項目検証
-    # =========================
 
     try:
         item_no = int(item_no_raw)
@@ -8142,9 +8088,7 @@ def complete_vehicle_checklist(index):
     else:
         active_day = month
 
-    # =========================
     # 車両検証
-    # =========================
 
     if not vehicle_record_id:
         return _dkss_http.return_form_errors([
@@ -8168,9 +8112,7 @@ def complete_vehicle_checklist(index):
             )
         ])
 
-    # =========================
     # 日付検証
-    # =========================
 
     try:
         year_int = int(year)
@@ -8242,9 +8184,7 @@ def complete_vehicle_checklist(index):
     if lock_error is not None:
         return lock_error
 
-    # =========================
     # 結果取得
-    # =========================
 
     result_record = (
         _dkss_models.VehicleChecklistResult.query
@@ -8392,9 +8332,7 @@ def complete_vehicle_checklist(index):
                 )
             ])
 
-    # =========================
     # 通知先ユーザー検証
-    # =========================
 
     notify_usernames = [
         username.strip()
@@ -8462,9 +8400,7 @@ def complete_vehicle_checklist(index):
     ):
         notify_usernames = []
 
-    # =========================
     # 完了処理
-    # =========================
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
@@ -8657,9 +8593,7 @@ def complete_vehicle_checklist(index):
     _dkss_common.db.session.commit()
     dispatch_vehicle_defect_notifications(result_record)
 
-    # =========================
     # 通知
-    # =========================
 
     notification_link = _dkss_common.url_for(
         "vehicle_checklist_results",
@@ -8831,9 +8765,7 @@ def new_vehicle_checklist_result(index):
             ""
         ).strip()
 
-        # =========================
         # 車両検証
-        # =========================
 
         if not vehicle_record_id:
             return _dkss_http.return_form_errors([
@@ -8857,9 +8789,7 @@ def new_vehicle_checklist_result(index):
                 )
             ])
 
-        # =========================
         # 日付検証
-        # =========================
 
         try:
             year_int = int(year)
@@ -8972,9 +8902,7 @@ def new_vehicle_checklist_result(index):
                 ""
             )
 
-            # =========================
             # 回答値検証
-            # =========================
 
             if input_type == "select":
                 valid_choices = [
@@ -9425,9 +9353,7 @@ def new_safety_checklist_result(index):
             ""
         ).strip()
 
-        # =========================
         # 対象種別検証
-        # =========================
 
         if target_type not in {
             "",
@@ -9442,9 +9368,7 @@ def new_safety_checklist_result(index):
                 )
             ])
 
-        # =========================
         # 個人
-        # =========================
 
         if target_type == "user":
             if not target_user:
@@ -9486,9 +9410,7 @@ def new_safety_checklist_result(index):
             target_office = target_driver.office or ""
             target_vehicle_record_id = None
 
-        # =========================
         # 車両
-        # =========================
 
         elif target_type == "vehicle":
             if not target_vehicle_record_id:
@@ -9516,9 +9438,7 @@ def new_safety_checklist_result(index):
             target_office = vehicle.office or ""
             target_user = ""
 
-        # =========================
         # 営業所
-        # =========================
 
         elif target_type == "office":
             if not target_office:

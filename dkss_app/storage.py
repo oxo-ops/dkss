@@ -191,10 +191,8 @@ def save_uploaded_file(file, folder=None):
     else:
         storage_folder = "uploads"
 
-    # =========================
     # S3
     # uploads/会社コード/ファイル名
-    # =========================
     if _dkss_runtime.app.extensions["dkss"]['s3_client'] and _dkss_runtime.app.config['S3_BUCKET_NAME']:
         object_key = (
             f"{storage_folder}/"
@@ -223,10 +221,8 @@ def save_uploaded_file(file, folder=None):
 
         return filename
 
-    # =========================
     # ローカル
     # static/uploads/会社コード/
-    # =========================
     if storage_folder == "manuals":
         base_folder = "static/manuals"
     else:
@@ -351,9 +347,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
 
     filename = _dkss_common.os.path.basename(filename)
 
-    # =========================
     # プロフィール画像
-    # =========================
     current_user = _dkss_models.User.query.filter_by(
         company_code=company_code,
         username=_dkss_common.session.get("username")
@@ -365,18 +359,14 @@ def file_belongs_to_current_company(filename, folder="uploads"):
     ):
         return True
 
-    # =========================
     # マニュアル
-    # =========================
     if folder == "manuals":
         return _dkss_models.Manual.query.filter_by(
             company_code=company_code,
             filename=filename
         ).first() is not None
 
-    # =========================
     # お知らせ
-    # =========================
     news_records = _dkss_models.News.query.filter_by(
         company_code=company_code
     ).all()
@@ -415,9 +405,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         if filename in files:
             return True
 
-    # =========================
     # 通知
-    # =========================
     notification_records = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
         _dkss_models.Notification.target_username == _dkss_common.session.get("username")
@@ -431,9 +419,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         if filename in files:
             return True
 
-    # =========================
     # チェックリスト評価基準添付
-    # =========================
     checklist_records = _dkss_models.Checklist.query.filter_by(
         company_code=company_code
     ).all()
@@ -474,9 +460,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
             ):
                 return True
 
-    # =========================
     # 安全パトロール
-    # =========================
     patrol_records = _dkss_models.PatrolResult.query.filter_by(
         company_code=company_code
     ).all()
@@ -501,9 +485,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         if filename in countermeasure_files:
             return True
 
-    # =========================
     # 安全チェックリスト結果添付
-    # =========================
     checklist_result_records = _dkss_models.ChecklistResult.query.filter_by(
         company_code=company_code
     ).all()
@@ -528,9 +510,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
             ):
                 return True
 
-    # =========================
     # 車両チェックリスト結果添付
-    # =========================
     vehicle_result_records = _dkss_models.VehicleChecklistResult.query.filter_by(
         company_code=company_code
     ).all()

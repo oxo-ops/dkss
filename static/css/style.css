@@ -3607,7 +3607,6 @@ body.sidebar-collapsed .sidebar-nav > .menu-item:first-child .menu-icon {
     }
 
 
-
     .settings-notification-card {
         padding: 20px;
     }
@@ -3635,7 +3634,6 @@ body.sidebar-collapsed .sidebar-nav > .menu-item:first-child .menu-icon {
         width: 100%;
         justify-content: center;
     }
-
 
 
     .settings-user-card {
@@ -4861,7 +4859,6 @@ textarea[name="item_content"]{
         min-width: 86px;
         min-height: 38px;
     }
-
 
 
     .approval-card {
@@ -8337,8 +8334,6 @@ input:checked
     }
 
 
-
-
     .safety-results-page-head {
         margin-bottom: 12px;
     }
@@ -10449,9 +10444,6 @@ input:checked
     }
 
 
-
-
-
     .tabs {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -10511,7 +10503,6 @@ input:checked
         width: 100%;
         min-height: 44px;
     }
-
 
 
     .pointouts-filter-form {
@@ -10591,7 +10582,6 @@ input:checked
     }
 
 
-
     .safety-result-mobile-card .safety-result-mobile-head {
         min-height: 44px;
         padding: 10px 16px;
@@ -10621,7 +10611,6 @@ input:checked
     }
 
 
-
     .safety-result-mobile-grid-wide {
         grid-column: 1 / -1;
         padding-left: 0 !important;
@@ -10641,7 +10630,6 @@ input:checked
     }
 
 
-
     .safety-result-mobile-card
     .safety-result-mobile-grid > div:nth-last-child(3) {
         border-bottom: 0;
@@ -10655,8 +10643,6 @@ input:checked
         border-left: 0 !important;
         border-top: 1px solid #eef2f7 !important;
     }
-
-
 
 
     .mobile-no-visible-period {
@@ -10894,7 +10880,6 @@ input:checked
     }
 
 
-
     .vehicle-check-notify-help {
         width: 100%;
         margin: 10px 0 14px;
@@ -10934,7 +10919,6 @@ input:checked
         overflow-wrap: anywhere;
         word-break: break-word;
     }
-
 
 
     /* ランキング：営業所を非表示 */
@@ -12217,7 +12201,6 @@ body:has(.safety-list-breadcrumb) .pointouts-total::before {
         width: 100%;
         height: 180px;
     }
-
 
 
     .safety-checklist-input-scroll {
@@ -17433,7 +17416,7 @@ nav[aria-label="通知の表示切替"] > a {
     }
 }
 
-/* 通知行：参考画像のサイズと余白 */
+/* 通知行：サイズと余白 */
 .notifications-card .notification-wrapper .notification-row.unread,
 .notifications-card .notification-wrapper .notification-row:hover {
     background: transparent;
@@ -17632,7 +17615,7 @@ nav[aria-label="通知の表示切替"] > a {
     height: 22px;
 }
 
-/* 添付：参考画像の区切り線と開閉矢印 */
+/* 添付：区切り線と開閉矢印 */
 .notifications-card .dkss-notification-detail .nd-attachments {
     margin: 0;
     padding: 0;
@@ -18485,37 +18468,6 @@ body.vehicle-list-ppt .vehicle-karte-selector > button:hover {
 
 
 
-
-
-
-
-@media (max-width: 600px) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}
 
 /* 車両カルテ：メモと関連ファイル */
 .vehicle-karte-notes-row {
@@ -19988,16 +19940,9 @@ body.ka-reference-open .karte-analysis .ka-period-form {
 }
 
 /* 右側の概要本文と参照件数 */
-.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-overview-body {
-    gap: 8px;
-    padding: 10px 12px;
-}
-
-/* 右側の比較条件 */
+.karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-overview-body,
 .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison {
-    margin: 0;
     padding: 10px 12px;
-    border-top: 1px solid #e9e4f7;
 }
 
 .karte-costs.karte-analysis #ka-ai-results > details > .ka-info-summary::-webkit-details-marker {
@@ -20088,7 +20033,6 @@ body.ka-reference-open .karte-analysis .ka-period-form {
 
 /* 比較条件：右側カードの横幅に収める */
 .karte-costs.karte-analysis #ka-ai-results > .ka-ai-overview-detail > .ka-reference-comparison {
-    min-width: 0;
     margin: 0;
     padding: 12px;
     border-top: 1px solid #e9e4f7;
@@ -21311,10 +21255,6 @@ body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs) .kp-pagination a[ar
     color:#6b7c90; font-size:12px;
     text-align:center!important; white-space:normal!important;
 }
-
-
-
-
 
 
 @media(max-width:1180px) {
@@ -23704,12 +23644,11 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 .vehicle-registration-page.vehicle-data-import [hidden] {
     display: none !important;
 }
-.vehicle-registration-page.vehicle-data-import .vehicle-registration-breadcrumb {
-    margin-bottom: 8px;
-}
+.vehicle-registration-page.vehicle-data-import .vehicle-registration-breadcrumb,
 .vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-header {
     margin-bottom: 8px;
 }
+
 .vehicle-registration-page.vehicle-data-import .vehicle-registration-header h2 {
     margin: 0 0 5px;
     font-size: 26px;
@@ -23724,13 +23663,12 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     gap: 8px;
     margin-bottom: 8px;
 }
-.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-card {
-    padding: 12px 16px;
-}
-
+.vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-card,
 .vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-airia.vehicle-registration-method-card {
     padding: 12px 16px;
 }
+
+
 .vehicle-registration-page:has(#registration-choice-grid).vehicle-data-import .vehicle-registration-method-heading {
     gap: 10px;
     margin-bottom: 5px;
@@ -24949,7 +24887,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     }
 }
 
-/* 生成画像に合わせた分析一覧と右側詳細パネル */
+/* 分析一覧と右側詳細パネル */
 .ka-reference-brief {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -25047,14 +24985,10 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 
 .ka-reference-drawer-header {
     z-index: 1;
-    gap: 12px;
     padding: 17px 20px;
     border-bottom: 1px solid #e0e7f0;
 }
 
-.ka-reference-drawer-header h3 {
-    font-size: 17px;
-}
 
 .ka-reference-drawer-header button {
     padding: 0;
@@ -25615,7 +25549,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     margin: 12px 16px 16px;
 }
 
-/* 生成画像に合わせたホームの配置 */
+/* ホームの配置 */
 .dashboard-page {
     gap: 12px;
 }
@@ -26327,7 +26261,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     }
 }
 
-/* 実画面と生成画像の配置差を修正 */
+/* ホームのレスポンシブ配置 */
 #dashboardFilterForm[hidden] {
     display: none !important;
 }
@@ -26589,9 +26523,6 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     }
 }
 
-.karte-costs.karte-analysis .ka-summary-grid.ka-summary-compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 
 @media (max-width: 700px) {
     .karte-costs.karte-analysis .ka-summary-grid.ka-summary-compact {
@@ -26648,8 +26579,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 /* 追加情報：共通の配置 */
 .karte-costs.karte-analysis .ka-action-insights {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: stretch;
+
     gap: 10px;
     min-width: 0;
     margin: 10px 0;
@@ -26690,7 +26620,6 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 
 /* 理由・根拠・手順の情報ブロック */
 .karte-costs.karte-analysis .ka-action-insight {
-    min-width: 0;
     margin: 0;
     padding: 11px 13px;
     border: 1px solid #e5e5f1;
@@ -26780,11 +26709,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 }
 
 /* 狭い画面では1列 */
-@media (max-width: 850px) {
-    .karte-costs.karte-analysis .ka-action-insights {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
+
 
 /* 横幅が狭い場合は1列 */
 @media (max-width: 850px) {
@@ -27193,8 +27118,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 .karte-costs.karte-analysis .ka-action-empty p {
     grid-column: 2;
     min-width: 0;
-    margin: 0;
-    font-size: 11px;
+
     line-height: 1.45;
 }
 
@@ -27869,7 +27793,6 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
     display: grid;
     gap: 9px;
     margin: 0 !important;
-    padding: 0 !important;
 }
 
 .ka-reference-drawer .ka-reference-confirmation li {
@@ -27886,9 +27809,7 @@ body .main-content .vehicle-search-card .vehicle-search-field select:focus-visib
 }
 
 .ka-reference-drawer .ka-reference-confirmation li::before {
-    left: 11px;
-    top: 50%;
-    transform: translateY(-50%);
+
     border-color: #d8d1f7;
     background: #f0ecff;
     color: #715bd4;
@@ -30807,7 +30728,7 @@ body.ka-reference-open:has(.karte-analysis) .vehicle-karte-number-row h2 {
     color: #347e71;
 }
 
-.dashboard-design-v2 .dashboard-analysis-card:not([data-report-tab="history"]) .dashboard-history-table tbody tr:nth-child(n+6),
+.dashboard-design-v2 .dashboard-analysis-card:not([data-report-tab="history"]) .dashboard-history-table tbody tr:nth-child(n/**/+6),
 .dashboard-design-v2 .dashboard-analysis-card:not([data-report-tab="history"]) .dashboard-history-full-note,
 .dashboard-design-v2 .dashboard-analysis-card[data-report-tab="history"] .dashboard-history-preview-note,
 .dashboard-design-v2 .dashboard-analysis-card[data-report-tab="history"] .dashboard-history-open,
@@ -32621,7 +32542,6 @@ body.vehicle-list-ppt .btn-delete:focus-visible {
     }
 
 
-
     body.vehicle-list-ppt:has(.master-unified-tabs) .main-content {
         padding-top: 30px;
     }
@@ -33428,7 +33348,7 @@ body .main-content > .safety-checklist-list-table .btn-small:hover {
     box-shadow: 0 4px 10px rgba(22, 134, 92, 0.12);
 }
 
-/* VEHICLE_MASTER_ENTRY_WIDTH_FIX_V1 */
+/* Vehicle master entry width */
 .page-header + .card.vehicle-master-entry-card {
     display: block;
 }
@@ -33496,7 +33416,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel .vehicle-periodic-table t
 body.vehicle-list-ppt .vi-content .vi-section{margin:0 0 14px;padding:14px;border:1px solid #e0e9f6;border-radius:6px;box-shadow:none;min-height:0;height:auto}
 .vi-section>.card-title-row{align-items:center;margin-bottom:12px}
 .vi-section h3{font-size:14px;margin:0;color:#163c65}
-.vi-section h3::before{content:'';display:inline-block;width:7px;height:16px;margin-right:9px;vertical-align:-3px;background:#4792ef;border-radius:2px}
+.vi-section h3::before{content:"";display:inline-block;width:7px;height:16px;margin-right:9px;vertical-align:-3px;background:#4792ef;border-radius:2px}
 .vi-section h3 span{font-size:11px;color:#6d829e;font-weight:400}
 .vi-section .table-scroll{max-height:340px;overflow:auto;margin:0}
 body.vehicle-list-ppt .vi-workspace .checklist-table{table-layout:auto;width:100%;min-width:720px}
@@ -33675,7 +33595,7 @@ body .main-content .standard-checklist-view {display:inline-flex;align-items:cen
 .standard-checklist-criteria summary {cursor:pointer;font-weight:600;}
 .standard-checklist-criteria p {white-space:pre-line;}
 
-/* DASHBOARD_DATA_DENSITY_V1_BEGIN */
+/* Dashboard summary density. */
 body .dashboard-page.dashboard-design-v2 .dashboard-home-layout {align-items:start;}
 body .dashboard-page.dashboard-design-v2 .dashboard-attention-list {grid-template-columns:1fr;align-self:start;gap:7px;}
 body .dashboard-page.dashboard-design-v2 .dashboard-attention-panel>h3 {min-height:26px;padding:5px 8px;font-size:12px;}
@@ -33690,7 +33610,7 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-r
 body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-reason {display:none;}
 body .dashboard-page.dashboard-design-v2 .dashboard-reference-bottom-grid {align-items:start;}
 body .dashboard-page.dashboard-design-v2 .dashboard-office-empty {padding:7px 2px;margin:0;font-size:12px;}
-/* DASHBOARD_DATA_DENSITY_V1_END */
+
 
 .checklist-action-menu summary.checklist-action-label {width:auto;min-width:44px;box-sizing:border-box;padding:0 8px;font-size:12px;}
 

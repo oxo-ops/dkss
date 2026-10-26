@@ -1,4 +1,4 @@
-/* NOTIFICATION_COMPACT_V7
+/* Notification hierarchy
    Notification-only visual hierarchy. Original layout, DOM, data and workflows retained.
    Blue: actions/selection; purple: pending work; teal: completed work. */
 body .main-content .notifications-card:has(#notificationLayout) {
@@ -93,9 +93,7 @@ body:has(#notificationLayout) .notification-page-header .notification-heading h2
 #notificationLayout .notification-kind-icon::before { background: #367abe; }
 #notificationLayout .notification-title {
   color: #253247;
-  font-size: 14px;
   font-weight: 600;
-  line-height: 1.5;
 }
 #notificationLayout .notification-row.unread .notification-title { color: #172b4d; font-weight: 700; }
 #notificationLayout .notification-message {
@@ -240,7 +238,7 @@ body #notificationPopover {
 #notificationPopover .notification-popover-item { color: #253247; background: #fff; border-color: #e4e9f0; box-shadow: none; }
 #notificationPopover .notification-popover-item.unread { background: #f6f9ff; box-shadow: inset 3px 0 #367abe; }
 #notificationPopover .notification-popover-item:hover { background: #edf5ff; }
-#notificationPopover .notification-popover-title { color: #253247; font-size: 13px; font-weight: 600; line-height: 1.5; }
+#notificationPopover .notification-popover-title { color: #253247;  font-weight: 600;  }
 #notificationPopover .unread .notification-popover-title { color: #172b4d; font-weight: 700; }
 #notificationPopover .notification-popover-message { color: #475569; font-size: 13px; font-weight: 400; line-height: 1.55; }
 #notificationPopover .notification-popover-meta { color: #5b687a; font-size: 11px; line-height: 1.5; }
@@ -258,7 +256,7 @@ body #notificationPopover {
   outline-offset: 2px;
 }
 
-/* V6: spacing and text hierarchy within the existing list/detail arrangement. */
+/* Spacing and text hierarchy within the existing list/detail arrangement. */
 body:has(#notificationLayout) .notification-top-bar { min-height: 48px; margin-bottom: 8px; }
 #notificationLayout .notification-wrapper { padding-top: 6px; padding-bottom: 6px; }
 #notificationLayout .notification-kind-icon {

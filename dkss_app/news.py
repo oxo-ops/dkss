@@ -35,9 +35,7 @@ def itc_new_news():
         target_type = _dkss_common.request.form.get("target_type")
         target_value = _dkss_common.request.form.get("target_value", "").strip()
 
-        # =========================
         # 通知対象を現在の会社内だけに限定
-        # =========================
 
         user_query = _dkss_models.User.query.filter_by(
             company_code=company_code
@@ -140,9 +138,7 @@ def itc_new_news():
             if filename:
                 file_names.append(filename)
 
-        # =========================
         # News登録
-        # =========================
 
         _dkss_notifications_delivery.add_news(
             title,
@@ -152,9 +148,7 @@ def itc_new_news():
             target_value=target_value
         )
 
-        # =========================
         # 通知登録
-        # =========================
 
         for user in target_users:
             _dkss_notifications_delivery.add_notification(
@@ -177,9 +171,7 @@ def itc_new_news():
 
         return _dkss_common.redirect("/itc")
 
-    # =========================
     # GET
-    # =========================
 
     company = _dkss_models.Company.query.filter_by(
         company_code=company_code
@@ -227,9 +219,7 @@ def itc_edit_news(index):
             ""
         ).strip()
 
-        # =========================
         # 通知対象を現在の会社内だけに限定
-        # =========================
 
         if target_type == "company":
             if target_value != company_code:
@@ -358,9 +348,7 @@ def itc_edit_news(index):
 
         return _dkss_common.redirect("/itc")
 
-    # =========================
     # GET
-    # =========================
 
     company = _dkss_models.Company.query.filter_by(
         company_code=company_code

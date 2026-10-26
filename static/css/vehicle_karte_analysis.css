@@ -1,4 +1,4 @@
-/* PREVENTIVE_ANALYSIS_ACTIONS_V5 */
+/* Preventive analysis actions */
 body.vehicle-list-ppt .ka3-shell .vehicle-karte-header {display:grid;grid-template-columns:44px minmax(180px,1fr) minmax(250px,.65fr);padding:12px 16px;gap:12px;align-items:center;margin-bottom:10px;}
 body.vehicle-list-ppt .ka3-shell .vehicle-karte-photo-area,body.vehicle-list-ppt .ka3-shell .vehicle-karte-photo-empty {width:44px;height:44px;min-height:44px;}
 body.vehicle-list-ppt .ka3-shell .vehicle-karte-type-image {max-width:36px;max-height:36px;}
@@ -11,7 +11,7 @@ body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>small {grid-c
 body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>span {font-size:13px;}
 body.vehicle-list-ppt .ka3-shell .vehicle-karte-metric:first-child>strong {font-size:17px;white-space:nowrap;}
 
-/* ANALYSIS_MINERAL_COMPACT_V1: unified dashboard palette and explicit information hierarchy. */
+/* Analysis palette: unified dashboard palette and explicit information hierarchy. */
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page {--ka-ink:#1f2d45;--ka-muted:#526277;--ka-purple:#6554d2;--ka-purple-soft:#f2efff;--ka-teal:#286c69;--ka-teal-soft:#edf7f4;--ka-blue:#285fa8;--ka-blue-soft:#edf4fe;--ka-amber:#805200;--ka-amber-soft:#fff4d6;--ka-rose:#b23850;--ka-line:#e1e6ef;background:#fff;color:var(--ka-ink);padding:14px;font-size:13px;line-height:1.55;}
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page [hidden] {display:none!important;}
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page * {box-sizing:border-box;}
@@ -167,7 +167,7 @@ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .
 @media(max-width:800px){body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-evidence-grid,body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-trends{grid-template-columns:1fr;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-panel{grid-column:auto;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis{grid-template-columns:1fr 1fr;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-date{margin-left:0;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-parts-table{min-width:440px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table{table-layout:auto;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table td{white-space:normal;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-peer-table small{display:block!important;margin-left:0;}}
 @media(max-width:500px){body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page{padding:12px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar .ka-period-form{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;width:100%;gap:5px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form>label[for="ka-start-date"]{grid-column:1 / -1;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input{width:100%;min-width:0;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric h3{font-size:12px;gap:5px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-metric p{font-size:21px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis{gap:8px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposals{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-board-heading h3{width:100%;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka10-insight{padding:10px;}body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel{padding:11px;}}
 
-/* ANALYSIS_ACTION_RESPONSE_V1: visible action and deliberate three-choice response. */
+/* Analysis response: visible action and deliberate three-choice response. */
 .ka-reference-drawer .ka-drawer-summary {padding:12px!important;margin:12px!important;}
 .ka-reference-drawer .ka-reference-detail {padding:0 16px 18px!important;}
 .ka-reference-drawer .ka-feedback {padding:0!important;display:flex!important;gap:7px!important;}
@@ -185,7 +185,7 @@ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .
 .ka-reference-drawer .ka-action-when {font-size:12px;color:#526277;margin:8px 0 0;}
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-action-summary {padding-left:18px;margin:6px 0 0;font-size:13px;line-height:1.6;}
 
-/* ANALYSIS_STATE_CONCERN_ACTION_V1 */
+/* Analysis state, concern and action */
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table {min-width:900px;}
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-priority {display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:6px;}
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-context-priority .ka-reference-state {display:inline;margin:0;}
@@ -198,7 +198,7 @@ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .
 body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposal-table thead th {position:sticky;top:0;z-index:1;}
 .ka-reference-drawer .ka-context-concern {border-left:3px solid #b8903d;background:#fffaf0;}
 
-/* ANALYSIS_DETAIL_OVERLAY_V1: keep page/header/vehicle-switcher widths unchanged. */
+/* Analysis detail overlay: keep page/header/vehicle-switcher widths unchanged. */
 body.ka-analysis-detail-open {overflow:hidden;}
 html:has(.karte-analysis) {scrollbar-gutter:stable;}
 .ka-analysis-detail-backdrop {position:fixed;inset:0;background:rgba(20,32,54,.22);z-index:1099;}
