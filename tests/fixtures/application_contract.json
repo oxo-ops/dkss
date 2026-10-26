@@ -1862,6 +1862,17 @@
       ""
     ],
     [
+      "/vehicle/inspection-plans/export.xlsx",
+      "vehicle_inspection_plans_excel",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
       "/vehicle/karte",
       "vehicle_karte_list",
       [

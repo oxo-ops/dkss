@@ -2,7 +2,7 @@
 {% block title %}点検計画{% endblock %}
 {% block content %}
 <section class="card inspection-plans" data-inspection-planner data-plan-args="{{ plan_args|tojson|forceescape }}">
-    <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><button type="button" class="btn btn-outline" data-plan-add hidden>＋ 予定を追加</button></div></div>
+    <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><a class="btn btn-outline" data-plan-export href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a><button type="button" class="btn btn-outline" data-plan-add hidden>＋ 予定を追加</button></div></div>
     <form class="ip-filters" id="inspection-plan-filters" data-plan-filters>
         <label>営業所<select name="office"><option value="">営業所を選択</option></select></label>
         <label>車両検索<input name="search" type="search" placeholder="登録番号・車台番号" autocomplete="off"></label>
