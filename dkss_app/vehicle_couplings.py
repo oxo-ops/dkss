@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from flask import abort, current_app, flash, redirect, request, session, url_for
-from sqlalchemy import inspect, or_
+from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
 
@@ -60,6 +60,18 @@ def schema_ready():
     if not state.get(key):
         state[key] = inspect(db.engine).has_table(VehicleCoupling.__tablename__)
     return state[key]
+
+
+def initialize_coupling_schema(app):
+    """Prepare the additive coupling table at worker startup, never on a GET."""
+    with app.app_context():
+        with db.engine.begin() as connection:
+            # Serialize check-and-create across PostgreSQL workers and deploys.
+            if connection.dialect.name == "postgresql":
+                connection.execute(text("SELECT pg_advisory_xact_lock(824700026)"))
+            VehicleCoupling.__table__.create(connection, checkfirst=True)
+        app.extensions["dkss"]["vehicle_couplings_schema_ready"] = True
+        app.logger.info("VEHICLE_COUPLINGS_INITIALIZED")
 
 
 def label(vehicle):
@@ -196,6 +208,5 @@ def register_vehicle_couplings(app):
     @app.cli.command("init-vehicle-couplings")
     def init_vehicle_couplings():
         """Create only the vehicle-combination table on an existing database."""
-        VehicleCoupling.__table__.create(db.engine, checkfirst=True)
-        app.extensions["dkss"]["vehicle_couplings_schema_ready"] = True
+        initialize_coupling_schema(current_app._get_current_object())
         print("VEHICLE_COUPLINGS_INITIALIZED")

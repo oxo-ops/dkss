@@ -194,6 +194,30 @@ class CouplingTests(unittest.TestCase):
         self.assertEqual(again.exit_code, 0, again.output)
         self.assertEqual(VehicleCoupling.query.count(), 1)
 
+    def test_worker_startup_prepares_missing_table_and_preserves_existing_links(self):
+        import runpy
+        from unittest.mock import patch
+
+        VehicleCoupling.__table__.drop(db.engine)
+        self.app.extensions["dkss"].pop("vehicle_couplings_schema_ready", None)
+        vehicle_count = Vehicle.query.count()
+        before = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
+        self.assertNotIn('data-coupling-open', before)
+
+        hook = runpy.run_path("gunicorn.conf.py")["post_worker_init"]
+        with patch("dkss_app.document_import_worker.start_worker") as start_worker:
+            hook(SimpleNamespace(wsgi=self.app))
+            start_worker.assert_called_once_with(self.app)
+        after = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
+        self.assertIn('data-coupling-open', after)
+        self.assertEqual(self.add().status_code, 302)
+        link_id = VehicleCoupling.query.one().id
+
+        with patch("dkss_app.document_import_worker.start_worker"):
+            hook(SimpleNamespace(wsgi=self.app))
+        self.assertEqual(VehicleCoupling.query.one().id, link_id)
+        self.assertEqual(Vehicle.query.count(), vehicle_count)
+
     def test_csrf_required_and_stale_unlink_does_not_remove_recreated_pair(self):
         self.app.config["WTF_CSRF_ENABLED"] = True
         self.assertEqual(self.add().status_code, 400)
