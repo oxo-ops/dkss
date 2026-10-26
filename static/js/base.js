@@ -1255,6 +1255,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
+            if (form.dataset.importQueue === "1") {
+                if (!window.DKSSDocumentImportQueue) {
+                    showError("送信画面を読み込めませんでした。再読み込みしてください。");
+                    return;
+                }
+                window.DKSSDocumentImportQueue.submit(form, showError);
+                return;
+            }
+
             if (document.querySelector(
                 '.vehicle-data-import .import-form[data-loading="1"]'
             )) {

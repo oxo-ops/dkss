@@ -3,7 +3,12 @@ from . import access as _dkss_access, common as _dkss_common, http as _dkss_http
 
 
 def apply_maintenance_invoice_preview(draft, extraction):
-    if draft.document_type not in {'maintenance', 'inspection', 'driving_report'} or draft.company_code != _dkss_common.session.get('company_code') or draft.created_by_username != _dkss_common.session.get('username') or (draft.status != 'preview'):
+    return build_vehicle_document_preview(draft, extraction,
+        company_code=_dkss_common.session.get('company_code'), username=_dkss_common.session.get('username'))
+
+
+def build_vehicle_document_preview(draft, extraction, *, company_code, username):
+    if draft.document_type not in {'maintenance', 'inspection', 'driving_report'} or draft.company_code != company_code or draft.created_by_username != username or (draft.status != 'preview'):
         raise ValueError('この資料の読み取り結果は変更できません。')
     if extraction.get('schema_version') != 1 or extraction.get('source_sha256') != draft.source_sha256:
         raise ValueError('読み取り結果と原本PDFが一致しません。')
@@ -721,7 +726,8 @@ def vehicle_data_import():
     if not _dkss_access.require_master_admin():
         return _dkss_common.redirect(_dkss_common.url_for('vehicle_karte_list'))
     if _dkss_common.request.method == 'GET':
-        return _dkss_common.render_template('vehicle_data_import.html')
+        from .document_import_routes import recent_imports
+        return _dkss_common.render_template('vehicle_data_import.html', recent_imports=recent_imports())
     drafts, errors = prepare_vehicle_document_import(_dkss_common.request.files.getlist('document_files'), _dkss_common.request.form.get('document_type', ''))
     if errors:
         return _dkss_http.return_form_errors(errors)
@@ -786,7 +792,10 @@ def vehicle_document_import_confirm(batch_id):
     drafts = query.order_by(_dkss_models.VehicleDocumentImportDraft.id).all()
     if not drafts:
         raise _dkss_common.NotFound()
-    if any((draft.status != 'preview' for draft in drafts)):
+    if any(draft.status in {'queued', 'reading', 'processing'} for draft in drafts):
+        return _dkss_http.return_form_errors([('資料を読み取り中です。完了後に確認してください。', '')], status_code=409)
+    drafts = [draft for draft in drafts if draft.status == 'preview']
+    if not drafts:
         return _dkss_http.return_form_errors([('この資料の取り込み確認は終了しています。', '')], status_code=409)
     registered_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code')) if any((draft.document_type == 'maintenance' for draft in drafts)) else set()
     selected_source_keys = set()
@@ -988,8 +997,9 @@ def vehicle_document_import_preview(batch_id):
     if not _dkss_access.require_master_admin():
         return _dkss_common.redirect(_dkss_common.url_for("vehicle_karte_list"))
 
+    from sqlalchemy.orm import defer
     drafts = (
-        _dkss_models.VehicleDocumentImportDraft.query
+        _dkss_models.VehicleDocumentImportDraft.query.options(defer(_dkss_models.VehicleDocumentImportDraft.source_file))
         .filter_by(
             batch_id=batch_id,
             company_code=_dkss_common.session.get("company_code"),
@@ -1004,6 +1014,8 @@ def vehicle_document_import_preview(batch_id):
 
     if not drafts:
         raise _dkss_common.NotFound()
+    if any(draft.status in {'queued', 'reading'} for draft in drafts):
+        return _dkss_common.redirect(_dkss_common.url_for('document_import_job', batch_id=batch_id))
 
     pending_drafts = [
         draft
@@ -1061,6 +1073,12 @@ def vehicle_document_import_preview(batch_id):
         }
         for draft in pending_drafts
     ]
+
+    from .document_import_queue import metadata
+    failures = [{'filename':draft.source_filename, 'reason':metadata(draft.result_json).get('message', '読み取りに失敗しました。')}
+                for draft in drafts if draft.status == 'read_error']
+    if failures and documents:
+        documents[0]['preview']['import_failures'] = failures
 
     return _dkss_common.render_template(
         "vehicle_document_import_preview.html",

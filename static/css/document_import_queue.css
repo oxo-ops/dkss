@@ -1,0 +1,4 @@
+#documentImportJob [hidden] { display: none !important; }
+#documentImportJob #jobFiles { padding-left: 20px; }
+#documentImportJob #jobFiles li { margin: 8px 0; overflow-wrap: anywhere; }
+#documentImportJob #jobRetry { margin-top: 14px; }
