@@ -5,6 +5,7 @@ import unicodedata
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.filters import FilterColumn
 
 STATES = {'candidate':'予定未登録', 'unreserved':'未予約', 'reserved':'予約済み',
           'awaiting':'実施確認待ち', 'completed':'実施済み'}
@@ -116,6 +117,13 @@ def build_annual_workbook(data, args):
         ws.print_area=f'A1:{get_column_letter(ws.max_column)}{ws.max_row}'
         for col in range(1,ws.max_column+1):
             ws.column_dimensions[get_column_letter(col)].width=24 if col==1 else 18 if col==2 else 21
+    # Keep the full filter/sort range so monthly entries stay with their vehicle.
+    # Only vehicle/office need a dropdown; month headings must remain unobscured.
+    for col_id in range(2,14):
+        sheet.auto_filter.filterColumn.append(FilterColumn(colId=col_id,hiddenButton=True,showButton=False))
+    sheet.row_dimensions[4].height=25
+    for cell in sheet[4][2:]:
+        cell.alignment=Alignment(horizontal='center',vertical='center')
     details.column_dimensions['I'].width=28
     details.column_dimensions['J'].width=45
     output=BytesIO();workbook.save(output);output.seek(0)

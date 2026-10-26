@@ -32,6 +32,15 @@ class InspectionPlanExcelTests(unittest.TestCase):
         ws=wb.worksheets[0]
         self.assertEqual([ws.cell(4,c).value.month for c in range(3,15)],[4,5,6,7,8,9,10,11,12,1,2,3])
         self.assertEqual(ws['N4'].value.year,2027)
+        self.assertTrue(all(ws.cell(4,c).alignment.horizontal=='center' for c in range(3,15)))
+        self.assertEqual(ws.auto_filter.ref,'A4:N5')
+        self.assertEqual([(f.colId,f.hiddenButton,f.showButton) for f in ws.auto_filter.filterColumn],[(i,True,False) for i in range(2,14)])
+        self.assertEqual(ws.row_dimensions[4].height,25)
+        for sheet in wb:
+            self.assertTrue(sheet.sheet_properties.pageSetUpPr.fitToPage)
+            self.assertEqual(sheet.page_setup.fitToWidth,1)
+            self.assertEqual(sheet.page_setup.fitToHeight,0)
+            self.assertTrue(sheet.print_title_rows)
         self.assertIn('3か月点検',ws['C5'].value)
         self.assertIn('突発点検',ws['N5'].value)
         self.assertEqual(ws.freeze_panes,'C5')
