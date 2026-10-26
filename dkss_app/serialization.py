@@ -1,10 +1,10 @@
 """Serialization responsibilities; routes are registered by the application factory."""
-from . import common as _dkss_common
+import json
 
 
 def safe_json_list(value):
     try:
-        parsed = _dkss_common.json.loads(value or "[]")
+        parsed = json.loads(value or "[]")
     except (TypeError, ValueError):
         return []
 
@@ -32,7 +32,7 @@ def safe_json_dict_list(value):
 
 def safe_json_dict(value):
     try:
-        parsed = _dkss_common.json.loads(value or "{}")
+        parsed = json.loads(value or "{}")
     except (TypeError, ValueError):
         return {}
 
