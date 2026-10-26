@@ -17,6 +17,42 @@
  document.addEventListener('DOMContentLoaded',()=>{
   const ns='http://www.w3.org/2000/svg';
   const form=document.getElementById('driving-filter-form');
+  const positionKey='driving-position:'+location.pathname+location.search;
+  document.addEventListener('click',event=>{if(event.target.closest('a'))sessionStorage.setItem(positionKey,String(scrollY));});
+  if(location.hash){requestAnimationFrame(()=>document.getElementById(location.hash.slice(1))?.scrollIntoView());}
+  else if(sessionStorage.getItem(positionKey)){requestAnimationFrame(()=>scrollTo(0,Number(sessionStorage.getItem(positionKey))||0));}
+  form?.querySelector('[data-office-select]')?.addEventListener('change',event=>{
+   const scope=form.querySelector('[name=scope]');if(scope)scope.value=event.target.value==='__company__'?'company':'office';
+   form.querySelector('[name=focus]')?.remove();form.querySelector('[name=listing]')?.remove();
+   form.requestSubmit();
+  });
+  const reflection=document.querySelector('[data-reflection]');
+  const reflectionForm=reflection?.querySelector('[data-reflection-form]');
+  let pollTimer=null,polls=0;
+  async function pollReflection(){
+   if(document.hidden){pollTimer=setTimeout(pollReflection,3000);return;}
+   try{
+    const response=await fetch(reflection.dataset.endpoint,{headers:{Accept:'application/json'},cache:'no-store'});
+    if(!response.ok)throw new Error('読み込みできませんでした。再表示してください。');
+    const state=await response.json();
+    if(state.key!==reflection.dataset.key){reflection.querySelector('[data-reflection-status]').textContent='対象の記録が更新されました。再表示してください。';return;}
+    if(state.status==='completed'){sessionStorage.setItem(positionKey,String(scrollY));location.reload();return;}
+    if(state.status==='failed'||++polls>65)throw new Error('作成できませんでした。画面を再表示して再試行できます。');
+    pollTimer=setTimeout(pollReflection,2000);
+   }catch(error){reflection.querySelector('[data-reflection-status]').textContent=error.message;const button=reflectionForm?.querySelector('button');if(button){button.disabled=false;button.textContent='再試行';}}
+  }
+  reflectionForm?.addEventListener('submit',async event=>{
+   event.preventDefault();const button=reflectionForm.querySelector('button');button.disabled=true;
+   try{
+    const response=await fetch(reflectionForm.action,{method:'POST',body:new FormData(reflectionForm),headers:{Accept:'application/json'}});
+    if(!response.ok)throw new Error(response.status===409?'対象の記録が変わりました。再表示してください。':response.status===429?'ほかの分析を作成中です。少し待ってから再試行してください。':response.status===503?'AI分析を利用できません。管理者に接続設定を確認してください。':'作成できませんでした。再試行してください。');
+    const state=await response.json();
+    if(state.status==='completed'){location.reload();return;}
+    reflection.querySelector('[data-reflection-status]').textContent='振り返りを作成しています。このまま記録を確認できます。';button.textContent='作成中';polls=0;pollTimer=setTimeout(pollReflection,1500);
+   }catch(error){reflection.querySelector('[data-reflection-status]').textContent=error.message;button.disabled=false;button.textContent='再試行';}
+  });
+  if(reflection?.dataset.status==='pending')pollTimer=setTimeout(pollReflection,1500);
+  window.addEventListener('pagehide',()=>clearTimeout(pollTimer));
   form?.querySelector('[name=period]')?.addEventListener('change',event=>{if(event.target.value==='custom'){const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;}});
   form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',()=>{
    const select=form.querySelector('[name=period]');if(select)select.value='custom';

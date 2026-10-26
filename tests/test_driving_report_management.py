@@ -125,7 +125,7 @@ class DrivingReportManagementTests(unittest.TestCase):
         m.db.session.add(m.VehicleOperationRecord(company_code='TEST',vehicle_record_id=self.vehicle.id,report_number='csv',operation_date=r.operation_date,distance=101.85,departure_at='2026-09-22 05:21:34',arrival_at='2026-09-22 14:48:38'))
         m.db.session.commit()
         self.client.post(f'/safety/driving-reports/{r.id}/reconcile',data={'version':version(r),'mode':'cancelled'})
-        page=self.client.get('/safety/driving-reports?state=cancelled').get_data(as_text=True)
+        page=self.client.get('/safety/driving-reports?scope=company&period=all&state=cancelled').get_data(as_text=True)
         self.assertIn('重複をまとめた運行 0件',page)
         self.assertEqual(len(m.get_vehicle_canonical_operations('TEST',self.vehicle.id)),1)
     def test_analysis_end_date_excludes_later_reports(self):
@@ -164,7 +164,7 @@ class DrivingReportManagementTests(unittest.TestCase):
         self.assertEqual(self.m.get_vehicle_canonical_operations('TEST',self.vehicle.id),[])
     def test_filters_csv_formula_and_no_pii_to_general_user(self):
         r=self.imported();p=payload(r);p['driver_name']='=1+1';r.details_json=json.dumps(p);self.m.db.session.commit()
-        text=self.client.get('/safety/driving-reports/export.csv?driver=%3D1').data.decode('utf-8-sig');self.assertIn("'=1+1",text)
+        text=self.client.get('/safety/driving-reports/export.csv?scope=company&period=all&driver=%3D1').data.decode('utf-8-sig');self.assertIn("'=1+1",text)
         self.assertEqual(self.client.get('/safety/driving-reports?start=bad').status_code,400)
         self.m.db.session.add(self.m.User(company_code='TEST',username='viewer',role='user',password='unused',last_name='一般',password_changed_at='viewer-stamp'))
         self.m.db.session.commit()

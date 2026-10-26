@@ -317,6 +317,17 @@ class DrivingReportReader(db.Model):
     confirmed_at = db.Column(db.String(40), nullable=False)
 
 
+class DrivingReportReflection(db.Model):
+    """Persisted results are addressed by the current authorized input fingerprint."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False, index=True)
+    cache_key = db.Column(db.String(64), nullable=False, unique=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    result_json = db.Column(db.Text, nullable=False, default='{}')
+    created_at = db.Column(db.String(40), nullable=False)
+    updated_at = db.Column(db.String(40), nullable=False)
+
+
 class Driver(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 

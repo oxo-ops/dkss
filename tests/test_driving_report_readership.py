@@ -34,7 +34,7 @@ class DrivingReadershipTests(unittest.TestCase):
     def test_no_name_code_or_uploader_fallback_and_sidebar_visible(self):
         self.save(name='同姓同名',code='one')
         self.login()
-        response=self.client.get('/safety/driving-reports?period=all')
+        response=self.client.get('/safety/driving-reports?scope=company&period=all')
         self.assertEqual(response.status_code,200)
         text=response.get_data(as_text=True)
         self.assertIn('自分の運転実績',text);self.assertIn('本人確認済みの日報はありません',text)
@@ -57,7 +57,7 @@ class DrivingReadershipTests(unittest.TestCase):
         self.assertEqual(self.client.get(f'/safety/driving-reports/{secret.id}').status_code,404)
         from pypdf import PdfReader
         from io import BytesIO
-        response=self.client.get('/safety/driving-reports/export.pdf?period=all')
+        response=self.client.get('/safety/driving-reports/export.pdf?scope=company&period=all')
         text=''.join(p.extract_text() for p in PdfReader(BytesIO(response.data)).pages)
         self.assertIn('本人だけ',text);self.assertNotIn('他人秘密',text)
 
@@ -101,10 +101,10 @@ class DrivingReadershipTests(unittest.TestCase):
         contexts=[]
         def capture(sender,template,context,**extra):contexts.append(context)
         template_rendered.connect(capture,self.m.app)
-        try:self.client.get('/safety/driving-reports?'+urlencode({'period':'all','focus':focus}))
+        try:self.client.get('/safety/driving-reports?'+urlencode({'scope':'company','period':'all','focus':focus}))
         finally:template_rendered.disconnect(capture,self.m.app)
         token=contexts[-1]['insights']['reader_version']
-        data={'period':'all','focus':focus,'reader_version':token,'reader_username':'one','return_to':'/safety/driving-reports?period=all#driver-trend'}
+        data={'scope':'company','period':'all','focus':focus,'reader_version':token,'reader_username':'one','return_to':'/safety/driving-reports?scope=company&period=all#driver-trend'}
         self.assertEqual(self.client.post('/safety/driving-reports/readers',data=dict(data,reader_version='stale')).status_code,409)
         self.assertEqual(DrivingReportReader.query.count(),0)
         response=self.client.post('/safety/driving-reports/readers',data=data)
@@ -119,7 +119,7 @@ class DrivingReadershipTests(unittest.TestCase):
     def test_missing_schema_fails_closed_and_explicit_initializer_is_idempotent(self):
         with self.m.db.engine.begin() as connection:DrivingReportReader.__table__.drop(connection)
         self.m.app.extensions['dkss']['driving_readers_ready']=False
-        self.login();self.assertEqual(self.client.get('/safety/driving-reports?period=all').status_code,200)
+        self.login();self.assertEqual(self.client.get('/safety/driving-reports?scope=company&period=all').status_code,200)
         self.login('admin','admin');own=self.save();self.assertEqual(self.grant(own).status_code,503)
         for _ in range(2):access.initialize_driving_access(self.m.app)
         self.assertEqual(self.grant(own).status_code,302)
