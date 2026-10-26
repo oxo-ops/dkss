@@ -1,4 +1,4 @@
-/* NOTIFICATION_READABILITY_V5
+/* NOTIFICATION_COMPACT_V7
    Notification-only visual hierarchy. Original layout, DOM, data and workflows retained.
    Blue: actions/selection; purple: pending work; teal: completed work. */
 body .main-content .notifications-card:has(#notificationLayout) {
@@ -256,4 +256,71 @@ body #notificationPopover {
 .dkss-notification-detail :is(a,button,summary):focus-visible {
   outline: 2px solid #367abe;
   outline-offset: 2px;
+}
+
+/* V6: spacing and text hierarchy within the existing list/detail arrangement. */
+body:has(#notificationLayout) .notification-top-bar { min-height: 48px; margin-bottom: 8px; }
+#notificationLayout .notification-wrapper { padding-top: 6px; padding-bottom: 6px; }
+#notificationLayout .notification-kind-icon {
+  flex-basis: 32px;
+  width: 32px;
+  height: 32px;
+}
+#notificationLayout .notification-kind-icon > svg { width: 20px; height: 20px; }
+#notificationLayout .notification-body { row-gap: 3px; }
+#notificationLayout .notification-kind-label { font-size: 11px; }
+#notificationLayout .notification-title { font-size: 14px; line-height: 1.5; }
+#notificationLayout .notification-row-states { gap: 5px; }
+#notificationLayout :is(.notification-state-tag,.notification-read-tag) { font-size: 11px; line-height: 1.5; }
+#notificationLayout .notification-row-time { font-size: 11px; }
+#notificationLayout .notification-message.np-summary {
+  display: block;
+  max-height: 3.1em;
+  line-height: 1.55;
+  overflow: hidden;
+}
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-summary > :is(.np-record,.np-paragraph) {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-summary .np-target { color: #334155; font-weight: 600; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-summary .np-field { color: #526173; font-weight: 400; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-summary .np-field::before { content: " / "; color: #8490a0; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-summary .np-paragraph { color: #5b687a; }
+#notificationPopover .notification-popover-item { row-gap: 4px; padding-top: 8px; padding-bottom: 8px; }
+#notificationPopover .notification-popover-title { font-size: 13px; line-height: 1.5; }
+#notificationPopover .notification-popover-message.np-summary { display: block; max-height: 3.1em; overflow: hidden; }
+#notificationPopover .notification-popover-workflow { font-size: 11px; }
+:is(#notificationDetailPane,.main-content) .dkss-notification-detail .np-full-message {
+  white-space: normal;
+  line-height: 1.7;
+}
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-full-message > .np-paragraph { display: block; margin: 0 0 14px; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-full-message > .np-record { display: block; margin: 0 0 16px; padding-left: 12px; border-left: 2px solid #d4e3f5; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-full-message .np-target { display: block; margin-bottom: 6px; color: #172b4d; font-weight: 600; }
+:is(#notificationLayout,#notificationPopover,.dkss-notification-detail) .np-full-message .np-field { display: block; color: #334155; }
+#notificationDetailPane .dkss-notification-detail .nd-content { padding: 18px 16px; }
+#notificationDetailPane .dkss-notification-detail .nd-title { margin-bottom: 12px; }
+#notificationDetailPane .dkss-notification-detail .nd-date { margin-bottom: 14px; }
+@media (max-width: 600px) {
+  body:has(#notificationLayout) .notification-top-bar { min-height: 44px; }
+  #notificationLayout .notification-wrapper { padding-top: 6px; padding-bottom: 6px; }
+}
+/* Remove wasted vertical space without moving the header, list or detail controls. */
+@media (min-width: 601px) {
+  body:has(#notificationLayout) .main-content { padding-top: 18px; }
+  body:has(#notificationLayout) .notification-top-bar { margin-bottom: 0; }
+  body:has(#notificationLayout) .notification-page-header { min-height: 48px; }
+}
+@media (max-width: 768px) {
+  #notificationLayout #notificationBulkForm { gap: 4px 8px; }
+  #notificationLayout #notificationBulkForm .notification-bulk-selection { flex-basis: auto; gap: 8px; margin-right: 0; }
+  #notificationLayout #notificationBulkForm > button { gap: 4px; font-size: 12px; }
+  #notificationLayout #notificationBulkForm > button > svg { flex-basis: 18px; width: 18px; height: 18px; }
+}
+@media (max-width: 600px) {
+  .notifications-card:has(#notificationLayout) .notification-tabs { gap: 4px; }
+  .notifications-card:has(#notificationLayout) .notification-view-tab { padding-left: 6px; padding-right: 6px; gap: 4px; font-size: 13px; }
 }

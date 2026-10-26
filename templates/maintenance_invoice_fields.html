@@ -1,3 +1,4 @@
+{% from 'ocr_searchable_select_field.html' import searchable_select %}
 {% macro invoice_number(value) -%}
     {%- if value is none or value == '' -%}—
     {%- else -%}
@@ -62,10 +63,9 @@
          data-candidates-url="{{ url_for('vehicle_invoice_import_candidates', batch_id=batch_id, draft_id=document.id, record_index=record_index) }}" hidden>
     <p data-service-match-message role="status"></p>
     <label for="service_match_{{ row_key }}">この請求書の整備</label>
-    <select id="service_match_{{ row_key }}" name="service_match_{{ row_key }}"
-            data-saved-choice="{{ record.get('service_match') or '' }}">
+    {% call searchable_select('この請求書の整備', '日付・整備内容で検索', 'service_match_' ~ row_key, 'service_match_' ~ row_key, saved_choice=record.get('service_match') or '') %}
         <option value="">確認してください</option>
-    </select>
+    {% endcall %}
 </section>
 
 <details class="invoice-overview-details" open>
@@ -106,12 +106,12 @@
     <div class="invoice-input-grid">
         <label class="invoice-input-wide">
             対象車両
-            <select id="vehicle_{{ row_key }}" name="vehicle_{{ row_key }}">
+            {% call searchable_select('対象車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
                 <option value="">選択してください</option>
                 {% for choice in vehicle_choices %}
                 <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number or '' }}" data-vehicle-chassis="{{ choice.chassis_number or '' }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
                 {% endfor %}
-            </select>
+            {% endcall %}
         </label>
         <label>
             入庫日

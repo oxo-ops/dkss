@@ -1,0 +1,12 @@
+{% if metrics.groups %}
+{% for group in metrics.groups %}
+<details open>
+<summary>{{ group.name }} <span class="driving-muted">{{ group.source_system }} ／ 設定 {{ group.version }} ／ {{ group.unit }} ／ {{ group.count }}件</span></summary>
+<p class="driving-muted">定義：{{ group.definition }}　条件：{{ group.threshold or '原本記載なし' }}　道路：{{ group.road_type or '区分なし' }}　粒度：{{ driving_scope_labels.get(group.scope,'不明') }}</p>
+<svg class="driving-chart" data-driving-chart data-series="{{ group['values']|tojson|forceescape }}" viewBox="0 0 620 145" role="img" aria-label="{{ group.name }}の記録値の推移"></svg>
+<div class="driving-table-wrap"><table><thead><tr><th>日付</th><th>記録値</th><th>分子</th><th>分母</th><th>出典</th></tr></thead><tbody>{% for value in group['values'] %}<tr><td>{{ value.date or '不明' }}</td><td>{{ value.value }} {{ group.unit }}</td><td>{{ value.numerator if value.numerator is not none else '未取得' }}</td><td>{{ value.denominator if value.denominator is not none else '未取得' }} {{ value.denominator_unit or '' }}</td><td><a href="{{ url_for('driving_report_detail',record_id=value.report_id) }}">日報 {{ value.report_id }}</a></td></tr>{% endfor %}</tbody></table></div>
+{% if group.ratio is not none %}<p class="driving-muted">期間の分子合計 ÷ 分母合計：{{ group.ratio }}（元の率の単純平均は使用しません）</p>{% endif %}
+</details>
+{% endfor %}
+{% else %}<p class="driving-muted">定義・原単位・評価設定版が揃った比較可能な数値はありません。原本の値は日報詳細で確認できます。</p>{% endif %}
+{% if metrics.not_comparable %}<details><summary>比較条件が不足している項目 {{ metrics.not_comparable|length }}件</summary><ul>{% for item in metrics.not_comparable %}<li><a href="{{ url_for('driving_report_detail',record_id=item.report_id) }}">日報 {{ item.report_id }}</a> {{ item.name }}：{{ item.reason }}</li>{% endfor %}</ul></details>{% endif %}

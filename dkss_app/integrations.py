@@ -6,7 +6,8 @@ from vehicle_inspection_alerts import register_inspection_alerts
 from vehicle_periodic_followups import register_periodic_followups
 from vehicle_document_deletion import register_document_deletion
 from .extensions import db
-from . import common, models, analysis, maintenance, audit
+from . import common, models, analysis, maintenance, audit, access, vehicle_readers, vehicle_imports, http, serialization
+from driving_report_management import register_driving_reports
 
 
 def register_integrations(app):
@@ -42,4 +43,21 @@ def register_integrations(app):
         'get_vehicle_karte_analysis_job_data': analysis.get_vehicle_karte_analysis_job_data,
         'queue_vehicle_karte_analysis': analysis.queue_vehicle_karte_analysis,
         'add_audit_log': audit.add_audit_log,
+    })
+
+
+
+
+    state['driving_report_service'] = register_driving_reports(app, db, {
+        'VehicleDrivingReportRecord': models.VehicleDrivingReportRecord,
+        'VehicleOperationRecord': models.VehicleOperationRecord,
+        'Vehicle': models.Vehicle,
+        'VehicleDocumentImportDraft': models.VehicleDocumentImportDraft,
+        'User': models.User,
+        'Notification': models.Notification,
+        'require_master_admin': lambda: access.require_master_admin(),
+        'vehicle_number': vehicle_readers.vehicle_number,
+        'validate_vehicle_document_record': vehicle_imports.validate_vehicle_document_record,
+        'return_form_errors': http.return_form_errors,
+        'safe_json_dict': serialization.safe_json_dict,
     })

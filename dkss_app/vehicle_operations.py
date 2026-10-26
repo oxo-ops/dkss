@@ -262,31 +262,12 @@ def build_vehicle_operation_import_preview(csv_rows, company_code):
 
 
 def get_vehicle_operation_summary(company_code, vehicle_record_id):
-    operations = _dkss_models.VehicleOperationRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id,
-    ).all()
-    maintenance = _dkss_models.VehicleMaintenanceRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id,
-    ).all()
-
-    periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
-        company_code=company_code,
-        vehicle_record_id=vehicle_record_id,
-    ).all()
-
-    reference = _dkss_analysis.build_vehicle_karte_mileage_reference(
-        maintenance,
-        operations,
-        _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).date().isoformat(),
-        periodic_records=periodic,
-    )
-    return {
-        "current_mileage": reference["value"],
-        "mileage_date": reference["date"],
-        "mileage_reference": reference,
-    }
+    operations = _dkss_models.VehicleOperationRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    operations = get_vehicle_canonical_operations(company_code, vehicle_record_id, operations)
+    maintenance = _dkss_models.VehicleMaintenanceRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    reference = _dkss_analysis.build_vehicle_karte_mileage_reference(maintenance, operations, _dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).date().isoformat(), periodic_records=periodic)
+    return {'current_mileage': reference['value'], 'mileage_date': reference['date'], 'mileage_reference': reference}
 
 
 
@@ -395,3 +376,23 @@ def get_vehicle_operation_plate_candidates(company_code):
             ).append(vehicle.id)
 
     return vehicles, plate_candidates
+
+
+def get_vehicle_driving_report_summary(company_code, vehicle_record_id, start=None, end=None):
+    from driving_report_data import metrics_summary
+    rows = _dkss_models.VehicleDrivingReportRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    if start:
+        rows = [r for r in rows if r.operation_date and r.operation_date >= start]
+    if end:
+        rows = [r for r in rows if r.operation_date and r.operation_date <= end]
+    return metrics_summary(rows)
+
+
+def get_vehicle_canonical_operations(company_code, vehicle_record_id, operations=None, end=None):
+    from driving_report_data import canonical_operations
+    if operations is None:
+        operations = _dkss_models.VehicleOperationRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    reports = _dkss_models.VehicleDrivingReportRecord.query.filter_by(company_code=company_code, vehicle_record_id=vehicle_record_id).all()
+    if end:
+        reports = [r for r in reports if r.operation_date and r.operation_date <= end]
+    return canonical_operations(operations, reports)

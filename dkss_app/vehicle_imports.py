@@ -3,52 +3,15 @@ from . import access as _dkss_access, common as _dkss_common, http as _dkss_http
 
 
 def apply_maintenance_invoice_preview(draft, extraction):
-    if (
-        draft.document_type not in {"maintenance", "inspection"}
-        or draft.company_code != _dkss_common.session.get("company_code")
-        or draft.created_by_username != _dkss_common.session.get("username")
-        or draft.status != "preview"
-    ):
-        raise ValueError("この資料の読み取り結果は変更できません。")
-
-    if (
-        extraction.get("schema_version") != 1
-        or extraction.get("source_sha256") != draft.source_sha256
-    ):
-        raise ValueError("読み取り結果と原本PDFが一致しません。")
-
-    vehicles = _dkss_models.Vehicle.query.filter_by(
-        company_code=draft.company_code
-    ).all()
-
-    vehicle_choices = [
-        {
-            "id": vehicle.id,
-            "number": " ".join(
-                str(value)
-                for value in (
-                    vehicle.plate_area,
-                    vehicle.plate_class,
-                    vehicle.plate_kana,
-                    vehicle.plate_number,
-                )
-                if value
-            ),
-            "chassis_number": vehicle.chassis_number or "",
-            "deleted": bool(vehicle.deleted),
-        }
-        for vehicle in vehicles
-    ]
-
-    builder = (
-        _dkss_common.build_inspection_preview if draft.document_type == "inspection"
-        else _dkss_common.build_maintenance_invoice_preview
-    )
+    if draft.document_type not in {'maintenance', 'inspection', 'driving_report'} or draft.company_code != _dkss_common.session.get('company_code') or draft.created_by_username != _dkss_common.session.get('username') or (draft.status != 'preview'):
+        raise ValueError('この資料の読み取り結果は変更できません。')
+    if extraction.get('schema_version') != 1 or extraction.get('source_sha256') != draft.source_sha256:
+        raise ValueError('読み取り結果と原本PDFが一致しません。')
+    vehicles = _dkss_models.Vehicle.query.filter_by(company_code=draft.company_code).all()
+    vehicle_choices = [{'id': vehicle.id, 'number': ' '.join((str(value) for value in (vehicle.plate_area, vehicle.plate_class, vehicle.plate_kana, vehicle.plate_number) if value)), 'chassis_number': vehicle.chassis_number or '', 'deleted': bool(vehicle.deleted)} for vehicle in vehicles]
+    builder = _dkss_common.build_inspection_preview if draft.document_type == 'inspection' else _dkss_common.build_driving_report_preview if draft.document_type == 'driving_report' else _dkss_common.build_maintenance_invoice_preview
     preview = builder(extraction, vehicle_choices)
-    draft.preview_json = _dkss_common.json.dumps(
-        preview,
-        ensure_ascii=False,
-    )
+    draft.preview_json = _dkss_common.json.dumps(preview, ensure_ascii=False)
     return preview
 
 
@@ -176,148 +139,38 @@ def vehicle_invoice_import_candidates(batch_id, draft_id, record_index):
 
 
 
-def build_vehicle_document_record(
-    draft,
-    record_index,
-    values
-):
-    mileage = (
-        _dkss_common.Decimal(values["mileage"])
-        if values.get("mileage") is not None
-        else None
-    )
-
-    if draft.document_type == "inspection":
-        return _dkss_models.VehiclePeriodicInspectionRecord(
-            company_code=draft.company_code,
-            vehicle_record_id=values["vehicle_record_id"],
-            inspection_type=values["inspection_type"],
-            inspection_date=values["record_date"],
-            completion_date=values.get("completion_date") or None,
-            next_inspection_date=values.get("next_inspection_date") or None,
-            inspection_company=values.get("inspection_company") or None,
-            inspector_name=values.get("inspector_name") or None,
-            mileage=mileage,
-            content=values["content"],
-            details_json=_dkss_common.json.dumps(
-                values,
-                ensure_ascii=False
-            ),
-            source_draft_id=draft.id,
-            source_record_index=record_index,
-            created_by_username=_dkss_common.session.get("username")
-        )
-
-    if draft.document_type == "driving_report":
-        return _dkss_models.VehicleDrivingReportRecord(
-            company_code=draft.company_code,
-            vehicle_record_id=values["vehicle_record_id"],
-            operation_date=values["record_date"],
-            mileage=mileage,
-            content=values["content"],
-            details_json=_dkss_common.json.dumps(
-                values,
-                ensure_ascii=False
-            ),
-            source_draft_id=draft.id,
-            source_record_index=record_index,
-            created_by_username=_dkss_common.session.get("username")
-        )
-
-    if draft.document_type == "maintenance":
+def build_vehicle_document_record(draft, record_index, values):
+    mileage = _dkss_common.Decimal(values['mileage']) if values.get('mileage') is not None else None
+    if draft.document_type == 'inspection':
+        return _dkss_models.VehiclePeriodicInspectionRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], inspection_type=values['inspection_type'], inspection_date=values['record_date'], completion_date=values.get('completion_date') or None, next_inspection_date=values.get('next_inspection_date') or None, inspection_company=values.get('inspection_company') or None, inspector_name=values.get('inspector_name') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
+    if draft.document_type == 'driving_report':
+        return _dkss_models.VehicleDrivingReportRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], operation_date=values['record_date'], report_number=values.get('report_number') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
+    if draft.document_type == 'maintenance':
         costs = {}
-
-        for field in (
-            "labor_cost",
-            "parts_cost",
-            "other_cost",
-            "tax_amount",
-            "total_cost",
-        ):
+        for field in ('labor_cost', 'parts_cost', 'other_cost', 'tax_amount', 'total_cost'):
             raw = values.get(field)
-
-            if raw is None or raw == "":
+            if raw is None or raw == '':
                 costs[field] = None
                 continue
-
             amount = _dkss_common.Decimal(str(raw))
-
-            if (
-                not amount.is_finite()
-                or abs(amount) > _dkss_common.Decimal("999999999999.99")
-                or amount != amount.quantize(_dkss_common.Decimal("0.01"))
-            ):
-                raise ValueError("整備費用の金額を確認してください。")
-
+            if not amount.is_finite() or abs(amount) > _dkss_common.Decimal('999999999999.99') or amount != amount.quantize(_dkss_common.Decimal('0.01')):
+                raise ValueError('整備費用の金額を確認してください。')
             costs[field] = amount
-
-        for field in ("completion_date", "invoice_date"):
+        for field in ('completion_date', 'invoice_date'):
             value = values.get(field)
-
             if value:
-                parsed = _dkss_common.datetime.strptime(value, "%Y-%m-%d")
-
-                if parsed.strftime("%Y-%m-%d") != value:
-                    raise ValueError("整備資料の日付を確認してください。")
-
-        invoice_number = values.get("invoice_number") or ""
-        maintenance_company = values.get("maintenance_company") or ""
-
+                parsed = _dkss_common.datetime.strptime(value, '%Y-%m-%d')
+                if parsed.strftime('%Y-%m-%d') != value:
+                    raise ValueError('整備資料の日付を確認してください。')
+        invoice_number = values.get('invoice_number') or ''
+        maintenance_company = values.get('maintenance_company') or ''
         if len(invoice_number) > 100 or len(maintenance_company) > 200:
-            raise ValueError("伝票番号・整備会社名の文字数を確認してください。")
-
-        line_items = values.get("line_items") or []
-
-        if (
-            not isinstance(line_items, list)
-            or len(line_items) > 1000
-            or not all(isinstance(item, dict) for item in line_items)
-        ):
-            raise ValueError("整備明細を確認してください。")
-
-        return _dkss_models.VehicleMaintenanceRecord(
-            company_code=draft.company_code,
-            vehicle_record_id=values["vehicle_record_id"],
-            entry_date=values["record_date"],
-            completion_date=values.get("completion_date") or None,
-            mileage=mileage,
-            content=values["content"],
-            maintenance_company=maintenance_company or None,
-            invoice_number=invoice_number or None,
-            invoice_date=values.get("invoice_date") or None,
-            invoice_details_json=_dkss_common.json.dumps(
-                {
-                    "schema_version": 1,
-                    "issuer_name": values.get("issuer_name"),
-                    "customer_name": values.get("customer_name"),
-                    "sales_date": values.get("sales_date"),
-                    "fees": values.get("fees") or [],
-                    "registration_number": values.get("registration_number"),
-                    "chassis_number": values.get("chassis_number"),
-                    "vehicle_model": values.get("vehicle_model"),
-                    "source": {
-                        "draft_id": draft.id,
-                        "record_index": record_index,
-                        "filename": draft.source_filename,
-                        "sha256": draft.source_sha256,
-                        "pages": values.get("source_pages") or [],
-                    },
-                },
-                ensure_ascii=False,
-            ),
-            line_items_json=_dkss_common.json.dumps(
-                line_items,
-                ensure_ascii=False,
-            ),
-            notes=values.get("notes") or None,
-            **costs,
-            created_by_username=_dkss_common.session.get("username"),
-            created_at=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).isoformat(timespec="seconds")
-        )
-
-    raise ValueError("資料の種類が不正です。")
+            raise ValueError('伝票番号・整備会社名の文字数を確認してください。')
+        line_items = values.get('line_items') or []
+        if not isinstance(line_items, list) or len(line_items) > 1000 or (not all((isinstance(item, dict) for item in line_items))):
+            raise ValueError('整備明細を確認してください。')
+        return _dkss_models.VehicleMaintenanceRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], entry_date=values['record_date'], completion_date=values.get('completion_date') or None, mileage=mileage, content=values['content'], maintenance_company=maintenance_company or None, invoice_number=invoice_number or None, invoice_date=values.get('invoice_date') or None, invoice_details_json=_dkss_common.json.dumps({'schema_version': 1, 'issuer_name': values.get('issuer_name'), 'customer_name': values.get('customer_name'), 'sales_date': values.get('sales_date'), 'fees': values.get('fees') or [], 'registration_number': values.get('registration_number'), 'chassis_number': values.get('chassis_number'), 'vehicle_model': values.get('vehicle_model'), 'source': {'draft_id': draft.id, 'record_index': record_index, 'filename': draft.source_filename, 'sha256': draft.source_sha256, 'pages': values.get('source_pages') or []}}, ensure_ascii=False), line_items_json=_dkss_common.json.dumps(line_items, ensure_ascii=False), notes=values.get('notes') or None, **costs, created_by_username=_dkss_common.session.get('username'), created_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'))
+    raise ValueError('資料の種類が不正です。')
 
 
 
@@ -434,26 +287,15 @@ def registered_maintenance_import_keys(
 
 
 
-def registered_inspection_import_keys(company_code, exclude_pending_record_id=None):
+def registered_inspection_import_keys(company_code, exclude_pending_record_id=None, source_kind='inspection'):
+    model = _dkss_models.VehicleDrivingReportRecord if source_kind == 'driving_report' else _dkss_models.VehiclePeriodicInspectionRecord
     keys = set()
-    for record_index, digest in _dkss_common.db.session.query(
-        _dkss_models.VehiclePeriodicInspectionRecord.source_record_index, _dkss_models.VehicleDocumentImportDraft.source_sha256
-    ).join(_dkss_models.VehicleDocumentImportDraft,
-           _dkss_models.VehiclePeriodicInspectionRecord.source_draft_id == _dkss_models.VehicleDocumentImportDraft.id
-    ).filter(_dkss_models.VehiclePeriodicInspectionRecord.company_code == company_code,
-             _dkss_models.VehicleDocumentImportDraft.company_code == company_code).all():
+    for record_index, digest in _dkss_common.db.session.query(model.source_record_index, _dkss_models.VehicleDocumentImportDraft.source_sha256).join(_dkss_models.VehicleDocumentImportDraft, model.source_draft_id == _dkss_models.VehicleDocumentImportDraft.id).filter(model.company_code == company_code, _dkss_models.VehicleDocumentImportDraft.company_code == company_code).all():
         keys.add((digest, record_index))
-    pending = _dkss_common.db.session.query(
-        _dkss_models.VehicleImportPendingRecord.source_record_index, _dkss_models.VehicleDocumentImportDraft.source_sha256
-    ).join(_dkss_models.VehicleDocumentImportDraft,
-           _dkss_models.VehicleImportPendingRecord.document_draft_id == _dkss_models.VehicleDocumentImportDraft.id
-    ).filter(_dkss_models.VehicleImportPendingRecord.company_code == company_code,
-             _dkss_models.VehicleDocumentImportDraft.company_code == company_code,
-             _dkss_models.VehicleImportPendingRecord.source_kind == "inspection",
-             _dkss_models.VehicleImportPendingRecord.status == "pending")
+    pending = _dkss_common.db.session.query(_dkss_models.VehicleImportPendingRecord.source_record_index, _dkss_models.VehicleDocumentImportDraft.source_sha256).join(_dkss_models.VehicleDocumentImportDraft, _dkss_models.VehicleImportPendingRecord.document_draft_id == _dkss_models.VehicleDocumentImportDraft.id).filter(_dkss_models.VehicleImportPendingRecord.company_code == company_code, _dkss_models.VehicleDocumentImportDraft.company_code == company_code, _dkss_models.VehicleImportPendingRecord.source_kind == source_kind, _dkss_models.VehicleImportPendingRecord.status == 'pending')
     if exclude_pending_record_id is not None:
         pending = pending.filter(_dkss_models.VehicleImportPendingRecord.id != exclude_pending_record_id)
-    keys.update((digest, record_index) for record_index, digest in pending.all())
+    keys.update(((digest, record_index) for record_index, digest in pending.all()))
     return keys
 
 
@@ -507,492 +349,277 @@ def save_vehicle_document_pending_record(draft, record_index, values):
 
 
 
-def validate_vehicle_document_record(
-    draft,
-    record_index,
-    original_record,
-    form,
-    allow_pending_vehicle=False
-):
-    row_key = f"{draft.id}_{record_index}"
+def validate_vehicle_document_record(draft, record_index, original_record, form, allow_pending_vehicle=False):
+    row_key = f'{draft.id}_{record_index}'
     values = dict(original_record)
     errors = []
-
-    vehicle_value = form.get(
-        f"vehicle_{row_key}", ""
-    ).strip()
-    record_date = form.get(
-        f"date_{row_key}", ""
-    ).strip()
-    mileage_text = form.get(
-        f"mileage_{row_key}", ""
-    ).strip()
-    content = form.get(
-        f"content_{row_key}", ""
-    ).strip()
-
-    values.update({
-        "vehicle_record_id": vehicle_value,
-        "record_date": record_date,
-        "mileage": mileage_text or None,
-        "content": content
-    })
-
+    vehicle_value = form.get(f'vehicle_{row_key}', '').strip()
+    record_date = form.get(f'date_{row_key}', '').strip()
+    mileage_text = form.get(f'mileage_{row_key}', '').strip()
+    content = form.get(f'content_{row_key}', '').strip()
+    values.update({'vehicle_record_id': vehicle_value, 'record_date': record_date, 'mileage': mileage_text or None, 'content': content})
     try:
-        if allow_pending_vehicle and not vehicle_value:
-            values["vehicle_record_id"] = None
+        if allow_pending_vehicle and (not vehicle_value):
+            values['vehicle_record_id'] = None
         else:
             vehicle_id = int(vehicle_value)
-
             if not 0 < vehicle_id <= 9223372036854775807:
                 raise ValueError
-
-            vehicle = _dkss_models.Vehicle.query.filter_by(
-                id=vehicle_id,
-                company_code=draft.company_code
-            ).first()
-
+            vehicle = _dkss_models.Vehicle.query.filter_by(id=vehicle_id, company_code=draft.company_code).first()
             if vehicle is None:
                 raise ValueError
-
-            values["vehicle_record_id"] = vehicle.id
+            values['vehicle_record_id'] = vehicle.id
     except (ValueError, TypeError):
-        errors.append((
-            "同じ会社の対象車両を選択してください。",
-            f"vehicle_{row_key}"
-        ))
-
-    try:
-        parsed_date = _dkss_common.datetime.strptime(
-            record_date, "%Y-%m-%d"
-        )
-
-        if parsed_date.strftime("%Y-%m-%d") != record_date:
-            raise ValueError
-    except ValueError:
-        errors.append((
-            "記録の日付を正しく入力してください。",
-            f"date_{row_key}"
-        ))
-
+        errors.append(('同じ会社の対象車両を選択してください。', f'vehicle_{row_key}'))
+    if not record_date and draft.document_type == 'driving_report':
+        values['record_date'] = ''
+    else:
+        try:
+            parsed_date = _dkss_common.datetime.strptime(record_date, '%Y-%m-%d')
+            if parsed_date.strftime('%Y-%m-%d') != record_date:
+                raise ValueError
+        except ValueError:
+            errors.append(('記録の日付を正しく入力してください。', f'date_{row_key}'))
     if mileage_text:
         try:
-            mileage = (
-                parse_maintenance_invoice_number(mileage_text)
-                if draft.document_type in {"maintenance", "inspection"}
-                else _dkss_common.Decimal(mileage_text)
-            )
-
-            if (
-                not mileage.is_finite()
-                or mileage < 0
-                or mileage > _dkss_common.Decimal("999999999999.99")
-                or mileage != mileage.quantize(_dkss_common.Decimal("0.01"))
-            ):
+            mileage = parse_maintenance_invoice_number(mileage_text) if draft.document_type in {'maintenance', 'inspection', 'driving_report'} else _dkss_common.Decimal(mileage_text)
+            if not mileage.is_finite() or mileage < 0 or mileage > _dkss_common.Decimal('999999999999.99') or (mileage != mileage.quantize(_dkss_common.Decimal('0.01'))):
                 raise ValueError
-
-            values["mileage"] = format(mileage, ".2f")
+            values['mileage'] = format(mileage, '.2f')
         except (_dkss_common.InvalidOperation, ValueError):
-            errors.append((
-                "積算走行距離は0以上、小数点以下2桁までで入力してください。",
-                f"mileage_{row_key}"
-            ))
-
+            errors.append(('積算走行距離は0以上、小数点以下2桁までで入力してください。', f'mileage_{row_key}'))
     if len(content) > 5000:
-        errors.append((
-            "記録内容は5000文字以内で入力してください。",
-            f"content_{row_key}"
-        ))
-
-    if draft.document_type == "inspection":
-        inspection_type = form.get(
-            f"inspection_type_{row_key}", ""
-        ).strip()
-        values["inspection_type"] = inspection_type
-
-        if inspection_type not in {
-            "3month", "12month", "other"
-        }:
-            errors.append((
-                "点検区分を選択してください。",
-                f"inspection_type_{row_key}"
-            ))
-
-    if draft.document_type == "inspection":
-        for field, (label, limit) in {
-            "inspection_company": ("実施工場", 200),
-            "inspector_name": ("点検者", 100),
-            "notes": ("特記事項", 5000),
-            "symbol_legend": ("記号凡例", 5000),
-        }.items():
-            key = f"{field}_{row_key}"
-            values[field] = form.get(key, original_record.get(field) or "").strip() or None
-            if len(values[field] or "") > limit:
-                errors.append((f"{label}は{limit}文字以内で入力してください。", key))
-        key = f"next_inspection_month_{row_key}"
-        raw = form.get(key, original_record.get("next_inspection_month") or "").strip()
-        values["next_inspection_month"] = raw or None
+        errors.append(('記録内容は5000文字以内で入力してください。', f'content_{row_key}'))
+    if draft.document_type == 'driving_report':
+        for field, limit in _dkss_common.DRIVING_TEXT_FIELDS.items():
+            if field in {'registration_number', 'chassis_number', 'operation_date', 'mileage', 'content'}:
+                continue
+            key = f'{field}_{row_key}'
+            raw = form.get(key, original_record.get(field) or '').strip()
+            values[field] = raw or None
+            if len(raw) > limit:
+                errors.append((f'入力は{limit}文字以内にしてください。', key))
+        values['operation_date'] = record_date
+        from datetime import date as report_date
+        if values.get('operation_end_date'):
+            try:
+                end_date = report_date.fromisoformat(values['operation_end_date'])
+                if end_date.isoformat() != values['operation_end_date'] or values['operation_end_date'] < record_date:
+                    raise ValueError
+            except ValueError:
+                errors.append(('運行終了日を確認してください。', f'operation_end_date_{row_key}'))
+        for field in ('start_mileage', 'distance'):
+            if values.get(field):
+                try:
+                    amount = parse_maintenance_invoice_number(values[field])
+                    if not amount.is_finite() or not 0 <= amount <= _dkss_common.Decimal('999999999999.99') or amount != amount.quantize(_dkss_common.Decimal('.01')):
+                        raise ValueError
+                    values[field] = format(amount, '.2f')
+                except (ValueError, _dkss_common.InvalidOperation):
+                    errors.append(('走行距離は0以上、小数点以下2桁までで入力してください。', f'{field}_{row_key}'))
+        values['report_scope'] = values.get('report_scope') or 'unknown'
+        if values.get('report_scope') not in {'trip', 'daily', 'monthly', 'unknown'}:
+            errors.append(('集計粒度を確認してください。', f'report_scope_{row_key}'))
+        from driving_report_data import decimal as driving_decimal
+        for collection in _dkss_common.DRIVING_COLLECTIONS:
+            values[collection] = []
+            prefix = 'report_item' if collection == 'report_items' else collection
+            for index, original_item in enumerate(original_record.get(collection) or []):
+                item = dict(original_item)
+                for field, limit in _dkss_common.DRIVING_ITEM_FIELDS.items():
+                    key = f'{prefix}_{row_key}_{index}_{field}'
+                    raw = form.get(key, original_item.get(field) or '').strip()
+                    item[field] = raw or None
+                    if len(raw) > limit or (field == 'item_name' and (not raw)):
+                        errors.append(('日報項目の名称・文字数を確認してください。', key))
+                    if field in {'value', 'numerator', 'denominator'} and raw and (driving_decimal(raw) is None):
+                        errors.append(('数値を確認してください。原文は実測値欄に保持できます。', key))
+                if item.get('status') not in {None, 'candidate', 'confirmed', 'illegible', 'not_recorded', 'not_applicable', 'unknown'}:
+                    errors.append(('読取状態を確認してください。', f'{prefix}_{row_key}_{index}_status'))
+                values[collection].append(item)
+    if draft.document_type == 'inspection':
+        inspection_type = form.get(f'inspection_type_{row_key}', '').strip()
+        values['inspection_type'] = inspection_type
+        if inspection_type not in {'3month', '12month', 'other'}:
+            errors.append(('点検区分を選択してください。', f'inspection_type_{row_key}'))
+    if draft.document_type == 'inspection':
+        for field, (label, limit) in {'inspection_company': ('実施工場', 200), 'inspector_name': ('点検者', 100), 'notes': ('特記事項', 5000), 'symbol_legend': ('記号凡例', 5000)}.items():
+            key = f'{field}_{row_key}'
+            values[field] = form.get(key, original_record.get(field) or '').strip() or None
+            if len(values[field] or '') > limit:
+                errors.append((f'{label}は{limit}文字以内で入力してください。', key))
+        key = f'next_inspection_month_{row_key}'
+        raw = form.get(key, original_record.get('next_inspection_month') or '').strip()
+        values['next_inspection_month'] = raw or None
         if raw:
             from vehicle_inspection_plans import month as valid_plan_month
             if not valid_plan_month(raw):
-                errors.append(("原本の次回予定月を正しく入力してください。", key))
-        for field in ("completion_date", "next_inspection_date"):
-            key = f"{field}_{row_key}"
-            raw = form.get(key, original_record.get(field) or "").strip()
+                errors.append(('原本の次回予定月を正しく入力してください。', key))
+        for field in ('completion_date', 'next_inspection_date'):
+            key = f'{field}_{row_key}'
+            raw = form.get(key, original_record.get(field) or '').strip()
             values[field] = raw or None
             if raw:
                 try:
-                    if _dkss_common.datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d") != raw:
+                    if _dkss_common.datetime.strptime(raw, '%Y-%m-%d').strftime('%Y-%m-%d') != raw:
                         raise ValueError
                 except ValueError:
-                    errors.append(("原本に記載された日付を正しく入力してください。", key))
-        if values.get("next_inspection_month") and values.get("next_inspection_date") and values["next_inspection_date"][:7] != values["next_inspection_month"]:
-            errors.append(("次回予定月と次回点検日の年月を合わせてください。", f"next_inspection_month_{row_key}"))
-        values["inspection_date"] = record_date
-        values["inspection_items"] = []
-        for index, original_item in enumerate(original_record.get("inspection_items") or []):
+                    errors.append(('原本に記載された日付を正しく入力してください。', key))
+        if values.get('next_inspection_month') and values.get('next_inspection_date') and (values['next_inspection_date'][:7] != values['next_inspection_month']):
+            errors.append(('次回予定月と次回点検日の年月を合わせてください。', f'next_inspection_month_{row_key}'))
+        values['inspection_date'] = record_date
+        values['inspection_items'] = []
+        for index, original_item in enumerate(original_record.get('inspection_items') or []):
             item = dict(original_item)
             for field, limit in _dkss_common.ITEM_FIELDS.items():
-                key = f"inspection_item_{row_key}_{index}_{field}"
-                raw = form.get(key, original_item.get(field) or "").strip()
+                key = f'inspection_item_{row_key}_{index}_{field}'
+                raw = form.get(key, original_item.get(field) or '').strip()
                 item[field] = raw or None
-                if len(raw) > limit or (field == "item_name" and not raw):
-                    errors.append(("点検項目の名称・文字数を確認してください。", key))
-            values["inspection_items"].append(item)
-
-    if draft.document_type == "maintenance":
-        text_fields = {
-            "invoice_number": ("伝票番号", 100),
-            "issuer_name": ("請求書発行元", 200),
-            "maintenance_company": ("整備会社・工場", 200),
-            "notes": ("備考", 5000),
-        }
-
+                if len(raw) > limit or (field == 'item_name' and (not raw)):
+                    errors.append(('点検項目の名称・文字数を確認してください。', key))
+            values['inspection_items'].append(item)
+    if draft.document_type == 'maintenance':
+        text_fields = {'invoice_number': ('伝票番号', 100), 'issuer_name': ('請求書発行元', 200), 'maintenance_company': ('整備会社・工場', 200), 'notes': ('備考', 5000)}
         for field, (label, limit) in text_fields.items():
-            field_id = f"{field}_{row_key}"
+            field_id = f'{field}_{row_key}'
             raw = form.get(field_id, values.get(field))
-            value = str(raw or "").strip()
+            value = str(raw or '').strip()
             values[field] = value or None
-
             if len(value) > limit:
-                errors.append((
-                    f"{label}は{limit}文字以内で入力してください。",
-                    field_id,
-                ))
-
-        for field, label in (
-            ("completion_date", "出庫日"),
-            ("invoice_date", "請求日"),
-            ("sales_date", "売上日"),
-        ):
-            field_id = f"{field}_{row_key}"
+                errors.append((f'{label}は{limit}文字以内で入力してください。', field_id))
+        for field, label in (('completion_date', '出庫日'), ('invoice_date', '請求日'), ('sales_date', '売上日')):
+            field_id = f'{field}_{row_key}'
             raw = form.get(field_id, values.get(field))
-            value = str(raw or "").strip()
+            value = str(raw or '').strip()
             values[field] = value or None
-
             if not value:
                 continue
-
             try:
-                parsed = _dkss_common.datetime.strptime(value, "%Y-%m-%d")
-
-                if parsed.strftime("%Y-%m-%d") != value:
+                parsed = _dkss_common.datetime.strptime(value, '%Y-%m-%d')
+                if parsed.strftime('%Y-%m-%d') != value:
                     raise ValueError
             except ValueError:
-                errors.append((
-                    f"{label}を正しく入力してください。",
-                    field_id,
-                ))
-
-        for field, label in (
-            ("labor_cost", "工賃"),
-            ("parts_cost", "部品代"),
-            ("other_cost", "その他費用"),
-            ("tax_amount", "消費税"),
-            ("total_cost", "請求総額"),
-        ):
-            field_id = f"{field}_{row_key}"
+                errors.append((f'{label}を正しく入力してください。', field_id))
+        for field, label in (('labor_cost', '工賃'), ('parts_cost', '部品代'), ('other_cost', 'その他費用'), ('tax_amount', '消費税'), ('total_cost', '請求総額')):
+            field_id = f'{field}_{row_key}'
             raw = form.get(field_id, values.get(field))
-            value = str(raw if raw is not None else "").strip()
+            value = str(raw if raw is not None else '').strip()
             values[field] = value or None
-
             if not value:
                 continue
-
             try:
                 amount = parse_maintenance_invoice_number(value)
-
-                if (
-                    not amount.is_finite()
-                    or abs(amount) > _dkss_common.Decimal("999999999999.99")
-                    or amount != amount.quantize(_dkss_common.Decimal("0.01"))
-                ):
+                if not amount.is_finite() or abs(amount) > _dkss_common.Decimal('999999999999.99') or amount != amount.quantize(_dkss_common.Decimal('0.01')):
                     raise ValueError
-
-                values[field] = format(amount, ".2f")
+                values[field] = format(amount, '.2f')
             except (_dkss_common.InvalidOperation, ValueError):
-                errors.append((
-                    f"{label}は小数点以下2桁までの金額で入力してください。",
-                    field_id,
-                ))
-
-        original_lines = original_record.get("line_items", [])
-        values["line_items"] = []
-
-        if (
-            not isinstance(original_lines, list)
-            or len(original_lines) > 1000
-            or not all(isinstance(line, dict) for line in original_lines)
-        ):
-            errors.append(("整備明細を取得できませんでした。", ""))
+                errors.append((f'{label}は小数点以下2桁までの金額で入力してください。', field_id))
+        original_lines = original_record.get('line_items', [])
+        values['line_items'] = []
+        if not isinstance(original_lines, list) or len(original_lines) > 1000 or (not all((isinstance(line, dict) for line in original_lines))):
+            errors.append(('整備明細を取得できませんでした。', ''))
         else:
-            line_text_fields = {
-                "description": ("内容", 1000),
-                "replacement_part_name": ("交換部品名", 200),
-                "part_number": ("品番", 200),
-                "category": ("区分", 20),
-                "unit": ("単位", 50),
-                "notes": ("備考", 1000),
-            }
-            line_number_fields = {
-                "quantity": ("数量", 6),
-                "unit_price": ("単価", 2),
-                "labor_amount": ("工賃", 2),
-                "parts_amount": ("部品代", 2),
-                "amount": ("行合計", 2),
-            }
-
+            line_text_fields = {'description': ('内容', 1000), 'replacement_part_name': ('交換部品名', 200), 'part_number': ('品番', 200), 'category': ('区分', 20), 'unit': ('単位', 50), 'notes': ('備考', 1000)}
+            line_number_fields = {'quantity': ('数量', 6), 'unit_price': ('単価', 2), 'labor_amount': ('工賃', 2), 'parts_amount': ('部品代', 2), 'amount': ('行合計', 2)}
             for line_index, original_line in enumerate(original_lines):
                 line = dict(original_line)
-                prefix = f"invoice_line_{row_key}_{line_index}_"
-
+                prefix = f'invoice_line_{row_key}_{line_index}_'
                 for field, (label, limit) in line_text_fields.items():
                     field_id = prefix + field
                     raw = form.get(field_id, original_line.get(field))
-                    value = str(raw if raw is not None else "").strip()
+                    value = str(raw if raw is not None else '').strip()
                     line[field] = value or None
-
                     if len(value) > limit:
-                        errors.append((
-                            f"明細{line_index + 1}の{label}は{limit}文字以内で入力してください。",
-                            field_id,
-                        ))
-
-                if line.get("category") not in {None, "部品", "工賃", "その他", "不明"}:
-                    errors.append((
-                        f"明細{line_index + 1}の区分を確認してください。",
-                        prefix + "category",
-                    ))
-
+                        errors.append((f'明細{line_index + 1}の{label}は{limit}文字以内で入力してください。', field_id))
+                if line.get('category') not in {None, '部品', '工賃', 'その他', '不明'}:
+                    errors.append((f'明細{line_index + 1}の区分を確認してください。', prefix + 'category'))
                 for field, (label, places) in line_number_fields.items():
                     field_id = prefix + field
                     raw = form.get(field_id, original_line.get(field))
-                    value = str(raw if raw is not None else "").strip()
+                    value = str(raw if raw is not None else '').strip()
                     line[field] = value or None
-
                     if not value:
                         continue
-
                     try:
                         if len(value) > 50:
                             raise ValueError
                         number = parse_maintenance_invoice_number(value)
                         quantum = _dkss_common.Decimal(1).scaleb(-places)
-                        if (
-                            not number.is_finite()
-                            or abs(number) > _dkss_common.Decimal("999999999999.99")
-                            or number != number.quantize(quantum)
-                        ):
+                        if not number.is_finite() or abs(number) > _dkss_common.Decimal('999999999999.99') or number != number.quantize(quantum):
                             raise ValueError
-                        line[field] = format(number, "f")
+                        line[field] = format(number, 'f')
                     except (_dkss_common.InvalidOperation, ValueError):
-                        errors.append((
-                            f"明細{line_index + 1}の{label}は小数点以下{places}桁までの数値で入力してください。",
-                            field_id,
-                        ))
-
-                action = str(form.get(
-                    prefix + "replacement_action",
-                    original_line.get("replacement_action") or "review",
-                )).strip()
-                line["replacement_action"] = action
-
-                if action not in {"replace", "not_replace", "review"}:
-                    errors.append((
-                        f"明細{line_index + 1}の交換部品の判定を確認してください。",
-                        prefix + "replacement_action",
-                    ))
-                elif action == "review":
-                    errors.append((
-                        f"明細{line_index + 1}が交換部品か確認してください。",
-                        prefix + "replacement_action",
-                    ))
-                elif action == "replace":
-                    if not line.get("replacement_part_name"):
-                        errors.append((
-                            f"明細{line_index + 1}の交換部品名を確認してください。",
-                            prefix + "replacement_part_name",
-                        ))
-
-                    if len(line.get("part_number") or "") > 100:
-                        errors.append((
-                            f"明細{line_index + 1}の品番は100文字以内で入力してください。",
-                            prefix + "part_number",
-                        ))
-
+                        errors.append((f'明細{line_index + 1}の{label}は小数点以下{places}桁までの数値で入力してください。', field_id))
+                action = str(form.get(prefix + 'replacement_action', original_line.get('replacement_action') or 'review')).strip()
+                line['replacement_action'] = action
+                if action not in {'replace', 'not_replace', 'review'}:
+                    errors.append((f'明細{line_index + 1}の交換部品の判定を確認してください。', prefix + 'replacement_action'))
+                elif action == 'review':
+                    errors.append((f'明細{line_index + 1}が交換部品か確認してください。', prefix + 'replacement_action'))
+                elif action == 'replace':
+                    if not line.get('replacement_part_name'):
+                        errors.append((f'明細{line_index + 1}の交換部品名を確認してください。', prefix + 'replacement_part_name'))
+                    if len(line.get('part_number') or '') > 100:
+                        errors.append((f'明細{line_index + 1}の品番は100文字以内で入力してください。', prefix + 'part_number'))
                     try:
-                        quantity = _dkss_common.Decimal(line.get("quantity") or "")
-                        if (
-                            not quantity.is_finite()
-                            or quantity <= 0
-                            or quantity > _dkss_common.Decimal("999999999999.99")
-                            or quantity != quantity.quantize(_dkss_common.Decimal("0.01"))
-                        ):
+                        quantity = _dkss_common.Decimal(line.get('quantity') or '')
+                        if not quantity.is_finite() or quantity <= 0 or quantity > _dkss_common.Decimal('999999999999.99') or (quantity != quantity.quantize(_dkss_common.Decimal('0.01'))):
                             raise ValueError
                     except (_dkss_common.InvalidOperation, ValueError):
-                        errors.append((
-                            f"明細{line_index + 1}の交換数量を確認してください（0より大きい数・小数点以下2桁まで）。",
-                            prefix + "quantity",
-                        ))
-
-                part_category = str(
-                    form.get(
-                        prefix + "replacement_category",
-                        line.get("replacement_category") or "未分類",
-                    ) or "未分類"
-                ).strip()
-
-                line["replacement_category"] = part_category
-
-                if part_category not in {
-                    "未分類", "消耗品", "電装系", "駆動系",
-                    "冷却系", "足回り", "その他",
-                }:
-                    errors.append((
-                        f"明細{line_index + 1}の部品分類を確認してください。",
-                        prefix + "replacement_category",
-                    ))
-
-                values["line_items"].append(line)
-
-        values["entry_date"] = values.get("record_date") or None
-
-    return values, errors
+                        errors.append((f'明細{line_index + 1}の交換数量を確認してください（0より大きい数・小数点以下2桁まで）。', prefix + 'quantity'))
+                part_category = str(form.get(prefix + 'replacement_category', line.get('replacement_category') or '未分類') or '未分類').strip()
+                line['replacement_category'] = part_category
+                if part_category not in {'未分類', '消耗品', '電装系', '駆動系', '冷却系', '足回り', 'その他'}:
+                    errors.append((f'明細{line_index + 1}の部品分類を確認してください。', prefix + 'replacement_category'))
+                values['line_items'].append(line)
+        values['entry_date'] = values.get('record_date') or None
+    return (values, errors)
 
 
 
 def prepare_vehicle_document_import(files, document_type):
-    company_code = _dkss_common.session.get("company_code")
-    username = _dkss_common.session.get("username")
-
+    company_code = _dkss_common.session.get('company_code')
+    username = _dkss_common.session.get('username')
     if not company_code or not username:
-        return [], [
-            ("ログイン情報を確認してください。", "")
-        ]
-
-    if document_type not in {
-        "inspection",
-        "driving_report",
-        "maintenance"
-    }:
-        return [], [
-            ("資料の種類を選択してください。", "document_type")
-        ]
-
-    uploaded_files = [
-        file
-        for file in files
-        if file and file.filename
-    ]
-
+        return ([], [('ログイン情報を確認してください。', '')])
+    if document_type not in {'inspection', 'driving_report', 'maintenance'}:
+        return ([], [('資料の種類を選択してください。', 'document_type')])
+    uploaded_files = [file for file in files if file and file.filename]
     if not uploaded_files:
-        return [], [
-            ("ファイルを選択してください。", "document_files")
-        ]
-
+        return ([], [('ファイルを選択してください。', 'document_files')])
     if len(uploaded_files) > 50:
-        return [], [
-            (
-                "1回に取り込めるファイルは50件までです。",
-                "document_files"
-            )
-        ]
-
+        return ([], [('1回に取り込めるファイルは50件までです。', 'document_files')])
     batch_id = str(_dkss_common.uuid4())
     drafts = []
     errors = []
-
     for file in uploaded_files:
-        filename = _dkss_common.os.path.basename(
-            file.filename.replace("\\", "/")
-        )
+        filename = _dkss_common.os.path.basename(file.filename.replace('\\', '/'))
         extension = _dkss_common.os.path.splitext(filename)[1].lower()
-
         if not filename or len(filename) > 255:
-            errors.append((
-                "ファイル名は1～255文字にしてください。",
-                "document_files"
-            ))
+            errors.append(('ファイル名は1～255文字にしてください。', 'document_files'))
             continue
-
-        if extension not in {".pdf", ".png", ".jpg", ".jpeg"}:
-            errors.append((
-                f"{filename}：PDF・PNG・JPEGを選択してください。",
-                "document_files"
-            ))
+        if extension not in {'.pdf', '.png', '.jpg', '.jpeg'}:
+            errors.append((f'{filename}：PDF・PNG・JPEGを選択してください。', 'document_files'))
             continue
-
         if not _dkss_storage.is_valid_uploaded_file(file, extension):
-            errors.append((
-                f"{filename}：ファイルの内容が不正です。",
-                "document_files"
-            ))
+            errors.append((f'{filename}：ファイルの内容が不正です。', 'document_files'))
             continue
-
         try:
             file.stream.seek(0)
             source_file = file.read()
         except (OSError, ValueError):
-            errors.append((
-                f"{filename}：ファイルを読み込めませんでした。",
-                "document_files"
-            ))
+            errors.append((f'{filename}：ファイルを読み込めませんでした。', 'document_files'))
             continue
-
         if not source_file:
-            errors.append((
-                f"{filename}：ファイルが空です。",
-                "document_files"
-            ))
+            errors.append((f'{filename}：ファイルが空です。', 'document_files'))
             continue
-
-        if (
-            document_type in {"maintenance", "inspection"}
-            and len(source_file) > 20 * 1024 * 1024
-        ):
-            errors.append((
-                f"{filename}：資料は1ファイル20MB以下にしてください。",
-                "document_files"
-            ))
+        if document_type in {'maintenance', 'inspection', 'driving_report'} and len(source_file) > 20 * 1024 * 1024:
+            errors.append((f'{filename}：資料は1ファイル20MB以下にしてください。', 'document_files'))
             continue
-
-        drafts.append(_dkss_models.VehicleDocumentImportDraft(
-            id=str(_dkss_common.uuid4()),
-            batch_id=batch_id,
-            company_code=company_code,
-            created_by_username=username,
-            document_type=document_type,
-            source_filename=filename,
-            source_file=source_file,
-            source_sha256=_dkss_common.hashlib.sha256(
-                source_file
-            ).hexdigest()
-        ))
-
+        drafts.append(_dkss_models.VehicleDocumentImportDraft(id=str(_dkss_common.uuid4()), batch_id=batch_id, company_code=company_code, created_by_username=username, document_type=document_type, source_filename=filename, source_file=source_file, source_sha256=_dkss_common.hashlib.sha256(source_file).hexdigest()))
     if errors:
-        return [], errors
-
-    return drafts, []
+        return ([], errors)
+    return (drafts, [])
 
 
 
@@ -1001,22 +628,12 @@ def vehicle_data_import_progress():
     from concurrent.futures import ThreadPoolExecutor
     from queue import Queue, Empty
     from time import monotonic
-
     if not _dkss_access.require_master_admin():
-        return _dkss_http.return_form_errors(
-            [("ログイン情報と権限を確認してください。", "")],
-            status_code=403,
-        )
-
-    document_type = _dkss_common.request.form.get("document_type")
-    if document_type not in {"maintenance", "inspection"}:
-        return _dkss_http.return_form_errors(
-            [("請求書・点検記録を選択してください。", "document_files")]
-        )
-
-    drafts, errors = prepare_vehicle_document_import(
-        _dkss_common.request.files.getlist("document_files"), document_type
-    )
+        return _dkss_http.return_form_errors([('ログイン情報と権限を確認してください。', '')], status_code=403)
+    document_type = _dkss_common.request.form.get('document_type')
+    if document_type not in {'maintenance', 'inspection', 'driving_report'}:
+        return _dkss_http.return_form_errors([('請求書・点検記録・安全運転日報を選択してください。', 'document_files')])
+    drafts, errors = prepare_vehicle_document_import(_dkss_common.request.files.getlist('document_files'), document_type)
     if errors:
         return _dkss_http.return_form_errors(errors)
 
@@ -1026,34 +643,19 @@ def vehicle_data_import_progress():
         ready = []
         failures = []
 
-        def report(phase, completed, filename="", **extra):
-            return _dkss_common.json.dumps({
-                "phase": phase,
-                "completed": completed,
-                "total": total,
-                "filename": filename,
-                **extra,
-            }, ensure_ascii=False) + "\n"
-
+        def report(phase, completed, filename='', **extra):
+            return _dkss_common.json.dumps({'phase': phase, 'completed': completed, 'total': total, 'filename': filename, **extra}, ensure_ascii=False) + '\n'
         try:
-            yield report("accepted", 0)
-
+            yield report('accepted', 0)
             for index, draft in enumerate(drafts):
-                yield report("reading", index, draft.source_filename)
-                draft.status = "preview"
-
+                yield report('reading', index, draft.source_filename)
+                draft.status = 'preview'
                 try:
                     updates = Queue()
                     worker = ThreadPoolExecutor(max_workers=1)
                     try:
-                        task = worker.submit(
-                            _dkss_common.extract_inspection_documents if draft.document_type == "inspection" else _dkss_common.extract_maintenance_invoices,
-                            draft.source_file,
-                            filename=draft.source_filename,
-                            progress_callback=updates.put,
-                        )
+                        task = worker.submit(vehicle_document_extractor(draft.document_type), draft.source_file, filename=draft.source_filename, progress_callback=updates.put)
                         last_sent = monotonic()
-
                         while True:
                             try:
                                 update = updates.get(timeout=1)
@@ -1061,848 +663,311 @@ def vehicle_data_import_progress():
                                 if task.done():
                                     extraction = task.result()
                                     break
-
                                 if monotonic() - last_sent >= 5:
-                                    yield report(
-                                        "reading",
-                                        index,
-                                        draft.source_filename,
-                                        heartbeat=True,
-                                    )
+                                    yield report('reading', index, draft.source_filename, heartbeat=True)
                                     last_sent = monotonic()
                             else:
-                                yield report(
-                                    update["phase"],
-                                    index,
-                                    draft.source_filename,
-                                    received_lines=update.get("received_lines", 0),
-                                )
+                                yield report(update['phase'], index, draft.source_filename, received_lines=update.get('received_lines', 0))
                                 last_sent = monotonic()
                     finally:
-                        worker.shutdown(
-                            wait=False,
-                            cancel_futures=True,
-                        )
-
-                    yield report("checking", index, draft.source_filename)
-
-                    preview = apply_maintenance_invoice_preview(
-                        draft, extraction
-                    )
-                    if not preview.get("records"):
-                        raise ValueError("OCR_NO_RECORDS")
-
+                        worker.shutdown(wait=False, cancel_futures=True)
+                    yield report('checking', index, draft.source_filename)
+                    preview = apply_maintenance_invoice_preview(draft, extraction)
+                    if not preview.get('records'):
+                        raise ValueError('OCR_NO_RECORDS')
                     ready.append(draft)
-
                 except (ValueError, RuntimeError) as error:
-                    _dkss_runtime.app.logger.exception(
-                        "資料の読み取り失敗: %s",
-                        draft.source_filename,
-                    )
-                    code = str(error).split(":", 1)[0]
-                    reason = {
-                        "API_KEY_NOT_SET": "AIの接続設定を確認してください。",
-                        "OPENAI_NETWORK_OR_TIMEOUT": "AIとの通信が中断、または時間切れになりました。",
-                        "NO_INVOICE_FOUND": "整備請求書が見つかりませんでした。",
-                        "NO_INSPECTION_FOUND": "点検表が見つかりませんでした。",
-                        "INVALID_INSPECTION_PDF": "PDFが破損・暗号化されているか、200ページを超えています。",
-                        "INVALID_INSPECTION_EXTRACTION": "点検表の読取結果を確認できませんでした。原本を確認して再試行してください。",
-                        "OCR_NO_RECORDS": "資料の内容を読み取れませんでした。",
-                        "DOCUMENT_TOO_LARGE": "1ファイル20MB以下にしてください。",
-                        "CONVERTED_PDF_TOO_LARGE": "変換後の容量が20MBを超えています。画像を小さくしてください。",
-                        "IMAGE_TOO_LARGE": "画像の縦横サイズを小さくしてください。",
-                        "IMAGE_READ_FAILED": "画像を開けません。ファイルを確認してください。",
-                        "INVALID_SOURCE_PAGES": "読取結果のページ番号を確認できませんでした。",
-                        "EXTRACTION_NOT_COMPLETED": "AIの読み取りが完了しませんでした。",
-                    }.get(
-                        code,
-                        "読み取りに失敗しました。資料とサーバーログを確認してください。",
-                    )
-                    failures.append({
-                        "filename": draft.source_filename,
-                        "reason": reason,
-                    })
-
-                yield report(
-                    "processed",
-                    index + 1,
-                    draft.source_filename,
-                    succeeded=len(ready),
-                    failed=len(failures),
-                )
-
+                    _dkss_runtime.app.logger.exception('資料の読み取り失敗: %s', draft.source_filename)
+                    code = str(error).split(':', 1)[0]
+                    reason = {'API_KEY_NOT_SET': 'AIの接続設定を確認してください。', 'OPENAI_NETWORK_OR_TIMEOUT': 'AIとの通信が中断、または時間切れになりました。', 'NO_INVOICE_FOUND': '整備請求書が見つかりませんでした。', 'NO_INSPECTION_FOUND': '点検表が見つかりませんでした。', 'NO_DRIVING_REPORT_FOUND': '安全運転日報が見つかりませんでした。', 'INVALID_DRIVING_REPORT_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_DRIVING_REPORT_EXTRACTION': '安全運転日報の読取結果を確認できませんでした。', 'INVALID_INSPECTION_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_INSPECTION_EXTRACTION': '点検表の読取結果を確認できませんでした。原本を確認して再試行してください。', 'OCR_NO_RECORDS': '資料の内容を読み取れませんでした。', 'DOCUMENT_TOO_LARGE': '1ファイル20MB以下にしてください。', 'CONVERTED_PDF_TOO_LARGE': '変換後の容量が20MBを超えています。画像を小さくしてください。', 'IMAGE_TOO_LARGE': '画像の縦横サイズを小さくしてください。', 'IMAGE_READ_FAILED': '画像を開けません。ファイルを確認してください。', 'INVALID_SOURCE_PAGES': '読取結果のページ番号を確認できませんでした。', 'EXTRACTION_NOT_COMPLETED': 'AIの読み取りが完了しませんでした。'}.get(code, '読み取りに失敗しました。資料とサーバーログを確認してください。')
+                    reason = getattr(error, 'user_message', None) or reason
+                    failures.append({'filename': draft.source_filename, 'reason': reason})
+                yield report('processed', index + 1, draft.source_filename, succeeded=len(ready), failed=len(failures))
             if not ready:
-                yield report(
-                    "error",
-                    total,
-                    message="\n".join(
-                        item["filename"] + "：" + item["reason"]
-                        for item in failures
-                    ),
-                )
+                yield report('error', total, message='\n'.join((item['filename'] + '：' + item['reason'] for item in failures)))
                 return
-
-            yield report(
-                "saving",
-                total,
-                succeeded=len(ready),
-                failed=len(failures),
-            )
-
+            yield report('saving', total, succeeded=len(ready), failed=len(failures))
             if failures:
                 preview = _dkss_serialization.safe_json_dict(ready[0].preview_json)
-                preview["import_failures"] = failures
-                ready[0].preview_json = _dkss_common.json.dumps(
-                    preview, ensure_ascii=False
-                )
-
+                preview['import_failures'] = failures
+                ready[0].preview_json = _dkss_common.json.dumps(preview, ensure_ascii=False)
             _dkss_common.db.session.add_all(ready)
             _dkss_common.db.session.commit()
-
-            yield report(
-                "complete",
-                total,
-                redirect_url=_dkss_common.url_for(
-                    "vehicle_document_import_preview",
-                    batch_id=ready[0].batch_id,
-                ),
-            )
-
+            yield report('complete', total, redirect_url=_dkss_common.url_for('vehicle_document_import_preview', batch_id=ready[0].batch_id))
         except GeneratorExit:
             _dkss_common.db.session.rollback()
             raise
-
         except Exception:
             _dkss_common.db.session.rollback()
-            _dkss_runtime.app.logger.exception(
-                "資料取り込みの進捗処理に失敗しました"
-            )
-            yield report(
-                "error",
-                0,
-                message="処理を完了できませんでした。サーバーログを確認してください。",
-            )
-
-    return Response(
-        generate(),
-        mimetype="application/x-ndjson",
-        headers={
-            "Cache-Control": "no-store, no-transform",
-            "X-Accel-Buffering": "no",
-        },
-    )
+            _dkss_runtime.app.logger.exception('資料取り込みの進捗処理に失敗しました')
+            yield report('error', 0, message='処理を完了できませんでした。サーバーログを確認してください。')
+    return Response(generate(), mimetype='application/x-ndjson', headers={'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no'})
 
 
 
 def vehicle_data_import():
     if not _dkss_access.require_master_admin():
-        return _dkss_common.redirect(_dkss_common.url_for("vehicle_karte_list"))
-
-    if _dkss_common.request.method == "GET":
-        return _dkss_common.render_template(
-            "vehicle_data_import.html"
-        )
-
-    drafts, errors = prepare_vehicle_document_import(
-        _dkss_common.request.files.getlist("document_files"),
-        _dkss_common.request.form.get("document_type", "")
-    )
-
+        return _dkss_common.redirect(_dkss_common.url_for('vehicle_karte_list'))
+    if _dkss_common.request.method == 'GET':
+        return _dkss_common.render_template('vehicle_data_import.html')
+    drafts, errors = prepare_vehicle_document_import(_dkss_common.request.files.getlist('document_files'), _dkss_common.request.form.get('document_type', ''))
     if errors:
         return _dkss_http.return_form_errors(errors)
-
-    if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
-        return _dkss_common.jsonify({"ok": True})
-
+    if _dkss_common.request.headers.get('X-DKSS-Validation-Only') == '1':
+        return _dkss_common.jsonify({'ok': True})
     try:
         ready_drafts = []
         failed_imports = []
-
         for draft in drafts:
-            if draft.document_type not in {"maintenance", "inspection"}:
+            if draft.document_type not in {'maintenance', 'inspection', 'driving_report'}:
                 ready_drafts.append(draft)
                 continue
-
-            draft.status = "preview"
-
+            draft.status = 'preview'
             try:
-                extractor = _dkss_common.extract_inspection_documents if draft.document_type == "inspection" else _dkss_common.extract_maintenance_invoices
-                extraction = extractor(
-                    draft.source_file,
-                    filename=draft.source_filename,
-                )
-                preview = apply_maintenance_invoice_preview(
-                    draft,
-                    extraction,
-                )
-                if not preview.get("records"):
-                    raise ValueError("OCR_NO_RECORDS")
+                extractor = vehicle_document_extractor(draft.document_type)
+                extraction = extractor(draft.source_file, filename=draft.source_filename)
+                preview = apply_maintenance_invoice_preview(draft, extraction)
+                if not preview.get('records'):
+                    raise ValueError('OCR_NO_RECORDS')
             except (ValueError, RuntimeError) as error:
-                _dkss_runtime.app.logger.exception(
-                    "資料の読み取りに失敗しました: %s",
-                    draft.source_filename,
-                )
-                code = str(error).split(":", 1)[0]
-                reason = {
-                    "API_KEY_NOT_SET": "AIの接続設定を確認してください。",
-                    "DOCUMENT_TOO_LARGE": "1ファイル20MB以下にしてください。",
-                    "CONVERTED_PDF_TOO_LARGE": "変換後の容量が20MBを超えています。画像を小さくしてください。",
-                    "IMAGE_TOO_LARGE": "画像の縦横サイズを小さくしてください。",
-                    "IMAGE_READ_FAILED": "画像を開けません。ファイルを確認してください。",
-                    "OCR_NO_RECORDS": "資料の内容を読み取れませんでした。",
-                    "NO_INVOICE_FOUND": "整備請求書が見つかりませんでした。",
-                    "NO_INSPECTION_FOUND": "点検表が見つかりませんでした。",
-                    "INVALID_INSPECTION_PDF": "PDFが破損・暗号化されているか、200ページを超えています。",
-                    "INVALID_INSPECTION_EXTRACTION": "点検表の読取結果を確認できませんでした。原本を確認して再試行してください。",
-                    "OPENAI_NETWORK_OR_TIMEOUT": "AIとの通信が中断、または時間切れになりました。",
-                    "EXTRACTION_NOT_COMPLETED": "AIの読み取りが完了しませんでした。",
-                }.get(
-                    code,
-                    "読み取りに失敗しました。ファイルとサーバーログを確認してください。",
-                )
-                failed_imports.append({
-                    "filename": draft.source_filename,
-                    "reason": reason,
-                })
+                _dkss_runtime.app.logger.exception('資料の読み取りに失敗しました: %s', draft.source_filename)
+                code = str(error).split(':', 1)[0]
+                reason = {'API_KEY_NOT_SET': 'AIの接続設定を確認してください。', 'DOCUMENT_TOO_LARGE': '1ファイル20MB以下にしてください。', 'CONVERTED_PDF_TOO_LARGE': '変換後の容量が20MBを超えています。画像を小さくしてください。', 'IMAGE_TOO_LARGE': '画像の縦横サイズを小さくしてください。', 'IMAGE_READ_FAILED': '画像を開けません。ファイルを確認してください。', 'OCR_NO_RECORDS': '資料の内容を読み取れませんでした。', 'NO_INVOICE_FOUND': '整備請求書が見つかりませんでした。', 'NO_INSPECTION_FOUND': '点検表が見つかりませんでした。', 'NO_DRIVING_REPORT_FOUND': '安全運転日報が見つかりませんでした。', 'INVALID_DRIVING_REPORT_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_DRIVING_REPORT_EXTRACTION': '安全運転日報の読取結果を確認できませんでした。', 'INVALID_INSPECTION_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_INSPECTION_EXTRACTION': '点検表の読取結果を確認できませんでした。原本を確認して再試行してください。', 'OPENAI_NETWORK_OR_TIMEOUT': 'AIとの通信が中断、または時間切れになりました。', 'EXTRACTION_NOT_COMPLETED': 'AIの読み取りが完了しませんでした。'}.get(code, '読み取りに失敗しました。ファイルとサーバーログを確認してください。')
+                reason = getattr(error, 'user_message', None) or reason
+                failed_imports.append({'filename': draft.source_filename, 'reason': reason})
                 continue
-
             ready_drafts.append(draft)
-
         if not ready_drafts:
-            return _dkss_http.return_form_errors(
-                [
-                    (
-                        item["filename"] + "：" + item["reason"],
-                        "document_files",
-                    )
-                    for item in failed_imports[:5]
-                ] + (
-                    [(
-                        f"ほか{len(failed_imports) - 5}ファイルも読み取りに失敗しました。",
-                        "",
-                    )]
-                    if len(failed_imports) > 5 else []
-                ),
-                status_code=503,
-            )
-
+            return _dkss_http.return_form_errors([(item['filename'] + '：' + item['reason'], 'document_files') for item in failed_imports[:5]] + ([(f'ほか{len(failed_imports) - 5}ファイルも読み取りに失敗しました。', '')] if len(failed_imports) > 5 else []), status_code=503)
         drafts = ready_drafts
-
         if failed_imports:
             first_preview = _dkss_serialization.safe_json_dict(drafts[0].preview_json)
-            first_preview["import_failures"] = failed_imports
-            drafts[0].preview_json = _dkss_common.json.dumps(
-                first_preview,
-                ensure_ascii=False,
-            )
-
+            first_preview['import_failures'] = failed_imports
+            drafts[0].preview_json = _dkss_common.json.dumps(first_preview, ensure_ascii=False)
         _dkss_common.db.session.add_all(drafts)
         _dkss_common.db.session.commit()
-
     except (ValueError, RuntimeError) as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception(
-            "資料の読み取りに失敗しました"
-        )
-
-        if str(error) == "API_KEY_NOT_SET":
-            message = (
-                "請求書を読み取るためのOPENAI_API_KEYが"
-                "設定されていません。サーバーの設定を確認してください。"
-            )
-        elif str(error) == "OCR_NO_RECORDS":
-            message = (
-                "PDFから整備請求書を読み取れませんでした。"
-                "資料の内容を確認してください。"
-            )
+        _dkss_runtime.app.logger.exception('資料の読み取りに失敗しました')
+        if str(error) == 'API_KEY_NOT_SET':
+            message = '請求書を読み取るためのOPENAI_API_KEYが設定されていません。サーバーの設定を確認してください。'
+        elif str(error) == 'OCR_NO_RECORDS':
+            message = 'PDFから整備請求書を読み取れませんでした。資料の内容を確認してください。'
         else:
-            message = (
-                "資料の読み取りに失敗しました。"
-                "サーバーログで原因を確認してください。"
-            )
-
-        return _dkss_http.return_form_errors(
-            [(message, "document_files")],
-            status_code=503,
-        )
-
+            message = '資料の読み取りに失敗しました。サーバーログで原因を確認してください。'
+        return _dkss_http.return_form_errors([(message, 'document_files')], status_code=503)
     except _dkss_common.SQLAlchemyError:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception(
-            "資料取り込みの確認用データを保存できませんでした"
-        )
-        return _dkss_http.return_form_errors(
-            [(
-                "資料を保存できませんでした。もう一度お試しください。",
-                "document_files"
-            )],
-            status_code=500
-        )
-
-    return _dkss_common.redirect(_dkss_common.url_for(
-        "vehicle_document_import_preview",
-        batch_id=drafts[0].batch_id
-    ))
+        _dkss_runtime.app.logger.exception('資料取り込みの確認用データを保存できませんでした')
+        return _dkss_http.return_form_errors([('資料を保存できませんでした。もう一度お試しください。', 'document_files')], status_code=500)
+    return _dkss_common.redirect(_dkss_common.url_for('vehicle_document_import_preview', batch_id=drafts[0].batch_id))
 
 
 
 def vehicle_document_import_confirm(batch_id):
     if not _dkss_access.require_master_admin():
-        return _dkss_http.return_form_errors(
-            [("この操作を行う権限がありません。", "")],
-            status_code=403
-        )
-
-    validation_only = (
-        _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1"
-    )
-
-    query = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-        batch_id=batch_id,
-        company_code=_dkss_common.session.get("company_code"),
-        created_by_username=_dkss_common.session.get("username")
-    )
-
+        return _dkss_http.return_form_errors([('この操作を行う権限がありません。', '')], status_code=403)
+    validation_only = _dkss_common.request.headers.get('X-DKSS-Validation-Only') == '1'
+    query = _dkss_models.VehicleDocumentImportDraft.query.filter_by(batch_id=batch_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username'))
     if not validation_only:
         query = query.with_for_update()
-
-    drafts = query.order_by(
-        _dkss_models.VehicleDocumentImportDraft.id
-    ).all()
-
+    drafts = query.order_by(_dkss_models.VehicleDocumentImportDraft.id).all()
     if not drafts:
         raise _dkss_common.NotFound()
-
-    if any(draft.status != "preview" for draft in drafts):
-        return _dkss_http.return_form_errors(
-            [(
-                "この資料の取り込み確認は終了しています。",
-                ""
-            )],
-            status_code=409
-        )
-
-    registered_source_keys = registered_maintenance_import_keys(
-        _dkss_common.session.get("company_code")
-    ) if any(
-        draft.document_type == "maintenance" for draft in drafts
-    ) else set()
+    if any((draft.status != 'preview' for draft in drafts)):
+        return _dkss_http.return_form_errors([('この資料の取り込み確認は終了しています。', '')], status_code=409)
+    registered_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code')) if any((draft.document_type == 'maintenance' for draft in drafts)) else set()
     selected_source_keys = set()
-    inspection_keys = registered_inspection_import_keys(_dkss_common.session.get("company_code")) if any(
-        draft.document_type == "inspection" for draft in drafts
-    ) else set()
-
-    included = set(_dkss_common.request.form.getlist("include"))
+    inspection_keys = {kind: registered_inspection_import_keys(_dkss_common.session.get('company_code'), source_kind=kind) for kind in ('inspection', 'driving_report')}
+    included = set(_dkss_common.request.form.getlist('include'))
     known_keys = set()
     submissions = []
     previews = {}
     errors = []
-
     for draft in drafts:
         preview = _dkss_serialization.safe_json_dict(draft.preview_json)
-        original_records = preview.get("records")
-
+        original_records = preview.get('records')
         if original_records is None:
             original_records = [{}]
-
-        if (
-            not isinstance(original_records, list)
-            or not original_records
-            or not all(
-                isinstance(record, dict)
-                for record in original_records
-            )
-        ):
-            errors.append((
-                f"{draft.source_filename}：確認データを取得できませんでした。",
-                ""
-            ))
+        if not isinstance(original_records, list) or not original_records or (not all((isinstance(record, dict) for record in original_records))):
+            errors.append((f'{draft.source_filename}：確認データを取得できませんでした。', ''))
             continue
-
         updated_records = []
-
-        for record_index, original_record in enumerate(
-            original_records
-        ):
-            row_key = f"{draft.id}_{record_index}"
+        for record_index, original_record in enumerate(original_records):
+            row_key = f'{draft.id}_{record_index}'
             known_keys.add(row_key)
-
-            values, row_errors = validate_vehicle_document_record(
-                draft,
-                record_index,
-                original_record,
-                _dkss_common.request.form,
-                allow_pending_vehicle=True
-            )
-            if draft.document_type == "maintenance":
-                values["service_match"] = _dkss_common.request.form.get(f"service_match_{row_key}", "") if values.get("vehicle_record_id") is not None else ""
-            values["include"] = row_key in included
+            values, row_errors = validate_vehicle_document_record(draft, record_index, original_record, _dkss_common.request.form, allow_pending_vehicle=True)
+            if draft.document_type == 'maintenance':
+                values['service_match'] = _dkss_common.request.form.get(f'service_match_{row_key}', '') if values.get('vehicle_record_id') is not None else ''
+            if draft.document_type == 'driving_report':
+                values['import_confirmation'] = {'by': _dkss_common.session.get('username'), 'at': _dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat()}
+            values['include'] = row_key in included
             updated_records.append(values)
-
             if row_key not in included:
                 continue
-
-            if draft.document_type == "maintenance" and not row_errors:
+            if draft.document_type == 'maintenance' and (not row_errors):
                 try:
-                    resolve_invoice_import_choice(draft, values, values["service_match"])
+                    resolve_invoice_import_choice(draft, values, values['service_match'])
                 except _dkss_common.UploadValidationError as error:
-                    row_errors.append((str(error), f"service_match_{row_key}"))
-
-            if draft.document_type == "maintenance" and not row_errors:
-                source_keys = maintenance_import_source_keys({
-                    "sha256": draft.source_sha256,
-                    "pages": values.get("source_pages"),
-                    "record_index": record_index,
-                })
-
-                if source_keys & (
-                    registered_source_keys | selected_source_keys
-                ):
-                    row_errors.append((
-                        f"{draft.source_filename}の{record_index + 1}件目："
-                        "同じ原本の請求書が登録済み、または今回の対象に重複しています。"
-                        "この記録の取り込みチェックを外してください。",
-                        f"include_{row_key}",
-                    ))
+                    row_errors.append((str(error), f'service_match_{row_key}'))
+            if draft.document_type == 'maintenance' and (not row_errors):
+                source_keys = maintenance_import_source_keys({'sha256': draft.source_sha256, 'pages': values.get('source_pages'), 'record_index': record_index})
+                if source_keys & (registered_source_keys | selected_source_keys):
+                    row_errors.append((f'{draft.source_filename}の{record_index + 1}件目：同じ原本の請求書が登録済み、または今回の対象に重複しています。この記録の取り込みチェックを外してください。', f'include_{row_key}'))
                 else:
                     selected_source_keys.update(source_keys)
-
-            if draft.document_type == "inspection" and not row_errors:
+            if draft.document_type in {'inspection', 'driving_report'} and (not row_errors):
                 key = (draft.source_sha256, record_index)
-                if key in inspection_keys:
-                    row_errors.append(("同じ原本の点検記録が登録済み、または今回の対象に重複しています。取り込みチェックを外してください。", f"include_{row_key}"))
-                inspection_keys.add(key)
-
+                if key in inspection_keys[draft.document_type]:
+                    row_errors.append(('同じ原本の記録が登録済み、または今回の対象に重複しています。取り込みチェックを外してください。', f'include_{row_key}'))
+                inspection_keys[draft.document_type].add(key)
             errors.extend(row_errors)
-
             if not row_errors:
-                submissions.append((
-                    draft,
-                    record_index,
-                    values
-                ))
-
-        if (
-            draft.document_type == "maintenance"
-            and "original_records" not in preview
-        ):
-            preview["original_records"] = _dkss_common.json.loads(
-                _dkss_common.json.dumps(original_records, ensure_ascii=False)
-            )
-
-        preview["records"] = updated_records
+                submissions.append((draft, record_index, values))
+        if draft.document_type == 'maintenance' and 'original_records' not in preview:
+            preview['original_records'] = _dkss_common.json.loads(_dkss_common.json.dumps(original_records, ensure_ascii=False))
+        preview['records'] = updated_records
         previews[draft.id] = preview
-
     if included - known_keys:
-        errors.append((
-            "取り込み対象が不正です。画面を再読み込みしてください。",
-            ""
-        ))
-
+        errors.append(('取り込み対象が不正です。画面を再読み込みしてください。', ''))
     if not included:
-        errors.append((
-            "取り込む記録を選択してください。",
-            ""
-        ))
-
+        errors.append(('取り込む記録を選択してください。', ''))
     if errors:
         if not validation_only:
             try:
                 for draft in drafts:
                     if draft.id in previews:
-                        draft.preview_json = _dkss_common.json.dumps(
-                            previews[draft.id],
-                            ensure_ascii=False
-                        )
-
+                        draft.preview_json = _dkss_common.json.dumps(previews[draft.id], ensure_ascii=False)
                 _dkss_common.db.session.commit()
             except _dkss_common.SQLAlchemyError:
                 _dkss_common.db.session.rollback()
-                _dkss_runtime.app.logger.exception(
-                    "資料取り込みの編集内容を保持できませんでした"
-                )
-                return _dkss_http.return_form_errors(
-                    [(
-                        "編集内容を保存できませんでした。もう一度お試しください。",
-                        ""
-                    )],
-                    status_code=500
-                )
-
+                _dkss_runtime.app.logger.exception('資料取り込みの編集内容を保持できませんでした')
+                return _dkss_http.return_form_errors([('編集内容を保存できませんでした。もう一度お試しください。', '')], status_code=500)
         return _dkss_http.return_form_errors(errors)
-
     if validation_only:
-        return _dkss_common.jsonify({"ok": True})
-
+        return _dkss_common.jsonify({'ok': True})
     try:
         saved_preview_count = 0
-
         for draft_id, preview in previews.items():
-            saved_preview_count += (
-                _dkss_models.VehicleDocumentImportDraft.query
-                .filter_by(
-                    id=draft_id,
-                    batch_id=batch_id,
-                    company_code=_dkss_common.session.get("company_code"),
-                    created_by_username=_dkss_common.session.get("username"),
-                    status="preview"
-                )
-                .update(
-                    {
-                        "preview_json": _dkss_common.json.dumps(
-                            preview,
-                            ensure_ascii=False
-                        )
-                    },
-                    synchronize_session=False
-                )
-            )
-
+            saved_preview_count += _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, batch_id=batch_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username'), status='preview').update({'preview_json': _dkss_common.json.dumps(preview, ensure_ascii=False)}, synchronize_session=False)
         if saved_preview_count != len(drafts):
             _dkss_common.db.session.rollback()
-            return _dkss_http.return_form_errors(
-                [(
-                    "この資料はすでに処理されています。取り込み結果を確認してください。",
-                    ""
-                )],
-                status_code=409
-            )
-
+            return _dkss_http.return_form_errors([('この資料はすでに処理されています。取り込み結果を確認してください。', '')], status_code=409)
         _dkss_common.db.session.commit()
     except _dkss_common.SQLAlchemyError:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception(
-            "資料取り込みの編集内容を保存できませんでした"
-        )
-        return _dkss_http.return_form_errors(
-            [(
-                "編集内容を保存できませんでした。もう一度お試しください。",
-                ""
-            )],
-            status_code=500
-        )
-
+        _dkss_runtime.app.logger.exception('資料取り込みの編集内容を保存できませんでした')
+        return _dkss_http.return_form_errors([('編集内容を保存できませんでした。もう一度お試しください。', '')], status_code=500)
     try:
-        claimed_count = (
-            _dkss_models.VehicleDocumentImportDraft.query
-            .filter(
-                _dkss_models.VehicleDocumentImportDraft.id.in_(
-                    [draft.id for draft in drafts]
-                ),
-                _dkss_models.VehicleDocumentImportDraft.company_code
-                == _dkss_common.session.get("company_code"),
-                _dkss_models.VehicleDocumentImportDraft.created_by_username
-                == _dkss_common.session.get("username"),
-                _dkss_models.VehicleDocumentImportDraft.status == "preview"
-            )
-            .update(
-                {"status": "processing"},
-                synchronize_session=False
-            )
-        )
-
+        claimed_count = _dkss_models.VehicleDocumentImportDraft.query.filter(_dkss_models.VehicleDocumentImportDraft.id.in_([draft.id for draft in drafts]), _dkss_models.VehicleDocumentImportDraft.company_code == _dkss_common.session.get('company_code'), _dkss_models.VehicleDocumentImportDraft.created_by_username == _dkss_common.session.get('username'), _dkss_models.VehicleDocumentImportDraft.status == 'preview').update({'status': 'processing'}, synchronize_session=False)
         if claimed_count != len(drafts):
             _dkss_common.db.session.rollback()
-            return _dkss_http.return_form_errors(
-                [(
-                    "この資料はすでに処理されています。取り込み結果を確認してください。",
-                    ""
-                )],
-                status_code=409
-            )
-
-        if any(
-            draft.document_type in {"maintenance", "inspection"} for draft in drafts
-        ):
-            _dkss_models.Company.query.filter_by(
-                company_code=_dkss_common.session.get("company_code")
-            ).with_for_update().one()
-
-        if any(draft.document_type == "maintenance" for draft in drafts):
-            latest_source_keys = registered_maintenance_import_keys(
-                _dkss_common.session.get("company_code")
-            )
-
+            return _dkss_http.return_form_errors([('この資料はすでに処理されています。取り込み結果を確認してください。', '')], status_code=409)
+        if any((draft.document_type in {'maintenance', 'inspection', 'driving_report'} for draft in drafts)):
+            _dkss_models.Company.query.filter_by(company_code=_dkss_common.session.get('company_code')).with_for_update().one()
+        if any((draft.document_type == 'maintenance' for draft in drafts)):
+            latest_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code'))
             for draft, record_index, values in submissions:
-                if draft.document_type != "maintenance":
+                if draft.document_type != 'maintenance':
                     continue
-
-                source_keys = maintenance_import_source_keys({
-                    "sha256": draft.source_sha256,
-                    "pages": values.get("source_pages"),
-                    "record_index": record_index,
-                })
-
+                source_keys = maintenance_import_source_keys({'sha256': draft.source_sha256, 'pages': values.get('source_pages'), 'record_index': record_index})
                 if source_keys & latest_source_keys:
                     _dkss_common.db.session.rollback()
-                    return _dkss_http.return_form_errors(
-                        [(
-                            "同じ原本の請求書がすでに登録されています。"
-                            "取り込み対象を確認してください。",
-                            "",
-                        )],
-                        status_code=409,
-                    )
-
+                    return _dkss_http.return_form_errors([('同じ原本の請求書がすでに登録されています。取り込み対象を確認してください。', '')], status_code=409)
                 latest_source_keys.update(source_keys)
-
-        latest_inspection_keys = registered_inspection_import_keys(_dkss_common.session.get("company_code")) if any(
-            draft.document_type == "inspection" for draft in drafts
-        ) else set()
-        for draft, record_index, values in submissions:
-            if draft.document_type == "inspection":
+        for kind in ('inspection', 'driving_report'):
+            latest_keys = registered_inspection_import_keys(_dkss_common.session.get('company_code'), source_kind=kind)
+            for draft, record_index, values in submissions:
+                if draft.document_type != kind:
+                    continue
                 key = (draft.source_sha256, record_index)
-                if key in latest_inspection_keys:
+                if key in latest_keys:
                     _dkss_common.db.session.rollback()
-                    return _dkss_http.return_form_errors([("同じ原本の点検記録がすでに登録されています。", "")], status_code=409)
+                    return _dkss_http.return_form_errors([('同じ原本の記録がすでに登録されています。', '')], status_code=409)
                 if _dkss_common.hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256:
-                    raise _dkss_common.UploadValidationError("保存済みの点検原本を確認できません。")
-                latest_inspection_keys.add(key)
-
+                    raise _dkss_common.UploadValidationError('保存済みの原本を確認できません。')
+                latest_keys.add(key)
         reviews_created = []
         results = {draft.id: [] for draft in drafts}
         pending_results = {draft.id: [] for draft in drafts}
-
         for draft, record_index, values in submissions:
-            if values["vehicle_record_id"] is None:
-                pending_record, _ = save_vehicle_document_pending_record(
-                    draft, record_index, values
-                )
-                pending_results[draft.id].append({
-                    "pending_record_id": pending_record.id,
-                    "record_index": record_index,
-                })
+            if values['vehicle_record_id'] is None:
+                pending_record, _ = save_vehicle_document_pending_record(draft, record_index, values)
+                pending_results[draft.id].append({'pending_record_id': pending_record.id, 'record_index': record_index})
                 continue
-
-            if draft.document_type == "maintenance":
+            if draft.document_type == 'maintenance':
                 record_id, document = apply_invoice_import_choice(draft, record_index, values)
-                result = {
-                    "record_id": record_id, "record_index": record_index,
-                    "vehicle_record_id": values["vehicle_record_id"],
-                    "document_type": "maintenance" if document is None or document.maintenance_record_id is not None else "inspection",
-                }
+                result = {'record_id': record_id, 'record_index': record_index, 'vehicle_record_id': values['vehicle_record_id'], 'document_type': 'maintenance' if document is None or document.maintenance_record_id is not None else 'inspection'}
                 if document is not None:
-                    result["maintenance_document_id"] = document.id
+                    result['maintenance_document_id'] = document.id
                     reviews_created.append(document.id)
                 results[draft.id].append(result)
                 continue
-
-            record = build_vehicle_document_record(
-                draft,
-                record_index,
-                values
-            )
+            record = build_vehicle_document_record(draft, record_index, values)
             _dkss_common.db.session.add(record)
             _dkss_common.db.session.flush()
-
-            if draft.document_type == "maintenance":
-                _dkss_maintenance.add_vehicle_maintenance_record_event(
-                    record,
-                    action="imported",
-                )
-
-            if draft.document_type == "maintenance":
+            if draft.document_type == 'maintenance':
+                _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
+            if draft.document_type == 'maintenance':
                 _dkss_vehicle_karte.save_vehicle_maintenance_replacement_parts(record)
-
-            results[draft.id].append({
-                "record_id": record.id,
-                "record_index": record_index,
-                "vehicle_record_id": values["vehicle_record_id"],
-                "document_type": draft.document_type
-            })
-
-        completed_at = _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC"))
-
+            results[draft.id].append({'record_id': record.id, 'record_index': record_index, 'vehicle_record_id': values['vehicle_record_id'], 'document_type': draft.document_type})
+        completed_at = _dkss_common.datetime.now(_dkss_common.ZoneInfo('UTC'))
         for draft in drafts:
-            draft.preview_json = _dkss_common.json.dumps(
-                previews[draft.id],
-                ensure_ascii=False
-            )
-            draft.result_json = _dkss_common.json.dumps(
-                {
-                    "records": results[draft.id],
-                    "pending_records": pending_results[draft.id],
-                    "pending_count": len(pending_results[draft.id]),
-                },
-                ensure_ascii=False
-            )
-            draft.status = (
-                "completed"
-                if results[draft.id] or pending_results[draft.id]
-                else "skipped"
-            )
+            draft.preview_json = _dkss_common.json.dumps(previews[draft.id], ensure_ascii=False)
+            draft.result_json = _dkss_common.json.dumps({'records': results[draft.id], 'pending_records': pending_results[draft.id], 'pending_count': len(pending_results[draft.id])}, ensure_ascii=False)
+            draft.status = 'completed' if results[draft.id] or pending_results[draft.id] else 'skipped'
             draft.completed_at = completed_at
-
         _dkss_common.db.session.commit()
     except _dkss_common.UploadValidationError as error:
         _dkss_common.db.session.rollback()
-        return _dkss_http.return_form_errors([(str(error), "")])
+        return _dkss_http.return_form_errors([(str(error), '')])
     except (_dkss_common.SQLAlchemyError, ValueError, _dkss_common.InvalidOperation):
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception(
-            "資料取り込みの反映に失敗しました"
-        )
-        return _dkss_http.return_form_errors(
-            [(
-                "記録を反映できませんでした。入力内容を確認して、もう一度お試しください。",
-                ""
-            )],
-            status_code=500
-        )
-
-    applied_submissions = [
-        item for item in submissions
-        if item[2]["vehicle_record_id"] is not None
-    ]
-    pending_count = sum(
-        len(items) for items in pending_results.values()
-    )
+        _dkss_runtime.app.logger.exception('資料取り込みの反映に失敗しました')
+        return _dkss_http.return_form_errors([('記録を反映できませんでした。入力内容を確認して、もう一度お試しください。', '')], status_code=500)
+    applied_submissions = [item for item in submissions if item[2]['vehicle_record_id'] is not None]
+    pending_count = sum((len(items) for items in pending_results.values()))
     if pending_count:
-        _dkss_common.flash(
-            f"車両未選択の資料明細{pending_count}件を登録待ちとして保存しました。再アップロードは不要です。",
-            "success"
-        )
+        _dkss_common.flash(f'車両未選択の資料明細{pending_count}件を登録待ちとして保存しました。再アップロードは不要です。', 'success')
     if not applied_submissions:
-        return _dkss_common.redirect(_dkss_common.url_for("vehicle_master", view="pending"))
-
+        return _dkss_common.redirect(_dkss_common.url_for('vehicle_master', view='pending'))
     if reviews_created:
-        _dkss_common.flash("請求書を既存記録へ添付しました。登録済みの費用・部品は変更していません。請求の反映方法を確認してください。", "success")
-        return _dkss_common.redirect(_dkss_common.url_for("vehicle_maintenance_document_reviews"))
-
+        _dkss_common.flash('請求書を既存記録へ添付しました。登録済みの費用・部品は変更していません。請求の反映方法を確認してください。', 'success')
+        return _dkss_common.redirect(_dkss_common.url_for('vehicle_maintenance_document_reviews'))
     first_draft, _, first_values = applied_submissions[0]
-    if first_draft.document_type == "maintenance":
-        return _dkss_common.redirect(_dkss_common.url_for(
-            "vehicle_karte_maintenance",
-            vehicle_record_id=first_values["vehicle_record_id"],
-            import_batch=batch_id,
-        ))
-
-    _dkss_common.flash(
-        f"資料から{len(applied_submissions)}件の記録を反映しました。",
-        "success"
-    )
-    destination = (
-        "vehicle_karte_inspections"
-        if first_draft.document_type == "inspection"
-        else "vehicle_karte_history"
-    )
-    return _dkss_common.redirect(_dkss_common.url_for(
-        destination,
-        vehicle_record_id=first_values["vehicle_record_id"],
-    ))
+    if first_draft.document_type == 'maintenance':
+        return _dkss_common.redirect(_dkss_common.url_for('vehicle_karte_maintenance', vehicle_record_id=first_values['vehicle_record_id'], import_batch=batch_id))
+    _dkss_common.flash(f'資料から{len(applied_submissions)}件の記録を反映しました。', 'success')
+    destination = 'vehicle_karte_inspections' if first_draft.document_type == 'inspection' else 'vehicle_karte_history'
+    return _dkss_common.redirect(_dkss_common.url_for(destination, vehicle_record_id=first_values['vehicle_record_id']))
 
 
 
 def vehicle_periodic_inspection_source(record_id):
-    record = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
-        id=record_id,
-        company_code=_dkss_common.session.get("company_code")
-    ).first_or_404()
-
-    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-        id=record.source_draft_id,
-        company_code=record.company_code,
-        status="completed"
-    ).first_or_404()
-
-    extension = _dkss_common.os.path.splitext(
-        draft.source_filename
-    )[1].lower()
-
-    mimetype = {
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg"
-    }.get(extension)
-
-    if not mimetype:
-        raise _dkss_common.NotFound()
-
-    response = _dkss_common.send_file(
-        _dkss_common.BytesIO(draft.source_file),
-        mimetype=mimetype,
-        download_name=draft.source_filename,
-        as_attachment=False,
-        conditional=False,
-        etag=False,
-        max_age=0
-    )
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Cache-Control"] = "private, no-store"
-
-    return response
+    return vehicle_imported_record_source(_dkss_models.VehiclePeriodicInspectionRecord, record_id)
 
 
 
 def vehicle_document_import_source(draft_id):
     if not _dkss_access.require_master_admin():
         raise _dkss_common.NotFound()
-
-    draft = (
-        _dkss_models.VehicleDocumentImportDraft.query
-        .filter_by(
-            id=draft_id,
-            company_code=_dkss_common.session.get("company_code"),
-            created_by_username=_dkss_common.session.get("username")
-        )
-        .first_or_404()
-    )
-
-    if (
-        _dkss_common.request.args.get("preview") == "pdf"
-        and draft.document_type in {"maintenance", "inspection"}
-        and _dkss_common.os.path.splitext(draft.source_filename)[1].lower()
-        in {".png", ".jpg", ".jpeg"}
-    ):
+    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username')).first_or_404()
+    if _dkss_common.request.args.get('preview') == 'pdf' and draft.document_type in {'maintenance', 'inspection', 'driving_report'} and (_dkss_common.os.path.splitext(draft.source_filename)[1].lower() in {'.png', '.jpg', '.jpeg'}):
         try:
-            preview_pdf = _dkss_common.prepare_maintenance_invoice_pdf(
-                draft.source_file
-            )
+            preview_pdf = _dkss_common.prepare_maintenance_invoice_pdf(draft.source_file)
         except ValueError:
-            return "画像のプレビューを作成できませんでした。", 422
-
-        response = _dkss_common.send_file(
-            _dkss_common.BytesIO(preview_pdf),
-            mimetype="application/pdf",
-            download_name=(
-                _dkss_common.os.path.splitext(draft.source_filename)[0] + ".pdf"
-            ),
-            as_attachment=False,
-            conditional=False,
-            etag=False,
-            max_age=0,
-        )
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Cache-Control"] = "private, no-store"
+            return ('画像のプレビューを作成できませんでした。', 422)
+        response = _dkss_common.send_file(_dkss_common.BytesIO(preview_pdf), mimetype='application/pdf', download_name=_dkss_common.os.path.splitext(draft.source_filename)[0] + '.pdf', as_attachment=False, conditional=False, etag=False, max_age=0)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Cache-Control'] = 'private, no-store'
         return response
-
-    extension = _dkss_common.os.path.splitext(
-        draft.source_filename
-    )[1].lower()
-
-    mimetype = {
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg"
-    }.get(extension)
-
+    extension = _dkss_common.os.path.splitext(draft.source_filename)[1].lower()
+    mimetype = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}.get(extension)
     if not mimetype:
         raise _dkss_common.NotFound()
-
-    response = _dkss_common.send_file(
-        _dkss_common.BytesIO(draft.source_file),
-        mimetype=mimetype,
-        download_name=draft.source_filename,
-        as_attachment=False,
-        conditional=False,
-        etag=False,
-        max_age=0
-    )
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Cache-Control"] = "private, no-store"
-
+    response = _dkss_common.send_file(_dkss_common.BytesIO(draft.source_file), mimetype=mimetype, download_name=draft.source_filename, as_attachment=False, conditional=False, etag=False, max_age=0)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Cache-Control'] = 'private, no-store'
     return response
 
 
@@ -2973,3 +2038,33 @@ def vehicle_operation_import_result(draft_id):
         draft=draft,
         result=_dkss_serialization.safe_json_dict(draft.result_json)
     )
+
+
+def vehicle_document_extractor(document_type):
+    return {'maintenance': _dkss_common.extract_maintenance_invoices, 'inspection': _dkss_common.extract_inspection_documents, 'driving_report': _dkss_common.extract_driving_reports}[document_type]
+
+
+def vehicle_imported_record_source(model, record_id):
+    record = model.query.filter_by(id=record_id, company_code=_dkss_common.session.get('company_code')).first_or_404()
+    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=record.source_draft_id, company_code=record.company_code, status='completed').first_or_404()
+    extension = _dkss_common.os.path.splitext(draft.source_filename)[1].lower()
+    mimetype = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}.get(extension)
+    if not mimetype:
+        raise _dkss_common.NotFound()
+    source_bytes = draft.source_file
+    if _dkss_common.request.args.get('preview') == 'pdf' and extension in {'.png', '.jpg', '.jpeg'}:
+        try:
+            source_bytes = _dkss_common.prepare_maintenance_invoice_pdf(source_bytes)
+        except ValueError:
+            return ('画像のプレビューを作成できませんでした。', 422)
+        mimetype = 'application/pdf'
+    response = _dkss_common.send_file(_dkss_common.BytesIO(source_bytes), mimetype=mimetype, download_name=draft.source_filename, as_attachment=False, conditional=False, etag=False, max_age=0)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
+def vehicle_driving_report_source(record_id):
+    if not _dkss_access.require_master_admin():
+        raise _dkss_common.Forbidden()
+    return vehicle_imported_record_source(_dkss_models.VehicleDrivingReportRecord, record_id)

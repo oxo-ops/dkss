@@ -16,12 +16,13 @@ class AnalysisInputRecords:
 
 
 class VehicleAnalysisInputRepository:
-    def __init__(self, *, maintenance, operations, parts, defects, periodic):
+    def __init__(self, *, maintenance, operations, parts, defects, periodic, canonical_operations=None):
         self.maintenance = maintenance
         self.operations = operations
         self.parts = parts
         self.defects = defects
         self.periodic = periodic
+        self.canonical_operations = canonical_operations
 
     def load(self, vehicle, as_of):
         scope = {"company_code": vehicle.company_code, "vehicle_record_id": vehicle.id}
@@ -29,6 +30,8 @@ class VehicleAnalysisInputRepository:
         operations = self.operations.query.filter_by(**scope).filter(
             self.operations.operation_date <= as_of.isoformat(),
         ).all()
+        if self.canonical_operations is not None:
+            operations = self.canonical_operations(vehicle.company_code, vehicle.id, operations, end=as_of.isoformat())
         # Both child and parent must belong to the same company/vehicle.
         parts = self.parts.query.join(
             self.maintenance, self.parts.maintenance_record_id == self.maintenance.id,

@@ -1367,6 +1367,71 @@
       ""
     ],
     [
+      "/safety/driving-reports",
+      "driving_reports",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/<int:record_id>",
+      "driving_report_detail",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/<int:record_id>/edit",
+      "driving_report_edit",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/<int:record_id>/reconcile",
+      "driving_report_reconcile",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/<int:record_id>/review",
+      "driving_report_review",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/export.<format>",
+      "driving_report_export",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
       "/service-worker.js",
       "service_worker",
       [
@@ -1713,6 +1778,17 @@
     [
       "/vehicle/document-import/<batch_id>/<draft_id>/<int:record_index>/maintenance-candidates",
       "vehicle_invoice_import_candidates",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/driving-reports/<int:record_id>/source",
+      "vehicle_driving_report_source",
       [
         "GET",
         "HEAD",
@@ -2220,7 +2296,8 @@
         "<lambda>",
         "inject_master_office_order",
         "inject_notification_count",
-        "inject_vehicle_karte_choices"
+        "inject_vehicle_karte_choices",
+        "driving_context"
       ]
     }
   },

@@ -1,4 +1,9 @@
-document.addEventListener("DOMContentLoaded", function () {
+(() => {
+const initialized = new WeakSet();
+function initialize() {
+    const panel = document.getElementById("vehicle-workflow-content");
+    if (!panel || initialized.has(panel)) return;
+    initialized.add(panel);
     const selectAll = document.getElementById("select-all-visible");
     const checkboxes = document.querySelectorAll(".vehicle-select");
     const countDisplay = document.getElementById("selected-count");
@@ -160,4 +165,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     updateSelectedCount();
-});
+ }
+document.addEventListener("dkss:vehicle-workflow", initialize);
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize);
+else initialize();
+})();

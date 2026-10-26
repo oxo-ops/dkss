@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 from flask import url_for
 from vehicle_read_snapshot import VehicleReadSnapshot
+from driving_report_data import canonical_operations
 
 
 def day(value):
@@ -31,7 +32,7 @@ def build_overview(g, vehicle):
     maintenance, _, _ = g['filter_vehicle_maintenance_factual_history'](rows('VehicleMaintenanceRecord'))
     periodic = [r for r in rows('VehiclePeriodicInspectionRecord') if not g['periodic_inspection_synthetic_evidence'](r)]
     reference = g['build_vehicle_karte_mileage_reference'](
-        maintenance, rows('VehicleOperationRecord'), today.isoformat(), periodic, include_points=True)
+        maintenance, canonical_operations(rows('VehicleOperationRecord'), rows('VehicleDrivingReportRecord')), today.isoformat(), periodic, include_points=True)
     history = g['get_vehicle_karte_history_entries'](code, vid, read_snapshot=read_snapshot)
     factual_ids = {f'maintenance:{r.id}' for r in maintenance}
     periodic_ids = {f'periodic:{r.id}' for r in periodic}

@@ -1,0 +1,26 @@
+select[data-searchable-select][hidden]{display:none!important}
+.ocr-choice-field{display:block;min-width:0;width:100%}
+/* The global help text uses a negative margin for native inputs. Search fields
+   include candidates and selected tags, so their following text needs its own gap. */
+.main-content .ocr-choice-field + .help-text{margin-top:8px}
+.ocr-choice-field input.ocr-choice-input{box-sizing:border-box;display:block;width:100%;min-width:0;min-height:38px;margin:4px 0 0;padding:8px 10px;border:1px solid #cad8e6;border-radius:5px;background:#fff;color:#233750;font:inherit;font-size:13px;line-height:1.4}
+.ocr-choice-field input.ocr-choice-input:focus{outline:2px solid #6d96b8;outline-offset:1px}
+.ocr-choice-field input.ocr-choice-input[aria-invalid=true]{border-color:#b54a43}
+.ocr-choice-field input.ocr-choice-input:disabled{background:#f1f4f7;color:#627388}
+.ocr-choice-field [hidden]{display:none!important}
+.ocr-choice-field .selected-vehicle-tags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.ocr-choice-field .selected-vehicle-tag{display:inline-flex;align-items:center;gap:6px;margin:0;padding:5px 9px;border:1px solid #d8e2ef;border-radius:6px;background:#f1f5fa;color:#334b68;font-size:13px;line-height:1.5}
+.ocr-choice-field .selected-vehicle-tag>span{min-width:0;overflow-wrap:anywhere}
+.ocr-choice-field .tag-remove-btn{display:inline-block;flex:0 0 20px;width:20px;height:20px;min-height:0;margin:0;padding:0;border:0;border-radius:50%;background:#e8eefc;color:#4a67a1;box-shadow:none;font-size:13px;line-height:20px;cursor:pointer}
+.ocr-choice-field .tag-remove-btn:hover{background:#d7e2fb}
+.ocr-choice-field .ocr-choice-status{display:block;margin:0;padding:8px;font-size:12px;line-height:1.5;color:#5d7287}
+/* Candidate rows reuse the vehicle chart search classes and styles. */
+.ocr-choice-results{z-index:10000;box-sizing:border-box}
+.ocr-choice-results[hidden]{display:none!important}
+.ocr-choice-results>button.vehicle-karte-search-result{width:100%;min-height:40px;margin:0;border-top:0;border-left:0;border-right:0;border-radius:0;box-shadow:none;font:inherit;text-align:left;cursor:pointer}
+.ocr-choice-results>button.vehicle-karte-search-result[aria-selected=true]{background:#edf4ff}
+.ocr-choice-results>button.vehicle-karte-search-result:disabled{color:#7a8795;cursor:default}
+.ocr-choice-field>.ocr-choice-status{display:block;margin:4px 0 0;font-size:11px;line-height:1.5;color:#526681}
+.ocr-choice-field>.ocr-choice-status[hidden]{display:none}
+@media(max-width:949px){.ocr-choice-results>button.vehicle-karte-search-result{min-height:44px;font-size:16px}}
+@media(max-width:949px){.ocr-choice-field input.ocr-choice-input{font-size:16px;min-height:44px}.ocr-choice-field .tag-remove-btn{flex-basis:28px;width:28px;height:28px;line-height:28px}}

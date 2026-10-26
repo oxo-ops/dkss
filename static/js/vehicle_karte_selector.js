@@ -1,3 +1,12 @@
+// Shared with OCR: the same terms, width normalization and partial matching.
+(() => {
+    const normalize = value => String(value || '').normalize('NFKC').toLocaleLowerCase('ja')
+        .replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+        .replace(/[\s\u3000\-‐‑‒–—―−]/g, '');
+    const terms = value => String(value || '').trim().split(/[\s\u3000]+/).map(normalize).filter(Boolean);
+    const matches = (text, queryTerms) => queryTerms.every(term => text.includes(term));
+    window.DkssVehicleChoiceSearch = {normalize, terms, matches};
+})();
 (() => {
     "use strict";
 
@@ -19,10 +28,7 @@
     const choices = JSON.parse(dataElement.textContent);
     let composing = false;
 
-    const normalize = (value) => String(value || "")
-        .normalize("NFKC")
-        .toLocaleLowerCase("ja")
-        .replace(/[\s\u3000\-‐‑‒–—―−]/g, "");
+    const {normalize, terms: searchTerms, matches: matchesTerms} = window.DkssVehicleChoiceSearch;
 
     const records = choices.map((choice) => ({
         choice,
@@ -35,10 +41,7 @@
     const updateResults = () => {
         results.replaceChildren();
 
-        const terms = search.value.trim()
-            .split(/[\s\u3000]+/)
-            .map(normalize)
-            .filter(Boolean);
+        const terms = searchTerms(search.value);
 
         if (!terms.length) {
             results.hidden = true;
@@ -48,7 +51,7 @@
         }
 
         const matches = records.filter((record) =>
-            terms.every((term) => record.searchText.includes(term))
+            matchesTerms(record.searchText, terms)
         );
 
         status.textContent = matches.length

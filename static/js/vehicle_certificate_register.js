@@ -302,6 +302,7 @@
             }
 
             originals.set(field.name, field.value);
+            if (field.tagName === "SELECT") field.dispatchEvent(new Event("change", {bubbles:true}));
         }
 
         extractionReady = true;
@@ -387,6 +388,7 @@
 
         for (const field of fields) {
             field.value = originals.get(field.name) ?? "";
+            if (field.tagName === "SELECT") field.dispatchEvent(new Event("change", {bubbles:true}));
         }
 
         updateChanges();
