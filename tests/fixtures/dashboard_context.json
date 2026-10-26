@@ -1,0 +1,2836 @@
+{
+  "admin": {
+    "checklist_score_summaries": [
+      {
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 2,
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-11",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "date": "2026-10-10",
+              "score": 0.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "total": 2
+        },
+        "id": 1,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "旧点検",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10",
+            "score_rate": 0.0
+          },
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          }
+        ],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 2,
+        "review_item_count": 3,
+        "score_distribution": {
+          "0": 1,
+          "50": 1
+        },
+        "scores": [
+          0.0,
+          50.0
+        ],
+        "target": "車両管理",
+        "target_analysis": [
+          {
+            "average_score": 25.0,
+            "body_type": "",
+            "count": 2,
+            "day": "10",
+            "improvement_rate": 75.0,
+            "month": "10",
+            "review_items": [
+              "ブレーキ",
+              "旧点検",
+              "灯火"
+            ],
+            "score_rate": 25.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": "2026"
+          }
+        ]
+      },
+      {
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "ナンバー未登録",
+              "url": "/safety/checklist-results/6"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "Tokyo",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "peer",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "admin",
+              "url": "/safety/checklist-results/1"
+            }
+          ],
+          "total": 5
+        },
+        "id": 2,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 5,
+        "review_item_count": 1,
+        "score_distribution": {
+          "50": 5
+        },
+        "scores": [
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0
+        ],
+        "target": "安全管理",
+        "target_analysis": [
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "admin",
+            "target_type": "user",
+            "target_value": "admin",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "peer",
+            "target_type": "user",
+            "target_value": "peer",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "Tokyo",
+            "target_type": "office",
+            "target_value": "Tokyo",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": ""
+          }
+        ]
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 13,
+      "categories": [
+        {
+          "count": 7,
+          "maximum": 7,
+          "name": "安全"
+        },
+        {
+          "count": 1,
+          "maximum": 7,
+          "name": "装置"
+        }
+      ],
+      "focus": {
+        "category": "安全",
+        "content": "ブレーキ",
+        "count": 6,
+        "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+      },
+      "record_count": 7
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "1111",
+          "url": "/vehicle/karte/1/inspections",
+          "vehicle_record_id": 1
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Tokyo",
+    "dashboard_settings": {
+      "office": "Tokyo",
+      "period": "30d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [
+      {
+        "body_type": "",
+        "chassis_number": "TEST-001",
+        "inspection_expiry": "2026-11-01",
+        "number": "1111",
+        "remaining_days": 6,
+        "type": "",
+        "vehicle_record_id": 1
+      }
+    ],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": 0.0,
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "1111",
+        "result_count": 2,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "id": 2,
+        "max_score": 100,
+        "name": "安全",
+        "overall_average_score": 50.0,
+        "result_count": 1,
+        "target": "安全管理",
+        "target_user": "本人",
+        "target_username": "admin"
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [
+      {
+        "employee_id": "admin",
+        "id": 1,
+        "index": 1,
+        "name": "本人",
+        "office": "Tokyo",
+        "role": null,
+        "safe_days": 298,
+        "safe_start_date": "2026-01-01"
+      }
+    ],
+    "setup_tasks": [
+      {
+        "description": "車両登録で使用する車種を登録してください。",
+        "name": "車種マスタ",
+        "url": "/master/vehicle-types"
+      },
+      {
+        "description": "ドライバー登録で使用する免許種別を登録してください。",
+        "name": "免許種別マスタ",
+        "url": "/master/license-types"
+      },
+      {
+        "description": "安全パトロールで使用する納入先を登録してください。",
+        "name": "納入先マスタ",
+        "url": "/master/delivery-places"
+      }
+    ]
+  },
+  "user": {
+    "checklist_score_summaries": [
+      {
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 2,
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-11",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "date": "2026-10-10",
+              "score": 0.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "total": 2
+        },
+        "id": 1,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "旧点検",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10",
+            "score_rate": 0.0
+          },
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          }
+        ],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 2,
+        "review_item_count": 3,
+        "score_distribution": {
+          "0": 1,
+          "50": 1
+        },
+        "scores": [
+          0.0,
+          50.0
+        ],
+        "target": "車両管理",
+        "target_analysis": [
+          {
+            "average_score": 25.0,
+            "body_type": "",
+            "count": 2,
+            "day": "10",
+            "improvement_rate": 75.0,
+            "month": "10",
+            "review_items": [
+              "ブレーキ",
+              "旧点検",
+              "灯火"
+            ],
+            "score_rate": 25.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": "2026"
+          }
+        ]
+      },
+      {
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "admin",
+              "url": "/safety/checklist-results/1"
+            }
+          ],
+          "total": 1
+        },
+        "id": 2,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 5,
+        "review_item_count": 1,
+        "score_distribution": {
+          "50": 5
+        },
+        "scores": [
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0
+        ],
+        "target": "安全管理",
+        "target_analysis": [
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "Tokyo",
+            "target_type": "office",
+            "target_value": "Tokyo",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": ""
+          }
+        ]
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 13,
+      "categories": [
+        {
+          "count": 7,
+          "maximum": 7,
+          "name": "安全"
+        },
+        {
+          "count": 1,
+          "maximum": 7,
+          "name": "装置"
+        }
+      ],
+      "focus": {
+        "category": "安全",
+        "content": "ブレーキ",
+        "count": 6,
+        "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+      },
+      "record_count": 7
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "1111",
+          "url": "/vehicle/karte/1/inspections",
+          "vehicle_record_id": 1
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Tokyo",
+    "dashboard_settings": {
+      "office": "Tokyo",
+      "period": "30d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [
+      {
+        "body_type": "",
+        "chassis_number": "TEST-001",
+        "inspection_expiry": "2026-11-01",
+        "number": "1111",
+        "remaining_days": 6,
+        "type": "",
+        "vehicle_record_id": 1
+      }
+    ],
+    "is_dashboard_admin": false,
+    "my_checklist_summaries": [
+      {
+        "average_difference": 0.0,
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "1111",
+        "result_count": 2,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "id": 2,
+        "max_score": 100,
+        "name": "安全",
+        "overall_average_score": 50.0,
+        "result_count": 1,
+        "target": "安全管理",
+        "target_user": "本人",
+        "target_username": "admin"
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [
+      {
+        "employee_id": "admin",
+        "id": 1,
+        "index": 1,
+        "name": "本人",
+        "office": "Tokyo",
+        "role": null,
+        "safe_days": 298,
+        "safe_start_date": "2026-01-01"
+      }
+    ],
+    "setup_tasks": []
+  },
+  "itc": {
+    "checklist_score_summaries": [
+      {
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 2,
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-11",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "date": "2026-10-10",
+              "score": 0.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "total": 2
+        },
+        "id": 1,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "旧点検",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10",
+            "score_rate": 0.0
+          },
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          }
+        ],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 2,
+        "review_item_count": 3,
+        "score_distribution": {
+          "0": 1,
+          "50": 1
+        },
+        "scores": [
+          0.0,
+          50.0
+        ],
+        "target": "車両管理",
+        "target_analysis": [
+          {
+            "average_score": 25.0,
+            "body_type": "",
+            "count": 2,
+            "day": "10",
+            "improvement_rate": 75.0,
+            "month": "10",
+            "review_items": [
+              "ブレーキ",
+              "旧点検",
+              "灯火"
+            ],
+            "score_rate": 25.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": "2026"
+          }
+        ]
+      },
+      {
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "ナンバー未登録",
+              "url": "/safety/checklist-results/6"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "Tokyo",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "peer",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "admin",
+              "url": "/safety/checklist-results/1"
+            }
+          ],
+          "total": 5
+        },
+        "id": 2,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 5,
+        "review_item_count": 1,
+        "score_distribution": {
+          "50": 5
+        },
+        "scores": [
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0
+        ],
+        "target": "安全管理",
+        "target_analysis": [
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "admin",
+            "target_type": "user",
+            "target_value": "admin",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "peer",
+            "target_type": "user",
+            "target_value": "peer",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "Tokyo",
+            "target_type": "office",
+            "target_value": "Tokyo",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": ""
+          }
+        ]
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 13,
+      "categories": [
+        {
+          "count": 7,
+          "maximum": 7,
+          "name": "安全"
+        },
+        {
+          "count": 1,
+          "maximum": 7,
+          "name": "装置"
+        }
+      ],
+      "focus": {
+        "category": "安全",
+        "content": "ブレーキ",
+        "count": 6,
+        "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+      },
+      "record_count": 7
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "1111",
+          "url": "/vehicle/karte/1/inspections",
+          "vehicle_record_id": 1
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Tokyo",
+    "dashboard_settings": {
+      "office": "Tokyo",
+      "period": "30d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [
+      {
+        "body_type": "",
+        "chassis_number": "TEST-001",
+        "inspection_expiry": "2026-11-01",
+        "number": "1111",
+        "remaining_days": 6,
+        "type": "",
+        "vehicle_record_id": 1
+      }
+    ],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": 0.0,
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "1111",
+        "result_count": 2,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "id": 2,
+        "max_score": 100,
+        "name": "安全",
+        "overall_average_score": 50.0,
+        "result_count": 1,
+        "target": "安全管理",
+        "target_user": "本人",
+        "target_username": "admin"
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [
+      {
+        "employee_id": "admin",
+        "id": 1,
+        "index": 1,
+        "name": "本人",
+        "office": "Tokyo",
+        "role": null,
+        "safe_days": 298,
+        "safe_start_date": "2026-01-01"
+      }
+    ],
+    "setup_tasks": []
+  },
+  "missing_office": {
+    "checklist_score_summaries": [
+      {
+        "average_score": null,
+        "category_analysis": [],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [],
+          "total": 0
+        },
+        "id": 1,
+        "improvement_items": [],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 0,
+        "review_item_count": 0,
+        "score_distribution": {},
+        "scores": [],
+        "target": "車両管理",
+        "target_analysis": []
+      },
+      {
+        "average_score": null,
+        "category_analysis": [],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [],
+          "total": 0
+        },
+        "id": 2,
+        "improvement_items": [],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 0,
+        "review_item_count": 0,
+        "score_distribution": {},
+        "scores": [],
+        "target": "安全管理",
+        "target_analysis": []
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 0,
+      "categories": [],
+      "focus": null,
+      "record_count": 0
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": false,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 0,
+      "unregistered": []
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": true,
+    "dashboard_scope_office": "",
+    "dashboard_settings": {
+      "office": "",
+      "period": "30d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": null,
+        "registration_number": "1111",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": null,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [],
+    "setup_tasks": [
+      {
+        "description": "車両登録で使用する車種を登録してください。",
+        "name": "車種マスタ",
+        "url": "/master/vehicle-types"
+      },
+      {
+        "description": "ドライバー登録で使用する免許種別を登録してください。",
+        "name": "免許種別マスタ",
+        "url": "/master/license-types"
+      },
+      {
+        "description": "安全パトロールで使用する納入先を登録してください。",
+        "name": "納入先マスタ",
+        "url": "/master/delivery-places"
+      }
+    ]
+  },
+  "other_office": {
+    "checklist_score_summaries": [
+      {
+        "average_score": 75.0,
+        "category_analysis": [
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": "安全",
+            "count": 1,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-12",
+              "score": 75.0,
+              "status": "未登録",
+              "target": "2000",
+              "url": "/vehicle/checklists/1?vehicle_record_id=2&year=2026&month=10&active_day=12"
+            }
+          ],
+          "total": 1
+        },
+        "id": 1,
+        "improvement_items": [
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=2&year=2026&month=10&active_day=12",
+            "score_rate": 50.0
+          },
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 0.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=2&year=2026&month=10&active_day=12",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 1,
+        "review_item_count": 1,
+        "score_distribution": {
+          "75": 1
+        },
+        "scores": [
+          75.0
+        ],
+        "target": "車両管理",
+        "target_analysis": [
+          {
+            "average_score": 75.0,
+            "body_type": "",
+            "count": 1,
+            "day": "12",
+            "improvement_rate": 25.0,
+            "month": "10",
+            "review_items": [
+              "灯火"
+            ],
+            "score_rate": 75.0,
+            "target_label": "2000",
+            "target_type": "vehicle",
+            "target_value": 2,
+            "vehicle_record_id": 2,
+            "vehicle_type": "",
+            "year": "2026"
+          }
+        ]
+      },
+      {
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "admin",
+              "url": "/safety/checklist-results/5"
+            }
+          ],
+          "total": 1
+        },
+        "id": 2,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "result_url": "/safety/checklist-results/5",
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 0.0,
+            "result_url": "/safety/checklist-results/5",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 1,
+        "review_item_count": 1,
+        "score_distribution": {
+          "50": 1
+        },
+        "scores": [
+          50.0
+        ],
+        "target": "安全管理",
+        "target_analysis": [
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "admin",
+            "target_type": "user",
+            "target_value": "admin",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          }
+        ]
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 4,
+      "categories": [
+        {
+          "count": 1,
+          "maximum": 1,
+          "name": "安全"
+        },
+        {
+          "count": 1,
+          "maximum": 1,
+          "name": "装置"
+        }
+      ],
+      "focus": {
+        "category": "安全",
+        "content": "ブレーキ",
+        "count": 1,
+        "url": "/safety/checklist-results/5"
+      },
+      "record_count": 2
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "2000",
+          "url": "/vehicle/karte/2/inspections",
+          "vehicle_record_id": 2
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Osaka",
+    "dashboard_settings": {
+      "office": "Osaka",
+      "period": "30d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 75.0,
+        "registration_number": "1111",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 75.0,
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": "安全",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 75.0,
+        "registration_number": "2000",
+        "result_count": 1,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "id": 2,
+        "max_score": 100,
+        "name": "安全",
+        "overall_average_score": 50.0,
+        "result_count": 1,
+        "target": "安全管理",
+        "target_user": "本人",
+        "target_username": "admin"
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [],
+    "setup_tasks": [
+      {
+        "description": "車両登録で使用する車種を登録してください。",
+        "name": "車種マスタ",
+        "url": "/master/vehicle-types"
+      },
+      {
+        "description": "ドライバー登録で使用する免許種別を登録してください。",
+        "name": "免許種別マスタ",
+        "url": "/master/license-types"
+      },
+      {
+        "description": "安全パトロールで使用する納入先を登録してください。",
+        "name": "納入先マスタ",
+        "url": "/master/delivery-places"
+      }
+    ]
+  },
+  "short_period": {
+    "checklist_score_summaries": [
+      {
+        "average_score": null,
+        "category_analysis": [],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [],
+          "total": 0
+        },
+        "id": 1,
+        "improvement_items": [],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 0,
+        "review_item_count": 0,
+        "score_distribution": {},
+        "scores": [],
+        "target": "車両管理",
+        "target_analysis": []
+      },
+      {
+        "average_score": null,
+        "category_analysis": [],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [],
+          "total": 0
+        },
+        "id": 2,
+        "improvement_items": [],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 0,
+        "review_item_count": 0,
+        "score_distribution": {},
+        "scores": [],
+        "target": "安全管理",
+        "target_analysis": []
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 0,
+      "categories": [],
+      "focus": null,
+      "record_count": 0
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-10-20",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "1111",
+          "url": "/vehicle/karte/1/inspections",
+          "vehicle_record_id": 1
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Tokyo",
+    "dashboard_settings": {
+      "office": "Tokyo",
+      "period": "7d",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [
+      {
+        "body_type": "",
+        "chassis_number": "TEST-001",
+        "inspection_expiry": "2026-11-01",
+        "number": "1111",
+        "remaining_days": 6,
+        "type": "",
+        "vehicle_record_id": 1
+      }
+    ],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": null,
+        "registration_number": "1111",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": null,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [],
+        "latest_date": "",
+        "result_count": 0,
+        "score_rate": null
+      },
+      "2": {
+        "category_analysis": [],
+        "latest_date": "",
+        "result_count": 0,
+        "score_rate": null
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [
+      {
+        "employee_id": "admin",
+        "id": 1,
+        "index": 1,
+        "name": "本人",
+        "office": "Tokyo",
+        "role": null,
+        "safe_days": 298,
+        "safe_start_date": "2026-01-01"
+      }
+    ],
+    "setup_tasks": [
+      {
+        "description": "車両登録で使用する車種を登録してください。",
+        "name": "車種マスタ",
+        "url": "/master/vehicle-types"
+      },
+      {
+        "description": "ドライバー登録で使用する免許種別を登録してください。",
+        "name": "免許種別マスタ",
+        "url": "/master/license-types"
+      },
+      {
+        "description": "安全パトロールで使用する納入先を登録してください。",
+        "name": "納入先マスタ",
+        "url": "/master/delivery-places"
+      }
+    ]
+  },
+  "invalid_period": {
+    "checklist_score_summaries": [
+      {
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 2,
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "display_type": "month",
+        "frequency_unit": "day",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-11",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "date": "2026-10-10",
+              "score": 0.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "total": 2
+        },
+        "id": 1,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "旧点検",
+            "count": 1,
+            "improvement_rate": 100.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10",
+            "score_rate": 0.0
+          },
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 1,
+            "improvement_rate": 50.0,
+            "result_url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11",
+            "score_rate": 50.0
+          }
+        ],
+        "max_score": 100,
+        "name": "日常点検",
+        "result_count": 2,
+        "review_item_count": 3,
+        "score_distribution": {
+          "0": 1,
+          "50": 1
+        },
+        "scores": [
+          0.0,
+          50.0
+        ],
+        "target": "車両管理",
+        "target_analysis": [
+          {
+            "average_score": 25.0,
+            "body_type": "",
+            "count": 2,
+            "day": "10",
+            "improvement_rate": 75.0,
+            "month": "10",
+            "review_items": [
+              "ブレーキ",
+              "旧点検",
+              "灯火"
+            ],
+            "score_rate": 25.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": "2026"
+          }
+        ]
+      },
+      {
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "display_type": null,
+        "frequency_unit": "month",
+        "history": {
+          "rows": [
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "ナンバー未登録",
+              "url": "/safety/checklist-results/6"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "1111",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "Tokyo",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "peer",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "date": "2026-10-15",
+              "score": 50.0,
+              "status": "未登録",
+              "target": "admin",
+              "url": "/safety/checklist-results/1"
+            }
+          ],
+          "total": 5
+        },
+        "id": 2,
+        "improvement_items": [
+          {
+            "category": "安全",
+            "content": "ブレーキ",
+            "count": 5,
+            "improvement_rate": 100.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "content": "灯火",
+            "count": 5,
+            "improvement_rate": 0.0,
+            "result_url": "/safety/checklist-results/1",
+            "score_rate": 100.0
+          }
+        ],
+        "max_score": 100,
+        "name": "安全",
+        "result_count": 5,
+        "review_item_count": 1,
+        "score_distribution": {
+          "50": 5
+        },
+        "scores": [
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0
+        ],
+        "target": "安全管理",
+        "target_analysis": [
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "admin",
+            "target_type": "user",
+            "target_value": "admin",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "peer",
+            "target_type": "user",
+            "target_value": "peer",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "Tokyo",
+            "target_type": "office",
+            "target_value": "Tokyo",
+            "vehicle_record_id": null,
+            "vehicle_type": "",
+            "year": ""
+          },
+          {
+            "average_score": 50.0,
+            "body_type": "",
+            "count": 1,
+            "day": "",
+            "improvement_rate": 50.0,
+            "month": "",
+            "review_items": [
+              "ブレーキ"
+            ],
+            "score_rate": 50.0,
+            "target_label": "1111",
+            "target_type": "vehicle",
+            "target_value": 1,
+            "vehicle_record_id": 1,
+            "vehicle_type": "",
+            "year": ""
+          }
+        ]
+      }
+    ],
+    "dashboard_office_check_trend": {
+      "answer_count": 13,
+      "categories": [
+        {
+          "count": 7,
+          "maximum": 7,
+          "name": "安全"
+        },
+        {
+          "count": 1,
+          "maximum": 7,
+          "name": "装置"
+        }
+      ],
+      "focus": {
+        "category": "安全",
+        "content": "ブレーキ",
+        "count": 6,
+        "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+      },
+      "record_count": 7
+    },
+    "dashboard_offices": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "index": 1,
+        "name": "Tokyo"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "index": 2,
+        "name": "Osaka"
+      }
+    ],
+    "dashboard_period_end": "2026-10-26",
+    "dashboard_period_start": "2026-09-27",
+    "dashboard_periodic_schedule": {
+      "available": true,
+      "known_count": 0,
+      "scheduled": [],
+      "total_count": 1,
+      "unregistered": [
+        {
+          "number": "1111",
+          "url": "/vehicle/karte/1/inspections",
+          "vehicle_record_id": 1
+        }
+      ]
+    },
+    "dashboard_request_counts": {
+      "vehicle_approvals": 0,
+      "vehicle_response": 0
+    },
+    "dashboard_scope_missing": false,
+    "dashboard_scope_office": "Tokyo",
+    "dashboard_settings": {
+      "office": "Tokyo",
+      "period": "invalid",
+      "show_analysis": true,
+      "show_inspection": true,
+      "show_my_checklists": true,
+      "show_pending": true,
+      "show_ranking": true,
+      "show_summary": true,
+      "show_vehicles": true
+    },
+    "dashboard_vehicle_attention": {
+      "mine": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 2,
+        "updating": 0,
+        "vehicles": 2
+      },
+      "office": {
+        "errors": 0,
+        "insufficient": 0,
+        "items": [],
+        "missing": 0,
+        "updating": 0,
+        "vehicles": 0
+      }
+    },
+    "inspection_alerts": [
+      {
+        "body_type": "",
+        "chassis_number": "TEST-001",
+        "inspection_expiry": "2026-11-01",
+        "number": "1111",
+        "remaining_days": 6,
+        "type": "",
+        "vehicle_record_id": 1
+      }
+    ],
+    "is_dashboard_admin": true,
+    "my_checklist_summaries": [
+      {
+        "average_difference": 0.0,
+        "average_score": 25.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "chassis_number": "TEST-001",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "1111",
+        "result_count": 2,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 1
+      },
+      {
+        "average_difference": null,
+        "average_score": null,
+        "category_analysis": [],
+        "chassis_number": "fixture-0",
+        "id": 1,
+        "is_daily": true,
+        "is_standard_daily": false,
+        "max_score": 100,
+        "name": "日常点検",
+        "overall_average_score": 25.0,
+        "registration_number": "2000",
+        "result_count": 0,
+        "target": "車両管理",
+        "target_user": "本人",
+        "target_username": "admin",
+        "vehicle_record_id": 2
+      },
+      {
+        "average_difference": 0.0,
+        "average_score": 50.0,
+        "category_analysis": [
+          {
+            "category": "安全",
+            "improvement_rate": 100.0,
+            "score_rate": 0.0
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "id": 2,
+        "max_score": 100,
+        "name": "安全",
+        "overall_average_score": 50.0,
+        "result_count": 1,
+        "target": "安全管理",
+        "target_user": "本人",
+        "target_username": "admin"
+      }
+    ],
+    "my_good_count": 0,
+    "my_pending_pointouts": [],
+    "my_safe_days": 298,
+    "my_user_name": "本人",
+    "my_vehicle_analysis": {
+      "1": {
+        "category_analysis": [
+          {
+            "category": " 安全 ",
+            "improvement_rate": 83.3,
+            "score_rate": 16.7
+          },
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          }
+        ],
+        "latest_date": "2026-10-11",
+        "result_count": 2,
+        "score_rate": 25.0
+      },
+      "2": {
+        "category_analysis": [
+          {
+            "category": "装置",
+            "improvement_rate": 50.0,
+            "score_rate": 50.0
+          },
+          {
+            "category": " 安全 ",
+            "improvement_rate": 0.0,
+            "score_rate": 100.0
+          }
+        ],
+        "latest_date": "2026-10-12",
+        "result_count": 1,
+        "score_rate": 75.0
+      }
+    },
+    "my_vehicles": [
+      {
+        "company_code": "TEST",
+        "id": 1,
+        "model": "Vehicle"
+      },
+      {
+        "company_code": "TEST",
+        "id": 2,
+        "model": "Vehicle"
+      }
+    ],
+    "ranking": [
+      {
+        "employee_id": "admin",
+        "id": 1,
+        "index": 1,
+        "name": "本人",
+        "office": "Tokyo",
+        "role": null,
+        "safe_days": 298,
+        "safe_start_date": "2026-01-01"
+      }
+    ],
+    "setup_tasks": [
+      {
+        "description": "車両登録で使用する車種を登録してください。",
+        "name": "車種マスタ",
+        "url": "/master/vehicle-types"
+      },
+      {
+        "description": "ドライバー登録で使用する免許種別を登録してください。",
+        "name": "免許種別マスタ",
+        "url": "/master/license-types"
+      },
+      {
+        "description": "安全パトロールで使用する納入先を登録してください。",
+        "name": "納入先マスタ",
+        "url": "/master/delivery-places"
+      }
+    ]
+  }
+}
