@@ -78,3 +78,30 @@ class InspectionPlanExcelTests(unittest.TestCase):
         self.assertEqual(wb.worksheets[1].max_row,6)
         for ws,addr in [(wb.worksheets[0],'A5'),(wb.worksheets[1],'I2')]:
             self.assertEqual(ws[addr].data_type,'s')
+
+    def test_export_link_is_visible_with_working_href_in_all_views_before_js(self):
+        from html.parser import HTMLParser
+        from urllib.parse import urlsplit, parse_qs
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.exports=[]
+            def handle_starttag(self, tag, attrs):
+                attrs=dict(attrs)
+                if tag=='a' and 'data-plan-export' in attrs:self.exports.append(attrs)
+        for view in ('month','calendar','year'):
+            with self.subTest(view=view):
+                response=self.client.get('/vehicle/inspection-plans',query_string={
+                    'scope':'company','month':'2027-01','view':view,'kind':'ad_hoc',
+                    'state':'candidate','q':'TEST'})
+                self.assertEqual(response.status_code,200)
+                parser=Links();parser.feed(response.get_data(as_text=True))
+                self.assertEqual(len(parser.exports),1)
+                link=parser.exports[0]
+                self.assertNotIn('hidden',link)
+                params=parse_qs(urlsplit(link['href']).query)
+                self.assertEqual(params['view'],[view])
+                self.assertEqual(params['q'],['TEST'])
+                self.assertEqual(params['kind'],['ad_hoc'])
+                self.assertEqual(params['state'],['candidate'])
+                workbook=self.workbook(self.client.get(link['href']))
+                self.assertIn('2026年度',workbook.worksheets[0]['A1'].value)
