@@ -1202,7 +1202,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     : "ファイル未選択";
 
             list.hidden = files.length <= 1;
-            clear.hidden = !files.length;
+            if (form.closest(".import-workspace")) {
+                clear.hidden = false;
+                clear.disabled = !files.length;
+            } else {
+                clear.hidden = !files.length;
+            }
             submit.disabled = !ready;
         }
 
@@ -1212,7 +1217,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         clear.addEventListener("click", function () {
+            if (form.dataset.loading === "1") return;
             input.value = "";
+            delete form.dataset.uploadKey;
             showError("");
             refresh();
             input.focus();

@@ -1,6 +1,6 @@
 {% set coupling = karte_coupling|default({}) %}
 {% if coupling.visible %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_couplings.css', v='20261026-shared-component-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_couplings.css', v='20261026-close-center-6') }}">
 <section class="vc-links" id="vehicle-couplings" aria-label="連結車両">
     <div class="vc-heading">
         <span>連結車両{% if coupling.links %} <small>{{ coupling.links|length }}台</small>{% endif %}</span>
@@ -18,7 +18,7 @@
     </div>
 </section>
 <dialog id="vehicle-coupling-dialog" class="vc-dialog" aria-labelledby="vc-dialog-title">
-    <div class="vc-dialog-heading"><h2 id="vc-dialog-title">連結車両の紐づけ</h2><button type="button" data-coupling-close aria-label="閉じる">×</button></div>
+    <div class="vc-dialog-heading"><h2 id="vc-dialog-title">連結車両を設定</h2><button type="button" data-coupling-close aria-label="閉じる">×</button></div>
     <div class="vc-dialog-body">
         <p class="vc-description">{{ vehicle_number }} と組み合わせる車両を登録します。付け替え用に複数台を登録できます。</p>
         <h3>紐づけ済み <small>{{ coupling.links|length }}台</small></h3>
@@ -27,24 +27,24 @@
                 <div><a href="{{ url_for('vehicle_karte', vehicle_record_id=link.vehicle_id) }}">{{ link.label }}</a>{% if link.deleted %}<small>無効</small>{% endif %}</div>
                 {% if coupling.can_edit %}<form method="post" action="{{ url_for('vehicle_coupling_remove', vehicle_record_id=vehicle.id, coupling_id=link.id) }}" data-coupling-remove>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-outline">解除</button>
+                    <button type="submit" class="btn btn-outline">解除する</button>
                 </form>{% endif %}
             </li>{% else %}<li class="vc-empty">まだ紐づけられていません。</li>{% endfor %}
         </ul>
         {% if coupling.can_edit and coupling.can_add %}
         <form method="post" action="{{ url_for('vehicle_coupling_add', vehicle_record_id=vehicle.id) }}" class="vc-add-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <h3>{{ 'けん引車を選ぶ' if coupling.role == 'trailer' else 'トレーラーを選ぶ' }}</h3>
+            <h3>車両を選択</h3>
             {% if coupling.candidates %}
             {% from 'vehicle_search_field.html' import vehicle_search %}
             {{ vehicle_search('vc-search', 'vc-search-status', 'vc-search-results') }}
             <input type="hidden" name="vehicle_id" data-coupling-selected value="">
             <script type="application/json" data-coupling-search-data>[
-                {% for candidate in coupling.candidates %}{{ {'id': candidate.id, 'number': candidate.label, 'chassis_number': candidate.chassis}|tojson }}{{ ',' if not loop.last else '' }}{% endfor %}
+                {% for candidate in coupling.candidates %}{{ {'id': candidate.id, 'number': candidate.label, 'chassis_number': candidate.chassis, 'type': candidate.type}|tojson }}{{ ',' if not loop.last else '' }}{% endfor %}
             ]</script>
             <p class="vc-note">{{ 'トラックを選ぶ場合は、フルトレーラー用のけん引装置が必要です。' if coupling.role == 'trailer' else ('フルトレーラー用のけん引装置がある車両のみ登録してください。' if coupling.role == 'truck' else '車検証・連結仕様等で組合せを確認してください。') }}</p>
             <label class="vc-confirm"><input type="checkbox" name="confirmed" value="yes" required><span>車検証等で確認した組合せです</span></label>
-            <button type="submit" class="btn btn-primary vc-submit" data-coupling-submit disabled>紐づける</button>
+            <button type="submit" class="btn btn-primary vc-submit" data-coupling-submit disabled>追加する</button>
             {% else %}<p class="vc-empty">追加できる車両がありません。同じ会社の有効な車両が対象です。</p>{% endif %}
         </form>
         {% elif coupling.can_edit and not coupling.can_add %}<p class="vc-empty">この車両には新しい紐づけを追加できません。</p>{% endif %}

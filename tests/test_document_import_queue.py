@@ -207,6 +207,62 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.assertEqual(response.status_code,400)
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),1)
 
+    def test_delete_cancels_queued_and_claimed_jobs_and_fences_worker(self):
+        receipt = self.send(2).json
+        draft_id, token = queue.claim_next()
+        response = self.client.post(receipt['page_url'] + '/delete')
+        self.assertEqual(response.status_code, 303)
+        db.session.expire_all()
+        for row in Draft.query.all():
+            self.assertEqual(row.status, 'deleted')
+            self.assertEqual(row.source_file, b'')
+        self.assertFalse(queue.renew(draft_id, token))
+        self.assertFalse(queue.finish(draft_id, token, error=ValueError('NO_INSPECTION_FOUND')))
+        self.assertIsNone(queue.claim_next())
+        self.assertEqual(self.client.get(receipt['status_url']).status_code, 404)
+        self.assertNotIn(receipt['batch_id'], self.client.get('/vehicle/data-import').get_data(as_text=True))
+
+    def test_delete_registered_receipt_preserves_record_source_and_deduplication(self):
+        receipt = self.send().json
+        self.worker()
+        row = Draft.query.one()
+        response = self.client.post('/vehicle/data-import/' + receipt['batch_id'] + '/confirm',
+            data=self.inspection_form(row))
+        self.assertEqual(response.status_code, 302)
+        db.session.expire_all()
+        row = Draft.query.one()
+        original_source, original_result = row.source_file, json.loads(row.result_json)
+        source_keys = vehicle_imports.registered_inspection_import_keys('TEST')
+        response = self.client.post(receipt['page_url'] + '/delete')
+        self.assertEqual(response.status_code, 303)
+        db.session.expire_all()
+        row = Draft.query.one()
+        self.assertEqual(row.status, 'completed')
+        self.assertEqual(row.source_file, original_source)
+        self.assertEqual(json.loads(row.result_json)['records'], original_result['records'])
+        self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(), 1)
+        self.assertEqual(vehicle_imports.registered_inspection_import_keys('TEST'), source_keys)
+        self.assertNotIn(receipt['batch_id'], self.client.get('/vehicle/data-import').get_data(as_text=True))
+
+    def test_delete_requires_owner_post_and_csrf(self):
+        receipt = self.send().json
+        self.assertEqual(self.client.get(receipt['page_url'] + '/delete').status_code, 405)
+        stamp = self.m.User.query.filter_by(company_code='TEST', username='admin').one().password_changed_at
+        self.m.db.session.add(self.m.User(company_code='TEST', username='other-admin', role='admin', password='unused', last_name='検証', password_changed_at=stamp))
+        self.m.db.session.commit()
+        with self.client.session_transaction() as session:
+            session['username'] = 'other-admin'
+        self.assertIn(self.client.post(receipt['page_url'] + '/delete').status_code, (403, 404))
+        self.assertEqual(Draft.query.one().status, 'queued')
+        with self.client.session_transaction() as session:
+            session['username'] = 'admin'
+        self.m.app.config['WTF_CSRF_ENABLED'] = True
+        try:
+            self.assertEqual(self.client.post(receipt['page_url'] + '/delete').status_code, 400)
+        finally:
+            self.m.app.config['WTF_CSRF_ENABLED'] = False
+        self.assertEqual(Draft.query.one().status, 'queued')
+
     def test_retry_csrf_is_required(self):
         receipt=self.send().json
         self.m.app.config['WTF_CSRF_ENABLED']=True

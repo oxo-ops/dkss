@@ -1074,14 +1074,22 @@ def vehicle_document_import_preview(batch_id):
         for draft in pending_drafts
     ]
 
+    from .import_flow import mark_document_duplicates
+    import_flow_notice = mark_document_duplicates(pending_drafts, documents, _dkss_common.session.get('company_code'))
     from .document_import_queue import metadata
     failures = [{'filename':draft.source_filename, 'reason':metadata(draft.result_json).get('message', '読み取りに失敗しました。')}
                 for draft in drafts if draft.status == 'read_error']
+    ignored_files = [filename for draft in drafts for filename in metadata(draft.result_json).get('ignored_files', [])]
+    if ignored_files:
+        skipped_notice = '登録済みの資料を読み取り対象から外しました：' + '、'.join(ignored_files) + '。未登録分だけ確認できます。'
+        import_flow_notice = skipped_notice + (import_flow_notice or '')
     if failures and documents:
         documents[0]['preview']['import_failures'] = failures
 
     return _dkss_common.render_template(
         "vehicle_document_import_preview.html",
+        import_flow_notice=import_flow_notice,
+        import_all_duplicates=all(record.get('import_duplicate') for document in documents for record in (document['preview'].get('records') or [])),
         batch_id=batch_id,
         documents=documents,
         vehicle_choices=vehicle_choices
@@ -1359,7 +1367,7 @@ def vehicle_operation_import_preview(draft_id):
             "info"
         )
         return _dkss_common.redirect(_dkss_common.url_for(
-            "vehicle_operation_import"
+            "vehicle_data_import"
         ))
 
     try:
@@ -1375,7 +1383,7 @@ def vehicle_operation_import_preview(draft_id):
     except _dkss_common.UploadValidationError as error:
         _dkss_common.flash(str(error), "error:csv_file")
         return _dkss_common.redirect(_dkss_common.url_for(
-            "vehicle_operation_import"
+            "vehicle_data_import"
         ))
 
     vehicle_ids = {vehicle.id for vehicle in vehicles}
@@ -1569,6 +1577,7 @@ def vehicle_operation_import_preview(draft_id):
 
     return _dkss_common.render_template(
         "vehicle_operation_import_preview.html",
+        import_flow_notice=('登録済みの運行実績は取り込み対象から外しています。未登録分だけ続けるか、キャンセルして元の画面へ戻れます。' if any(row['existing_record_id'] is not None for row in preview_rows) else None),
         draft=draft,
         preview_rows=preview_rows,
         vehicle_choices=vehicle_choices,
@@ -1590,7 +1599,7 @@ def vehicle_operation_import_confirm(draft_id):
             company_code=company_code,
             created_by_username=username
         )
-        .first_or_404()
+        .with_for_update().first_or_404()
     )
 
     if draft.status != "preview":
@@ -1599,7 +1608,7 @@ def vehicle_operation_import_confirm(draft_id):
             "info"
         )
         return _dkss_common.redirect(_dkss_common.url_for(
-            "vehicle_operation_import"
+            "vehicle_data_import"
         ))
 
     validation_only = (

@@ -21,7 +21,11 @@
     body[data-responsive-shell] :is(.modal-bg,.vehicle-import-modal,.checklist-version-modal) { box-sizing:border-box; padding:12px; }
     body[data-responsive-shell] :is(.inspection-plan-panel,.ka-reference-drawer) { max-block-size:var(--app-viewport-height) !important; }
     body[data-responsive-shell] .sidebar { box-sizing:border-box; max-block-size:var(--app-viewport-height); }
-    body[data-responsive-shell] .sidebar-toggle { display:inline-flex; }
+    body[data-responsive-shell] .sidebar-toggle {
+        display:inline-flex; align-items:center; justify-content:center;
+        box-sizing:border-box; flex:0 0 auto; width:34px; height:34px;
+        min-width:34px; min-height:34px; padding:0; line-height:1; font-size:18px;
+    }
     body[data-responsive-shell] .sidebar-nav { min-block-size:0; overflow-y:auto; }
 
     /* Reflow uses the actual content width, including the desktop sidebar. */
@@ -90,9 +94,10 @@
     body[data-responsive-shell] .main-content > .top-bar { position:relative !important; top:auto !important; right:auto !important; margin:-40px 0 8px !important; padding-inline-start:44px; min-block-size:40px; box-sizing:border-box; }
     body[data-responsive-shell] .sidebar { position:fixed; inset:0 auto auto 0; inline-size:var(--app-drawer-width); min-inline-size:var(--app-drawer-width); block-size:var(--app-viewport-height); border-radius:0; transform:translateX(-100%); z-index:1050; overflow:visible; }
     body[data-responsive-shell].sidebar-open .sidebar { transform:translateX(0); }
-    body[data-responsive-shell] .sidebar-toggle { display:inline-flex !important; position:fixed; top:12px; left:12px; z-index:1100; }
+    body[data-responsive-shell] .sidebar-head { box-sizing:border-box; min-height:68px; padding-right:68px; }
+    body[data-responsive-shell] .sidebar-toggle { display:inline-flex !important; position:fixed; top:12px; left:12px; width:44px; height:44px; min-width:44px; min-height:44px; z-index:1100; }
     body[data-responsive-shell]:not(.sidebar-open) .sidebar-toggle { transform:translateX(var(--app-drawer-width)); }
-    body[data-responsive-shell].sidebar-open .sidebar-toggle { transform:translateX(0); }
+    body[data-responsive-shell].sidebar-open .sidebar-toggle { left:calc(var(--app-drawer-width) - 56px); transform:translateX(0); }
     body[data-responsive-shell] .sidebar-overlay { display:block; position:fixed; inset:0; z-index:1000; background:#0f172a61; opacity:0; visibility:hidden; pointer-events:none; }
     body[data-responsive-shell].sidebar-open .sidebar-overlay { opacity:1; visibility:visible; pointer-events:auto; }
     body[data-responsive-shell].sidebar-open { overflow:hidden; }

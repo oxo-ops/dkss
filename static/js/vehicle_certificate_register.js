@@ -351,8 +351,9 @@
         reviewShell.scrollIntoView({ behavior: "instant", block: "start" });
     }
 
-    continueButton.addEventListener("click", () => {
-        if (reading || !extractionReady || review.hidden) {
+    let continuing = false;
+    continueButton.addEventListener("click", async () => {
+        if (continuing || reading || !extractionReady || review.hidden) {
             return;
         }
 
@@ -396,8 +397,26 @@
 
         // vehicle_form_action=save は送らない。
         // 既存のnew_vehicle()が入力検証後に確認画面を表示する。
-        document.body.appendChild(form);
-        form.submit();
+        continuing = true;
+        continueButton.disabled = true;
+        try {
+            const response = await fetch(form.action, {method: "POST", body: new FormData(form),
+                headers: {"X-DKSS-Validation-Only": "1"}});
+            if (!response.ok) {
+                const data = await response.json().catch(() => null);
+                showError((data?.errors || []).map(item => item.message).join("\n") || "登録内容を確認してください。");
+                return;
+            }
+            const checked = await response.json();
+            if (!checked.ok) { showError("登録内容を確認してください。"); return; }
+            document.body.appendChild(form);
+            form.submit();
+        } catch (_) {
+            showError("通信が中断しました。内容はこの画面に残っています。再試行するかキャンセルしてください。");
+        } finally {
+            continuing = false;
+            continueButton.disabled = false;
+        }
     });
 
     fields.forEach(field => {
@@ -529,6 +548,9 @@
             const xhr = new XMLHttpRequest();
 
             xhr.open("POST", "/master/vehicles/certificate/extract");
+            xhr.timeout = 900000;
+            xhr.ontimeout = () => reject(new Error("読み取りが時間切れになりました。再試行するか、キャンセルして元の画面へ戻れます。"));
+            xhr.onabort = () => reject(new Error("読み取りをキャンセルしました。"));
             xhr.setRequestHeader("Accept", "application/json");
 
             xhr.upload.addEventListener("progress", event => {
@@ -665,13 +687,18 @@
 
             applyResult(result);
 
-            try {
-                await showOriginal(file);
-            } catch (previewError) {
-                showError(
-                    "AI読取は完了しましたが、原本の表示に失敗しました。"
-                );
-            }
+            // Original rendering must not hold the completed extraction controls locked.
+            const previewTask = showOriginal(file);
+            const generation = previewGeneration;
+            let previewTimeout;
+            const deadline = new Promise((_, reject) => {
+                previewTimeout = window.setTimeout(() => reject(new Error("preview timeout")), 20000);
+            });
+            Promise.race([previewTask, deadline]).catch(() => {
+                if (generation === previewGeneration && extractionReady && !errorBox.textContent.trim()) {
+                    showError("AI読取は完了しています。原本を表示できませんでしたが、読取結果の確認・修正やキャンセルはできます。");
+                }
+            }).finally(() => window.clearTimeout(previewTimeout));
         } catch (error) {
             failureMessage =
                 error.message || "通信エラーが発生しました。";
@@ -777,16 +804,41 @@
         update();
     });
 
-    form.addEventListener("submit", event => {
-        if (!input.files.length ||
-            !/\.xlsx$/i.test(input.files[0].name)) {
-            event.preventDefault();
-            update();
-            return;
-        }
-
+    let excelReading = false;
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        if (excelReading) return;
+        if (!input.files.length || !/\.xlsx$/i.test(input.files[0].name)) { update(); return; }
+        const payload = new FormData(form);
+        excelReading = true;
         submit.disabled = true;
+        clear.disabled = true;
+        input.disabled = true;
         submit.textContent = "読み込み中…";
+        try {
+            const response = await fetch(form.action, {method: "POST", body: payload,
+                headers: {"X-DKSS-Final-Submit": "1"}});
+            if (!response.ok) {
+                const data = await response.json().catch(() => null);
+                const message = (data?.errors || []).map(item => item.message).join("\n") || "Excelを読み込めませんでした。選び直すか、キャンセルして元の画面へ戻れます。";
+                status.textContent = message;
+                window.showCommonError?.(message);
+                return;
+            }
+            const data = await response.json();
+            const destination = new URL(data.preview_url, location.href);
+            if (destination.origin !== location.origin || !destination.pathname.startsWith('/master/vehicles/import/review/')) throw new Error('Invalid preview destination');
+            location.assign(destination.href);
+        } catch (_) {
+            status.textContent = "通信が中断しました。ファイルを選び直すか、キャンセルして元の画面へ戻れます。";
+            window.showCommonError?.(status.textContent);
+        } finally {
+            excelReading = false;
+            input.disabled = false;
+            clear.disabled = false;
+            submit.textContent = "読み込んで確認";
+            update();
+        }
     });
 
     update();

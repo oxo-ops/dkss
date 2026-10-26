@@ -128,7 +128,7 @@
     {% set row_key = document.id ~ '_' ~ (loop.index0 + document.get('record_index_offset', 0)) %}
     <div class="form-group">
         <label for="include_{{ row_key }}">
-            <input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("include", true) %}checked{% endif %}>
+            <input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("import_duplicate") %}disabled aria-label="登録済みのため取り込み対象外"{% endif %} {% if record.get("include", true) %}checked{% endif %}>
             この記録を取り込む
         </label>
     </div>
@@ -177,7 +177,7 @@
 {% endfor %}
 
 <div class="form-actions vehicle-filter-actions invoice-submit-actions">
-    <button type="submit" class="btn invoice-primary-action">{{ '訂正を保存' if edit_record is defined else '選択した記録を登録' }}</button>
+    <button type="submit" class="btn invoice-primary-action" {% if import_all_duplicates|default(false) %}disabled{% endif %}>{{ '訂正を保存' if edit_record is defined else '選択した記録を登録' }}</button>
     <span data-invoice-selection-count role="status">チェックした記録をまとめて登録します</span>
 </div>
 </form>

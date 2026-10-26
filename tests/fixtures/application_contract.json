@@ -937,6 +937,17 @@
       ""
     ],
     [
+      "/master/vehicles/import/review/<draft_id>",
+      "vehicle_excel_import_preview",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
       "/master/vehicles/invoice-reviews",
       "vehicle_maintenance_document_reviews",
       [
@@ -1787,6 +1798,16 @@
       ""
     ],
     [
+      "/vehicle/data-import/jobs/<batch_id>/delete",
+      "delete_document_import",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/vehicle/data-import/jobs/<batch_id>/retry",
       "retry_document_import",
       [
@@ -1835,6 +1856,16 @@
         "GET",
         "HEAD",
         "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/import-flow/cancel",
+      "cancel_import_flow",
+      [
+        "OPTIONS",
+        "POST"
       ],
       true,
       ""
@@ -2363,7 +2394,8 @@
         "__inject_headers",
         "redirect_form_errors",
         "add_security_headers",
-        "mark_notification_read_after_target_display"
+        "mark_notification_read_after_target_display",
+        "recover_import_error"
       ]
     },
     "template_context_processors": {
@@ -2373,6 +2405,7 @@
         "inject_master_office_order",
         "inject_notification_count",
         "inject_vehicle_karte_choices",
+        "import_flow_context",
         "driving_context"
       ]
     }

@@ -1,6 +1,6 @@
 """Short HTTP requests for durable document intake and status polling."""
 from collections import OrderedDict
-from flask import current_app, request, session, jsonify, redirect, url_for, render_template
+from flask import current_app, request, session, jsonify, redirect, url_for, render_template, flash
 from werkzeug.exceptions import NotFound
 from . import access, http
 from .models import VehicleDocumentImportDraft as Draft
@@ -68,15 +68,39 @@ def retry_document_import(batch_id):
     return redirect(url_for('document_import_job', batch_id=batch_id), code=303)
 
 
+def delete_document_import(batch_id):
+    own_batch(batch_id)
+    if not queue.delete_receipt(batch_id, session.get('company_code'), session.get('username')):
+        raise NotFound()
+    flash('受付を削除しました。登録済みの車両記録と原本は保持しています。', 'success')
+    return redirect(url_for('vehicle_data_import'), code=303)
+
+
 def recent_imports():
     if not access.require_master_admin():
         return []
     rows = queue.lightweight_query().filter_by(company_code=session.get('company_code'),
-        created_by_username=session.get('username')).order_by(Draft.created_at.desc()).limit(100).all()
+        created_by_username=session.get('username')).filter(Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error'))).order_by(Draft.created_at.desc()).limit(100).all()
     batches = OrderedDict()
     for row in rows:
-        if queue.metadata(row.result_json) or row.status in queue.ACTIVE or row.status == 'preview':
-            batches.setdefault(row.batch_id, row.source_filename)
-    return [{'batch_id':batch_id, 'filename':filename,
-             'url':url_for('document_import_job',batch_id=batch_id)}
-            for batch_id,filename in list(batches.items())[:12]]
+        if row.document_type not in {'maintenance', 'inspection', 'driving_report'} or row.status not in {*queue.ACTIVE, 'preview', 'read_error'}:
+            continue
+        if row.status == 'deleted' or queue.receipt_hidden(row.result_json):
+            continue
+        if queue.metadata(row.result_json) or row.status in (*queue.ACTIVE, 'preview', 'completed', 'skipped'):
+            batches.setdefault(row.batch_id, []).append(row)
+    result = []
+    for batch_id, files in list(batches.items())[:12]:
+        statuses = {row.status for row in files}
+        if statuses.intersection(queue.ACTIVE):
+            state, label = 'reading', '読み取り中'
+        elif 'read_error' in statuses:
+            state, label = 'error', '読み取り失敗'
+        elif 'preview' in statuses:
+            state, label = 'ready', '確認できます'
+        else:
+            state, label = 'completed', '登録済み' if 'completed' in statuses else '確認済み'
+        result.append({'batch_id': batch_id, 'filename': files[0].source_filename,
+            'count': len(files), 'state': state, 'label': label,
+            'url': url_for('document_import_job', batch_id=batch_id)})
+    return result

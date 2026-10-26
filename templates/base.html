@@ -452,13 +452,15 @@
         </nav>
         {% endif %}
 
+        {% include 'import_flow_controls.html' %}
+
         {% block content %}
         {% endblock %}
     </main>
 
 </div>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-viewport-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-sidebar-2') }}">
 <script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-viewport-1') }}"></script>
 <script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-import-actions-2') }}"></script>
 <div id="mentionBox" class="mention-box"></div>

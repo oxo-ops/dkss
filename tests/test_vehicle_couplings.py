@@ -71,6 +71,25 @@ class CouplingTests(unittest.TestCase):
             self.assertIn(peer.plate_number, html)
         self.assertEqual(AuditLog.query.filter_by(action="vehicle_coupling_add").count(), 1)
 
+    def test_hide_unavailable_button_but_keep_existing_links_manageable(self):
+        self.trailer.deleted = True
+        self.trailer2.deleted = True
+        db.session.commit()
+        self.assertFalse(self.context(self.tractor)["visible"])
+        html = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
+        self.assertNotIn('data-coupling-open', html)
+        self.trailer.deleted = False
+        db.session.commit()
+        self.assertTrue(self.context(self.tractor)["visible"])
+        self.add()
+        state = self.context(self.tractor)
+        self.assertTrue(state["visible"])
+        self.assertFalse(state["can_add"])
+        html = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
+        self.assertIn('data-coupling-open', html)
+        self.assertIn('data-coupling-remove', html)
+        self.assertNotIn('class="vc-add-form"', html)
+
     def test_many_to_many_and_duplicate_pair_guard(self):
         self.assertEqual(self.add().status_code, 302)
         self.assertEqual(self.add(second=self.trailer2).status_code, 302)
@@ -133,7 +152,7 @@ class CouplingTests(unittest.TestCase):
         self.app.extensions["dkss"].pop("vehicle_couplings_schema_ready", None)
         response = self.client.get(f"/vehicle/karte/{self.tractor.id}")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('disabled title="登録準備中です"', response.get_data(as_text=True))
+        self.assertNotIn('data-coupling-open', response.get_data(as_text=True))
         self.assertEqual(self.add().status_code, 503)
         from sqlalchemy import inspect
         self.assertFalse(inspect(db.engine).has_table("vehicle_coupling"))

@@ -9,6 +9,9 @@
         <p id="jobSummary" role="status">{{ job.completed }} / {{ job.total }}ファイル処理済み（成功 {{ job.succeeded }}・失敗 {{ job.failed }}）</p>
         <progress id="jobProgress" max="{{ job.total }}" value="{{ job.completed }}" style="width:100%" aria-label="読み取りの完了状況"></progress>
         <ul id="jobFiles">{% for file in job.files %}<li>{{ file.filename }} — {{ {'queued':'順番待ち','reading':'読み取り中','preview':'確認できます','read_error':'読み取り失敗','completed':'登録済み','skipped':'確認済み'}.get(file.status, '処理中') }}{% if file.message %}：{{ file.message }}{% endif %}</li>{% endfor %}</ul>
+        {% for file in job.files %}{% if file.ignored_files %}
+        <div class="help-text" role="status">登録済みの資料は読み取り対象から外しました：{{ file.ignored_files|join('、') }}。未登録の資料だけ処理しています。</div>
+        {% endif %}{% endfor %}
         <p id="jobConnection" role="status"></p>
         <div class="import-form-actions">
             <a class="btn btn-outline" href="{{ url_for('vehicle_data_import') }}">別の資料を取り込む</a>

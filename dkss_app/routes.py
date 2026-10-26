@@ -284,6 +284,7 @@ def register_core_routes(app):
     app.add_url_rule('/vehicle/data-import/jobs/<batch_id>', 'document_import_job', document_import_routes.document_import_job)
     app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/status', 'document_import_status', document_import_routes.document_import_status)
     app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/retry', 'retry_document_import', document_import_routes.retry_document_import, methods=['POST'])
+    app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/delete', 'delete_document_import', document_import_routes.delete_document_import, methods=['POST'])
     view = vehicle_imports.vehicle_data_import_progress
     view = app.route("/vehicle/data-import/progress", methods=["POST"])(view)
     view = vehicle_imports.vehicle_data_import
@@ -577,3 +578,6 @@ def register_core_routes(app):
     view = checklists.reject_checklist_result
     view = limiter.limit("20 per minute")(view)
     view = app.route("/safety/checklist-results/<int:result_index>/reject", methods=["POST"])(view)
+
+    from .import_flow import register_import_flow
+    register_import_flow(app)

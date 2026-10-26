@@ -43,6 +43,35 @@ def result(job):
     return encode({'ocr_job': job})
 
 
+def receipt_hidden(value):
+    try:
+        data = json.loads(value or '{}')
+        return isinstance(data, dict) and data.get('receipt_hidden') is True
+    except (TypeError, ValueError):
+        return False
+
+
+def delete_receipt(batch_id, company_code, username):
+    """Cancel unfinished intake; retain originals used by registered records."""
+    rows = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
+        created_by_username=username).order_by(Draft.id).with_for_update().all()
+    if not rows or all(receipt_hidden(row.result_json) for row in rows):
+        db.session.rollback()
+        return False
+    for row in rows:
+        data = json.loads(row.result_json or '{}')
+        data['receipt_hidden'] = True
+        if row.status in (*ACTIVE, 'processing', 'preview', 'read_error'):
+            # Tombstones fence running workers and keep the upload key idempotent.
+            row.status = 'deleted'
+            row.source_file = b''
+            row.preview_json = '{}'
+            data = {'receipt_hidden': True, 'deleted': True, 'at': now().isoformat()}
+        row.result_json = encode(data)
+    db.session.commit()
+    return True
+
+
 def lightweight_query():
     return Draft.query.options(load_only(Draft.id, Draft.batch_id, Draft.company_code,
         Draft.created_by_username, Draft.document_type, Draft.source_filename,
@@ -75,6 +104,9 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
     if pending + len(files) > 100:
         raise ImportQueueError('受付済みの資料を処理中です。完了後に追加してください。', 409)
     total = 0
+    accepted = 0
+    ignored = []
+    from .import_flow import completed_document
     try:
         for position, file in enumerate(files):
             filename = os.path.basename(file.filename.replace('\\', '/'))
@@ -90,6 +122,12 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
             total += len(source)
             if total > MAX_BATCH_BYTES:
                 raise ImportQueueError('1回の合計容量は200MB以下にしてください。', 413)
+            digest = hashlib.sha256(source).hexdigest()
+            if completed_document(company_code, document_type, digest):
+                ignored.append(filename)
+                del source
+                continue
+            accepted += 1
             row = Draft(id=str(uuid5(UUID(batch_id), company_code + ':' + username + ':' + str(position))), batch_id=batch_id, company_code=company_code,
                 created_by_username=username, document_type=document_type, source_filename=filename,
                 source_file=source, source_sha256=hashlib.sha256(source).hexdigest(), status='queued',
@@ -99,6 +137,14 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
             db.session.flush()
             db.session.expunge(row)
             del row, source
+        if not accepted:
+            raise ImportQueueError('選択した資料は、同じ会社ですでに登録済みです。他の利用者による登録も含みます。同じ資料の再登録は不要です。', 409)
+        if ignored:
+            first = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
+                created_by_username=username).first()
+            data = metadata(first.result_json)
+            data['ignored_files'] = ignored
+            first.result_json = result(data)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -218,7 +264,10 @@ def process_one(app):
             db.session.remove()
             return False
         draft_id, token = claimed
-        row = Draft.query.filter_by(id=draft_id).first()
+        row = Draft.query.filter_by(id=draft_id, status='reading').first()
+        if not row or metadata(row.result_json).get('token') != token:
+            db.session.remove()
+            return True
         company = Company.query.filter_by(company_code=row.company_code, active=True).first()
         user = User.query.filter_by(company_code=row.company_code, username=row.created_by_username).first()
         allowed = company is not None and user is not None and user.role in {'admin','itc'}
@@ -283,6 +332,7 @@ def process_one(app):
 def batch_status(batch_id, company_code, username):
     rows = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
                                           created_by_username=username).all()
+    rows = [row for row in rows if not receipt_hidden(row.result_json)]
     if not rows:
         return None
     rows.sort(key=lambda row:(metadata(row.result_json).get('position',0),row.id))
@@ -291,7 +341,7 @@ def batch_status(batch_id, company_code, username):
         job = metadata(row.result_json)
         entries.append({'id':row.id, 'filename':row.source_filename, 'status':row.status,
             'phase':job.get('phase',row.status), 'message':job.get('message',''),
-            'received_lines':job.get('received_lines',0)})
+            'received_lines':job.get('received_lines',0), 'ignored_files':job.get('ignored_files', [])})
     succeeded = sum(row.status in {'preview','completed','skipped'} for row in rows)
     failed = sum(row.status == 'read_error' for row in rows)
     active = sum(row.status in ACTIVE for row in rows)

@@ -2,7 +2,7 @@
 import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from flask import abort, current_app, flash, redirect, request, session, url_for
 from sqlalchemy import inspect, or_
@@ -97,10 +97,10 @@ def coupling_context(vehicle, vehicles):
                 candidates.append({"id": peer.id, "label": label(peer), "office": peer.office or "",
                                    "type": peer.type or peer.body_type or "", "chassis": peer.chassis_number or ""})
         candidates.sort(key=lambda item: (item["office"] != vehicle.office, item["office"], item["label"], item["id"]))
-    return {"visible": bool(role or links), "ready": ready, "links": links,
-            "can_edit": require_master_admin(), "can_add": bool(role and not vehicle.deleted and ready),
+    return {"visible": bool(candidates or links), "ready": ready, "links": links,
+            "can_edit": require_master_admin(), "can_add": bool(candidates),
             "candidates": candidates, "role": role,
-            "button_label": "フルトレーラーを紐づけ" if role == "truck" else "連結車両を紐づけ"}
+            "button_label": "連結車両を設定"}
 
 
 def current_vehicle(vehicle_record_id):
@@ -129,8 +129,15 @@ def coupling_return_url(vehicle):
             "vehicle_karte_parts", "vehicle_karte_costs", "vehicle_karte_documents", "vehicle_karte_analysis",
         }:
             raise ValueError("different vehicle page")
-        query_args = dict(parse_qsl(target.query, keep_blank_values=True))
-        return url_for(endpoint, **args, **query_args)
+        base_url = url_for(endpoint, **args)
+        if not target.query:
+            return base_url
+        query_pairs = parse_qsl(target.query, keep_blank_values=True, strict_parsing=True)
+        if len({k for k, _ in query_pairs}) != len(query_pairs):
+            raise ValueError("duplicate query keys")
+        if any(k in {"vehicle_record_id"} for k, _ in query_pairs):
+            raise ValueError("forbidden query key")
+        return base_url + "?" + urlencode(query_pairs, doseq=True)
     except (ValueError, HTTPException):
         return url_for("vehicle_karte", vehicle_record_id=vehicle.id)
 
@@ -159,7 +166,7 @@ def add_coupling(vehicle_record_id):
     except IntegrityError:
         db.session.rollback()
         abort(409, description="この組合せは既に登録されています。画面を更新してください。")
-    flash("連結車両を紐づけました。", "success")
+    flash("連結車両を追加しました。", "success")
     return redirect(coupling_return_url(vehicle))
 
 

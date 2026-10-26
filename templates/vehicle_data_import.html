@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}資料・データ取込{% endblock %}
 {% block content %}
-<div class="vehicle-registration-page vehicle-data-import">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_data_import.css', v='20261026-spacing-2') }}">
+<div class="vehicle-registration-page vehicle-data-import import-workspace">
     <nav class="vehicle-registration-breadcrumb" aria-label="現在の位置">
         <a href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a>
         <span aria-hidden="true">›</span>
@@ -46,7 +47,7 @@
                 <h3 id="import-title-{{ kind }}">{{ title }}</h3>
             </div>
             <p class="vehicle-registration-method-lead">{{ lead }}</p>
-            <p class="vehicle-registration-method-description">{{ description }}</p>
+
             {% if kind in ['operation', 'maintenance', 'inspection', 'driving_report'] %}
             <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'enqueue_documents') }}" enctype="multipart/form-data" class="import-form" {% if kind != 'operation' %}data-import-queue="1"{% endif %} novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -65,8 +66,8 @@
                 <ul class="import-file-list" hidden></ul>
                 <p class="import-error" id="import-error-{{ kind }}" role="alert" hidden></p>
                 <div class="import-actions">
-                    <button type="button" class="btn btn-outline import-clear" hidden>選択をクリア</button>
-                    <button type="submit" class="btn btn-outline">読み込んで確認</button>
+                    <button type="button" class="btn btn-outline import-clear" disabled>削除</button>
+                    <button type="submit" class="btn btn-outline import-read">読み込む</button>
                 </div>
             </form>
             {% else %}
@@ -78,18 +79,31 @@
         </section>
         {% endfor %}
     </div>
-    {% if recent_imports %}
-    <div class="card vehicle-search-card">
-        <h3>受付済みの資料</h3>
-        <ul>{% for item in recent_imports %}<li><a href="{{ item.url }}">{{ item.filename }} — 取込状況・確認結果</a></li>{% endfor %}</ul>
-    </div>
-    {% endif %}
-    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-queue-1') }}"></script>
-    <div class="import-note">
-        <p><strong>取り込みについて</strong></p>
+    <section class="import-receipts" aria-labelledby="import-receipts-title">
+        <div class="import-receipts-heading"><h3 id="import-receipts-title">受付済みの資料</h3><span>{{ recent_imports|length }}件</span></div>
+        <ul class="import-receipt-list">
+            {% for item in recent_imports %}
+            <li class="import-receipt-row">
+                <div class="import-receipt-name" title="{{ item.filename }}">{{ item.filename }}{% if item.count > 1 %}<small>ほか{{ item.count - 1 }}件</small>{% endif %}</div>
+                <span class="import-receipt-state" data-state="{{ item.state }}">{{ item.label }}</span>
+                <div class="import-receipt-actions">
+                    <a class="import-receipt-read" href="{{ item.url }}?open=1" aria-label="{{ item.filename }}を読み込む">読み込む</a>
+                    <form method="post" action="{{ url_for('delete_document_import', batch_id=item.batch_id) }}" class="import-receipt-delete-form" data-filename="{{ item.filename }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="import-receipt-delete" aria-label="{{ item.filename }}を削除">削除</button>
+                    </form>
+                </div>
+            </li>
+            {% else %}<li class="import-receipt-empty">受付済みの資料はありません。</li>{% endfor %}
+        </ul>
+    </section>
+    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-spacing-2') }}"></script>
+    <details class="import-note">
+        <summary>取り込みについて・ファイルの上限</summary>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>
+        <p>AIによる読み取りには、1ファイルあたり数分かかる場合があります。</p>
         <p>送信完了後はこの画面を閉じられます。受付済みの資料から状況・結果を確認できます。</p>
-        <p>ファイルを追加しただけでは登録されません。「読み込んで確認」から、対象車両と内容を確認して反映します。</p>
-    </div>
+        <p>ファイルを追加しただけでは登録されません。「読み込む」から、対象車両と内容を確認して反映します。</p>
+    </details>
 </div>
 {% endblock %}
