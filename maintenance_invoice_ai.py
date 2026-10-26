@@ -416,6 +416,12 @@ def extract_vehicle_document(pdf_bytes, filename, progress_callback=None, *,
         "store": False,
         "stream": progress_callback is not None,
     }
+    try:
+        timeout_seconds = int(os.environ.get("DOCUMENT_AI_TIMEOUT_SECONDS", "600"))
+        if not 30 <= timeout_seconds <= 1800:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise ValueError("DOCUMENT_AI_TIMEOUT_INVALID") from None
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses",
         data=json.dumps(payload).encode("utf-8"),
@@ -423,7 +429,7 @@ def extract_vehicle_document(pdf_bytes, filename, progress_callback=None, *,
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=240) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             result = (
                 _read_maintenance_stream(response, progress_callback)
                 if progress_callback is not None

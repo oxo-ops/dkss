@@ -1766,6 +1766,48 @@
       ""
     ],
     [
+      "/vehicle/data-import/jobs",
+      "enqueue_documents",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/data-import/jobs/<batch_id>",
+      "document_import_job",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/data-import/jobs/<batch_id>/retry",
+      "retry_document_import",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/data-import/jobs/<batch_id>/status",
+      "document_import_status",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
       "/vehicle/data-import/progress",
       "vehicle_data_import_progress",
       [

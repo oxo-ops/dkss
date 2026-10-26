@@ -48,7 +48,7 @@
             <p class="vehicle-registration-method-lead">{{ lead }}</p>
             <p class="vehicle-registration-method-description">{{ description }}</p>
             {% if kind in ['operation', 'maintenance', 'inspection', 'driving_report'] %}
-            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'vehicle_data_import') }}" enctype="multipart/form-data" class="import-form" novalidate>
+            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'enqueue_documents') }}" enctype="multipart/form-data" class="import-form" {% if kind != 'operation' %}data-import-queue="1"{% endif %} novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if kind != 'operation' %}
                 <input type="hidden" name="document_type" value="{{ kind }}">
@@ -56,7 +56,7 @@
                 <label class="import-dropzone" for="import-file-{{ kind }}">
                     <span class="import-drop-copy">
                         <strong>{{ 'CSV' if kind == 'operation' else 'PDF・画像' }}をここにドロップ</strong>
-                        <small id="import-help-{{ kind }}">{{ 'PDF・PNG・JPEG／1ファイル20MBまで・最大50ファイル' if kind in ['maintenance', 'inspection', 'driving_report'] else formats }}</small>
+                        <small id="import-help-{{ kind }}">{{ 'PDF・PNG・JPEG／1ファイル20MBまで・最大50ファイル・合計200MBまで' if kind in ['maintenance', 'inspection', 'driving_report'] else formats }}</small>
                     </span>
                     <span class="import-pick-button">ファイルを選ぶ</span>
                     <input type="file" id="import-file-{{ kind }}" name="{{ 'csv_file' if kind == 'operation' else 'document_files' }}" accept="{{ accept }}" aria-label="{{ title }}のファイルを選択" aria-describedby="import-help-{{ kind }} import-status-{{ kind }} import-error-{{ kind }}" {% if kind != 'operation' %}multiple{% endif %} required>
@@ -78,9 +78,17 @@
         </section>
         {% endfor %}
     </div>
+    {% if recent_imports %}
+    <div class="card vehicle-search-card">
+        <h3>受付済みの資料</h3>
+        <ul>{% for item in recent_imports %}<li><a href="{{ item.url }}">{{ item.filename }} — 取込状況・確認結果</a></li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-queue-1') }}"></script>
     <div class="import-note">
         <p><strong>取り込みについて</strong></p>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>
+        <p>送信完了後はこの画面を閉じられます。受付済みの資料から状況・結果を確認できます。</p>
         <p>ファイルを追加しただけでは登録されません。「読み込んで確認」から、対象車両と内容を確認して反映します。</p>
     </div>
 </div>
