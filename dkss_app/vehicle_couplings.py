@@ -2,7 +2,7 @@
 import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from flask import abort, current_app, flash, redirect, request, session, url_for
 from sqlalchemy import inspect, or_
@@ -129,7 +129,8 @@ def coupling_return_url(vehicle):
             "vehicle_karte_parts", "vehicle_karte_costs", "vehicle_karte_documents", "vehicle_karte_analysis",
         }:
             raise ValueError("different vehicle page")
-        return target.path + ("?" + target.query if target.query else "")
+        query_args = dict(parse_qsl(target.query, keep_blank_values=True))
+        return url_for(endpoint, **args, **query_args)
     except (ValueError, HTTPException):
         return url_for("vehicle_karte", vehicle_record_id=vehicle.id)
 
