@@ -30,7 +30,8 @@ class InspectionPlanExcelTests(unittest.TestCase):
         wb=self.workbook(self.export())
         self.assertEqual(wb.sheetnames,['年間点検計画','点検明細'])
         ws=wb.worksheets[0]
-        self.assertEqual([ws.cell(4,c).value for c in range(3,15)],['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'])
+        self.assertEqual([ws.cell(4,c).value.month for c in range(3,15)],[4,5,6,7,8,9,10,11,12,1,2,3])
+        self.assertEqual(ws['N4'].value.year,2027)
         self.assertTrue(all(ws.cell(4,c).alignment.horizontal=='center' for c in range(3,15)))
         self.assertEqual(ws.auto_filter.ref,'A4:N5')
         self.assertEqual([(f.colId,f.hiddenButton,f.showButton) for f in ws.auto_filter.filterColumn],[(i,True,False) for i in range(2,14)])
