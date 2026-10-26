@@ -255,7 +255,7 @@ def build_vehicle_karte_documents_context(vehicle, documents):
         ("inspection_12", "12か月点検"),
         ("inspection", "点検記録"),
         ("driving_report", "安全運転日報"),
-        ("inspection_ad_hoc", "突発点検"),
+        ("inspection_ad_hoc", "突発修理"),
         ("photo", "写真"),
         ("operation_csv", "運行実績CSV"),
         ("other", "その他"),
@@ -973,7 +973,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
         entries.append({
             "key": f"periodic:{record.id}",
             "date": normalize_date(record.inspection_date),
-            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発点検"}.get(
+            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(
                 record.inspection_type, "定期点検"
             ),
             "content": record.content or "定期点検記録",
@@ -997,7 +997,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
     for change, plan in plan_events:
         snapshot = _dkss_serialization.safe_json_dict(change.detail_json)
         after = snapshot.get("after") or {}
-        kind_label = {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発点検"}.get(plan.kind, "点検")
+        kind_label = {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(plan.kind, "点検")
         action_label = {"cancelled": "取消", "completed": "実施記録と連動", "completed_manual": "実施先行登録", "document_attached": "点検簿を関連付け", "created_from_document": "点検簿から作成"}.get(change.action, "登録・変更")
         entries.append({
             "key": f"inspection-plan:{change.id}",
@@ -1013,7 +1013,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
     for execution in _dkss_runtime.app.extensions["dkss"]['inspection_plans'].manual_records(company_code, vehicle_record_id):
         entries.append({
             "key": f"inspection-execution:{execution.id}", "date": execution.performed_date,
-            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発点検"}.get(execution.kind, "点検"),
+            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(execution.kind, "点検"),
             "content": "点検実施（書類未受領） / " + (execution.factory or "実施先未登録") + (" / " + execution.note if execution.note else ""),
             "files": [], "mileage": None, "cost": None, "status": "実施済み・書類未受領",
             "actor": execution.created_by,

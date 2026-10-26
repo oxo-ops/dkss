@@ -158,7 +158,7 @@
             <option value="">選択してください</option>
             <option value="3month" {% if record.get("inspection_type") == "3month" %}selected{% endif %}>3か月点検</option>
             <option value="12month" {% if record.get("inspection_type") == "12month" %}selected{% endif %}>12か月点検</option>
-            <option value="ad_hoc" {% if record.get("inspection_type") == "ad_hoc" %}selected{% endif %}>突発点検</option>
+            <option value="ad_hoc" {% if record.get("inspection_type") == "ad_hoc" %}selected{% endif %}>突発修理</option>
             <option value="other" {% if record.get("inspection_type") == "other" %}selected{% endif %}>その他の点検</option>
         </select>
     </div>
@@ -182,6 +182,6 @@
 </div>
 </form>
 </div>
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261026-responsive-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261026-ad-hoc-repair-1') }}" defer></script>
 <script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261026-portrait-review-1') }}"></script>
 {% endblock %}

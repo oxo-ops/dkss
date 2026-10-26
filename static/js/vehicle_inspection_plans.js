@@ -9,7 +9,7 @@
     const executionForm = panel.querySelector('#inspection-execution-form');
     let executionInitial = '', editorSequence = 0;
     const states = {unreserved:'未予約', reserved:'予約済み', awaiting:'実施確認待ち', completed:'実施済み', candidate:'予定未登録'};
-    const labels = { '3month': '3か月点検', '12month': '12か月点検', ad_hoc: '突発点検' };
+    const labels = { '3month': '3か月点検', '12month': '12か月点検', ad_hoc: '突発修理' };
     const sourceLabels = { expiry: '12か月点検期限からの候補', manual: '手動で登録した予定', document: '点検簿の次回記載から反映', calculated: '周期から自動算出した候補' };
     let batchTargets = null;
     let current = null, vehicle = null, initial = '', pending = null, data = null, selected = new Set();
@@ -251,7 +251,7 @@
         }
         return result.sort((a,b)=>a.day.localeCompare(b.day)||a.p.vehicle_record_id-b.p.vehicle_record_id||a.type.localeCompare(b.type));
     }
-    const shortKinds={'3month':'3か月','12month':'12か月',ad_hoc:'突発'};
+    const shortKinds={'3month':'3か月','12month':'12か月',ad_hoc:'突発修理'};
     const stateMarks={unreserved:'○',reserved:'●',awaiting:'!',completed:'✓',candidate:'＋'};
     function deadlineState(p) {
         if(!p.expiry_date||p.status==='completed')return '';

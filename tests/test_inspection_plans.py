@@ -432,8 +432,8 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertFalse(any(r['kind'] == 'ad_hoc' for r in data['missing']))
         html = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections?inspection_view=ad_hoc').get_data(as_text=True)
         self.assertIn('id="manual-execution-', html)
-        self.assertIn('突発点検', html)
-        self.assertNotIn('突発点検点検', html)
+        self.assertIn('突発修理', html)
+        self.assertNotIn('突発修理点検', html)
 
     def test_ad_hoc_ocr_import_preserves_history_without_creating_next_plan(self):
         from test_inspection_document_ai import extraction, pdf_bytes
@@ -493,7 +493,7 @@ class InspectionPlanTests(unittest.TestCase):
         for kind in ('3month', '12month', 'ad_hoc'):
             self.assertIn('data-kind="' + kind + '"', html)
             self.assertIn('<option value="' + kind + '">', html)
-        self.assertIn('突発点検', html)
+        self.assertIn('突発修理', html)
 
 
 del _Workflow

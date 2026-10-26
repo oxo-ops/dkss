@@ -262,7 +262,7 @@ def build_overview(g, vehicle):
                 if record:
                     doc.update(related_url=url_for('vehicle_karte_inspections', vehicle_record_id=vid, inspection_view={'3month': '3month', '12month': '12month', 'vehicle_inspection': '12month', 'ad_hoc': 'ad_hoc'}.get(record.inspection_type, 'all'), start_date=record.inspection_date, end_date=record.inspection_date) + f'#periodic-record-{record.id}',
                                related_label=record.content or '点検記録', business_date=record.inspection_date, date_kind='実施日',
-                               kind_label={'3month': '3か月点検', '12month': '12か月点検', 'vehicle_inspection': '12か月点検', 'ad_hoc': '突発点検'}.get(record.inspection_type, '定期点検'))
+                               kind_label={'3month': '3か月点検', '12month': '12か月点検', 'vehicle_inspection': '12か月点検', 'ad_hoc': '突発修理'}.get(record.inspection_type, '定期点検'))
                     break
         business.append(doc)
     # Group only the same documented exchange event; no inferred service life.
@@ -275,7 +275,7 @@ def build_overview(g, vehicle):
     plans = g['inspection_plans'].summary(code, vid)
     executions = g['inspection_plans'].latest(code, vid)
     appointments = []
-    for kind, label in [('3month', '3か月点検'), ('12month', '12か月点検'), ('ad_hoc', '突発点検')]:
+    for kind, label in [('3month', '3か月点検'), ('12month', '12か月点検'), ('ad_hoc', '突発修理')]:
         plan = plans.get(kind) or {}
         reserved = day(plan.get('reservation_date'))
         month = str(plan.get('planned_month') or '')
