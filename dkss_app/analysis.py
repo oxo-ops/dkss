@@ -1,3 +1,5 @@
+from . import access as _dkss_access
+from . import vehicle_operations as _dkss_vehicle_operations
 """Analysis responsibilities; routes are registered by the application factory."""
 from . import analysis_feedback as _dkss_analysis_feedback, checklists as _dkss_checklists, common as _dkss_common, knowledge as _dkss_knowledge, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
 
@@ -194,6 +196,7 @@ def get_vehicle_karte_analysis_job_data(vehicle):
         maintenance=_dkss_models.VehicleMaintenanceRecord, operations=_dkss_models.VehicleOperationRecord,
         parts=_dkss_models.VehiclePartReplacement, defects=_dkss_models.VehiclePatrol,
         periodic=_dkss_models.VehiclePeriodicInspectionRecord,
+        canonical_operations=_dkss_vehicle_operations.get_vehicle_canonical_operations,
     )
     return _dkss_common.VehicleAnalysisInputService(
         repository=repository, build_summary=build_vehicle_karte_analysis_summary,
@@ -1666,1015 +1669,328 @@ def build_vehicle_karte_preventive_facts(vehicle, summary, records):
 
 
 
-def build_vehicle_karte_analysis_payload(
-    vehicle, summary, comparison, maintenance, parts, defects,
-):
-    maintenance, parts = list(maintenance), list(parts)
-    original_source_ids = {f"maintenance:{row.id}" for row in maintenance} | {f"part:{row.id}" for row in parts}
+def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenance, parts, defects):
+    maintenance, parts = (list(maintenance), list(parts))
+    original_source_ids = {f'maintenance:{row.id}' for row in maintenance} | {f'part:{row.id}' for row in parts}
     maintenance, parts, synthetic_exclusions = filter_vehicle_maintenance_factual_history(maintenance, parts)
-    # Preserve audit evidence from the summary if a caller already filtered its rows.
-    source_exclusions = {
-        (item["company_code"], item["vehicle_record_id"], item["source_id"]): item
-        for item in list(summary.get("source_exclusions", [])) + synthetic_exclusions
-    }
-    excluded_source_ids = original_source_ids - ({f"maintenance:{row.id}" for row in maintenance} | {f"part:{row.id}" for row in parts})
-    excluded_source_ids.update(item["source_id"] for item in source_exclusions.values())
+    source_exclusions = {(item['company_code'], item['vehicle_record_id'], item['source_id']): item for item in list(summary.get('source_exclusions', [])) + synthetic_exclusions}
+    excluded_source_ids = original_source_ids - ({f'maintenance:{row.id}' for row in maintenance} | {f'part:{row.id}' for row in parts})
+    excluded_source_ids.update((item['source_id'] for item in source_exclusions.values()))
     allowed_maintenance_ids = {row.id for row in maintenance}
     records = []
     sources = {}
-    inspection_links = _dkss_models.VehicleMaintenanceInspectionLink.query.filter_by(
-        company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
-    ).order_by(
-        _dkss_models.VehicleMaintenanceInspectionLink.maintenance_record_id,
-        _dkss_models.VehicleMaintenanceInspectionLink.inspection_result_id,
-        _dkss_models.VehicleMaintenanceInspectionLink.defect_no,
-    ).all()
+    inspection_links = _dkss_models.VehicleMaintenanceInspectionLink.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).order_by(_dkss_models.VehicleMaintenanceInspectionLink.maintenance_record_id, _dkss_models.VehicleMaintenanceInspectionLink.inspection_result_id, _dkss_models.VehicleMaintenanceInspectionLink.defect_no).all()
     links_by_maintenance = {}
     links_by_defect = {}
     for link in inspection_links:
         if link.maintenance_record_id not in allowed_maintenance_ids:
             continue
-        links_by_maintenance.setdefault(link.maintenance_record_id, []).append({
-            "source_id": f"inspection:{link.inspection_result_id}",
-            "defect_no": link.defect_no,
-        })
-        links_by_defect.setdefault((link.inspection_result_id, link.defect_no), []).append(
-            f"maintenance:{link.maintenance_record_id}"
-        )
+        links_by_maintenance.setdefault(link.maintenance_record_id, []).append({'source_id': f'inspection:{link.inspection_result_id}', 'defect_no': link.defect_no})
+        links_by_defect.setdefault((link.inspection_result_id, link.defect_no), []).append(f'maintenance:{link.maintenance_record_id}')
 
     def short(value, limit=400):
-        return str(value or "").strip()[:limit]
+        return str(value or '').strip()[:limit]
 
     def add(kind, row, date_value, values, link):
         date_text = short(date_value, 10)
-
         if date_text:
             try:
-                date_value = _dkss_common.datetime.strptime(
-                    date_text, "%Y-%m-%d"
-                ).date()
+                date_value = _dkss_common.datetime.strptime(date_text, '%Y-%m-%d').date()
             except ValueError:
-                date_text = ""
+                date_text = ''
             else:
-                if date_value.isoformat() > summary["end_date"]:
+                if date_value.isoformat() > summary['end_date']:
                     return
-
-        source_id = f"{kind}:{row.id}"
-        records.append({
-            "source_id": source_id,
-            "date": date_text or None,
-            **values,
-        })
-        sources[source_id] = {
-            "label": (
-                f"{date_text or '日付未登録'} "
-                f"{values['type']}："
-                f"{short(values.get('content'), 80)}"
-            ),
-            "url": link,
-        }
-        if kind in {"part", "periodic"}:
-            sources[source_id]["snapshot"] = records[-1]
-
+        source_id = f'{kind}:{row.id}'
+        records.append({'source_id': source_id, 'date': date_text or None, **values})
+        sources[source_id] = {'label': f"{date_text or '日付未登録'} {values['type']}：{short(values.get('content'), 80)}", 'url': link}
+        if kind in {'part', 'periodic'}:
+            sources[source_id]['snapshot'] = records[-1]
+    from driving_report_data import payload as driving_payload, match_report as match_driving_report, identity as driving_identity
+    driving_seen = set()
+    driving_operations = _dkss_models.VehicleOperationRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
+    for report in _dkss_models.VehicleDrivingReportRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all():
+        data = driving_payload(report)
+        if data.get('lifecycle') in {'cancelled', 'superseded'} or not report.operation_date or report.operation_date > summary['end_date']:
+            continue
+        key = driving_identity(report)
+        if key in driving_seen:
+            continue
+        driving_seen.add(key)
+        match = match_driving_report(report, driving_operations)
+        add('driving_report', report, report.operation_date, {'type': '安全運転日報', 'content': report.content or '日報', 'record_scope': data.get('report_scope') or 'trip', 'source_system': data.get('source_system'), 'definition_version': data.get('definition_version'), 'confirmation': data.get('import_confirmation'), 'source_pages': data.get('source_pages', []), 'operation_reconciliation': match['status'], 'distance': data.get('distance'), 'mileage': data.get('mileage'), 'usage': {k: data.get(k) for k in ('driving_time', 'handling_time', 'idle_time', 'rest_time', 'work_time', 'fuel_consumption', 'fuel_unit', 'fuel_economy', 'fuel_economy_unit')}, 'report_items': data.get('report_items', []), 'events': data.get('events', []), 'duties': data.get('duties', []), 'extra_items': data.get('extra_items', []), 'comments': {k: data.get(k) for k in ('driver_comment', 'manager_comment', 'notes')}, 'review': data.get('review'), 'evidence_scope': '原本の記載と人の確認。事故確率・故障原因・過失・運行可否の確定ではない。定義・単位・版が不明な指標は比較不能。CSVとの未解決の値は距離計算に使わない。'}, _dkss_common.url_for('driving_report_detail', record_id=report.id))
     for row in maintenance:
-        # ATTACHED_INVOICE_AI_INPUT_V1
         invoice_details = _dkss_serialization.safe_json_dict(row.invoice_details_json)
         invoice_attachment = {}
-        invoice_text = {
-            name: value.strip() if isinstance(value, str) else ""
-            for name, value in (
-                ("content", invoice_details.get("attached_invoice_content")),
-                ("notes", invoice_details.get("attached_invoice_notes")),
-            )
-        }
-        if (
-            isinstance(invoice_details.get("source"), dict)
-            and any(invoice_text.values())
-        ):
-            invoice_attachment["attached_invoice"] = {
-                **invoice_text,
-                "source": {
-                    key: invoice_details["source"].get(key)
-                    for key in ("sha256", "pages", "record_index")
-                },
-                "evidence_scope": (
-                    "Confirmed invoice text attached to this maintenance record. "
-                    "It does not independently confirm repair completion "
-                    "or inspection defect resolution."
-                ),
-            }
-        add(
-            "maintenance",
-            row,
-            row.entry_date or row.completion_date,
-            {
-                **invoice_attachment,
-                "inspection_links": links_by_maintenance.get(row.id, []),
-                "type": "整備・修理",
-                "category": short(row.category),
-                "content": str(row.content or "").strip(),
-                "symptom": str(row.symptom or "").strip(),
-                "cause": str(row.cause or "").strip(),
-                "temporary_action": str(
-                    row.temporary_action or ""
-                ).strip(),
-                "repair_content": str(
-                    row.repair_content or ""
-                ).strip(),
-                "notes": str(row.notes or "").strip(),
-                "line_items": _dkss_serialization.safe_json_dict_list(
-                    row.line_items_json
-                ),
-                "status": short(row.status),
-                "completion_date": row.completion_date,
-                "mileage": row.mileage,
-                "total_cost": row.total_cost,
-            },
-            _dkss_common.url_for(
-                "vehicle_karte_maintenance",
-                vehicle_record_id=vehicle.id,
-                record_id=row.id,
-            ),
-        )
-
-    maintenance_map = {
-        row.id: row for row in maintenance
-    }
-
-    part_source_rows = (_dkss_models.VehiclePartReplacementSource.query.filter_by(
-        company_code=vehicle.company_code,
-    ).filter(_dkss_models.VehiclePartReplacementSource.maintenance_record_id.in_(list(maintenance_map))).all()
-        if maintenance_map else [])
+        invoice_text = {name: value.strip() if isinstance(value, str) else '' for name, value in (('content', invoice_details.get('attached_invoice_content')), ('notes', invoice_details.get('attached_invoice_notes')))}
+        if isinstance(invoice_details.get('source'), dict) and any(invoice_text.values()):
+            invoice_attachment['attached_invoice'] = {**invoice_text, 'source': {key: invoice_details['source'].get(key) for key in ('sha256', 'pages', 'record_index')}, 'evidence_scope': 'Confirmed invoice text attached to this maintenance record. It does not independently confirm repair completion or inspection defect resolution.'}
+        add('maintenance', row, row.entry_date or row.completion_date, {**invoice_attachment, 'inspection_links': links_by_maintenance.get(row.id, []), 'type': '整備・修理', 'category': short(row.category), 'content': str(row.content or '').strip(), 'symptom': str(row.symptom or '').strip(), 'cause': str(row.cause or '').strip(), 'temporary_action': str(row.temporary_action or '').strip(), 'repair_content': str(row.repair_content or '').strip(), 'notes': str(row.notes or '').strip(), 'line_items': _dkss_serialization.safe_json_dict_list(row.line_items_json), 'status': short(row.status), 'completion_date': row.completion_date, 'mileage': row.mileage, 'total_cost': row.total_cost}, _dkss_common.url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=row.id))
+    maintenance_map = {row.id: row for row in maintenance}
+    part_source_rows = _dkss_models.VehiclePartReplacementSource.query.filter_by(company_code=vehicle.company_code).filter(_dkss_models.VehiclePartReplacementSource.maintenance_record_id.in_(list(maintenance_map))).all() if maintenance_map else []
     part_source_map = {row.replacement_id: row for row in part_source_rows}
-
     for row in parts:
-        parent = maintenance_map.get(
-            row.maintenance_record_id
-        )
+        parent = maintenance_map.get(row.maintenance_record_id)
         if parent is None:
             continue
-
-        add(
-            "part",
-            row,
-            row.replacement_date,
-            {
-                "replacement_document_evidence": build_vehicle_part_document_evidence(row, parent, part_source_map.get(row.id)),
-                "type": "部品交換",
-                "content": short(row.part_name),
-                "part_number": short(row.part_number),
-                "mileage": row.mileage,
-                "quantity": row.quantity,
-                "notes": short(row.notes),
-                "status": short(parent.status),
-                "completion_date": parent.completion_date,
-            },
-            _dkss_common.url_for(
-                "vehicle_karte_maintenance",
-                vehicle_record_id=vehicle.id,
-                record_id=parent.id,
-            ),
-        )
-
+        add('part', row, row.replacement_date, {'replacement_document_evidence': build_vehicle_part_document_evidence(row, parent, part_source_map.get(row.id)), 'type': '部品交換', 'content': short(row.part_name), 'part_number': short(row.part_number), 'mileage': row.mileage, 'quantity': row.quantity, 'notes': short(row.notes), 'status': short(parent.status), 'completion_date': parent.completion_date}, _dkss_common.url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, record_id=parent.id))
     for row in defects:
-        add(
-            "defect",
-            row,
-            row.occurred_date,
-            {
-                "type": "故障・不具合",
-                "category": short(row.category),
-                "content": short(row.content),
-                "priority": short(row.priority),
-                "cause": short(row.cause),
-                "repair_content": short(row.repair_content),
-                "status": short(row.status),
-                "repair_date": row.repair_date,
-            },
-            _dkss_common.url_for(
-                "vehicle_patrol_detail",
-                index=row.id,
-            ),
-        )
-
-    inspections = _dkss_models.VehicleChecklistResult.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).filter(
-        _dkss_models.VehicleChecklistResult.status.in_({
-            "承認待ち", "承認済み", "点検完了",
-        })
-    ).all()
+        add('defect', row, row.occurred_date, {'type': '故障・不具合', 'category': short(row.category), 'content': short(row.content), 'priority': short(row.priority), 'cause': short(row.cause), 'repair_content': short(row.repair_content), 'status': short(row.status), 'repair_date': row.repair_date}, _dkss_common.url_for('vehicle_patrol_detail', index=row.id))
+    inspections = _dkss_models.VehicleChecklistResult.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).filter(_dkss_models.VehicleChecklistResult.status.in_({'承認待ち', '承認済み', '点検完了'})).all()
 
     def inspection_date(row):
-        text = (
-            f"{row.year}-"
-            f"{str(row.month).zfill(2)}-"
-            f"{str(row.day).zfill(2)}"
-        )
+        text = f'{row.year}-{str(row.month).zfill(2)}-{str(row.day).zfill(2)}'
         try:
-            return _dkss_common.datetime.strptime(
-                text, "%Y-%m-%d"
-            ).date().isoformat()
+            return _dkss_common.datetime.strptime(text, '%Y-%m-%d').date().isoformat()
         except ValueError:
-            return ""
-
-    inspections.sort(
-        key=lambda row: (inspection_date(row), row.id),
-        reverse=True,
-    )
-
+            return ''
+    inspections.sort(key=lambda row: (inspection_date(row), row.id), reverse=True)
     latest_checklists = set()
-
     for row in inspections:
         date_text = inspection_date(row)
-        if date_text and date_text > summary["end_date"]:
+        if date_text and date_text > summary['end_date']:
             continue
-
         answers = _dkss_serialization.safe_json_dict_list(row.answers_json)
-        snapshot = _dkss_serialization.safe_json_dict(
-            row.checklist_snapshot_json
-        )
-        judgment = _dkss_serialization.safe_json_dict(
-            row.operation_judgment_json
-        )
-
-        findings = [
-            {
-                "item_no": answer.get("item_no"),
-                "content": short(answer.get("content")),
-                "value": short(answer.get("value"), 50),
-                "comment": short(answer.get("comment")),
-            }
-            for answer in answers
-            if str(answer.get("value") or "").strip() == "×"
-            or str(answer.get("comment") or "").strip()
-        ]
-
-        attention = (
-            bool(findings)
-            or judgment.get("status") in {
-                "運行不可", "判定保留",
-            }
-        )
-
-        if (
-            not attention
-            and row.checklist_id in latest_checklists
-        ):
+        snapshot = _dkss_serialization.safe_json_dict(row.checklist_snapshot_json)
+        judgment = _dkss_serialization.safe_json_dict(row.operation_judgment_json)
+        findings = [{'item_no': answer.get('item_no'), 'content': short(answer.get('content')), 'value': short(answer.get('value'), 50), 'comment': short(answer.get('comment'))} for answer in answers if str(answer.get('value') or '').strip() == '×' or str(answer.get('comment') or '').strip()]
+        attention = bool(findings) or judgment.get('status') in {'運行不可', '判定保留'}
+        if not attention and row.checklist_id in latest_checklists:
             continue
-
         latest_checklists.add(row.checklist_id)
-
         treatments = []
-        stored_defects = judgment.get("defects") or []
-
-        for defect in (
-            stored_defects
-            if isinstance(stored_defects, list)
-            else []
-        ):
+        stored_defects = judgment.get('defects') or []
+        for defect in stored_defects if isinstance(stored_defects, list) else []:
             if not isinstance(defect, dict):
                 continue
-
-            repair = defect.get("repair") or {}
+            repair = defect.get('repair') or {}
             if not isinstance(repair, dict):
                 repair = {}
-
-            treatments.append({
-                "defect_no": defect.get("defect_no"),
-                "maintenance_source_ids": links_by_defect.get((row.id, defect.get("defect_no")), []),
-                "recheck_result": short((defect.get("recheck") or {}).get("result")),
-                "recheck_date": short((defect.get("recheck") or {}).get("performed_at"), 30),
-                "recheck_note": str((defect.get("recheck") or {}).get("note") or "").strip(),
-                "item_no": defect.get("item_no"),
-                "status": short(defect.get("status")),
-                "repair_note": short(repair.get("note")),
-                "repair_date": short(
-                    repair.get("performed_at"), 30
-                ),
-            })
-
-        add(
-            "inspection",
-            row,
-            date_text,
-            {
-                "type": "日常点検・車両チェックリスト",
-                "content": short(
-                    snapshot.get("name") or "点検結果"
-                ),
-                "status": short(row.status),
-                "has_attention": attention,
-                "answer_count": len(answers),
-                "failure_count": sum(
-                    str(answer.get("value") or "").strip() == "×"
-                    for answer in answers
-                ),
-                "finding_count": len(findings),
-                "findings": findings,
-                "treatments": treatments,
-                "registered_operation_judgment": short(
-                    judgment.get("status")
-                ),
-                "judgment_reason": short(
-                    judgment.get("reason")
-                ),
-            },
-            _dkss_common.url_for(
-                "vehicle_checklist_results",
-                index=row.checklist_id,
-                vehicle_record_id=vehicle.id,
-                year=row.year,
-                month=row.month,
-                active_day=row.day,
-            ),
-        )
-
-    periodic = (
-        _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id,
-        ).all()
-    )
-
+            treatments.append({'defect_no': defect.get('defect_no'), 'maintenance_source_ids': links_by_defect.get((row.id, defect.get('defect_no')), []), 'recheck_result': short((defect.get('recheck') or {}).get('result')), 'recheck_date': short((defect.get('recheck') or {}).get('performed_at'), 30), 'recheck_note': str((defect.get('recheck') or {}).get('note') or '').strip(), 'item_no': defect.get('item_no'), 'status': short(defect.get('status')), 'repair_note': short(repair.get('note')), 'repair_date': short(repair.get('performed_at'), 30)})
+        add('inspection', row, date_text, {'type': '日常点検・車両チェックリスト', 'content': short(snapshot.get('name') or '点検結果'), 'status': short(row.status), 'has_attention': attention, 'answer_count': len(answers), 'failure_count': sum((str(answer.get('value') or '').strip() == '×' for answer in answers)), 'finding_count': len(findings), 'findings': findings, 'treatments': treatments, 'registered_operation_judgment': short(judgment.get('status')), 'judgment_reason': short(judgment.get('reason'))}, _dkss_common.url_for('vehicle_checklist_results', index=row.checklist_id, vehicle_record_id=vehicle.id, year=row.year, month=row.month, active_day=row.day))
+    periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
     for row in periodic:
         excluded_inspection = periodic_inspection_synthetic_evidence(row)
         if excluded_inspection:
-            source_exclusions[(row.company_code, row.vehicle_record_id, excluded_inspection["source_id"])] = excluded_inspection
+            source_exclusions[row.company_code, row.vehicle_record_id, excluded_inspection['source_id']] = excluded_inspection
             continue
-        original_draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-            id=row.source_draft_id, company_code=vehicle.company_code, document_type="inspection",
-        ).first()
+        original_draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=row.source_draft_id, company_code=vehicle.company_code, document_type='inspection').first()
         inspection_details = build_periodic_inspection_ai_details(row, original_draft)
-        add(
-            "periodic",
-            row,
-            row.inspection_date,
-            {
-                **inspection_details,
-                "type": "定期点検",
-                "category": short(row.inspection_type),
-                "content": short(row.content, 2000),
-                "notes": short(
-                    _dkss_serialization.safe_json_dict(row.details_json).get("notes"),
-                    2000,
-                ),
-                "mileage": row.mileage,
-                "completion_date": row.completion_date,
-                "next_inspection_date": (
-                    row.next_inspection_date
-                ),
-            },
-            _dkss_common.url_for(
-                "vehicle_karte_inspections",
-                vehicle_record_id=vehicle.id,
-            ),
-        )
-
-    records.sort(
-        key=lambda item: (
-            item["date"] or "",
-            item["source_id"],
-        ),
-        reverse=True,
-    )
-    fingerprints = get_vehicle_karte_analysis_fingerprints(
-        vehicle,
-        summary,
-        records,
-    )
-    fingerprints["routine_hash"] = _dkss_common.hashlib.sha256(
-        _dkss_common.json.dumps(
-            {
-                "vehicle": fingerprints["routine_hash"],
-                "comparison": comparison,
-            },
-            sort_keys=True,
-            ensure_ascii=False,
-            default=str,
-        ).encode("utf-8")
-    ).hexdigest()
-    preventive_facts = build_vehicle_karte_preventive_facts(
-        vehicle, summary, records,
-    )
-    fact_source_ids = {
-        source_id
-        for fact in preventive_facts["part_replacements"]
-        for source_id in fact["source_ids"]
-    }
-    fact_source_ids.update(
-        ident for fact in preventive_facts.get("inspection_items", []) for ident in fact["source_ids"]
-    )
+        add('periodic', row, row.inspection_date, {**inspection_details, 'type': '定期点検', 'category': short(row.inspection_type), 'content': short(row.content, 2000), 'notes': short(_dkss_serialization.safe_json_dict(row.details_json).get('notes'), 2000), 'mileage': row.mileage, 'completion_date': row.completion_date, 'next_inspection_date': row.next_inspection_date}, _dkss_common.url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id))
+    records.sort(key=lambda item: (item['date'] or '', item['source_id']), reverse=True)
+    fingerprints = get_vehicle_karte_analysis_fingerprints(vehicle, summary, records)
+    fingerprints['routine_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps({'vehicle': fingerprints['routine_hash'], 'comparison': comparison}, sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
+    preventive_facts = build_vehicle_karte_preventive_facts(vehicle, summary, records)
+    fact_source_ids = {source_id for fact in preventive_facts['part_replacements'] for source_id in fact['source_ids']}
+    fact_source_ids.update((ident for fact in preventive_facts.get('inspection_items', []) for ident in fact['source_ids']))
     available_count = len(records)
     latest_parts = {}
     for item in records:
-        if not item["source_id"].startswith("part:") or not item.get("date"):
+        if not item['source_id'].startswith('part:') or not item.get('date'):
             continue
-        if item.get("status") != "完了" and not item.get("completion_date"):
+        if item.get('status') != '完了' and (not item.get('completion_date')):
             continue
-        key = (item.get("content"), item.get("part_number"))
-        latest_parts.setdefault(key, item["date"])
+        key = (item.get('content'), item.get('part_number'))
+        latest_parts.setdefault(key, item['date'])
 
     def important_for_analysis(item):
-        source_id = item["source_id"]
-        if source_id.startswith("maintenance:"):
+        source_id = item['source_id']
+        if source_id.startswith('maintenance:'):
             return True
-        if source_id.startswith("defect:"):
-            return item.get("status") in {"未対応", "対応中"}
-        if source_id.startswith("inspection:"):
-            return bool(item.get("has_attention"))
-        if source_id.startswith("periodic:"):
-            return bool(item.get("content") or item.get("notes") or item.get("inspection_items"))
-        if source_id.startswith("part:"):
-            key = (item.get("content"), item.get("part_number"))
-            return (
-                bool(item.get("date"))
-                and item["date"] == latest_parts.get(key)
-                and (
-                    item.get("status") == "完了"
-                    or bool(item.get("completion_date"))
-                )
-            )
+        if source_id.startswith('defect:'):
+            return item.get('status') in {'未対応', '対応中'}
+        if source_id.startswith('inspection:'):
+            return bool(item.get('has_attention'))
+        if source_id.startswith('periodic:'):
+            return bool(item.get('content') or item.get('notes') or item.get('inspection_items'))
+        if source_id.startswith('part:'):
+            key = (item.get('content'), item.get('part_number'))
+            return bool(item.get('date')) and item['date'] == latest_parts.get(key) and (item.get('status') == '完了' or bool(item.get('completion_date')))
         return False
-
     protected_records = []
     other_records = []
-
     for item in records:
         if important_for_analysis(item):
             protected_records.append(item)
         else:
             other_records.append(item)
-
     protected_count = len(protected_records)
-    records = (
-        protected_records
-        + other_records[:max(0, 80 - protected_count)]
-    )
-
-    selected_ids = {
-        item["source_id"] for item in records
-    }
+    records = protected_records + other_records[:max(0, 80 - protected_count)]
+    selected_ids = {item['source_id'] for item in records}
     evidence_ids = selected_ids | fact_source_ids
-    sources = {
-        key: value
-        for key, value in sources.items()
-        if key in evidence_ids
-    }
-
-    payload = {
-        "vehicle": {
-            "model_code": vehicle.model_code,
-            "engine_code": getattr(vehicle, "engine_code", None),
-            "manufacturer": vehicle.manufacturer,
-            "first_registration_date": (
-                vehicle.first_registration_date
-            ),
-            "body_type": vehicle.body_type or None,
-            "registered_type": vehicle.type or None,
-            "gross_vehicle_weight_kg": vehicle.gross_vehicle_weight,
-            "max_payload_kg": vehicle.max_payload,
-            "attribute_scope_note": (
-                "登録済みの車両台帳情報。空欄は不明。"
-                "初度登録日は製造年月ではない。"
-                "車体形状・登録区分・重量だけで商品系列、"
-                "エンジン、変速機、締結方式、装備、"
-                "実際の使用条件を確定しない。"
-            ),
-        },
-        "source_exclusions": list(source_exclusions.values()),
-        "summary": summary,
-        "comparison": comparison,
-        "preventive_facts": preventive_facts,
-        "records": records,
-        "_fingerprints": fingerprints,
-        "coverage": {
-            "available_count": available_count,
-            "sent_count": len(records),
-            "protected_count": protected_count,
-            "omitted_count": available_count - len(records),
-            "description": (
-                "対象は期間終了日以前の履歴。"
-                "重要履歴は80件の枠で切り捨てず保持。"
-                "通常履歴は合計80件までの残り枠へ追加。"
-                "部品別の交換後距離・期間は履歴選択前に計算。"
-                "計算に使った交換記録の参照先も保持。"
-                "未対応不具合・点検指摘・定期点検内容・"
-                "部品別の直近交換記録を優先。"
-                "同じ優先区分では新しい順。"
-                "日付不明は末尾。"
-                "日常点検の指摘・対応は件数で切り捨てず保持。"
-                "定期点検の内容・備考は各2000文字、"
-                "整備・修理の内容・症状・原因・応急処置・"
-                "修理内容・備考と登録明細は文字数で省略しない。"
-                "整備・修理以外のその他の自由記述は最大400文字。"
-            ),
-        },
-        "status_note": (
-            "状態・修理内容は現在の登録内容。"
-            "指定期間終了時点の状態を復元したものではありません。"
-        ),
-    }
-
-    knowledge, knowledge_sources, knowledge_count = _dkss_knowledge.get_vehicle_maintenance_knowledge(
-        vehicle, records=records,
-    )
+    sources = {key: value for key, value in sources.items() if key in evidence_ids}
+    payload = {'vehicle': {'model_code': vehicle.model_code, 'engine_code': getattr(vehicle, 'engine_code', None), 'manufacturer': vehicle.manufacturer, 'first_registration_date': vehicle.first_registration_date, 'body_type': vehicle.body_type or None, 'registered_type': vehicle.type or None, 'gross_vehicle_weight_kg': vehicle.gross_vehicle_weight, 'max_payload_kg': vehicle.max_payload, 'attribute_scope_note': '登録済みの車両台帳情報。空欄は不明。初度登録日は製造年月ではない。車体形状・登録区分・重量だけで商品系列、エンジン、変速機、締結方式、装備、実際の使用条件を確定しない。'}, 'source_exclusions': list(source_exclusions.values()), 'summary': summary, 'comparison': comparison, 'preventive_facts': preventive_facts, 'records': records, '_fingerprints': fingerprints, 'coverage': {'available_count': available_count, 'sent_count': len(records), 'protected_count': protected_count, 'omitted_count': available_count - len(records), 'description': '対象は期間終了日以前の履歴。重要履歴は80件の枠で切り捨てず保持。通常履歴は合計80件までの残り枠へ追加。部品別の交換後距離・期間は履歴選択前に計算。計算に使った交換記録の参照先も保持。未対応不具合・点検指摘・定期点検内容・部品別の直近交換記録を優先。同じ優先区分では新しい順。日付不明は末尾。日常点検の指摘・対応は件数で切り捨てず保持。定期点検の内容・備考は各2000文字、整備・修理の内容・症状・原因・応急処置・修理内容・備考と登録明細は文字数で省略しない。整備・修理以外のその他の自由記述は最大400文字。'}, 'status_note': '状態・修理内容は現在の登録内容。指定期間終了時点の状態を復元したものではありません。'}
+    knowledge, knowledge_sources, knowledge_count = _dkss_knowledge.get_vehicle_maintenance_knowledge(vehicle, records=records)
     import copy
-
     rule_timing_fingerprint = []
     for knowledge_item in knowledge:
-        evidence = knowledge_item.get("maintenance_rule_evidence") or {}
-        for rule in evidence.get("rules", []):
-            adoption = rule.get("analysis_adoption") or {}
-            if adoption.get("status") != "adopted_for_analysis":
+        evidence = knowledge_item.get('maintenance_rule_evidence') or {}
+        for rule in evidence.get('rules', []):
+            adoption = rule.get('analysis_adoption') or {}
+            if adoption.get('status') != 'adopted_for_analysis':
                 continue
-
-            timing = calculate_adopted_maintenance_rule_timing(
-                rule,
-                knowledge_item.get("part_name"),
-                preventive_facts,
-                summary,
-            )
-            rule["timing_facts"] = timing
-            adoption["calculation_permitted"] = (
-                timing["calculation_permitted"]
-            )
-            adoption["calculation_status"] = (
-                "evaluated"
-                if timing["calculation_permitted"]
-                else "held"
-            )
-            rule_timing_fingerprint.append({
-                "rule_key": adoption.get("rule_key"),
-                "timing_facts": timing,
-            })
-
-        source_id = knowledge_item["source_id"]
+            timing = calculate_adopted_maintenance_rule_timing(rule, knowledge_item.get('part_name'), preventive_facts, summary)
+            rule['timing_facts'] = timing
+            adoption['calculation_permitted'] = timing['calculation_permitted']
+            adoption['calculation_status'] = 'evaluated' if timing['calculation_permitted'] else 'held'
+            rule_timing_fingerprint.append({'rule_key': adoption.get('rule_key'), 'timing_facts': timing})
+        source_id = knowledge_item['source_id']
         if source_id in knowledge_sources:
-            knowledge_sources[source_id]["snapshot"] = knowledge_item
-
+            knowledge_sources[source_id]['snapshot'] = knowledge_item
     knowledge_for_fingerprint = copy.deepcopy(knowledge)
     for knowledge_item in knowledge_for_fingerprint:
-        evidence = knowledge_item.get("maintenance_rule_evidence") or {}
-        for rule in evidence.get("rules", []):
-            rule.pop("timing_facts", None)
-            adoption = rule.get("analysis_adoption")
+        evidence = knowledge_item.get('maintenance_rule_evidence') or {}
+        for rule in evidence.get('rules', []):
+            rule.pop('timing_facts', None)
+            adoption = rule.get('analysis_adoption')
             if isinstance(adoption, dict):
-                adoption.pop("calculation_permitted", None)
-                adoption.pop("calculation_status", None)
-
-    fingerprints["routine_hash"] = _dkss_common.hashlib.sha256(
-        _dkss_common.json.dumps(
-            {
-                "history": fingerprints["routine_hash"],
-                "maintenance_rule_timing": rule_timing_fingerprint,
-            },
-            sort_keys=True,
-            ensure_ascii=False,
-            default=str,
-        ).encode("utf-8")
-    ).hexdigest()
-
-    payload["maintenance_knowledge"] = knowledge
-    payload["knowledge_coverage"] = {
-        "matching_count": knowledge_count,
-        "sent_count": len(knowledge),
-        "description": "利用中・有効期間内でメーカー・型式が一致する知識。指摘・部品・整備記録との文字列関連性、メーカー・型式の限定、登録順で最大20件。資料の発行順ではない。適用条件の成立は別途確認。",
-    }
+                adoption.pop('calculation_permitted', None)
+                adoption.pop('calculation_status', None)
+    fingerprints['routine_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps({'history': fingerprints['routine_hash'], 'maintenance_rule_timing': rule_timing_fingerprint}, sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
+    payload['maintenance_knowledge'] = knowledge
+    payload['knowledge_coverage'] = {'matching_count': knowledge_count, 'sent_count': len(knowledge), 'description': '利用中・有効期間内でメーカー・型式が一致する知識。指摘・部品・整備記録との文字列関連性、メーカー・型式の限定、登録順で最大20件。資料の発行順ではない。適用条件の成立は別途確認。'}
     sources.update(knowledge_sources)
     if knowledge:
-        source_id = f"vehicle:{vehicle.id}"
-        payload["vehicle_source"] = {
-            "source_id": source_id,
-            **payload["vehicle"],
-            "current_mileage": summary["current_mileage"],
-            "current_mileage_date": summary.get("current_mileage_date"),
-            "mileage_reference": summary.get("mileage_reference"),
-        }
-        sources[source_id] = {
-            "label": "車両台帳・登録済み走行距離",
-            "url": _dkss_common.url_for("vehicle_karte", vehicle_record_id=vehicle.id),
-        }
+        source_id = f'vehicle:{vehicle.id}'
+        payload['vehicle_source'] = {'source_id': source_id, **payload['vehicle'], 'current_mileage': summary['current_mileage'], 'current_mileage_date': summary.get('current_mileage_date'), 'mileage_reference': summary.get('mileage_reference')}
+        sources[source_id] = {'label': '車両台帳・登録済み走行距離', 'url': _dkss_common.url_for('vehicle_karte', vehicle_record_id=vehicle.id)}
+
     def feedback_uses_excluded_history(row):
         snapshot = _dkss_serialization.safe_json_dict(row.snapshot_json)
-        proposal = snapshot.get("proposal") or {}
-        linked = snapshot.get("maintenance_record") or {}
-        references = proposal.get("source_ids") or []
-        return any(value in excluded_source_ids for value in references if isinstance(value, str)) or (
-            isinstance(linked, dict) and f"maintenance:{linked.get('id')}" in excluded_source_ids
-        )
-
+        proposal = snapshot.get('proposal') or {}
+        linked = snapshot.get('maintenance_record') or {}
+        references = proposal.get('source_ids') or []
+        return any((value in excluded_source_ids for value in references if isinstance(value, str))) or (isinstance(linked, dict) and f"maintenance:{linked.get('id')}" in excluded_source_ids)
     feedback_context = []
     for row in _dkss_analysis_feedback.latest_vehicle_analysis_feedback(vehicle.company_code, vehicle.id)[:20]:
         if feedback_uses_excluded_history(row):
             continue
-        previous = _dkss_serialization.safe_json_dict(row.snapshot_json).get("proposal") or {}
-        feedback_context.append({
-            "proposal_id": row.proposal_key,
-            "target": previous.get("target") or previous.get("title"),
-            "action": previous.get("action"),
-            "source_ids": previous.get("source_ids", []),
-            "status": row.status, "comment": row.comment[:1000],
-            "maintenance_record": _dkss_serialization.safe_json_dict(row.snapshot_json).get("maintenance_record"),
-            "by": row.created_by, "at": row.created_at,
-        })
-    evaluation_labels = {
-        "appropriate": "適切",
-        "needs_revision": "要修正",
-        "uncertain": "判断保留",
-    }
+        previous = _dkss_serialization.safe_json_dict(row.snapshot_json).get('proposal') or {}
+        feedback_context.append({'proposal_id': row.proposal_key, 'target': previous.get('target') or previous.get('title'), 'action': previous.get('action'), 'source_ids': previous.get('source_ids', []), 'status': row.status, 'comment': row.comment[:1000], 'maintenance_record': _dkss_serialization.safe_json_dict(row.snapshot_json).get('maintenance_record'), 'by': row.created_by, 'at': row.created_at})
+    evaluation_labels = {'appropriate': '適切', 'needs_revision': '要修正', 'uncertain': '判断保留'}
     for row in _dkss_analysis_feedback.latest_vehicle_analysis_evaluations(vehicle.company_code, vehicle.id)[:10]:
         if feedback_uses_excluded_history(row):
             continue
-        previous = _dkss_serialization.safe_json_dict(row.snapshot_json).get("proposal") or {}
-        feedback_context.append({
-            "type": "人による提案内容の評価。実整備結果・確定診断とは別。",
-            "proposal_id": row.proposal_key,
-            "proposal_revision": row.proposal_revision,
-            "target": previous.get("target") or previous.get("title"),
-            "action": previous.get("action"),
-            "source_ids": previous.get("source_ids", []),
-            "evaluation": evaluation_labels.get(row.verdict, row.verdict),
-            "comment": row.comment[:1000],
-            "by": row.created_by,
-            "at": row.created_at,
-        })
-    payload["feedback_context"] = feedback_context
-    fingerprints["important_hash"] = _dkss_common.hashlib.sha256(
-        _dkss_common.json.dumps(
-            {
-                "history": fingerprints["important_hash"],
-                "knowledge": knowledge_for_fingerprint,
-                "feedback": feedback_context,
-            },
-            sort_keys=True, ensure_ascii=False, default=str,
-        ).encode("utf-8")
-    ).hexdigest()
-    fingerprints["has_important_history"] = (
-        fingerprints["has_important_history"] or bool(knowledge) or bool(feedback_context)
-    )
-    return payload, sources
+        previous = _dkss_serialization.safe_json_dict(row.snapshot_json).get('proposal') or {}
+        feedback_context.append({'type': '人による提案内容の評価。実整備結果・確定診断とは別。', 'proposal_id': row.proposal_key, 'proposal_revision': row.proposal_revision, 'target': previous.get('target') or previous.get('title'), 'action': previous.get('action'), 'source_ids': previous.get('source_ids', []), 'evaluation': evaluation_labels.get(row.verdict, row.verdict), 'comment': row.comment[:1000], 'by': row.created_by, 'at': row.created_at})
+    payload['feedback_context'] = feedback_context
+    fingerprints['important_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps({'history': fingerprints['important_hash'], 'knowledge': knowledge_for_fingerprint, 'feedback': feedback_context}, sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
+    fingerprints['has_important_history'] = fingerprints['has_important_history'] or bool(knowledge) or bool(feedback_context)
+    return (payload, sources)
 
 
 
-def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope="auto", include_inactive=False):
-    model = (vehicle.model_code or "").strip().upper()
-    registration = str(
-        vehicle.first_registration_date or ""
-    ).strip()
-    year_match = _dkss_common.re.match(
-        r"^((?:19|20)\d{2})(?:[-/年]|$)",
-        registration,
-    )
-
-    result = {
-        "vehicle_count": None,
-        "metrics": [],
-        "part_statistics": [],
-        "note": "",
-    }
-
+def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope='auto', include_inactive=False):
+    model = (vehicle.model_code or '').strip().upper()
+    registration = str(vehicle.first_registration_date or '').strip()
+    year_match = _dkss_common.re.match('^((?:19|20)\\d{2})(?:[-/年]|$)', registration)
+    result = {'vehicle_count': None, 'metrics': [], 'part_statistics': [], 'note': ''}
     requested_scope = registration_scope
-    if registration_scope == "auto":
-        registration_scope = "same_year" if year_match else "all_years"
-    if registration_scope not in {"same_year", "all_years"}:
-        registration_scope = "same_year"
+    if registration_scope == 'auto':
+        registration_scope = 'same_year' if year_match else 'all_years'
+    if registration_scope not in {'same_year', 'all_years'}:
+        registration_scope = 'same_year'
     include_inactive = include_inactive is True
-    result["registration_scope"] = registration_scope
-    result["include_inactive"] = include_inactive
-    result["comparison_scope"] = {
-        "status": "available",
-        "model_code": model or None,
-        "registration_scope": registration_scope,
-        "requested_registration_scope": requested_scope,
-        "year_scope_fallback": requested_scope == "auto" and not bool(year_match),
-        "reference_registration_year": (
-            int(year_match.group(1)) if year_match else None
-        ),
-        "registration_year_basis": "初度登録年。製造年月ではありません。",
-        "include_inactive": include_inactive,
-        "start_date": summary.get("start_date"),
-        "end_date": summary.get("end_date"),
-        "same_company_only": True,
-        "target_vehicle_excluded": True,
-        "cohort_vehicle_ids": [],
-        "active_vehicle_count": None,
-        "inactive_vehicle_count": None,
-        "status_unknown_vehicle_count": None,
-        "data_scope_note": (
-            "登録済み記録に基づく比較。比較台数と各指標の"
-            "sample_countは異なります。未登録を未交換・故障なしと扱いません。"
-        ),
-    }
+    result['registration_scope'] = registration_scope
+    result['include_inactive'] = include_inactive
+    result['comparison_scope'] = {'status': 'available', 'model_code': model or None, 'registration_scope': registration_scope, 'requested_registration_scope': requested_scope, 'year_scope_fallback': requested_scope == 'auto' and (not bool(year_match)), 'reference_registration_year': int(year_match.group(1)) if year_match else None, 'registration_year_basis': '初度登録年。製造年月ではありません。', 'include_inactive': include_inactive, 'start_date': summary.get('start_date'), 'end_date': summary.get('end_date'), 'same_company_only': True, 'target_vehicle_excluded': True, 'cohort_vehicle_ids': [], 'active_vehicle_count': None, 'inactive_vehicle_count': None, 'status_unknown_vehicle_count': None, 'data_scope_note': '登録済み記録に基づく比較。比較台数と各指標のsample_countは異なります。未登録を未交換・故障なしと扱いません。'}
     if not model:
-        result["comparison_scope"]["status"] = "missing_model"
-        result["note"] = "型式が未登録のため比較できません。"
+        result['comparison_scope']['status'] = 'missing_model'
+        result['note'] = '型式が未登録のため比較できません。'
         return result
-    if registration_scope == "same_year" and not year_match:
-        result["comparison_scope"]["status"] = "missing_registration_year"
-        result["note"] = (
-            "同じ初度登録年で比較する条件ですが、対象車両の初度登録年が"
-            "不明なため比較できません。比較対象0台という意味ではありません。"
-            "画面では「初度登録年を限定しない」で別条件の比較ができます。"
-            "画面の条件変更だけでは保存済み自動AIの条件は変わりません。"
-        )
+    if registration_scope == 'same_year' and (not year_match):
+        result['comparison_scope']['status'] = 'missing_registration_year'
+        result['note'] = '同じ初度登録年で比較する条件ですが、対象車両の初度登録年が不明なため比較できません。比較対象0台という意味ではありません。画面では「初度登録年を限定しない」で別条件の比較ができます。画面の条件変更だけでは保存済み自動AIの条件は変わりません。'
         return result
-
     year = year_match.group(1) if year_match else None
-    peers = [
-        row
-        for row in _dkss_models.Vehicle.query.filter_by(
-            company_code=vehicle.company_code,
-        ).all()
-        if row.id != vehicle.id
-        and (include_inactive or row.deleted is False)
-        and (row.model_code or "").strip().upper() == model
-        and (
-            registration_scope == "all_years"
-            or _dkss_common.re.match(
-                r"^" + year + r"(?:[-/年]|$)",
-                str(row.first_registration_date or "").strip(),
-            )
-        )
-    ]
-
-    year_note = (
-        f"同じ初度登録年（{year}年）"
-        if registration_scope == "same_year" else "初度登録年を限定しない"
-    )
-    active_note = "無効車両を含む" if include_inactive else "有効車両のみ"
-    result["note"] = (
-        ("初度登録年が不明のため、年を限定せず同型式で比較。" if requested_scope == "auto" and not year_match else "") +
-        f"同じ会社・同型式・{year_note}・{active_note}。"
-        "対象車両は平均から除外。"
-    )
-    result["vehicle_count"] = len(peers)
-    result["comparison_scope"].update({
-        "status": "available" if peers else "no_peers",
-        "cohort_vehicle_ids": sorted(row.id for row in peers),
-        "active_vehicle_count": sum(row.deleted is False for row in peers),
-        "inactive_vehicle_count": sum(row.deleted is True for row in peers),
-        "status_unknown_vehicle_count": sum(
-            row.deleted is not False and row.deleted is not True
-            for row in peers
-        ),
-    })
-
+    peers = [row for row in _dkss_models.Vehicle.query.filter_by(company_code=vehicle.company_code).all() if row.id != vehicle.id and (include_inactive or row.deleted is False) and ((row.model_code or '').strip().upper() == model) and (registration_scope == 'all_years' or _dkss_common.re.match('^' + year + '(?:[-/年]|$)', str(row.first_registration_date or '').strip()))]
+    year_note = f'同じ初度登録年（{year}年）' if registration_scope == 'same_year' else '初度登録年を限定しない'
+    active_note = '無効車両を含む' if include_inactive else '有効車両のみ'
+    result['note'] = ('初度登録年が不明のため、年を限定せず同型式で比較。' if requested_scope == 'auto' and (not year_match) else '') + f'同じ会社・同型式・{year_note}・{active_note}。対象車両は平均から除外。'
+    result['vehicle_count'] = len(peers)
+    result['comparison_scope'].update({'status': 'available' if peers else 'no_peers', 'cohort_vehicle_ids': sorted((row.id for row in peers)), 'active_vehicle_count': sum((row.deleted is False for row in peers)), 'inactive_vehicle_count': sum((row.deleted is True for row in peers)), 'status_unknown_vehicle_count': sum((row.deleted is not False and row.deleted is not True for row in peers))})
     if not peers:
-        result["note"] += " 比較対象車両がありません。"
+        result['note'] += ' 比較対象車両がありません。'
         return result
-
-    grouped = {
-        row.id: {
-            "maintenance": [],
-            "operations": [],
-            "parts": [],
-            "defects": [],
-        }
-        for row in peers
-    }
+    grouped = {row.id: {'maintenance': [], 'operations': [], 'parts': [], 'defects': []} for row in peers}
     ids = list(grouped)
-
-    for record_class, key in (
-        (_dkss_models.VehicleMaintenanceRecord, "maintenance"),
-        (_dkss_models.VehicleOperationRecord, "operations"),
-        (_dkss_models.VehiclePartReplacement, "parts"),
-        (_dkss_models.VehiclePatrol, "defects"),
-    ):
-        records = (
-            record_class.query.filter_by(
-                company_code=vehicle.company_code,
-            )
-            .filter(
-                record_class.vehicle_record_id.in_(ids)
-            ).all()
-        )
+    for record_class, key in ((_dkss_models.VehicleMaintenanceRecord, 'maintenance'), (_dkss_models.VehicleOperationRecord, 'operations'), (_dkss_models.VehiclePartReplacement, 'parts'), (_dkss_models.VehiclePatrol, 'defects')):
+        records = record_class.query.filter_by(company_code=vehicle.company_code).filter(record_class.vehicle_record_id.in_(ids)).all()
         for record in records:
-            grouped[record.vehicle_record_id][key].append(
-                record
-            )
-
+            grouped[record.vehicle_record_id][key].append(record)
+    peer_driving_reports = _dkss_models.VehicleDrivingReportRecord.query.filter_by(company_code=vehicle.company_code).filter(_dkss_models.VehicleDrivingReportRecord.vehicle_record_id.in_(ids)).all()
+    from driving_report_data import canonical_operations
+    for peer_id, values in grouped.items():
+        values['operations'] = canonical_operations(values['operations'], [r for r in peer_driving_reports if r.vehicle_record_id == peer_id])
     for values in grouped.values():
-        values["maintenance"], values["parts"], values["source_exclusions"] = filter_vehicle_maintenance_factual_history(values["maintenance"], values["parts"])
-    result["source_exclusions"] = [
-        item for values in grouped.values() for item in values["source_exclusions"]
-    ]
-
+        values['maintenance'], values['parts'], values['source_exclusions'] = filter_vehicle_maintenance_factual_history(values['maintenance'], values['parts'])
+    result['source_exclusions'] = [item for values in grouped.values() for item in values['source_exclusions']]
     import unicodedata
-
     part_events = {}
     part_names = {}
     for peer_id, values in grouped.items():
-        parents = {
-            row.id: row for row in values["maintenance"]
-        }
-        for part in values["parts"]:
+        parents = {row.id: row for row in values['maintenance']}
+        for part in values['parts']:
             parent = parents.get(part.maintenance_record_id)
             if parent is None or parent.vehicle_record_id != peer_id:
                 continue
             try:
-                replaced_on = _dkss_common.datetime.strptime(
-                    str(part.replacement_date or "")[:10],
-                    "%Y-%m-%d",
-                ).date().isoformat()
+                replaced_on = _dkss_common.datetime.strptime(str(part.replacement_date or '')[:10], '%Y-%m-%d').date().isoformat()
             except ValueError:
                 continue
-            if not summary["start_date"] <= replaced_on <= summary["end_date"]:
+            if not summary['start_date'] <= replaced_on <= summary['end_date']:
                 continue
-
-            name = str(part.part_name or "").strip()
+            name = str(part.part_name or '').strip()
             if not name:
                 continue
-            normalized_name = _dkss_common.re.sub(
-                r"[\s・･]+", "",
-                unicodedata.normalize("NFKC", name).casefold(),
-            ).replace("フィルター", "フィルタ")
-            number = str(part.part_number or "").strip()
+            normalized_name = _dkss_common.re.sub('[\\s・･]+', '', unicodedata.normalize('NFKC', name).casefold()).replace('フィルター', 'フィルタ')
+            number = str(part.part_number or '').strip()
             key = (normalized_name, number)
             part_names.setdefault(key, set()).add(name)
-            part_events.setdefault(key, set()).add(
-                (peer_id, parent.id)
-            )
-
-    result["part_statistics"] = [
-        {
-            "part_name": sorted(part_names[key])[0],
-            "recorded_names": sorted(part_names[key]),
-            "part_number": key[1],
-            "registered_event_count": len(events),
-            "vehicles_with_registered_events": len({
-                peer_id for peer_id, _ in events
-            }),
-        }
-        for key, events in sorted(
-            part_events.items(),
-            key=lambda item: (-len(item[1]), item[0]),
-        )
-    ]
-    result["part_statistics_note"] = (
-        "比較条件・指定期間内の部品交換登録を名称・品番別に集計。"
-        "同一車両・同一整備記録・同一部品は1件。"
-        "対象車両自身は含まない。未登録車両を未交換と扱わない。"
-        "登録内容の真偽・作業完了・故障原因はこの集計では判定しない。"
-        "件数の多さだけで故障多発や交換時期を判断しない。"
-    )
-
+            part_events.setdefault(key, set()).add((peer_id, parent.id))
+    result['part_statistics'] = [{'part_name': sorted(part_names[key])[0], 'recorded_names': sorted(part_names[key]), 'part_number': key[1], 'registered_event_count': len(events), 'vehicles_with_registered_events': len({peer_id for peer_id, _ in events})} for key, events in sorted(part_events.items(), key=lambda item: (-len(item[1]), item[0]))]
+    result['part_statistics_note'] = '比較条件・指定期間内の部品交換登録を名称・品番別に集計。同一車両・同一整備記録・同一部品は1件。対象車両自身は含まない。未登録車両を未交換と扱わない。登録内容の真偽・作業完了・故障原因はこの集計では判定しない。件数の多さだけで故障多発や交換時期を判断しない。'
     from statistics import median
-
     interval_samples = {}
     for peer in peers:
         values = grouped[peer.id]
-        parents = {
-            row.id: row for row in values["maintenance"]
-        }
+        parents = {row.id: row for row in values['maintenance']}
         peer_parts = []
-        for part in values["parts"]:
+        for part in values['parts']:
             parent = parents.get(part.maintenance_record_id)
             if parent is None or parent.vehicle_record_id != peer.id:
                 continue
-            peer_parts.append({
-                "source_id": f"part:{part.id}",
-                "date": part.replacement_date,
-                "content": part.part_name,
-                "part_number": part.part_number,
-                "mileage": part.mileage,
-                "status": parent.status,
-                "completion_date": parent.completion_date,
-            })
-
-        peer_facts = build_vehicle_karte_preventive_facts(
-            peer,
-            {
-                "end_date": summary["end_date"],
-                "current_mileage": None,
-                "current_mileage_date": None,
-            },
-            peer_parts,
-        )
-        for fact in peer_facts["part_replacements"]:
-            latest = fact["latest_dated_replacement"]
-            if not summary["start_date"] <= latest <= summary["end_date"]:
+            peer_parts.append({'source_id': f'part:{part.id}', 'date': part.replacement_date, 'content': part.part_name, 'part_number': part.part_number, 'mileage': part.mileage, 'status': parent.status, 'completion_date': parent.completion_date})
+        peer_facts = build_vehicle_karte_preventive_facts(peer, {'end_date': summary['end_date'], 'current_mileage': None, 'current_mileage_date': None}, peer_parts)
+        for fact in peer_facts['part_replacements']:
+            latest = fact['latest_dated_replacement']
+            if not summary['start_date'] <= latest <= summary['end_date']:
                 continue
-            days = fact.get("last_recorded_interval_days")
+            days = fact.get('last_recorded_interval_days')
             if days is None:
                 continue
-            name = _dkss_common.re.sub(
-                r"[\s・･]+", "",
-                unicodedata.normalize(
-                    "NFKC", fact["part_name"],
-                ).casefold(),
-            ).replace("フィルター", "フィルタ")
-            key = (name, fact["part_number"])
-            interval_samples.setdefault(key, []).append({
-                "vehicle_id": peer.id,
-                "days": days,
-                "km": fact.get("last_recorded_interval_km"),
-            })
+            name = _dkss_common.re.sub('[\\s・･]+', '', unicodedata.normalize('NFKC', fact['part_name']).casefold()).replace('フィルター', 'フィルタ')
+            key = (name, fact['part_number'])
+            interval_samples.setdefault(key, []).append({'vehicle_id': peer.id, 'days': days, 'km': fact.get('last_recorded_interval_km')})
+    for item in result['part_statistics']:
+        name = _dkss_common.re.sub('[\\s・･]+', '', unicodedata.normalize('NFKC', item['part_name']).casefold()).replace('フィルター', 'フィルタ')
+        samples = interval_samples.get((name, item['part_number']), [])
+        days = [sample['days'] for sample in samples]
+        distances = [sample['km'] for sample in samples if sample['km'] is not None]
+        item.update({'latest_interval_sample_count': len(days), 'latest_interval_distance_sample_count': len(distances), 'latest_interval_days_median': median(days) if days else None, 'latest_interval_km_median': median(distances) if distances else None})
+    result['part_interval_note'] = '各比較対象車両の、期間内で直近の登録交換とその前回との間隔。同一部品・品番につき1台最大1組。前回は期間開始前も参照する。交換完了の登録がある記録を使用。全交換間隔の平均ではない。期間と距離の母数は別で、距離不明・逆転は距離集計から除外。途中の未登録作業やテスト記録等の真偽は未確認。メーカー基準・推奨交換間隔・故障発生間隔を意味しない。'
+    summaries = [build_vehicle_karte_analysis_summary(values['maintenance'], values['operations'], values['parts'], values['defects'], summary['start_date'], summary['end_date']) for values in grouped.values()]
+    for field, label, unit in (('total_cost', '期間内の整備費', '円'), ('failure_count', '登録故障件数', '件'), ('part_replacement_count', '部品交換登録件数', '件'), ('cost_per_km', '1kmあたり整備費', '円/km')):
 
-    for item in result["part_statistics"]:
-        name = _dkss_common.re.sub(
-            r"[\s・･]+", "",
-            unicodedata.normalize(
-                "NFKC", item["part_name"],
-            ).casefold(),
-        ).replace("フィルター", "フィルタ")
-        samples = interval_samples.get(
-            (name, item["part_number"]), [],
-        )
-        days = [sample["days"] for sample in samples]
-        distances = [
-            sample["km"] for sample in samples
-            if sample["km"] is not None
-        ]
-        item.update({
-            "latest_interval_sample_count": len(days),
-            "latest_interval_distance_sample_count": len(distances),
-            "latest_interval_days_median": median(days) if days else None,
-            "latest_interval_km_median": (
-                median(distances) if distances else None
-            ),
-        })
-
-    result["part_interval_note"] = (
-        "各比較対象車両の、期間内で直近の登録交換とその前回との間隔。"
-        "同一部品・品番につき1台最大1組。前回は期間開始前も参照する。"
-        "交換完了の登録がある記録を使用。全交換間隔の平均ではない。"
-        "期間と距離の母数は別で、距離不明・逆転は距離集計から除外。"
-        "途中の未登録作業やテスト記録等の真偽は未確認。"
-        "メーカー基準・推奨交換間隔・故障発生間隔を意味しない。"
-    )
-
-    summaries = [
-        build_vehicle_karte_analysis_summary(
-            values["maintenance"],
-            values["operations"],
-            values["parts"],
-            values["defects"],
-            summary["start_date"],
-            summary["end_date"],
-        )
-        for values in grouped.values()
-    ]
-
-    for field, label, unit in (
-        ("total_cost", "期間内の整備費", "円"),
-        ("failure_count", "登録故障件数", "件"),
-        ("part_replacement_count", "部品交換登録件数", "件"),
-        ("cost_per_km", "1kmあたり整備費", "円/km"),
-    ):
         def comparable(item):
-            if (
-                field == "total_cost"
-                and item["missing_cost_count"]
-            ):
+            if field == 'total_cost' and item['missing_cost_count']:
                 return None
             return item[field]
-
         values = [comparable(item) for item in summaries]
-        known = [
-            _dkss_common.Decimal(str(value))
-            for value in values if value is not None
-        ]
-        average = (
-            sum(known, _dkss_common.Decimal("0")) / len(known)
-            if known else None
-        )
+        known = [_dkss_common.Decimal(str(value)) for value in values if value is not None]
+        average = sum(known, _dkss_common.Decimal('0')) / len(known) if known else None
         current = comparable(summary)
-
-        result["metrics"].append({
-            "label": label,
-            "unit": unit,
-            "current": current,
-            "average": average,
-            "sample_count": len(known),
-            "vehicles_with_registered_events": (
-                sum(value > 0 for value in known)
-                if field in {
-                    "failure_count", "part_replacement_count",
-                }
-                else None
-            ),
-            "sample_scope_note": (
-                "登録件数の平均には登録0件の比較対象車両も含む。"
-                "登録0件は実際の故障・交換がなかった証明ではない。"
-                if field in {
-                    "failure_count", "part_replacement_count",
-                }
-                else
-                "平均の母数はsample_count。比較対象の全台数とは"
-                "限らず、記録のある費用・距離に基づく比較。"
-            ),
-            "difference_percentage": (
-                (_dkss_common.Decimal(str(current)) - average)
-                / average * _dkss_common.Decimal("100")
-                if current is not None
-                and average is not None
-                and average > 0
-                else None
-            ),
-        })
-
+        result['metrics'].append({'label': label, 'unit': unit, 'current': current, 'average': average, 'sample_count': len(known), 'vehicles_with_registered_events': sum((value > 0 for value in known)) if field in {'failure_count', 'part_replacement_count'} else None, 'sample_scope_note': '登録件数の平均には登録0件の比較対象車両も含む。登録0件は実際の故障・交換がなかった証明ではない。' if field in {'failure_count', 'part_replacement_count'} else '平均の母数はsample_count。比較対象の全台数とは限らず、記録のある費用・距離に基づく比較。', 'difference_percentage': (_dkss_common.Decimal(str(current)) - average) / average * _dkss_common.Decimal('100') if current is not None and average is not None and (average > 0) else None})
     return result
 
 
@@ -2770,226 +2086,50 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
 
 def vehicle_karte_analysis(vehicle_record_id):
     from flask import abort
-
-    if not _dkss_common.session.get("username"):
-        return _dkss_common.redirect(_dkss_common.url_for("login"))
-
-    vehicle = _dkss_models.Vehicle.query.filter_by(
-        id=vehicle_record_id,
-        company_code=_dkss_common.session.get("company_code"),
-    ).first_or_404()
-
-    today = _dkss_common.datetime.now(
-        _dkss_common.ZoneInfo("Asia/Tokyo")
-    ).date()
-
-    default_start = today.replace(
-        year=today.year - 2,
-        day=min(
-            today.day,
-            _dkss_common.calendar.monthrange(
-                today.year - 2, today.month
-            )[1],
-        ),
-    )
-
-    start_text = _dkss_common.request.args.get(
-        "start_date", default_start.isoformat()
-    )
-    end_text = _dkss_common.request.args.get(
-        "end_date", today.isoformat()
-    )
-
+    if not _dkss_common.session.get('username'):
+        return _dkss_common.redirect(_dkss_common.url_for('login'))
+    vehicle = _dkss_models.Vehicle.query.filter_by(id=vehicle_record_id, company_code=_dkss_common.session.get('company_code')).first_or_404()
+    today = _dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).date()
+    default_start = today.replace(year=today.year - 2, day=min(today.day, _dkss_common.calendar.monthrange(today.year - 2, today.month)[1]))
+    start_text = _dkss_common.request.args.get('start_date', default_start.isoformat())
+    end_text = _dkss_common.request.args.get('end_date', today.isoformat())
     try:
-        start = _dkss_common.datetime.strptime(
-            start_text, "%Y-%m-%d"
-        ).date()
-        end = _dkss_common.datetime.strptime(
-            end_text, "%Y-%m-%d"
-        ).date()
-
-        if (
-            start.isoformat() != start_text
-            or end.isoformat() != end_text
-            or start > end
-            or (end - start).days > 366 * 5
-        ):
+        start = _dkss_common.datetime.strptime(start_text, '%Y-%m-%d').date()
+        end = _dkss_common.datetime.strptime(end_text, '%Y-%m-%d').date()
+        if start.isoformat() != start_text or end.isoformat() != end_text or start > end or ((end - start).days > 366 * 5):
             raise ValueError()
     except ValueError:
-        abort(
-            400,
-            description=(
-                "分析期間は開始日から終了日の順で、"
-                "5年以内を指定してください。"
-            ),
-        )
-
-    maintenance = (
-        _dkss_models.VehicleMaintenanceRecord.query.filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id,
-        ).all()
-    )
-
-    operations = (
-        _dkss_models.VehicleOperationRecord.query.filter_by(
-            company_code=vehicle.company_code,
-            vehicle_record_id=vehicle.id,
-        )
-        .filter(
-            _dkss_models.VehicleOperationRecord.operation_date
-            <= end.isoformat()
-        ).all()
-    )
-
-    parts = (
-        _dkss_models.VehiclePartReplacement.query
-        .join(
-            _dkss_models.VehicleMaintenanceRecord,
-            _dkss_models.VehiclePartReplacement.maintenance_record_id
-            == _dkss_models.VehicleMaintenanceRecord.id,
-        )
-        .filter(
-            _dkss_models.VehiclePartReplacement.company_code
-            == vehicle.company_code,
-            _dkss_models.VehiclePartReplacement.vehicle_record_id
-            == vehicle.id,
-            _dkss_models.VehicleMaintenanceRecord.company_code
-            == vehicle.company_code,
-            _dkss_models.VehicleMaintenanceRecord.vehicle_record_id
-            == vehicle.id,
-        ).all()
-    )
-
-    defects = _dkss_models.VehiclePatrol.query.filter_by(
-        company_code=vehicle.company_code,
-        vehicle_record_id=vehicle.id,
-    ).all()
-
-    summary = build_vehicle_karte_analysis_summary(
-        maintenance,
-        operations,
-        parts,
-        defects,
-        start.isoformat(),
-        end.isoformat(),
-        periodic_records=(
-            _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
-                company_code=vehicle.company_code,
-                vehicle_record_id=vehicle.id,
-            ).all()
-        ),
-    )
-
-    number = _dkss_vehicle_readers.vehicle_number({
-        "plate_area": vehicle.plate_area or "",
-        "plate_class": vehicle.plate_class or "",
-        "plate_kana": vehicle.plate_kana or "",
-        "plate_number": vehicle.plate_number or "",
-    })
-
-    if _dkss_common.request.method == "POST":
-        comparison = get_vehicle_karte_peer_comparison(
-            vehicle, summary
-        )
-        payload, sources = build_vehicle_karte_analysis_payload(
-            vehicle,
-            summary,
-            comparison,
-            maintenance,
-            parts,
-            defects,
-        )
-
-        if not payload["records"]:
-            result = {
-                "overview": (
-                    "分析の根拠となる整備・部品交換・"
-                    "故障の履歴がありません。"
-                ),
-                "recommendations": [],
-            }
+        abort(400, description='分析期間は開始日から終了日の順で、5年以内を指定してください。')
+    maintenance = _dkss_models.VehicleMaintenanceRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
+    operations = _dkss_models.VehicleOperationRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).filter(_dkss_models.VehicleOperationRecord.operation_date <= end.isoformat()).all()
+    operations = _dkss_vehicle_operations.get_vehicle_canonical_operations(vehicle.company_code, vehicle.id, operations, end=end.isoformat())
+    parts = _dkss_models.VehiclePartReplacement.query.join(_dkss_models.VehicleMaintenanceRecord, _dkss_models.VehiclePartReplacement.maintenance_record_id == _dkss_models.VehicleMaintenanceRecord.id).filter(_dkss_models.VehiclePartReplacement.company_code == vehicle.company_code, _dkss_models.VehiclePartReplacement.vehicle_record_id == vehicle.id, _dkss_models.VehicleMaintenanceRecord.company_code == vehicle.company_code, _dkss_models.VehicleMaintenanceRecord.vehicle_record_id == vehicle.id).all()
+    defects = _dkss_models.VehiclePatrol.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
+    summary = build_vehicle_karte_analysis_summary(maintenance, operations, parts, defects, start.isoformat(), end.isoformat(), periodic_records=_dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all())
+    number = _dkss_vehicle_readers.vehicle_number({'plate_area': vehicle.plate_area or '', 'plate_class': vehicle.plate_class or '', 'plate_kana': vehicle.plate_kana or '', 'plate_number': vehicle.plate_number or ''})
+    if _dkss_common.request.method == 'POST':
+        comparison = get_vehicle_karte_peer_comparison(vehicle, summary)
+        payload, sources = build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenance, parts, defects)
+        if not payload['records']:
+            result = {'overview': '分析の根拠となる整備・部品交換・故障の履歴がありません。', 'recommendations': []}
         else:
             try:
                 result = _dkss_common.analyze_vehicle_karte(payload)
             except (ValueError, RuntimeError) as error:
                 code = str(error)
-                _dkss_runtime.app.logger.warning(
-                    "車両AI分析に失敗しました: %s",
-                    code,
-                )
-
-                if code == "API_KEY_NOT_SET":
-                    message = (
-                        "AI接続用のOPENAI_API_KEYが"
-                        "設定されていません。"
-                        "サーバー設定を確認してください。"
-                    )
+                _dkss_runtime.app.logger.warning('車両AI分析に失敗しました: %s', code)
+                if code == 'API_KEY_NOT_SET':
+                    message = 'AI接続用のOPENAI_API_KEYが設定されていません。サーバー設定を確認してください。'
                     status = 503
-                elif code == "ANALYSIS_NETWORK_OR_TIMEOUT":
-                    message = (
-                        "AIとの通信が完了せず、"
-                        "分析結果を取得できませんでした。"
-                    )
+                elif code == 'ANALYSIS_NETWORK_OR_TIMEOUT':
+                    message = 'AIとの通信が完了せず、分析結果を取得できませんでした。'
                     status = 504
-                elif code == "ANALYSIS_HTTP_429":
-                    message = (
-                        "AIサービスの利用上限に達したか、"
-                        "リクエストが集中しています。"
-                    )
+                elif code == 'ANALYSIS_HTTP_429':
+                    message = 'AIサービスの利用上限に達したか、リクエストが集中しています。'
                     status = 429
                 else:
-                    message = (
-                        "AI分析の結果を取得・検証"
-                        "できませんでした。"
-                        "時間をおいて再実行してください。"
-                    )
+                    message = 'AI分析の結果を取得・検証できませんでした。時間をおいて再実行してください。'
                     status = 502
-
-                return _dkss_common.jsonify(
-                    ok=False,
-                    message=message,
-                ), status
-
-        return _dkss_common.jsonify(
-            ok=True,
-            analysis=result,
-            sources=sources,
-            coverage=payload["coverage"],
-            generated_at=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y/%m/%d %H:%M"),
-        )
-
-    return _dkss_common.render_template(
-        "vehicle_karte_analysis.html",
-        vehicle=vehicle,
-        vehicle_number=number,
-        open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(
-            vehicle.company_code,
-            vehicle.id,
-        ),
-        inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(
-            vehicle.company_code,
-            vehicle.id,
-            include_resolved=True,
-        ),
-        analysis_summary=summary,
-        analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()),
-        analysis_part_history=build_vehicle_karte_dashboard_parts(
-            vehicle, maintenance, parts, start.isoformat(), end.isoformat(),
-        ),
-        analysis_progress=build_vehicle_karte_service_progress(
-            maintenance, summary
-        ),
-        analysis_comparison=get_vehicle_karte_peer_comparison(
-            vehicle,
-            summary,
-            registration_scope=_dkss_common.request.args.get("peer_registration", "auto"),
-            include_inactive=_dkss_common.request.args.get("peer_inactive") == "1",
-        ),
-        analysis_today=today.isoformat(),
-        format_analysis_number=(
-            _dkss_vehicle_karte.format_vehicle_maintenance_number
-        ),
-    )
+                return (_dkss_common.jsonify(ok=False, message=message), status)
+        return _dkss_common.jsonify(ok=True, analysis=result, sources=sources, coverage=payload['coverage'], generated_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M'))
+    return _dkss_common.render_template('vehicle_karte_analysis.html', karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat()), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'), include_inactive=_dkss_common.request.args.get('peer_inactive') == '1'), analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)

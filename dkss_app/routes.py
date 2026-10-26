@@ -292,6 +292,8 @@ def register_core_routes(app):
         "/vehicle/data-import/<batch_id>/confirm",
         methods=["POST"]
     )(view)
+    view = vehicle_imports.vehicle_driving_report_source
+    view = app.route("/vehicle/driving-reports/<int:record_id>/source")(view)
     view = vehicle_imports.vehicle_periodic_inspection_source
     view = app.route(
         "/vehicle/periodic-inspections/<int:record_id>/source"

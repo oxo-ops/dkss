@@ -1134,7 +1134,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return "対応形式のファイルを選択してください（" + input.accept + "）。";
             }
             if (
-                ["maintenance", "inspection"].includes(form.querySelector('input[name="document_type"]')?.value)
+                ["maintenance", "inspection", "driving_report"].includes(form.querySelector('input[name="document_type"]')?.value)
             ) {
                 const oversized = files.find(
                     file => file.size > 20 * 1024 * 1024
@@ -1263,7 +1263,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             const payload = new FormData(form);
-            const streaming = ["maintenance", "inspection"].includes(payload.get("document_type"));
+            const streaming = ["maintenance", "inspection", "driving_report"].includes(payload.get("document_type"));
             let lastServerUpdate = 0;
             const button = form.querySelector('button[type="submit"]');
             const title = zone.querySelector(".import-drop-copy strong");
@@ -1639,6 +1639,14 @@ function getFormErrorTarget(targetId) {
 }
 
 
+function getFormFieldErrorAnchor(target) {
+    // OCR include labels contain a checkbox and its caption in a flex row.
+    // Keep validation text outside that row so the caption cannot be squeezed.
+    const actions = target.closest(".invoice-include")?.closest(".invoice-record-actions");
+    return actions || target;
+}
+
+
 function clearCommonErrors() {
     document
         .querySelectorAll(".field-error-message")
@@ -1769,7 +1777,7 @@ function showCommonError(message, targetId = "", moveFocus = true) {
             errorText.className = "field-error-message";
             errorText.textContent = message;
 
-            target.insertAdjacentElement(
+            getFormFieldErrorAnchor(target).insertAdjacentElement(
                 "afterend",
                 errorText
             );
@@ -1843,7 +1851,7 @@ document.querySelectorAll(".error-summary a[data-form-error-target]").forEach((l
     const errorAnchor =
         target.id === "delivery_place"
             ? document.getElementById("delivery_place_search_results")
-            : target;
+            : getFormFieldErrorAnchor(target);
 
     errorAnchor.insertAdjacentElement("afterend", errorText);
 

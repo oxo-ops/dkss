@@ -300,6 +300,35 @@
 
     function initialize() {
         const form = document.querySelector(".vehicle-document-import-preview");
+        if (!form) return;
+        // One summary per cause; keep every original target and field error.
+        const errorList = document.querySelector("#error-summary > ul");
+        if (errorList) {
+            const groups = new Map();
+            Array.from(errorList.children).forEach(item => {
+                const link = item.querySelector("[data-form-error-target]");
+                const message = (link?.dataset.formErrorMessage || item.textContent).trim();
+                const group = groups.get(message) || [];
+                group.push({item, link});
+                groups.set(message, group);
+            });
+            groups.forEach((group, message) => {
+                if (group.length < 2) return;
+                const first = group[0].item;
+                first.replaceChildren(document.createTextNode(`${message}（${group.length}件） `));
+                group.forEach(({item, link}, index) => {
+                    if (link) {
+                        const target = document.getElementById(link.dataset.formErrorTarget);
+                        const record = target?.closest(".invoice-record");
+                        const records = Array.from(form.querySelectorAll(".invoice-record"));
+                        const number = record ? records.indexOf(record) + 1 : index + 1;
+                        link.textContent = `記録${number}`;
+                        first.append(link, document.createTextNode(" "));
+                    }
+                    if (item !== first) item.remove();
+                });
+            });
+        }
         if (form) initializeInvoiceServiceMatches(form);
         if (!form) return;
 
@@ -515,10 +544,10 @@
         }
 
         function updateLine(line) {
-            if (line.hasAttribute("data-inspection-item")) {
+            if (line.hasAttribute("data-document-item")) {
                 line.querySelector("[data-edit-line]").textContent = lineValue(line, "item_name") || "記載なし";
                 line.querySelector(".invoice-line-supplement").textContent = [lineValue(line, "category"), lineValue(line, "notes")].filter(Boolean).join(" · ");
-                line.querySelector(".invoice-line-money").textContent = [lineValue(line, "raw_result"), lineValue(line, "result_text")].filter(Boolean).join(" ／ ") || "空欄";
+                line.querySelector(".invoice-line-money").textContent = [lineValue(line, "raw_result"), lineValue(line, "score") ? lineValue(line, "score") + "点" : "", lineValue(line, "result_text")].filter(Boolean).join(" ／ ") || "空欄";
                 return;
             }
             const badge = line.querySelector("[data-replacement-summary]");
@@ -688,9 +717,25 @@
                 inspector_name: raw("inspector_name"),
                 next_inspection_date: raw("next_inspection_date"),
                 next_inspection_month: raw("next_inspection_month"),
-                symbol_legend: raw("symbol_legend")
+                symbol_legend: raw("symbol_legend"),
+                operation_end_date: raw("operation_end_date"),
+                operation_start_time: raw("operation_start_time"),
+                operation_end_time: raw("operation_end_time"),
+                driver_name: raw("driver_name"),
+                office_name: raw("office_name"),
+                driver_office: raw("driver_office"),
+                vehicle_office: raw("vehicle_office"),
+                vehicle_type: raw("vehicle_type"),
+                passenger_name: raw("passenger_name"),
+                start_mileage: raw("start_mileage"),
+                distance: raw("distance"),
+                driving_time: raw("driving_time"),
+                handling_time: raw("handling_time")
             };
 
+            record.querySelectorAll('[data-driving-field]').forEach(input => {
+                facts[input.dataset.drivingField] = input.value;
+            });
             const numbers = new Set([
                 "mileage", "total_cost", "labor_cost",
                 "parts_cost", "other_cost", "tax_amount"
@@ -733,9 +778,10 @@
             }
 
             const inspection = record.closest("[data-invoice-document]").dataset.documentType === "inspection";
-            const invoiceNumber = inspection ? facts.inspection_type : raw("invoice_number");
+            const driving = record.closest("[data-invoice-document]").dataset.documentType === "driving_report";
+            const invoiceNumber = driving ? facts.record_date : inspection ? facts.inspection_type : raw("invoice_number");
             record.querySelector(".invoice-eyebrow").textContent = inspection
-                ? invoiceNumber : "伝票 " + (invoiceNumber || "番号記載なし");
+                ? invoiceNumber : driving ? "安全運転日報" : "伝票 " + (invoiceNumber || "番号記載なし");
 
             const tab = Array.from(
                 record.closest("[data-invoice-document]")
@@ -746,7 +792,7 @@
 
             if (tab) {
                 tab.querySelector("small").textContent =
-                    invoiceNumber || "伝票番号なし";
+                    invoiceNumber || (driving ? "運行日未読取" : "伝票番号なし");
             }
         }
 
@@ -1035,7 +1081,20 @@
                 ["inspector_name", "inspector_name", false],
                 ["next_inspection_date", "next_inspection_date", false],
                 ["next_inspection_month", "next_inspection_month", false],
-                ["symbol_legend", "symbol_legend", false]
+                ["symbol_legend", "symbol_legend", false],
+                ["operation_end_date", "operation_end_date", false],
+                ["operation_start_time", "operation_start_time", false],
+                ["operation_end_time", "operation_end_time", false],
+                ["driver_name", "driver_name", false],
+                ["office_name", "office_name", false],
+                ["driver_office", "driver_office", false],
+                ["vehicle_office", "vehicle_office", false],
+                ["vehicle_type", "vehicle_type", false],
+                ["passenger_name", "passenger_name", false],
+                ["start_mileage", "start_mileage", true],
+                ["distance", "distance", true],
+                ["driving_time", "driving_time", false],
+                ["handling_time", "handling_time", false]
             ];
 
             for (const [inputName, sourceName, numeric] of infoFields) {
@@ -1047,6 +1106,14 @@
                 if (field) state.info.push(field);
             }
 
+            const knownInfoNames = new Set(infoFields.map(row => row[1]));
+            record.querySelectorAll('[data-driving-field]').forEach(input => {
+                const name = input.dataset.drivingField;
+                if (!knownInfoNames.has(name)) {
+                    const field = remember(input, original[name], false);
+                    if (field) state.info.push(field);
+                }
+            });
             const numericLineFields = new Set([
                 "quantity", "unit_price",
                 "labor_amount", "parts_amount", "amount"
@@ -1060,13 +1127,13 @@
             ];
 
             record.querySelectorAll(".invoice-line").forEach((line, index) => {
-                const inspection = line.hasAttribute("data-inspection-item");
-                const source = (inspection ? original.inspection_items : original.line_items)?.[index];
+                const inspection = line.hasAttribute("data-document-item");
+                const source = inspection ? original[line.dataset.itemCollection]?.[Number(line.dataset.itemIndex)] : original.line_items?.[index];
                 if (!source || typeof source !== "object") return;
 
                 const fields = [];
 
-                for (const name of (inspection ? ["category", "item_name", "raw_result", "result_text", "notes"] : lineFields)) {
+                for (const name of (inspection ? JSON.parse(line.dataset.itemFields || '["category","item_name","raw_result","score","result_text","notes"]') : lineFields)) {
                     const field = remember(
                         lineInput(line, name),
                         name === "replacement_action"
@@ -1290,6 +1357,9 @@
         });
 
         function applyLineFilters(record) {
+            record.querySelectorAll('.invoice-lines-section').forEach(applySectionFilters);
+        }
+        function applySectionFilters(record) {
             const search = record.querySelector("[data-line-search]");
             const filter = record.querySelector("[data-line-filter]");
             if (!search || !filter) return;
@@ -1356,10 +1426,11 @@
             if (!button || button.disabled) return;
 
             const record = button.closest(".invoice-record");
-            record.querySelector("[data-line-search]").value = "";
-            record.querySelector("[data-line-filter]").value = "all";
+            const section = button.closest(".invoice-lines-section");
+            section.querySelector("[data-line-search]").value = "";
+            section.querySelector("[data-line-filter]").value = "all";
             closeLines(record);
-            record.querySelector("[data-line-search]").focus({
+            section.querySelector("[data-line-search]").focus({
                 preventScroll: true
             });
         });
@@ -1427,6 +1498,12 @@
                 details = details.parentElement?.closest("details");
             }
         }
+
+        document.getElementById("error-summary")?.addEventListener("click", event => {
+            const link = event.target.closest("[data-form-error-target]");
+            const target = link && document.getElementById(link.dataset.formErrorTarget);
+            if (target && form.contains(target)) revealErrorTarget(target);
+        });
 
         form.addEventListener(
             "invalid",

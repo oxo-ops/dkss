@@ -106,6 +106,7 @@ def get_vehicle_karte_overview_context(vehicle):
         'VehicleMaintenanceInspectionLink': _dkss_models.VehicleMaintenanceInspectionLink,
         'VehicleMaintenanceRecord': _dkss_models.VehicleMaintenanceRecord,
         'VehicleOperationRecord': _dkss_models.VehicleOperationRecord,
+        'VehicleDrivingReportRecord': _dkss_models.VehicleDrivingReportRecord,
         'VehiclePatrol': _dkss_models.VehiclePatrol,
         'VehiclePeriodicInspectionRecord': _dkss_models.VehiclePeriodicInspectionRecord,
         'build_vehicle_karte_documents_context': build_vehicle_karte_documents_context,
@@ -125,55 +126,6 @@ def get_vehicle_karte_overview_context(vehicle):
 
 
 
-def _legacy_vehicle_karte_overview_context(vehicle):
-    maintenance = _dkss_models.VehicleMaintenanceRecord.query.filter_by(
-        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
-    ).all()
-    maintenance, _, _ = _dkss_analysis.filter_vehicle_maintenance_factual_history(maintenance)
-    periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
-        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
-    ).all()
-    periodic = [row for row in periodic if not _dkss_analysis.periodic_inspection_synthetic_evidence(row)]
-    operations = _dkss_models.VehicleOperationRecord.query.filter_by(
-        company_code=vehicle.company_code, vehicle_record_id=vehicle.id
-    ).all()
-    reference = _dkss_analysis.build_vehicle_karte_mileage_reference(
-        maintenance, operations, _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).date().isoformat(), periodic, include_points=True
-    )
-    recent = [{
-        "date": row.entry_date or row.completion_date or "",
-        "kind": row.category or "整備", "content": row.content or row.repair_content or "整備記録",
-        "mileage": row.mileage, "cost": row.total_cost,
-        "status": row.status or ("完了" if row.completion_date else "未設定"),
-        "link": _dkss_common.url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id, record_id=row.id),
-        "key": f"maintenance:{row.id}",
-    } for row in maintenance]
-    recent.extend({
-        "date": row.inspection_date or "", "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.inspection_type, "定期点検"),
-        "content": row.content or "定期点検記録", "mileage": row.mileage,
-        "cost": None, "status": "登録済み",
-        "link": _dkss_common.url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
-        "key": f"periodic:{row.id}",
-    } for row in periodic)
-    recent.extend({
-        "date": row.performed_date, "kind": {"3month": "3か月点検", "12month": "12か月点検"}.get(row.kind, "点検"),
-        "content": "点検実施（書類未受領）", "mileage": None, "cost": None,
-        "status": "実施済み・書類未受領",
-        "link": _dkss_common.url_for("vehicle_karte_inspections", vehicle_record_id=vehicle.id, inspection_view="periodic"),
-        "key": f"execution:{row.id}",
-    } for row in _dkss_runtime.app.extensions["dkss"]['inspection_plans'].manual_records(vehicle.company_code, vehicle.id))
-    parts = get_vehicle_karte_parts_context(vehicle, factual_only=True)["part_ranking"]
-    documents = get_vehicle_karte_documents(vehicle)
-    build_vehicle_karte_documents_context(vehicle, documents)
-    return {
-        "karte_mileage_points": reference["points"],
-        "karte_mileage_reference": reference,
-        "karte_recent_entries": sorted(recent, key=lambda row: (row["date"], row["key"]), reverse=True)[:5],
-        "karte_parts_ranking": parts,
-        "karte_note": _dkss_models.VehicleKarteNote.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).first(),
-        "karte_recent_documents": documents[:4],
-        "karte_document_count": len(documents),
-    }
 
 
 

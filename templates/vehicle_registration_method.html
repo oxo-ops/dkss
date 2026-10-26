@@ -5,6 +5,7 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261021-shared-controls-1') }}">
+{% include 'ocr_searchable_select_assets.html' %}
 
 
 
@@ -489,6 +490,6 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261021-shared-controls-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_certificate_register.js', v='20261021-shared-controls-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_certificate_register.js', v='20261025-ocr-search-1') }}" defer></script>
 
 {% endblock %}

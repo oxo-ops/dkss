@@ -147,3 +147,10 @@ NOTIFICATION_TYPE_LABELS = {
 }
 
 VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS = (('engine_code', '\u30a8\u30f3\u30b8\u30f3\u578b\u5f0f', 100),)
+
+
+from werkzeug.exceptions import Forbidden
+
+
+from driving_report_ai import (extract_driving_reports, build_driving_report_preview,
+    TEXT_FIELDS as DRIVING_TEXT_FIELDS, ITEM_FIELDS as DRIVING_ITEM_FIELDS, COLLECTIONS as DRIVING_COLLECTIONS)

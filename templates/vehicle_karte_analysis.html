@@ -21,6 +21,11 @@
             <button type="submit">集計</button>
         </form>
     </header>
+    {% if karte_driving_summary is defined and karte_driving_summary is not none %}
+    <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
+    <section class="driving-page"><details class="card"><summary>運転日報と使用実態 {{ karte_driving_summary.report_count }}件</summary><p><a href="{{ url_for('driving_reports',vehicle=vehicle.id,start=data.start_date,end=data.end_date) }}">対象期間の運転実績を確認</a></p>{% set metrics=karte_driving_summary %}{% include 'driving_report_metrics.html' %}</details></section>
+    <script src="{{ url_for('static',filename='js/driving_reports.js',v='20261025-1') }}" defer></script>
+    {% endif %}
     {% set chart = namespace(distance_months=0, cost_months=0) %}
     {% for month in data.monthly %}
         {% if month.distance is not none %}{% set chart.distance_months = chart.distance_months + 1 %}{% endif %}

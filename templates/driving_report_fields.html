@@ -1,0 +1,78 @@
+{% from 'ocr_searchable_select_field.html' import searchable_select %}
+{% set record_index = row_key.rsplit('_', 1)[1]|int %}
+{% set originals = document.preview.get('original_records') or [] %}
+{% set original = originals[record_index] if record_index < originals|length else record %}
+{% set needs_input = not record.get('vehicle_record_id') or not record.get('record_date') %}
+<div class="invoice-overview">
+    <div class="invoice-record-heading" data-invoice-original="{{ original|tojson|forceescape }}">
+        <div>
+            <p class="invoice-eyebrow">安全運転日報</p>
+            <h3 data-invoice-vehicle-label>登録先の車両</h3>
+            <p class="invoice-key-facts"><span>運行 <span data-fact="record_date">{{ record.get('record_date') or '未入力' }}</span></span><span><span data-fact="mileage">{{ record.get('mileage') or '—' }}</span> km</span></p>
+        </div>
+    </div>
+    <div class="invoice-record-actions">
+        <label class="invoice-include"><input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get('include', true) %}checked{% endif %}>この記録を取り込む</label>
+        <button type="button" class="invoice-button" data-toggle-info aria-controls="invoice_info_{{ row_key }}" aria-expanded="{{ 'true' if needs_input else 'false' }}">{{ '修正を閉じる' if needs_input else '情報を修正' }}</button>
+    </div>
+    {% if record.get('vehicle_match_status') != 'matched' %}
+    <p class="invoice-attention" data-vehicle-match-warning>車両を自動確定できませんでした。原本と照合して選択してください。未選択の場合は登録待ちとして保存できます。</p>
+    {% endif %}
+    <details class="invoice-overview-details" open>
+        <summary>日報内容・原本情報</summary>
+        <p class="invoice-content-summary" data-fact="content">{{ record.get('content') or '記載なし' }}</p>
+        <details class="invoice-metadata">
+            <summary>原本の車両・運行情報</summary>
+            <dl>
+            {% for field, label in [('registration_number','原本の登録番号'),('chassis_number','原本の車台番号'),('driver_name','乗務員'),('office_name','事業所'),('driver_office','乗務員所属'),('vehicle_office','車両所属'),('vehicle_type','車種'),('passenger_name','同乗者'),('operation_end_date','運行終了日'),('operation_start_time','運行開始時刻'),('operation_end_time','運行終了時刻'),('start_mileage','開始時の累積走行距離（km）'),('distance','走行距離（km）'),('driving_time','走行時間'),('handling_time','ハンドル時間'),('notes','手書き・特記事項')] %}
+                <div><dt>{{ label }}</dt><dd data-fact="{{ field }}">{{ record.get(field) or '記載なし' }}</dd></div>
+            {% endfor %}
+            {% for field, label, limit in [('source_system', 'メーカー・サービス', 200), ('report_title', '帳票名', 200), ('report_number', '日報番号', 100), ('issued_at', '原本の出力日時', 50), ('timezone', '原本のタイムゾーン', 80), ('definition_version', '評価設定・定義の版', 200), ('driver_code', '乗務員コード', 100), ('vehicle_code', '車両コード', 100), ('departure_place', '出発地', 500), ('arrival_place', '到着地', 500), ('operation_time', '運行時間', 50), ('idle_time', 'アイドリング時間', 50), ('rest_time', '休憩・休息の原文', 50), ('work_time', '作業時間', 50), ('fuel_consumption', '燃料消費量', 50), ('fuel_unit', '燃料の単位', 30), ('fuel_economy', '燃費', 50), ('fuel_economy_unit', '燃費の単位', 30)] %}
+                {% if record.get(field) %}<div><dt>{{ label }}</dt><dd data-fact="{{ field }}">{{ record.get(field) }}</dd></div>{% endif %}
+            {% endfor %}
+            </dl>
+        </details>
+    </details>
+    {% set readback_issues = record.get('_ocr_issues', []) %}
+    {% include 'driving_report_readback_issues.html' %}
+    <div class="invoice-info-editor" id="invoice_info_{{ row_key }}" {% if not needs_input %}hidden{% endif %}>
+        <div class="invoice-section-heading"><strong>基本情報を修正</strong><span class="invoice-change-label" data-info-change hidden>修正済み</span></div>
+        <div class="invoice-input-grid">
+            <label class="invoice-input-wide">対象車両
+                {% call searchable_select('対象車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
+                    <option value="">未選択（登録待ちへ保存）</option>
+                    {% for choice in vehicle_choices %}
+                    <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number }}" data-vehicle-chassis="{{ choice.chassis_number }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
+                    {% endfor %}
+                {% endcall %}
+            </label>
+            <label>運行開始日<input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}"></label>
+            <label>運行終了日<input type="date" id="operation_end_date_{{ row_key }}" name="operation_end_date_{{ row_key }}" value="{{ record.get('operation_end_date') or '' }}"></label>
+            <label>終了時の累積走行距離（km）<input type="text" inputmode="decimal" data-invoice-money id="mileage_{{ row_key }}" name="mileage_{{ row_key }}" value="{{ record.get('mileage') if record.get('mileage') is not none else '' }}"></label>
+            {% for field, label in [('start_mileage','開始時の累積走行距離（km）'),('distance','走行距離（km）')] %}
+            <label>{{ label }}<input type="text" inputmode="decimal" data-invoice-money id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" value="{{ record.get(field) or '' }}"></label>
+            {% endfor %}
+            {% for field, label, limit in [('driver_name','乗務員',100),('office_name','事業所',200),('driver_office','乗務員所属',200),('vehicle_office','車両所属',200),('vehicle_type','車種',100),('passenger_name','同乗者',200),('operation_start_time','運行開始時刻',80),('operation_end_time','運行終了時刻',80),('driving_time','走行時間',50),('handling_time','ハンドル時間',50)] %}
+            <label>{{ label }}<input type="text" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" maxlength="{{ limit }}" value="{{ record.get(field) or '' }}"></label>
+            {% endfor %}
+            {% for field, label in [('content','記録内容'),('notes','手書き・特記事項')] %}
+            <label class="invoice-input-wide">{{ label }}<textarea id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" rows="2" maxlength="5000">{{ record.get(field) or '' }}</textarea></label>
+            {% endfor %}
+            <label>集計粒度<select id="report_scope_{{ row_key }}" name="report_scope_{{ row_key }}" data-driving-field="report_scope"><option value="">原本に記載なし</option>{% for value,label in [('trip','1運行'),('daily','日別'),('monthly','月次集計'),('unknown','不明')] %}<option value="{{ value }}" {% if record.get('report_scope') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            {% for field, label, limit in [('source_system', 'メーカー・サービス', 200), ('report_title', '帳票名', 200), ('report_number', '日報番号', 100), ('issued_at', '原本の出力日時', 50), ('timezone', '原本のタイムゾーン', 80), ('definition_version', '評価設定・定義の版', 200), ('driver_code', '乗務員コード', 100), ('vehicle_code', '車両コード', 100), ('departure_place', '出発地', 500), ('arrival_place', '到着地', 500), ('operation_time', '運行時間', 50), ('idle_time', 'アイドリング時間', 50), ('rest_time', '休憩・休息の原文', 50), ('work_time', '作業時間', 50), ('fuel_consumption', '燃料消費量', 50), ('fuel_unit', '燃料の単位', 30), ('fuel_economy', '燃費', 50), ('fuel_economy_unit', '燃費の単位', 30)] %}
+            <label>{{ label }}<input type="text" data-driving-field="{{ field }}" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" maxlength="{{ limit }}" value="{{ record.get(field) or '' }}"></label>
+            {% endfor %}
+            {% for field,label in [('driver_comment','乗務員の申告・反省'),('manager_comment','原本の管理者所見')] %}<label class="invoice-input-wide">{{ label }}<textarea data-driving-field="{{ field }}" id="{{ field }}_{{ row_key }}" name="{{ field }}_{{ row_key }}" maxlength="5000" rows="2">{{ record.get(field) or '' }}</textarea></label>{% endfor %}
+        </div>
+        <div class="invoice-editor-footer"><button type="button" class="invoice-reset-link" data-reset-info disabled>↶ 基本情報を読取値に戻す</button><button type="button" class="invoice-button" data-close-info>閉じて確認</button></div>
+    </div>
+</div>
+<div class="invoice-detail-content">
+    {% for item_collection,item_heading,item_prefix in [('report_items','日報項目','report_item_'),('events','発生事象','events_'),('duties','乗務・作業区間','duties_'),('extra_items','独自項目・補足','extra_items_')] %}
+    {% set result_heading = '実測値・点数・評価' %}
+    {% set item_edit_fields = [('category','項目群',200),('item_name','原本の項目名',1000),('raw_result','原文の実測値・時間・回数',200),('score','点数',200),('result_text','原本の評価',1000),('notes','コメント・備考',1000),('value','明記された数値',100),('unit','原単位',50),('numerator','分子',100),('denominator','分母',100),('denominator_unit','分母の単位',50),('definition','原本に記載された定義',1000),('threshold','検知条件・閾値',500),('road_type','道路区分',100),('status','読取状態',30),('start_at','開始・発生日時の原文',50),('end_at','終了日時の原文',50),('place','場所',500),('driver_code','当該区間の乗務員コード',100),('registration_number','当該区間の登録番号',200),('speaker','コメントの話者',50)] %}
+    {% if record.get(item_collection) or item_collection == 'report_items' %}{% include 'vehicle_document_item_fields.html' %}{% endif %}
+    {% endfor %}
+    {% set warnings = (document.preview.get('warnings') or []) + (record.get('warnings') or []) %}
+    {% if warnings %}<details class="invoice-reading-notes" open><summary>読取メモ（{{ warnings|length }}件）</summary><ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul></details>{% endif %}
+</div>

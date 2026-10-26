@@ -293,6 +293,102 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.expire_all()
         self.assertEqual(row.entry_date, "2026-10-01")
 
+    def upload_driving_report(self, streaming=False, failure=None):
+        from io import BytesIO
+        from test_driving_report_ai import extraction, pdf_bytes
+        source = pdf_bytes()
+        kwargs = {"side_effect": failure} if failure else {"return_value": extraction(source)}
+        with patch.object(self.m, "extract_driving_reports", **kwargs):
+            response = self.client.post("/vehicle/data-import" + ("/progress" if streaming else ""), data={
+                "document_type": "driving_report", "document_files": (BytesIO(source), "driving-report.pdf"),
+            })
+            response.get_data()
+        return response
+
+    def test_driving_report_full_path_edits_source_and_duplicates(self):
+        m = self.m
+        self.assertEqual(self.upload_driving_report().status_code, 302)
+        draft = m.VehicleDocumentImportDraft.query.one()
+        response = self.client.get(f"/vehicle/data-import/{draft.batch_id}/preview")
+        text = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        for expected in ('data-document-type="driving_report"', 'data-invoice-source',
+                         'data-item-collection="report_items"', 'data-reset-info', 'data-reset-line',
+                         '0.0回/h', '終了時の累積走行距離', '実測値・点数・評価'):
+            self.assertIn(expected, text)
+        form = self.inspection_form(draft); key = draft.id + "_0"
+        form.update({"mileage_"+key: "198,243.24", "driver_name_"+key: "修正乗務員",
+                     "report_item_"+key+"_0_score": "39"})
+        response = self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/history', response.location)
+        record = m.VehicleDrivingReportRecord.query.one()
+        details = json.loads(record.details_json)
+        self.assertEqual(str(record.mileage), "198243.24")
+        self.assertEqual(details['distance'], '101.85')
+        self.assertEqual(details['driver_name'], '修正乗務員')
+        self.assertEqual(details['report_items'][0]['score'], '39')
+        self.assertEqual(json.loads(draft.preview_json)['original_records'][0]['report_items'][0]['score'], '40')
+        self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), 0)
+        source = self.client.get(f"/vehicle/driving-reports/{record.id}/source")
+        self.assertEqual(source.data, draft.source_file)
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 409)
+        self.upload_driving_report()
+        again = m.VehicleDocumentImportDraft.query.filter_by(status="preview").one()
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{again.batch_id}/confirm", data=self.inspection_form(again)).status_code, 400)
+        self.assertEqual(m.VehicleDrivingReportRecord.query.count(), 1)
+
+    def test_driving_report_stream_and_failure(self):
+        response = self.upload_driving_report(streaming=True)
+        self.assertIn('"phase": "complete"', response.get_data(as_text=True))
+        self.assertEqual(self.m.VehicleDocumentImportDraft.query.count(), 1)
+        response = self.upload_driving_report(streaming=True, failure=ValueError('NO_DRIVING_REPORT_FOUND'))
+        self.assertIn('安全運転日報が見つかりませんでした', response.get_data(as_text=True))
+        self.assertEqual(self.m.VehicleDocumentImportDraft.query.count(), 1)
+
+    def test_driving_report_pending_assign_and_invalid_edits(self):
+        self.upload_driving_report(); m = self.m
+        draft = m.VehicleDocumentImportDraft.query.one(); key = draft.id + '_0'
+        form = self.inspection_form(draft, vehicle=False)
+        form['distance_'+key] = '-1'
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 400)
+        form['distance_'+key] = '101.85'
+        self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 302)
+        item = m.VehicleImportPendingRecord.query.one()
+        self.assertEqual(item.source_kind, 'driving_report')
+        with m.app.test_request_context():
+            from flask import session
+            session.update(company_code='TEST', username='admin', role='admin')
+            m.apply_vehicle_import_pending_documents(item.pending_id, self.vehicle.id, 'TEST', 'admin')
+            m.db.session.commit()
+        self.assertEqual(m.VehicleDrivingReportRecord.query.count(), 1)
+        self.assertEqual(json.loads(m.VehicleDrivingReportRecord.query.one().details_json)['report_items'][0]['raw_result'], '0.0回/h')
+
+    def test_driving_report_owner_company_and_role_boundaries(self):
+        self.upload_driving_report(); m = self.m
+        draft = m.VehicleDocumentImportDraft.query.one()
+        stamp = m.User.query.filter_by(company_code='TEST', username='admin').one().password_changed_at
+        m.db.session.add(m.Company(company_code='OTHER', company_name='Other', active=True))
+        for company, name, role in [('TEST','other-admin','admin'), ('TEST','reader','user'), ('OTHER','admin','admin')]:
+            m.db.session.add(m.User(company_code=company, username=name, role=role, password='unused',
+                                   last_name='検証', first_name='利用者', password_changed_at=stamp))
+        m.db.session.commit()
+        with self.client.session_transaction() as session:
+            session['username'] = 'other-admin'
+        self.assertEqual(self.client.get(f"/vehicle/data-import/{draft.batch_id}/preview").status_code, 404)
+        self.assertEqual(self.client.get(f"/vehicle/data-import/files/{draft.id}").status_code, 404)
+        with self.client.session_transaction() as session:
+            session['username'] = 'reader'; session['role'] = 'user'
+        self.assertEqual(self.client.post('/vehicle/data-import/progress', data={'document_type':'driving_report'}).status_code, 403)
+        with self.client.session_transaction() as session:
+            session['username'] = 'admin'; session['role'] = 'admin'
+        self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=self.inspection_form(draft))
+        record = m.VehicleDrivingReportRecord.query.one()
+        with self.client.session_transaction() as session:
+            session['company_code'] = 'OTHER'
+        self.assertEqual(self.client.get(f"/vehicle/driving-reports/{record.id}/source").status_code, 404)
+
     def upload_inspection(self, streaming=False, data=None, source=None):
         from io import BytesIO
         from test_inspection_document_ai import extraction, pdf_bytes
@@ -386,7 +482,8 @@ class WorkflowRegressionTests(unittest.TestCase):
         form = self.inspection_form(draft)
         m.db.session.add(m.Company(company_code="OTHER", company_name="Other", active=True))
         foreign = m.Vehicle(company_code="OTHER", chassis_number="FOREIGN")
-        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Keep replacement identities authenticated even if setup crosses a second.
+        stamp = m.User.query.filter_by(company_code="TEST", username="admin").one().password_changed_at
         for company, user in [("TEST", "other-admin"), ("OTHER", "admin")]:
             m.db.session.add(m.User(company_code=company, username=user, role="admin", password="unused", last_name="検証", first_name="管理者", password_changed_at=stamp))
         m.db.session.add(foreign); m.db.session.commit()

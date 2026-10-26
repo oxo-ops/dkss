@@ -1,3 +1,4 @@
+{% from 'ocr_searchable_select_field.html' import searchable_select %}
 {% set record_index = row_key.rsplit('_', 1)[1]|int %}
 {% set originals = document.preview.get('original_records') or [] %}
 {% set original = originals[record_index] if record_index < originals|length else record %}
@@ -33,12 +34,12 @@
         <div class="invoice-section-heading"><strong>基本情報を修正</strong><span class="invoice-change-label" data-info-change hidden>修正済み</span></div>
         <div class="invoice-input-grid">
             <label class="invoice-input-wide">対象車両
-                <select id="vehicle_{{ row_key }}" name="vehicle_{{ row_key }}">
+                {% call searchable_select('対象車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
                     <option value="">未選択（登録待ちへ保存）</option>
                     {% for choice in vehicle_choices %}
                     <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number }}" data-vehicle-chassis="{{ choice.chassis_number }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
                     {% endfor %}
-                </select>
+                {% endcall %}
             </label>
             <label>点検日<input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}"></label>
             <label>点検区分<select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
@@ -63,29 +64,12 @@
     </div>
 </div>
 <div class="invoice-detail-content">
-    <section class="invoice-lines-section">
-        <div class="invoice-section-heading"><h4>点検項目 <span>{{ record.get('inspection_items', [])|length }}件</span></h4><span class="invoice-edit-caption">項目名を選ぶと修正</span></div>
-        <div class="invoice-line-tools"><label><span class="invoice-sr-only">点検項目を検索</span><input type="search" data-line-search placeholder="項目・記号・備考を検索"></label><select data-line-filter aria-label="点検項目の表示条件"><option value="all">すべて</option><option value="modified">修正済み</option></select><button type="button" class="invoice-button" data-clear-line-filter disabled>解除</button><span data-line-filter-count role="status"></span></div>
-        <p class="invoice-line-empty" data-line-filter-empty hidden>条件に一致する項目はありません。</p>
-        <table class="invoice-lines"><thead><tr><th scope="col">点検項目</th><th scope="col">原文の記号・判定</th></tr></thead><tbody>
-            {% for item in record.get('inspection_items') or [] %}
-            {% set prefix = 'inspection_item_' ~ row_key ~ '_' ~ loop.index0 ~ '_' %}
-            <tr class="invoice-line" data-inspection-item data-line-prefix="{{ prefix }}" data-source-page="{{ item.source_page }}">
-                <td><button type="button" class="invoice-line-name" data-edit-line aria-controls="editor_{{ prefix }}" aria-expanded="false">{{ item.item_name }}</button><div class="invoice-line-supplement">{{ item.category or '' }}{% if item.category and item.notes %} · {% endif %}{{ item.notes or '' }}</div></td>
-                <td class="invoice-line-money">{{ item.raw_result or '空欄' }} {{ item.result_text or '' }}</td>
-            </tr>
-            <tr class="invoice-line-editor-row" id="editor_{{ prefix }}" hidden><td colspan="2"><div class="invoice-line-editor">
-                <div class="invoice-input-grid">
-                {% for field, label, limit in [('category','項目群',200),('item_name','点検項目',1000),('raw_result','原文の記号・数値',200),('result_text','原文の判定文',1000),('notes','項目備考',1000)] %}
-                    <label class="invoice-input-wide">{{ label }}<textarea id="{{ prefix }}{{ field }}" name="{{ prefix }}{{ field }}" rows="2" maxlength="{{ limit }}">{{ item.get(field) or '' }}</textarea></label>
-                {% endfor %}
-                </div>
-                <p class="invoice-editor-source">原本 {{ item.source_page }}頁 <button type="button" class="invoice-button" data-show-source="{{ item.source_page }}">このページを見る</button></p>
-                <div class="invoice-editor-footer"><button type="button" class="invoice-reset-link" data-reset-line disabled>↶ この項目を読取値に戻す</button><button type="button" class="invoice-button" data-close-line>閉じる</button></div>
-            </div></td></tr>
-            {% endfor %}
-        </tbody></table>
-    </section>
+    {% set item_collection = 'inspection_items' %}
+    {% set item_prefix = 'inspection_item_' %}
+    {% set item_heading = '点検項目' %}
+    {% set result_heading = '原文の記号・判定' %}
+    {% set item_edit_fields = [('category','項目群',200),('item_name','点検項目',1000),('raw_result','原文の記号・数値',200),('result_text','原文の判定文',1000),('notes','項目備考',1000)] %}
+    {% include 'vehicle_document_item_fields.html' %}
     {% set warnings = (document.preview.get('warnings') or []) + (record.get('warnings') or []) %}
     {% if warnings %}<details class="invoice-reading-notes" open><summary>読取メモ（{{ warnings|length }}件）</summary><ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul></details>{% endif %}
 </div>

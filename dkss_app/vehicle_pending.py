@@ -1204,145 +1204,65 @@ def apply_vehicle_import_pending_records(
 
 
 
-def _apply_vehicle_pending_document_records(
-    items, vehicle_id, company_code, username, *, invoice_choices=None
-):
-    maintenance_candidates = {
-        item.id: get_vehicle_pending_maintenance_candidates(
-            company_code, vehicle_id, _dkss_serialization.safe_json_dict(item.payload_json)
-        )
-        for item in items if item.source_kind == "maintenance"
-    }
+def _apply_vehicle_pending_document_records(items, vehicle_id, company_code, username, *, invoice_choices=None):
+    maintenance_candidates = {item.id: get_vehicle_pending_maintenance_candidates(company_code, vehicle_id, _dkss_serialization.safe_json_dict(item.payload_json)) for item in items if item.source_kind == 'maintenance'}
     added_count = 0
-    now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC"))
+    now = _dkss_common.datetime.now(_dkss_common.ZoneInfo('UTC'))
     for item in items:
-        draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-            id=item.document_draft_id,
-            company_code=company_code,
-            document_type=item.source_kind,
-            status="completed"
-        ).first()
-        if draft is None or _dkss_common.hashlib.sha256(
-            draft.source_file
-        ).hexdigest() != draft.source_sha256:
-            raise _dkss_common.UploadValidationError("保存済みの原本を確認できません。")
-
+        draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=item.document_draft_id, company_code=company_code, document_type=item.source_kind, status='completed').first()
+        if draft is None or _dkss_common.hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256:
+            raise _dkss_common.UploadValidationError('保存済みの原本を確認できません。')
         payload = _dkss_serialization.safe_json_dict(item.payload_json)
-        preview_records = _dkss_serialization.safe_json_dict(draft.preview_json).get("records")
+        preview_records = _dkss_serialization.safe_json_dict(draft.preview_json).get('records')
         index = item.source_record_index
-        if (
-            not isinstance(preview_records, list)
-            or not 0 <= index < len(preview_records)
-            or preview_records[index] != payload
-            or payload.get("vehicle_record_id") is not None
-        ):
-            raise _dkss_common.UploadValidationError("保存済み明細の一致を確認できません。")
-
-        if item.source_kind == "maintenance":
-            source_keys = _dkss_vehicle_imports.maintenance_import_source_keys({
-                "sha256": draft.source_sha256,
-                "pages": payload.get("source_pages"),
-                "record_index": index,
-            })
-            if source_keys & _dkss_vehicle_imports.registered_maintenance_import_keys(
-                company_code, exclude_pending_record_id=item.id
-            ):
-                raise _dkss_common.UploadValidationError(
-                    "同じ原本の請求書が登録済み、または他の登録待ちと重複しています。"
-                )
-
-        if item.source_kind == "inspection" and (draft.source_sha256, index) in _dkss_vehicle_imports.registered_inspection_import_keys(
-            company_code, exclude_pending_record_id=item.id
-        ):
-            raise _dkss_common.UploadValidationError("同じ原本の点検記録がすでに登録されています。")
-        values = {**payload, "vehicle_record_id": vehicle_id}
+        if not isinstance(preview_records, list) or not 0 <= index < len(preview_records) or preview_records[index] != payload or (payload.get('vehicle_record_id') is not None):
+            raise _dkss_common.UploadValidationError('保存済み明細の一致を確認できません。')
+        if item.source_kind == 'maintenance':
+            source_keys = _dkss_vehicle_imports.maintenance_import_source_keys({'sha256': draft.source_sha256, 'pages': payload.get('source_pages'), 'record_index': index})
+            if source_keys & _dkss_vehicle_imports.registered_maintenance_import_keys(company_code, exclude_pending_record_id=item.id):
+                raise _dkss_common.UploadValidationError('同じ原本の請求書が登録済み、または他の登録待ちと重複しています。')
+        if item.source_kind in {'inspection', 'driving_report'} and (draft.source_sha256, index) in _dkss_vehicle_imports.registered_inspection_import_keys(company_code, exclude_pending_record_id=item.id, source_kind=item.source_kind):
+            raise _dkss_common.UploadValidationError('同じ原本の記録がすでに登録されています。')
+        values = {**payload, 'vehicle_record_id': vehicle_id}
         record = _dkss_vehicle_imports.build_vehicle_document_record(draft, index, values)
         document = None
-        if item.source_kind == "maintenance":
+        if item.source_kind == 'maintenance':
             candidates = maintenance_candidates.get(item.id, [])
-            choice = (invoice_choices or {}).get(item.id, "")
-            if candidates and not choice:
-                raise _dkss_common.UploadValidationError("請求書と整備の対応を回答してください。")
-            if choice and choice != "new":
-                selected = next((row for row in candidates if (
-                    choice == f"{row['kind']}:{row['record_id']}"
-                )), None)
+            choice = (invoice_choices or {}).get(item.id, '')
+            if candidates and (not choice):
+                raise _dkss_common.UploadValidationError('請求書と整備の対応を回答してください。')
+            if choice and choice != 'new':
+                selected = next((row for row in candidates if choice == f"{row['kind']}:{row['record_id']}"), None)
                 if selected is None:
-                    raise _dkss_common.UploadValidationError(
-                        "整備候補が変わりました。再確認してください。"
-                    )
-                document = save_vehicle_maintenance_document(
-                    item.id, vehicle_id, selected["kind"], selected["record_id"],
-                    company_code, username
-                )
-
+                    raise _dkss_common.UploadValidationError('整備候補が変わりました。再確認してください。')
+                document = save_vehicle_maintenance_document(item.id, vehicle_id, selected['kind'], selected['record_id'], company_code, username)
         if document is None:
             added_count += int(_dkss_common.inspect(record).transient)
             _dkss_common.db.session.add(record)
             _dkss_common.db.session.flush()
-            if item.source_kind == "maintenance":
-                _dkss_maintenance.add_vehicle_maintenance_record_event(record, action="imported")
+            if item.source_kind == 'maintenance':
+                _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
                 _dkss_vehicle_karte.save_vehicle_maintenance_replacement_parts(record)
-
-        applied_result = {
-            "record_id": record.id if document is None else None,
-            "document_type": draft.document_type,
-        }
+        applied_result = {'record_id': record.id if document is None else None, 'document_type': draft.document_type}
         if document is not None:
-            applied_result.update({
-                "maintenance_document_id": document.id,
-                "target_kind": selected["kind"],
-                "target_record_id": selected["record_id"],
-                "financial_status": document.financial_status,
-                "parts_status": document.parts_status,
-            })
-
+            applied_result.update({'maintenance_document_id': document.id, 'target_kind': selected['kind'], 'target_record_id': selected['record_id'], 'financial_status': document.financial_status, 'parts_status': document.parts_status})
         result = _dkss_serialization.safe_json_dict(draft.result_json)
-        registered = result.get("records", [])
-        if not isinstance(registered, list) or any(
-            not isinstance(row, dict) or row.get("record_index") == index
-            for row in registered
-        ):
-            raise _dkss_common.UploadValidationError("この明細の反映状況を再確認してください。")
-
-        registered.append({
-            **applied_result,
-            "record_index": index,
-            "vehicle_record_id": vehicle_id,
-        })
-        waiting = result.get("pending_records", [])
-        if not isinstance(waiting, list) or not all(
-            isinstance(row, dict) for row in waiting
-        ):
-            raise _dkss_common.UploadValidationError("登録待ち明細を再確認してください。")
-
-        waiting = [
-            row for row in waiting
-            if row.get("pending_record_id") != item.id
-        ]
-        draft.result_json = _dkss_common.json.dumps({
-            **result,
-            "records": registered,
-            "pending_records": waiting,
-            "pending_count": len(waiting),
-        }, ensure_ascii=False)
-
-        item.status = "applied"
+        registered = result.get('records', [])
+        if not isinstance(registered, list) or any((not isinstance(row, dict) or row.get('record_index') == index for row in registered)):
+            raise _dkss_common.UploadValidationError('この明細の反映状況を再確認してください。')
+        registered.append({**applied_result, 'record_index': index, 'vehicle_record_id': vehicle_id})
+        waiting = result.get('pending_records', [])
+        if not isinstance(waiting, list) or not all((isinstance(row, dict) for row in waiting)):
+            raise _dkss_common.UploadValidationError('登録待ち明細を再確認してください。')
+        waiting = [row for row in waiting if row.get('pending_record_id') != item.id]
+        draft.result_json = _dkss_common.json.dumps({**result, 'records': registered, 'pending_records': waiting, 'pending_count': len(waiting)}, ensure_ascii=False)
+        item.status = 'applied'
         item.vehicle_record_id = vehicle_id
         item.applied_at = now
         item.result_json = _dkss_common.json.dumps(applied_result, ensure_ascii=False)
-
     _dkss_common.db.session.flush()
-    review_pending_count = _dkss_models.VehicleMaintenanceDocument.query.filter(
-        _dkss_models.VehicleMaintenanceDocument.company_code == company_code,
-        _dkss_models.VehicleMaintenanceDocument.pending_record_id.in_([item.id for item in items]),
-        _dkss_models.VehicleMaintenanceDocument.financial_status == "pending",
-    ).count()
-    return {
-        "added_count": added_count,
-        "linked_count": len(items),
-        "review_pending_count": review_pending_count,
-    }
+    review_pending_count = _dkss_models.VehicleMaintenanceDocument.query.filter(_dkss_models.VehicleMaintenanceDocument.company_code == company_code, _dkss_models.VehicleMaintenanceDocument.pending_record_id.in_([item.id for item in items]), _dkss_models.VehicleMaintenanceDocument.financial_status == 'pending').count()
+    return {'added_count': added_count, 'linked_count': len(items), 'review_pending_count': review_pending_count}
 
 
 

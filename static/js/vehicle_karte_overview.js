@@ -36,44 +36,31 @@
                 ["completed", "dismissed"].includes(item.feedback?.status)))
                 .sort((a, b) => (priorities[a.priority] ?? 3) - (priorities[b.priority] ?? 3));
             panel.dataset.current = String(current);
+            const header=panel.querySelector('[data-ko-ai-head]'); if(header)header.hidden=!items.length;
             const count = panel.querySelector('[data-ko-ai-count]');
             if (count) { count.textContent = `${items.length}件`; count.hidden = false; }
             for (const [index, item] of items.slice(0, 3).entries()) {
                 const row = node("li", "ko-proposal", "");
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
-                const heading = node("div", "ko-proposal-heading", "");
-                const link = node("a", "", item.target || "確認項目");
                 const url = new URL(panel.dataset.analysisUrl, window.location.origin);
                 if (url.origin !== window.location.origin) throw new Error();
                 if (item.proposal_id) url.hash = `proposal=${item.proposal_id}`;
-                link.href = url.href;
                 const changed = item.feedback?.revision && item.feedback.revision !== item.proposal_revision;
                 const feedback = changed ? "提案更新あり" : ({open:"未着手",accepted:"採用",in_progress:"対応中",completed:"完了",dismissed:"見送り"}[item.feedback?.status] || "未着手");
-                heading.append(node('span', 'ko-proposal-order', String(index+1).padStart(2,'0')), link, node("span", "ko-badge", feedback));
-                row.append(heading);
-                const stateField = node('div', 'ko-labeled-field ko-state-field', '');
-                stateField.append(node('span', 'ko-field-label', '状態'), node('p', 'ko-proposal-state', item.current_state || '状態を判断できる記録が不足しています'));
-                const actionField = node('div', 'ko-labeled-field ko-action-field', '');
-                actionField.append(node('span', 'ko-field-label', '対応'), node('p', 'ko-proposal-action', item.action || '分析タブで提案内容を確認してください。'));
-                row.append(stateField, actionField);
-                const riskText = typeof item.risk === 'string' && item.risk.trim() ? item.risk : '未評価';
-                const risk = node('details','ko-risk','');
-                const riskSummary = node('summary','','想定される影響');
-                riskSummary.append(node('span','ko-risk-inline',riskText));
-                risk.append(riskSummary,node('p','',riskText)); row.append(risk);
-                const footer=node('div','ko-proposal-footer','');
-                const timing=node('span','ko-proposal-timing','');
-                timing.append(node('b','','対応の目安'),node('span','',item.timing || '時期未評価'));
-                const action=node('a','ko-action-button','根拠・対応を確認 →'); action.href=url.href;
-                footer.append(timing,action);row.append(footer);
-                if (!current) row.append(node('p','ko-meta','前回結果です。最新の記録を確認してください。'));
-                if (index > 0) {
-                    row.classList.add('ko-secondary');
-                    const disclosure=node('details','ko-secondary-disclosure','');
-                    disclosure.append(node('summary','','状態・影響・時期を確認'));
-                    disclosure.append(stateField,risk,footer);
-                    row.append(disclosure);
-                }
+                const target = node('div','ov6-proposal-target','');
+                const link = node('a','',item.target || '確認項目'); link.href=url.href;
+                target.append(link,node('span','ko-badge',feedback));
+                if (['高','中','低'].includes(item.priority)) target.append(node('small','ov6-priority','優先度 '+item.priority));
+                const state = node('div','ov6-proposal-state','');
+                state.append(node('span','ov6-mobile-label','状態・想定される影響'), node('p','',item.current_state || '状態を判断できる記録が不足しています'));
+                const risk = typeof item.risk === 'string' && item.risk.trim() ? item.risk : '未評価';
+                state.append(node('p','ov6-impact','影響：'+risk));
+                const action = node('div','ov6-proposal-action','');
+                action.append(node('span','ov6-mobile-label','推奨対応'),node('p','',item.action || '分析タブで提案内容を確認してください。'));
+                const timing=node('div','ov6-proposal-timing','');
+                timing.append(node('span','ov6-mobile-label','時期'),node('p','',item.timing || '時期未評価'));
+                const detail=node('a','ov6-detail-link','根拠・対応を確認 ›');detail.href=url.href;timing.append(detail);
+                row.append(target,state,action,timing);
                 list.append(row);
             }
             if (!items.length) {
@@ -146,3 +133,4 @@
         } finally { button.disabled = false; }
     });
 })();
+
