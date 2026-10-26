@@ -25,7 +25,7 @@ packaging==26.2
 pillow==13.0.0
 pypdf==6.21.2
 psycopg2-binary==2.9.12
-pycparser==3.0
+pycparser==3.12
 PyJWT==2.15.0
 python-dateutil==2.9.0.post0
 s3transfer==0.19.2
