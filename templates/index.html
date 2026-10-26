@@ -947,7 +947,7 @@
                     <h4 class="dashboard-analysis-priority-title">改善項目</h4>
 
                     {% macro category_table(categories) %}
-                    <table class="dashboard-category-table">
+                    <div class="table-scroll responsive-table-viewport"><table class="dashboard-category-table">
                         <colgroup>
                             <col class="dashboard-category-label-column">
                             <col>
@@ -975,7 +975,7 @@
                             </tr>
                             {% endfor %}
                         </tbody>
-                    </table>
+                    </table></div>
                     {% endmacro %}
 
                     {% if item.category_analysis %}
@@ -1145,7 +1145,7 @@
     </div>
 
     {% if ranking %}
-    <table class="dashboard-table dashboard-ranking-table">
+    <div class="table-scroll responsive-table-viewport"><table class="dashboard-table dashboard-ranking-table">
         <tr>
             <th class="dashboard-col-rank">順位</th>
             <th>氏名</th>
@@ -1181,7 +1181,7 @@
             </td>
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
     {% else %}
         <p class="empty-text">
             ランキング対象のドライバーがありません。
@@ -1202,7 +1202,7 @@
     </div>
 
     {% if inspection_alerts %}
-    <table class="dashboard-table dashboard-inspection-table">
+    <div class="table-scroll responsive-table-viewport"><table class="dashboard-table dashboard-inspection-table">
         <tr>
             <th>車両</th>
             <th>車検期限</th>
@@ -1264,7 +1264,7 @@
             </td>
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
     {% else %}
         <p class="empty-text">
             車検期限が近い車両はありません。
@@ -1358,7 +1358,7 @@
 
     {% if my_pending_pointouts %}
 
-    <table class="dashboard-table dashboard-pending-table">
+    <div class="table-scroll responsive-table-viewport"><table class="dashboard-table dashboard-pending-table">
         <tr>
             <th class="dashboard-col-date">日付</th>
             <th class="dashboard-col-category">区分</th>
@@ -1394,7 +1394,7 @@
         </tr>
 
         {% endfor %}
-    </table>
+    </table></div>
 
     {% else %}
 

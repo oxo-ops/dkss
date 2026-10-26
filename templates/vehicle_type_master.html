@@ -13,7 +13,7 @@
 </div>
 
 <p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p>
-<table class="master-order-table" data-master-order-url="/master/vehicle-types/order">
+<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/vehicle-types/order">
     <thead>
     <tr>
         <th>車種名</th>
@@ -61,7 +61,7 @@
     </tr>
     {% endfor %}
     </tbody>
-</table>
+</table></div>
 
 <script src="{{ url_for('static', filename='js/vehicle_type_master.js') }}"></script>
 

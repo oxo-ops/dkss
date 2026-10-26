@@ -17,7 +17,7 @@
 <section class="card vehicle-search-card">
     <h3>{{ draft.source_filename }}</h3>
 
-    <table class="checklist-table">
+    <div class="table-scroll responsive-table-viewport"><table class="checklist-table">
         <thead>
             <tr>
                 <th>処理結果</th>
@@ -50,7 +50,7 @@
                 </td>
             </tr>
         </tbody>
-    </table>
+    </table></div>
 
     {% if result.get("added_count", 0) %}
         <p>登録した実績は車両カルテに反映されています。</p>

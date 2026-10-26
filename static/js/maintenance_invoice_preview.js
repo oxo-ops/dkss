@@ -95,7 +95,7 @@
             }
 
             function applyRatio(nextRatio) {
-                if (narrow.matches || !layout.clientWidth) return;
+                if ((window.DkssViewport?.compactReview(layout) ?? narrow.matches) || !layout.clientWidth) return;
 
                 const available = availableWidth();
                 const minimum = Math.min(280, available / 2);
@@ -349,7 +349,7 @@
             form.querySelectorAll(".invoice-review-layout").forEach(layout => {
                 const viewer = layout.querySelector(".invoice-pdf-viewer");
 
-                if (window.innerWidth <= 1000) {
+                if (window.DkssViewport?.compactReview(layout) ?? (window.innerWidth <= 1000 || window.innerHeight < 600)) {
                     layout.style.removeProperty("height");
                     viewer?.style.removeProperty("height");
                     return;
@@ -361,7 +361,7 @@
                 const headingHeight = pageHeading?.getBoundingClientRect().height || 0;
                 const gap = parseFloat(getComputedStyle(form).rowGap) || 0;
                 const height = Math.max(240, Math.floor(
-                    form.clientHeight - headingHeight - gap - top - 32
+                    form.clientHeight - headingHeight - gap - Math.max(0, top) - 32
                 ));
                 const value = height + "px";
 

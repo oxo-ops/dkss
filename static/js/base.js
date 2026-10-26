@@ -64,7 +64,7 @@ window.addEventListener("DOMContentLoaded", function () {
         document.body.classList.remove("sidebar-collapsed");
 
     } else if (
-        localStorage.getItem("sidebarCollapsed") === "1"
+        localStorage.getItem("sidebarCollapsed") === "1" && window.innerWidth > 900
     ) {
         document.body.classList.add("sidebar-collapsed");
     }

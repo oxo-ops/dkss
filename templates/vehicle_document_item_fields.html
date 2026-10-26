@@ -2,7 +2,7 @@
         <div class="invoice-section-heading"><h4>{{ item_heading }} <span>{{ record.get(item_collection, [])|length }}件</span></h4><span class="invoice-edit-caption">項目名を選ぶと修正</span></div>
         <div class="invoice-line-tools"><label><span class="invoice-sr-only">{{ item_heading }}を検索</span><input type="search" data-line-search placeholder="{{ '項目・記号・備考を検索' if item_collection == 'inspection_items' else '項目・内容・備考を検索' }}"></label><select data-line-filter aria-label="{{ item_heading }}の表示条件"><option value="all">すべて</option><option value="modified">修正済み</option></select><button type="button" class="invoice-button" data-clear-line-filter disabled>解除</button><span data-line-filter-count role="status"></span></div>
         <p class="invoice-line-empty" data-line-filter-empty hidden>条件に一致する項目はありません。</p>
-        <table class="invoice-lines"><thead><tr><th scope="col">{{ item_heading }}</th><th scope="col">{{ result_heading }}</th></tr></thead><tbody>
+        <div class="table-scroll responsive-table-viewport"><table class="invoice-lines"><thead><tr><th scope="col">{{ item_heading }}</th><th scope="col">{{ result_heading }}</th></tr></thead><tbody>
             {% for item in record.get(item_collection) or [] %}
             {% set prefix = item_prefix ~ row_key ~ '_' ~ loop.index0 ~ '_' %}
             <tr class="invoice-line" data-document-item data-item-index="{{ loop.index0 }}" data-item-fields="{{ item_edit_fields|map(attribute=0)|list|tojson|forceescape }}" data-item-collection="{{ item_collection }}" data-line-prefix="{{ prefix }}" data-source-page="{{ item.source_page }}">
@@ -19,5 +19,5 @@
                 <div class="invoice-editor-footer"><button type="button" class="invoice-reset-link" data-reset-line disabled>↶ この項目を読取値に戻す</button><button type="button" class="invoice-button" data-close-line>閉じる</button></div>
             </div></td></tr>
             {% endfor %}
-        </tbody></table>
+        </tbody></table></div>
     </section>
