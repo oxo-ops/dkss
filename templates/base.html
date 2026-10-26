@@ -39,8 +39,17 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261022-inspection-visibility-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261026-first-paint-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261025-compact-v7') }}">
+    {% if import_flow %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
+    {% endif %}
+    {% if request.endpoint in ['vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_header.css', v='20261026-compact-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_couplings.css', v='20261026-close-center-6') }}">
+    {% endif %}
+    {% block page_styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-scroll-chain-1') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 </head>
 <body
@@ -50,6 +59,9 @@
     data-current-user="{{ session.get('name') or '' }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
+
+{# Restore width before the shell or its contents are parsed. #}
+<script src="{{ url_for('static', filename='js/shell_bootstrap.js', v='20261026-first-paint-1') }}"></script>
 
 {% set path = request.path %}
 
@@ -460,9 +472,8 @@
 
 </div>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-sidebar-2') }}">
-<script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-viewport-1') }}"></script>
-<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-kind-recovery-1') }}"></script>
+<script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-first-paint-1') }}"></script>
+<script defer src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-first-paint-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

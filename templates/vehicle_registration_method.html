@@ -3,8 +3,11 @@
 
 {% block title %}車両登録{% endblock %}
 
-{% block content %}
+{% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
+{% endblock %}
+
+{% block content %}
 {% include 'ocr_searchable_select_assets.html' %}
 
 
