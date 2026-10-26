@@ -40,6 +40,8 @@
     <meta name="theme-color" content="#2f73f6">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261022-inspection-visibility-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261025-compact-v7') }}">
+    <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 </head>
 <body
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
@@ -91,6 +93,9 @@
                         <span class="menu-text">安全パトロール</span>
                     </a>
 
+                    {% if session.get('role') in ['admin','itc'] %}
+                    <a href="{{ url_for('driving_reports') }}" class="menu-item submenu-item {% if path.startswith('/safety/driving-reports') %}active{% endif %}"><span class="menu-text">運転実績</span></a>
+                    {% endif %}
                     <a href="/safety/checklists" class="menu-item submenu-item {% if path.startswith('/safety/checklists') %}active{% endif %}">
                         <span class="menu-text">チェックリスト</span>
                     </a>
@@ -477,7 +482,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261019-stream-1', v='20261022-dismiss-1') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261025-ocr-error-layout-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

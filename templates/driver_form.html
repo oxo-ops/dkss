@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}
     {% if mode == "edit" %}
         ドライバー編集
@@ -7,9 +6,8 @@
         ドライバー登録
     {% endif %}
 {% endblock %}
-
 {% block content %}
-
+<div id="driver-editor">
 <div class="page-header">
     <h2>
         {% if mode == "edit" %}
@@ -18,20 +16,21 @@
             ドライバー登録
         {% endif %}
     </h2>
-
     <div class="header-actions">
         <a href="/master/drivers" class="btn btn-back">
             ← 一覧へ戻る
         </a>
     </div>
 </div>
-
-<div class="card form-card">
-    <form method="post" class="responsive-form" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <label>姓</label>
-        <input
+<div class="card form-card driver-edit-card">
+<form method="post" class="responsive-form driver-editor-form" novalidate>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="driver-editor-grid">
+<section class="driver-editor-section" aria-labelledby="driver-basic-heading">
+<h3 id="driver-basic-heading">基本情報</h3>
+<div class="driver-field-grid">
+<div class="driver-field"><label for="last_name">姓 <span class="driver-required">必須</span></label>
+<input
             type="text"
             name="last_name"
             id="last_name"
@@ -40,9 +39,9 @@
             autocomplete="family-name"
             required
         >
-
-        <label>名</label>
-        <input
+</div>
+<div class="driver-field"><label for="first_name">名</label>
+<input
             type="text"
             name="first_name"
             id="first_name"
@@ -50,53 +49,9 @@
             maxlength="100"
             autocomplete="given-name"
         >
-
-        <label>ログインID</label>
-        <input
-            type="text"
-            name="employee_id"
-            id="employee_id"
-            value="{{ driver.employee_id if driver else '' }}"
-            required
-        >
-
-        <label>メールアドレス</label>
-        <input
-            type="email"
-            name="email_address"
-            id="email_address"
-            value="{{ driver.email_address if driver and driver.email_address else '' }}"
-            maxlength="255"
-            autocomplete="email"
-            placeholder="example@isz.co.jp"
-        >
-
-        <label>パスワード</label>
-        <input
-            type="password"
-            name="password"
-            id="password"
-            autocomplete="{% if mode == 'edit' %}new-password{% else %}new-password{% endif %}"
-            minlength="8"
-            maxlength="128"
-            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
-            title="8文字以上で、英大文字・英小文字・数字・記号のうち3種類以上を使用してください。"
-            placeholder="{% if mode == 'edit' %}変更する場合だけ入力{% else %}初期パスワード{% endif %}"
-            {% if mode == "new" %}required{% endif %}
-        >
-
-        <label>権限</label>
-        <select name="role" id="role" required>
-            <option value="user" {% if driver and driver.role == "user" %}selected{% endif %}>
-                一般ユーザー
-            </option>
-            <option value="admin" {% if driver and driver.role == "admin" %}selected{% endif %}>
-                管理者
-            </option>
-        </select>
-
-        <label>営業所</label>
-        <select name="office" id="office">
+</div>
+<div class="driver-field"><label for="office">営業所</label>
+<select name="office" id="office">
             {% for office in offices %}
                 <option
                     value="{{ office.name }}"
@@ -106,104 +61,127 @@
                 </option>
             {% endfor %}
         </select>
-
-        <label>無事故・無違反起算日</label>
-        <input
+</div>
+<div class="driver-field"><label for="role">権限 <span class="driver-required">必須</span></label>
+<select name="role" id="role" required>
+            <option value="user" {% if driver and driver.role == "user" %}selected{% endif %}>
+                一般ユーザー
+            </option>
+            <option value="admin" {% if driver and driver.role == "admin" %}selected{% endif %}>
+                管理者
+            </option>
+        </select>
+</div>
+<div class="driver-field driver-field-wide"><label for="safe_start_date">無事故・無違反起算日</label>
+<input
             type="date"
             name="safe_start_date"
-            id="safe_start_date"
+            id="safe_start_date" aria-describedby="driver-safe-help"
             value="{{ driver.safe_start_date if driver else '' }}"
         >
-
-        <p class="help-text">
-            無事故・無違反日数を計算する基準日です。
-            事故・違反がない場合は、入社日・免許取得日・システム登録日などを入力してください。
-            事故・違反がある場合は、前回事故日または前回違反日の翌日を入力してください。
-        </p>
-
-        <label>使用車両</label>
-
+        <p id="driver-safe-help" class="driver-field-help">事故・違反がある場合は直近の事故・違反日の翌日。ない場合は入社日・免許取得日・システム登録日など。</p>
+</div>
+</div></section>
+<section class="driver-editor-section" aria-labelledby="driver-login-heading">
+<h3 id="driver-login-heading">ログイン情報</h3>
+<div class="driver-login-fields">
+<div class="driver-field"><label for="employee_id">ログインID <span class="driver-required">必須</span></label>
+<input
+            type="text"
+            name="employee_id"
+            id="employee_id" maxlength="50" {% if mode == "edit" %}readonly aria-describedby="driver-id-help"{% endif %}
+            value="{{ driver.employee_id if driver else '' }}"
+            required
+        >{% if mode == "edit" %}<p id="driver-id-help" class="driver-field-help">登録後は変更できません。</p>{% endif %}
+</div>
+<div class="driver-field"><label for="email_address">メールアドレス</label>
+<input
+            type="email"
+            name="email_address"
+            id="email_address"
+            value="{{ driver.email_address if driver and driver.email_address else '' }}"
+            maxlength="255"
+            autocomplete="email"
+            placeholder="example@isz.co.jp"
+        >
+</div>
+<div class="driver-field"><label for="password">{{ '新しいパスワード' if mode == 'edit' else '初期パスワード' }} {% if mode == 'new' %}<span class="driver-required">必須</span>{% endif %}</label>
+<input
+            type="password"
+            name="password"
+            id="password" aria-describedby="driver-password-help"
+            autocomplete="{% if mode == 'edit' %}new-password{% else %}new-password{% endif %}"
+            minlength="8"
+            maxlength="128"
+            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}"
+            title="8文字以上で、英大文字・英小文字・数字・記号のうち3種類以上を使用してください。"
+            placeholder="{% if mode == 'edit' %}変更する場合だけ入力{% else %}初期パスワード{% endif %}"
+            {% if mode == "new" %}required{% endif %}
+        ><p id="driver-password-help" class="driver-field-help">8文字以上・英大文字／小文字／数字／記号のうち3種類以上。</p>
+</div>
+</div></section>
+        <section class="driver-editor-section driver-vehicle-picker" aria-labelledby="driver_vehicle_heading">
+        <div class="driver-vehicle-heading">
+            <h3 id="driver_vehicle_heading"><label for="vehicle_search">使用車両</label></h3>
+            <span id="selected_vehicle_count" role="status" aria-live="polite">{{ selected_vehicles|length }}台</span>
+        </div>
         <input
             type="text"
             id="vehicle_search"
             placeholder="車番・車台番号・型式・メーカーなどで検索"
             autocomplete="off"
+            aria-controls="vehicle_search_results"
         >
-
         <div
             class="vehicle-select-box"
             id="vehicle_search_results"
+            hidden
+            aria-label="車両の検索結果"
         >
-            <p class="help-text">
-                車両を検索してください。
-            </p>
         </div>
-
-
         <div class="selected-box">
-
-            <strong>選択済み車両</strong>
-
             <div id="selected_vehicles">
-
                 {% for vehicle in selected_vehicles %}
-
                     <div
                         class="selected-vehicle"
                         data-vehicle-id="{{ vehicle.vehicle_record_id }}"
                     >
-
                         <input
                             type="hidden"
                             name="vehicles"
                             value="{{ vehicle.vehicle_record_id }}"
                         >
-
-                        <span>
+                        <span class="driver-vehicle-number">
                             {{ vehicle.number or "ナンバー未登録" }}
                         </span>
-
                         <button
                             type="button"
-                            class="btn-small btn-delete js-remove-selected-vehicle"
+                            class="btn-small driver-vehicle-remove js-remove-selected-vehicle"
                             data-vehicle-id="{{ vehicle.vehicle_record_id }}"
+                            aria-label="{{ vehicle.number or 'ナンバー未登録' }}の選択を解除"
                         >
-                            削除
+                            解除
                         </button>
-
                     </div>
-
                 {% else %}
-
                     <span id="no_selected_vehicle">
                         未選択
                     </span>
-
                 {% endfor %}
-
             </div>
-
         </div>
-
-        <p class="help-text">
-            検索結果から車両を選択できます。複数選択可能です。
-        </p>
-
-        <h3>免許情報</h3>
-
-        <p class="help-text">
-            免許・資格ごとに有効期限を登録してください。
-            例：大型免許、けん引、フォークリフトなど。
-        </p>
-
+        </section>
+<section class="driver-editor-section" aria-labelledby="driver-license-heading">
+<div class="driver-section-heading">
+<h3 id="driver-license-heading">免許・資格</h3>
+<button type="button" class="btn-small driver-license-add js-add-license-row">＋ 追加</button>
+</div>
         <template id="licenseRowTemplate">
             <div class="license-row">
                 <div>
                     <label>免許種別</label>
-
-                    <select name="license_type">
+                    <select name="license_type" aria-label="免許・資格の種別">
                         <option value="">免許種別を選択</option>
-
                         {% for license_type in license_types %}
                             <option value="{{ license_type.name }}">
                                 {{ license_type.name }}
@@ -211,18 +189,16 @@
                         {% endfor %}
                     </select>
                 </div>
-
                 <div>
                     <label>有効期限</label>
                     <input
                         type="date"
-                        name="license_expiry"
+                        name="license_expiry" aria-label="免許・資格の有効期限"
                     >
                 </div>
-
                 <button
                     type="button"
-                    class="btn-small btn-delete js-remove-license-row"
+                    class="btn-small driver-license-remove js-remove-license-row" aria-label="この免許・資格を削除"
                 >
                     削除
                 </button>
@@ -234,7 +210,7 @@
                     <div class="license-row">
                         <div>
                             <label>免許種別</label>
-                            <select name="license_type">
+                            <select name="license_type" aria-label="免許・資格の種別">
                                 <option value="">免許種別を選択</option>
                                 {% for license_type in license_types %}
                                     <option
@@ -246,19 +222,17 @@
                                 {% endfor %}
                             </select>
                         </div>
-
                         <div>
                             <label>有効期限</label>
                             <input
                                 type="date"
-                                name="license_expiry"
+                                name="license_expiry" aria-label="免許・資格の有効期限"
                                 value="{{ license.expiry }}"
                             >
                         </div>
-
                         <button
                             type="button"
-                            class="btn-small btn-delete js-remove-license-row"
+                            class="btn-small driver-license-remove js-remove-license-row" aria-label="この免許・資格を削除"
                         >
                             削除
                         </button>
@@ -268,54 +242,32 @@
                 <div class="license-row">
                     <div>
                         <label>免許種別</label>
-                        <select name="license_type">
+                        <select name="license_type" aria-label="免許・資格の種別">
                             <option value="">免許種別を選択</option>
                             {% for license_type in license_types %}
                                 <option value="{{ license_type.name }}">{{ license_type.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-
                     <div>
                         <label>有効期限</label>
-                        <input type="date" name="license_expiry">
+                        <input type="date" name="license_expiry" aria-label="免許・資格の有効期限">
                     </div>
-
                     <button
                         type="button"
-                        class="btn-small btn-delete js-remove-license-row"
+                        class="btn-small driver-license-remove js-remove-license-row" aria-label="この免許・資格を削除"
                     >
                         削除
                     </button>
                 </div>
             {% endif %}
         </div>
-
-        <div class="form-actions">
-
-            <button
-                type="button"
-                class="btn-small js-add-license-row"
-            >
-                免許情報を追加
-            </button>
-
-        </div>
-
-        <div class="form-actions">
-
-        <button type="submit" class="btn">
-            {% if mode == "edit" %}
-                更新
-            {% else %}
-                登録
-            {% endif %}
-        </button>
-        </div>
-
-    </form>
+</section>
 </div>
-
-<script src="{{ url_for('static', filename='js/driver_form.js', v='20261021-search-order-1') }}"></script>
-
+<div class="form-actions driver-editor-actions">
+<a href="/master/drivers" class="btn btn-back">キャンセル</a>
+<button type="submit" class="btn driver-editor-save">{{ '変更を保存' if mode == 'edit' else '登録する' }}</button>
+</div>
+</form></div></div>
+<script src="{{ url_for('static', filename='js/driver_form.js', v='20261022-vehicle-picker-1') }}"></script>
 {% endblock %}

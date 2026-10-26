@@ -1,0 +1,9 @@
+{% if readback_issues %}
+<details class="invoice-reading-notes driving-readback-issues" open>
+    <summary>読取時に要確認となった項目（{{ readback_issues|length }}件）</summary>
+    <p>AI返却時の値をそのまま残しています。原本と照合し、必要な項目を訂正してください。未取得の数値は0として集計しません。</p>
+    {% for issue in readback_issues %}
+    <details><summary>{{ issue.label }}：{{ issue.reason }}</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ issue.display }}</pre></details>
+    {% endfor %}
+</details>
+{% endif %}

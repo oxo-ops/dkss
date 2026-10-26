@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}資料の削除確認{% endblock %}
+{% block content %}
+<section class="km-panel" style="max-width:760px;margin:24px auto;padding:24px">
+<h2>資料の削除確認</h2>
+<p><strong>{{ draft.source_filename }}</strong></p>
+<p>原本と、この資料だけを根拠に作られた登録データを削除します。削除後の情報でAI分析を更新します。</p>
+<ul>{% for label,count in impact.counts.items() %}{% if count %}<li>{{ label }}：{{ count }}件</li>{% endif %}{% endfor %}</ul>
+{% if impact.records %}<table><thead><tr><th>実施日</th><th>取り消す記録</th><th>金額</th></tr></thead><tbody>{% for row in impact.records %}<tr><td>{{ row.date or '未登録' }}</td><td>{{ row.content }}</td><td>{{ row.cost if row.cost is not none else '—' }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+<p>関連する提案への回答は取消済みの履歴として保持し、今後の分析には使いません。運行可否は自動変更しません。</p>
+{% if impact.problems %}
+<div role="alert"><p><strong>関連記録を保護するため、この資料はまだ削除できません。</strong></p>
+<ul>{% for problem in impact.problems %}<li>{{ problem }}</li>{% endfor %}</ul></div>
+{% else %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="delete_token" value="{{ delete_token }}">
+<label><input type="checkbox" name="confirm_delete" value="yes" required> 削除する資料と登録データを確認しました。削除します。</label>
+<p><button type="submit" class="btn btn-outline">資料と由来データを削除</button></p>
+</form>
+{% endif %}
+<a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">書類へ戻る</a>
+</section>
+{% endblock %}

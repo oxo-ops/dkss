@@ -1,0 +1,23 @@
+    <section class="invoice-lines-section">
+        <div class="invoice-section-heading"><h4>{{ item_heading }} <span>{{ record.get(item_collection, [])|length }}件</span></h4><span class="invoice-edit-caption">項目名を選ぶと修正</span></div>
+        <div class="invoice-line-tools"><label><span class="invoice-sr-only">{{ item_heading }}を検索</span><input type="search" data-line-search placeholder="{{ '項目・記号・備考を検索' if item_collection == 'inspection_items' else '項目・内容・備考を検索' }}"></label><select data-line-filter aria-label="{{ item_heading }}の表示条件"><option value="all">すべて</option><option value="modified">修正済み</option></select><button type="button" class="invoice-button" data-clear-line-filter disabled>解除</button><span data-line-filter-count role="status"></span></div>
+        <p class="invoice-line-empty" data-line-filter-empty hidden>条件に一致する項目はありません。</p>
+        <table class="invoice-lines"><thead><tr><th scope="col">{{ item_heading }}</th><th scope="col">{{ result_heading }}</th></tr></thead><tbody>
+            {% for item in record.get(item_collection) or [] %}
+            {% set prefix = item_prefix ~ row_key ~ '_' ~ loop.index0 ~ '_' %}
+            <tr class="invoice-line" data-document-item data-item-index="{{ loop.index0 }}" data-item-fields="{{ item_edit_fields|map(attribute=0)|list|tojson|forceescape }}" data-item-collection="{{ item_collection }}" data-line-prefix="{{ prefix }}" data-source-page="{{ item.source_page }}">
+                <td><button type="button" class="invoice-line-name" data-edit-line aria-controls="editor_{{ prefix }}" aria-expanded="false">{{ item.item_name }}</button><div class="invoice-line-supplement">{{ item.category or '' }}{% if item.category and item.notes %} · {% endif %}{{ item.notes or '' }}</div></td>
+                <td class="invoice-line-money">{{ item.raw_result or '空欄' }}{% if item.get('score') %} ／ {{ item.score }}点{% endif %} {{ item.result_text or '' }}</td>
+            </tr>
+            <tr class="invoice-line-editor-row" id="editor_{{ prefix }}" hidden><td colspan="2"><div class="invoice-line-editor">
+                <div class="invoice-input-grid">
+                {% for field, label, limit in item_edit_fields %}
+                    <label class="invoice-input-wide">{{ label }}{% if field in ['status','speaker'] %}<select id="{{ prefix }}{{ field }}" name="{{ prefix }}{{ field }}"><option value="">未設定</option>{% set choices = [('candidate','読取候補'),('confirmed','確認済み'),('illegible','判読不能'),('not_recorded','記載なし'),('not_applicable','対象外'),('unknown','不明')] if field == 'status' else [('auto','自動コメント'),('driver','乗務員'),('manager','管理者'),('unknown','話者不明')] %}{% for value,title in choices %}<option value="{{ value }}" {% if item.get(field) == value %}selected{% endif %}>{{ title }}</option>{% endfor %}</select>{% else %}<textarea id="{{ prefix }}{{ field }}" name="{{ prefix }}{{ field }}" rows="2" maxlength="{{ limit }}">{{ item.get(field) or '' }}</textarea>{% endif %}</label>
+                {% endfor %}
+                </div>
+                <p class="invoice-editor-source">原本 {{ item.source_page }}頁 <button type="button" class="invoice-button" data-show-source="{{ item.source_page }}">このページを見る</button></p>
+                <div class="invoice-editor-footer"><button type="button" class="invoice-reset-link" data-reset-line disabled>↶ この項目を読取値に戻す</button><button type="button" class="invoice-button" data-close-line>閉じる</button></div>
+            </div></td></tr>
+            {% endfor %}
+        </tbody></table>
+    </section>

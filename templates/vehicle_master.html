@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "ocr_searchable_select_field.html" import searchable_select %}
 
 {% block title %}車両マスタ{% endblock %}
 
 {% block content %}
 {% set invoice_review_view = invoice_review_rows is defined %}
 {% set pending_view = pending_detail is defined or request.args.get('view') == 'pending' %}
+{% include 'ocr_searchable_select_assets.html' %}
 <nav class="form-actions vehicle-filter-actions vehicle-workflow-tabs" aria-label="車両一覧の切替">
     <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline"
        {% if not pending_view and not invoice_review_view %}aria-current="page"{% endif %}>
@@ -23,7 +25,7 @@
         ＋ 車両追加
     </a>
 </nav>
-
+<div id="vehicle-workflow-content">
 {% if invoice_review_view %}
 <section class="card">
     <h3>確認待ちの請求書（{{ invoice_review_count }}件）</h3>
@@ -551,7 +553,7 @@
                             <input type="hidden" name="queue_continue" value="1">
                             <input type="hidden" name="queue_next" value="{{ pending_workspace.next_id or '' }}">
                             <label for="pending_vehicle_record_id">登録済み車両</label>
-                            <select id="pending_vehicle_record_id" name="vehicle_record_id" required>
+                            {% call searchable_select('登録済み車両', '車番・車台番号・営業所で検索', 'pending_vehicle_record_id', 'vehicle_record_id', required=true) %}
                                 <option value="">車両を選択</option>
                                 {% for vehicle in pending_choices %}
                                     <option value="{{ vehicle.id }}">
@@ -560,7 +562,7 @@
                                         {% if vehicle.deleted %} ／ 無効車両{% endif %}
                                     </option>
                                 {% endfor %}
-                            </select>
+                            {% endcall %}
                             <p class="help-text">選択した車両へ、保存済みの実績と原本を紐付けます。</p>
                             <button type="submit" class="btn btn-outline">この車両へ紐付ける</button>
                         </form>
@@ -1049,8 +1051,9 @@
     {% endfor %}
 </div>
 
-<script src="{{ url_for('static', filename='js/vehicle_master.js') }}"></script>
-
 {% endif %}
+</div>
+<script src="{{ url_for('static', filename='js/vehicle_master.js', v='20261025-workflow-tabs-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_workflow_tabs.js', v='20261025-workflow-tabs-1') }}" defer></script>
 
 {% endblock %}

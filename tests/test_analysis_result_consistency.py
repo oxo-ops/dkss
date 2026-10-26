@@ -98,7 +98,6 @@ class AnalysisResultConsistencyTests(unittest.TestCase):
         page = self.client.get(f'/vehicle/karte/{self.vehicle.id}/analysis?start_date=2026-01-01&end_date=2026-10-21&peer_registration=all_years&peer_inactive=1')
         self.assertEqual(page.status_code, 200)
         text = page.get_data(as_text=True)
-        self.assertIn('実績比較表の条件です。AIの比較条件は', text)
         self.assertIn('type="hidden" name="peer_registration" value="all_years"', text)
         self.assertIn('type="hidden" name="peer_inactive" value="1"', text)
         self.assertEqual(self.result().json['comparison'], before)

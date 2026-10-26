@@ -1,3 +1,4 @@
+{% from 'ocr_searchable_select_field.html' import searchable_select %}
 <div class="invoice-overview">
   <div class="invoice-section-heading">
     <strong>車両基本情報</strong>
@@ -64,21 +65,21 @@
   <div class="invoice-input-grid">
     <label>
       車種
-      <select name="type" data-certificate-field required>
+      {% call searchable_select('車種', '車種を入力して検索', 'certificate_type', 'type', required=true, certificate=true) %}
         <option value="" selected>選択してください</option>
         {% for vehicle_type in vehicle_types %}
         <option value="{{ vehicle_type.name }}">{{ vehicle_type.name }}</option>
         {% endfor %}
-      </select>
+      {% endcall %}
     </label>
     <label>
       営業所
-      <select name="office" data-certificate-field required>
+      {% call searchable_select('営業所', '営業所を入力して検索', 'certificate_office', 'office', required=true, certificate=true) %}
         <option value="" selected>選択してください</option>
         {% for office in offices %}
         <option value="{{ office.name }}">{{ office.name }}</option>
         {% endfor %}
-      </select>
+      {% endcall %}
     </label>
   </div>
 </div>
