@@ -350,11 +350,11 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 if expiry_baseline:
                     baseline = v.inspection_expiry[:7]
                     if baseline and baseline < start:
-                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '車検満了日が対象年度より前です。更新内容を確認してください。'})
+                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '12か月点検期限が対象年度より前です。更新内容を確認してください。'})
                         continue
                 if not baseline:
                     if not own:
-                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '基準となる点検実績・次回記載なし' if not expiry_baseline else '車検満了日未登録'})
+                        missing.append({'vehicle_record_id': v.id, 'kind': kind, 'reason': '基準となる点検実績・次回記載なし' if not expiry_baseline else '12か月点検期限未登録'})
                     continue
                 step = 3 if kind == '3month' else 12
                 cursor = date.fromisoformat(baseline + '-01')
@@ -562,7 +562,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def certificate_evidence(v, payload, performed):
         confirmation = str(payload.get('confirmation') or '').strip()
         if payload.get('confirmed') is not True or not confirmation or len(confirmation) > 1000:
-            abort(400, '車検の実施日を確認した根拠を入力し、確認済みにしてください。')
+            abort(400, '12か月点検の実施日を確認した根拠を入力し、確認済みにしてください。')
         expiry = payload.get('new_expiry') or None
         if expiry and (not iso_date(expiry) or expiry <= performed.isoformat()):
             abort(400, '更新後満了日を確認してください。実施日より後の日付を入力してください。')

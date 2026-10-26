@@ -470,6 +470,11 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertIn('期限 27/07/10', card)
         self.assertIn('予約未登録', card)
         self.assertNotIn('次回未設定', card)
+        header = html.split('class="vehicle-karte-deadlines"', 1)[1].split('vehicle-karte-defect-count', 1)[0]
+        self.assertNotIn('車検満了日', header)
+        for kind in ('3month', '12month', 'ad_hoc'):
+            self.assertEqual(header.count('data-periodic-summary="' + kind + '"'), 1)
+        self.assertIn('予定・実施を登録', header)
         self.assertNotIn('12month', self.m.inspection_plans.summary('FOREIGN', self.vehicle.id))
 
     def test_saved_annual_reservation_takes_precedence_over_expiry_candidate(self):
@@ -480,6 +485,15 @@ class InspectionPlanTests(unittest.TestCase):
         annual = self.m.inspection_plans.summary('TEST', self.vehicle.id)['12month']
         self.assertEqual(annual['reservation_date'], '2027-06-25')
         self.assertEqual(annual['status'], 'planned')
+
+    def test_planner_exposes_only_quarterly_annual_and_ad_hoc_categories(self):
+        html = self.client.get('/vehicle/inspection-plans?scope=company').get_data(as_text=True)
+        self.assertNotIn('data-kind="vehicle_inspection"', html)
+        self.assertNotIn('<option value="vehicle_inspection">', html)
+        for kind in ('3month', '12month', 'ad_hoc'):
+            self.assertIn('data-kind="' + kind + '"', html)
+            self.assertIn('<option value="' + kind + '">', html)
+        self.assertIn('突発点検', html)
 
 
 del _Workflow
