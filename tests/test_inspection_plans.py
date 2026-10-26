@@ -496,6 +496,100 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertIn('突発修理', html)
 
 
+    def repair_record(self, **overrides):
+        values = dict(company_code='TEST', vehicle_record_id=self.vehicle.id,
+                      category='修理', status='完了', entry_date='2026-08-10',
+                      completion_date='2026-08-17', content='ブレーキ故障の修理',
+                      maintenance_company='修理工場', created_by_username='admin')
+        values.update(overrides)
+        row = self.m.VehicleMaintenanceRecord(**values)
+        self.m.db.session.add(row)
+        self.m.db.session.commit()
+        return row
+
+    def repair_rows(self, **query):
+        args = dict(scope='company', year=2026)
+        args.update(query)
+        response = self.client.get('/api/vehicle/inspection-plans', query_string=args)
+        self.assertEqual(response.status_code, 200)
+        return [r for r in response.json['plans'] if r.get('source') == 'maintenance']
+
+    def test_completed_repair_is_projected_into_planner_header_and_excel(self):
+        import io
+        from openpyxl import load_workbook
+        repair = self.repair_record()
+        rows = self.repair_rows()
+        self.assertEqual(len(rows), 1)
+        actual = rows[0]
+        self.assertEqual((actual['kind'], actual['status'], actual['display_state']),
+                         ('ad_hoc', 'completed', 'completed'))
+        self.assertEqual(actual['performed_date'], '2026-08-17')
+        self.assertEqual(actual['planned_month'], '2026-08')
+        self.assertEqual(actual['factory'], '修理工場')
+        self.assertEqual(actual['maintenance_record_id'], repair.id)
+        self.assertEqual(self.client.get(actual['record_url']).status_code, 200)
+        detail = self.client.get('/api/vehicle/inspection-plans', query_string={
+            'detail': 1, 'vehicle_id': self.vehicle.id}).json
+        self.assertEqual(detail['latest']['ad_hoc']['maintenance_record_id'], repair.id)
+        self.assertNotIn('ad_hoc', detail['plans'])
+        self.assertIn('前回 08/17 実施', self.client.get(
+            f'/vehicle/karte/{self.vehicle.id}').get_data(as_text=True))
+        export = self.client.get('/vehicle/inspection-plans/export.xlsx', query_string={
+            'scope': 'company', 'year': 2026, 'kind': 'ad_hoc'})
+        self.assertEqual(export.status_code, 200)
+        wb = load_workbook(io.BytesIO(export.data))
+        self.assertIn('突発修理 実施済み', wb.worksheets[0]['G5'].value)
+        self.assertIn('実施 2026-08-17', wb.worksheets[0]['G5'].value)
+        self.assertEqual(self.repair_rows()[0]['maintenance_record_id'], repair.id)
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
+        self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
+        self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 1)
+
+    def test_only_confirmed_dated_repairs_in_current_company_are_projected(self):
+        for category in ('突発修理', '修理', '故障', '応急処置'):
+            self.repair_record(category=category)
+        for overrides in [dict(category='整備'), dict(category='定期点検'), dict(category='車検'),
+                          dict(category=None), dict(status='整備中'), dict(status='取消'),
+                          dict(completion_date=None), dict(completion_date='2026-02-30'),
+                          dict(completion_date='2099-01-01'), dict(company_code='OTHER')]:
+            self.repair_record(**overrides)
+        self.assertEqual(len(self.repair_rows()), 4)
+        self.assertEqual(self.repair_rows(year=2025), [])
+        self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
+
+    def test_repair_edits_and_deletion_update_projection_without_stale_copies(self):
+        repair = self.repair_record(status=None)
+        self.assertEqual(len(self.repair_rows()), 1)
+        repair.completion_date = '2026-09-02'
+        repair.maintenance_company = '変更後の工場'
+        self.m.db.session.commit()
+        actual = self.repair_rows()[0]
+        self.assertEqual((actual['performed_date'], actual['display_month'], actual['factory']),
+                         ('2026-09-02', '2026-09', '変更後の工場'))
+        repair.status = '整備中'
+        self.m.db.session.commit()
+        self.assertEqual(self.repair_rows(), [])
+        repair.status = '完了'
+        self.m.db.session.commit()
+        self.assertEqual(len(self.repair_rows()), 1)
+        self.m.db.session.delete(repair)
+        self.m.db.session.commit()
+        self.assertEqual(self.repair_rows(), [])
+        self.assertNotIn('ad_hoc', self.m.inspection_plans.latest('TEST', self.vehicle.id))
+
+    def test_same_day_repairs_remain_distinct_and_do_not_complete_unlinked_bookings(self):
+        booking = self.change(mon='2026-08', kind='ad_hoc')
+        booking['reservation_date'] = '2026-08-17'
+        self.save([booking])
+        first = self.repair_record()
+        second = self.repair_record(content='別箇所の故障修理')
+        rows = self.repair_rows()
+        self.assertEqual({r['maintenance_record_id'] for r in rows}, {first.id, second.id})
+        self.assertNotEqual(rows[0]['record_url'], rows[1]['record_url'])
+        self.assertEqual(self.m.VehicleInspectionPlan.query.one().status, 'planned')
+        self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
+
+
 del _Workflow
 
 if __name__=='__main__':unittest.main()

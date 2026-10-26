@@ -10,7 +10,7 @@
     let executionInitial = '', editorSequence = 0;
     const states = {unreserved:'未予約', reserved:'予約済み', awaiting:'実施確認待ち', completed:'実施済み', candidate:'予定未登録'};
     const labels = { '3month': '3か月点検', '12month': '12か月点検', ad_hoc: '突発修理' };
-    const sourceLabels = { expiry: '12か月点検期限からの候補', manual: '手動で登録した予定', document: '点検簿の次回記載から反映', calculated: '周期から自動算出した候補' };
+    const sourceLabels = { expiry: '12か月点検期限からの候補', manual: '手動で登録した予定', document: '点検簿の次回記載から反映', calculated: '周期から自動算出した候補', maintenance: '整備・修理に登録された実績' };
     let batchTargets = null;
     let current = null, vehicle = null, initial = '', pending = null, data = null, selected = new Set();
     const args = planner ? JSON.parse(planner.dataset.planArgs || '{}') : {};
@@ -61,6 +61,7 @@
         panel.querySelector('[data-plan-kind-label]').textContent = labels[row.kind];
         panel.querySelector('[data-plan-vehicle-label]').textContent = targetRows ? targetRows.length + '台を一括登録' : v.number;
         panel.querySelector('[data-plan-office-label]').textContent = v.office || '営業所未設定';
+        panel.querySelector('[data-plan-month-label]').textContent = row.source === 'maintenance' ? '実施月' : '次回予定月';
         ['planned_month', 'reservation_date', 'factory', 'note'].forEach(key => {
             form.elements[key].value = row[key] || ''; form.elements[key].disabled = !editable;
         });
@@ -100,10 +101,13 @@
         api('?detail=1&vehicle_id=' + encodeURIComponent(v.id)).then(value => {
             if (sequence !== editorSequence) return;
             (value.documents || []).forEach(d => { const o = node('option', d.name); o.value = d.id; docs.append(o); });
-            const actual = value.latest[row.kind];
-            panel.querySelector('[data-plan-last]').textContent = actual ? '直近の実施：' + actual.performed_date + ' ／ 書類' + actual.document_status + (actual.factory ? ' ／ ' + actual.factory : '') : '実施記録なし（実施したかは未確認）';
+            const actual = row.record_url ? row : value.latest[row.kind];
+            panel.querySelector('[data-plan-last]').textContent = actual ? (row.record_url ? '実施記録：' : '直近の実施：') + actual.performed_date + ' ／ 書類' + actual.document_status + (actual.factory ? ' ／ ' + actual.factory : '') : '実施記録なし（実施したかは未確認）';
             const link = panel.querySelector('[data-plan-record-link]'); link.hidden = !actual?.record_url;
-            if (actual?.record_url) link.href = actual.record_url;
+            if (actual?.record_url) {
+                link.href = actual.record_url;
+                link.textContent = actual.record_link_label || '点検記録の原本を開く ↗';
+            }
         }).catch(e => { if (sequence === editorSequence) panel.querySelector('[data-plan-last]').textContent = e.message; });
         panel.showModal();
     }
@@ -416,7 +420,7 @@
                     items.slice(0,items.length>3?2:3).forEach(p=>{
                         const expiryCandidate=p.kind==='12month'&&p.status==='candidate'&&p.expiry_date;
                         const b=node('button',stateMarks[p.display_state]+' '+shortKinds[p.kind],'ip-chip');b.classList.toggle('ip-expiry-candidate',expiryCandidate);b.type='button';b.dataset.status=p.status;b.dataset.state=p.display_state;
-                        b.title=(expiryCandidate?'12か月点検期限を基に表示 ／ 予定未登録（予約なし）':labels[p.kind]+' ／ '+states[p.display_state])+' ／ 予定月 '+p.planned_month+(p.reservation_date?' ／ 予約 '+p.reservation_date:'')+(p.expiry_date?' ／ 満了 '+p.expiry_date:'')+(p.performed_date?' ／ 実施 '+p.performed_date:'');
+                        b.title=(expiryCandidate?'12か月点検期限を基に表示 ／ 予定未登録（予約なし）':labels[p.kind]+' ／ '+states[p.display_state])+(p.source==='maintenance'?' ／ 実施月 ':' ／ 予定月 ')+p.planned_month+(p.reservation_date?' ／ 予約 '+p.reservation_date:'')+(p.expiry_date?' ／ 満了 '+p.expiry_date:'')+(p.performed_date?' ／ 実施 '+p.performed_date:'');
                         b.setAttribute('aria-label',v.number+' '+mon+' '+b.title);b.addEventListener('click',()=>edit(p,v));stack.append(b);
                     });
                     if(items.length>3){const more=node('button','＋'+(items.length-2)+'件','ip-year-more');more.type='button';more.addEventListener('click',()=>openEntries(v.number+' ／ '+mon,items.map(p=>({p,day:p.performed_date||p.reservation_date||mon,type:p.status==='completed'?'actual':p.expiry_date?'expiry':'booking'}))));stack.append(more);}
@@ -427,7 +431,7 @@
         } else {
             for(const p of rows.sort(comparePlans)) {
                 const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),tr=node('tr');tr.append(checkbox(v),vehicleCell(v),node('td',labels[p.kind]));
-                const due=node('td');if(p.expiry_date)due.append(node('span',(p.status==='completed'?'当時の満了日 ':'12か月点検期限 ')+p.expiry_date));due.append(node('small',(p.status==='candidate'?'候補月 ':'予定月 ')+p.planned_month));tr.append(due,node('td',p.reservation_date||'未定'),node('td',p.factory||'—'));
+                const due=node('td');if(p.expiry_date)due.append(node('span',(p.status==='completed'?'当時の満了日 ':'12か月点検期限 ')+p.expiry_date));due.append(node('small',(p.source==='maintenance'?'実施月 ':p.status==='candidate'?'候補月 ':'予定月 ')+p.planned_month));tr.append(due,node('td',p.reservation_date||'未定'),node('td',p.factory||'—'));
                 const status=node('td');status.append(badge(p));if(p.status==='completed')status.append(node('small','書類'+(p.document_status||'未確認')));tr.append(status,node('td',p.performed_date||'—'));
                 const action=node('td'),b=node('button',p.status==='completed'?'実施内容':p.display_state==='awaiting'?'実施を確認':p.status==='candidate'?'予定に登録':!p.reservation_date?'予約日を登録':'予約を確認','btn btn-outline');b.type='button';b.addEventListener('click',()=>edit(p,v));action.append(b);tr.append(action);body.append(tr);
                 Array.from(tr.children).forEach((td,i)=>{td.dataset.label=['選択',...columns][i];});
