@@ -9,7 +9,12 @@
     body[data-responsive-shell] :is(.page-header,.card-title-row,.header-actions,.form-actions,.invoice-page-heading,.invoice-submit-actions,.ip-heading,.ip-footer) { flex-wrap:wrap; }
     body[data-responsive-shell] :is(.page-header,.card-title-row,.ip-heading) > :is(h2,h3,div) { min-inline-size:0; overflow-wrap:anywhere; }
     body[data-responsive-shell] :is(.table-scroll,.table-wrap,.table-wrapper,.table-responsive,.table-container,.kc-table-scroll,.kp-table-scroll,.ka7-parts-scroll,.vehicle-operation-import-table-wrap,.vehicle-import-master-table-scroll,.dashboard-analysis-targets-scroll,.dashboard-attention-table-wrap,.dashboard-periodic-table-wrap,.dashboard-history-scroll,.ip-grid-scroll,.ip-review-scroll,.driving-table-wrap) {
-        box-sizing:border-box; min-inline-size:0; max-inline-size:100%; overflow:auto; overscroll-behavior-x:contain; overscroll-behavior-y:auto;
+        box-sizing:border-box; min-inline-size:0; max-inline-size:100%; overflow:auto; overscroll-behavior-x:contain; overscroll-behavior-y:auto !important;
+    }
+    /* Natural page content hands vertical scrolling to its parent at either end.
+       PDF canvases, navigation, popovers and dialog boundaries retain isolation. */
+    body[data-responsive-shell] .main-content :is(.vehicle-document-import-preview,.vehicle-certificate-review,.invoice-overview,.invoice-detail-content,.invoice-editor-dock,.invoice-records,.dashboard-my-checklists-grid) {
+        overscroll-behavior-y:auto !important;
     }
     body[data-responsive-shell] .responsive-table-viewport { margin:0; }
     .checklist-other-items > .responsive-table-viewport > .checklist-table { margin:0; border-radius:0; box-shadow:none; }
