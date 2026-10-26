@@ -97,10 +97,10 @@ def coupling_context(vehicle, vehicles):
                 candidates.append({"id": peer.id, "label": label(peer), "office": peer.office or "",
                                    "type": peer.type or peer.body_type or "", "chassis": peer.chassis_number or ""})
         candidates.sort(key=lambda item: (item["office"] != vehicle.office, item["office"], item["label"], item["id"]))
-    return {"visible": bool(role or links), "ready": ready, "links": links,
-            "can_edit": require_master_admin(), "can_add": bool(role and not vehicle.deleted and ready),
+    return {"visible": bool(candidates or links), "ready": ready, "links": links,
+            "can_edit": require_master_admin(), "can_add": bool(candidates),
             "candidates": candidates, "role": role,
-            "button_label": "フルトレーラーを紐づけ" if role == "truck" else "連結車両を紐づけ"}
+            "button_label": "連結車両を設定"}
 
 
 def current_vehicle(vehicle_record_id):
@@ -158,7 +158,7 @@ def add_coupling(vehicle_record_id):
     except IntegrityError:
         db.session.rollback()
         abort(409, description="この組合せは既に登録されています。画面を更新してください。")
-    flash("連結車両を紐づけました。", "success")
+    flash("連結車両を追加しました。", "success")
     return redirect(coupling_return_url(vehicle))
 
 
