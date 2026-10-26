@@ -441,6 +441,12 @@
         const office=filters.elements.office.value;url.searchParams.set('scope',office==='__company'?'company':'office');if(office&&office!=='__company')url.searchParams.set('office',office);
         for(const [k,v] of Object.entries({month:filters.elements.month.value,view,kind,state,q:filters.elements.search.value,vehicle_id:focus||''}))if(v)url.searchParams.set(k,v);
         history.replaceState(null,'',url);
+        const exportLink=planner.querySelector('[data-plan-export]');
+        const exportURL=new URL('/vehicle/inspection-plans/export.xlsx',location.origin);
+        exportURL.search=url.search;
+        exportURL.searchParams.set('year',monthYear());
+        exportLink.href=exportURL.pathname+exportURL.search;
+
         requestAnimationFrame(fitLayout);
     }
     async function load() {
