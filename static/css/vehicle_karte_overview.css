@@ -114,8 +114,8 @@
 #vehicle-karte-overview .ko-registration { font-size:12px; }
 #vehicle-karte-overview .ko-registration > summary { cursor:pointer; color:var(--ov-muted); }
 @media(max-width:1190px) {
- #vehicle-karte-overview .ko-workspace { grid-template-columns:minmax(0,1fr); }
- #vehicle-karte-overview .ko-support-grid { grid-template-columns:minmax(0,1fr); }
+ #vehicle-karte-overview .ko-workspace,
+#vehicle-karte-overview .ko-support-grid { grid-template-columns:minmax(0,1fr); }
  #vehicle-karte-overview .ov6-plan-row { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
 }
 @media(max-width:620px) {

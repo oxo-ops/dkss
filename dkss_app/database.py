@@ -459,9 +459,7 @@ def initialize_database():
 
             _dkss_common.db.session.commit()
 
-        # =========================
         # News テナント分離
-        # =========================
 
         inspector = _dkss_common.inspect(_dkss_common.db.engine)
 

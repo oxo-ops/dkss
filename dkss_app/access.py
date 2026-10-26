@@ -165,9 +165,7 @@ def require_login():
 
         return _dkss_common.redirect("/settings")
 
-    # =========================
     # マスタ管理は管理者のみ
-    # =========================
     if _dkss_common.request.path == "/master" or _dkss_common.request.path.startswith("/master/"):
         if _dkss_common.session.get("role") not in ["admin", "itc"]:
             return _dkss_common.redirect("/")

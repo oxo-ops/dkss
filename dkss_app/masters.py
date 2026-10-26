@@ -1504,9 +1504,7 @@ def new_driver():
                 "selected_vehicles"
             ))
 
-        # =========================
         # 基本入力チェック
-        # =========================
 
         if not employee_id:
             form_errors.append((
@@ -1566,9 +1564,7 @@ def new_driver():
                 "password"
             ))
 
-        # =========================
         # ロール検証
-        # =========================
 
         if role not in ["admin", "user"]:
             form_errors.append((
@@ -1587,9 +1583,7 @@ def new_driver():
                     "safe_start_date"
                 ))
 
-        # =========================
         # ログインID重複確認
-        # =========================
 
         if _dkss_models.User.query.filter_by(
             company_code=company_code,
@@ -1600,9 +1594,7 @@ def new_driver():
                 "employee_id"
             ))
 
-        # =========================
         # 営業所検証
-        # =========================
 
         if office:
             valid_office = _dkss_models.Office.query.filter_by(
@@ -1616,9 +1608,7 @@ def new_driver():
                     "office"
                 ))
 
-        # =========================
         # 車両検証
-        # =========================
 
         valid_vehicle_record_ids = {
             str(vehicle.id)
@@ -1636,9 +1626,7 @@ def new_driver():
                 ))
                 break
 
-        # =========================
         # 免許種別検証
-        # =========================
 
         valid_license_types = {
             item.name
@@ -1712,9 +1700,7 @@ def new_driver():
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
 
-        # =========================
         # Driver作成
-        # =========================
 
         driver = _dkss_models.Driver(
             company_code=company_code,
@@ -1733,9 +1719,7 @@ def new_driver():
             )
         )
 
-        # =========================
         # User作成
-        # =========================
 
         user = _dkss_models.User(
             company_code=company_code,
@@ -1953,9 +1937,7 @@ def edit_driver(index):
                 "selected_vehicles"
             ))
 
-        # =========================
         # 基本入力チェック
-        # =========================
 
         if not new_employee_id:
             form_errors.append((
@@ -2016,9 +1998,7 @@ def edit_driver(index):
                     "password"
                 ))
 
-        # =========================
         # ロール検証
-        # =========================
 
         if role not in ["admin", "user", "itc"]:
             form_errors.append((
@@ -2037,9 +2017,7 @@ def edit_driver(index):
                     "safe_start_date"
                 ))
 
-        # =========================
         # ログインID重複確認
-        # =========================
 
         if new_employee_id != old_employee_id:
             existing_user = _dkss_models.User.query.filter_by(
@@ -2053,9 +2031,7 @@ def edit_driver(index):
                     "employee_id"
                 ))
 
-        # =========================
         # 営業所検証
-        # =========================
 
         if office:
             valid_office = _dkss_models.Office.query.filter_by(
@@ -2069,9 +2045,7 @@ def edit_driver(index):
                     "office"
                 ))
 
-        # =========================
         # 車両検証
-        # =========================
 
         valid_vehicle_record_ids = {
             str(vehicle.id)
@@ -2089,9 +2063,7 @@ def edit_driver(index):
                 ))
                 break
 
-        # =========================
         # 免許種別検証
-        # =========================
 
         valid_license_types = {
             item.name
@@ -2165,9 +2137,7 @@ def edit_driver(index):
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
 
-        # =========================
         # User取得
-        # =========================
 
         user = _dkss_models.User.query.filter_by(
             company_code=company_code,
@@ -2273,9 +2243,7 @@ def edit_driver(index):
             user.email_address = email_address or None
             user.email_notify_enabled = bool(email_address)
 
-        # =========================
         # Driver更新
-        # =========================
 
         driver.employee_id = new_employee_id
         driver.name = (last_name or "") + (first_name or "")

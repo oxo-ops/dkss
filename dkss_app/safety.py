@@ -335,9 +335,7 @@ def new_pointout():
                     "発生日が不正です。",
                     "event_date"
                 ))
-        # =========================
         # 対象種別検証
-        # =========================
 
         if target_type not in _dkss_common.PATROL_VIEW_TYPES:
             form_errors.append((
@@ -347,9 +345,7 @@ def new_pointout():
 
         target_office = _dkss_common.session.get("office") or ""
 
-        # =========================
         # 対象ユーザー検証
-        # =========================
 
         if target_type == "user":
             if not target_user:
@@ -386,9 +382,7 @@ def new_pointout():
 
             delivery_place = ""
 
-        # =========================
         # 納入先検証
-        # =========================
 
         elif target_type == "delivery_place":
             if not delivery_place:
@@ -411,9 +405,7 @@ def new_pointout():
 
             target_user = ""
 
-        # =========================
         # 内容区分検証
-        # =========================
 
         if content_type:
             valid_content_type = _dkss_models.PatrolContentType.query.filter_by(
@@ -436,9 +428,7 @@ def new_pointout():
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
 
-        # =========================
         # 添付ファイル
-        # =========================
 
         uploaded_files = [
             file
@@ -472,9 +462,7 @@ def new_pointout():
             if filename:
                 file_names.append(filename)
 
-        # =========================
         # 登録
-        # =========================
 
         result = _dkss_models.PatrolResult(
             company_code=company_code,
@@ -684,9 +672,7 @@ def edit_pointout(index):
                 "content_editor"
             ))
 
-        # =========================
         # 内容区分検証
-        # =========================
 
         if content_type:
             valid_content_type = _dkss_models.PatrolContentType.query.filter_by(
@@ -710,9 +696,7 @@ def edit_pointout(index):
         validated_office = result_record.office
         validated_delivery_place = result_record.delivery_place
 
-        # =========================
         # 対象ユーザー検証
-        # =========================
 
         if result_record.target_type == "user":
             target_username = _dkss_common.request.form.get(
@@ -759,9 +743,7 @@ def edit_pointout(index):
                         )
                         validated_delivery_place = ""
 
-        # =========================
         # 納入先検証
-        # =========================
 
         elif result_record.target_type == "delivery_place":
             delivery_place = _dkss_common.request.form.get(
@@ -795,9 +777,7 @@ def edit_pointout(index):
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
 
-        # =========================
         # 既存添付
-        # =========================
 
         files = _dkss_serialization.safe_json_str_list(
             result_record.files_json
@@ -826,9 +806,7 @@ def edit_pointout(index):
             files.remove(delete_file)
             pending_delete_files.append(delete_file)
 
-        # =========================
         # 新規添付
-        # =========================
 
         uploaded_files = [
             file

@@ -187,24 +187,4 @@ def can_approve_checklist_result(result, approval=None):
 
 
 def can_reject_checklist_result(result, approval=None):
-    if not is_same_company_result(result):
-        return False
-
-    if not approval:
-        return False
-
-    approval_user = _dkss_models.User.query.filter_by(
-        company_code=result.get("company_code"),
-        username=_dkss_common.session.get("username")
-    ).first()
-
-    if not approval_user:
-        return False
-
-    if approval_user.role == "admin":
-        return True
-
-    return (
-        approval.get("allow_general", False)
-        and approval_user.role == "user"
-    )
+    return can_approve_checklist_result(result, approval)
