@@ -194,33 +194,8 @@
 
         <div class="top-bar{% if request.endpoint == 'notifications' %} notification-top-bar{% endif %}{% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %} vehicle-karte-top-bar{% endif %}">
             {% if request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
-            <div class="vehicle-karte-search">
-                <label for="karte_vehicle_search">車両検索</label>
-
-                <input
-                    type="search"
-                    id="karte_vehicle_search"
-                    placeholder="車番・車台番号で検索"
-                    aria-label="車番・車台番号で検索"
-                    aria-controls="karte_vehicle_search_results"
-                    autocomplete="off"
-                >
-
-                <p
-                    id="karte_vehicle_search_status"
-                    class="help-text"
-                    role="status"
-                    aria-live="polite"
-                    hidden
-                ></p>
-
-                <div
-                    id="karte_vehicle_search_results"
-                    class="vehicle-karte-search-results"
-                    data-karte-url="{{ url_for('vehicle_karte_list') }}"
-                    hidden
-                ></div>
-            </div>
+            {% from 'vehicle_search_field.html' import vehicle_search %}
+            {{ vehicle_search('karte_vehicle_search', 'karte_vehicle_search_status', 'karte_vehicle_search_results', url_for('vehicle_karte_list')) }}
 
             <script
                 type="application/json"
@@ -485,7 +460,7 @@
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-viewport-1') }}">
 <script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-viewport-1') }}"></script>
-<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-responsive-1') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-import-actions-2') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

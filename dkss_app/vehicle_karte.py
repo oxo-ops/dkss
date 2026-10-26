@@ -3052,6 +3052,7 @@ def get_vehicle_karte_usage_vehicles():
 
 
 def inject_vehicle_karte_choices():
+    from .vehicle_couplings import coupling_context
     if _dkss_common.request.endpoint not in {
         "vehicle_karte_list",
         "vehicle_karte",
@@ -3218,6 +3219,9 @@ def inject_vehicle_karte_choices():
 
     return {
         "karte_vehicle_choices": choices,
+        "karte_coupling": coupling_context(
+            next((record for record in vehicles if record.id == vehicle_record_id), None), vehicles
+        ),
         "karte_usage_vehicles": get_vehicle_karte_usage_vehicles(),
         "karte_operation_summary": operation_summary,
         "karte_maintenance_summary": maintenance_summary,
