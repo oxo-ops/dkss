@@ -8,6 +8,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 from driving_report_pdf import export_pdf
+import driving_report_workspace as workspace
+from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
 from driving_report_data import payload, version, identity, decimal, match_report, canonical_operations, metrics_summary, eligible_reports
@@ -39,9 +41,22 @@ def register_driving_reports(app, db, g):
         return Record.query.filter_by(company_code=company,vehicle_record_id=vehicle).all()
     def canonical(company,vehicle,rows=None):
         return canonical_operations(operations(company,vehicle) if rows is None else rows,reports(company,vehicle))
+    def workspace_scope(args):
+        admin=readership.administrator()
+        if not admin:return workspace.scope_filter(args,[],None,False),[],[],[]
+        users=g['User'].query.filter_by(company_code=session['company_code']).all()
+        from dkss_app.models import Office, Driver
+        masters=Driver.query.filter_by(company_code=session['company_code']).all()
+        registered=Office.query.filter_by(company_code=session['company_code']).all()
+        company_rows=Record.query.filter_by(company_code=session['company_code']).all()
+        choices=workspace.office_choices(registered,masters,company_rows)
+        user=next((u for u in users if u.username==session.get('username')),None)
+        try:resolved=workspace.scope_filter(args,choices,user.office if user else None,True)
+        except ValueError as exc:abort(400,str(exc))
+        return resolved,choices,masters,users
     def selected(args=None):
         args=request.args if args is None else args
-        access();q=Record.query.filter_by(company_code=session['company_code'])
+        access();args,choices,_,_=workspace_scope(args);q=Record.query.filter_by(company_code=session['company_code'])
         for name,op in [('start','ge'),('end','le')]:
             value=args.get(name,'').strip()
             if value:
@@ -54,8 +69,11 @@ def register_driving_reports(app, db, g):
             except ValueError:abort(400)
             q=q.filter_by(vehicle_record_id=vid)
         rows=readership.visible(q.order_by(Record.operation_date.desc(),Record.id.desc()).all())
+        office=workspace.scope_name(args,choices,readership.administrator())
+        if readership.administrator() and args['scope']=='office':
+            rows=[r for r in rows if office and workspace.report_office(r)==office]
         # Text filters are applied to original report fields, never a driver's current assignment.
-        for name,fields in [('driver',('driver_name','driver_code')),('office',('office_name','driver_office','vehicle_office'))]:
+        for name,fields in [('driver',('driver_name','driver_code'))]:
             value=args.get(name,'').strip()
             if len(value)>200:abort(400)
             if value:rows=[r for r in rows if any(value in str(payload(r).get(f) or '') for f in fields)]
@@ -93,10 +111,12 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare'}
+        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
+        args,office_options,master_drivers,company_users=workspace_scope(args)
+        if args.get('listing','offices') not in {'offices','people'}:abort(400)
         today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
         try:period=scope_override or periods(args,today)
         except (ValueError,OverflowError) as exc:abort(400,str(exc))
@@ -121,8 +141,20 @@ def register_driving_reports(app, db, g):
         warning_keys={keys[r.id] for r in context if driver_keys([r])[0][r.id] in conflicting}
         confirmed=readership.bindings(context)
         for record_id,grant in confirmed.items():keys[record_id]=readership.account_key(grant)
+        if args.get('focus'):
+            rows=[r for r in rows if keys.get(r.id)==args['focus']]
+            previous=[r for r in previous if keys.get(r.id)==args['focus']]
         current_context=[r for r in context if (not period['start'] or r.operation_date>=period['start']) and (not period['end'] or r.operation_date<=period['end'])]
         previous_context=[r for r in context if period['previous_start'] and period['previous_start']<=r.operation_date<=period['previous_end']]
+        # Deduplication may consult copies, but never select an out-of-scope
+        # office/person as the representative or as a source of metric values.
+        office=workspace.scope_name(resolved,office_options,readership.administrator())
+        def in_scope(row):
+            return (not readership.administrator() or resolved['scope']=='company' or
+                    bool(office) and workspace.report_office(row)==office) and (
+                    not args.get('focus') or keys.get(row.id)==args['focus'])
+        current_context=[r for r in current_context if in_scope(r)]
+        previous_context=[r for r in previous_context if in_scope(r)]
         facts,issues=collect(rows,ops,keys,current_context)
         before,old_issues=collect(previous,ops,keys,previous_context)
         for fact in facts+before:
@@ -143,7 +175,10 @@ def register_driving_reports(app, db, g):
         board['reader_count']=len(scope)
         board['reader_version']=hashlib.sha256(json.dumps([(r.id,version(r)) for r in scope]).encode()).hexdigest()
         board['reader_rows']=scope
+        workspace.enrich(board,facts,before,master_drivers,company_users,confirmed,office_options,resolved,readership.administrator())
         return rows,previous,ops,vehicles,resolved,board,facts
+
+    reflection_service=register_reflections(app,db,prepare_insights,history=lambda board,facts:history_context(board,facts))
 
     def history_context(board,facts):
         focus=board['selected_driver']
@@ -167,10 +202,11 @@ def register_driving_reports(app, db, g):
         try:page=max(1,int(request.args.get('page','1')))
         except ValueError:abort(400)
         summary=metrics_summary(rows)
+        reflection=reflection_service['view'](rows,previous,filters,board,facts)
         summary.update(distance=str(board['summary']['distance']) if board['summary']['distance'] is not None else None,
             operation_count=board['summary']['count'],distance_count=board['summary']['distance_count'])
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
-            summary=summary,insights=board,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
+            summary=summary,insights=board,reflection=reflection,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
             insight_number=number,reader_users=g['User'].query.filter_by(company_code=session['company_code'],role='user').order_by(g['User'].username).all() if readership.administrator() else [])
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
@@ -257,7 +293,10 @@ def register_driving_reports(app, db, g):
             try:period=periods(export_args,datetime.now(ZoneInfo('Asia/Tokyo')).date())
             except (ValueError,OverflowError) as exc:abort(400,str(exc))
             export_args.update(start=period['start'],end=period['end'])
-        rows=selected(export_args)
+        if 'period' not in export_args and bool(export_args.get('start'))!=bool(export_args.get('end')):
+            partial={'mode':'custom','start':export_args.get('start',''),'end':export_args.get('end',''),'previous_start':'','previous_end':''}
+        else:partial=None
+        rows,_,_,_,export_args,export_board,_=prepare_insights(export_args,partial)
         if format not in {'csv','pdf'}:abort(404)
         heading=['日報ID','運行日','対象期間終了','車両','乗務員','営業所','メーカー','帳票','粒度','状態','取込確認','開始時刻','終了時刻','開始積算距離km','終了積算距離km','走行距離km','走行時間','アイドリング時間','消費燃料','燃料単位','燃費','燃費単位','確認指導内容','次回確認日','確認担当','CSV照合状態','採用元','CSV記録ID','抽出条件','出力日時','区分','項目','原文値','数値','単位','分子','分母','分母単位','点数','評価','定義','閾値','道路','開始','終了','場所','話者','備考','原本ページ','原本ID']
         output=[]
@@ -276,12 +315,7 @@ def register_driving_reports(app, db, g):
         reviews={r.id:payload(r).get('review') or {} for r in rows}
         heading += ['改善する行動','乗務員の説明']
         output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation')] for values in output]
-        board=None
-        if request.args.get('view')=='comparison' or format=='pdf':
-            partial=None
-            if 'period' not in export_args and bool(export_args.get('start'))!=bool(export_args.get('end')):
-                partial={'mode':'custom','start':export_args.get('start',''),'end':export_args.get('end',''),'previous_start':'','previous_end':''}
-            _,_,_,_,_,board,_=prepare_insights(dict(export_args,period=export_args.get('period','custom' if export_args.get('start') and export_args.get('end') else 'all')),partial)
+        board=export_board
         if format=='csv' and request.args.get('view')=='comparison':
             heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合']
             output=[]

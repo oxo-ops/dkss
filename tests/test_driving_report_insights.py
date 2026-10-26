@@ -147,6 +147,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
             operation_date=fixture.operation_date,details_json=fixture.details_json,content='日報',created_by_username='admin',source_draft_id='fixture-'+str(i),source_record_index=0)
         self.m.db.session.add(r);self.m.db.session.commit();return r
     def test_month_default_and_resolved_export_scope(self):
+        self.m.User.query.filter_by(username='admin').one().office='安城';self.m.db.session.commit()
         self.save();self.save(2,day='2025-10-10',name='過去の人',code='OLD')
         with patch('driving_report_management.datetime') as clock:
             from datetime import datetime
@@ -157,7 +158,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
         self.assertIn('2026-10-01',html);self.assertNotIn('過去の人',html)
         self.assertIn('period=month',html);self.assertIn('比較CSV',html)
         self.assertIn('乗務員ごとの運転傾向',html)
-        self.assertEqual(self.client.get('/safety/driving-reports?period=custom&start=bad&end=bad').status_code,400)
+        self.assertEqual(self.client.get('/safety/driving-reports?scope=company&period=custom&start=bad&end=bad').status_code,400)
 
     def test_focus_trend_and_company_scoped_maintenance_links(self):
         a=self.save();self.save(2,day='2026-10-11')
@@ -165,14 +166,14 @@ class DrivingInsightRouteTests(unittest.TestCase):
         self.m.db.session.add(self.m.VehicleMaintenanceRecord(company_code='OTHER',vehicle_record_id=self.vehicle.id,entry_date='2026-09-01',completion_date='2026-09-02',status='完了',content='他社秘密整備'))
         self.m.db.session.commit()
         key=driver_keys([a])[0][a.id]
-        response=self.client.get('/safety/driving-reports?'+urlencode({'period':'all','focus':key}))
+        response=self.client.get('/safety/driving-reports?'+urlencode({'scope':'company','period':'all','focus':key}))
         self.assertEqual(response.status_code,200,response.get_data(as_text=True));html=response.get_data(as_text=True)
         self.assertIn('さんの詳細',html);self.assertIn('クラッチ交換',html);self.assertNotIn('他社秘密整備',html)
         self.assertIn('data-driving-chart',html);self.assertIn('return_to=',html)
 
     def test_comparison_csv_matches_rates_and_includes_provenance(self):
         self.save(distance='20',count='1',name='=名前');self.save(2,name='二人目',code='B',count='2')
-        response=self.client.get('/safety/driving-reports/export.csv?period=all&view=comparison')
+        response=self.client.get('/safety/driving-reports/export.csv?scope=company&period=all&view=comparison')
         self.assertEqual(response.status_code,200)
         rows=list(csv.DictReader(io.StringIO(response.data.decode('utf-8-sig'))))
         self.assertEqual(len(rows),2)
@@ -183,7 +184,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
 
     def test_review_retains_action_explanation_rejects_stale_and_guards_return(self):
         r=self.save();url=f'/safety/driving-reports/{r.id}/review'
-        data=dict(version=version(r),state='followup',action='急な加速を減らす',driver_explanation='合流のため',return_to='/safety/driving-reports?period=all#driver-trend')
+        data=dict(version=version(r),state='followup',action='急な加速を減らす',driver_explanation='合流のため',return_to='/safety/driving-reports?scope=company&period=all#driver-trend')
         response=self.client.post(url,data=data)
         self.assertEqual(response.status_code,302);self.assertIn('return_to=',response.location)
         self.assertEqual(payload(r)['review']['action'],data['action']);self.assertEqual(payload(r)['review']['driver_explanation'],'合流のため')
@@ -197,19 +198,19 @@ class DrivingInsightRouteTests(unittest.TestCase):
     def test_get_and_exports_do_not_change_source_or_call_ai(self):
         r=self.save();original=r.details_json
         with patch('maintenance_invoice_ai.urllib.request.urlopen',side_effect=AssertionError('no network')):
-            self.assertEqual(self.client.get('/safety/driving-reports?period=all').status_code,200)
-            self.assertEqual(self.client.get('/safety/driving-reports/export.pdf?period=all').status_code,200)
+            self.assertEqual(self.client.get('/safety/driving-reports?scope=company&period=all').status_code,200)
+            self.assertEqual(self.client.get('/safety/driving-reports/export.pdf?scope=company&period=all').status_code,200)
         self.assertEqual(r.details_json,original)
 
     def test_partial_export_scope_and_reserved_query_parameters(self):
         self.save(day='2026-10-10',name='範囲内',code='IN')
         self.save(2,day='2026-09-01',name='範囲外',code='OUT')
-        response=self.client.get('/safety/driving-reports/export.csv?view=comparison&start=2026-10-01')
+        response=self.client.get('/safety/driving-reports/export.csv?scope=company&view=comparison&start=2026-10-01')
         text=response.data.decode('utf-8-sig')
         self.assertEqual(response.status_code,200);self.assertIn('範囲内',text);self.assertNotIn('範囲外',text)
-        response=self.client.get('/safety/driving-reports?period=all&format=csv&record_id=99')
+        response=self.client.get('/safety/driving-reports?scope=company&period=all&format=csv&record_id=99')
         self.assertEqual(response.status_code,200)
-        self.assertEqual(self.client.get('/safety/driving-reports?period=all&focus=bad').status_code,400)
+        self.assertEqual(self.client.get('/safety/driving-reports?scope=company&period=all&focus=bad').status_code,400)
         report=self.m.VehicleDrivingReportRecord.query.first()
         self.assertEqual(self.client.get(f'/safety/driving-reports/{report.id}?return_to=http://[').status_code,200)
 
@@ -219,7 +220,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
         self.save(distance=None,code=None,name='<script>名前</script>',definition_version=None)
         self.save(2,lifecycle='cancelled',distance=None)
         self.save(3,day='2025-01-01',distance=None,name='範囲外')
-        response=self.client.get('/safety/driving-reports?period=custom&start=2026-10-01&end=2026-10-26&office=安城')
+        response=self.client.get('/safety/driving-reports?scope=company&period=custom&start=2026-10-01&end=2026-10-26&office=安城')
         self.assertEqual(response.status_code,200)
         notes=response.get_data(as_text=True).split('id="comparison-review"',1)[1].split('</details>',1)[0]
         self.assertEqual(notes.count('class="driving-review-note"'),1);self.assertIn('原本値',notes)
