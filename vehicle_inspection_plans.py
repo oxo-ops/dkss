@@ -43,7 +43,7 @@ def add_months(value, count):
     return date(year, mon + 1, min(value.day, calendar.monthrange(year, mon + 1)[1]))
 
 
-def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft):
+def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft, *, Maintenance=None):
     from dkss_app.vehicle_inspection_plans_models import get_models
     VehicleInspectionPlan, VehicleInspectionPlanEvent, VehicleInspectionExecution, VehicleInspectionExecutionEvidence, = get_models(db)
 
@@ -119,11 +119,48 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 'document_status': ('登録済み' if evidence and evidence.document_id else '未受領') if manual else '登録済み',
                 'record_url': (f'/vehicle/inspection-plans/executions/{-r.id}/source' if evidence and evidence.document_id else None) if manual else f'/vehicle/periodic-inspections/{r.id}/source'}
 
+    def repair_actuals(code, ids):
+        """Project confirmed repair facts from their source, without copying records."""
+        if Maintenance is None or not ids:
+            return []
+        records = Maintenance.query.filter(
+            Maintenance.company_code == code, Maintenance.vehicle_record_id.in_(ids),
+            Maintenance.category.in_(['突発修理', '修理', '故障', '応急処置']),
+        ).order_by(Maintenance.completion_date, Maintenance.id).all()
+        result = []
+        for record in records:
+            performed = iso_date(record.completion_date)
+            # A booking, entry date or invoice date alone does not prove completion.
+            if not performed or performed > today() or record.status not in (None, '', '完了', 'completed'):
+                continue
+            try:
+                info = json.loads(record.invoice_details_json or '{}')
+                files = json.loads(record.files_json or '[]')
+                has_document = bool(files or (isinstance(info, dict) and
+                                    isinstance(info.get('source'), dict) and info['source'].get('draft_id')))
+            except (ValueError, TypeError):
+                has_document = False
+            result.append({'id': None, 'version': 0, 'vehicle_record_id': record.vehicle_record_id,
+                'kind': 'ad_hoc', 'period_key': record.completion_date[:7],
+                'planned_month': record.completion_date[:7], 'display_month': record.completion_date[:7],
+                'reservation_date': None, 'document_date': None, 'status': 'completed', 'is_history': True,
+                'source': 'maintenance', 'source_record_id': None, 'completed_record_id': None,
+                'maintenance_record_id': record.id, 'performed_date': record.completion_date,
+                'factory': record.maintenance_company or '', 'mileage': str(record.mileage) if record.mileage is not None else None,
+                'note': record.repair_content or record.content or '',
+                'document_status': '登録済み' if has_document else '未受領',
+                'record_url': f'/vehicle/karte/{record.vehicle_record_id}/maintenance?record_id={record.id}#maintenance_detail_panel',
+                'record_link_label': '整備・修理の記録を開く ↗'})
+        return result
+
     def latest(code, vid):
         result = {}
         for r in reversed(facts_for(code, [vid])):
             if r.inspection_type in KINDS and iso_date(r.inspection_date) and r.inspection_date <= today().isoformat():
                 result.setdefault(r.inspection_type, fact_data(r))
+        repairs = repair_actuals(code, [vid])
+        if repairs and ('ad_hoc' not in result or repairs[-1]['performed_date'] >= result['ad_hoc']['performed_date']):
+            result['ad_hoc'] = repairs[-1]
         return result
 
     def summary(code, vehicle_id):
@@ -373,6 +410,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                     if expiry_baseline:
                         break  # No assumption about the next certificate's validity period.
                     cursor = add_months(cursor, step)
+        rows.extend(r for r in repair_actuals(code, ids) if start <= r['display_month'] <= end)
         return rows, missing
 
     def display_state(row):

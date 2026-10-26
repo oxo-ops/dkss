@@ -20,7 +20,8 @@ def register_integrations(app):
         app, db, models.Vehicle, models.Company, models.VehicleMaintenanceKnowledge)
     plan, event, service = register_inspection_plans(
         app, db, models.Vehicle, models.VehiclePeriodicInspectionRecord, models.Company,
-        models.User, models.Office, models.VehicleDocumentImportDraft)
+        models.User, models.Office, models.VehicleDocumentImportDraft,
+        Maintenance=models.VehicleMaintenanceRecord)
     state.update(VehicleInspectionPlan=plan, VehicleInspectionPlanEvent=event, inspection_plans=service)
     state["inspection_alerts"] = register_inspection_alerts(
         app, db, plan, event, service.Execution, models.VehiclePeriodicInspectionRecord,

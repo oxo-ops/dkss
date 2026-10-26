@@ -160,7 +160,7 @@
                 {{ field('completion_date', '完了日', kind='date') }}
                 {{ field('mileage', '走行距離（km）', decimal=true, limit=100) }}
                 {{ field('category', '分類', limit=50, choices=[
-                    '整備', '修理', '故障', '部品交換',
+                    '整備', '突発修理', '修理', '故障', '部品交換',
                     '定期点検', '車検', '応急処置'
                 ]) }}
                 <input type="hidden" name="status" value="{{ form_values.get('status') or '' }}">
