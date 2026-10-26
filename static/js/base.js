@@ -1131,6 +1131,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (files.some(file =>
                 !extensions.some(ext => file.name.toLowerCase().endsWith(ext))
             )) {
+                if (window.DKSSDocumentImportQueue?.offer(form, files)) return "";
                 return "対応形式のファイルを選択してください（" + input.accept + "）。";
             }
             if (
@@ -1565,7 +1566,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 phase.textContent = "読み取り完了";
                 title.textContent = "確認画面を開いています";
                 button.textContent = "確認画面へ…";
-                window.location.assign(destination.href);
+                const move = () => window.location.assign(destination.href);
+                if (window.DKSSImportSelections) window.DKSSImportSelections.accepted(form).then(move);
+                else move();
             });
 
             xhr.addEventListener("error", function () {

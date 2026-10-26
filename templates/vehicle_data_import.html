@@ -2,7 +2,7 @@
 {% block title %}資料・データ取込{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_data_import.css', v='20261026-spacing-2') }}">
-<div class="vehicle-registration-page vehicle-data-import import-workspace">
+<div class="vehicle-registration-page vehicle-data-import import-workspace" data-import-owner="{{ session.get('company_code') }}:{{ session.get('username') }}">
     <nav class="vehicle-registration-breadcrumb" aria-label="現在の位置">
         <a href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a>
         <span aria-hidden="true">›</span>
@@ -97,7 +97,8 @@
             {% else %}<li class="import-receipt-empty">受付済みの資料はありません。</li>{% endfor %}
         </ul>
     </section>
-    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-spacing-2') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/import_file_selections.js', v='20261026-kind-recovery-1') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-kind-recovery-1') }}"></script>
     <details class="import-note">
         <summary>取り込みについて・ファイルの上限</summary>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>

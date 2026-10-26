@@ -287,6 +287,7 @@
 
             {# VEHICLE_DOCUMENT_DELETION_V1 #}
             {% if session.get('role') in ['admin', 'itc'] and selected_document.key.startswith('document:') %}
+            {% if selected_document.document_type in ['maintenance','inspection','driving_report'] %}<p><a class="btn btn-outline" href="{{ url_for('document_import_kind', draft_id=selected_document.draft_id) }}">資料の種類を修正</a></p>{% endif %}
             <p><a class="btn btn-outline" href="{{ url_for('vehicle_document_delete', vehicle_record_id=vehicle.id, draft_id=selected_document.draft_id) }}">資料の削除・取込取消</a></p>
             {% endif %}
             <dl class="km-detail-facts">

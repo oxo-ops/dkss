@@ -119,7 +119,8 @@ def register_document_deletion(app,db,g):
         state=g['VehicleKarteAnalysis'].query.filter_by(company_code=company,vehicle_record_id=vehicle.id).first()
         value={'draft':snapshot(draft),'owned':[snapshot(x) for x in owned],'feedback':[snapshot(x) for x in feedback],
                'state':snapshot(state) if state else None,'problems':sorted(set(problems))}
-        return {'digest':digest(value),'owned':owned,'feedback':feedback,'state':state,'ids':ids,
+        correction_digest=digest({'draft':value['draft'],'owned':value['owned'],'problems':value['problems']})
+        return {'digest':digest(value),'correction_digest':correction_digest,'owned':owned,'feedback':feedback,'state':state,'ids':ids,
                 'problems':sorted(set(problems)),'records':[{'kind':x.__table__.name,'id':x.id,'date':getattr(x,'entry_date',None) or getattr(x,'inspection_date',None) or getattr(x,'replacement_date',None) or '', 'content':getattr(x,'content',None) or getattr(x,'part_name',None) or '', 'cost':getattr(x,'total_cost',None)} for x in owned if x.__table__.name in ('vehicle_maintenance_record','vehicle_periodic_inspection_record','vehicle_part_replacement')],'counts':{
                     '整備記録':sum(type(x) is g['VehicleMaintenanceRecord'] for x in owned),
                     '部品交換':sum(type(x) is g['VehiclePartReplacement'] for x in owned),
@@ -167,4 +168,28 @@ def register_document_deletion(app,db,g):
             db.session.rollback();raise
         flash('資料と、その資料だけが根拠の登録データを削除しました。AI分析を更新待ちにしました。','success')
         return redirect(url_for('vehicle_karte_documents',vehicle_record_id=vehicle.id))
-    return {'plan':plan}
+    def replace_source(vehicle, draft, new_draft, expected_digest):
+        """Replace attributable records in the caller's transaction; retain source and history."""
+        p=plan(vehicle,draft,lock=True)
+        if draft.status!='completed' or p['problems'] or p['correction_digest']!=expected_digest:
+            raise ValueError('登録済みの関連記録が変更されています。資料の種類の修正を開き直してください。')
+        stamp=datetime.now(timezone.utc).isoformat()
+        history={'at':stamp,'by':session['username'],'replacement_draft_id':new_draft.id,
+                 'previous_result':parse(draft.result_json),'records':[snapshot(x) for x in p['owned']]}
+        for feedback in p['feedback']:
+            snap=parse(feedback.snapshot_json);snap['source_withdrawn']={'draft_id':draft.id,'at':stamp}
+            feedback.snapshot_json=json.dumps(snap,ensure_ascii=False)
+        for row in p['owned']:
+            db.session.delete(row);db.session.flush()
+        draft.status='superseded'
+        draft.result_json=json.dumps({'correction_history':history},ensure_ascii=False,default=str)
+        state=p['state']
+        if state:
+            state.result_json='{}';state.status='pending';state.input_hash=None;state.lease_token=None;state.lease_expires_at=None;state.last_error=None
+        db.session.flush()
+        payload,_=g['get_vehicle_karte_analysis_job_data'](vehicle)
+        state=g['queue_vehicle_karte_analysis'](vehicle,payload)
+        state.next_analysis_at=datetime.now(timezone.utc);state.request_reason='資料の種類の訂正'
+        g['add_audit_log']('correct_imported_document_kind','VehicleDocumentImportDraft',draft.id,
+                           json.dumps({'replacement':new_draft.id,'from':draft.document_type,'to':new_draft.document_type},ensure_ascii=False))
+    return {'plan':plan, 'replace_source':replace_source}

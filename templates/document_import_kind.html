@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}資料の種類を確認{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/document_import_kind.css', v='20261026-1') }}">
+<section class="card document-kind-review">
+    <h2>{{ '資料の種類を修正' if impact else '資料の種類を確認してください' }}</h2>
+    <p><strong>{{ draft.source_filename }}</strong></p>
+    <p>{{ '新しい種類で読み直し、確認画面で登録するまで元の記録は変わりません。原本と訂正履歴は保持します。' if impact else '原本は保存されています。資料の種類を選ぶと、ファイルを選び直さずに読み取りを続けられます。' }}</p>
+    <div class="document-kind-grid">
+        <div class="document-kind-source">
+            {% if draft.source_filename.lower().endswith('.pdf') %}
+            <iframe title="資料の原本" src="{{ source_url }}"></iframe>
+            {% else %}<img alt="資料の原本" src="{{ source_url }}">{% endif %}
+        </div>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="kind_token" value="{{ kind_token }}">
+            <label for="document-kind">資料の種類</label>
+            <select name="document_type" id="document-kind" required>
+                <option value="">選択してください</option>
+                {% for key, label in kinds.items() %}<option value="{{ key }}" {% if draft.status != 'type_review' and draft.document_type == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            <p class="help-text">点検記録：3か月・12か月点検の記録簿<br>請求書・整備資料：修理の明細・請求書など<br>安全運転日報：運行・運転の記録</p>
+            {% if impact and impact.problems %}
+            <div role="status">{% for message in impact.problems %}<p>{{ message }}</p>{% endfor %}<p>元の記録を確認し、関連する費用・部品などを保護して訂正する必要があります。</p></div>
+            <a class="btn btn-outline" href="{{ back_url }}">元の記録を確認する</a>
+            {% else %}
+            <p class="help-text">資料の種類を変更すると、その種類で読み直します。修正中の読取結果は置き換わります。</p>
+            <button class="btn btn-outline" type="submit">{{ '訂正内容を読み取る' if impact else 'この種類で読み込む' }}</button>
+            {% endif %}
+            <button class="btn btn-outline" type="submit" name="action" value="cancel" formnovalidate>キャンセルして元の画面へ戻る</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

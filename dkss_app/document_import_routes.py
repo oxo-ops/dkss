@@ -17,6 +17,8 @@ def own_batch(batch_id):
     status['status_url'] = url_for('document_import_status', batch_id=batch_id)
     status['page_url'] = url_for('document_import_job', batch_id=batch_id)
     status['preview_url'] = url_for('vehicle_document_import_preview', batch_id=batch_id) if status['preview_ready'] else None
+    for file in status['files']:
+        file['kind_url'] = url_for('document_import_kind', draft_id=file['id'])
     return status
 
 
@@ -80,10 +82,10 @@ def recent_imports():
     if not access.require_master_admin():
         return []
     rows = queue.lightweight_query().filter_by(company_code=session.get('company_code'),
-        created_by_username=session.get('username')).filter(Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error'))).order_by(Draft.created_at.desc()).limit(100).all()
+        created_by_username=session.get('username')).filter(Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error', 'type_review'))).order_by(Draft.created_at.desc()).limit(100).all()
     batches = OrderedDict()
     for row in rows:
-        if row.document_type not in {'maintenance', 'inspection', 'driving_report'} or row.status not in {*queue.ACTIVE, 'preview', 'read_error'}:
+        if row.document_type not in {'maintenance', 'inspection', 'driving_report'} or row.status not in {*queue.ACTIVE, 'preview', 'read_error', 'type_review'}:
             continue
         if row.status == 'deleted' or queue.receipt_hidden(row.result_json):
             continue
@@ -94,6 +96,8 @@ def recent_imports():
         statuses = {row.status for row in files}
         if statuses.intersection(queue.ACTIVE):
             state, label = 'reading', '読み取り中'
+        elif 'type_review' in statuses:
+            state, label = 'ready', '種類を確認'
         elif 'read_error' in statuses:
             state, label = 'error', '読み取り失敗'
         elif 'preview' in statuses:

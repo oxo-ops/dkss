@@ -21,6 +21,15 @@
 <form method="post" action="{{ save_action if save_action is defined else url_for('vehicle_document_import_confirm', batch_id=batch_id) }}" class="responsive-form vehicle-document-import-preview" novalidate>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {% if record_version is defined %}<input type="hidden" name="record_version" value="{{ record_version }}">{% endif %}
+{% if kind_corrections %}
+<section class="card" role="status">
+    <h3>資料の種類の訂正</h3>
+    {% for correction in kind_corrections %}
+    <p>{{ correction.filename }}：元の登録（{% for label, count in correction.counts.items() %}{{ label }} {{ count }}件{{ '・' if not loop.last else '' }}{% endfor %}）を、以下の確認内容で置き換えます。原本と訂正履歴は保持します。</p>
+    {% endfor %}
+    <label><input type="checkbox" name="confirm_kind_correction" value="yes">元の登録を、この内容で訂正することを確認しました</label>
+</section>
+{% endif %}
 
 {% set import_failures = documents[0].preview.get('import_failures', []) if documents else [] %}
 {% if import_failures %}
@@ -48,6 +57,8 @@
 </div>
         </div>
     </div>
+    {% if document.preview.get('routing_notice') %}<p class="help-text" role="status">{{ document.preview.routing_notice }}</p>{% endif %}
+    {% if batch_id is defined %}<p><a class="btn btn-outline" href="{{ url_for('document_import_kind', draft_id=document.id) }}">資料の種類を変更</a></p>{% endif %}
     <div class="invoice-mobile-views" aria-label="原本と読取結果の表示切替">
         <button type="button" data-review-view="source" aria-pressed="true">原本</button>
         <button type="button" data-review-view="results" aria-pressed="false">読取結果</button>
@@ -176,7 +187,7 @@
 {% endfor %}
 
 <div class="form-actions vehicle-filter-actions invoice-submit-actions">
-    <button type="submit" class="btn invoice-primary-action" {% if import_all_duplicates|default(false) %}disabled{% endif %}>{{ '訂正を保存' if edit_record is defined else '選択した記録を登録' }}</button>
+    <button type="submit" class="btn invoice-primary-action" {% if import_all_duplicates|default(false) %}disabled{% endif %}>{{ '訂正して登録' if kind_corrections else '訂正を保存' if edit_record is defined else '選択した記録を登録' }}</button>
     <span data-invoice-selection-count role="status">チェックした記録をまとめて登録します</span>
 </div>
 </form>
