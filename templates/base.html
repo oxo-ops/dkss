@@ -106,7 +106,7 @@
                         <span class="menu-text">安全パトロール</span>
                     </a>
 
-                    {% if session.get('role') in ['admin','itc'] %}
+                    {% if session.get('role') in ['user','admin','itc'] %}
                     <a href="{{ url_for('driving_reports') }}" class="menu-item submenu-item {% if path.startswith('/safety/driving-reports') %}active{% endif %}"><span class="menu-text">運転実績</span></a>
                     {% endif %}
                     <a href="/safety/checklists" class="menu-item submenu-item {% if path.startswith('/safety/checklists') %}active{% endif %}">

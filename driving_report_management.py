@@ -8,8 +8,13 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 from driving_report_pdf import export_pdf
+from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
 from driving_report_data import payload, version, identity, decimal, match_report, canonical_operations, metrics_summary, eligible_reports
+
+def shown(value):
+    return str(value) if value is not None and value!='' else '未取得'
+
 
 STATES={'unreviewed':'未確認','reviewed':'確認済み','coaching':'指導・対応中','followup':'次回振り返り','completed':'対応完了'}
 MATCH={'standalone':'日報のみ','distinct':'別運行として確認済み','matched':'CSVと照合済み','resolved':'採用値を確認済み','conflict':'CSVとの値が不一致','ambiguous':'CSVとの対応を確認'}
@@ -18,16 +23,16 @@ LABELS={'distance':'走行距離','departure_meter':'開始積算距離','arriva
 
 def register_driving_reports(app, db, g):
     Record=g['VehicleDrivingReportRecord'];Operation=g['VehicleOperationRecord'];Vehicle=g['Vehicle'];Draft=g['VehicleDocumentImportDraft']
-    def access():
-        if not g['require_master_admin']():abort(403)
+    def access(write=False):
+        if session.get('role') not in {'user','admin','itc'} or (write and not readership.administrator()):abort(403)
     def report_return():
         value=request.args.get('return_to') or request.form.get('return_to') or ''
         try:parts=urlsplit(value)
         except ValueError:return url_for('driving_reports')
         return value if not parts.scheme and not parts.netloc and parts.path=='/safety/driving-reports' else url_for('driving_reports')
     def target(record_id,lock=False):
-        access();q=Record.query.filter_by(company_code=session['company_code'],id=record_id)
-        return (q.with_for_update() if lock else q).first_or_404()
+        access(write=lock);q=Record.query.filter_by(company_code=session['company_code'],id=record_id)
+        return readership.require_report((q.with_for_update() if lock else q).first_or_404())
     def operations(company,vehicle):
         return Operation.query.filter_by(company_code=company,vehicle_record_id=vehicle).all()
     def reports(company,vehicle):
@@ -48,7 +53,7 @@ def register_driving_reports(app, db, g):
             try:vid=int(args['vehicle'])
             except ValueError:abort(400)
             q=q.filter_by(vehicle_record_id=vid)
-        rows=q.order_by(Record.operation_date.desc(),Record.id.desc()).all()
+        rows=readership.visible(q.order_by(Record.operation_date.desc(),Record.id.desc()).all())
         # Text filters are applied to original report fields, never a driver's current assignment.
         for name,fields in [('driver',('driver_name','driver_code')),('office',('office_name','driver_office','vehicle_office'))]:
             value=args.get(name,'').strip()
@@ -75,7 +80,7 @@ def register_driving_reports(app, db, g):
         return [{'driver':key[0],'office':key[1],**metrics_summary(values)} for key,values in grouped.items()]
     @app.context_processor
     def driving_context():
-        return {'driving_review_states':STATES,'driving_match_labels':MATCH,'driving_conflict_labels':LABELS,'driving_scope_labels':{'trip':'1運行','daily':'日別','monthly':'月次集計','unknown':'不明'},'driving_item_status':{'candidate':'読取候補','confirmed':'確認済み','illegible':'判読不能','not_recorded':'記載なし','not_applicable':'対象外','unknown':'不明'},'driving_speaker_labels':{'auto':'自動コメント','driver':'乗務員','manager':'管理者','unknown':'話者不明'}}
+        return {'driving_is_admin':readership.administrator(),'driving_review_states':STATES,'driving_match_labels':MATCH,'driving_conflict_labels':LABELS,'driving_scope_labels':{'trip':'1運行','daily':'日別','monthly':'月次集計','unknown':'不明'},'driving_item_status':{'candidate':'読取候補','confirmed':'確認済み','illegible':'判読不能','not_recorded':'記載なし','not_applicable':'対象外','unknown':'不明'},'driving_speaker_labels':{'auto':'自動コメント','driver':'乗務員','manager':'管理者','unknown':'話者不明'}}
     def persist(row, old_json):
         values={"details_json":row.details_json,"operation_date":row.operation_date,"mileage":row.mileage,"content":row.content,"report_number":row.report_number,"operation_record_id":row.operation_record_id}
         with db.session.no_autoflush:
@@ -88,7 +93,7 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page'}
+        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
@@ -101,8 +106,10 @@ def register_driving_reports(app, db, g):
         q=Record.query.filter_by(company_code=session['company_code'])
         if period['start']:q=q.filter(Record.operation_date>=(period['previous_start'] or period['start']))
         if period['end']:q=q.filter(Record.operation_date<=period['end'])
-        context=q.all()
-        vehicles=Vehicle.query.filter_by(company_code=session['company_code']).all()
+        context=readership.visible(q.all())
+        vehicle_query=Vehicle.query.filter_by(company_code=session['company_code'])
+        if not readership.administrator():vehicle_query=vehicle_query.filter(Vehicle.id.in_({r.vehicle_record_id for r in context}))
+        vehicles=vehicle_query.all()
         labels={v.id:g['vehicle_number']({f:getattr(v,f) or '' for f in ['plate_area','plate_class','plate_kana','plate_number']}) or v.chassis_number or '車両 '+str(v.id) for v in vehicles}
         ids={r.vehicle_record_id for r in context};ops={}
         if ids:
@@ -112,22 +119,36 @@ def register_driving_reports(app, db, g):
             for row in query.all():ops.setdefault((row.company_code,row.vehicle_record_id),[]).append(row)
         keys,conflicting=driver_keys(context)
         warning_keys={keys[r.id] for r in context if driver_keys([r])[0][r.id] in conflicting}
+        confirmed=readership.bindings(context)
+        for record_id,grant in confirmed.items():keys[record_id]=readership.account_key(grant)
         current_context=[r for r in context if (not period['start'] or r.operation_date>=period['start']) and (not period['end'] or r.operation_date<=period['end'])]
         previous_context=[r for r in context if period['previous_start'] and period['previous_start']<=r.operation_date<=period['previous_end']]
         facts,issues=collect(rows,ops,keys,current_context)
         before,old_issues=collect(previous,ops,keys,previous_context)
+        for fact in facts+before:
+            if fact['row'].id in confirmed:
+                fact['identified']=True;fact['identity_confirmed']=True
         board=insights_dashboard(facts,before,labels,args.get('metric',''),args.get('focus',''))
+        if not readership.administrator() and not args.get('focus') and len(board['drivers'])==1:
+            resolved['focus']=board['drivers'][0]['key']
+            board=insights_dashboard(facts,before,labels,args.get('metric',''),resolved['focus'])
         for driver in board['drivers']:
             driver['identity_warning']=not driver['identified'] or driver['key'] in warning_keys
         board.update(period=period,issues=issues,previous_issues=old_issues,labels=labels,
             review_notes=review_notes(rows,facts,issues,conflicting),
             pending_count=sum((payload(r).get('review') or {}).get('state') in {'coaching','followup'} and payload(r).get('lifecycle') not in {'cancelled','superseded'} for r in rows))
+        focus=board['selected_driver']
+        scope_ids={rid for fact in facts if focus and fact['driver_key']==focus['key'] for rid in fact['copies']}
+        scope=[r for r in rows if r.id in scope_ids]
+        board['reader_count']=len(scope)
+        board['reader_version']=hashlib.sha256(json.dumps([(r.id,version(r)) for r in scope]).encode()).hexdigest()
+        board['reader_rows']=scope
         return rows,previous,ops,vehicles,resolved,board,facts
 
     def history_context(board,facts):
         focus=board['selected_driver']
         ids={f['vehicle_id'] for f in facts if focus and f['driver_key']==focus['key']}
-        if not ids:return []
+        if not ids or not readership.administrator():return []
         cutoff=board['period']['end'] or datetime.now(ZoneInfo('Asia/Tokyo')).date().isoformat()
         M=g['VehicleMaintenanceRecord']
         records=M.query.filter(M.company_code==session['company_code'],M.vehicle_record_id.in_(ids),
@@ -150,11 +171,14 @@ def register_driving_reports(app, db, g):
             operation_count=board['summary']['count'],distance_count=board['summary']['distance_count'])
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
             summary=summary,insights=board,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
-            insight_number=number)
+            insight_number=number,reader_users=g['User'].query.filter_by(company_code=session['company_code'],role='user').order_by(g['User'].username).all() if readership.administrator() else [])
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
         row=target(record_id)
-        return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all())
+        return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all() if readership.administrator() else [],
+            reader=readership.reader(row) if readership.administrator() else None,
+            reader_current=bool(readership.reader(row) and readership.reader(row).identity_hash==readership.fingerprint(row)) if readership.administrator() else False,
+            reader_users=g['User'].query.filter_by(company_code=row.company_code,role='user').order_by(g['User'].username).all() if readership.administrator() else [])
     def change(row,kind,detail):
         p=payload(row);events=p.setdefault('audit',[])
         if len(events)>=1000:abort(409,'変更履歴の保存上限です。管理者へ確認してください。')
@@ -201,9 +225,10 @@ def register_driving_reports(app, db, g):
             p['reconciliation'].update({'use':use,'fingerprint':matched['fingerprint']});row.operation_record_id=candidate.id
             row.details_json=original
         row.details_json=json.dumps(p,ensure_ascii=False);persist(row,old_json)
-        return redirect(url_for('driving_report_detail',record_id=row.id))
+        return redirect(url_for('driving_report_detail',record_id=row.id,return_to=report_return()))
     @app.route('/safety/driving-reports/<int:record_id>/edit',methods=['GET','POST'])
     def driving_report_edit(record_id):
+        access(write=True)
         row=target(record_id,request.method=='POST');old_json=row.details_json;draft=Draft.query.filter_by(id=row.source_draft_id,company_code=row.company_code,status='completed').first_or_404();p=payload(row)
         choices=[{'id':v.id,'number':g['vehicle_number']({f:getattr(v,f) or '' for f in ['plate_area','plate_class','plate_kana','plate_number']}),'chassis_number':v.chassis_number or '','deleted':v.deleted} for v in Vehicle.query.filter_by(company_code=row.company_code).all()]
         if request.method=='POST':
@@ -247,7 +272,7 @@ def register_driving_reports(app, db, g):
                 for item in p.get(collection,[]):
                     output.append(base+[collection,item.get('item_name'),item.get('raw_result'),item.get('value'),item.get('unit'),item.get('numerator'),item.get('denominator'),item.get('denominator_unit'),item.get('score'),item.get('result_text'),item.get('definition'),item.get('threshold'),item.get('road_type'),item.get('start_at'),item.get('end_at'),item.get('place'),item.get('speaker'),((item.get('notes') or '')+' 読取状態:'+str(item.get('status') or '不明')),item.get('source_page'),r.source_draft_id])
             if not any(p.get(c) for c in collections):output.append(base+['']*(len(heading)-len(base)-1)+[r.source_draft_id])
-            for e in p.get('audit',[]):output.append(base+['確認履歴',e.get('kind'),json.dumps(e,ensure_ascii=False)]+['']*(len(heading)-len(base)-4)+[r.source_draft_id])
+            for e in (p.get('audit',[]) if readership.administrator() else []):output.append(base+['確認履歴',e.get('kind'),json.dumps(e,ensure_ascii=False)]+['']*(len(heading)-len(base)-4)+[r.source_draft_id])
         reviews={r.id:payload(r).get('review') or {} for r in rows}
         heading += ['改善する行動','乗務員の説明']
         output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation')] for values in output]
@@ -293,14 +318,60 @@ def register_driving_reports(app, db, g):
             for r in rows:
                 p=payload(r);review=p.get('review') or {};match=match_report(r,operations(r.company_code,r.vehicle_record_id))
                 lines += [f'CSV照合 {MATCH[match["status"]]} 採用 {match.get("use") or "日報のみ"} 取込状態 {"取消" if p.get("lifecycle") == "cancelled" else "有効"}']
-                lines += [f'日報 {r.id} 運行 {r.operation_date or "不明"} {p.get("registration_number") or ""}',f'乗務員 {p.get("driver_name") or "不明"} 所属 {p.get("driver_office") or p.get("office_name") or "不明"}',f'帳票 {p.get("source_system") or "不明"} {p.get("report_title") or ""} 粒度 {p.get("report_scope") or "trip"}',f'積算 {p.get("mileage") or "未取得"} km 距離 {p.get("distance") or "未取得"} km',f'確認 {STATES.get(review.get("state","unreviewed"))} 担当 {review.get("assignee") or "未設定"} 次回 {review.get("next_date") or "未設定"}',f'所見 {review.get("note") or "記載なし"}',f'改善する行動 {review.get("action") or "未設定"}',f'乗務員の説明 {review.get("driver_explanation") or "記載なし"}']
+                lines += [f'日報 {r.id} 運行 {r.operation_date or "不明"} {p.get("registration_number") or ""}',f'乗務員 {p.get("driver_name") or "不明"} 所属 {p.get("driver_office") or p.get("office_name") or "不明"}',f'帳票 {p.get("source_system") or "不明"} {p.get("report_title") or ""} 粒度 {p.get("report_scope") or "trip"}',f'積算 {shown(p.get("mileage"))} km 距離 {shown(p.get("distance"))} km',f'確認 {STATES.get(review.get("state","unreviewed"))} 担当 {review.get("assignee") or "未設定"} 次回 {review.get("next_date") or "未設定"}',f'所見 {review.get("note") or "記載なし"}',f'改善する行動 {review.get("action") or "未設定"}',f'乗務員の説明 {review.get("driver_explanation") or "記載なし"}']
                 labels={'operation_start_time':'開始時刻','operation_end_time':'終了時刻','driving_time':'走行時間','handling_time':'ハンドル時間','idle_time':'アイドリング時間','rest_time':'休憩休息','work_time':'作業時間','fuel_consumption':'消費燃料','fuel_unit':'燃料単位','fuel_economy':'燃費','fuel_economy_unit':'燃費単位','driver_comment':'乗務員コメント','manager_comment':'管理者所見','notes':'手書き特記事項','definition_version':'評価設定版','issued_at':'出力日時','timezone':'タイムゾーン'}
                 for key,label in labels.items():
                     if p.get(key) is not None:lines.append(label+' '+str(p[key]))
                 for collection in ['report_items','events','duties','extra_items']:
-                    for item in p.get(collection,[]):lines += [f'{item.get("category") or collection} {item.get("item_name")} {item.get("raw_result") or "未取得"} 点数 {item.get("score") or "未取得"} 評価 {item.get("result_text") or "未取得"}',f'定義 {item.get("definition") or "不明"} 単位 {item.get("unit") or "不明"} 条件 {item.get("threshold") or "不明"} 原本 {item.get("source_page")}頁',f'数値 {item.get("value") or "未取得"} 分子 {item.get("numerator") or "未取得"} 分母 {item.get("denominator") or "未取得"} {item.get("denominator_unit") or ""}',f'日時 {item.get("start_at") or "不明"} ～ {item.get("end_at") or "不明"} 場所 {item.get("place") or "不明"}',str(item.get('notes') or '')]
-                for e in p.get('audit',[]):lines += ['確認履歴 '+json.dumps(e,ensure_ascii=False)]
+                    for item in p.get(collection,[]):lines += [f'{item.get("category") or collection} {item.get("item_name")} {item.get("raw_result") or "未取得"} 点数 {shown(item.get("score"))} 評価 {item.get("result_text") or "未取得"}',f'定義 {item.get("definition") or "不明"} 単位 {item.get("unit") or "不明"} 条件 {item.get("threshold") or "不明"} 原本 {item.get("source_page")}頁',f'数値 {shown(item.get("value"))} 分子 {shown(item.get("numerator"))} 分母 {shown(item.get("denominator"))} {item.get("denominator_unit") or ""}',f'日時 {item.get("start_at") or "不明"} ～ {item.get("end_at") or "不明"} 場所 {item.get("place") or "不明"}',str(item.get('notes') or '')]
+                for e in (p.get('audit',[]) if readership.administrator() else []):lines += ['確認履歴 '+json.dumps(e,ensure_ascii=False)]
                 lines += [f'出典 日報:{r.id} 原本:{r.source_draft_id}','']
             content=export_pdf(lines);mime='application/pdf'
         response=send_file(io.BytesIO(content),mimetype=mime,as_attachment=True,download_name='driving-reports.'+format,max_age=0);response.headers['Cache-Control']='private, no-store';return response
+    @app.route('/safety/driving-reports/readers',methods=['POST'])
+    def driving_report_readers():
+        access(write=True)
+        _,_,_,_,filters,board,_=prepare_insights(request.form)
+        if not board['reader_rows'] or request.form.get('reader_version')!=board['reader_version']:abort(409,'対象の日報が変わりました。再表示してください。')
+        if 'reader_username' not in request.form:abort(400)
+        username=request.form['reader_username'].strip()
+        if username=='__revoke__':username=''
+        for row in board['reader_rows']:
+            old=row.details_json
+            p=change(row,'reader',{'username':username})
+            updated=json.dumps(p,ensure_ascii=False)
+            with db.session.no_autoflush:
+                count=Record.query.filter_by(id=row.id,company_code=row.company_code,details_json=old).update({'details_json':updated},synchronize_session=False)
+            if count!=1:db.session.rollback();abort(409)
+        readership.assign(board['reader_rows'],username,session['username'])
+        db.session.commit()
+        flash('本人の閲覧設定を保存しました。','success')
+        grant=readership.reader(board['reader_rows'][0])
+        focus=readership.account_key(grant) if grant else ''
+        return redirect(url_for('driving_reports',**dict(filters,focus=focus,_anchor='driver-trend' if focus else 'driver-comparison')))
+
+    @app.after_request
+    def private_driving_response(response):
+        if request.path.startswith('/safety/driving-reports'):
+            response.headers['Cache-Control']='private, no-store'
+        return response
+
+    @app.cli.command('init-driving-access')
+    def init_driving_access():
+        readership.initialize_driving_access(app)
+        print('DRIVING_ACCESS_INITIALIZED')
+
+    @app.route('/safety/driving-reports/<int:record_id>/reader',methods=['POST'])
+    def driving_report_reader(record_id):
+        access(write=True)
+        row=target(record_id,True)
+        if request.form.get('version')!=version(row):abort(409)
+        old_json=row.details_json
+        username=request.form.get('reader_username','').strip()
+        p=change(row,'reader',{'username':username})
+        readership.assign([row],username,session['username'])
+        row.details_json=json.dumps(p,ensure_ascii=False)
+        persist(row,old_json)
+        return redirect(url_for('driving_report_detail',record_id=row.id,return_to=report_return()))
+
     return {'canonical':canonical,'reports':reports,'view':view,'summary':metrics_summary}

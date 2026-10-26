@@ -1,0 +1,96 @@
+"""Explicit, company-scoped readership; OCR names never grant access."""
+import hashlib
+import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from flask import abort, current_app, session
+from sqlalchemy import inspect, text
+from .extensions import db
+from .models import User, VehicleDrivingReportRecord, DrivingReportReader
+from driving_report_data import payload
+
+
+def administrator():
+    return session.get('role') in {'admin', 'itc'}
+
+
+def fingerprint(row):
+    p = payload(row)
+    fields = [row.company_code, row.vehicle_record_id, p.get('source_system'),
+              p.get('driver_code'), p.get('driver_name'), row.operation_date]
+    return hashlib.sha256(json.dumps(fields, ensure_ascii=False).encode()).hexdigest()
+
+
+def ready():
+    state = current_app.extensions['dkss']
+    if not state.get('driving_readers_ready'):
+        state['driving_readers_ready'] = inspect(db.engine).has_table(DrivingReportReader.__tablename__)
+    return bool(state.get('driving_readers_ready'))
+
+
+def initialize_driving_access(app):
+    with app.app_context():
+        with db.engine.begin() as connection:
+            if connection.dialect.name == 'postgresql':
+                connection.execute(text('SELECT pg_advisory_xact_lock(824700027)'))
+            DrivingReportReader.__table__.create(connection, checkfirst=True)
+        app.extensions['dkss']['driving_readers_ready'] = True
+
+
+def visible(rows):
+    if administrator():
+        return list(rows)
+    if session.get('role') != 'user' or not ready():
+        return []
+    user=User.query.filter_by(company_code=session.get('company_code'),username=session.get('username')).first()
+    if not user:return []
+    grants = {r.report_id: r for r in DrivingReportReader.query.filter_by(
+        company_code=session.get('company_code'), user_id=user.id).all()}
+    return [r for r in rows if r.company_code == session.get('company_code') and
+            r.id in grants and grants[r.id].identity_hash == fingerprint(r)]
+
+
+def require_report(row):
+    if row.company_code != session.get('company_code') or not visible([row]):
+        abort(404)
+    return row
+
+
+def reader(row):
+    return DrivingReportReader.query.filter_by(company_code=row.company_code, report_id=row.id).first() if ready() else None
+
+
+def assign(rows, username, actor):
+    if not administrator():
+        abort(403)
+    if not ready():
+        abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
+    user=User.query.filter_by(company_code=session['company_code'],username=username,role='user').first() if username else None
+    if username and not user:abort(400)
+    for row in rows:
+        if row.company_code != session['company_code']:
+            abort(404)
+        grant = reader(row)
+        if not username:
+            if grant: db.session.delete(grant)
+            continue
+        if not grant:
+            grant = DrivingReportReader(company_code=row.company_code, report_id=row.id)
+            db.session.add(grant)
+        grant.username = username
+        grant.user_id = user.id
+        grant.identity_hash = fingerprint(row)
+        grant.confirmed_by = actor
+        grant.confirmed_at = datetime.now(ZoneInfo('Asia/Tokyo')).isoformat()
+
+
+def bindings(rows):
+    if not ready():return {}
+    ids={r.id:r for r in rows}
+    grants=DrivingReportReader.query.filter(DrivingReportReader.company_code==session['company_code'],DrivingReportReader.report_id.in_(ids)).all() if ids else []
+    users={u.id:u for u in User.query.filter_by(company_code=session['company_code']).all()} if grants else {}
+    return {grant.report_id:grant for grant in grants if grant.user_id in users and users[grant.user_id].role=='user' and grant.identity_hash==fingerprint(ids[grant.report_id])}
+
+
+def account_key(grant):
+    return hashlib.sha256(json.dumps(['account',grant.company_code,grant.user_id]).encode()).hexdigest()[:24]

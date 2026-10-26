@@ -1412,6 +1412,16 @@
       ""
     ],
     [
+      "/safety/driving-reports/<int:record_id>/reader",
+      "driving_report_reader",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/safety/driving-reports/<int:record_id>/reconcile",
       "driving_report_reconcile",
       [
@@ -1438,6 +1448,16 @@
         "GET",
         "HEAD",
         "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/safety/driving-reports/readers",
+      "driving_report_readers",
+      [
+        "OPTIONS",
+        "POST"
       ],
       true,
       ""
@@ -2255,6 +2275,7 @@
     "company_usage_summary": "\nCREATE TABLE company_usage_summary (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tuser_count INTEGER NOT NULL, \n\tvehicle_count INTEGER NOT NULL, \n\tlogin_count INTEGER NOT NULL, \n\tchecklist_result_count INTEGER NOT NULL, \n\tlast_used_at VARCHAR(20), \n\tupdated_at VARCHAR(20), \n\tPRIMARY KEY (id), \n\tUNIQUE (company_code)\n)\n\n",
     "delivery_place": "\nCREATE TABLE delivery_place (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tname VARCHAR(100) NOT NULL, \n\tPRIMARY KEY (id)\n)\n\n",
     "driver": "\nCREATE TABLE driver (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\temployee_id VARCHAR(50) NOT NULL, \n\tname VARCHAR(100) NOT NULL, \n\trole VARCHAR(50), \n\toffice VARCHAR(100), \n\tsafe_start_date VARCHAR(20), \n\tvehicles_json TEXT, \n\tlicenses_json TEXT, \n\tPRIMARY KEY (id)\n)\n\n",
+    "driving_report_reader": "\nCREATE TABLE driving_report_reader (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\treport_id INTEGER NOT NULL, \n\tusername VARCHAR(50) NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tidentity_hash VARCHAR(64) NOT NULL, \n\tconfirmed_by VARCHAR(50) NOT NULL, \n\tconfirmed_at VARCHAR(40) NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (report_id), \n\tFOREIGN KEY(report_id) REFERENCES vehicle_driving_report_record (id) ON DELETE CASCADE, \n\tFOREIGN KEY(user_id) REFERENCES \"user\" (id) ON DELETE CASCADE\n)\n\n",
     "inspection_expiry_alert_delivery": "\nCREATE TABLE inspection_expiry_alert_delivery (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tvehicle_record_id INTEGER NOT NULL, \n\texpiry_date VARCHAR(10) NOT NULL, \n\tnotification_id INTEGER NOT NULL, \n\ttarget_username VARCHAR(50) NOT NULL, \n\toffice VARCHAR(100) NOT NULL, \n\tphase VARCHAR(30) NOT NULL, \n\tbucket INTEGER NOT NULL, \n\tsent_day VARCHAR(10) NOT NULL, \n\tended_status VARCHAR(16), \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_inspection_expiry_alert_delivery UNIQUE (company_code, vehicle_record_id, expiry_date, office, phase, bucket, target_username), \n\tFOREIGN KEY(vehicle_record_id) REFERENCES vehicle (id), \n\tFOREIGN KEY(notification_id) REFERENCES notification (id)\n)\n\n",
     "inspection_plan_alert_delivery": "\nCREATE TABLE inspection_plan_alert_delivery (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tplan_id INTEGER NOT NULL, \n\tnotification_id INTEGER NOT NULL, \n\ttarget_username VARCHAR(50) NOT NULL, \n\toffice VARCHAR(100) NOT NULL, \n\trevision VARCHAR(64) NOT NULL, \n\tphase VARCHAR(30) NOT NULL, \n\tbucket INTEGER NOT NULL, \n\tsent_day VARCHAR(10) NOT NULL, \n\tended_status VARCHAR(16), \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_inspection_alert_delivery UNIQUE (company_code, plan_id, revision, phase, bucket, target_username), \n\tFOREIGN KEY(plan_id) REFERENCES vehicle_inspection_plan (id), \n\tFOREIGN KEY(notification_id) REFERENCES notification (id)\n)\n\n",
     "inspection_plan_alert_run": "\nCREATE TABLE inspection_plan_alert_run (\n\tcompany_code VARCHAR(50) NOT NULL, \n\tchecked_at VARCHAR(40) NOT NULL, \n\tlocal_day VARCHAR(10) NOT NULL, \n\treport_json TEXT NOT NULL, \n\tinput_signature VARCHAR(64) NOT NULL, \n\tPRIMARY KEY (company_code)\n)\n\n",
@@ -2307,6 +2328,8 @@
     "vehicle_type_import_mapping": "\nCREATE TABLE vehicle_type_import_mapping (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\texcel_value VARCHAR(100) NOT NULL, \n\tvehicle_type_name VARCHAR(100) NOT NULL, \n\tPRIMARY KEY (id)\n)\n\n"
   },
   "indexes": [
+    "CREATE INDEX ix_driving_reader_company_user ON driving_report_reader (company_code, user_id)",
+    "CREATE INDEX ix_driving_report_reader_company_code ON driving_report_reader (company_code)",
     "CREATE INDEX ix_inspection_expiry_alert_delivery_company_code ON inspection_expiry_alert_delivery (company_code)",
     "CREATE INDEX ix_inspection_expiry_alert_delivery_notification_id ON inspection_expiry_alert_delivery (notification_id)",
     "CREATE INDEX ix_inspection_expiry_alert_delivery_vehicle_record_id ON inspection_expiry_alert_delivery (vehicle_record_id)",
@@ -2407,7 +2430,8 @@
         "redirect_form_errors",
         "add_security_headers",
         "mark_notification_read_after_target_display",
-        "recover_import_error"
+        "recover_import_error",
+        "private_driving_response"
       ]
     },
     "template_context_processors": {
