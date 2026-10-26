@@ -16,7 +16,17 @@
         flex-direction: column;
         min-height: 0;
         overflow: hidden;
+        padding: 14px 24px;
     }
+
+    body:has(.invoice-review-page) .top-bar { margin-bottom: 4px; }
+
+    .invoice-review-page .page-breadcrumb { margin: 0 0 6px; }
+    .invoice-review-page .invoice-switcher:not(:has(.invoice-switch:nth-child(2))) { display: none; }
+    .invoice-review-page .invoice-switcher { flex-wrap: nowrap; overflow-x: auto; }
+    .invoice-review-page .invoice-document .invoice-switch { flex-shrink: 0; padding: 5px 9px; }
+    .invoice-review-page .invoice-document .invoice-view-switch button { min-width: 96px; min-height: 32px; padding: 5px 9px; font-size: 13px; }
+    .invoice-review-page .invoice-page-heading .invoice-primary-action { min-height: 34px; padding: 6px 12px; }
 
     body:has(.invoice-review-page) .main-content > :not(.invoice-review-page) {
         flex-shrink: 0;
@@ -55,6 +65,10 @@
 }
 
 .invoice-review-page {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1560px;
+    margin-inline: auto;
     color: #202b39;
     font-size: 14px;
     line-height: 1.6;
@@ -138,10 +152,10 @@
 
 .invoice-review-page .invoice-review-layout {
     display: grid;
-    grid-template-columns: minmax(280px, var(--invoice-source-width, 55%)) 12px minmax(300px, 1fr);
+    grid-template-columns: minmax(280px, var(--invoice-source-width, 42%)) 12px minmax(300px, 1fr);
     align-items: stretch;
     gap: 8px;
-    height: clamp(520px, calc(100dvh - 290px), 900px);
+    height: clamp(480px, calc(100dvh - 210px), 980px);
 }
 .invoice-review-page .invoice-splitter {
     position: relative;

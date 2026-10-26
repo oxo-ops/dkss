@@ -147,12 +147,15 @@
 
     let sourceUrl = null;
     let pdfViewer = null;
+    let imageFitObserver = null;
     let previewGeneration = 0;
 
     function clearPreview() {
         previewGeneration++;
         pdfViewer?.destroy();
         pdfViewer = null;
+        imageFitObserver?.disconnect();
+        imageFitObserver = null;
         if (sourceContainer) {
             for (const node of sourceContainer.querySelectorAll(":scope > .invoice-pdf-viewer")) {
                 node.remove();
@@ -175,11 +178,12 @@
 
         if (/\.pdf$/i.test(file.name)) {
             const { InvoicePdfViewer } = await import(
-                "./maintenance_invoice_pdf_viewer.mjs?v=20261021-certificate-shared-1"
+                "./maintenance_invoice_pdf_viewer.mjs?v=20261026-portrait-review-1"
             );
             const bytes = new Uint8Array(await file.arrayBuffer());
             if (currentPreview !== previewGeneration) return;
             const root = pdfTemplate.content.firstElementChild.cloneNode(true);
+            root.dataset.defaultFit = "page";
             root.dataset.filename = file.name;
             root.dataset.sourceBase = sourceUrl;
             sourceContainer.append(root);
@@ -217,7 +221,11 @@
         fit.type = "button";
         fit.textContent = "\u5e45\u306b\u5408\u308f\u305b\u308b";
 
-        zoomControls.append(minus, output, plus, fit);
+        const fitPage = document.createElement("button");
+        fitPage.type = "button";
+        fitPage.textContent = "全体";
+
+        zoomControls.append(minus, output, plus, fitPage, fit);
         toolbar.append(zoomControls);
 
         const scroll = document.createElement("div");
@@ -230,11 +238,14 @@
         image.draggable = false;
         image.style.display = "block";
         image.style.height = "auto";
+        image.style.marginInline = "auto";
 
         let scale = 1;
+        let fitWholePage = true;
 
-        function updateZoom(next) {
-            scale = Math.max(0.5, Math.min(4, next));
+        function updateZoom(next, manual = true) {
+            if (manual) fitWholePage = false;
+            scale = Math.max(0.1, Math.min(4, next));
             image.style.width = `${scale * 100}%`;
             output.textContent = `${Math.round(scale * 100)}%`;
         }
@@ -242,6 +253,16 @@
         minus.addEventListener("click", () => updateZoom(scale / 1.2));
         plus.addEventListener("click", () => updateZoom(scale * 1.2));
         fit.addEventListener("click", () => updateZoom(1));
+        function fitImagePage() {
+            if (!fitWholePage || !image.naturalWidth || scroll.clientHeight < 40) return;
+            const fullHeight = scroll.clientWidth * image.naturalHeight / image.naturalWidth;
+            updateZoom(Math.min(1, (scroll.clientHeight - 16) / fullHeight), false);
+            scroll.scrollTop = 0;
+        }
+        fitPage.addEventListener("click", () => { fitWholePage = true; fitImagePage(); });
+        image.addEventListener("load", fitImagePage);
+        imageFitObserver = new ResizeObserver(fitImagePage);
+        imageFitObserver.observe(scroll);
 
         scroll.addEventListener("wheel", event => {
             if (!event.ctrlKey && !event.metaKey) return;
@@ -275,7 +296,7 @@
         scroll.append(image);
         wrapper.append(toolbar, scroll);
         sourceContainer.append(wrapper);
-        updateZoom(1);
+        updateZoom(1, false);
     }
 
     function applyResult(result) {

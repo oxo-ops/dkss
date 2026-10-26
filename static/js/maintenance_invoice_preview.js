@@ -80,7 +80,8 @@
             const source = layout.querySelector(".invoice-source-panel");
             if (!splitter || !source) return;
 
-            let ratio = 0.55;
+            const defaultRatio = 0.42;
+            let ratio = defaultRatio;
             let drag = null;
             const narrow = window.matchMedia("(max-width: 1000px)");
 
@@ -181,7 +182,7 @@
             splitter.addEventListener("lostpointercapture", endResize);
             window.addEventListener("blur", endResize);
 
-            splitter.addEventListener("dblclick", () => applyRatio(0.55));
+            splitter.addEventListener("dblclick", () => applyRatio(defaultRatio));
 
             splitter.addEventListener("keydown", event => {
                 if (event.key === "ArrowLeft") {
@@ -192,7 +193,7 @@
                     applyRatio(ratio + 0.03);
                 } else if (event.key === "Home") {
                     event.preventDefault();
-                    applyRatio(0.55);
+                    applyRatio(defaultRatio);
                 }
             });
 

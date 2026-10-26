@@ -3,7 +3,7 @@
 {% extends "base.html" %}
 {% block title %}資料の取込確認{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261019-vehicle-match-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
 {% include 'ocr_searchable_select_assets.html' %}
 <div class="invoice-review-page">
 <nav class="page-breadcrumb" aria-label="パンくずリスト">
@@ -66,7 +66,7 @@
         <aside class="invoice-source-panel">
             <details class="invoice-source-disclosure" open>
                 <summary>原本 <span data-source-page-label></span></summary>
-                <section class="invoice-pdf-viewer" data-invoice-source data-source-base="{{ document.get('source_url') or url_for('vehicle_document_import_source', draft_id=document.id) }}" data-filename="{{ document.filename }}" aria-label="原本プレビュー">
+                <section class="invoice-pdf-viewer" data-default-fit="page" data-invoice-source data-source-base="{{ document.get('source_url') or url_for('vehicle_document_import_source', draft_id=document.id) }}" data-filename="{{ document.filename }}" aria-label="原本プレビュー">
                     <div class="invoice-sync-bar">
                         <label class="invoice-sync-toggle">
                             <input type="checkbox" data-source-sync checked>
@@ -88,6 +88,7 @@
                             <button type="button" data-pdf-minus aria-label="縮小">−</button>
                             <output data-pdf-zoom>—</output>
                             <button type="button" data-pdf-plus aria-label="拡大">＋</button>
+                            <button type="button" data-pdf-fit-page>全体</button>
                             <button type="button" data-pdf-fit>幅に合わせる</button>
                         </div>
                     </div>
@@ -99,7 +100,7 @@
             </details>
         </aside>
 
-        <button type="button" class="invoice-splitter" role="separator" aria-label="原本と確認内容の幅を調整。左右キーで調整、Homeで初期幅に戻す" aria-orientation="vertical" aria-valuemin="20" aria-valuemax="80" aria-valuenow="55" title="ドラッグで幅を調整・ダブルクリックで初期幅に戻す"></button>
+        <button type="button" class="invoice-splitter" role="separator" aria-label="原本と確認内容の幅を調整。左右キーで調整、Homeで初期幅に戻す" aria-orientation="vertical" aria-valuemin="20" aria-valuemax="80" aria-valuenow="42" title="ドラッグで幅を調整・ダブルクリックで初期幅に戻す"></button>
         <div class="invoice-records">
             {% for record in records %}
             {% set row_key = document.id ~ '_' ~ (loop.index0 + document.get('record_index_offset', 0)) %}
@@ -180,6 +181,6 @@
 </div>
 </form>
 </div>
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261025-error-summary-1') }}" defer></script>
-<script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', pdf_fix='20261016-2', v='20261016-review-3') }}"></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261026-portrait-review-1') }}" defer></script>
+<script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261026-portrait-review-1') }}"></script>
 {% endblock %}
