@@ -279,6 +279,11 @@ def register_core_routes(app):
     view = app.route("/master/drivers/<int:index>/delete", methods=["POST"])(view)
     view = vehicle_imports.vehicle_invoice_import_candidates
     view = app.route("/vehicle/document-import/<batch_id>/<draft_id>/<int:record_index>/maintenance-candidates")(view)
+    from . import document_import_routes
+    app.add_url_rule('/vehicle/data-import/jobs', 'enqueue_documents', document_import_routes.enqueue_documents, methods=['POST'])
+    app.add_url_rule('/vehicle/data-import/jobs/<batch_id>', 'document_import_job', document_import_routes.document_import_job)
+    app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/status', 'document_import_status', document_import_routes.document_import_status)
+    app.add_url_rule('/vehicle/data-import/jobs/<batch_id>/retry', 'retry_document_import', document_import_routes.retry_document_import, methods=['POST'])
     view = vehicle_imports.vehicle_data_import_progress
     view = app.route("/vehicle/data-import/progress", methods=["POST"])(view)
     view = vehicle_imports.vehicle_data_import

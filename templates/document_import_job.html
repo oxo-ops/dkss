@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}資料の取込状況{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/document_import_queue.css', v='20261026-queue-1') }}">
+<div class="vehicle-registration-page vehicle-data-import">
+    <nav class="vehicle-registration-breadcrumb"><a href="{{ url_for('vehicle_data_import') }}">資料・データ取込</a><span>›</span><span>取込状況</span></nav>
+    <div class="vehicle-registration-header"><div><h2>資料の取込状況</h2><p>送信した資料は保存されています。この画面を閉じても、受付済みの資料から状況と結果を確認できます。</p></div></div>
+    <section class="card vehicle-search-card" id="documentImportJob" data-status-url="{{ job.status_url }}" data-auto-open="{{ '1' if request.args.get('open') == '1' else '0' }}">
+        <p id="jobSummary" role="status">{{ job.completed }} / {{ job.total }}ファイル処理済み（成功 {{ job.succeeded }}・失敗 {{ job.failed }}）</p>
+        <progress id="jobProgress" max="{{ job.total }}" value="{{ job.completed }}" style="width:100%" aria-label="読み取りの完了状況"></progress>
+        <ul id="jobFiles">{% for file in job.files %}<li>{{ file.filename }} — {{ {'queued':'順番待ち','reading':'読み取り中','preview':'確認できます','read_error':'読み取り失敗','completed':'登録済み','skipped':'確認済み'}.get(file.status, '処理中') }}{% if file.message %}：{{ file.message }}{% endif %}</li>{% endfor %}</ul>
+        <p id="jobConnection" role="status"></p>
+        <div class="import-form-actions">
+            <a class="btn btn-outline" href="{{ url_for('vehicle_data_import') }}">別の資料を取り込む</a>
+            <a id="jobPreview" class="btn" href="{{ job.preview_url or '#' }}" {% if not job.preview_ready %}hidden{% endif %}>読取結果を確認</a>
+        </div>
+        <form id="jobRetry" method="post" action="{{ url_for('retry_document_import', batch_id=job.batch_id) }}" {% if not job.failed %}hidden{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-outline" type="submit">失敗分だけ再実行</button>
+        </form>
+    </section>
+</div>
+<script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-queue-1') }}"></script>
+{% endblock %}
