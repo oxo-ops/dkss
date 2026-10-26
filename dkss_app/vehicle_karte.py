@@ -253,6 +253,8 @@ def build_vehicle_karte_documents_context(vehicle, documents):
         ("maintenance", "整備記録"),
         ("inspection_3", "3か月点検"),
         ("inspection_12", "12か月点検"),
+        ("inspection", "点検記録"),
+        ("driving_report", "安全運転日報"),
         ("vehicle_inspection", "車検"),
         ("photo", "写真"),
         ("operation_csv", "運行実績CSV"),
@@ -273,6 +275,13 @@ def build_vehicle_karte_documents_context(vehicle, documents):
             and isinstance(source.get("draft_id"), str)
         ):
             related.setdefault(source["draft_id"], []).append(row)
+
+    # Use registered facts, including files imported before this change.
+    periodic = {}
+    for row in _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
+        company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+    ).all():
+        periodic.setdefault(row.source_draft_id, []).append(row)
 
     usernames = {
         document.get("created_by_username")
@@ -310,8 +319,18 @@ def build_vehicle_karte_documents_context(vehicle, documents):
             .replace("１２", "12")
         )
 
+        inspection_records = periodic.get(document["draft_id"], [])
+        inspection_types = {row.inspection_type for row in inspection_records}
         if is_operation:
             kind = "operation_csv"
+        elif document["document_type"] == "driving_report":
+            kind = "driving_report"
+        elif document["document_type"] == "inspection":
+            kind = ({"3month": "inspection_3", "12month": "inspection_12"}
+                    .get(next(iter(inspection_types)), "inspection")
+                    if len(inspection_types) == 1 else "inspection")
+        elif document["document_type"] == "maintenance":
+            kind = "invoice"
         elif "車検" in filename:
             kind = "vehicle_inspection"
         elif any(term in normalized for term in (
@@ -327,8 +346,6 @@ def build_vehicle_karte_documents_context(vehicle, documents):
             or any(row.invoice_number for row in records)
         ):
             kind = "invoice"
-        elif document["document_type"] == "maintenance":
-            kind = "maintenance"
         elif extension in {"png", "jpg", "jpeg", "webp", "gif"}:
             kind = "photo"
         else:
@@ -383,7 +400,7 @@ def build_vehicle_karte_documents_context(vehicle, documents):
             uploader=username,
             uploader_label=user_names.get(username, username) or "—",
             related_content=" / ".join(dict.fromkeys(
-                row.content for row in records if row.content
+                row.content for row in [*records, *inspection_records] if row.content
             )),
             notes="\n".join(dict.fromkeys(
                 row.notes for row in records if row.notes
@@ -737,6 +754,17 @@ def vehicle_karte_inspections(vehicle_record_id):
         )
     )
 
+    periodic_invoices = {record.id: [] for record in periodic_inspection_page.items}
+    if periodic_invoices:
+        for invoice in _dkss_models.VehicleMaintenanceRecord.query.filter_by(
+            company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+        ).all():
+            inspection_id = _dkss_serialization.safe_json_dict(
+                invoice.invoice_details_json
+            ).get("periodic_inspection_id")
+            if type(inspection_id) is int and inspection_id in periodic_invoices:
+                periodic_invoices[inspection_id].append(invoice)
+
     return _dkss_common.render_template(
         "vehicle_karte_inspections.html",
         inspection_view=inspection_view,
@@ -751,6 +779,7 @@ def vehicle_karte_inspections(vehicle_record_id):
         },
         inspection_links=inspection_links,
         periodic_inspection_page=periodic_inspection_page,
+        periodic_invoices=periodic_invoices,
         periodic_followup_summary=_dkss_runtime.app.extensions["dkss"]['periodic_followups'].summary(vehicle.company_code, vehicle.id),
         manual_inspection_executions=[row for row in _dkss_runtime.app.extensions["dkss"]['inspection_plans'].manual_records(vehicle.company_code, vehicle.id)
             if (inspection_view not in {"3month", "12month"} or row.kind == inspection_view)
@@ -2737,6 +2766,7 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
 
     maintenance_record = None
     invoice_details = {}
+    invoice_inspection = None
     maintenance_lines = []
     source_url = None
     source_page = 1
@@ -2750,6 +2780,12 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
         invoice_details = _dkss_serialization.safe_json_dict(
             maintenance_record.invoice_details_json
         )
+        inspection_id = invoice_details.get("periodic_inspection_id")
+        if type(inspection_id) is int:
+            invoice_inspection = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
+                id=inspection_id, company_code=vehicle.company_code,
+                vehicle_record_id=vehicle.id,
+            ).first()
         maintenance_lines = _dkss_serialization.safe_json_dict_list(
             maintenance_record.line_items_json
         )
@@ -2806,6 +2842,7 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
             if maintenance_record is not None else []
         ),
         invoice_details=invoice_details,
+        invoice_inspection=invoice_inspection,
         maintenance_lines=maintenance_lines,
         maintenance_number=format_vehicle_maintenance_number,
         source_url=source_url,

@@ -1,10 +1,10 @@
-{% macro searchable_select(title, hint, field_id, field_name, required=false, certificate=false, saved_choice=none) -%}
+{% macro searchable_select(title, hint, field_id, field_name, required=false, certificate=false, saved_choice=none, show_all=false) -%}
 <span class="ocr-choice-field">
     <input type="search" id="{{ field_id }}_search" class="ocr-choice-input" data-ocr-choice-input placeholder="{{ hint }}" autocomplete="off" aria-label="{{ title }}" disabled>
     <span class="ocr-choice-status help-text" data-ocr-choice-status role="status" aria-live="polite" hidden></span>
     <span class="ocr-choice-results vehicle-karte-search-results" data-ocr-choice-results hidden></span>
     <span class="ocr-choice-selected selected-vehicle-tags" data-ocr-choice-selected></span>
-    <select id="{{ field_id }}" name="{{ field_name }}" data-searchable-select="{{ hint }}" data-search-label="{{ title }}"{% if required %} required{% endif %}{% if certificate %} data-certificate-field{% endif %}{% if saved_choice is not none %} data-saved-choice="{{ saved_choice }}"{% endif %} hidden>
+    <select id="{{ field_id }}" name="{{ field_name }}" data-searchable-select="{{ hint }}" data-search-label="{{ title }}"{% if required %} required{% endif %}{% if certificate %} data-certificate-field{% endif %}{% if saved_choice is not none %} data-saved-choice="{{ saved_choice }}"{% endif %}{% if show_all %} data-show-all-on-focus="1"{% endif %} hidden>
         {{ caller() }}
     </select>
 </span>
