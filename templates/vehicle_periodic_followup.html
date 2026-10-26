@@ -1,9 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}点検・整備のAI提案{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_periodic_followups.css', v='20261022-ai-1') }}">
+{% endblock %}
+
 {% block content %}
 {% include 'vehicle_karte_header.html' %}
 {% include 'vehicle_karte_tabs.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_periodic_followups.css', v='20261022-ai-1') }}">
 <div class="pf-workspace" data-periodic-suggestions="{{ url_for('vehicle_periodic_suggestions', vehicle_record_id=vehicle.id, record_id=record.id) }}" data-can-generate="{{ 'true' if can_generate else 'false' }}">
     <section class="card pf-intro">
         <div class="card-title-row"><h3>点検・整備のAI提案</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view='periodic') }}">点検一覧へ</a></div>

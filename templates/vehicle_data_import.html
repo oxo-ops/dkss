@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}資料・データ取込{% endblock %}
-{% block content %}
+{% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_data_import.css', v='20261026-spacing-2') }}">
+{% endblock %}
+
+{% block content %}
 <div class="vehicle-registration-page vehicle-data-import import-workspace" data-import-owner="{{ session.get('company_code') }}:{{ session.get('username') }}">
     <nav class="vehicle-registration-breadcrumb" aria-label="現在の位置">
         <a href="{{ url_for('vehicle_karte_list') }}">車両カルテ</a>

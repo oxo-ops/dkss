@@ -9,8 +9,11 @@
 {% endif %}<small>{{ item.date }} · {{ item.by }}</small></div>
 <a class="ko-action-button" href="{{ item.link }}">{{ item.next }} <span aria-hidden="true">→</span></a></li>
 {% endmacro %}
-{% block content %}
+{% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_overview.css', v='20261026-overview-compact-4') }}">
+{% endblock %}
+
+{% block content %}
 <div id="vehicle-overview-page">
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}

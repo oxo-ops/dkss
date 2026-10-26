@@ -28,7 +28,12 @@ class ResponsiveLayoutTests(unittest.TestCase):
                 self.assertIn('data-responsive-shell', html)
                 self.assertEqual(html.count('css/responsive_layout.css'), 1)
                 self.assertEqual(html.count('js/responsive_layout.js'), 1)
-                self.assertGreater(html.index('css/responsive_layout.css'), html.rfind('</main>'))
+                self.assertLess(html.index('css/responsive_layout.css'), html.index('</head>'))
+                self.assertLess(html.index('js/shell_bootstrap.js'), html.index('class="app-layout"'))
+                for asset in ('vehicle_karte_header.css', 'vehicle_karte_overview.css', 'vehicle_karte_analysis.css', 'vehicle_data_import.css', 'import_flow.css'):
+                    if 'css/' + asset in html:
+                        self.assertEqual(html.count('css/' + asset), 1)
+                        self.assertLess(html.index('css/' + asset), html.index('</head>'))
                 self.assertNotIn('user-scalable=no', html)
 
     def test_master_tables_have_a_scroll_viewport(self):
