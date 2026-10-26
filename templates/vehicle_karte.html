@@ -94,7 +94,7 @@
 <section class="card ko-cost">
 <div class="ko-heading">
 <h3>{{ icon('chart') }}直近12か月の整備費用</h3>
-<span class="ko-meta">期間：{{ ko_cost.start|replace('-', '/') }} ～ {{ ko_cost.end|replace('-', '/') }} · 当月を除く12か月</span><a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}#kc-monthly-chart">費用を見る →</a></div>
+<span class="ko-meta">期間：{{ ko_cost.start|replace('-', '/') }} ～ {{ ko_cost.end|replace('-', '/') }} · 当月を含む12か月（本日まで）</span><a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}#kc-monthly-chart">費用を見る →</a></div>
 <div class="ko-cost-grid">
 <div class="ko-spend-summary">
 <p class="ko-eyebrow">登録済みの整備費用</p>
