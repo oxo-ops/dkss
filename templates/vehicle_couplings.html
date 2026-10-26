@@ -47,7 +47,7 @@
             <button type="submit" class="btn btn-primary vc-submit" data-coupling-submit disabled>追加する</button>
             {% else %}<p class="vc-empty">追加できる車両がありません。同じ会社の有効な車両が対象です。</p>{% endif %}
         </form>
-        {% elif coupling.can_edit and not coupling.can_add %}<p class="vc-empty">この車両には新しい紐づけを追加できません。</p>{% endif %}
+        {% elif coupling.can_edit and not coupling.can_add %}<p class="vc-empty">{{ "この車両には新しい紐づけを追加できません。" if vehicle.deleted else "追加できる車両がありません。同じ会社の有効な車両が対象です。" }}</p>{% endif %}
         <p class="vc-note">登録した組合せは現在の連結状態を示しません。点検・整備・走行距離は車両ごとに管理します。</p>
     </div>
     <div class="vc-dialog-footer"><button type="button" class="btn btn-outline" data-coupling-close>閉じる</button></div>
