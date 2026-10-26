@@ -43,7 +43,7 @@
                 ／ 部品：{{ '確認待ち' if item.parts_pending else '確認済み・対象外' }}
             </p>
 
-            <table>
+            <div class="table-scroll responsive-table-viewport"><table>
                 <thead>
                     <tr>
                         <th>項目</th>
@@ -68,7 +68,7 @@
                         <td>{{ item.payload.get('total_cost') if item.payload.get('total_cost') is not none else '記載なし' }}</td>
                     </tr>
                 </tbody>
-            </table>
+            </table></div>
 
             <p>
                 請求日：{{ item.payload.get('invoice_date') or '記載なし' }}

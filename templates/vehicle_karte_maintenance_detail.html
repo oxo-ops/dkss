@@ -291,7 +291,7 @@
         <div class="km-section-heading">
             <h4>請求書明細 <span class="km-count">{{ maintenance_lines|length }}件</span></h4>
         </div>
-        <table class="km-line-table">
+        <div class="table-scroll responsive-table-viewport"><table class="km-line-table">
             <thead>
                 <tr><th scope="col">項目</th><th scope="col" class="km-number">金額</th></tr>
             </thead>
@@ -339,7 +339,7 @@
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
+        </table></div>
     </section>
     {% endif %}
 

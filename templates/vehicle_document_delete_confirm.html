@@ -6,7 +6,7 @@
 <p><strong>{{ draft.source_filename }}</strong></p>
 <p>原本と、この資料だけを根拠に作られた登録データを削除します。削除後の情報でAI分析を更新します。</p>
 <ul>{% for label,count in impact.counts.items() %}{% if count %}<li>{{ label }}：{{ count }}件</li>{% endif %}{% endfor %}</ul>
-{% if impact.records %}<table><thead><tr><th>実施日</th><th>取り消す記録</th><th>金額</th></tr></thead><tbody>{% for row in impact.records %}<tr><td>{{ row.date or '未登録' }}</td><td>{{ row.content }}</td><td>{{ row.cost if row.cost is not none else '—' }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+{% if impact.records %}<div class="table-scroll responsive-table-viewport"><table><thead><tr><th>実施日</th><th>取り消す記録</th><th>金額</th></tr></thead><tbody>{% for row in impact.records %}<tr><td>{{ row.date or '未登録' }}</td><td>{{ row.content }}</td><td>{{ row.cost if row.cost is not none else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 <p>関連する提案への回答は取消済みの履歴として保持し、今後の分析には使いません。運行可否は自動変更しません。</p>
 {% if impact.problems %}
 <div role="alert"><p><strong>関連記録を保護するため、この資料はまだ削除できません。</strong></p>

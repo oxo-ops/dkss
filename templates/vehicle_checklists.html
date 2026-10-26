@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header"><h2>車両チェックリスト</h2></div>
 {% if checklists %}
-<table class="checklist-list-mobile-table vehicle-checklist-list-table">
+<div class="table-scroll responsive-table-viewport"><table class="checklist-list-mobile-table vehicle-checklist-list-table">
     <tr>
         <th>チェックリスト名</th>
         <th>頻度</th>
@@ -46,7 +46,7 @@
         <td colspan="4">車両管理用チェックリストはありません。</td>
     </tr>
     {% endfor %}
-</table>
+</table></div>
 {% else %}
 <div class="checklist-entry-empty">
     <p>利用できるチェックリストがありません。</p>

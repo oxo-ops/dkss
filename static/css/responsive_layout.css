@@ -1,0 +1,103 @@
+/* Geometry only; shared by every page through base.html, after page styles. */
+@media screen {
+    :root { --app-viewport-height:100dvh; --app-viewport-width:100vw; }
+    body[data-responsive-shell] .app-layout,
+    body[data-responsive-shell] .main-content { box-sizing:border-box; min-inline-size:0; max-inline-size:100%; }
+    body[data-responsive-shell] .main-content > * { min-inline-size:0; max-inline-size:100%; }
+    body[data-responsive-shell] .main-content :is(fieldset,label,.card,.km-panel,.ka7-panel,.dashboard-card,.invoice-document,.invoice-detail-content,.invoice-source-panel,.invoice-records) { min-inline-size:0; max-inline-size:100%; box-sizing:border-box; }
+    body[data-responsive-shell] .main-content :is(input,select,textarea) { box-sizing:border-box; min-inline-size:0; max-inline-size:100%; }
+    body[data-responsive-shell] :is(.page-header,.card-title-row,.header-actions,.form-actions,.invoice-page-heading,.invoice-submit-actions,.ip-heading,.ip-footer) { flex-wrap:wrap; }
+    body[data-responsive-shell] :is(.page-header,.card-title-row,.ip-heading) > :is(h2,h3,div) { min-inline-size:0; overflow-wrap:anywhere; }
+    body[data-responsive-shell] :is(.table-scroll,.table-wrap,.table-wrapper,.table-responsive,.table-container,.kc-table-scroll,.kp-table-scroll,.ka7-parts-scroll,.vehicle-operation-import-table-wrap,.vehicle-import-master-table-scroll,.dashboard-analysis-targets-scroll,.dashboard-attention-table-wrap,.dashboard-periodic-table-wrap,.dashboard-history-scroll,.ip-grid-scroll,.ip-review-scroll,.driving-table-wrap) {
+        box-sizing:border-box; min-inline-size:0; max-inline-size:100%; overflow:auto; overscroll-behavior:contain;
+    }
+    body[data-responsive-shell] .responsive-table-viewport { margin:0; }
+    .checklist-other-items > .responsive-table-viewport > .checklist-table { margin:0; border-radius:0; box-shadow:none; }
+    body[data-responsive-shell] :is(dialog,.modal-box,.vehicle-import-modal-box,.checklist-version-modal-content) {
+        box-sizing:border-box; min-inline-size:0; max-inline-size:min(100%,calc(var(--app-viewport-width) - 24px)) !important;
+        max-block-size:calc(var(--app-viewport-height) - 24px) !important; overflow:auto;
+        overscroll-behavior:contain;
+    }
+    body[data-responsive-shell] :is(.modal-bg,.vehicle-import-modal,.checklist-version-modal) { box-sizing:border-box; padding:12px; }
+    body[data-responsive-shell] :is(.inspection-plan-panel,.ka-reference-drawer) { max-block-size:var(--app-viewport-height) !important; }
+    body[data-responsive-shell] .sidebar { box-sizing:border-box; max-block-size:var(--app-viewport-height); }
+    body[data-responsive-shell] .sidebar-toggle { display:inline-flex; }
+    body[data-responsive-shell] .sidebar-nav { min-block-size:0; overflow-y:auto; }
+
+    /* Reflow uses the actual content width, including the desktop sidebar. */
+    body[data-content-layout=medium] .main-content :is(.km-workspace,.kp-workspace,.pw-layout,.dashboard-home-layout,.dashboard-reference-bottom-grid),
+    body[data-content-layout=compact] .main-content :is(.km-workspace,.kp-workspace,.pw-layout,.dashboard-home-layout,.dashboard-reference-bottom-grid,.vi-workspace,.driving-grid,.driver-editor-grid,.driver-field-grid) {
+        grid-template-columns:minmax(0,1fr) !important;
+    }
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .dashboard-home-layout > * { grid-column:1 !important; grid-row:auto !important; }
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .driver-master-filter-form { display:flex !important; flex-wrap:wrap; }
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .driver-master-filter-form > div { flex:1 1 180px; min-inline-size:0; }
+    body[data-content-layout=compact] .pointouts-filter-form { grid-template-columns:minmax(0,1fr) !important; }
+    body[data-content-layout=compact] .pointouts-filter-form > * { grid-column:auto !important; }
+    body[data-content-layout=compact] .vehicle-karte-basic-grid { grid-template-columns:minmax(0,1fr) !important; }
+    body[data-content-layout=compact] :is(.vehicle-karte-metrics,.vehicle-karte-deadlines) { grid-template-columns:repeat(auto-fit,minmax(min(130px,100%),1fr)) !important; }
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .vehicle-karte-tabs,
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .master-unified-tabs {
+        display:flex !important; flex-wrap:nowrap; min-inline-size:0; max-inline-size:100%; overflow-x:auto; overflow-y:hidden;
+    }
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .vehicle-karte-tabs > *,
+    body:is([data-content-layout=medium],[data-content-layout=compact]) .master-unified-tabs > * { flex:0 0 auto; min-inline-size:82px; }
+    body[data-content-layout=compact] :is(.header-actions,.form-actions,.ip-footer,.invoice-submit-actions) > :is(a,button) { max-inline-size:100%; white-space:normal; overflow-wrap:anywhere; }
+    body[data-content-layout=compact] :is(.ip-filters,.vi-filters,.invoice-pdf-toolbar) { flex-wrap:wrap; }
+    body[data-content-layout=compact] .ip-filters input[type=search] { inline-size:100%; }
+    body[data-content-layout=compact] #vehicle-karte-overview .ko-heading { flex-wrap:wrap; }
+    body[data-content-layout=compact] .dashboard-reference-footer { grid-template-columns:minmax(0,1fr) !important; }
+    body[data-content-layout=compact] .ka7-trends,
+    body[data-content-layout=compact] .ka7-evidence-grid { grid-template-columns:minmax(0,1fr) !important; }
+    body[data-content-layout=compact] .ka7-peer-panel { grid-column:auto !important; }
+    body[data-content-layout=compact] .ka7-kpis { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+
+    /* Short windows use document scrolling instead of shrinking workspaces to zero. */
+    body[data-responsive-shell] .main-content [data-flow-layout=true]:not(.ip-cal-grid),
+    body[data-short-viewport=true] .main-content :is(.km-workspace,.kp-workspace,.vehicle-karte-history-panel,.vehicle-karte-inspections-primary,.vehicle-karte-documents-panel,.km-list-panel,.kp-history) {
+        block-size:auto !important; max-block-size:none !important; overflow:visible;
+    }
+    body[data-short-viewport=true] .main-content :is(.vehicle-karte-header,.vehicle-karte-tabs,.invoice-page-heading) { position:static !important; }
+    body[data-short-viewport=true] .inspection-plans .ip-grid-scroll { max-block-size:none !important; }
+    .inspection-plans .ip-cal-grid[data-flow-layout=true] { block-size:auto !important; grid-template-rows:24px repeat(var(--ip-weeks,6),minmax(100px,auto)); }
+
+    /* OCR switches to a scrollable single column by usable width OR height. */
+    html:has(body[data-review-layout=compact]),body[data-review-layout=compact] { block-size:auto !important; overflow-y:auto !important; }
+    body[data-review-layout=compact] :is(.app-layout,.main-content,.vehicle-registration-page,.invoice-review-page,.vehicle-document-import-preview,.vehicle-certificate-review) {
+        block-size:auto !important; min-block-size:0; max-block-size:none; overflow:visible !important;
+    }
+    body[data-review-layout=compact] :is(.app-layout,.invoice-review-page,.main-content,.vehicle-registration-page) { flex-basis:auto !important; }
+    body[data-review-layout=compact] .invoice-page-heading { position:static; }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] {
+        grid-template-columns:minmax(0,1fr) !important; block-size:auto !important; min-block-size:0 !important;
+    }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] .invoice-splitter { display:none; }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] :is(.invoice-source-panel,.invoice-records) {
+        min-inline-size:0; max-inline-size:100%; block-size:auto; min-block-size:0; overflow:visible;
+    }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] .invoice-records { display:block; }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] .invoice-record-heading { position:static; }
+    body[data-responsive-shell] .invoice-review-layout[data-compact-review=true] .invoice-pdf-viewer {
+        block-size:clamp(120px,50dvh,420px); min-block-size:0 !important; max-block-size:60dvh;
+    }
+}
+
+/* Keep CSS and toggleSidebar() on the same breakpoint. */
+@media screen and (max-width:900px) {
+    body[data-responsive-shell] { --app-drawer-width:min(250px,calc(var(--app-viewport-width) - 44px)); }
+    body[data-responsive-shell] .app-layout { display:block; padding:0; gap:0; }
+    body[data-responsive-shell] .main-content { inline-size:100%; margin:0; padding:52px 12px 12px !important; }
+    body[data-responsive-shell] .main-content > .top-bar { position:relative !important; top:auto !important; right:auto !important; margin:-40px 0 8px !important; padding-inline-start:44px; min-block-size:40px; box-sizing:border-box; }
+    body[data-responsive-shell] .sidebar { position:fixed; inset:0 auto auto 0; inline-size:var(--app-drawer-width); min-inline-size:var(--app-drawer-width); block-size:var(--app-viewport-height); border-radius:0; transform:translateX(-100%); z-index:1050; overflow:visible; }
+    body[data-responsive-shell].sidebar-open .sidebar { transform:translateX(0); }
+    body[data-responsive-shell] .sidebar-toggle { display:inline-flex !important; position:fixed; top:12px; left:12px; z-index:1100; }
+    body[data-responsive-shell]:not(.sidebar-open) .sidebar-toggle { transform:translateX(var(--app-drawer-width)); }
+    body[data-responsive-shell].sidebar-open .sidebar-toggle { transform:translateX(0); }
+    body[data-responsive-shell] .sidebar-overlay { display:block; position:fixed; inset:0; z-index:1000; background:#0f172a61; opacity:0; visibility:hidden; pointer-events:none; }
+    body[data-responsive-shell].sidebar-open .sidebar-overlay { opacity:1; visibility:visible; pointer-events:auto; }
+    body[data-responsive-shell].sidebar-open { overflow:hidden; }
+}
+
+@media screen and (max-width:900px) {
+    body[data-responsive-shell] #notificationLayout {grid-template-columns:minmax(0,1fr);}
+}

@@ -118,9 +118,9 @@
             {% if analysis_comparison.metrics and analysis_comparison.comparison_scope.year_scope_fallback %}<p class="ka7-note">初度登録年が不明のため、年を限定せず同型式で比較しています。</p>{% endif %}
             {% if analysis_comparison.metrics %}<p class="ka7-peer-count">比較対象 {% if analysis_comparison.vehicle_count is number %}{{ analysis_comparison.vehicle_count }}台{% else %}未確定{% endif %}（この車両を除く）</p>{% endif %}
             {% if analysis_comparison.metrics %}
-            <table class="ka7-peer-table"><thead><tr><th>指標</th><th>この車両</th><th>他車平均</th></tr></thead><tbody>
+            <div class="table-scroll responsive-table-viewport"><table class="ka7-peer-table"><thead><tr><th>指標</th><th>この車両</th><th>他車平均</th></tr></thead><tbody>
                 {% for metric in analysis_comparison.metrics %}<tr><th>{{ "登録実績の費用/km" if metric.label == "1kmあたり整備費" else metric.label }}</th><td>{{ value(metric.current, metric.unit) }}</td><td>{{ value(metric.average, metric.unit) }}{% if metric.sample_count == 0 %}<small class="ka7-peer-missing">比較できる実績なし</small>{% elif metric.sample_count is number %}<small class="ka10-sample">実績 {{ metric.sample_count }}台</small>{% endif %}</td></tr>{% endfor %}
-            </tbody></table>
+            </tbody></table></div>
             {% endif %}
             {% if analysis_comparison.metrics %}<p class="ka7-note">{% if data.cost_per_km_status %}{{ data.cost_per_km_note }} {% endif %}登録0件は、実際の故障・交換がなかったことを示しません。</p>
             <button type="button" class="ka-reference-link-button" data-analysis-comparison="1">比較条件・母数を確認 →</button>{% endif %}
@@ -133,9 +133,9 @@
             {% for month in data.monthly %}{% if month.distance is not none or month.cost is not none or month.failures %}<tr><th>{{ month.month }}</th><td>{{ value(month.distance, 'km') }}</td><td>{{ value(month.cost, '円') }}</td><td>{{ value(month.failures, '件') }}</td></tr>{% endif %}{% endfor %}
         </tbody></table></div>
         {% if analysis_comparison.note %}<p class="kc-data-note">{{ analysis_comparison.note }}</p>{% endif %}
-        {% if analysis_comparison.metrics %}<table class="kc-table"><thead><tr><th>指標</th><th>集計対象</th><th>平均比</th></tr></thead><tbody>
+        {% if analysis_comparison.metrics %}<div class="table-scroll responsive-table-viewport"><table class="kc-table"><thead><tr><th>指標</th><th>集計対象</th><th>平均比</th></tr></thead><tbody>
             {% for metric in analysis_comparison.metrics %}<tr><th>{{ "登録実績の費用/km" if metric.label == "1kmあたり整備費" else metric.label }}</th><td>{{ metric.sample_count if metric.sample_count is number else '未確定' }}台</td><td>{% if metric.difference_percentage is number %}{{ '%+.1f'|format(metric.difference_percentage) }}%{% else %}—{% endif %}</td></tr>{% endfor %}
-        </tbody></table>{% endif %}
+        </tbody></table></div>{% endif %}
     </details>{% endif %}
 </div>
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>

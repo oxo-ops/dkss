@@ -44,6 +44,7 @@
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 </head>
 <body
+    data-responsive-shell
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
     data-authenticated="{{ 'true' if session.get('username') else 'false' }}"
     data-current-user="{{ session.get('name') or '' }}"
@@ -482,7 +483,9 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261025-ocr-error-layout-1') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261026-viewport-1') }}">
+<script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-viewport-1') }}"></script>
+<script src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261026-responsive-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

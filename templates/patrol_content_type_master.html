@@ -15,7 +15,7 @@
 </div>
 
 <p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p>
-<table class="master-order-table" data-master-order-url="/master/patrol-content-types/order">
+<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/patrol-content-types/order">
     <thead>
     <tr>
         <th>内容区分名</th>
@@ -60,7 +60,7 @@
     </tr>
     {% endfor %}
     </tbody>
-</table>
+</table></div>
 
 <script src="{{ url_for('static', filename='js/patrol_content_type_master.js') }}"></script>
 

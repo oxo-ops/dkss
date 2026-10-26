@@ -97,23 +97,24 @@
         const layout = review.querySelector(".invoice-review-layout");
         const viewer = sourceContainer.querySelector(":scope > .invoice-pdf-viewer");
         if (!layout || !viewer) return;
-        const narrow = window.matchMedia("(max-width: 1000px)").matches;
+        const narrow = window.DkssViewport?.compactReview(layout) ?? (window.innerWidth <= 1000 || window.innerHeight < 600);
+        const viewportHeight = window.DkssViewport?.height() ?? window.innerHeight;
         const actions = review.querySelector(".invoice-submit-actions");
         if (narrow) {
             layout.style.removeProperty("height");
         } else {
             const available = Math.max(260, Math.floor(
-                window.innerHeight - layout.getBoundingClientRect().top
+                viewportHeight - Math.max(0, layout.getBoundingClientRect().top)
                 - (actions?.getBoundingClientRect().height || 0) - 24
             ));
             const value = available + "px";
             if (layout.style.height !== value) layout.style.height = value;
         }
         const paneHeight = narrow
-            ? Math.max(300, Math.min(window.innerHeight * 0.65, 600))
+            ? Math.max(100, Math.min(viewportHeight * 0.5, 420))
             : layout.clientHeight;
         const summary = sourceContainer.querySelector(":scope > summary");
-        const height = Math.max(180, Math.floor(
+        const height = Math.max(80, Math.floor(
             paneHeight - (summary?.getBoundingClientRect().height || 30)
         ));
         // Match the invoice screen: a definite pixel height bounds the scroll area.

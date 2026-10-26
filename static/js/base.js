@@ -64,7 +64,7 @@ window.addEventListener("DOMContentLoaded", function () {
         document.body.classList.remove("sidebar-collapsed");
 
     } else if (
-        localStorage.getItem("sidebarCollapsed") === "1"
+        localStorage.getItem("sidebarCollapsed") === "1" && window.innerWidth > 900
     ) {
         document.body.classList.add("sidebar-collapsed");
     }
@@ -1252,6 +1252,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (message) {
                 input.focus();
+                return;
+            }
+
+            if (form.dataset.importQueue === "1") {
+                if (!window.DKSSDocumentImportQueue) {
+                    showError("送信画面を読み込めませんでした。再読み込みしてください。");
+                    return;
+                }
+                window.DKSSDocumentImportQueue.submit(form, showError);
                 return;
             }
 
