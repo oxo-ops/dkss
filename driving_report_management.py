@@ -279,7 +279,7 @@ def register_driving_reports(app, db, g):
         summary.update(distance=str(board['summary']['distance']) if board['summary']['distance'] is not None else None,
             operation_count=board['summary']['count'],distance_count=board['summary']['distance_count'])
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
-            summary=summary,insights=board,reflection=reflection,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
+            summary=summary,insights=board,reflection=reflection,driving_user_office=(getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''),vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
             insight_number=number,reader_users=g['User'].query.filter_by(company_code=session['company_code'],role='user').order_by(g['User'].username).all() if readership.administrator() else [])
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
