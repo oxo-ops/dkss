@@ -198,3 +198,16 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
  body:has(.driving-designed) .sidebar-nav .submenu-item{padding-right:8px!important;white-space:nowrap}
  body:has(.driving-designed) .sidebar-nav .submenu-item .menu-text{white-space:nowrap}
 }
+/* All roles retain the approved primary stack; organizational lists are secondary. */
+.driving-designed{max-width:1100px!important;margin:0 auto}
+.driving-designed .driving-roster-fold>summary,.driving-designed .driving-raw-fold>summary{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;list-style:none;cursor:pointer}
+.driving-designed .driving-roster-fold>summary:after,.driving-designed .driving-raw-fold>summary:after{content:'⌄';margin-left:auto;color:#6485be}
+.driving-designed .driving-roster-fold>summary span{color:#6582ac;font-size:11px}
+.driving-designed .driving-roster-fold[open]>summary,.driving-designed .driving-raw-fold[open]>summary{margin-bottom:12px}
+.driving-page.driving-designed .driving-roster-fold .card{padding:0!important;margin:12px 0 0!important;border:0!important}
+.driving-designed .driving-raw-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.driving-designed .driving-raw-values article{border:1px solid #dbe6fb;border-radius:8px;padding:10px;min-width:0;overflow-wrap:anywhere}
+.driving-designed .driving-raw-values small{display:block;font-size:11px;color:#6582ac}
+.driving-designed .driving-trend-empty{margin:14px 0 10px;min-height:44px;display:flex;align-items:center}
+.driving-designed .driving-metric-empty strong{color:#8397b5!important}
+.driving-designed .driving-key-metrics article{min-height:108px}

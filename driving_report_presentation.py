@@ -16,7 +16,16 @@ def category(metric):
     return 'other'
 
 
-def enrich(board,facts,previous):
+def initial_metric(facts, previous, requested='', selected_category='safety'):
+    if requested:
+        return requested
+    metrics={m['id']:m for fact in facts+previous for m in fact['metrics']}
+    matches=sorted((m for m in metrics.values() if category(m)==selected_category and m['method']!='raw'),
+                   key=lambda m:(m['name'],m['source'],m['version'],m['id']))
+    return matches[0]['id'] if matches else ''
+
+
+def enrich(board,facts,previous,selected_category=None):
     board['vehicle_count']=len({f['vehicle_id'] for f in facts})
     if not board.get('selected_driver'):
         days=defaultdict(list)
@@ -26,15 +35,23 @@ def enrich(board,facts,previous):
         series=[{'date':day['date'],'value':str(day['value']) if day['value'] is not None else None,
                  'report_id':day['report_ids'][0]} for day in trend]
         board.update(trend=trend,trend_series=series,chart=[point for point in series if point['value'] is not None])
-    selected=category(board['metric']) if board.get('metric') else None
+    selected=selected_category or (category(board['metric']) if board.get('metric') else 'safety')
     available={category(m) for m in board['groups']}
     board['metric_categories']=[{'key':key,'label':label,
-        'metric_id':next(m['id'] for m in board['groups'] if category(m)==key)}
-        for key,label in CATEGORY_LABELS.items() if key in available]
-    entries=board['available_highlights']
-    entries=[e for e in entries if category(e['metric'])==selected]
-    entries.sort(key=lambda e:e['metric']['id']!=board['metric_id'])
-    board.update(display_metrics=entries[:3],metric_category=selected)
+        'metric_id':next((m['id'] for m in board['groups'] if category(m)==key),'')}
+        for key,label in CATEGORY_LABELS.items() if key!='other' or key in available]
+    entries=[e for e in board['available_highlights'] if category(e['metric'])==selected and (selected=='other' or e['metric']['method']!='raw')]
+    visible=entries[:3]
+    selected_entry=next((e for e in entries if e['metric']['id']==board['metric_id']),None)
+    if selected_entry and selected_entry not in visible:
+        visible=visible[:2]+[selected_entry]
+    default_names={'safety':['急加速','急減速','速度超過'],
+                   'economy':['燃費','アイドリング','回転超過'],'other':['運行記録','取得項目','その他の記録']}
+    missing=[name for name in default_names[selected] if name not in {e['metric']['name'] for e in visible}]
+    board.update(display_metrics=visible,metric_category=selected,empty_metric_names=missing[:3-len(visible)],
+                 raw_metrics=[e for e in board['available_highlights'] if e['metric']['method']=='raw'],
+                 show_trend=bool(board.get('metric') and category(board['metric'])==selected and board['metric']['method']!='raw'),
+                 trend_title=board['metric']['name'] if board.get('metric') and category(board['metric'])==selected and board['metric']['method']!='raw' else default_names[selected][0])
     candidates=[item for item in board.get('followups',[]) if item['review'].get('state')!='completed']
     dated=[]
     for item in candidates:

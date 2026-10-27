@@ -1,4 +1,4 @@
-<section class="card driving-next-review" aria-labelledby="driving-next-title"><div class="driving-section-heading"><h3 id="driving-next-title">{{ '本人の説明・次の振り返り' if driving_is_admin else '次の振り返り' }}</h3>{% if insights.next_followup_date %}<span class="driving-badge">{{ insights.next_followup_date[5:]|replace('-','/') }}</span>{% endif %}</div>
+<section class="card driving-next-review" aria-labelledby="driving-next-title"><div class="driving-section-heading"><h3 id="driving-next-title">次の振り返り</h3>{% if insights.next_followup_date %}<span class="driving-badge">{{ insights.next_followup_date[5:]|replace('-','/') }}</span>{% endif %}</div>
 {% if insights.next_followup %}{% set item=insights.next_followup %}
 <strong>{{ item.review.get('action') or '運行時の状況を振り返る' }}</strong>
 <p><span class="driving-state driving-state-{{ item.review.get('state','unreviewed') }}">{{ driving_review_states.get(item.review.get('state','unreviewed')) }}</span></p>
