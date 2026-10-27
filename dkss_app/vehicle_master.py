@@ -1697,6 +1697,12 @@ def get_vehicle_date_error(value, field_name):
             return None
         return f"{field_name}が不正です。"
 
+    # strptime accepts unpadded month/day values, but expiry queries compare
+    # stored ISO strings and inspection plans require exact YYYY-MM-DD.
+    # Reject other precision/formats before they can be saved unchanged.
+    if not _dkss_common.re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+        return f"{field_name}が不正です。"
+
     try:
         _dkss_common.datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
