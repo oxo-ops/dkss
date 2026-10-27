@@ -2046,6 +2046,37 @@ def new_vehicle():
 
 
 
+def _vehicle_edit_return_target(candidate, vehicle_id):
+    """Keep navigation within vehicle pages; never redirect to a supplied host."""
+    from urllib.parse import urlsplit
+
+    default = ("/master/vehicles", "車両マスタへ戻る")
+    if not isinstance(candidate, str) or any(
+        ord(char) < 32 or ord(char) == 127 or char == "\\"
+        for char in candidate
+    ):
+        return default
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError:
+        return default
+    if parsed.scheme or parsed.netloc or parsed.fragment:
+        return default
+    if parsed.path == "/master/vehicles":
+        label = "車両マスタへ戻る"
+    elif parsed.path == "/vehicle/karte":
+        label = "車両一覧へ戻る"
+    elif parsed.path in {
+        f"/vehicle/karte/{vehicle_id}" + suffix
+        for suffix in ("", "/history", "/inspections", "/maintenance",
+                       "/parts", "/costs", "/documents", "/analysis")
+    }:
+        label = "車両カルテへ戻る"
+    else:
+        return default
+    return parsed.path + ("?" + parsed.query if parsed.query else ""), label
+
+
 def edit_vehicle(index):
     vehicle = _dkss_models.Vehicle.query.filter_by(
         id=index,
@@ -2054,6 +2085,15 @@ def edit_vehicle(index):
 
     if not vehicle:
         return _dkss_common.redirect("/master/vehicles")
+
+    return_candidate = (
+        _dkss_common.request.form.get("return_to")
+        if _dkss_common.request.method == "POST"
+        else _dkss_common.request.args.get("return_to")
+    )
+    vehicle_return_url, vehicle_return_label = _vehicle_edit_return_target(
+        return_candidate, vehicle.id
+    )
 
     if _dkss_common.request.method == "POST":
         if _dkss_common.request.form.get("vehicle_form_action") == "back":
@@ -2066,7 +2106,9 @@ def edit_vehicle(index):
                 index=vehicle.id,
                 offices=_dkss_master_readers.offices_for_current_company(),
                 vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
-                mode="edit"
+                mode="edit",
+                vehicle_return_url=vehicle_return_url,
+                vehicle_return_label=vehicle_return_label
             )
 
         form_errors = []
@@ -2196,7 +2238,9 @@ def edit_vehicle(index):
                 "vehicle_edit_confirm.html",
                 vehicle=confirmation_values,
                 previous_vehicle=previous_values,
-                index=vehicle.id
+                index=vehicle.id,
+                vehicle_return_url=vehicle_return_url,
+                vehicle_return_label=vehicle_return_label
             )
 
         apply_vehicle_form_values(
@@ -2217,7 +2261,7 @@ def edit_vehicle(index):
         _dkss_knowledge.link_vehicle_certificate_specification_source(vehicle)
         _dkss_common.db.session.commit()
 
-        return _dkss_common.redirect("/master/vehicles")
+        return _dkss_common.redirect(vehicle_return_url)
 
     vehicle_dict = {
         "vehicle_record_id": vehicle.id,
@@ -2267,7 +2311,9 @@ def edit_vehicle(index):
         index=vehicle.id,
         offices=_dkss_master_readers.offices_for_current_company(),
         vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
-        mode="edit"
+        mode="edit",
+        vehicle_return_url=vehicle_return_url,
+        vehicle_return_label=vehicle_return_label
     )
 
 

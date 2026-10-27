@@ -61,8 +61,8 @@
     {% if vehicle is defined and vehicle and session.get("role") in ["admin", "itc"] %}
     <div class="vehicle-karte-actions">
         <a href="{{ url_for('vehicle_data_import') }}" class="btn btn-outline">資料・データ取込</a>
-        <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline">車両一覧</a>
-        <a href="{{ url_for('edit_vehicle', index=vehicle.id) }}" class="btn btn-outline">編集</a>
+        <a href="{{ url_for('vehicle_master', edit_origin='karte') }}" class="btn btn-outline">車両一覧</a>
+        <a href="{{ url_for('edit_vehicle', index=vehicle.id, return_to=request.full_path.rstrip('?')) }}" class="btn btn-outline">編集</a>
     </div>
     {% endif %}
 </div>

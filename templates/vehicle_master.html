@@ -598,6 +598,7 @@
     <h3 class="vehicle-search-heading">検索条件</h3>
 
     <form method="get" class="vehicle-master-filter-form vehicle-search-form">
+        <input type="hidden" name="edit_origin" value="{{ request.args.get('edit_origin', '') }}">
         <div class="vehicle-search-field">
             <label for="vehicle_search_plate_number">車番</label>
             <input
@@ -702,7 +703,7 @@
         </div>
 
         <div class="vehicle-filter-actions">
-            <a href="{{ url_for('vehicle_master') }}" class="btn btn-outline">
+            <a href="{{ url_for('vehicle_master', edit_origin=request.args.get('edit_origin', '')) }}" class="btn btn-outline">
                 クリア
             </a>
             <button type="submit" class="btn btn-primary">検索</button>
@@ -841,7 +842,7 @@
 
 
                 <a
-                    href="/master/vehicles/{{ vehicle.index }}/edit"
+                    href="{{ url_for('edit_vehicle', index=vehicle.index, return_to=(url_for('vehicle_karte', vehicle_record_id=vehicle.index) if request.args.get('edit_origin') == 'karte' else request.full_path.rstrip('?'))) }}"
                     class="btn-small btn-edit"
                 >
                     編集
@@ -875,7 +876,8 @@
     manufacturer=manufacturer,
     model_code=model_code,
     office=office,
-    vehicle_type=vehicle_type
+    vehicle_type=vehicle_type,
+    edit_origin=request.args.get('edit_origin', '')
 ) }}
 {%- endmacro %}
 
@@ -1025,7 +1027,7 @@
 
             <div class="mobile-card-actions">
                 <a
-                    href="/master/vehicles/{{ vehicle.index }}/edit"
+                    href="{{ url_for('edit_vehicle', index=vehicle.index, return_to=(url_for('vehicle_karte', vehicle_record_id=vehicle.index) if request.args.get('edit_origin') == 'karte' else request.full_path.rstrip('?'))) }}"
                     class="btn-small btn-edit"
                 >
                     編集
