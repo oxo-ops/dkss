@@ -24,12 +24,16 @@ def scope_filter(args, choices, default_office, administrator):
         return dict(args, scope='self', office='')
     args = dict(args)
     scope = args.get('scope', '')
-    if scope not in {'', 'office', 'company'}:
+    if scope not in {'', 'office', 'company', 'self'}:
         raise ValueError('表示範囲を選択してください。')
     # Old bookmarked office names remain exact matches, never substring matching.
     value = args.get('office', '')
+    if value == '__self__':
+        scope = 'self'
     if value == '__company__':
         scope = 'company'
+    if scope == 'self':
+        return dict(args, scope='self', office='', focus='', driver='', listing='offices', breakdown='vehicles')
     if scope == 'company':
         args.update(scope='company', office='')
     else:
@@ -43,7 +47,7 @@ def scope_filter(args, choices, default_office, administrator):
 
 
 def scope_name(filters, choices, administrator):
-    if not administrator:
+    if not administrator or filters.get('scope') == 'self':
         return '自分'
     if filters['scope'] == 'company':
         return '会社全体'

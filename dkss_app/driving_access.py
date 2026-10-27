@@ -9,6 +9,8 @@ from .extensions import db
 from .models import User, VehicleDrivingReportRecord, DrivingReportReader, DrivingReportReflection
 from driving_report_data import payload
 
+READER_ROLES = {'user', 'admin', 'itc'}
+
 
 def administrator():
     return session.get('role') in {'admin', 'itc'}
@@ -40,10 +42,10 @@ def initialize_driving_access(app):
         app.extensions['dkss']['driving_readers_ready'] = True
 
 
-def visible(rows):
-    if administrator():
+def visible(rows, personal=False):
+    if administrator() and not personal:
         return list(rows)
-    if session.get('role') != 'user' or not ready():
+    if session.get('role') not in READER_ROLES or not ready():
         return []
     user=User.query.filter_by(company_code=session.get('company_code'),username=session.get('username')).first()
     if not user:return []
@@ -68,7 +70,7 @@ def assign(rows, username, actor):
         abort(403)
     if not ready():
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
-    user=User.query.filter_by(company_code=session['company_code'],username=username,role='user').first() if username else None
+    user=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES)).first() if username else None
     if username and not user:abort(400)
     for row in rows:
         if row.company_code != session['company_code']:
@@ -92,7 +94,7 @@ def bindings(rows):
     ids={r.id:r for r in rows}
     grants=DrivingReportReader.query.filter(DrivingReportReader.company_code==session['company_code'],DrivingReportReader.report_id.in_(ids)).all() if ids else []
     users={u.id:u for u in User.query.filter_by(company_code=session['company_code']).all()} if grants else {}
-    return {grant.report_id:grant for grant in grants if grant.user_id in users and users[grant.user_id].role=='user' and grant.identity_hash==fingerprint(ids[grant.report_id])}
+    return {grant.report_id:grant for grant in grants if grant.user_id in users and users[grant.user_id].role in READER_ROLES and grant.identity_hash==fingerprint(ids[grant.report_id])}
 
 
 def account_key(grant):

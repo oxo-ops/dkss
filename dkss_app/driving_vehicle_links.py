@@ -82,8 +82,9 @@ def label(vehicle):
 
 def subject(board):
     company = session['company_code']
-    if not driving_access.administrator():
-        return User.query.filter_by(company_code=company, username=session['username'], role='user').first()
+    if not driving_access.administrator() or board.get('personal_view'):
+        return User.query.filter(User.company_code==company, User.username==session['username'],
+                                 User.role.in_(driving_access.READER_ROLES)).first()
     focus = board.get('selected_driver')
     if not focus:
         return None
