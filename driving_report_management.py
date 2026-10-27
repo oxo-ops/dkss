@@ -131,10 +131,11 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown','compare_start','compare_end','followup_due','vehicle_make','vehicle_model','vehicle_body','vehicle_year'}
+        allowed={'category','period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown','compare_start','compare_end','followup_due','vehicle_make','vehicle_model','vehicle_body','vehicle_year'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
+        if args.get('category','safety') not in {'safety','economy','other'}:abort(400)
         args,office_options,master_drivers,company_users=workspace_scope(args)
         if args.get('listing','offices') not in {'offices','people'}:abort(400)
         if args.get('breakdown','people') not in {'offices','people','vehicle','vehicles'}:abort(400)
@@ -199,10 +200,10 @@ def register_driving_reports(app, db, g):
         registered={v.id:vehicle_conditions.metadata(v) for v in vehicles}
         for fact in facts+before:
             fact['vehicle_conditions']=registered.get(fact['vehicle_id'],{})
-        board=insights_dashboard(facts,before,labels,args.get('metric',''),args.get('focus',''))
+        board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),args.get('focus',''))
         if not readership.administrator() and not args.get('focus') and len(board['drivers'])==1:
             resolved['focus']=board['drivers'][0]['key']
-            board=insights_dashboard(facts,before,labels,args.get('metric',''),resolved['focus'])
+            board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),resolved['focus'])
         for driver in board['drivers']:
             driver['identity_warning']=not driver['identified'] or driver['key'] in warning_keys
         board['condition_choices']=vehicle_conditions.choices(condition_vehicles())
@@ -226,14 +227,15 @@ def register_driving_reports(app, db, g):
         board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,readership.administrator())
         board['comparison']['ready']=comparison_ready
         review_items=comparisons.followups(rows)
-        board['followups']=review_items if focus else []
+        board['followups']=review_items
         due_ids={r.id for r in rows if comparisons.followup_status(r,today)=='due'}
         board['due_followups']=sorted([dict(item,driver_key=keys.get(item['id'],'')) for item in review_items if item['id'] in due_ids],key=lambda item:(item['review']['next_date'],item['id']))
         board['period_days']=(date.fromisoformat(period['end'])-date.fromisoformat(period['start'])).days+1 if period['start'] and period['end'] else None
         board['comparison_days']=(date.fromisoformat(period['previous_end'])-date.fromisoformat(period['previous_start'])).days+1 if period['previous_start'] else None
         summaries={rid:fact for fact in facts for rid in fact['copies']}
         board['report_metrics']={rid:[m for m in fact['metrics'] if m['id']==board['metric_id']] for rid,fact in summaries.items()}
-        presentation.enrich(board,facts,previous)
+        resolved['category']=presentation.category(board['metric']) if args.get('metric') and board.get('metric') and board['metric_id']==args['metric'] else resolved.get('category','safety')
+        presentation.enrich(board,facts,before,resolved['category'])
         return rows,previous,ops,vehicles,resolved,board,facts
 
     reflection_service=register_reflections(app,db,prepare_insights,history=lambda board,facts:history_context(board,facts))
