@@ -1,0 +1,18 @@
+<div id="report-items">
+{% set shown=namespace(count=0) %}
+{% for collection,title in [('report_items','実測値・評価'),('events','発生事象'),('duties','乗務・作業の記録'),('extra_items','独自項目・補足')] %}
+{% set items=report.data.get(collection,[]) %}{% if items %}{% set shown.count=shown.count+items|length %}
+<section class="card driving-report-item-section" aria-labelledby="report-{{ collection }}-title"><div class="driving-section-heading"><h3 id="report-{{ collection }}-title">{{ title }}</h3><small>{{ items|length }}件</small></div>
+<div class="driving-report-item-grid">{% for item in items %}<article class="driving-report-item">
+<div class="driving-section-heading"><h4>{{ item.item_name or '項目名未取得' }}</h4><span class="driving-badge">{{ driving_item_status.get(item.status,'原本候補') }}</span></div>
+{% if item.category %}<p class="driving-muted">{{ item.category }}</p>{% endif %}
+<p class="driving-report-raw">{{ item.raw_result if item.get('raw_result') is not none and item.get('raw_result')!='' else '原文の値は未取得' }}</p>
+{% if item.result_text or item.get('score') is not none %}<p>{{ item.result_text or '' }}{% if item.get('score') is not none %} <span>点数 {{ item.score }}</span>{% endif %}</p>{% endif %}
+{% if item.start_at or item.end_at or item.place %}<dl class="driving-event-facts">{% for key,label in [('start_at','開始・発生'),('end_at','終了'),('place','場所')] %}{% if item.get(key) %}<div><dt>{{ label }}</dt><dd>{{ item[key] }}</dd></div>{% endif %}{% endfor %}</dl>{% endif %}
+{% if item.notes %}<p class="driving-notes">{{ item.notes }}</p>{% endif %}
+<div class="driving-item-source">{% if driving_is_admin and item.source_page is integer and item.source_page>=1 and item.source_page in report.data.get('source_pages',[]) %}<a href="{{ url_for('vehicle_driving_report_source',record_id=report.row.id) }}#page={{ item.source_page }}" target="_blank" rel="noopener">原本 {{ item.source_page }}頁</a>{% elif item.source_page %}<span>原本 {{ item.source_page }}頁</span>{% else %}<span>原本ページ未取得</span>{% endif %}</div>
+<details class="driving-item-conditions"><summary>数値・条件・対象を確認</summary><dl class="driving-event-facts">{% for key,label in [('value','数値'),('unit','単位'),('numerator','分子'),('denominator','分母'),('denominator_unit','分母の単位'),('definition','定義'),('threshold','検知条件'),('road_type','道路区分'),('driver_code','乗務員コード'),('registration_number','車両番号')] %}{% if item.get(key) is not none and item.get(key)!='' %}<div><dt>{{ label }}</dt><dd>{{ item[key] }}</dd></div>{% endif %}{% endfor %}</dl>{% if item.speaker %}<p>話者 {{ driving_speaker_labels.get(item.speaker,'不明') }}</p>{% endif %}</details>
+</article>{% endfor %}</div></section>{% endif %}
+{% endfor %}
+{% if not shown.count %}<section class="card"><h3>指標・事象</h3><p class="driving-muted">この日報の項目は未取得です。</p></section>{% endif %}
+</div>
