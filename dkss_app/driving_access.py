@@ -29,12 +29,14 @@ def ready():
 
 
 def initialize_driving_access(app):
+    from .driving_vehicle_links import DrivingVehicleCorrection
     with app.app_context():
         with db.engine.begin() as connection:
             if connection.dialect.name == 'postgresql':
                 connection.execute(text('SELECT pg_advisory_xact_lock(824700027)'))
             DrivingReportReader.__table__.create(connection, checkfirst=True)
             DrivingReportReflection.__table__.create(connection, checkfirst=True)
+            DrivingVehicleCorrection.__table__.create(connection, checkfirst=True)
         app.extensions['dkss']['driving_readers_ready'] = True
 
 

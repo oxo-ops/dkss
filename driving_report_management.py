@@ -16,6 +16,7 @@ import driving_report_conditions as vehicle_conditions
 import driving_report_presentation as presentation
 from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
+from dkss_app import driving_vehicle_links as vehicle_links
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
 from driving_report_data import payload, version, identity, decimal, match_report, canonical_operations, metrics_summary, eligible_reports
 
@@ -282,7 +283,18 @@ def register_driving_reports(app, db, g):
             operation_count=board['summary']['count'],distance_count=board['summary']['distance_count'])
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
             summary=summary,insights=board,reflection=reflection,driving_user_office=(getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''),vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
+            driving_vehicles=vehicle_links.build(board,facts,filters),
             insight_number=number,reader_users=g['User'].query.filter_by(company_code=session['company_code'],role='user').order_by(g['User'].username).all() if readership.administrator() else [])
+
+    @app.route('/safety/driving-reports/vehicle-candidates', methods=['POST'])
+    def driving_vehicle_candidates():
+        access()
+        _,_,_,_,filters,board,facts=prepare_insights(request.form)
+        panel=vehicle_links.build(board,facts,filters)
+        actor=g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first_or_404()
+        if panel['user_id'] is None:abort(404)
+        vehicle_links.save_correction(panel,actor,request.form)
+        return redirect(url_for('driving_reports',**dict(filters,_anchor='driving-person-vehicles')))
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
         row=target(record_id)

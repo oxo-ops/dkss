@@ -1,0 +1,22 @@
+{% if driving_vehicles and (driving_vehicles.trips or driving_vehicles.candidates or driving_vehicles.corrections) %}
+<section class="card driving-person-vehicles" id="driving-person-vehicles">
+  <div class="driving-section-heading"><h3>乗務した車両</h3><span>{{ driving_vehicles.trips|length }}台{% if driving_vehicles.candidates %}・候補 {{ driving_vehicles.candidates|length }}件{% endif %}</span></div>
+  {% for vehicle in driving_vehicles.groups %}
+  <article class="driving-person-vehicle">
+    <strong>{{ vehicle.label }}</strong>{% if vehicle.trip %}<span>{{ vehicle.trip.summary.count }}運行 ／ {{ vehicle.trip.summary.distance_display }}</span>
+    <details><summary>乗務日 {{ vehicle.trip.dates|length }}日</summary><p>{{ vehicle.trip.dates|join(' ／ ') }}</p></details>{% endif %}
+    {% for item in vehicle.candidates %}<div class="driving-vehicle-suggestion">
+      <span>{{ item.day }} <small>{{ '修正済み' if item.from_correction else '点検から推定' }}</small></span>
+      {% if driving_vehicles.ready %}<details><summary>違う場合は修正</summary>{% include 'driving_workspace_vehicle_edit.html' %}</details>{% endif %}
+    </div>{% endfor %}
+  </article>
+  {% endfor %}
+  {% if driving_vehicles.corrections %}<details class="driving-vehicle-corrections"><summary>修正履歴 {{ driving_vehicles.corrections|length }}件</summary>
+    {% for item in driving_vehicles.corrections %}<article class="driving-person-vehicle"><strong>{{ item.day }} {{ item.original_label }}</strong><span>{{ '乗っていない' if item.action=='exclude' else '変更先：' ~ item.label }}</span>
+      {% if item.reported %}<span>この車両の日報あり</span>{% endif %}
+      <details><summary>訂正・取消</summary>{% include 'driving_workspace_vehicle_edit.html' %}</details>
+      <details><summary>変更の履歴</summary>{% for entry in item.history %}<p>{{ entry.at[:16]|replace('T',' ') }} {{ entry.action }} {{ entry.label }}</p>{% endfor %}</details>
+    </article>{% endfor %}
+  </details>{% endif %}
+</section>
+{% endif %}

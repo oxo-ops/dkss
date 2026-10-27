@@ -7,7 +7,7 @@
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261027-membership-1') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261027-complete-mock-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261027-person-vehicles-1') }}">
 {% endblock %}
 {% block top_bar_heading %}
 <header class="driving-page-title"><h2>{{ insights.selected_driver.name ~ 'さんの運転実績' if driving_is_admin and insights.selected_driver else insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}</h2>{% if not driving_is_admin %}<span>{{ driving_user_office }}</span>{% endif %}</header>
