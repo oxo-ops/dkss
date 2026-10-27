@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from driving_report_data import payload
-from driving_report_insights import number, summarize
+from driving_report_insights import number, summarize, identity_counts
 
 
 def conditions(facts, labels):
@@ -42,6 +42,7 @@ def build(board, facts, previous, mode, administrator):
         comparable = current['value'] is not None and before['value'] is not None
         current_conditions, previous_conditions = conditions(now[k], labels), conditions(old[k], labels)
         rows.append({'key': k, 'label': label, 'current': current, 'previous': before,
+                     'identity_counts':identity_counts(now[k],board.get('recognized_driver_keys',[])),
                      'coverage': coverage(current), 'previous_coverage': coverage(before),
                      'change': number(current['value'] - before['value']) if comparable else None,
                      'conditions': current_conditions, 'previous_conditions': previous_conditions,
