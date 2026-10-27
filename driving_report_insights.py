@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 import unicodedata
 from driving_report_data import payload, decimal, identity, eligible_reports, match_report
+from driving_report_fuel import fuel_reading
 
 BAD_STATUS = {'illegible', 'not_recorded', 'not_applicable', 'unknown'}
 COUNT_UNITS = {'回', '件', 'count'}
@@ -144,9 +145,6 @@ def collect(rows, operations, keys=None, context=None):
         else:
             values=set()
         if len(values)>1:continue
-        def choose(field):
-            values={str(payload(r)[field]) for r in bundle if payload(r).get(field) is not None}
-            return next(iter(values)) if len(values)==1 else None
         match=match_report(row,operations.get((row.company_code,row.vehicle_record_id),[]))
         raw_dist={decimal(payload(r).get('distance')) for r in bundle if decimal(payload(r).get('distance')) is not None}
         distance=next(iter(raw_dist)) if len(raw_dist)==1 else None
@@ -173,15 +171,19 @@ def collect(rows, operations, keys=None, context=None):
             if len(comparable)>1:
                 issues.append({'id':row.id,'reason':values[0]['name']+'の値が不一致'});continue
             fact['metrics'].append(values[0])
-        fuel=decimal(choose('fuel_consumption'));fuel_unit=choose('fuel_unit')
-        if distance_ok and distance is not None and distance>0 and fuel is not None and fuel>0 and fuel_unit in {'L','l','ℓ','リットル'}:
-            source=choose('source_system') or '提供元不明'
-            fact['metrics'].append({'id':digest(['fuel',source,p.get('report_scope')]),'name':'期間燃費','unit':'km/L',
+        reading,fuel_issue=fuel_reading(bundle)
+        if fuel_issue:
+            for copy in bundle:
+                if copy.id in allowed and payload(copy).get('fuel_consumption') is not None:
+                    issues.append({'id':copy.id,'reason':fuel_issue})
+        if reading and distance_ok and distance is not None and distance>0:
+            fuel=reading['amount'];source=reading['source'] or '提供元不明'
+            fact['metrics'].append({'id':digest(['fuel',source,reading['scope'],reading['version']]),'name':'期間燃費','unit':'km/L',
                 'method':'fuel','numerator':distance,'denominator':fuel,'scale':Decimal(1),'raw':number(distance/fuel),
                 'denominator_unit':'L',
-                'value':distance/fuel,'known':True,'source':source,'version':'消費量から算出',
+                'value':distance/fuel,'known':True,'source':source,'version':'消費量から算出 ／ '+(reading['version'] or '設定版未記載'),
                 'definition':'対象運行の距離合計 ÷ 消費燃料合計','threshold':'対象運行を一致','road':'区分なし',
-                'scope':p.get('report_scope') or 'trip','reason':''})
+                'scope':reading['scope'],'reason':''})
         facts.append(fact)
     return facts,issues
 
