@@ -1,0 +1,12 @@
+{% set context=vehicle.context %}
+<dl class="driving-facts driving-vehicle-context">
+<div><dt>この乗務員の運行</dt><dd>{{ vehicle.summary.count }}運行 ／ {{ insight_number(vehicle.summary.distance) }} km</dd></div>
+<div><dt>車両全体の整備実費</dt><dd>{{ (insight_number(context.cost.total) ~ ' 円') if context.cost.total is not none else '実費の記録なし' }}<small>{{ context.cost.start or '登録開始' }} ～ {{ context.cost.end }} ／ {{ context.cost.count }}件</small></dd></div>
+<div><dt>最後に記録された積算距離</dt><dd>{{ (insight_number(context.meter.value) ~ ' km') if context.meter.value is not none else '未取得' }}{% if context.meter.date %}<small>{{ context.meter.date }}</small>{% endif %}</dd></div>
+</dl>
+<p class="driving-muted">車両の実費は他の乗務員の使用分も含みます。この乗務員の負担額・運転評価ではありません。</p>
+{% if context.parts %}<div class="driving-part-context">{% for part in context.parts %}<article><strong>{{ part.name }}</strong><span>{{ part.date }} {{ '登録内容を確認' if part.needs_review else '交換' }}</span><span>{{ (part.days_since|string ~ '日経過') if part.days_since is not none else '交換日を確認' }}</span><span>{{ ('交換後 ' ~ insight_number(part.distance_since) ~ ' km') if part.distance_since is not none else '交換後距離は未算出' }}</span><a href="{{ url_for('vehicle_karte_maintenance',vehicle_record_id=vehicle.id,record_id=part.maintenance_id) }}">交換記録</a></article>{% endfor %}</div>{% endif %}
+<div class="driving-actions driving-vehicle-context-links"><a href="{{ url_for('vehicle_karte_analysis',vehicle_record_id=vehicle.id) }}">車両の分析</a><a href="{{ url_for('vehicle_karte_parts',vehicle_record_id=vehicle.id) }}">部品・交換履歴</a><a href="{{ url_for('vehicle_karte_costs',vehicle_record_id=vehicle.id) }}">費用の詳細</a></div>
+{% if context.cost.held or context.cost.duplicates or context.cost.missing %}<details><summary>費用の集計対象</summary><p>金額未取得 {{ context.cost.missing }}件 ／ 重複候補 {{ context.cost.duplicates }}件 ／ 金額の不一致で保留 {{ context.cost.held }}件</p><p>完了日で対象期間を絞り、同じ請求書・明細の重複は一度だけ集計しています。未確定の費用や部品代を整備合計へ加算しません。</p></details>{% endif %}
+
+<a href="{{ url_for('driving_report_export',format='csv',**dict(filter_query,view='maintenance',vehicle=vehicle.id)) }}">この車両の整備情報をCSVで出力</a>
