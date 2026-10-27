@@ -33,7 +33,7 @@ erDiagram
     vehicle ||--o{ vehicle_periodic_inspection_record : "vehicle_record_id"
 ```
 
-Tables: 65
+Tables: 66
 
 ## analysis_input_epoch
 
@@ -212,6 +212,21 @@ Tables: 65
 | result_json | TEXT | False | False |  |
 | created_at | VARCHAR(40) | False | False |  |
 | updated_at | VARCHAR(40) | False | False |  |
+
+## driving_vehicle_correction
+
+| Column | Type | Nullable | Primary key | Foreign key |
+| --- | --- | --- | --- | --- |
+| id | INTEGER | False | True |  |
+| company_code | VARCHAR(50) | False | False |  |
+| user_id | INTEGER | False | False | user.id |
+| inspection_id | INTEGER | False | False |  |
+| evidence_key | VARCHAR(64) | False | False |  |
+| revision | INTEGER | False | False |  |
+| action | VARCHAR(20) | False | False |  |
+| vehicle_id | INTEGER | True | False | vehicle.id |
+| actor_user_id | INTEGER | False | False | user.id |
+| created_at | VARCHAR(40) | False | False |  |
 
 ## inspection_expiry_alert_delivery
 

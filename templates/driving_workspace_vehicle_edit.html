@@ -1,0 +1,11 @@
+<form method="post" action="{{ url_for('driving_vehicle_candidates') }}" class="driving-vehicle-edit">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for key,value in filter_query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+  <input type="hidden" name="inspection_id" value="{{ item.inspection_id }}">
+  <input type="hidden" name="evidence_key" value="{{ item.evidence_key }}">
+  <input type="hidden" name="revision" value="{{ item.revision }}">
+  <button class="btn btn-outline driving-small-button" name="action" value="exclude">乗っていない</button>
+  <label>別の車両<select name="vehicle_id"><option value="">選択してください</option>{% for choice in driving_vehicles.choices %}<option value="{{ choice.id }}"{% if item.vehicle_id==choice.id %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select></label>
+  <button class="btn btn-outline driving-small-button" name="action" value="replace">変更する</button>
+  {% if item.from_correction %}<button class="btn btn-outline driving-small-button" name="action" value="reset">修正を取り消す</button>{% endif %}
+</form>
