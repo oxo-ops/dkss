@@ -276,6 +276,24 @@ def register_driving_reports(app, db, g):
                 'records':factual,'context':context,'usage':board.get('shared_vehicle_usage',{}).get(vid,[])})
         return result
 
+    def view_navigation(filters, board, user_office):
+        if not readership.administrator():return None
+        owner=[session['company_code'],session['username']]
+        fields=('scope','office','focus','driver','listing','breakdown')
+        remembered=session.get('driving_manager_view',{})
+        if not board['personal_view']:
+            manager={key:filters[key] for key in fields if key in filters}
+            session['driving_manager_view']={'owner':owner,'filters':manager}
+        else:
+            manager=remembered.get('filters',{}) if remembered.get('owner')==owner else {}
+            valid=(manager.get('scope')=='company' or manager.get('scope')=='office' and
+                any(item['key']==manager.get('office') for item in board['office_choices']))
+            if not valid:
+                manager=workspace.scope_filter(dict(scope='',office='',focus='',driver='',state='',listing='offices',breakdown='people'),board['office_choices'],user_office,True)
+        own=dict(filters,scope='self',office='',focus='',driver='',listing='offices',breakdown='vehicles',page=1)
+        return {'self':url_for('driving_reports',**own),
+                'manager':url_for('driving_reports',**dict({key:value for key,value in filters.items() if key not in fields},**manager,page=1))}
+
     @app.route('/safety/driving-reports')
     def driving_reports():
         rows,previous,ops,vehicles,filters,board,facts=prepare_insights(request.args)
@@ -285,8 +303,10 @@ def register_driving_reports(app, db, g):
         reflection=reflection_service['view'](rows,previous,filters,board,facts)
         summary.update(distance=str(board['summary']['distance']) if board['summary']['distance'] is not None else None,
             operation_count=board['summary']['count'],distance_count=board['summary']['distance_count'])
+        user_office=getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''
+        navigation=view_navigation(filters,board,user_office)
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
-            summary=summary,insights=board,reflection=reflection,driving_user_office=(getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''),vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
+            summary=summary,insights=board,reflection=reflection,driving_user_office=user_office,driving_view_navigation=navigation,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
             driving_vehicles=vehicle_links.build(board,facts,filters),
             driving_can_manage=readership.administrator(),driving_is_admin=not board['personal_view'],
             insight_number=number,reader_users=g['User'].query.filter(g['User'].company_code==session['company_code'],g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
