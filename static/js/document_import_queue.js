@@ -64,7 +64,34 @@
     document.querySelectorAll('form[data-import-queue="1"]').forEach(form => {
         form.querySelector('input[type="file"]').addEventListener('change', () => { delete form.dataset.uploadKey; });
     });
-    window.DKSSDocumentImportQueue = {submit, offer: offerTypeTransfer};
+    function offerDocumentTransfer(form, suggestion, showError) {
+        const labels = {maintenance:"請求書・整備資料", inspection:"点検記録", driving_report:"安全運転日報"};
+        const kind = suggestion.document_type;
+        if (!Object.hasOwn(labels, kind)) return false;
+        const source = form.querySelector('input[type="file"]');
+        const selected = Array.from(source.files || []);
+        const index = Number(suggestion.file_index);
+        if (!Number.isInteger(index) || index < 0 || index >= selected.length || selected[index].name !== suggestion.filename) return false;
+        const target = document.querySelector('#import-' + kind + ' form');
+        if (!target || target === form) return false;
+        const input = target.querySelector('input[type="file"]');
+        if (target.dataset.loading === '1' || input.files.length) {
+            showError('「' + labels[kind] + '」に別の資料があります。先に読み込むか選択を解除してください。今回のファイルは保持しています。');
+            return true;
+        }
+        if (!window.confirm('「' + selected[index].name + '」は「' + labels[kind] + '」の資料と思われます。そちらへ移して読み込みますか？')) return true;
+        const transfer = new DataTransfer(); transfer.items.add(selected[index]);
+        const remaining = new DataTransfer(); selected.forEach((file, i) => { if (i !== index) remaining.items.add(file); });
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+        source.files = remaining.files;
+        delete form.dataset.uploadKey;
+        source.dispatchEvent(new Event('change', {bubbles:true}));
+        target.scrollIntoView({block:'center', behavior:'smooth'});
+        target.requestSubmit();
+        return true;
+    }
+    window.DKSSDocumentImportQueue = {submit, offer: offerTypeTransfer, offerDocument: offerDocumentTransfer};
     // Recover CSV/document drops in the browser before rejecting their extension.
     function offerTypeTransfer(form, files) {
         if (!files.length || form.dataset.loading === "1") return false;
