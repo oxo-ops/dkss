@@ -52,7 +52,7 @@
             <p class="vehicle-registration-method-lead">{{ lead }}</p>
 
             {% if kind in ['operation', 'maintenance', 'inspection', 'driving_report'] %}
-            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'enqueue_documents') }}" enctype="multipart/form-data" class="import-form" {% if kind != 'operation' %}data-import-queue="1"{% endif %} novalidate>
+            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'vehicle_data_import') }}" enctype="multipart/form-data" class="import-form" novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if kind != 'operation' %}
                 <input type="hidden" name="document_type" value="{{ kind }}">
@@ -106,7 +106,7 @@
         <summary>取り込みについて・ファイルの上限</summary>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>
         <p>AIによる読み取りには、1ファイルあたり数分かかる場合があります。</p>
-        <p>送信完了後はこの画面を閉じられます。受付済みの資料から状況・結果を確認できます。</p>
+        <p>読み取り中はこの画面を開いたままお待ちください。完了後に内容の確認画面へ進みます。</p>
         <p>ファイルを追加しただけでは登録されません。「読み込む」から、対象車両と内容を確認して反映します。</p>
     </details>
 </div>
