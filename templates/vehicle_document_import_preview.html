@@ -3,12 +3,12 @@
 {% extends "base.html" %}
 {% block title %}資料の取込確認{% endblock %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261028-review-space-1') }}">
 {% endblock %}
 
 {% block content %}
 {% include 'ocr_searchable_select_assets.html' %}
-<div class="invoice-review-page">
+<div class="invoice-review-page invoice-import-review">
 <nav class="page-breadcrumb" aria-label="パンくずリスト">
     <a href="{{ url_for('dashboard') }}">ホーム</a>
     <span class="breadcrumb-separator">›</span>
@@ -54,6 +54,7 @@
     <div class="invoice-document-heading">
         <span>{{ document.filename }}</span>
         <div class="invoice-document-tools">
+            {% if batch_id is defined %}<a class="invoice-kind-link" href="{{ url_for('document_import_kind', draft_id=document.id) }}">資料の種類を変更</a>{% endif %}
             <div class="invoice-view-switch" data-view-switch role="group" aria-label="表示方法">
     <button type="button" data-document-view="source" aria-pressed="true">原本と照合</button>
     <button type="button" data-document-view="focus" aria-pressed="false">明細に集中</button>
@@ -61,7 +62,6 @@
         </div>
     </div>
     {% if document.preview.get('routing_notice') %}<p class="help-text" role="status">{{ document.preview.routing_notice }}</p>{% endif %}
-    {% if batch_id is defined %}<p><a class="btn btn-outline" href="{{ url_for('document_import_kind', draft_id=document.id) }}">資料の種類を変更</a></p>{% endif %}
     <div class="invoice-mobile-views" aria-label="原本と読取結果の表示切替">
         <button type="button" data-review-view="source" aria-pressed="true">原本</button>
         <button type="button" data-review-view="results" aria-pressed="false">読取結果</button>
@@ -195,6 +195,6 @@
 </div>
 </form>
 </div>
-<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261026-ocr-repair-routing-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261028-review-space-1') }}" defer></script>
 <script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261026-portrait-review-1') }}"></script>
 {% endblock %}

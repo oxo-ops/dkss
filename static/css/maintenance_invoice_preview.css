@@ -1102,3 +1102,66 @@ body .main-content .vehicle-confirm-card .form-actions .btn:not(.btn-outline) {
         display: block;
     }
 }
+
+/* Import review: reserve the viewport for the source and extracted records. */
+.invoice-import-review .invoice-document-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+.invoice-import-review .invoice-kind-link { font-size: 12px; }
+.invoice-import-review .invoice-switcher {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+}
+.invoice-import-review .invoice-switch { flex: 0 0 auto; }
+.invoice-import-review .invoice-page-heading > [data-import-flow-cancel] {
+    width: auto;
+    min-height: 32px;
+    margin: 0;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+@media screen and (min-width: 1001px) {
+    body:has(.invoice-import-review) .main-content { position: relative; padding: 6px 16px 8px; }
+    body:has(.invoice-import-review) .top-bar { position: absolute; top: 6px; right: 16px; min-height: 30px; margin-bottom: 0; z-index: 30; }
+    body:has(.invoice-import-review) .notification-bell { width: 30px; height: 30px; }
+    body:has(.invoice-import-review) .notification-bell img { width: 26px; height: 26px; }
+    body:has(.invoice-import-review) .top-bar-user { min-height: 30px; padding-block: 0; }
+    body:has(.invoice-import-review) .top-bar-user-avatar { width: 28px; height: 28px; }
+    body:has(.invoice-import-review) #importFlow > .form-actions { margin: 0; }
+    body:has(.invoice-import-review) #importFlow > .form-actions:empty { display: none; }
+    .invoice-import-review .page-breadcrumb { min-height: 30px; padding-right: 220px; margin: 0 0 2px; font-size: 11px; line-height: 18px; }
+    .invoice-import-review .invoice-page-heading { gap: 6px 12px; margin-bottom: 6px; }
+    .invoice-import-review .invoice-page-heading h2 { font-size: 18px; }
+    .invoice-import-review .vehicle-document-import-preview { gap: 6px; }
+    .invoice-import-review .invoice-submit-actions { flex: 1 1 auto; width: auto; }
+    .invoice-import-review .invoice-document { padding: 8px; margin-bottom: 0; }
+    .invoice-import-review .invoice-document-heading { margin-bottom: 6px; }
+    .invoice-import-review .invoice-document .invoice-view-switch button { min-height: 28px; min-width: 84px; padding: 3px 8px; font-size: 12px; }
+    .invoice-import-review .invoice-source-disclosure > summary { height: 22px; padding-bottom: 0; font-size: 12px; }
+    .invoice-import-review .invoice-sync-bar { padding: 3px 6px; }
+    .invoice-import-review .invoice-pdf-toolbar { gap: 4px; padding: 3px 5px; }
+    .invoice-import-review .invoice-pdf-toolbar button,
+    .invoice-import-review .invoice-pdf-toolbar input { min-height: 26px; padding: 2px 5px; }
+    .invoice-import-review .invoice-switcher {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 4px;
+        margin-bottom: 6px;
+        padding-bottom: 3px;
+        max-width: 100%;
+    }
+    .invoice-import-review .invoice-switch {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 6px;
+        padding: 5px 8px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+    .invoice-import-review .invoice-switch small { font-size: 11px; }
+}
