@@ -390,7 +390,7 @@ def register_driving_reports(app, db, g):
         output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation'),OUTCOMES.get(reviews[values[0]].get('outcome','')),reviews[values[0]].get('comparison_note')] for values in output]
         board=export_board
         if format=='csv' and request.args.get('view')=='comparison':
-            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合']
+            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合','現在所属（確認済み乗務員台帳）','所属区分']
             output=[]
             m=board['metric'] or {}
             for driver in board['drivers']:
@@ -398,7 +398,7 @@ def register_driving_reports(app, db, g):
                 output.append([period['start'],period['end'],period['previous_start'],period['previous_end'],driver['name'],driver['code'],' / '.join(driver['offices']),
                     ' / '.join(v['label'] for v in driver['vehicles']),now['count'],number(now['distance']),m.get('name'),m.get('unit'),now['display'],before['display'],driver['change'],
                     now['metric_count'],number(now['numerator']),number(now['denominator']),now.get('latest_date'),m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),
-                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合'])
+                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合',driver.get('current_office',''),driver.get('affiliation_label','')])
         if format=='csv' and request.args.get('view')=='breakdown':
             heading=['表示範囲','開始日','終了日','前期間開始','前期間終了','比較','対象','指標','単位','表示値','前期間値','差','運行数','走行距離km','指標取得運行数','取得率%','計算分子','計算分母','対応距離km','使用車両','前期間使用車両','条件変化','提供元','設定版','定義','閾値','道路区分','日報ID']
             output=[];comparison=board['comparison'];m=board['metric'] or {};period=board['period']
@@ -433,6 +433,7 @@ def register_driving_reports(app, db, g):
                 for person in board['drivers']:
                     now=person['current']
                     lines += [f'{person["name"]} {person["code"]} {" / ".join(person["offices"])}',
+                        ('現在所属 '+(person.get('current_office') or '未確認')+' ／ '+person.get('affiliation_label','') if readership.administrator() else ''),
                         f'運行 {now["count"]}件 距離 {number(now["distance"])}km 指標 {now["display"]} {m.get("unit", "")} 対象 {now["metric_count"]}件',
                         f'前期間 {person["previous"]["display"]} 差 {person["change"] or "比較値なし"}',
                         '出典日報 '+', '.join(str(v) for v in now['sources'])]

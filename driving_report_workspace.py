@@ -62,10 +62,39 @@ def metric_changes(current, previous, labels):
     return values
 
 
+def current_affiliation(person, facts, bindings, users, drivers, selected_office, company_scope):
+    """A confirmed account plus a unique employee master identifies today's office.
+
+    OCR codes/names alone never link a report to a current master. A differing
+    office is an observed difference, not evidence of a transfer date or reason.
+    """
+    user_ids = {bindings[rid].user_id for fact in facts if fact['driver_key'] == person['key']
+                for rid in fact['copies'] if rid in bindings}
+    accounts = [u for u in users if u.id in user_ids]
+    master = None
+    if len(accounts) == 1:
+        account = accounts[0]
+        matches = [d for d in drivers if d.company_code == account.company_code and d.employee_id == account.username]
+        if len(matches) == 1:
+            master = matches[0]
+    office = (master.office or '').strip() if master else ''
+    if not office:
+        status, label = 'unknown', '現在所属未確認'
+    elif all(o == UNKNOWN_OFFICE for o in person['offices']):
+        status, label = 'history_unknown', '日報当時の所属未確認'
+    elif not company_scope and office != selected_office:
+        status, label = 'other', '他営業所所属・期間内の運行あり'
+    elif company_scope and any(o not in {office, UNKNOWN_OFFICE} for o in person['offices']):
+        status, label = 'other', '日報当時と所属が異なる記録あり'
+    else:
+        status, label = 'current', '現在所属'
+    return {'current_office': office, 'affiliation_status': status,
+            'affiliation_label': label, 'master_id': master.id if master else None}
+
+
 def enrich(board, facts, previous, drivers, users, bindings, choices, filters, administrator):
     """Master roster includes no-report members; historical office stays on the report."""
     by_key = {p['key']: p for p in board['drivers']}
-    by_user = {u.id: u for u in users}
     selected_office = scope_name(filters, choices, administrator)
     keys_by_user = defaultdict(set)
     for fact in facts:
@@ -77,6 +106,9 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
         person['has_records'] = True
         person['reader_confirmed'] = any(rid in bindings for f in facts if f['driver_key']==person['key'] for rid in f['copies'])
         person['master_id'] = None
+        if administrator:
+            person.update(current_affiliation(person, facts, bindings, users, drivers,
+                                               selected_office, filters['scope'] == 'company'))
         person['review_states'] = sorted({(payload(f['row']).get('review') or {}).get('state', 'unreviewed')
                                          for f in facts if f['driver_key'] == person['key']})
         person['next_date'] = min(((payload(f['row']).get('review') or {}).get('next_date')
@@ -85,7 +117,7 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
         person['analysis_metrics'] = metric_changes([f for f in facts if f['driver_key'] == person['key']],
                                                     [f for f in previous if f['driver_key'] == person['key']], board['labels'])
         person['highlights'] = person['analysis_metrics'][:2]
-    if administrator and not filters.get('focus') and not filters.get('state') and not filters.get('vehicle'):
+    if administrator and not filters.get('focus') and not filters.get('state') and not filters.get('vehicle') and not filters.get('followup_due') and not any(filters.get(field) for field in ('vehicle_make','vehicle_model','vehicle_body','vehicle_year')):
         for master in drivers:
             if filters['scope'] == 'office' and master.office != selected_office:
                 continue
@@ -94,16 +126,19 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
             account = next((u for u in users if u.username == master.employee_id), None)
             keys = keys_by_user.get(account.id, set()) if account else set()
             matches = [by_key[k] for k in keys if k in by_key]
-            for match in matches:
-                match['master_id'] = master.id
+            # Ambiguous employee IDs must not merge multiple master people.
+            matches = [match for match in matches if match.get('master_id') == master.id]
             if matches:
                 continue
             board['drivers'].append({'key': digest(['master', master.company_code, master.id]), 'name': master.name,
                 'code': master.employee_id, 'offices': [master.office or UNKNOWN_OFFICE], 'vehicles': [],
                 'current': summarize([]), 'previous': summarize([]), 'cells': [], 'change': None,
                 'identified': bool(account), 'identity_warning': False, 'has_records': False,
-                'master_id': master.id, 'highlights': [], 'review_states': [], 'next_date': '', 'reader_confirmed': False})
-    board['drivers'].sort(key=lambda p: (p['name'], p['key']))
+                'master_id': master.id, 'highlights': [], 'review_states': [], 'next_date': '', 'reader_confirmed': False,
+                'current_office': master.office or '', 'affiliation_status': 'current', 'affiliation_label': '現在所属'})
+    board['drivers'].sort(key=lambda p: ({'current':0,'other':1,'history_unknown':2,'unknown':3}.get(p.get('affiliation_status'),0), p['name'], p['key']))
+    board['current_affiliations'] = [{'key': p['key'], 'office': p['current_office'], 'status':p['affiliation_status']}
+                                    for p in board['drivers'] if administrator and p.get('has_records')]
     offices = []
     for office in choices:
         now = [f for f in facts if f['office'] == office['name']]
