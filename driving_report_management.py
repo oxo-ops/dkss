@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 from driving_report_pdf import export_pdf
 import driving_report_workspace as workspace
+import driving_report_comparisons as comparisons
 from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
@@ -19,6 +20,7 @@ def shown(value):
 
 
 STATES={'unreviewed':'未確認','reviewed':'確認済み','coaching':'指導・対応中','followup':'次回振り返り','completed':'対応完了'}
+OUTCOMES={'':'未確認','improved':'改善を確認','continue':'継続確認','incomparable':'比較困難'}
 MATCH={'standalone':'日報のみ','distinct':'別運行として確認済み','matched':'CSVと照合済み','resolved':'採用値を確認済み','conflict':'CSVとの値が不一致','ambiguous':'CSVとの対応を確認'}
 LABELS={'distance':'走行距離','departure_meter':'開始積算距離','arrival_meter':'終了積算距離'}
 
@@ -98,7 +100,7 @@ def register_driving_reports(app, db, g):
         return [{'driver':key[0],'office':key[1],**metrics_summary(values)} for key,values in grouped.items()]
     @app.context_processor
     def driving_context():
-        return {'driving_is_admin':readership.administrator(),'driving_review_states':STATES,'driving_match_labels':MATCH,'driving_conflict_labels':LABELS,'driving_scope_labels':{'trip':'1運行','daily':'日別','monthly':'月次集計','unknown':'不明'},'driving_item_status':{'candidate':'読取候補','confirmed':'確認済み','illegible':'判読不能','not_recorded':'記載なし','not_applicable':'対象外','unknown':'不明'},'driving_speaker_labels':{'auto':'自動コメント','driver':'乗務員','manager':'管理者','unknown':'話者不明'}}
+        return {'driving_is_admin':readership.administrator(),'driving_review_states':STATES,'driving_outcomes':OUTCOMES,'driving_match_labels':MATCH,'driving_conflict_labels':LABELS,'driving_scope_labels':{'trip':'1運行','daily':'日別','monthly':'月次集計','unknown':'不明'},'driving_item_status':{'candidate':'読取候補','confirmed':'確認済み','illegible':'判読不能','not_recorded':'記載なし','not_applicable':'対象外','unknown':'不明'},'driving_speaker_labels':{'auto':'自動コメント','driver':'乗務員','manager':'管理者','unknown':'話者不明'}}
     def persist(row, old_json):
         values={"details_json":row.details_json,"operation_date":row.operation_date,"mileage":row.mileage,"content":row.content,"report_number":row.report_number,"operation_record_id":row.operation_record_id}
         with db.session.no_autoflush:
@@ -111,12 +113,16 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing'}
+        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
         args,office_options,master_drivers,company_users=workspace_scope(args)
         if args.get('listing','offices') not in {'offices','people'}:abort(400)
+        if args.get('breakdown','people') not in {'offices','people','vehicle','vehicles'}:abort(400)
+        if not readership.administrator():
+            args['breakdown']='vehicles'
+            args.pop('driver',None)
         today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
         try:period=scope_override or periods(args,today)
         except (ValueError,OverflowError) as exc:abort(400,str(exc))
@@ -176,6 +182,13 @@ def register_driving_reports(app, db, g):
         board['reader_version']=hashlib.sha256(json.dumps([(r.id,version(r)) for r in scope]).encode()).hexdigest()
         board['reader_rows']=scope
         workspace.enrich(board,facts,before,master_drivers,company_users,confirmed,office_options,resolved,readership.administrator())
+        mode=resolved.get('breakdown') or ('vehicles' if focus else 'offices' if resolved['scope']=='company' else 'people')
+        comparison_ready=not ((mode=='vehicle' and not resolved.get('vehicle')) or (mode=='vehicles' and not focus))
+        board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,readership.administrator())
+        board['comparison']['ready']=comparison_ready
+        board['followups']=comparisons.followups(rows) if focus else []
+        summaries={rid:fact for fact in facts for rid in fact['copies']}
+        board['report_metrics']={rid:[m for m in fact['metrics'] if m['id']==board['metric_id']] for rid,fact in summaries.items()}
         return rows,previous,ops,vehicles,resolved,board,facts
 
     reflection_service=register_reflections(app,db,prepare_insights,history=lambda board,facts:history_context(board,facts))
@@ -228,13 +241,16 @@ def register_driving_reports(app, db, g):
         review=payload(row).get('review') or {}
         action=request.form.get('action',review.get('action','')).strip()
         explanation=request.form.get('driver_explanation',review.get('driver_explanation','')).strip()
-        if state not in STATES or max(len(note),len(action),len(explanation))>5000:abort(400)
+        outcome=request.form.get('outcome',review.get('outcome','')).strip()
+        comparison_note=request.form.get('comparison_note',review.get('comparison_note','')).strip()
+        if state not in STATES or outcome not in OUTCOMES or max(len(note),len(action),len(explanation),len(comparison_note))>5000:abort(400)
+        if outcome=='improved' and not comparison_note:abort(400,'改善を確認した比較条件と根拠を入力してください。')
         if next_date:
             try:date.fromisoformat(next_date)
             except ValueError:abort(400)
         if assignee and not g['User'].query.filter_by(company_code=row.company_code,username=assignee,role='admin').first():abort(400)
-        p=change(row,'review',{'before':payload(row).get('review'), 'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation})
-        previous=p.get('review') or {};p['review']={'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation,'by':session['username'],'at':p['audit'][-1]['at']}
+        p=change(row,'review',{'before':payload(row).get('review'), 'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation,'outcome':outcome,'comparison_note':comparison_note})
+        previous=p.get('review') or {};p['review']={'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation,'outcome':outcome,'comparison_note':comparison_note,'by':session['username'],'at':p['audit'][-1]['at']}
         # A deliberate assignment requests review of a past report; repeated saves do not re-notify.
         if assignee and assignee!=previous.get('assignee'):
             user=g['User'].query.filter_by(company_code=row.company_code,username=assignee).one()
@@ -313,8 +329,8 @@ def register_driving_reports(app, db, g):
             if not any(p.get(c) for c in collections):output.append(base+['']*(len(heading)-len(base)-1)+[r.source_draft_id])
             for e in (p.get('audit',[]) if readership.administrator() else []):output.append(base+['確認履歴',e.get('kind'),json.dumps(e,ensure_ascii=False)]+['']*(len(heading)-len(base)-4)+[r.source_draft_id])
         reviews={r.id:payload(r).get('review') or {} for r in rows}
-        heading += ['改善する行動','乗務員の説明']
-        output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation')] for values in output]
+        heading += ['改善する行動','乗務員の説明','前後比較の確認結果','比較条件と根拠']
+        output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation'),OUTCOMES.get(reviews[values[0]].get('outcome','')),reviews[values[0]].get('comparison_note')] for values in output]
         board=export_board
         if format=='csv' and request.args.get('view')=='comparison':
             heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合']
@@ -326,6 +342,12 @@ def register_driving_reports(app, db, g):
                     ' / '.join(v['label'] for v in driver['vehicles']),now['count'],number(now['distance']),m.get('name'),m.get('unit'),now['display'],before['display'],driver['change'],
                     now['metric_count'],number(now['numerator']),number(now['denominator']),now.get('latest_date'),m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),
                     ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合'])
+        if format=='csv' and request.args.get('view')=='breakdown':
+            heading=['表示範囲','開始日','終了日','前期間開始','前期間終了','比較','対象','指標','単位','表示値','前期間値','差','運行数','走行距離km','指標取得運行数','取得率%','計算分子','計算分母','対応距離km','使用車両','前期間使用車両','条件変化','提供元','設定版','定義','閾値','道路区分','日報ID']
+            output=[];comparison=board['comparison'];m=board['metric'] or {};period=board['period']
+            for item in comparison['rows']:
+                now=item['current'];before=item['previous']
+                output.append([board['scope_name'],period['start'],period['end'],period['previous_start'],period['previous_end'],comparison['title'],item['label'],m.get('name'),m.get('unit'),now['display'],before['display'],item['change'],now['count'],number(now['distance']),now['metric_count'],item['coverage'],number(now['numerator']),number(now['denominator']),number(now['paired_distance']),' / '.join(item['conditions']['vehicles']),' / '.join(item['previous_conditions']['vehicles']),'あり' if item['conditions_changed'] else '未確認',m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),' / '.join(str(i) for i in now['sources'])])
         if format=='csv':
             out=io.StringIO();writer=csv.writer(out);writer.writerow(heading)
             def safe(value):
@@ -347,12 +369,23 @@ def register_driving_reports(app, db, g):
                         f'運行 {now["count"]}件 距離 {number(now["distance"])}km 指標 {now["display"]} {m.get("unit", "")} 対象 {now["metric_count"]}件',
                         f'前期間 {person["previous"]["display"]} 差 {person["change"] or "比較値なし"}',
                         '出典日報 '+', '.join(str(v) for v in now['sources'])]
+            if request.args.get('breakdown'):
+                comparison=board['comparison']
+                lines += [comparison['title']]
+                for item in comparison['rows']:
+                    now=item['current']
+                    lines += [f'{item["label"]}：{now["display"]} {m.get("unit", "")} 前期間 {item["previous"]["display"]} 差 {item["change"] if item["change"] is not None else "比較値なし"}',
+                              f'指標取得 {now["metric_count"]}/{now["count"]}運行（{item["coverage"]}%） 対応距離 {number(now["paired_distance"])}km',
+                              '使用車両 '+ ' / '.join(item['conditions']['vehicles']),
+                              '前期間の車両 '+ ' / '.join(item['previous_conditions']['vehicles']),
+                              '出典日報 '+ ', '.join(str(rid) for rid in now['sources'])]
             for group in summary['groups']:
                 lines += [f'比較可能指標 {group["source_system"]} {group["version"]} {group["name"]} 単位 {group["unit"]} {group["count"]}件',f'定義 {group["definition"]} 条件 {group["threshold"] or "不明"} 分子合計/分母合計 {group["ratio"] or "算出対象外"}']
             for r in rows:
                 p=payload(r);review=p.get('review') or {};match=match_report(r,operations(r.company_code,r.vehicle_record_id))
                 lines += [f'CSV照合 {MATCH[match["status"]]} 採用 {match.get("use") or "日報のみ"} 取込状態 {"取消" if p.get("lifecycle") == "cancelled" else "有効"}']
                 lines += [f'日報 {r.id} 運行 {r.operation_date or "不明"} {p.get("registration_number") or ""}',f'乗務員 {p.get("driver_name") or "不明"} 所属 {p.get("driver_office") or p.get("office_name") or "不明"}',f'帳票 {p.get("source_system") or "不明"} {p.get("report_title") or ""} 粒度 {p.get("report_scope") or "trip"}',f'積算 {shown(p.get("mileage"))} km 距離 {shown(p.get("distance"))} km',f'確認 {STATES.get(review.get("state","unreviewed"))} 担当 {review.get("assignee") or "未設定"} 次回 {review.get("next_date") or "未設定"}',f'所見 {review.get("note") or "記載なし"}',f'改善する行動 {review.get("action") or "未設定"}',f'乗務員の説明 {review.get("driver_explanation") or "記載なし"}']
+                lines += ['前後比較 '+OUTCOMES.get(review.get('outcome',''),'未確認'), '比較条件と根拠 '+(review.get('comparison_note') or '未記録')]
                 labels={'operation_start_time':'開始時刻','operation_end_time':'終了時刻','driving_time':'走行時間','handling_time':'ハンドル時間','idle_time':'アイドリング時間','rest_time':'休憩休息','work_time':'作業時間','fuel_consumption':'消費燃料','fuel_unit':'燃料単位','fuel_economy':'燃費','fuel_economy_unit':'燃費単位','driver_comment':'乗務員コメント','manager_comment':'管理者所見','notes':'手書き特記事項','definition_version':'評価設定版','issued_at':'出力日時','timezone':'タイムゾーン'}
                 for key,label in labels.items():
                     if p.get(key) is not None:lines.append(label+' '+str(p[key]))

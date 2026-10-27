@@ -75,6 +75,7 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
                 keys_by_user[grant.user_id].add(fact['driver_key'])
     for person in board['drivers']:
         person['has_records'] = True
+        person['reader_confirmed'] = any(rid in bindings for f in facts if f['driver_key']==person['key'] for rid in f['copies'])
         person['master_id'] = None
         person['review_states'] = sorted({(payload(f['row']).get('review') or {}).get('state', 'unreviewed')
                                          for f in facts if f['driver_key'] == person['key']})
@@ -101,7 +102,7 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
                 'code': master.employee_id, 'offices': [master.office or UNKNOWN_OFFICE], 'vehicles': [],
                 'current': summarize([]), 'previous': summarize([]), 'cells': [], 'change': None,
                 'identified': bool(account), 'identity_warning': False, 'has_records': False,
-                'master_id': master.id, 'highlights': [], 'review_states': [], 'next_date': ''})
+                'master_id': master.id, 'highlights': [], 'review_states': [], 'next_date': '', 'reader_confirmed': False})
     board['drivers'].sort(key=lambda p: (p['name'], p['key']))
     offices = []
     for office in choices:

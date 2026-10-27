@@ -1,0 +1,8 @@
+{% if insights.selected_driver %}<section class="card" id="driving-followups"><div class="driving-section-heading"><h3>振り返りと次の確認</h3></div>
+{% for item in insights.followups %}<article class="driving-followup"><div class="driving-section-heading"><strong>{{ item.date or '日付不明' }}</strong><span class="driving-state">{{ driving_review_states.get(item.review.get('state','unreviewed')) }}</span></div>
+<dl class="driving-facts">{% for key,label in [('action','改善する行動'),('driver_explanation','本人の説明'),('note','確認内容'),('next_date','次回確認日'),('comparison_note','比較条件と根拠')] %}{% if item.review.get(key) %}<div><dt>{{ label }}</dt><dd>{{ item.review[key] }}</dd></div>{% endif %}{% endfor %}</dl>
+<p>前後比較：{{ driving_outcomes.get(item.review.get('outcome',''),'未確認') }}</p>
+<a href="{{ url_for('driving_report_detail',record_id=item.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='driving-followups'))) }}">{{ '確認結果を記録' if driving_is_admin else '日報を確認' }}</a>
+{% if item.events %}<details><summary>振り返りの履歴 {{ item.events|length }}件</summary>{% for event in item.events %}<div class="driving-followup-event"><strong>{{ event.at }}</strong><p>{{ driving_review_states.get(event.state,'未確認') }} ／ {{ driving_outcomes.get(event.outcome,'未確認') }}</p><p>{{ event.action }} {{ event.note }} {{ event.comparison_note }}</p></div>{% endfor %}</details>{% endif %}
+</article>{% else %}<p class="driving-muted">振り返りの記録はまだありません。{% if driving_is_admin %}日報の詳細から行動と次回確認日を記録できます。{% endif %}</p>{% endfor %}
+</section>{% endif %}

@@ -1,0 +1,36 @@
+<details class="card driving-comparison-detail" id="comparison-detail" {% if filters.get('breakdown') or insights.selected_driver %}open{% endif %}>
+<summary>条件をそろえて比較する</summary>
+<nav class="driving-comparison-tabs" aria-label="比較の切り替え">
+{% if driving_is_admin %}
+{% for mode,label in [('offices','営業所ごと'),('people','乗務員の変化'),('vehicle','同じ車両で比較'),('vehicles','同じ乗務員で比較')] %}
+<a href="{{ url_for('driving_reports',**dict(filter_query,breakdown=mode,focus=filter_query.get('focus','') if mode=='vehicles' else '',page=1,_anchor='comparison-detail')) }}" {% if insights.comparison.mode==mode %}aria-current="page"{% endif %}>{{ label }}</a>
+{% endfor %}
+{% endif %}</nav>
+<h3>{{ insights.comparison.title }}</h3>
+<form method="get" class="driving-comparison-filters">
+{% for key,value in filter_query.items() if key not in ['metric','vehicle','page','breakdown'] %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+<input type="hidden" name="breakdown" value="{{ insights.comparison.mode }}">
+{% if insights.comparison.mode=='vehicle' %}<label>使用車両<select name="vehicle" required><option value="">車両を選択</option>{% for vehicle in vehicles %}<option value="{{ vehicle.id }}" {% if filters.get('vehicle')==vehicle.id|string %}selected{% endif %}>{{ insights.labels.get(vehicle.id) }}</option>{% endfor %}</select></label>{% elif filters.get('vehicle') %}<input type="hidden" name="vehicle" value="{{ filters.vehicle }}">{% endif %}
+<label>比較する指標<select name="metric"><option value="">指標を選択</option>{% for metric in insights.groups %}<option value="{{ metric.id }}" {% if metric.id==insights.metric_id %}selected{% endif %}>{{ metric.name }} ／ {{ metric.unit }} ／ {{ metric.source }} ／ {{ metric.version }} ／ {{ metric.road }}</option>{% endfor %}</select></label>
+<button class="btn btn-outline driving-small-button">比較する</button>
+</form>
+{% if insights.comparison.mode=='vehicles' and not insights.selected_driver %}<p class="driving-muted">乗務員一覧から対象の乗務員を選ぶと、使用車両ごとの記録を比較できます。</p>
+{% elif insights.comparison.mode=='vehicle' and not filters.get('vehicle') %}<p class="driving-muted">同じ車両を選択して、乗務員ごとの記録を確認してください。</p>
+{% elif not insights.comparison.rows %}<p class="driving-muted">この条件の比較記録はありません。</p>
+{% else %}
+{% if insights.comparison.metric %}<p class="driving-muted">{{ insights.comparison.metric.name }} ／ {{ insights.comparison.metric.unit if insights.comparison.metric.method!='raw' else '原本値' }}</p>{% endif %}
+<div class="driving-table-wrap"><table class="driving-mobile-cards driving-workspace-table driving-comparison-table" role="table" aria-label="条件別の運転指標"><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">対象</th><th scope="col" role="columnheader">対象期間</th><th scope="col" role="columnheader">前期間・差</th><th scope="col" role="columnheader">取得率・条件</th></tr></thead><tbody role="rowgroup">
+{% for row in insights.comparison.rows %}<tr role="row"><td role="cell" data-label="対象"><strong>{{ row.label }}</strong></td>
+<td role="cell" data-label="対象期間"><strong>{{ row.current.display }}</strong>{% if insights.metric and insights.metric.method!='raw' %} {{ insights.metric.unit }}{% endif %}<small>{{ row.current.count }}運行 ／ {{ insight_number(row.current.distance) }} km</small></td>
+<td role="cell" data-label="前期間・差">{{ row.previous.display }}<small>{{ ('差 ' ~ row.change ~ ' ' ~ insights.metric.unit) if row.change is not none else '比較できる前後の数値なし' }}</small>{% if row.conditions_changed %}<small class="driving-condition-change">使用車両・取得条件に変化あり</small>{% endif %}</td>
+<td role="cell" data-label="取得率・条件">{{ row.current.metric_count }}／{{ row.current.count }}運行（{{ row.coverage }}%）<details><summary>記録量・計算・出典</summary>
+<p>前期間 {{ row.previous.metric_count }}／{{ row.previous.count }}運行（{{ row.previous_coverage }}%）</p>
+{% if row.current.numerator is not none %}<p>分子 {{ insight_number(row.current.numerator) }} ／ 分母 {{ insight_number(row.current.denominator) }}。対応距離 {{ insight_number(row.current.paired_distance) }} km</p>{% endif %}
+<p>使用車両 {{ row.conditions.vehicles|join(' ／ ') or '記録なし' }}</p><p>前期間の車両 {{ row.previous_conditions.vehicles|join(' ／ ') or '記録なし' }}</p>
+<p>道路区分 {{ row.conditions.roads|join(' ／ ') or '未取得' }}。積載・路線は未取得です。</p>
+{% if insights.metric %}<p>{{ insights.metric.source }} ／ {{ insights.metric.version }} ／ {{ insights.metric.definition }} ／ {{ insights.metric.threshold }} ／ {{ insights.metric.road }} ／ {{ driving_scope_labels.get(insights.metric.scope,'不明') }}</p>{% endif %}
+<p>対象日報 {% for rid in row.current.sources %}<a href="{{ url_for('driving_report_detail',record_id=rid,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-detail'))) }}">{{ rid }}</a> {% else %}なし{% endfor %}</p>
+</details></td></tr>{% endfor %}</tbody></table></div>
+<p class="driving-muted">同じ定義の指標を比較しています。車両・道路・積載や記録量の違いも確認してください。原本値は差を計算せず、取得できない値は0にしません。</p>
+<a href="{{ url_for('driving_report_export',format='csv',**dict(filter_query,view='breakdown',breakdown=insights.comparison.mode)) }}">この比較をCSVで出力</a>
+{% endif %}</details>

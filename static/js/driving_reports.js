@@ -52,6 +52,9 @@
    }catch(error){reflection.querySelector('[data-reflection-status]').textContent=error.message;button.disabled=false;button.textContent='再試行';}
   });
   if(reflection?.dataset.status==='pending')pollTimer=setTimeout(pollReflection,1500);
+  // Refresh only a previously requested scope whose authorized data changed.
+  // An ordinary page open with unchanged data never starts a paid job.
+  if(reflection?.dataset.status==='new'&&reflection.dataset.autoRefresh==='true')reflectionForm?.requestSubmit();
   window.addEventListener('pagehide',()=>clearTimeout(pollTimer));
   form?.querySelector('[name=period]')?.addEventListener('change',event=>{if(event.target.value==='custom'){const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;}});
   form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',()=>{

@@ -98,6 +98,12 @@ class WorkspaceTests(unittest.TestCase):
         p=payload(self.a);p['distance']='25';self.a.details_json=json.dumps(p);self.m.db.session.commit()
         state=self.client.get('/safety/driving-reports/reflection?period=all').json
         self.assertEqual(state['status'],'new');self.assertNotEqual(state['key'],old_key)
+        with patch.dict('os.environ',{'OPENAI_API_KEY':'test-only'}),patch('driving_report_reflection.generate',side_effect=AssertionError('GET never generates')):
+            refreshed=self.client.get('/safety/driving-reports/reflection?period=all').json
+            self.assertTrue(refreshed['auto_refresh'])
+            # A different scope has no subscription and needs an explicit first request.
+            other=self.client.get('/safety/driving-reports/reflection?period=all&scope=company').json
+            self.assertFalse(other['auto_refresh'])
         self.assertEqual(self.client.post('/safety/driving-reports/reflection',data=form).status_code,409)
 
     def test_failed_generation_and_invalid_evidence_are_not_success(self):

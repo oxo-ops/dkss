@@ -81,6 +81,21 @@ def build_evidence(board, facts, history):
             'finding':f"対象 {summary['count']}運行。走行距離 {number(summary['distance'])} km。運転の比較に利用できる指標を確認してください。",
             'reports':summary['report_ids'], 'driver_key':'', 'allowed_actions':['verify_data'],
             'context':'距離や休憩時間だけでは運転の良否を判定できない。','kind':'record'})
+    comparison=board.get('comparison') or {}
+    if comparison.get('ready') and comparison.get('mode') in {'vehicle','vehicles'}:
+        metric=board.get('metric') or {}
+        for row in comparison.get('rows',[]):
+            now=row['current']
+            if not now['metric_count']:
+                continue
+            finding=f"{row['label']}：{metric.get('name','指標')} {now['display']} {metric.get('unit','') if metric.get('method')!='raw' else '（原本値）'}。取得 {now['metric_count']}／{now['count']}運行（{row['coverage']}%）"
+            if row['change'] is not None:
+                finding+=f"。前期間 {row['previous']['display']}、差 {row['change']} {metric.get('unit','')}"
+            evidence.append({'id':str(len(evidence)), 'title':comparison['title'], 'finding':finding,
+                'reports':now['sources'], 'driver_key':row['driver_key'],
+                'allowed_actions':['review_context','verify_data'],
+                'context':'使用車両：'+' ／ '.join(row['conditions']['vehicles'])+'。道路区分：'+(' ／ '.join(row['conditions']['roads']) or '未取得')+'。積載・路線は未取得。数値差だけで責任や改善を確定しない。',
+                'kind':'comparison'})
     # Maintenance is restricted to administrator-authorized, selected-driver history.
     for vehicle in history:
         for record in vehicle['records'][:1]:
@@ -141,8 +156,13 @@ def register_reflections(app, db, prepare, history):
         vehicles=history(board,facts)
         maintenance=[(v['id'],r.id,r.completion_date,str(r.mileage),str(r.total_cost),r.content,r.status) for v in vehicles for r in v['records']]
         evidence=build_evidence(board,facts,vehicles)
+        # A previously requested view may refresh after its records change. Bind
+        # this subscription to the immutable account, role and exact filters;
+        # never transfer one person's automatic refresh to another account.
+        refresh_scope=hashlib.sha256(json.dumps([user.company_code,user.id,user.role,user.username,dict(filters)],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         document={'scope':board['scope_name'], 'period':board['period'], 'role':'manager' if driving_access.administrator() else 'self',
-                  'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence))}
+                  'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence)),
+                  'refresh_scope':refresh_scope}
         identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,document,'reflection-v1']
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
         return cache_key,document
@@ -152,6 +172,7 @@ def register_reflections(app, db, prepare, history):
         state={'status':'unavailable' if not ready() else 'empty' if not document['evidence'] else 'new',
                'items':[], 'key':key, 'generated_at':'', 'generated_label':'',
                'candidate_count':document['candidate_count'], 'included_count':document['included_count'],
+               'auto_refresh':False,
                'configured':bool(os.environ.get('OPENAI_API_KEY','').strip())}
         if not ready():return state
         cached=DrivingReportReflection.query.filter_by(company_code=session['company_code'],cache_key=key).first()
@@ -161,12 +182,16 @@ def register_reflections(app, db, prepare, history):
             if cached.status=='pending' and cached.updated_at < (datetime.now(timezone.utc)-timedelta(minutes=3)).isoformat():
                 state['status']='failed'
             if cached.status=='completed':state['items']=json.loads(cached.result_json).get('items',[])
+        elif state['status']=='new' and state['configured']:
+            state['auto_refresh']=DrivingReportReflection.query.filter_by(company_code=session['company_code'],status='completed').filter(
+                DrivingReportReflection.result_json.contains(document['refresh_scope'])).first() is not None
         return state
 
     def work(company,key,document):
         with app.app_context():
             try:
                 result=validate_result(generate(document),document)
+                result['refresh_scope']=document['refresh_scope']
                 DrivingReportReflection.query.filter_by(company_code=company,cache_key=key,status='pending').update(
                     {'status':'completed','result_json':json.dumps(result,ensure_ascii=False),'updated_at':stamp()})
                 db.session.commit()
