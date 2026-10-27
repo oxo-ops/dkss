@@ -80,6 +80,15 @@ def parse_vehicle_operation_csv_row(source_row, line_number):
                 with_time=True
             )
 
+        if (
+            values["departure_at"] is not None
+            and values["arrival_at"] is not None
+            and values["arrival_at"] < values["departure_at"]
+        ):
+            raise UploadValidationError(
+                "入庫日時は出庫日時以降で入力してください。"
+            )
+
         for csv_name, field_name in (
             ("出庫メータ", "departure_meter"),
             ("入庫メータ", "arrival_meter"),
@@ -199,13 +208,11 @@ def parse_vehicle_operation_date(value, field_name, with_time=False):
             "%Y/%m/%d %H:%M",
             "%Y-%m-%d %H:%M",
         )
-        output_format = "%Y-%m-%d %H:%M:%S"
     else:
         formats = (
             "%Y/%m/%d",
             "%Y-%m-%d",
         )
-        output_format = "%Y-%m-%d"
 
     for date_format in formats:
         try:
@@ -213,7 +220,7 @@ def parse_vehicle_operation_date(value, field_name, with_time=False):
         except ValueError:
             continue
 
-        return parsed.strftime(output_format)
+        return parsed.isoformat(sep=" ", timespec="seconds") if with_time else parsed.date().isoformat()
 
     raise UploadValidationError(
         f"{field_name}の日付・時刻を確認してください。"
