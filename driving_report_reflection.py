@@ -52,6 +52,11 @@ def build_evidence(board, facts, history):
         evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の傾向', 'finding':finding,
             'reports':now['sources'],'driver_key':'','allowed_actions':['review_context','verify_data'],
             'context':'取得済みの同一定義の指標を集計。車両・道路・積載等の条件差は未確認。良否や責任の確定ではありません。','kind':'scope'})
+    for item in board.get('due_followups',[])[:20]:
+        evidence.append({'id':str(len(evidence)), 'title':'次回確認日を迎えた振り返り',
+            'finding':item['name']+'：次回確認日 '+item['review']['next_date']+'。記録済みの行動：'+str(item['review'].get('action') or '未設定')[:300],
+            'reports':[item['id']], 'driver_key':item.get('driver_key',''), 'allowed_actions':['followup'],
+            'context':'登録済みの次回確認日を迎えた未完了の記録。期限到来を運転の悪化や指導不足と判断しない。','kind':'followup_due'})
     for person in board['drivers']:
         own=[f for f in facts if f['driver_key']==person['key']]
         if not own:
