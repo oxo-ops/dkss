@@ -2,6 +2,7 @@
 from datetime import date
 from io import BytesIO
 import unicodedata
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -16,6 +17,22 @@ COLORS = {'candidate':'FFF3DF', 'unreserved':'F3F6FA', 'reserved':'E7F0FF',
 
 def normalize(value):
     return ''.join(unicodedata.normalize('NFKC', str(value or '')).lower().split())
+
+
+def export_office(data, args):
+    """Use the applied scope rather than a default office on company exports."""
+    if data['scope'] == 'company' and not args.get('office'):
+        return ''
+    if data['scope'] == 'vehicle':
+        vehicle = next((v for v in data['vehicles'] if v['id'] == data.get('focus_vehicle_id')), None)
+        return vehicle['office'] if vehicle else ''
+    return data.get('office') or ''
+
+
+def annual_filename(data, args):
+    office = export_office(data, args)
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '_', office).strip().rstrip('.')[:80].rstrip(' .')
+    return f'点検計画_{data["year"]}年度' + (f'_{safe}' if safe else '') + '.xlsx'
 
 
 def annual_rows(data, args):
@@ -54,10 +71,10 @@ def build_annual_workbook(data, args):
     sheet = workbook.active
     sheet.title = '年間点検計画'
     sheet.merge_cells('A1:N1')
-    sheet['A1'] = f'{year}年度 点検計画（4月〜翌3月）'
+    sheet['A1'] = f'{year}年度 点検計画'
     sheet['A1'].font = Font(name='Meiryo', size=16, bold=True, color='24476B')
     sheet.merge_cells('A2:N2')
-    scope = '会社全体' if data['scope']=='company' else data['office'] or '営業所未設定'
+    scope = export_office(data, args) or ('会社全体' if data['scope']=='company' else '営業所未設定')
     filters = [scope, KINDS.get(args.get('kind'), '点検種別すべて'), STATES.get(args.get('state'), '状態すべて')]
     if args.get('q'): filters.append('検索：'+args['q'])
     write_text(sheet['A2'], ' ／ '.join(filters))

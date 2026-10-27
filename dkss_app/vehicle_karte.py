@@ -3118,6 +3118,7 @@ def inject_vehicle_karte_choices():
             "id": record.id,
             "number": number,
             "chassis_number": record.chassis_number or "",
+            "type": record.type or record.body_type or "",
             "driver_names": "、".join(
                 driver_names_by_vehicle.get(
                     str(record.id),

@@ -19045,6 +19045,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 
 .vehicle-history-kind {
     display: inline-flex;
+    white-space: nowrap;
     align-items: center;
     gap: 6px;
     color: #075bea;
@@ -19064,6 +19065,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 }
 
 .vehicle-history-kind > span {
+    white-space: nowrap;
     padding: 3px 6px;
     border-radius: 4px;
     background: #eaf3ff;
@@ -19252,12 +19254,12 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(1) {
-        width: 14%;
+        width: 12%;
         padding-left: 28px;
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(2) {
-        width: 11%;
+        width: 13%;
     }
 
     body.vehicle-list-ppt .vehicle-karte-history-table th:nth-child(3) {

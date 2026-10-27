@@ -41,6 +41,11 @@
                 const number = document.createElement('strong');
                 number.textContent = choice.number || '車番未登録';
                 link.append(number);
+                if (choice.type) {
+                    const type = document.createElement('span');
+                    type.textContent = choice.type;
+                    link.append(type);
+                }
                 if (onSelect) link.addEventListener('click', event => {
                     event.preventDefault();
                     input.value = choice.number || '車番未登録';
