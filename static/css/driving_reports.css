@@ -106,6 +106,17 @@
 @media screen and (max-width:359px){.driving-release .driving-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Office workspace: compact controls, readable summaries and one drill-down path. */
+.driving-comparison-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.driving-comparison-tabs a{padding:8px 12px;border:1px solid #d8e3ef;border-radius:8px;min-height:40px;box-sizing:border-box;display:inline-flex;align-items:center}
+.driving-comparison-tabs a[aria-current=page]{background:#edf5fd;border-color:#91b9e0;font-weight:700}
+.driving-comparison-filters{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:12px 0}
+.driving-comparison-filters label{flex:1 1 200px;max-width:100%}
+.driving-comparison-detail>summary{cursor:pointer;font-weight:700}
+.driving-comparison-detail h3{margin-top:12px}
+.driving-empty-actions{display:flex;gap:12px;flex-wrap:wrap;padding:12px 0;font-size:.88rem}
+.driving-followup+.driving-followup{border-top:1px solid #dce6f0;margin-top:16px;padding-top:16px}
+.driving-followup-event{border-left:2px solid #dce6f0;padding:8px 12px;margin:8px 0}
+.driving-condition-change{color:#795c24}
 .driving-workspace .driving-heading{align-items:center;margin-bottom:14px;gap:12px}
 .driving-workspace .driving-heading h2{font-size:1.35rem;margin:0}
 .driving-workspace-filters{margin:0 0 10px;padding:0;background:transparent}
