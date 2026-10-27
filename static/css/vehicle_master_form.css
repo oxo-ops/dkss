@@ -1,0 +1,52 @@
+/* Vehicle entry and confirmation only: keep shared card layouts isolated. */
+.main-content .page-header + .card:is(.vehicle-master-entry-card, .vehicle-master-review-card) {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+.main-content .vehicle-master-entry-card > form.responsive-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.vehicle-master-section-heading h3 { margin: 0 0 6px; font-size: 16px; }
+.vehicle-master-section-heading .help-text { line-height: 1.6; }
+.vehicle-master-fields { display: grid; gap: 16px 20px; min-width: 0; }
+.vehicle-master-plate-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.vehicle-master-ledger-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.main-content .vehicle-master-fields .form-group { min-width: 0; margin: 0; gap: 6px; }
+.main-content .vehicle-master-fields :is(input, select) {
+    width: 100%; min-width: 0; box-sizing: border-box; min-height: 40px;
+}
+.main-content .vehicle-master-entry-card .form-actions,
+.main-content .vehicle-master-review-card .form-actions {
+    display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px;
+    padding-top: 16px; margin-top: 0; border-top: 1px solid var(--dkss-border-neutral, #dce4f2);
+}
+.main-content .vehicle-master-review-card > .help-text { margin: 0 0 16px; line-height: 1.7; }
+.vehicle-master-review-card .table-scroll { width: 100%; overflow-x: auto; }
+.main-content .vehicle-master-review-card table { width: 100%; table-layout: fixed; margin: 0; }
+.vehicle-master-review-card :is(th, td) { overflow-wrap: anywhere; vertical-align: top; white-space: normal; word-break: normal; }
+.vehicle-master-review-card thead th:first-child { width: 28%; }
+.main-content .vehicle-master-review-card .vehicle-master-changed-row td:last-child {
+    background: #eef4ff; color: #173f86;
+}
+.vehicle-master-review-card > form { width: 100%; margin-top: 16px; }
+.vehicle-master-review-card .vehicle-confirm-grid {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px;
+}
+.vehicle-master-review-card .vehicle-confirm-grid .form-group { margin: 0; gap: 6px; min-width: 0; }
+.vehicle-master-review-card .vehicle-confirm-grid p { overflow-wrap: anywhere; }
+@media (max-width: 1100px) {
+    .vehicle-master-ledger-fields,
+    .vehicle-master-review-card .vehicle-confirm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+    .vehicle-master-plate-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vehicle-master-ledger-fields,
+    .vehicle-master-review-card .vehicle-confirm-grid { grid-template-columns: minmax(0, 1fr); }
+    .main-content .vehicle-master-review-card table { min-width: 500px; }
+    .main-content :is(.vehicle-master-entry-card, .vehicle-master-review-card) .form-actions > .btn {
+        flex: 1 1 150px; min-height: 44px;
+    }
+}

@@ -1327,6 +1327,7 @@ document.addEventListener("DOMContentLoaded", function () {
             let pending = "";
             let streamError = "";
             let streamDestination = "";
+            let suggestedTransfer = null;
             const xhr = new XMLHttpRequest();
             const endpoint = new URL(form.action, location.href);
 
@@ -1359,6 +1360,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     if (update.phase === "error") {
                         streamError = update.message || "読み取りに失敗しました。";
+                        continue;
+                    }
+
+                    if (update.phase === "type_mismatch") {
+                        suggestedTransfer = update;
                         continue;
                     }
 
@@ -1499,6 +1505,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (streaming) {
                     readProgress();
+                    if (suggestedTransfer && !streamError) {
+                        restore("");
+                        if (!window.DKSSDocumentImportQueue?.offerDocument(form, suggestedTransfer, showError)) {
+                            showError("資料の種類が選択した欄と異なります。適切な欄へ移して読み込んでください。ファイルは保持しています。");
+                        }
+                        return;
+                    }
                     if (streamError || !streamDestination) {
                         restore(
                             streamError

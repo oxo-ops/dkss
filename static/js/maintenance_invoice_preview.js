@@ -336,6 +336,15 @@
         const submitActions = form.querySelector(".invoice-submit-actions");
         const pageHeading = document.querySelector(".invoice-page-heading");
 
+        // Keep the existing cancel control and its event handler, alongside save.
+        if (pageHeading?.closest(".invoice-import-review")) {
+            const cancel = document.querySelector("[data-import-flow-toolbar] [data-import-flow-cancel]");
+            if (cancel) {
+                cancel.textContent = "キャンセルして戻る";
+                pageHeading.append(cancel);
+            }
+        }
+
         if (pageHeading && submitActions) {
             form.prepend(pageHeading);
             pageHeading.append(submitActions);
@@ -360,8 +369,9 @@
                     - block.getBoundingClientRect().top;
                 const headingHeight = pageHeading?.getBoundingClientRect().height || 0;
                 const gap = parseFloat(getComputedStyle(form).rowGap) || 0;
+                const bottomInset = form.closest(".invoice-import-review") ? 12 : 32;
                 const height = Math.max(240, Math.floor(
-                    form.clientHeight - headingHeight - gap - Math.max(0, top) - 32
+                    form.clientHeight - headingHeight - gap - Math.max(0, top) - bottomInset
                 ));
                 const value = height + "px";
 

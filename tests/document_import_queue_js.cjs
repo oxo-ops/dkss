@@ -53,3 +53,42 @@ test('server validation errors are displayed without discarding selected files',
     f.calls[0].events.load();assert.equal(f.errors[0],'容量を確認してください。');
     assert.equal(f.input.files.length,1);assert.equal(f.button.disabled,false);
 });
+
+function kindTransferFixture({confirmed=true, busy=false, occupied=false}={}) {
+    const files=[{name:'wrong.pdf',size:100},{name:'keep.pdf',size:100}];
+    const fileInput={files,dispatchEvent(){}};
+    const targetInput={files:occupied?[{name:'existing.pdf'}]:[],dispatchEvent(){}};
+    const sourceForm={dataset:{},querySelector:()=>fileInput};
+    let submitted=0, prompts=0;
+    const target={dataset:busy?{loading:'1'}:{},querySelector:()=>targetInput,scrollIntoView(){},requestSubmit(){submitted++;}};
+    class Transfer {constructor(){this.files=[];this.items={add:file=>this.files.push(file)};}}
+    const context={DataTransfer:Transfer,Event:class {constructor(type){this.type=type;}},
+        document:{querySelectorAll:()=>[],getElementById:()=>null,querySelector:selector=>selector==='#import-maintenance form'?target:null},
+        window:{confirm(){prompts++;return confirmed;}}};
+    vm.runInNewContext(source,context);
+    const errors=[];
+    return {source:fileInput,targetInput,errors,get submitted(){return submitted;},get prompts(){return prompts;},
+        offer:suggestion=>context.window.DKSSDocumentImportQueue.offerDocument(sourceForm,
+            {document_type:'maintenance',file_index:0,filename:'wrong.pdf',...suggestion},message=>errors.push(message))};
+}
+test('confirmed type suggestion moves only that file and submits the correct existing card',()=>{
+    const f=kindTransferFixture();assert.equal(f.offer(),true);assert.equal(f.prompts,1);assert.equal(f.submitted,1);
+    assert.deepEqual(f.targetInput.files.map(file=>file.name),['wrong.pdf']);
+    assert.deepEqual(f.source.files.map(file=>file.name),['keep.pdf']);
+});
+test('declining the type suggestion keeps all original selections and submits nothing',()=>{
+    const f=kindTransferFixture({confirmed:false});assert.equal(f.offer(),true);
+    assert.equal(f.submitted,0);assert.equal(f.source.files.length,2);assert.equal(f.targetInput.files.length,0);
+});
+test('a busy or occupied destination never loses either set of selected files',()=>{
+    for(const options of [{busy:true},{occupied:true}]) {
+        const f=kindTransferFixture(options);assert.equal(f.offer(),true);
+        assert.equal(f.submitted,0);assert.equal(f.prompts,0);assert.equal(f.source.files.length,2);assert.match(f.errors[0],/保持/);
+        if(options.occupied)assert.equal(f.targetInput.files[0].name,'existing.pdf');
+    }
+});
+test('invalid type or changed selections cannot redirect unrelated files',()=>{
+    for(const suggestion of [{document_type:'other'},{file_index:-1},{filename:'different.pdf'}]) {
+        const f=kindTransferFixture();assert.equal(f.offer(suggestion),false);assert.equal(f.submitted,0);assert.equal(f.prompts,0);
+    }
+});

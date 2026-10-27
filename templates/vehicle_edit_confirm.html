@@ -3,6 +3,7 @@
 {% block title %}車両の変更内容確認{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_master_form.css', v='20261027-layout-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_edit_confirm.css', v='20261028-confirm-layout-1') }}">
 {% endblock %}
 
@@ -12,7 +13,7 @@
     <h2>車両の変更内容確認</h2>
 </div>
 
-<div class="card vehicle-edit-confirm">
+<div class="card form-card vehicle-master-review-card vehicle-edit-confirm">
     <p class="help-text">
         変更前・変更後の内容を確認し、
         問題がなければ「この内容で更新」を押してください。
@@ -52,7 +53,7 @@
                     {% set old_text = old_value | string if old_value is not none else "" %}
                     {% set new_text = new_value | string if new_value is not none else "" %}
 
-                    <tr>
+                    <tr{% if old_text != new_text %} class="vehicle-master-changed-row"{% endif %}>
                         <th scope="row">{{ field_label }}</th>
                         <td data-label="変更前">
                             {{ old_text if old_text != "" else "未入力" }}
@@ -83,6 +84,8 @@
             name="csrf_token"
             value="{{ csrf_token() }}"
         >
+
+        <input type="hidden" name="return_to" value="{{ vehicle_return_url|default('/master/vehicles') }}">
 
         {% for field_key, field_label in fields %}
             <input
