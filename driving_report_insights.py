@@ -190,6 +190,10 @@ def summarize(facts, metric_id=None):
     summary={'count':count,'distance':sum(known) if known else None,'distance_count':len(known),
              'metric_count':len(chosen),'value':None,'display':'—','raw_count':0,'sources':[f['row'].id for f,_ in chosen],
              'report_ids':[f['row'].id for f in facts],'paired_distance':None,'numerator':None,'denominator':None,'unit':'','method':'raw'}
+    summary['distance_state']='記録なし' if not count else '未取得' if not known else '一部取得' if len(known)<count else '取得済み'
+    summary['distance_display']=('記録なし' if not count else '距離未取得' if not known else number(summary['distance'])+' km')
+    if known and len(known)<count:
+        summary['distance_display']+=f'（距離取得 {len(known)}／{count}運行）'
     if not chosen:return summary
     m=chosen[0][1];summary.update(unit=m['unit'],method=m['method'])
     if m['method']!='raw':
