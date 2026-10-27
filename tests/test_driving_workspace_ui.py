@@ -71,6 +71,35 @@ class WorkspaceUITests(unittest.TestCase):
         self.assertEqual(base['next_followup']['id'],3)
         self.assertEqual(base['followups'][0]['review']['state'],'completed')
 
+    def test_scope_daily_chart_uses_scoped_numerators_and_retains_report_links(self):
+        self.save(4,day='2026-10-11',distance='80',count='0')
+        _,office=self.render(self.base)
+        board=office['insights']
+        self.assertEqual(board['vehicle_count'],1)
+        self.assertEqual([p['date'] for p in board['trend']],['2026-10-10','2026-10-11'])
+        self.assertEqual([p['display'] for p in board['trend']],['5','0'])
+        self.assertEqual(board['trend'][0]['report_ids'],[self.a.id])
+        _,company=self.render(self.base+'&scope=company')
+        first=company['insights']['trend'][0]
+        self.assertEqual(first['display'],'2.5')
+        self.assertEqual(set(first['report_ids']),{self.a.id,self.b.id})
+        self.assertNotIn(self.secret.id,first['report_ids'])
+
+    def test_change_presentation_keeps_observation_separate_from_improvement(self):
+        item={'kind':'scope','title':'急減速の傾向','finding':'元の根拠。条件を確認。','action':'周囲の状況を確認'}
+        metric={'name':'急減速','method':'rate','unit':'回/100km'}
+        entry={'metric':metric,'change':'0.8','current':{'display':'2.4'},'previous':{'display':'1.6'}}
+        shown=finding(item,{'available_highlights':[entry]})
+        self.assertEqual(shown['display_tone'],'attention')
+        self.assertEqual(shown['display_title'],'急減速の記録が増加')
+        self.assertEqual(shown['finding'],item['finding'])
+        self.assertNotIn('悪化',shown['display_headline'])
+        entry['change']='-0.8'
+        self.assertEqual(finding(item,{'available_highlights':[entry]})['display_label'],'減少した記録')
+        # Same metric names can have distinct definitions/settings. Never select by name alone.
+        ambiguous=finding(item,{'available_highlights':[entry,dict(entry,change='1')]})
+        self.assertEqual(ambiguous['display_headline'],item['finding'].split('。',1)[0])
+
     def test_compact_ai_cards_keep_full_authorized_evidence(self):
         source={'kind':'change','finding':'検知回数は前期間から変わりました。取得距離も確認してください。',
                 'context':'原数値 3回 ／ 対象距離 100 km','reports':[1],'action':'原本を確認'}

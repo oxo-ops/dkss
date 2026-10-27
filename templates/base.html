@@ -216,6 +216,7 @@
                 {{ karte_vehicle_choices | tojson }}
             </script>
             {% endif %}
+            {% block top_bar_heading %}{% endblock %}
             <div class="notification-menu" id="notificationMenu">
                 <a
                     href="{{ url_for('notifications') }}"

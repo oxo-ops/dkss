@@ -168,7 +168,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
         key=driver_keys([a])[0][a.id]
         response=self.client.get('/safety/driving-reports?'+urlencode({'scope':'company','period':'all','focus':key}))
         self.assertEqual(response.status_code,200,response.get_data(as_text=True));html=response.get_data(as_text=True)
-        self.assertIn('さんの詳細',html);self.assertIn('クラッチ交換',html);self.assertNotIn('他社秘密整備',html)
+        self.assertIn('さんの運転実績',html);self.assertIn('クラッチ交換',html);self.assertNotIn('他社秘密整備',html)
         self.assertIn('data-driving-chart',html);self.assertIn('return_to=',html)
 
     def test_comparison_csv_matches_rates_and_includes_provenance(self):

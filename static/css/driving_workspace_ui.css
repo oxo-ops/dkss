@@ -1,114 +1,200 @@
-/* Driving workspace uses the dashboard's compact surfaces and action hierarchy. */
-.driving-designed{--driving-ink:#17385d;--driving-muted:#5c7391;--driving-line:#dce5f5;color:var(--driving-ink);font-size:14px;line-height:1.6;min-width:0}
+/* Approved driving view: one column, compact toolbar, three horizontal AI rows. */
+body:has(.driving-designed) .main-content{background:#f2f5ff;padding:18px 20px;box-shadow:none}
+body:has(.driving-designed) .top-bar{margin:0 0 10px;min-height:38px;gap:8px}
+.driving-page-title{margin-right:auto;display:flex;align-items:baseline;gap:10px;min-width:0}
+.driving-page-title h2{margin:0;font-size:22px;line-height:1.4;color:#102c49;font-weight:700}
+.driving-page-title>span{font-size:11px;color:#597295}
+body:has(.driving-designed) .top-bar-user-avatar{width:28px;height:28px;flex-basis:28px}
+body:has(.driving-designed) .top-bar-user-name{font-size:12px;font-weight:400;color:#173d62}
+.driving-page.driving-designed{--driving-ink:#123959;--driving-muted:#6582ac;--driving-line:#dbe6fb;color:var(--driving-ink);font-size:13px;line-height:1.6;max-width:none;min-width:0}
 .driving-designed .page-breadcrumb{display:none}
-.driving-designed .driving-heading{margin:0 0 12px;gap:12px}
-.driving-designed .driving-heading h2{font-size:23px;line-height:1.4;color:var(--driving-ink)}
-.driving-designed .card{padding:14px;margin:12px 0;border:1px solid #fff;border-radius:13px;background:linear-gradient(120deg,#fff,#fbfdff);box-shadow:0 2px 9px rgb(41 77 126 / 3%)}
-.driving-designed h3{font-size:15px;font-weight:700;color:var(--driving-ink)}
-.driving-designed h4{font-size:14px;line-height:1.6;margin:0;font-weight:600}
-.driving-designed p{margin:6px 0}
+.driving-page.driving-designed .card{padding:14px;margin:10px 0;border:1px solid #fff;border-radius:13px;background:#fcfdff;box-shadow:none}
+.driving-page.driving-designed h3{font-size:14px;line-height:1.5;font-weight:700;color:#102e4c;margin:0}
+.driving-designed h4{font-size:13px;line-height:1.6;font-weight:600;margin:0;color:#102e4c}
+.driving-designed p{margin:5px 0}
+.driving-designed a:not(.btn){color:#6485be;text-decoration:none}
+.driving-designed a:hover{text-decoration:underline}
 .driving-designed :is(a,summary){overflow-wrap:anywhere}
-.driving-designed .driving-section-heading{margin-bottom:10px;gap:9px}
-.driving-designed .driving-actions{gap:8px;justify-content:flex-start}
-.driving-designed .btn{font-size:12px;line-height:1.5;min-height:34px;padding:6px 11px;border:1px solid #d9d9f3;border-radius:8px;background:linear-gradient(#fff,#f7f6ff);color:#6655b6;box-shadow:0 2px 4px rgb(38 59 107 / 3%);white-space:normal}
-.driving-designed label{font-size:12px;gap:4px}
-.driving-designed :is(input:not([type=hidden]),select){font-size:14px;min-height:36px;border-color:#d5def1;padding:6px 9px}
-.driving-designed .driving-main-filters>label{flex:0 1 220px}
-.driving-designed .driving-main-filters{gap:10px;align-items:end}
-.driving-designed .driving-filter-actions{display:flex;align-items:center;gap:10px;margin:0;font-size:12px}
-.driving-designed .driving-extra-filters{font-size:12px;margin-top:9px}
-.driving-designed .driving-extra-filters[open]{padding:10px 12px;background:#f8faff;border:1px solid var(--driving-line);border-radius:9px}
-.driving-designed .driving-filters{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
-.driving-designed .driving-workspace-period{margin:9px 0;font-size:12px;color:var(--driving-muted)}
-.driving-designed .driving-compact-summary{padding:0 2px;margin:10px 0;gap:7px 18px;font-size:12px;color:var(--driving-muted)}
-.driving-designed .driving-compact-summary strong{font-size:15px;font-weight:600}
-.driving-designed .driving-reflection-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.driving-designed .driving-reflection-items .driving-finding{padding:11px;background:#f9fbff;border:1px solid #e0e7f4;border-radius:10px;min-width:0;display:flex;flex-direction:column;gap:6px}
-.driving-designed .driving-reflection-items .driving-finding-attention{background:#fffdf8;border-color:#eee7d7}
-.driving-designed .driving-reflection-items .driving-finding-vehicle{background:#faf8ff;border-color:#e5def8}
-.driving-designed .driving-finding-label{font-size:12px;color:#5e709b}
-.driving-designed .driving-finding-attention .driving-finding-label{color:#91651c}
-.driving-designed .driving-finding p{font-size:12px;color:#526d8b;margin:0}
-.driving-designed .driving-finding .driving-next-action{font-size:12px;color:var(--driving-ink)}
-.driving-designed .driving-reflection-links{margin-top:auto;gap:7px}
-.driving-designed .driving-reflection-links a{font-size:12px;padding:3px 0;min-height:28px;background:none;box-shadow:none;border:0;text-align:left;justify-content:flex-start;color:#5a6fb0}
-.driving-designed .driving-finding details{font-size:12px;color:#5a6fb0}
-.driving-designed .driving-finding details[open]{border-top:1px solid var(--driving-line);padding-top:7px}
-.driving-designed .driving-finding details p{margin:7px 0}
-.driving-designed [data-reflection-status]{font-size:12px;color:var(--driving-muted);margin:3px 0 10px}
-.driving-designed .driving-metrics-panel .driving-section-heading{margin-bottom:10px}
-.driving-designed .driving-metric-tabs{display:flex;gap:3px;padding:3px;border:1px solid #dedbf3;border-radius:8px;background:#f0eef9;flex-wrap:wrap}
-.driving-designed .driving-metric-tabs a{padding:4px 11px;min-height:29px;display:inline-flex;align-items:center;border-radius:6px;color:#536987;text-decoration:none;font-size:12px}
-.driving-designed .driving-metric-tabs a[aria-current=page]{background:linear-gradient(#a794ef,#8872dc);color:#fff;box-shadow:0 2px 4px rgb(118 101 179 / 16%)}
-.driving-designed .driving-key-metrics{grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px;margin:0}
-.driving-designed .driving-key-metrics article{background:#f7faff;border:1px solid var(--driving-line);padding:10px 12px;border-radius:10px;min-width:0}
-.driving-designed .driving-key-metrics article.is-current{border-color:#9ab9e8;box-shadow:inset 0 0 0 1px #bdd2ed;background:#f2f7ff}
-.driving-designed .driving-metric-select{font-size:12px;color:#4e6688;display:flex;justify-content:space-between;gap:8px;text-decoration:none}
-.driving-designed .driving-key-metrics strong{font-size:25px;line-height:1.45;letter-spacing:.01em;margin:3px 0;display:flex;gap:4px;align-items:baseline;flex-wrap:wrap}
-.driving-designed .driving-key-metrics strong small{display:inline;font-size:12px;margin:0}
-.driving-designed .driving-key-metrics small{font-size:12px;color:var(--driving-muted);margin-top:4px}
-.driving-designed .driving-key-metrics details{font-size:11px;color:#627891;margin-top:6px}
-.driving-designed .driving-metrics-caption{font-size:11px;color:var(--driving-muted);margin:8px 0 0}
-.driving-designed .driving-workspace-table{font-size:12px;table-layout:fixed}
-.driving-designed .driving-workspace-table th{background:#f0f5fd;color:#536b8d;padding:9px 10px;font-size:12px;white-space:normal}
+.driving-designed .driving-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:nowrap}
+.driving-designed .driving-actions{gap:10px;justify-content:flex-start}
+.driving-page.driving-designed .btn{font-size:12px;line-height:1.5;min-height:32px;padding:6px 10px;margin:0;border:1px solid #d9d4fa;border-radius:7px;background:linear-gradient(#fff,#faf9ff);color:#8068cf;box-shadow:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;text-decoration:none}
+.driving-designed .btn:hover{background:#f2eeff}
+.driving-designed :is(a,button,summary,select,input):focus-visible{outline:2px solid #628fe5;outline-offset:3px}
+.driving-page.driving-designed label{font-size:11px;gap:5px;color:var(--driving-muted);margin:0;min-width:0}
+.driving-page.driving-designed :is(input:not([type=hidden]),select){font-size:13px;min-height:34px;border:1px solid #d4ddf6;border-radius:7px;padding:6px 9px;background:white;line-height:1.4;min-width:0;color:#28557e}
+.driving-designed .driving-workspace-filters{margin:0 0 10px}
+.driving-page.driving-designed .driving-main-filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.driving-page.driving-designed .driving-main-filters>label{display:flex;align-items:center;gap:8px;flex:0 1 auto;width:auto;white-space:nowrap}
+.driving-designed .driving-main-filters>label select{width:145px}
+.driving-designed .driving-main-filters>.driving-period-label select{width:95px}
+.driving-page.driving-designed .driving-workspace-period{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;margin:0;font-size:11px;line-height:1.7;color:var(--driving-muted)}
+.driving-designed .driving-workspace-period small{font-size:inherit;display:inline}
+.driving-page.driving-designed .driving-filter-actions{margin:0;min-height:0;align-self:center;gap:0;grid-column:auto;display:flex}
+.driving-designed .driving-toolbar-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.driving-page.driving-designed .driving-extra-filters{font-size:11px;margin:6px 0 0;color:var(--driving-muted)}
+.driving-designed .driving-extra-filters>summary{display:inline-flex;align-items:center;cursor:pointer;list-style:none;min-height:24px;gap:5px;color:var(--driving-muted)}
+.driving-designed .driving-extra-filters>summary:before{content:'›';transform:rotate(90deg)}
+.driving-designed .driving-extra-filters[open]>summary:before{transform:rotate(-90deg)}
+.driving-designed .driving-extra-filters>.driving-reset{margin-left:12px}
+.driving-designed .driving-extra-filters[open]{padding:8px 10px;background:#fff;border:1px solid var(--driving-line);border-radius:9px}
+.driving-designed .driving-filters{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:10px}
+.driving-designed .driving-empty-actions{margin:5px 0 8px;padding:4px 0;gap:5px 12px;font-size:12px}
+.driving-page.driving-designed .driving-compact-summary{display:flex;align-items:center;flex-wrap:wrap;padding:0 2px;margin:10px 0;gap:5px 15px;font-size:11px;color:var(--driving-muted);background:none;border:0}
+.driving-designed .driving-compact-summary strong{font-size:14px;font-weight:600;color:#173e65;margin-left:3px}
+.driving-designed .driving-reflection-controls{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.driving-designed .driving-reflection-controls time{font-size:11px;color:var(--driving-muted)}
+.driving-designed .driving-reflection h3{display:flex;align-items:center;gap:8px}
+.driving-ai-icon{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;width:25px;height:25px;background:#f0ebff;color:#9273e8;font-size:22px;font-weight:400}
+.driving-page.driving-designed .driving-reflection-items{display:grid;grid-template-columns:1fr;gap:8px}
+.driving-page.driving-designed .driving-finding{display:grid;grid-template-columns:128px minmax(0,1fr);gap:9px;align-items:center;padding:11px 10px;background:#f8fbff;border:1px solid #dce6fb;border-radius:8px;min-width:0}
+.driving-page.driving-designed .driving-finding-attention{background:#fffdf8;border-color:#eee3ce}
+.driving-page.driving-designed .driving-finding-vehicle{background:#faf8ff;border-color:#e1d8ff}
+.driving-designed .driving-finding-label{display:flex;align-items:center;gap:5px;font-size:11px;color:#268d86;font-weight:600}
+.driving-designed .driving-finding-label>span{font-size:15px;font-weight:400}
+.driving-designed .driving-finding-attention .driving-finding-label{color:#a87528}
+.driving-designed .driving-finding-vehicle .driving-finding-label{color:#9268ee}
+.driving-designed .driving-finding-content{min-width:0}
+.driving-designed .driving-finding-content>p{font-size:11px;color:#6582ac;margin:3px 0}
+.driving-designed .driving-finding .driving-reflection-links{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px}
+.driving-designed .driving-finding .driving-reflection-links:empty{display:none}
+.driving-designed .driving-finding details{font-size:11px;color:#6582ac;margin-top:3px}
+.driving-designed .driving-finding summary{cursor:pointer;list-style:none;color:#6582ac}
+.driving-designed .driving-finding details[open]{border-top:1px solid #e4e9f6;padding-top:6px;margin-top:6px}
+.driving-designed .driving-finding details p{margin:5px 0}
+.driving-designed [data-reflection-status]{font-size:12px;color:var(--driving-muted);margin:4px 0}
+.driving-designed .driving-reflection-coverage{font-size:11px;margin-top:8px;color:var(--driving-muted)}
+.driving-designed .driving-metric-tabs{display:flex;gap:3px;padding:3px;border:1px solid #dfd6fa;border-radius:8px;background:#f0edfa;flex-wrap:wrap}
+.driving-designed .driving-metric-tabs a{padding:4px 10px;min-height:26px;display:inline-flex;align-items:center;border-radius:5px;color:#5f7595;text-decoration:none;font-size:11px;white-space:nowrap}
+.driving-designed .driving-metric-tabs a[aria-current=page]{background:linear-gradient(#aa94f4,#8e75dd);color:#fff;box-shadow:0 2px 4px #8872dc22;font-weight:600}
+.driving-page.driving-designed .driving-key-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}
+.driving-page.driving-designed .driving-key-metrics article{background:#f7faff;border:1px solid #d7e3fb;padding:10px;border-radius:8px;min-width:0}
+.driving-page.driving-designed .driving-key-metrics article.is-current{border-color:#9dbbfa;box-shadow:inset 0 0 0 1px #c2d6ff;background:#f2f7ff}
+.driving-designed .driving-metric-select{font-size:11px;color:#5e7da8;display:flex;justify-content:space-between;gap:6px;text-decoration:none}
+.driving-page.driving-designed .driving-key-metrics strong{font-size:23px;font-weight:600;line-height:1.5;margin:3px 0;display:flex;gap:4px;align-items:baseline;flex-wrap:wrap;color:#17466d}
+.driving-page.driving-designed .driving-key-metrics strong small{display:inline;font-size:11px;margin:0;letter-spacing:0;font-weight:400}
+.driving-designed .driving-key-metrics small{display:block;font-size:10px;color:var(--driving-muted);margin-top:4px}
+.driving-designed .driving-metrics-footer{position:relative;display:flex;align-items:start;justify-content:space-between;gap:10px;margin-top:8px;font-size:10px;color:var(--driving-muted)}
+.driving-designed .driving-metrics-footer>details{font-size:10px;max-width:70%}
+.driving-designed .driving-metrics-footer>details>summary{cursor:pointer;list-style:none;text-align:right;color:#6485be}
+.driving-designed .driving-metric-sources{padding:10px;background:white;border:1px solid var(--driving-line);border-radius:7px;margin-top:6px}
+.driving-designed .driving-metric-sources>div{padding:6px 0;border-bottom:1px solid var(--driving-line)}
+.driving-designed .driving-metric-sources p{font-size:11px;overflow-wrap:anywhere}
+.driving-page.driving-designed .driving-chart{display:block;width:100%;max-width:none;height:145px}
+.driving-designed .driving-chart-caption{font-size:11px;color:var(--driving-muted);margin:0}
+.driving-designed .driving-chart-legend{display:flex;justify-content:space-between;font-size:11px;color:var(--driving-muted);margin:3px 0}
+.driving-designed .driving-back-link{display:inline-flex;font-size:11px;margin-bottom:6px}
+.driving-designed .driving-day-records{font-size:10px;color:var(--driving-muted);margin-top:5px}
+.driving-designed .driving-day-records>summary{cursor:pointer}
+.driving-designed .driving-detail-metric{display:flex;align-items:end;gap:8px;margin:10px 0;flex-wrap:wrap}
+.driving-designed .driving-detail-metric label{flex:1;min-width:0}
+.driving-designed .driving-next-review>strong{font-size:13px;font-weight:500}
+.driving-designed .driving-next-review .driving-badge{font-size:11px;background:#f1ecff;color:#8a6bd5;padding:2px 7px}
+.driving-designed .driving-next-review .driving-section-heading:last-child{margin:10px 0 0;font-size:11px}
+.driving-designed .driving-person-explanation{font-size:11px;color:var(--driving-muted)}
+.driving-designed .driving-review-excerpt{font-size:11px;color:var(--driving-muted);border-left:2px solid #bfd2fb;padding:3px 0 3px 9px;margin:7px 0}
+.driving-designed .driving-state{font-size:10px;padding:2px 6px;font-weight:400}
+.driving-designed .driving-state-coaching,.driving-designed .driving-state-followup{background:#fff2d9;color:#a1742c}
+.driving-page.driving-designed :is(.driving-followup-history,.driving-report-fold,.driving-comparison-detail,.driving-review-notes,.driving-due-list,.driving-person-settings,.driving-vehicle-fold){padding:12px 14px}
+.driving-designed :is(.driving-followup-history,.driving-report-fold,.driving-comparison-detail,.driving-review-notes,.driving-due-list,.driving-person-settings,.driving-vehicle-fold)>summary{cursor:pointer;font-size:12px;font-weight:500;list-style:none;display:flex;align-items:center;gap:5px;min-height:18px}
+.driving-designed :is(.driving-followup-history,.driving-report-fold,.driving-comparison-detail,.driving-review-notes,.driving-due-list,.driving-person-settings,.driving-vehicle-fold)>summary:after{content:'⌄';margin-left:auto;color:#5a769b}
+.driving-designed details[open]>summary:after{transform:rotate(180deg)}
+.driving-designed .driving-report-fold>summary span{margin-left:0;font-size:11px;color:#6582ac}
+.driving-designed .driving-roster-search{display:flex;align-items:end;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+.driving-designed .driving-roster-search label{flex:0 1 170px;max-width:100%}
+.driving-page.driving-designed .driving-workspace-table{font-size:12px;table-layout:fixed;min-width:0;border-radius:8px;box-shadow:none}
+.driving-designed .driving-workspace-table th{background:#f1f5ff;color:#607da4;padding:9px 10px;font-size:11px;font-weight:500;white-space:normal}
 .driving-designed .driving-workspace-table th:first-child{width:25%}
 .driving-designed .driving-workspace-table th:nth-child(2){width:34%}
 .driving-designed .driving-workspace-table th:nth-child(3){width:21%}
-.driving-designed .driving-workspace-table td{padding:10px;line-height:1.6}
-.driving-designed .driving-workspace-table td strong{font-size:15px}
-.driving-designed .driving-workspace-table td small{font-size:11px;line-height:1.6;margin-top:3px}
-.driving-designed .driving-workspace-table td .driving-person-link{font-size:14px;font-weight:600}
-.driving-designed .driving-workspace-table td :is(p,div){margin-top:0}
-.driving-designed .driving-workspace-table td .driving-state{font-size:11px;padding:2px 7px}
-.driving-designed .driving-roster-search{display:flex;align-items:end;gap:8px;margin:0 0 10px;flex-wrap:wrap}
-.driving-designed .driving-roster-search label{max-width:220px;flex:0 1 190px}
-.driving-designed .driving-person-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:11px;align-items:start}
-.driving-designed .driving-person-grid>.card{margin-top:0;margin-bottom:0}
-.driving-designed .driving-person-grid{margin:12px 0}
-.driving-designed .driving-detail-metric{display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin:8px 0}
-.driving-designed .driving-detail-metric label{flex:1;min-width:0}
-.driving-designed .driving-chart-caption{font-size:12px;color:var(--driving-muted);margin:9px 0}
-.driving-designed .driving-chart{display:block;width:100%;max-width:none;height:160px}
-.driving-designed :is(.driving-day-records,.driving-reader-setting,.driving-maintenance-detail,.driving-affiliation-detail){font-size:12px;margin-top:10px}
-.driving-designed .driving-affiliation-detail{margin:2px 0 9px}
-.driving-designed .driving-vehicle-history{margin-top:9px;padding:9px 0;border-bottom:1px solid var(--driving-line)}
-.driving-designed .driving-vehicle-history:last-child{border-bottom:0}
-.driving-designed .driving-vehicle-history>strong{font-size:14px;display:block}
+.driving-page.driving-designed .driving-workspace-table td{padding:10px;line-height:1.6;vertical-align:middle}
+.driving-designed .driving-workspace-table td strong{font-size:13px}
+.driving-designed .driving-workspace-table td small{font-size:10px;line-height:1.6;margin-top:2px;color:var(--driving-muted)}
+.driving-designed .driving-workspace-table td strong small{display:inline}
+.driving-designed .driving-workspace-table .driving-person-link{font-size:13px;font-weight:600;color:#1d557d}
+.driving-designed .driving-workspace-table td>div+div{margin-top:6px}
+.driving-designed .driving-facts{font-size:12px}
+.driving-designed .driving-vehicle-history{margin-top:8px;padding:8px 0;border-bottom:1px solid var(--driving-line)}
+.driving-designed .driving-vehicle-history>strong{font-size:13px;display:block}
 .driving-designed .driving-vehicle-history>small{font-size:11px;color:var(--driving-muted)}
-.driving-designed .driving-vehicle-history>p{font-size:12px;color:#597490}
-.driving-designed .driving-vehicle-primary-links{font-size:12px;gap:13px}
-.driving-designed .driving-used-vehicles .driving-facts{grid-template-columns:1fr;font-size:12px}
-.driving-designed .driving-next-review>strong{font-size:14px;font-weight:600}
-.driving-designed .driving-next-review .driving-badge{font-size:12px;background:#f0edff;color:#7059bc}
-.driving-designed .driving-next-review .driving-section-heading:last-child{margin-bottom:0;font-size:12px;flex-wrap:wrap}
-.driving-designed .driving-person-explanation{font-size:12px;color:#526c8c}
-.driving-designed .driving-review-excerpt{font-size:12px;color:#526c8c;border-left:3px solid #bdd0eb;padding:4px 0 4px 9px;margin:9px 0}
-.driving-designed :is(.driving-followup-history,.driving-comparison-detail,.driving-review-notes,.driving-due-list,.driving-report-fold)>summary{font-size:13px;font-weight:600}
-.driving-designed :is(.driving-followup-history,.driving-report-fold,.driving-review-notes){padding:12px 14px}
-.driving-designed .driving-record-table,.driving-designed .driving-report-table{font-size:12px}
-.driving-designed .driving-record-table :is(td,th),.driving-designed .driving-report-table :is(td,th){padding:9px 8px}
-.driving-designed .driving-comparison-detail{margin-top:12px}
+.driving-designed .driving-vehicle-history>p{font-size:12px}
+.driving-designed .driving-vehicle-primary-links{font-size:11px;margin:5px 0}
 .driving-designed .driving-muted{font-size:12px;color:var(--driving-muted)}
-@media(max-width:1000px){.driving-designed .driving-reflection-items{grid-template-columns:1fr}.driving-designed .driving-finding{gap:5px}.driving-designed .driving-reflection-items .driving-finding{display:grid;grid-template-columns:145px minmax(0,1fr);gap:5px 10px}.driving-designed .driving-finding-label{grid-row:1/3}.driving-designed .driving-finding h4,.driving-designed .driving-finding>p,.driving-designed .driving-finding .driving-actions,.driving-designed .driving-finding details{grid-column:2}}
-@media(max-width:820px){.driving-designed .driving-person-grid{grid-template-columns:1fr}.driving-designed .driving-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:650px){
- .driving-designed{font-size:14px}.driving-designed .driving-heading h2{font-size:19px}.driving-designed .driving-heading{gap:8px}.driving-designed .card{padding:12px;margin:11px 0}
- .driving-designed .driving-main-filters{grid-template-columns:1fr 1fr;gap:9px}.driving-designed .driving-main-filters label{margin:0}.driving-designed :is(select,input:not([type=hidden])){font-size:16px;min-height:42px}
- .driving-designed .btn{min-height:40px;padding:6px 9px}.driving-designed .driving-filter-actions{font-size:12px}.driving-designed .driving-workspace-period{font-size:11px}
- .driving-designed .driving-reflection-items .driving-finding{display:flex;gap:6px;padding:11px}.driving-designed .driving-finding h4{font-size:14px}.driving-designed .driving-reflection-links a{min-height:34px}
- .driving-designed .driving-compact-summary{gap:6px 13px;font-size:11px}.driving-designed .driving-compact-summary strong{font-size:14px}
- .driving-designed .driving-key-metrics{grid-template-columns:1fr;gap:8px}.driving-designed .driving-key-metrics article{padding:10px 12px}.driving-designed .driving-key-metrics strong{font-size:24px}.driving-designed .driving-key-metrics small{font-size:11px}
- .driving-designed .driving-section-heading{flex-wrap:wrap}.driving-designed .driving-metric-tabs a{min-height:35px;padding:4px 10px}
- .driving-designed .driving-workspace-table tbody tr{display:block!important;border:1px solid var(--driving-line);border-radius:9px;background:#fafcff;margin:8px 0;padding:10px!important}
- .driving-designed .driving-workspace-table td{display:grid!important;grid-template-columns:85px minmax(0,1fr);gap:4px 8px;padding:4px 0!important;line-height:1.65}
- .driving-designed .driving-workspace-table td:first-child{display:block!important;border-bottom:1px solid #e5ecf7!important;padding-bottom:7px!important;margin-bottom:4px}
- .driving-designed .driving-workspace-table td:before{grid-column:1;font-size:11px}.driving-designed .driving-workspace-table td>small{grid-column:2}.driving-designed .driving-workspace-table td:first-child>small{display:block;margin-top:3px}
- .driving-designed .driving-workspace-table td>.driving-state{justify-self:start}.driving-designed .driving-roster-search{display:grid;grid-template-columns:1fr;gap:8px}.driving-designed .driving-roster-search label{max-width:none;width:100%}
- .driving-designed .driving-person-grid>.card{margin:0}.driving-designed .driving-detail-metric .btn{min-height:42px}.driving-designed .driving-facts{grid-template-columns:1fr}.driving-designed .driving-filters{grid-template-columns:1fr 1fr}.driving-designed .driving-used-vehicles .driving-actions{flex-wrap:wrap}
+@media(min-width:769px) and (max-width:1000px){
+ body:has(.driving-designed):not(.sidebar-collapsed) .sidebar{width:160px;min-width:160px}
+ body:has(.driving-designed) .sidebar-head{padding:16px 12px}
+ body:has(.driving-designed) .logo{gap:8px}body:has(.driving-designed) .logo-text{font-size:20px}
+ body:has(.driving-designed) .sidebar-nav .menu-item{font-size:12px;padding:12px 14px}
+ body:has(.driving-designed) .sidebar-nav .submenu-item{padding-left:37px;font-size:11px}
+ body:has(.driving-designed) .sidebar-nav .menu-icon{width:24px;height:24px;margin-right:6px}
+ body:has(.driving-designed) .main-content{padding:16px}
+ .driving-page-title h2{font-size:20px}
+ .driving-designed .driving-finding{grid-template-columns:125px minmax(0,1fr)}
+ .driving-designed .driving-main-filters{gap:8px}
 }
-
-.driving-designed.driving-own .driving-main-filters{grid-template-columns:minmax(160px,220px) auto;justify-content:start}
-.driving-designed.driving-own .driving-main-filters .driving-filter-actions{margin:0;align-self:end;grid-column:auto;min-height:36px}
-.driving-designed .driving-workspace-table td strong small{display:inline;margin:0 0 0 3px}
-.driving-designed .driving-workspace-table td>div+div{margin-top:7px}
-@media(max-width:650px){.driving-designed.driving-own .driving-main-filters{grid-template-columns:minmax(0,1fr) auto}.driving-designed.driving-own .driving-main-filters .driving-filter-actions{min-height:42px;gap:8px}.driving-designed .driving-heading{flex-direction:row;align-items:center}.driving-designed .driving-heading h2{flex:1}.driving-designed .driving-heading .driving-actions{width:auto}}
+@media(max-width:768px){
+ body:has(.driving-designed) .top-bar .driving-page-title{position:relative;flex:1;flex-wrap:wrap;gap:0 8px}
+ .driving-page-title h2{font-size:19px}
+ body:has(.driving-designed) .top-bar-user-name{display:none}
+ .driving-designed .driving-main-filters{gap:8px}
+ .driving-designed .driving-workspace-period{order:3;flex:1 0 100%}
+ .driving-designed .driving-toolbar-actions{margin-left:auto}
+ .driving-designed .driving-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .driving-designed .driving-reflection-controls time{display:none}
+ .driving-designed .driving-finding{grid-template-columns:110px minmax(0,1fr)}
+}
+@media(max-width:650px){
+ .driving-page.driving-designed .card{padding:12px;margin:9px 0;border-radius:12px}
+ .driving-page.driving-designed .driving-main-filters{display:flex;gap:6px 8px}
+ .driving-page.driving-designed .driving-main-filters>label{display:flex;flex:0 1 auto;align-items:center;font-size:11px;width:auto;grid-column:auto}
+ .driving-page.driving-designed .driving-main-filters select{font-size:14px;min-height:36px;width:125px}
+ .driving-page.driving-designed .driving-main-filters .driving-period-label select{width:88px}
+ .driving-page.driving-designed .driving-filter-actions{grid-column:auto;margin:0;min-height:0}
+ .driving-designed .driving-toolbar-actions{gap:5px}
+ .driving-page.driving-designed .btn{min-height:34px;padding:6px 8px;font-size:11px}
+ .driving-designed .driving-toolbar-actions>a{font-size:10px}
+ .driving-page.driving-designed .driving-compact-summary{gap:4px 10px;font-size:10px}
+ .driving-designed .driving-compact-summary strong{font-size:13px;margin-left:1px}
+ .driving-page.driving-designed .driving-finding{grid-template-columns:1fr;padding:10px;gap:4px}
+ .driving-designed .driving-finding-label{font-size:11px}
+ .driving-designed .driving-finding h4{font-size:13px}
+ .driving-page.driving-designed .driving-key-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .driving-page.driving-designed .driving-key-metrics article{padding:8px 6px}
+ .driving-page.driving-designed .driving-key-metrics strong{font-size:21px;gap:1px}
+ .driving-page.driving-designed .driving-key-metrics strong small{font-size:9px}
+ .driving-designed .driving-key-metrics small{font-size:9px}
+ .driving-designed .driving-metric-select{font-size:10px}
+ .driving-designed .driving-section-heading{flex-wrap:wrap}
+ .driving-designed .driving-metric-tabs a{padding:4px 8px;min-height:28px;font-size:10px}
+ .driving-page.driving-designed .driving-workspace-table tbody tr{display:block!important;border:1px solid var(--driving-line);border-radius:8px;background:#f9fbff;margin:8px 0;padding:9px!important}
+ .driving-page.driving-designed .driving-workspace-table td{display:block!important;min-width:0;padding:4px 0!important;font-size:12px;position:static;max-width:none}
+ .driving-designed .driving-workspace-table td:before{font-size:10px;margin:0}
+ .driving-designed .driving-workspace-table td:first-child{border-bottom:1px solid var(--driving-line)!important;padding-bottom:7px!important;margin-bottom:4px;background:transparent}
+ .driving-designed .driving-workspace-table td:first-child:before{display:none}
+ .driving-designed .driving-roster-search{display:flex;gap:6px}
+ .driving-designed .driving-roster-search label{flex:1 1 110px}
+ .driving-designed .driving-facts{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){.driving-designed *{scroll-behavior:auto}}
+/* The condition editor expands below the one-line toolbar. */
+.driving-page.driving-designed .driving-extra-filters{margin:0;position:relative;flex:0 0 auto}
+.driving-page.driving-designed .driving-extra-filters:not([open])>.driving-reset{display:none}
+.driving-page.driving-designed .driving-extra-filters[open]{flex:1 0 100%;order:5;margin-top:4px}
+.driving-page.driving-designed .driving-extra-filters[open]>.driving-filter-actions{margin-top:10px;justify-content:flex-end}
+.driving-page.driving-designed .driving-reflection-controls time{font-size:10px}
+.driving-page.driving-designed .driving-reflection .driving-section-heading{margin-bottom:10px}
+.driving-page.driving-designed .driving-finding{padding:10px;min-height:82px}
+.driving-page.driving-designed .card{padding:13px!important;margin:10px 0!important;border:1px solid #fff!important;border-radius:13px!important;box-shadow:none!important;background:#fcfdff!important}
+.driving-page.driving-designed .driving-finding h4{font-weight:600;font-size:13px}
+body:has(.driving-designed) .main-content{border-radius:0}
+body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
+@media(min-width:769px) and (max-width:1000px){
+ body:has(.driving-designed):not(.sidebar-collapsed) .sidebar{width:174px;min-width:174px}
+ body:has(.driving-designed) .sidebar-nav .menu-item{font-size:12px;padding:12px 14px!important}
+ body:has(.driving-designed) .sidebar-nav .submenu-item{padding-left:40px!important;font-size:11px}
+ body:has(.driving-designed) .sidebar-nav .menu-text{min-width:0;overflow-wrap:anywhere}
+}
+@media(min-width:769px){
+ body:has(.driving-designed) .app-layout{gap:0}
+ body:has(.driving-designed) .sidebar-nav .submenu-item{padding-right:8px!important;white-space:nowrap}
+ body:has(.driving-designed) .sidebar-nav .submenu-item .menu-text{white-space:nowrap}
+}
