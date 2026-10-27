@@ -230,7 +230,7 @@ def register_reflections(app, db, prepare, history):
         # this subscription to the immutable account, role and exact filters;
         # never transfer one person's automatic refresh to another account.
         refresh_scope=hashlib.sha256(json.dumps([user.company_code,user.id,user.role,user.username,dict(filters)],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
-        document={'scope':board['scope_name'], 'period':board['period'], 'role':'manager' if driving_access.administrator() else 'self',
+        document={'scope':board['scope_name'], 'period':board['period'], 'role':'self' if board.get('personal_view') or not driving_access.administrator() else 'manager',
                   'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence)),
                   'refresh_scope':refresh_scope,'registered_vehicle_conditions':board.get('registered_vehicle_conditions',[]),
                   'current_affiliations':board.get('current_affiliations',[])}
@@ -259,7 +259,7 @@ def register_reflections(app, db, prepare, history):
                     evidence=current.get(saved.get('id'))
                     if not evidence or saved.get('action') not in [ACTIONS[a] for a in evidence['allowed_actions']]:
                         state.update(status='failed',items=[]);break
-                    links,sources=navigation(evidence,filters,board,rows+previous,driving_access.administrator())
+                    links,sources=navigation(evidence,filters,board,rows+previous,driving_access.administrator() and not board.get('personal_view'))
                     state['items'].append(present_finding({**evidence,'action':saved['action'],'links':links,'report_links':sources}, board))
         elif state['status']=='new' and state['configured']:
             state['auto_refresh']=DrivingReportReflection.query.filter_by(company_code=session['company_code'],status='completed').filter(

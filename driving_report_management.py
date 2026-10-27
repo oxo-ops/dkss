@@ -61,10 +61,12 @@ def register_driving_reports(app, db, g):
         try:resolved=workspace.scope_filter(args,choices,user.office if user else None,True)
         except ValueError as exc:abort(400,str(exc))
         return resolved,choices,masters,users
-    def condition_vehicles():
+    def personal_view(args):
+        return not readership.administrator() or args.get('scope')=='self'
+    def condition_vehicles(args):
         query=Vehicle.query.filter_by(company_code=session['company_code'])
-        if not readership.administrator():
-            visible=readership.visible(Record.query.filter_by(company_code=session['company_code']).all())
+        if personal_view(args):
+            visible=readership.visible(Record.query.filter_by(company_code=session['company_code']).all(),personal=True)
             query=query.filter(Vehicle.id.in_({r.vehicle_record_id for r in visible}))
         return query.all()
     def selected(args=None):
@@ -81,7 +83,7 @@ def register_driving_reports(app, db, g):
             try:vid=int(args['vehicle'])
             except ValueError:abort(400)
             q=q.filter_by(vehicle_record_id=vid)
-        rows=readership.visible(q.order_by(Record.operation_date.desc(),Record.id.desc()).all())
+        rows=readership.visible(q.order_by(Record.operation_date.desc(),Record.id.desc()).all(),personal=personal_view(args))
         office=workspace.scope_name(args,choices,readership.administrator())
         if readership.administrator() and args['scope']=='office':
             rows=[r for r in rows if office and workspace.report_office(r)==office]
@@ -100,7 +102,7 @@ def register_driving_reports(app, db, g):
             today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
             rows=[r for r in rows if comparisons.followup_status(r,today)==due]
         if any(args.get(field) for field in vehicle_conditions.FIELDS):
-            try:rows=vehicle_conditions.apply(rows,condition_vehicles(),args)
+            try:rows=vehicle_conditions.apply(rows,condition_vehicles(args),args)
             except ValueError as exc:abort(400,str(exc))
         return rows
     def view(row,ops=None,vehicle_label=None):
@@ -138,9 +140,10 @@ def register_driving_reports(app, db, g):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
         if args.get('category','safety') not in {'safety','economy','other'}:abort(400)
         args,office_options,master_drivers,company_users=workspace_scope(args)
+        manager=not personal_view(args)
         if args.get('listing','offices') not in {'offices','people'}:abort(400)
         if args.get('breakdown','people') not in {'offices','people','vehicle','vehicles'}:abort(400)
-        if not readership.administrator():
+        if not manager:
             args['breakdown']='vehicles'
             args.pop('driver',None)
         today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
@@ -158,9 +161,9 @@ def register_driving_reports(app, db, g):
             if period['previous_start']:windows.append(and_(column>=period['previous_start'],column<=period['previous_end']))
             return or_(*windows)
         if period['start'] or period['end']:q=q.filter(date_windows(Record.operation_date))
-        context=readership.visible(q.all())
+        context=readership.visible(q.all(),personal=not manager)
         vehicle_query=Vehicle.query.filter_by(company_code=session['company_code'])
-        if not readership.administrator():vehicle_query=vehicle_query.filter(Vehicle.id.in_({r.vehicle_record_id for r in context}))
+        if not manager:vehicle_query=vehicle_query.filter(Vehicle.id.in_({r.vehicle_record_id for r in context}))
         vehicles=vehicle_query.all()
         labels={v.id:g['vehicle_number']({f:getattr(v,f) or '' for f in ['plate_area','plate_class','plate_kana','plate_number']}) or v.chassis_number or '車両 '+str(v.id) for v in vehicles}
         ids={r.vehicle_record_id for r in context};ops={}
@@ -182,12 +185,12 @@ def register_driving_reports(app, db, g):
         # office/person as the representative or as a source of metric values.
         office=workspace.scope_name(resolved,office_options,readership.administrator())
         def in_scope(row):
-            return (not readership.administrator() or resolved['scope']=='company' or
+            return (not manager or resolved['scope']=='company' or
                     bool(office) and workspace.report_office(row)==office) and (
                     not args.get('focus') or keys.get(row.id)==args['focus'])
-        usage_context=[r for r in current_context if (not readership.administrator() or resolved['scope']=='company' or bool(office) and workspace.report_office(r)==office)]
+        usage_context=[r for r in current_context if (not manager or resolved['scope']=='company' or bool(office) and workspace.report_office(r)==office)]
         shared_facts=[]
-        if readership.administrator() and args.get('focus'):
+        if manager and args.get('focus'):
             shared_facts,_=collect(unfocused_rows,ops,keys,usage_context)
             for fact in shared_facts:
                 fact['identified']=fact['row'].id in confirmed or fact['identified'] and fact['driver_key'] not in warning_keys
@@ -202,12 +205,12 @@ def register_driving_reports(app, db, g):
         for fact in facts+before:
             fact['vehicle_conditions']=registered.get(fact['vehicle_id'],{})
         board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),args.get('focus',''))
-        if not readership.administrator() and not args.get('focus') and len(board['drivers'])==1:
+        if not manager and not args.get('focus') and len(board['drivers'])==1:
             resolved['focus']=board['drivers'][0]['key']
             board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),resolved['focus'])
         for driver in board['drivers']:
             driver['identity_warning']=not driver['identified'] or driver['key'] in warning_keys
-        board['condition_choices']=vehicle_conditions.choices(condition_vehicles())
+        board['condition_choices']=vehicle_conditions.choices(condition_vehicles(resolved))
         board['condition_labels']={field:label for field,(_,label) in vehicle_conditions.FIELDS.items()}
         board['condition_caption']=' ／ '.join(label+'：'+next((item['name'] for item in board['condition_choices'][field] if item['key']==resolved.get(field)), '未登録・不明') for field,label in board['condition_labels'].items() if resolved.get(field)) or '指定なし'
         board['registered_vehicle_conditions']=[registered[vid] for vid in sorted({f['vehicle_id'] for f in facts+before}) if vid in registered]
@@ -221,11 +224,12 @@ def register_driving_reports(app, db, g):
         board['reader_count']=len(scope)
         board['reader_version']=hashlib.sha256(json.dumps([(r.id,version(r)) for r in scope]).encode()).hexdigest()
         board['reader_rows']=scope
-        workspace.enrich(board,facts,before,master_drivers,company_users,confirmed,office_options,resolved,readership.administrator())
+        workspace.enrich(board,facts,before,master_drivers,company_users,confirmed,office_options,resolved,manager)
         board['scope']=resolved['scope']
+        board['personal_view']=not manager
         mode=resolved.get('breakdown') or ('vehicles' if focus else 'offices' if resolved['scope']=='company' else 'people')
         comparison_ready=not ((mode=='vehicle' and not resolved.get('vehicle')) or (mode=='vehicles' and not focus))
-        board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,readership.administrator())
+        board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,manager)
         board['comparison']['ready']=comparison_ready
         review_items=comparisons.followups(rows)
         board['followups']=review_items
@@ -244,7 +248,7 @@ def register_driving_reports(app, db, g):
     def history_context(board,facts):
         focus=board['selected_driver']
         ids={f['vehicle_id'] for f in facts if focus and f['driver_key']==focus['key']}
-        if not ids or not readership.administrator():return []
+        if not ids or not readership.administrator() or board.get('personal_view'):return []
         cutoff=board['period']['end'] or datetime.now(ZoneInfo('Asia/Tokyo')).date().isoformat()
         M=g['VehicleMaintenanceRecord']
         records=M.query.filter(M.company_code==session['company_code'],M.vehicle_record_id.in_(ids),
@@ -284,7 +288,8 @@ def register_driving_reports(app, db, g):
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
             summary=summary,insights=board,reflection=reflection,driving_user_office=(getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''),vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
             driving_vehicles=vehicle_links.build(board,facts,filters),
-            insight_number=number,reader_users=g['User'].query.filter_by(company_code=session['company_code'],role='user').order_by(g['User'].username).all() if readership.administrator() else [])
+            driving_can_manage=readership.administrator(),driving_is_admin=not board['personal_view'],
+            insight_number=number,reader_users=g['User'].query.filter(g['User'].company_code==session['company_code'],g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
 
     @app.route('/safety/driving-reports/vehicle-candidates', methods=['POST'])
     def driving_vehicle_candidates():
@@ -301,7 +306,7 @@ def register_driving_reports(app, db, g):
         return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all() if readership.administrator() else [],
             reader=readership.reader(row) if readership.administrator() else None,
             reader_current=bool(readership.reader(row) and readership.reader(row).identity_hash==readership.fingerprint(row)) if readership.administrator() else False,
-            reader_users=g['User'].query.filter_by(company_code=row.company_code,role='user').order_by(g['User'].username).all() if readership.administrator() else [])
+            reader_users=g['User'].query.filter(g['User'].company_code==row.company_code,g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
     def change(row,kind,detail):
         p=payload(row);events=p.setdefault('audit',[])
         if len(events)>=1000:abort(409,'変更履歴の保存上限です。管理者へ確認してください。')

@@ -34,7 +34,7 @@
   });
   if(!location.hash&&sessionStorage.getItem(positionKey)){requestAnimationFrame(()=>scrollTo(0,Number(sessionStorage.getItem(positionKey))||0));}
   form?.querySelector('[data-office-select]')?.addEventListener('change',event=>{
-   const scope=form.querySelector('[name=scope]');if(scope)scope.value=event.target.value==='__company__'?'company':'office';
+   const scope=form.querySelector('[name=scope]');if(scope)scope.value=event.target.value==='__company__'?'company':event.target.value==='__self__'?'self':'office';
    form.querySelector('[name=focus]')?.remove();form.querySelector('[name=listing]')?.remove();
    form.requestSubmit();
   });
