@@ -186,7 +186,7 @@ def register_reflections(app, db, prepare, history):
         refresh_scope=hashlib.sha256(json.dumps([user.company_code,user.id,user.role,user.username,dict(filters)],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         document={'scope':board['scope_name'], 'period':board['period'], 'role':'manager' if driving_access.administrator() else 'self',
                   'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence)),
-                  'refresh_scope':refresh_scope}
+                  'refresh_scope':refresh_scope,'registered_vehicle_conditions':board.get('registered_vehicle_conditions',[])}
         vehicle_context=[(v['id'],v.get('context')) for v in vehicles]
         identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,'reflection-v2-maintenance']
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()

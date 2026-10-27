@@ -12,6 +12,7 @@ from driving_report_pdf import export_pdf
 import driving_report_workspace as workspace
 import driving_report_comparisons as comparisons
 import driving_report_maintenance as maintenance_context
+import driving_report_conditions as vehicle_conditions
 from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
@@ -58,6 +59,12 @@ def register_driving_reports(app, db, g):
         try:resolved=workspace.scope_filter(args,choices,user.office if user else None,True)
         except ValueError as exc:abort(400,str(exc))
         return resolved,choices,masters,users
+    def condition_vehicles():
+        query=Vehicle.query.filter_by(company_code=session['company_code'])
+        if not readership.administrator():
+            visible=readership.visible(Record.query.filter_by(company_code=session['company_code']).all())
+            query=query.filter(Vehicle.id.in_({r.vehicle_record_id for r in visible}))
+        return query.all()
     def selected(args=None):
         args=request.args if args is None else args
         access();args,choices,_,_=workspace_scope(args);q=Record.query.filter_by(company_code=session['company_code'])
@@ -90,6 +97,9 @@ def register_driving_reports(app, db, g):
         if due:
             today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
             rows=[r for r in rows if comparisons.followup_status(r,today)==due]
+        if any(args.get(field) for field in vehicle_conditions.FIELDS):
+            try:rows=vehicle_conditions.apply(rows,condition_vehicles(),args)
+            except ValueError as exc:abort(400,str(exc))
         return rows
     def view(row,ops=None,vehicle_label=None):
         p=payload(row);v=Vehicle.query.filter_by(company_code=row.company_code,id=row.vehicle_record_id).first() if vehicle_label is None else None
@@ -120,7 +130,7 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown','compare_start','compare_end','followup_due'}
+        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown','compare_start','compare_end','followup_due','vehicle_make','vehicle_model','vehicle_body','vehicle_year'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
@@ -159,6 +169,7 @@ def register_driving_reports(app, db, g):
         warning_keys={keys[r.id] for r in context if driver_keys([r])[0][r.id] in conflicting}
         confirmed=readership.bindings(context)
         for record_id,grant in confirmed.items():keys[record_id]=readership.account_key(grant)
+        unfocused_rows=list(rows)
         if args.get('focus'):
             rows=[r for r in rows if keys.get(r.id)==args['focus']]
             previous=[r for r in previous if keys.get(r.id)==args['focus']]
@@ -171,6 +182,12 @@ def register_driving_reports(app, db, g):
             return (not readership.administrator() or resolved['scope']=='company' or
                     bool(office) and workspace.report_office(row)==office) and (
                     not args.get('focus') or keys.get(row.id)==args['focus'])
+        usage_context=[r for r in current_context if (not readership.administrator() or resolved['scope']=='company' or bool(office) and workspace.report_office(r)==office)]
+        shared_facts=[]
+        if readership.administrator() and args.get('focus'):
+            shared_facts,_=collect(unfocused_rows,ops,keys,usage_context)
+            for fact in shared_facts:
+                fact['identified']=fact['row'].id in confirmed or fact['identified'] and fact['driver_key'] not in warning_keys
         current_context=[r for r in current_context if in_scope(r)]
         previous_context=[r for r in previous_context if in_scope(r)]
         facts,issues=collect(rows,ops,keys,current_context)
@@ -178,12 +195,20 @@ def register_driving_reports(app, db, g):
         for fact in facts+before:
             if fact['row'].id in confirmed:
                 fact['identified']=True;fact['identity_confirmed']=True
+        registered={v.id:vehicle_conditions.metadata(v) for v in vehicles}
+        for fact in facts+before:
+            fact['vehicle_conditions']=registered.get(fact['vehicle_id'],{})
         board=insights_dashboard(facts,before,labels,args.get('metric',''),args.get('focus',''))
         if not readership.administrator() and not args.get('focus') and len(board['drivers'])==1:
             resolved['focus']=board['drivers'][0]['key']
             board=insights_dashboard(facts,before,labels,args.get('metric',''),resolved['focus'])
         for driver in board['drivers']:
             driver['identity_warning']=not driver['identified'] or driver['key'] in warning_keys
+        board['condition_choices']=vehicle_conditions.choices(condition_vehicles())
+        board['condition_labels']={field:label for field,(_,label) in vehicle_conditions.FIELDS.items()}
+        board['condition_caption']=' ／ '.join(label+'：'+next((item['name'] for item in board['condition_choices'][field] if item['key']==resolved.get(field)), '未登録・不明') for field,label in board['condition_labels'].items() if resolved.get(field)) or '指定なし'
+        board['registered_vehicle_conditions']=[registered[vid] for vid in sorted({f['vehicle_id'] for f in facts+before}) if vid in registered]
+        board['shared_vehicle_usage']=vehicle_conditions.usage(shared_facts)
         board.update(period=period,issues=issues,previous_issues=old_issues,labels=labels,
             review_notes=review_notes(rows,facts,issues,conflicting),
             pending_count=sum((payload(r).get('review') or {}).get('state') in {'coaching','followup'} and payload(r).get('lifecycle') not in {'cancelled','superseded'} for r in rows))
@@ -238,7 +263,7 @@ def register_driving_reports(app, db, g):
             factual,_,_=maintenance_context.filter_vehicle_maintenance_factual_history(grouped[vid])
             result.append({'id':vid,'label':board['labels'].get(vid,'車両 '+str(vid)),
                 'summary':insights_dashboard([f for f in facts if f['vehicle_id']==vid and f['driver_key']==focus['key']],[],board['labels'],board['metric_id'])['summary'],
-                'records':factual,'context':context})
+                'records':factual,'context':context,'usage':board.get('shared_vehicle_usage',{}).get(vid,[])})
         return result
 
     @app.route('/safety/driving-reports')
@@ -389,6 +414,8 @@ def register_driving_reports(app, db, g):
                 for part in context['parts']:
                     output.append([vehicle['id'],vehicle['label'],context['as_of'],'交換記録',part['name'],'',part['date'],part['mileage'],part['distance_since'],part['days_since'],part['maintenance_id'],cost['start'],cost['end']])
         if format=='csv':
+            heading += ['車両条件（現在の台帳）']
+            output=[values+[board['condition_caption']] for values in output]
             out=io.StringIO();writer=csv.writer(out);writer.writerow(heading)
             def safe(value):
                 text=str(value) if value is not None else ''
@@ -424,6 +451,7 @@ def register_driving_reports(app, db, g):
                 lines += [vehicle['label']+' 使用車両の整備情報',f'車両全体の実費 {number(cost["total"])}円 ({cost["start"] or "登録開始"} ～ {cost["end"]})', '他の乗務員の使用分を含む車両全体の実費。最後の乗務員へ帰属させない。']
                 for part in context['parts']:
                     lines += [f'{part["name"]} {part["date"]}交換 経過 {part["days_since"] if part["days_since"] is not None else "未算出"}日 交換後 {number(part["distance_since"])}km 整備記録 {part["maintenance_id"]}']
+            lines += ['車両条件（現在の台帳） '+board['condition_caption']]
             for group in summary['groups']:
                 lines += [f'比較可能指標 {group["source_system"]} {group["version"]} {group["name"]} 単位 {group["unit"]} {group["count"]}件',f'定義 {group["definition"]} 条件 {group["threshold"] or "不明"} 分子合計/分母合計 {group["ratio"] or "算出対象外"}']
             for r in rows:
