@@ -12,7 +12,18 @@
             <p class="invoice-key-facts"><span>点検 <span data-fact="record_date">{{ record.get('record_date') or '未入力' }}</span></span><span><span data-fact="mileage">{{ record.get('mileage') or '—' }}</span> km</span></p>
         </div>
     </div>
-    <div class="invoice-record-actions">
+    <div class="invoice-metadata invoice-registration-target">
+<label class="invoice-input-wide">登録先の車両
+                {% call searchable_select('登録先の車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
+                    <option value="">未選択（登録待ちへ保存）</option>
+                    {% for choice in vehicle_choices %}
+                    <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number }}" data-vehicle-chassis="{{ choice.chassis_number }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
+                    {% endfor %}
+                {% endcall %}
+            </label>
+</div>
+
+<div class="invoice-record-actions">
         <label class="invoice-include"><input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("import_duplicate") %}disabled aria-label="登録済みのため取り込み対象外"{% endif %} {% if record.get('include', true) %}checked{% endif %}>この記録を取り込む</label>
         <button type="button" class="invoice-button" data-toggle-info aria-controls="invoice_info_{{ row_key }}" aria-expanded="{{ 'true' if needs_input else 'false' }}">{{ '修正を閉じる' if needs_input else '情報を修正' }}</button>
     </div>
@@ -34,14 +45,7 @@
     <div class="invoice-info-editor" id="invoice_info_{{ row_key }}" {% if not needs_input %}hidden{% endif %}>
         <div class="invoice-section-heading"><strong>基本情報を修正</strong><span class="invoice-change-label" data-info-change hidden>修正済み</span></div>
         <div class="invoice-input-grid">
-            <label class="invoice-input-wide">対象車両
-                {% call searchable_select('対象車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
-                    <option value="">未選択（登録待ちへ保存）</option>
-                    {% for choice in vehicle_choices %}
-                    <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number }}" data-vehicle-chassis="{{ choice.chassis_number }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
-                    {% endfor %}
-                {% endcall %}
-            </label>
+
             <label>点検日<input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}"></label>
             <label>点検区分<select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
                 <option value="">選択してください</option>

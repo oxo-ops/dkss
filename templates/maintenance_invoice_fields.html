@@ -38,6 +38,18 @@
     </div>
 </div>
 
+<div class="invoice-metadata invoice-registration-target">
+<label class="invoice-input-wide">
+            登録先の車両
+            {% call searchable_select('登録先の車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
+                <option value="">未選択（登録待ちへ保存）</option>
+                {% for choice in vehicle_choices %}
+                <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number or '' }}" data-vehicle-chassis="{{ choice.chassis_number or '' }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
+                {% endfor %}
+            {% endcall %}
+        </label>
+</div>
+
 <div class="invoice-record-actions">
     <label class="invoice-include">
         <input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("import_duplicate") %}disabled aria-label="登録済みのため取り込み対象外"{% endif %} {% if record.get('include', true) %}checked{% endif %}>
@@ -106,15 +118,7 @@
         <span class="invoice-change-label" data-info-change hidden>修正済み</span>
     </div>
     <div class="invoice-input-grid">
-        <label class="invoice-input-wide">
-            対象車両
-            {% call searchable_select('対象車両', '車番・車台番号で検索', 'vehicle_' ~ row_key, 'vehicle_' ~ row_key) %}
-                <option value="">選択してください</option>
-                {% for choice in vehicle_choices %}
-                <option value="{{ choice.id }}" data-vehicle-number="{{ choice.number or '' }}" data-vehicle-chassis="{{ choice.chassis_number or '' }}" data-vehicle-deleted="{{ 'true' if choice.deleted else 'false' }}" {% if record.get('vehicle_record_id')|string == choice.id|string %}selected{% endif %}>{{ choice.number or choice.chassis_number }}{% if choice.deleted %}（無効）{% endif %}</option>
-                {% endfor %}
-            {% endcall %}
-        </label>
+
         <label>
             入庫日
             <input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}">

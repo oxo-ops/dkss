@@ -657,6 +657,24 @@ def prepare_vehicle_document_import(files, document_type):
 
 
 
+def suggest_vehicle_document_type(draft, allow_ai=False):
+    """Suggest a clear alternative without importing or silently changing type."""
+    from document_type_detection import text_detection, detect_document_types, validate_detection
+    try:
+        detection = text_detection(draft.source_file)
+        if detection is None and allow_ai:
+            detection = detect_document_types(draft.source_file, draft.source_filename)
+        if detection is None:
+            return None
+        validate_detection(detection)
+        kinds = detection['types']
+        if detection['supported'] and detection['certainty'] == 'clear' and len(kinds) == 1:
+            return kinds[0] if kinds[0] != draft.document_type else None
+    except (ValueError, RuntimeError):
+        pass
+    return None
+
+
 def vehicle_data_import_progress():
     from flask import Response, stream_with_context
     from concurrent.futures import ThreadPoolExecutor
@@ -681,6 +699,13 @@ def vehicle_data_import_progress():
             return _dkss_common.json.dumps({'phase': phase, 'completed': completed, 'total': total, 'filename': filename, **extra}, ensure_ascii=False) + '\n'
         try:
             yield report('accepted', 0)
+            # Check all text PDFs before extracting any record from the batch.
+            for index, draft in enumerate(drafts):
+                suggested = suggest_vehicle_document_type(draft)
+                if suggested:
+                    yield report('type_mismatch', 0, draft.source_filename,
+                                 document_type=suggested, file_index=index)
+                    return
             for index, draft in enumerate(drafts):
                 yield report('reading', index, draft.source_filename)
                 draft.status = 'preview'
@@ -711,8 +736,14 @@ def vehicle_data_import_progress():
                         raise ValueError('OCR_NO_RECORDS')
                     ready.append(draft)
                 except (ValueError, RuntimeError) as error:
-                    _dkss_runtime.app.logger.exception('資料の読み取り失敗: %s', draft.source_filename)
                     code = str(error).split(':', 1)[0]
+                    if code in {'NO_INVOICE_FOUND', 'NO_INSPECTION_FOUND', 'NO_DRIVING_REPORT_FOUND'}:
+                        suggested = suggest_vehicle_document_type(draft, allow_ai=True)
+                        if suggested:
+                            yield report('type_mismatch', index, draft.source_filename,
+                                         document_type=suggested, file_index=index)
+                            return
+                    _dkss_runtime.app.logger.exception('資料の読み取り失敗: %s', draft.source_filename)
                     reason = {'API_KEY_NOT_SET': 'AIの接続設定を確認してください。', 'OPENAI_NETWORK_OR_TIMEOUT': 'AIとの通信が中断、または時間切れになりました。', 'NO_INVOICE_FOUND': '整備請求書が見つかりませんでした。', 'NO_INSPECTION_FOUND': '点検表が見つかりませんでした。', 'NO_DRIVING_REPORT_FOUND': '安全運転日報が見つかりませんでした。', 'INVALID_DRIVING_REPORT_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_DRIVING_REPORT_EXTRACTION': '安全運転日報の読取結果を確認できませんでした。', 'INVALID_INSPECTION_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_INSPECTION_EXTRACTION': '点検表の読取結果を確認できませんでした。原本を確認して再試行してください。', 'OCR_NO_RECORDS': '資料の内容を読み取れませんでした。', 'DOCUMENT_TOO_LARGE': '1ファイル20MB以下にしてください。', 'CONVERTED_PDF_TOO_LARGE': '変換後の容量が20MBを超えています。画像を小さくしてください。', 'IMAGE_TOO_LARGE': '画像の縦横サイズを小さくしてください。', 'IMAGE_READ_FAILED': '画像を開けません。ファイルを確認してください。', 'INVALID_SOURCE_PAGES': '読取結果のページ番号を確認できませんでした。', 'EXTRACTION_NOT_COMPLETED': 'AIの読み取りが完了しませんでした。'}.get(code, '読み取りに失敗しました。資料とサーバーログを確認してください。')
                     reason = getattr(error, 'user_message', None) or reason
                     failures.append({'filename': draft.source_filename, 'reason': reason})
