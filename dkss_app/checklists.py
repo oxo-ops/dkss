@@ -2886,18 +2886,21 @@ def vehicle_checklist_results(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
+    local_now = _dkss_checklist_common.get_user_local_now(
+        checklist_record.company_code, _dkss_common.session.get("username")
+    )
 
     if checklist["target"] != "車両管理":
         return _dkss_common.redirect("/vehicle/checklists")
 
     year = _dkss_common.request.args.get(
         "year",
-        str(_dkss_common.datetime.now().year)
+        str(local_now.year)
     ).strip()
 
     month = _dkss_common.request.args.get(
         "month",
-        str(_dkss_common.datetime.now().month).zfill(2)
+        str(local_now.month).zfill(2)
     ).strip()
 
     vehicle_record_id = _dkss_common.request.args.get(
@@ -2951,16 +2954,16 @@ def vehicle_checklist_results(index):
             ])
 
     if checklist.get("frequency_unit") == "year":
-        default_active_day = str(_dkss_common.datetime.now().year)
+        default_active_day = str(local_now.year)
     elif checklist.get("display_type") == "month":
-        default_active_day = str(_dkss_common.datetime.now().day).zfill(2)
+        default_active_day = str(local_now.day).zfill(2)
     else:
-        default_active_day = str(_dkss_common.datetime.now().month).zfill(2)
+        default_active_day = str(local_now.month).zfill(2)
 
     active_day = _dkss_common.request.args.get("active_day", default_active_day)
 
     if not active_day:
-        active_day = _dkss_common.datetime.now().strftime("%d")
+        active_day = default_active_day
 
     display_days = []
     input_days = []
@@ -7034,6 +7037,9 @@ def save_vehicle_checklist_one(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
+    local_now = _dkss_checklist_common.get_user_local_now(
+        checklist_record.company_code, _dkss_common.session.get("username")
+    )
 
     if checklist.get("target") != "車両管理":
         return _dkss_common.redirect("/vehicle/checklists")
@@ -7307,9 +7313,7 @@ def save_vehicle_checklist_one(index):
             day=day,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=local_now.strftime("%Y-%m-%d %H:%M"),
             status="入力中",
             approved_by="",
             approved_by_username="",
@@ -7370,7 +7374,7 @@ def save_vehicle_checklist_one(index):
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
-    result_record.checked_date = _dkss_common.datetime.now().strftime("%Y-%m-%d %H:%M")
+    result_record.checked_date = local_now.strftime("%Y-%m-%d %H:%M")
     result_record.status = (
         "差し戻し"
         if was_rejected
@@ -7444,7 +7448,7 @@ def save_vehicle_checklist_one(index):
                 },
                 ensure_ascii=False
             ),
-            created_at=_dkss_common.datetime.now().strftime(
+            created_at=local_now.strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
         )
@@ -7498,6 +7502,9 @@ def save_vehicle_checklist_detail(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
+    local_now = _dkss_checklist_common.get_user_local_now(
+        checklist_record.company_code, _dkss_common.session.get("username")
+    )
 
     if checklist.get("target") != "車両管理":
         return _dkss_common.redirect("/vehicle/checklists")
@@ -7765,9 +7772,7 @@ def save_vehicle_checklist_detail(index):
             day=day,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=local_now.strftime("%Y-%m-%d %H:%M"),
             status="入力中",
             approved_by="",
             approved_by_username="",
@@ -7917,7 +7922,7 @@ def save_vehicle_checklist_detail(index):
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
-    result_record.checked_date = _dkss_common.datetime.now().strftime("%Y-%m-%d %H:%M")
+    result_record.checked_date = local_now.strftime("%Y-%m-%d %H:%M")
     result_record.status = (
         "差し戻し"
         if was_rejected
@@ -7988,7 +7993,7 @@ def save_vehicle_checklist_detail(index):
                 },
                 ensure_ascii=False
             ),
-            created_at=_dkss_common.datetime.now().strftime(
+            created_at=local_now.strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
         )
@@ -8057,6 +8062,9 @@ def complete_vehicle_checklist(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
+    local_now = _dkss_checklist_common.get_user_local_now(
+        checklist_record.company_code, _dkss_common.session.get("username")
+    )
 
     if checklist.get("target") != "車両管理":
         return _dkss_common.redirect("/vehicle/checklists")
@@ -8210,9 +8218,7 @@ def complete_vehicle_checklist(index):
             day=day,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=local_now.strftime("%Y-%m-%d %H:%M"),
             status="入力中",
             approved_by="",
             approved_by_username="",
@@ -8405,7 +8411,7 @@ def complete_vehicle_checklist(index):
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
     result_record.checked_date = (
-        _dkss_common.datetime.now().strftime("%Y-%m-%d %H:%M")
+        local_now.strftime("%Y-%m-%d %H:%M")
     )
 
     approvals = []
@@ -8584,7 +8590,7 @@ def complete_vehicle_checklist(index):
                 },
                 ensure_ascii=False
             ),
-            created_at=_dkss_common.datetime.now().strftime(
+            created_at=local_now.strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
         )
@@ -8731,6 +8737,9 @@ def new_vehicle_checklist_result(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
+    local_now = _dkss_checklist_common.get_user_local_now(
+        checklist_record.company_code, _dkss_common.session.get("username")
+    )
 
     if checklist["target"] != "車両管理":
         return _dkss_common.redirect("/vehicle/checklists")
@@ -9143,9 +9152,7 @@ def new_vehicle_checklist_result(index):
             day=day,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=local_now.strftime("%Y-%m-%d %H:%M"),
             status=(
                 "承認待ち"
                 if has_system_approval
@@ -9306,9 +9313,9 @@ def new_vehicle_checklist_result(index):
         checklist=checklist,
         checklist_index=checklist_record.id,
         mode="new",
-        now_year=_dkss_common.datetime.now().year,
-        now_month=_dkss_common.datetime.now().month,
-        now_day=_dkss_common.datetime.now().day
+        now_year=local_now.year,
+        now_month=local_now.month,
+        now_day=local_now.day
     )
 
 
