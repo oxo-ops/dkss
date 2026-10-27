@@ -184,6 +184,15 @@ def collect(rows, operations, keys=None, context=None):
     return facts,issues
 
 
+def identity_counts(facts, recognized_keys):
+    recognized=set(recognized_keys)
+    count=len({f['driver_key'] for f in facts if f['driver_key'] in recognized})
+    unknown=sum(f['driver_key'] not in recognized for f in facts)
+    return {'driver_count':count, 'unidentified_count':unknown,
+            'identity_display':' ／ '.join(([f'識別済み {count}人'] if count else [])+
+                                           ([f'乗務員未確認 {unknown}運行'] if unknown else [])) or '記録なし'}
+
+
 def summarize(facts, metric_id=None):
     chosen=[(f,m) for f in facts for m in f['metrics'] if m['id']==metric_id]
     count=len(facts);known=[f['distance'] for f in facts if f['distance'] is not None]

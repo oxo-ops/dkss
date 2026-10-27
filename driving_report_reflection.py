@@ -60,6 +60,8 @@ def build_evidence(board, facts, history):
                 finding=f"{office['name']}：{metric['name']} {now['display']} {metric['unit'] if metric['method']!='raw' else '（原本値）'}"
                 if entry['change'] is not None:finding+=f"。前期間 {old['display']}、差 {entry['change']} {metric['unit']}"
                 finding+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
+                if office.get('unidentified_count'):
+                    finding+=f"。乗務員未確認 {office['unidentified_count']}運行（人数には含めない）"
                 evidence.append({'id':str(len(evidence)), 'title':office['name']+'の傾向', 'finding':finding,
                     'reports':now['sources'], 'driver_key':'', 'office_key':office['key'],
                     'allowed_actions':['review_context','verify_data'], 'kind':'office',

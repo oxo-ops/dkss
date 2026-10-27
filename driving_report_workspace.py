@@ -1,7 +1,7 @@
 """Office navigation and roster; organizational filters never grant readership."""
 from collections import defaultdict
 from driving_report_data import payload
-from driving_report_insights import dashboard, digest, number, summarize
+from driving_report_insights import dashboard, digest, number, summarize, identity_counts
 
 
 UNKNOWN_OFFICE = '所属不明'
@@ -139,11 +139,14 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
     board['drivers'].sort(key=lambda p: ({'current':0,'other':1,'history_unknown':2,'unknown':3}.get(p.get('affiliation_status'),0), p['name'], p['key']))
     board['current_affiliations'] = [{'key': p['key'], 'office': p['current_office'], 'status':p['affiliation_status']}
                                     for p in board['drivers'] if administrator and p.get('has_records')]
+    recognized={p['key'] for p in board['drivers'] if p.get('has_records') and p['identified'] and not p.get('identity_warning')}
+    board['recognized_driver_keys']=sorted(recognized)
+    board['identity_counts']=identity_counts(facts,recognized)
     offices = []
     for office in choices:
         now = [f for f in facts if f['office'] == office['name']]
         old = [f for f in previous if f['office'] == office['name']]
-        offices.append({**office, 'summary': summarize(now), 'driver_count': len({f['driver_key'] for f in now}),
+        offices.append({**office, 'summary': summarize(now), **identity_counts(now,recognized),
                         'highlights': metric_changes(now, old, board['labels'])[:2],
                         'pending': sum((payload(f['row']).get('review') or {}).get('state') in {'coaching', 'followup'} for f in now)})
     board.update(office_choices=choices, office_summaries=offices, scope_name=selected_office,
