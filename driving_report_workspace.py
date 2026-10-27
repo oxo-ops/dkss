@@ -149,7 +149,8 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
         offices.append({**office, 'summary': summarize(now), **identity_counts(now,recognized),
                         'highlights': metric_changes(now, old, board['labels'])[:2],
                         'pending': sum((payload(f['row']).get('review') or {}).get('state') in {'coaching', 'followup'} for f in now)})
+    highlights=metric_changes(facts,previous,board['labels'])
     board.update(office_choices=choices, office_summaries=offices, scope_name=selected_office,
                  scope_missing=administrator and filters['scope']=='office' and not selected_office,
-                 highlights=metric_changes(facts, previous, board['labels'])[:4])
+                 highlights=highlights[:4],available_highlights=highlights)
     return board

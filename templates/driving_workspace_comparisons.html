@@ -1,4 +1,4 @@
-<details class="card driving-comparison-detail" id="comparison-detail" {% if filters.get('breakdown') or insights.selected_driver %}open{% endif %}>
+<details class="card driving-comparison-detail" id="comparison-detail" {% if filters.get('breakdown') %}open{% endif %}>
 <summary>条件をそろえて比較する</summary>
 <nav class="driving-comparison-tabs" aria-label="比較の切り替え">
 {% if driving_is_admin %}

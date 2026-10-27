@@ -20,6 +20,7 @@ from dkss_app.models import DrivingReportReflection, User
 from dkss_app.extensions import limiter
 from driving_report_data import payload, version
 from driving_report_insights import number, summarize
+from driving_report_presentation import finding as present_finding
 
 
 ACTIONS = {
@@ -259,7 +260,7 @@ def register_reflections(app, db, prepare, history):
                     if not evidence or saved.get('action') not in [ACTIONS[a] for a in evidence['allowed_actions']]:
                         state.update(status='failed',items=[]);break
                     links,sources=navigation(evidence,filters,board,rows+previous,driving_access.administrator())
-                    state['items'].append({**evidence,'action':saved['action'],'links':links,'report_links':sources})
+                    state['items'].append(present_finding({**evidence,'action':saved['action'],'links':links,'report_links':sources}))
         elif state['status']=='new' and state['configured']:
             state['auto_refresh']=DrivingReportReflection.query.filter_by(company_code=session['company_code'],status='completed').filter(
                 DrivingReportReflection.result_json.contains(document['refresh_scope'])).first() is not None

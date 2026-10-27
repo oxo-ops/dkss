@@ -13,6 +13,7 @@ import driving_report_workspace as workspace
 import driving_report_comparisons as comparisons
 import driving_report_maintenance as maintenance_context
 import driving_report_conditions as vehicle_conditions
+import driving_report_presentation as presentation
 from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
@@ -232,6 +233,7 @@ def register_driving_reports(app, db, g):
         board['comparison_days']=(date.fromisoformat(period['previous_end'])-date.fromisoformat(period['previous_start'])).days+1 if period['previous_start'] else None
         summaries={rid:fact for fact in facts for rid in fact['copies']}
         board['report_metrics']={rid:[m for m in fact['metrics'] if m['id']==board['metric_id']] for rid,fact in summaries.items()}
+        presentation.enrich(board,facts,previous)
         return rows,previous,ops,vehicles,resolved,board,facts
 
     reflection_service=register_reflections(app,db,prepare_insights,history=lambda board,facts:history_context(board,facts))

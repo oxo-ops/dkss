@@ -1,0 +1,84 @@
+"""Real navigation, provenance and role isolation in the redesigned workspace."""
+import json
+import unittest
+from urllib.parse import urlencode
+from driving_report_presentation import enrich, finding
+from driving_report_insights import driver_keys
+import test_driving_workspace as workspace_tests
+
+
+class WorkspaceUITests(unittest.TestCase):
+    setUpClass=classmethod(workspace_tests.WorkspaceTests.setUpClass.__func__)
+    tearDownClass=classmethod(workspace_tests.WorkspaceTests.tearDownClass.__func__)
+    setUp=workspace_tests.WorkspaceTests.setUp
+    tearDown=workspace_tests.WorkspaceTests.tearDown
+    save=workspace_tests.WorkspaceTests.save
+    render=workspace_tests.WorkspaceTests.render
+
+    def test_metric_category_navigation_keeps_office_and_original_quantities(self):
+        data=json.loads(self.a.details_json)
+        data.update(fuel_consumption='5',fuel_unit='L')
+        data['report_items'].append(dict(item_name='休憩',raw_result='1時間00分',unit='',status='confirmed'))
+        self.a.details_json=json.dumps(data);self.m.db.session.commit()
+        _,context=self.render(self.base)
+        board=context['insights']
+        categories={c['key']:c['metric_id'] for c in board['metric_categories']}
+        self.assertEqual(set(categories),{'safety','economy','other'})
+        for category,metric in categories.items():
+            response,selected=self.render(self.base+'&'+urlencode({'metric':metric}))
+            self.assertEqual(selected['insights']['metric_category'],category)
+            self.assertEqual(selected['insights']['summary']['distance'],20)
+            self.assertEqual(selected['filters']['office'],context['filters']['office'])
+            self.assertNotIn('小山の人',response.get_data(as_text=True))
+            self.assertIn('記録量・条件・出典',response.get_data(as_text=True))
+        _,raw=self.render(self.base+'&metric='+categories['other'])
+        self.assertEqual(raw['insights']['display_metrics'][0]['current']['display'],'1時間00分')
+
+    def test_general_user_sees_own_layout_and_no_management_controls(self):
+        from dkss_app import driving_access
+        from flask import session
+        self.m.db.session.add(self.m.User(company_code='TEST',username='one',role='user',password='unused',last_name='本人',password_changed_at='stamp'))
+        self.m.db.session.commit()
+        with self.m.app.test_request_context():
+            session.update(company_code='TEST',username='admin',role='admin')
+            driving_access.assign([self.a],'one','admin');self.m.db.session.commit()
+        with self.client.session_transaction() as state:state.update(username='one',role='user',password_changed_at='stamp')
+        response,context=self.render(self.base+'&scope=company&office=小山')
+        html=response.get_data(as_text=True)
+        self.assertEqual(context['filters']['scope'],'self');self.assertEqual(context['total'],1)
+        for label in ['自分の運転実績','前期間と比べる','日ごとの記録','次の振り返り']:self.assertIn(label,html)
+        for label in ['data-office-select','本人アカウントを設定','車両全体の整備実費','乗務員一覧へ戻る','小山の人','他社の秘密']:self.assertNotIn(label,html)
+        self.assertEqual(self.client.post('/safety/driving-reports/readers',data={}).status_code,403)
+
+    def test_admin_person_links_to_real_reader_and_daily_record_forms(self):
+        key=driver_keys([self.a])[0][self.a.id]
+        response,context=self.render(self.base+'&focus='+key)
+        html=response.get_data(as_text=True)
+        self.assertIn('id="reader-setting"',html)
+        self.assertIn('name="reader_version" value="'+context['insights']['reader_version']+'"',html)
+        self.assertIn('name="csrf_token"',html)
+        self.assertIn('日別の数値',html)
+        self.assertIn('日報から確認・指導を記録',html)
+        self.assertIn('id="report-list"',html)
+
+    def test_next_followup_uses_real_earliest_unfinished_date(self):
+        base={'groups':[],'available_highlights':[],'metric_id':'','followups':[
+            {'id':1,'review':{'state':'completed','next_date':'2020-01-01'}},
+            {'id':2,'review':{'state':'followup','next_date':'2026-11-02'}},
+            {'id':3,'review':{'state':'reviewed','next_date':'2026-10-28'}},
+            {'id':4,'review':{'state':'followup','next_date':'bad'}}]}
+        enrich(base,[],[])
+        self.assertEqual(base['next_followup']['id'],3)
+        self.assertEqual(base['followups'][0]['review']['state'],'completed')
+
+    def test_compact_ai_cards_keep_full_authorized_evidence(self):
+        source={'kind':'change','finding':'検知回数は前期間から変わりました。取得距離も確認してください。',
+                'context':'原数値 3回 ／ 対象距離 100 km','reports':[1],'action':'原本を確認'}
+        shown=finding(source)
+        self.assertEqual(shown['display_headline'],'検知回数は前期間から変わりました')
+        self.assertEqual(shown['finding'],source['finding']);self.assertEqual(shown['reports'],[1])
+        self.assertEqual(shown['context'],source['context']);self.assertEqual(shown['action'],source['action'])
+        self.assertNotIn('改善',shown['display_label'])
+
+
+if __name__=='__main__':unittest.main()
