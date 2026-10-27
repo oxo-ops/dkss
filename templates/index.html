@@ -782,7 +782,8 @@
             </div>
 
             <div id="dashboardTrendCost" role="tabpanel" aria-labelledby="dashboardTrendCostTab" tabindex="0" hidden>
-                <h4>月別整備費 <small>万円・直近7か月</small></h4>
+                <h4>月別整備費 <small>万円・直近7か月・整備時の営業所</small></h4>
+                {% if dashboard_office_trend.unassigned_count|default(0) %}<p class="dashboard-office-empty">整備時の営業所が未確定の記録：{{ dashboard_office_trend.unassigned_count }}件（会社全体）</p>{% endif %}
                 {% set trend = dashboard_office_trend %}
                 {% if trend.available %}
                 <svg viewBox="0 0 590 110" class="dashboard-reference-cost-chart" role="img" aria-label="{{ dashboard_scope_office }}の直近7か月の月別登録済み整備費">

@@ -55,6 +55,8 @@ def document_import_kind(draft_id):
             job.update(phase='cancelled',message='この資料の読み取りをキャンセルしました。')
             job.pop('token',None);job.pop('lease_until',None)
             row.status='deleted';row.source_file=b'';row.preview_json='{}';row.result_json=queue.result(job)
+            from .document_sources import purge_unreferenced
+            purge_unreferenced(row.company_code,row.source_sha256)
             db.session.commit()
         return redirect(back,code=303)
     kind=request.form.get('document_type')
@@ -91,7 +93,7 @@ def document_import_kind(draft_id):
             return redirect(url_for('document_import_job',batch_id=existing.batch_id,open=1),code=303)
         correction={'source_id':row.id,'digest':impact['correction_digest'],'vehicle_id':vehicle.id,'counts':impact['counts']}
         new=Draft(id=key,batch_id=str(uuid4()),company_code=row.company_code,created_by_username=session['username'],
-            document_type=kind,source_filename=row.source_filename,source_sha256=row.source_sha256,source_file=row.source_file,
+            document_type=kind,source_filename=row.source_filename,source_sha256=row.source_sha256,source_file=queue.store_source(row.company_code,row.source_sha256,row.source_file),
             status='queued',preview_json='{}',result_json=queue.result({'correction':correction}))
         db.session.add(new);row=new
     job=queue.metadata(row.result_json)

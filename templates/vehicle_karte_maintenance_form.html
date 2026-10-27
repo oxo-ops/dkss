@@ -199,6 +199,7 @@
             <div class="km-form-grid km-form-grid-two">
                 {{ field('invoice_number', '請求書番号', limit=100) }}
                 {{ field('invoice_date', '請求日', kind='date') }}
+                {{ field('cost_office', '整備時の営業所') }}
             </div>
             {{ field('notes', '備考', kind='textarea', limit=10000) }}
         </section>

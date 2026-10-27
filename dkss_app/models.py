@@ -1,6 +1,7 @@
 """Core table definitions. No app creation, connections, DDL or data writes."""
 from datetime import datetime
 from uuid import uuid4
+from sqlalchemy.orm import synonym
 from zoneinfo import ZoneInfo
 from .extensions import db
 
@@ -659,6 +660,48 @@ class VehiclePeriodicInspectionRecord(db.Model):
     )
 
 
+class VehicleDocumentSource(db.Model):
+    company_code = db.Column(db.String(50), primary_key=True)
+    sha256 = db.Column(db.String(64), primary_key=True)
+    content = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC")),
+    )
+
+
+class DocumentQueueSchedule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    version = db.Column(db.Integer, nullable=False, default=0)
+    last_company = db.Column(db.String(50), nullable=True)
+
+
+class DomainSchemaRevision(db.Model):
+    revision = db.Column(db.String(80), primary_key=True)
+    applied_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(ZoneInfo("UTC")),
+    )
+
+
+class AnalysisInputEpoch(db.Model):
+    company_code = db.Column(db.String(50), primary_key=True)
+    bucket = db.Column(db.String(80), primary_key=True)
+    revision = db.Column(db.BigInteger, nullable=False, default=0)
+
+
+class AnalysisInputReadCache(db.Model):
+    company_code = db.Column(db.String(50), primary_key=True)
+    vehicle_record_id = db.Column(db.Integer, primary_key=True)
+    context_hash = db.Column(db.String(64), nullable=False)
+    input_revision = db.Column(db.BigInteger, nullable=False)
+    projection_json = db.Column(db.Text, nullable=False)
+    computed_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
 class VehicleDocumentImportDraft(db.Model):
     id = db.Column(db.String(36), primary_key=True)
 
@@ -686,10 +729,17 @@ class VehicleDocumentImportDraft(db.Model):
         db.String(255),
         nullable=False
     )
-    source_file = db.Column(
-        db.LargeBinary,
-        nullable=False
-    )
+    _source_file = db.Column('source_file', db.LargeBinary, nullable=False)
+
+    def _read_source_file(self):
+        from .document_sources import read_source
+        return read_source(self)
+
+    def _write_source_file(self, value):
+        self._shared_source = None
+        self._source_file = value
+
+    source_file = synonym('_source_file', descriptor=property(_read_source_file, _write_source_file))
     source_sha256 = db.Column(
         db.String(64),
         nullable=False,
@@ -1012,6 +1062,16 @@ class VehicleOperationRecord(db.Model):
 
 
 class VehicleMaintenanceRecord(db.Model):
+    @property
+    def cost_office(self):
+        from .maintenance_facts import cost_office
+        return cost_office(self)
+
+    @cost_office.setter
+    def cost_office(self, value):
+        from .maintenance_facts import set_cost_office
+        set_cost_office(self, value)
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(

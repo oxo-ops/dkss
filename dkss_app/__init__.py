@@ -69,7 +69,55 @@ def create_app(config=None, *, initialize_database=False):
         """Apply existing compatibility migrations and bootstrap explicitly."""
         from .database import initialize_database as initialize
         initialize()
+        from .document_sources import upgrade_storage
+        from .analysis_read_cache import upgrade_read_cache
+        upgrade_storage()
+        upgrade_read_cache()
         print("DATABASE_INITIALIZED")
+
+    @app.cli.command("upgrade-domain-storage")
+    def upgrade_domain_storage():
+        from .document_sources import upgrade_storage
+        from .analysis_read_cache import upgrade_read_cache
+
+        upgrade_storage()
+        upgrade_read_cache()
+        print("DOMAIN_STORAGE_UPGRADED")
+
+
+    @app.cli.command("clear-analysis-read-cache")
+    def clear_analysis_read_cache():
+        from .models import AnalysisInputReadCache
+
+        with db.engine.begin() as connection:
+            connection.execute(AnalysisInputReadCache.__table__.delete())
+        print("ANALYSIS_READ_CACHE_CLEARED")
+
+
+    @app.cli.command("compact-document-sources")
+    def compact_document_sources():
+        from .document_sources import compact_sources
+
+        print("DOCUMENT_SOURCES_COMPACTED", compact_sources())
+
+
+    @app.cli.command("restore-inline-document-sources")
+    def restore_inline_document_sources():
+        from .document_sources import restore_inline_sources
+
+        print("DOCUMENT_SOURCES_RESTORED", restore_inline_sources())
+
+
+    @app.cli.command("document-import-worker")
+    def document_import_worker_command():
+        import signal
+        import threading
+        from .document_import_worker import run_worker
+
+        stopped = threading.Event()
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(signum, lambda *_: stopped.set())
+        run_worker(app, stopped)
 
     if initialize_database:
         with app.app_context():

@@ -1079,6 +1079,8 @@ def merge_vehicle_pending_invoice_record(target_id, invoice):
     if not isinstance(invoice_details.get("source"), dict):
         raise _dkss_common.UploadValidationError("請求書の原本情報を確認できません。")
 
+    if not invoice.cost_office and details.get("cost_attribution"):
+        invoice_details["cost_attribution"] = details["cost_attribution"]
     record.invoice_details_json = _dkss_common.json.dumps({
         **details, **invoice_details,
         "before_invoice_attachment": details,

@@ -189,7 +189,7 @@ def build_vehicle_document_record(draft, record_index, values):
         line_items = values.get('line_items') or []
         if not isinstance(line_items, list) or len(line_items) > 1000 or (not all((isinstance(item, dict) for item in line_items))):
             raise ValueError('整備明細を確認してください。')
-        return _dkss_models.VehicleMaintenanceRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], category=values.get('maintenance_category') or None, entry_date=values['record_date'], completion_date=values.get('completion_date') or None, mileage=mileage, content=values['content'], maintenance_company=maintenance_company or None, invoice_number=invoice_number or None, invoice_date=values.get('invoice_date') or None, invoice_details_json=_dkss_common.json.dumps({'schema_version': 1, 'issuer_name': values.get('issuer_name'), 'customer_name': values.get('customer_name'), 'sales_date': values.get('sales_date'), 'fees': values.get('fees') or [], 'registration_number': values.get('registration_number'), 'chassis_number': values.get('chassis_number'), 'vehicle_model': values.get('vehicle_model'), 'source': {'draft_id': draft.id, 'record_index': record_index, 'filename': draft.source_filename, 'sha256': draft.source_sha256, 'pages': values.get('source_pages') or []}}, ensure_ascii=False), line_items_json=_dkss_common.json.dumps(line_items, ensure_ascii=False), notes=values.get('notes') or None, **costs, created_by_username=_dkss_common.session.get('username'), created_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'))
+        return _dkss_models.VehicleMaintenanceRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], category=values.get('maintenance_category') or None, entry_date=values['record_date'], completion_date=values.get('completion_date') or None, mileage=mileage, content=values['content'], maintenance_company=maintenance_company or None, invoice_number=invoice_number or None, invoice_date=values.get('invoice_date') or None, invoice_details_json=_dkss_common.json.dumps({'schema_version': 1, 'cost_attribution': {'office': values.get('cost_office') or None, 'basis': 'user_confirmed' if values.get('cost_office') else 'unknown'}, 'issuer_name': values.get('issuer_name'), 'customer_name': values.get('customer_name'), 'sales_date': values.get('sales_date'), 'fees': values.get('fees') or [], 'registration_number': values.get('registration_number'), 'chassis_number': values.get('chassis_number'), 'vehicle_model': values.get('vehicle_model'), 'source': {'draft_id': draft.id, 'record_index': record_index, 'filename': draft.source_filename, 'sha256': draft.source_sha256, 'pages': values.get('source_pages') or []}}, ensure_ascii=False), line_items_json=_dkss_common.json.dumps(line_items, ensure_ascii=False), notes=values.get('notes') or None, **costs, created_by_username=_dkss_common.session.get('username'), created_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'))
     raise ValueError('資料の種類が不正です。')
 
 
@@ -504,7 +504,7 @@ def validate_vehicle_document_record(draft, record_index, original_record, form,
         values['maintenance_category'] = str(form.get(key, values.get('maintenance_category')) or '').strip() or None
         if values['maintenance_category'] not in (*MAINTENANCE_CATEGORIES, None):
             errors.append(('作業区分を選択してください。', key))
-        text_fields = {'invoice_number': ('伝票番号', 100), 'issuer_name': ('請求書発行元', 200), 'maintenance_company': ('整備会社・工場', 200), 'notes': ('備考', 5000)}
+        text_fields = {'cost_office': ('整備時の営業所', 100), 'invoice_number': ('伝票番号', 100), 'issuer_name': ('請求書発行元', 200), 'maintenance_company': ('整備会社・工場', 200), 'notes': ('備考', 5000)}
         for field, (label, limit) in text_fields.items():
             field_id = f'{field}_{row_key}'
             raw = form.get(field_id, values.get(field))
@@ -1119,6 +1119,7 @@ def vehicle_document_import_preview(batch_id):
 
     return _dkss_common.render_template(
         "vehicle_document_import_preview.html",
+        cost_offices=[r.name for r in _dkss_models.Office.query.filter_by(company_code=_dkss_common.session.get('company_code')).order_by(_dkss_models.Office.name).all()],
         kind_corrections=corrections,
         import_flow_notice=import_flow_notice,
         import_all_duplicates=all(record.get('import_duplicate') for document in documents for record in (document['preview'].get('records') or [])),

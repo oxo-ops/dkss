@@ -83,82 +83,61 @@ def save_dashboard_settings():
 
 def get_dashboard_office_maintenance_trend(company_code, office):
     from datetime import datetime
-    from decimal import Decimal, InvalidOperation
     from zoneinfo import ZoneInfo
+    from sqlalchemy.orm import load_only
+    from .maintenance_facts import MaintenanceCostService
 
-    today = datetime.now(ZoneInfo('Asia/Tokyo')).date()
-    months = []
-    for offset in range(6, -1, -1):
-        serial = today.year * 12 + today.month - 1 - offset
-        year, month = divmod(serial, 12)
-        months.append({
-            'key': f'{year:04d}-{month+1:02d}',
-            'label': f'{month+1}月',
-            'amount': Decimal('0'),
-            'known': 0,
-            'missing': 0,
-        })
+    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
+    rows = []
+    if company_code and office:
+        start = (
+            MaintenanceCostService.office_months([], office, today)["months"][0]["key"]
+            + "-01"
+        )
+        model = _dkss_models.VehicleMaintenanceRecord
+        func = _dkss_common.db.func
+        recorded_date = func.coalesce(
+            func.nullif(func.trim(model.entry_date), ""),
+            func.trim(model.completion_date),
+        )
+        recorded_date = func.substr(func.replace(recorded_date, "/", "-"), 1, 10)
+        rows = (
+            model.query.options(
+                load_only(
+                    model.id,
+                    model.company_code,
+                    model.vehicle_record_id,
+                    model.entry_date,
+                    model.completion_date,
+                    model.total_cost,
+                    model.notes,
+                    model.invoice_details_json,
+                )
+            )
+            .filter_by(company_code=company_code)
+            .filter(recorded_date.between(start, today.isoformat()))
+            .all()
+        )
+    result = MaintenanceCostService.office_months(rows, office, today)
+    months = result["months"]
 
-    result = {'months': months, 'available': False}
-    if not company_code or not office:
-        return result
-
-    buckets = {item['key']: item for item in months}
-    rows = _dkss_models.VehicleMaintenanceRecord.query.join(
-        _dkss_models.Vehicle,
-        _dkss_models.VehicleMaintenanceRecord.vehicle_record_id == _dkss_models.Vehicle.id,
-    ).filter(
-        _dkss_models.VehicleMaintenanceRecord.company_code == company_code,
-        _dkss_models.Vehicle.company_code == company_code,
-        _dkss_models.Vehicle.office == office,
-        _dkss_models.Vehicle.deleted.is_(False),
-    ).with_entities(
-        _dkss_models.VehicleMaintenanceRecord.entry_date,
-        _dkss_models.VehicleMaintenanceRecord.completion_date,
-        _dkss_models.VehicleMaintenanceRecord.total_cost,
-    ).all()
-
-    for entry, completion, cost in rows:
-        try:
-            date = datetime.strptime(
-                str(entry or completion or '')[:10].replace('/', '-'),
-                '%Y-%m-%d',
-            ).date()
-        except ValueError:
-            continue
-
-        if date > today or date.strftime('%Y-%m') not in buckets:
-            continue
-
-        bucket = buckets[date.strftime('%Y-%m')]
-        try:
-            value = Decimal(str(cost))
-            if not value.is_finite():
-                raise InvalidOperation()
-        except (ValueError, InvalidOperation):
-            bucket['missing'] += 1
-            continue
-
-        bucket['amount'] += value
-        bucket['known'] += 1
-
-    known = [float(item['amount']) for item in months if item['known']]
-    result['available'] = bool(known)
+    known = [float(item["amount"]) for item in months if item["known"]]
+    result["available"] = bool(known)
     low = min([0] + known)
     high = max([1] + known)
 
     for i, item in enumerate(months):
-        item['x'] = round(45 + i * 82, 2)
-        item['y'] = (
-            round(84 - (float(item['amount']) - low) / (high - low) * 65, 2)
-            if item['known'] else None
+        item["x"] = round(45 + i * 82, 2)
+        item["y"] = (
+            round(84 - (float(item["amount"]) - low) / (high - low) * 65, 2)
+            if item["known"]
+            else None
         )
-        item['formatted'] = f"{item['amount']:,.0f}"
+        item["formatted"] = f"{item['amount']:,.0f}"
 
-    result['maximum'] = f'{high / 10000:,.1f}'
-    result['minimum'] = f'{low / 10000:,.1f}'
+    result["maximum"] = f"{high / 10000:,.1f}"
+    result["minimum"] = f"{low / 10000:,.1f}"
     return result
-
 
 
 def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
