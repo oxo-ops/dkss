@@ -598,6 +598,15 @@ def validate_vehicle_document_record(draft, record_index, original_record, form,
                     errors.append((f'明細{line_index + 1}の部品分類を確認してください。', prefix + 'replacement_category'))
                 values['line_items'].append(line)
         values['entry_date'] = values.get('record_date') or None
+    if draft.document_type in {'maintenance', 'inspection'}:
+        completion_key = f'completion_date_{row_key}'
+        date_fields = {f'date_{row_key}', completion_key}
+        if (record_date and values.get('completion_date')
+                and not date_fields.intersection(field for _, field in errors)
+                and values['completion_date'] < record_date):
+            message = ('出庫日は入庫日以降にしてください。' if draft.document_type == 'maintenance'
+                       else '完了日は点検日以降にしてください。')
+            errors.append((message, completion_key))
     return (values, errors)
 
 
