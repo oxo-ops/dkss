@@ -96,7 +96,7 @@ def build_evidence(board, facts, history):
     if not evidence and facts:
         summary=summarize(facts)
         evidence.append({'id':'0', 'title':'運行記録の確認',
-            'finding':f"対象 {summary['count']}運行。走行距離 {number(summary['distance'])} km。運転の比較に利用できる指標を確認してください。",
+            'finding':f"対象 {summary['count']}運行。走行距離 {summary['distance_display']}。運転の比較に利用できる指標を確認してください。",
             'reports':summary['report_ids'], 'driver_key':'', 'allowed_actions':['verify_data'],
             'context':'距離や休憩時間だけでは運転の良否を判定できない。','kind':'record'})
     comparison=board.get('comparison') or {}

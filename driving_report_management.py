@@ -391,21 +391,21 @@ def register_driving_reports(app, db, g):
         output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation'),OUTCOMES.get(reviews[values[0]].get('outcome','')),reviews[values[0]].get('comparison_note')] for values in output]
         board=export_board
         if format=='csv' and request.args.get('view')=='comparison':
-            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合','現在所属（確認済み乗務員台帳）','所属区分']
+            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合','現在所属（確認済み乗務員台帳）','所属区分','距離取得運行数','距離取得状態','前期間走行距離km','前期間距離取得運行数','前期間距離取得状態']
             output=[]
             m=board['metric'] or {}
             for driver in board['drivers']:
                 now=driver['current'];before=driver['previous'];period=board['period']
                 output.append([period['start'],period['end'],period['previous_start'],period['previous_end'],driver['name'],driver['code'],' / '.join(driver['offices']),
-                    ' / '.join(v['label'] for v in driver['vehicles']),now['count'],number(now['distance']),m.get('name'),m.get('unit'),now['display'],before['display'],driver['change'],
+                    ' / '.join(v['label'] for v in driver['vehicles']),now['count'],number(now['distance']) if now['distance'] is not None else None,m.get('name'),m.get('unit'),now['display'],before['display'],driver['change'],
                     now['metric_count'],number(now['numerator']),number(now['denominator']),now.get('latest_date'),m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),
-                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合',driver.get('current_office',''),driver.get('affiliation_label','')])
+                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合',driver.get('current_office',''),driver.get('affiliation_label',''),now['distance_count'],now['distance_state'],number(before['distance']) if before['distance'] is not None else None,before['distance_count'],before['distance_state']])
         if format=='csv' and request.args.get('view')=='breakdown':
-            heading=['表示範囲','開始日','終了日','前期間開始','前期間終了','比較','対象','指標','単位','表示値','前期間値','差','運行数','走行距離km','指標取得運行数','取得率%','計算分子','計算分母','対応距離km','使用車両','前期間使用車両','条件変化','提供元','設定版','定義','閾値','道路区分','日報ID']
+            heading=['表示範囲','開始日','終了日','前期間開始','前期間終了','比較','対象','指標','単位','表示値','前期間値','差','運行数','走行距離km','指標取得運行数','取得率%','計算分子','計算分母','対応距離km','使用車両','前期間使用車両','条件変化','提供元','設定版','定義','閾値','道路区分','日報ID','距離取得運行数','距離取得状態','前期間走行距離km','前期間距離取得運行数','前期間距離取得状態']
             output=[];comparison=board['comparison'];m=board['metric'] or {};period=board['period']
             for item in comparison['rows']:
                 now=item['current'];before=item['previous']
-                output.append([board['scope_name'],period['start'],period['end'],period['previous_start'],period['previous_end'],comparison['title'],item['label'],m.get('name'),m.get('unit'),now['display'],before['display'],item['change'],now['count'],number(now['distance']),now['metric_count'],item['coverage'],number(now['numerator']),number(now['denominator']),number(now['paired_distance']),' / '.join(item['conditions']['vehicles']),' / '.join(item['previous_conditions']['vehicles']),'あり' if item['conditions_changed'] else '未確認',m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),' / '.join(str(i) for i in now['sources'])])
+                output.append([board['scope_name'],period['start'],period['end'],period['previous_start'],period['previous_end'],comparison['title'],item['label'],m.get('name'),m.get('unit'),now['display'],before['display'],item['change'],now['count'],number(now['distance']) if now['distance'] is not None else None,now['metric_count'],item['coverage'],number(now['numerator']),number(now['denominator']),number(now['paired_distance']),' / '.join(item['conditions']['vehicles']),' / '.join(item['previous_conditions']['vehicles']),'あり' if item['conditions_changed'] else '未確認',m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),' / '.join(str(i) for i in now['sources']),now['distance_count'],now['distance_state'],number(before['distance']) if before['distance'] is not None else None,before['distance_count'],before['distance_state']])
         if format=='csv' and request.args.get('view')=='maintenance':
             heading=['車両ID','車両','基準日','区分','項目','金額円','交換日','交換時積算距離km','交換後距離km','経過日数','整備記録ID','集計開始','集計終了']
             output=[]
@@ -435,7 +435,7 @@ def register_driving_reports(app, db, g):
                     now=person['current']
                     lines += [f'{person["name"]} {person["code"]} {" / ".join(person["offices"])}',
                         ('現在所属 '+(person.get('current_office') or '未確認')+' ／ '+person.get('affiliation_label','') if readership.administrator() else ''),
-                        f'運行 {now["count"]}件 距離 {number(now["distance"])}km 指標 {now["display"]} {m.get("unit", "")} 対象 {now["metric_count"]}件',
+                        f'運行 {now["count"]}件 距離 {now["distance_display"]} 指標 {now["display"]} {m.get("unit", "")} 対象 {now["metric_count"]}件',
                         f'前期間 {person["previous"]["display"]} 差 {person["change"] or "比較値なし"}',
                         '出典日報 '+', '.join(str(v) for v in now['sources'])]
             if request.args.get('breakdown'):
@@ -443,7 +443,7 @@ def register_driving_reports(app, db, g):
                 lines += [comparison['title']]
                 for item in comparison['rows']:
                     now=item['current']
-                    lines += [f'{item["label"]}：{now["display"]} {m.get("unit", "")} 前期間 {item["previous"]["display"]} 差 {item["change"] if item["change"] is not None else "比較値なし"}',
+                    lines += ['走行距離 '+now['distance_display']+' ／ 前期間 '+item['previous']['distance_display'],f'{item["label"]}：{now["display"]} {m.get("unit", "")} 前期間 {item["previous"]["display"]} 差 {item["change"] if item["change"] is not None else "比較値なし"}',
                               f'指標取得 {now["metric_count"]}/{now["count"]}運行（{item["coverage"]}%） 対応距離 {number(now["paired_distance"])}km',
                               '使用車両 '+ ' / '.join(item['conditions']['vehicles']),
                               '前期間の車両 '+ ' / '.join(item['previous_conditions']['vehicles']),
