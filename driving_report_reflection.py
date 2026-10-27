@@ -51,7 +51,7 @@ def build_evidence(board, facts, history):
         finding+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
         evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の傾向', 'finding':finding,
             'reports':now['sources'],'driver_key':'','allowed_actions':['review_context','verify_data'],
-            'context':'取得済みの同一定義の指標を集計。車両・道路・積載等の条件差は未確認。良否や責任の確定ではありません。','kind':'scope'})
+            'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'取得済みの同一定義の指標を集計。車両・道路・積載等の条件差は未確認。良否や責任の確定ではありません。','kind':'scope'})
     if board.get('scope') == 'company' and not board.get('selected_driver'):
         for office in board.get('office_summaries', []):
             for entry in office['highlights']:
@@ -65,7 +65,7 @@ def build_evidence(board, facts, history):
                 evidence.append({'id':str(len(evidence)), 'title':office['name']+'の傾向', 'finding':finding,
                     'reports':now['sources'], 'driver_key':'', 'office_key':office['key'],
                     'allowed_actions':['review_context','verify_data'], 'kind':'office',
-                    'context':f"{metric['source']} ／ {metric['version']} ／ {metric['definition']} ／ {metric['threshold']} ／ {metric['road']}。日報当時の営業所で集計。運行条件・取得率を確認し、順位や安全性を数値差だけで確定しない。"})
+                    'context':(now['basis_display']+'。' if now.get('basis_display') else '')+f"{metric['source']} ／ {metric['version']} ／ {metric['definition']} ／ {metric['threshold']} ／ {metric['road']}。日報当時の営業所で集計。運行条件・取得率を確認し、順位や安全性を数値差だけで確定しない。"})
     for item in board.get('due_followups',[])[:20]:
         evidence.append({'id':str(len(evidence)), 'title':'次回確認日を迎えた振り返り',
             'finding':item['name']+'：次回確認日 '+item['review']['next_date']+'。記録済みの行動：'+str(item['review'].get('action') or '未設定')[:300],
@@ -88,7 +88,7 @@ def build_evidence(board, facts, history):
             statement+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
             evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の記録', 'finding':statement,
                 'reports':now['sources'], 'driver_key':person['key'], 'allowed_actions':actions,
-                'context':'車両・道路・積載等の条件差は未確認。数値差だけで改善・悪化や責任を確定しない。',
+                'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'車両・道路・積載等の条件差は未確認。数値差だけで改善・悪化や責任を確定しない。',
                 'kind':'change' if entry['change'] is not None else 'record'})
         reviews=[f for f in own if (payload(f['row']).get('review') or {}).get('state') in {'coaching','followup'}]
         if reviews:
@@ -114,7 +114,7 @@ def build_evidence(board, facts, history):
             evidence.append({'id':str(len(evidence)), 'title':comparison['title'], 'finding':finding,
                 'reports':now['sources'], 'driver_key':row['driver_key'],
                 'allowed_actions':['review_context','verify_data'],
-                'context':'使用車両：'+' ／ '.join(row['conditions']['vehicles'])+'。道路区分：'+(' ／ '.join(row['conditions']['roads']) or '未取得')+'。積載・路線は未取得。数値差だけで責任や改善を確定しない。',
+                'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'使用車両：'+' ／ '.join(row['conditions']['vehicles'])+'。道路区分：'+(' ／ '.join(row['conditions']['roads']) or '未取得')+'。積載・路線は未取得。数値差だけで責任や改善を確定しない。',
                 'kind':'comparison'})
     # Maintenance is restricted to administrator-authorized, selected-driver history.
     for vehicle in history:

@@ -116,6 +116,7 @@ def metric(p, item, distance, distance_ok):
                item.get('threshold'),unit,item.get('road_type'),p.get('report_scope'),method,du if method=='ratio' else None]
     return {'id':digest(signature),'name':display_metric_name(name),'unit':output_unit,'method':method,'numerator':n,'denominator':d,
             'scale':scale,'raw':display_metric_raw(name,raw),'value':value if value is not None else score,'known':known,
+            'denominator_unit':du or '',
             'source':p.get('source_system') or '提供元不明','version':p.get('definition_version') or '未記載',
             'definition':item.get('definition') or '未記載','threshold':item.get('threshold') or '未記載',
             'road':item.get('road_type') or '区分なし','scope':p.get('report_scope') or 'unknown','reason':reason}
@@ -177,6 +178,7 @@ def collect(rows, operations, keys=None, context=None):
             source=choose('source_system') or '提供元不明'
             fact['metrics'].append({'id':digest(['fuel',source,p.get('report_scope')]),'name':'期間燃費','unit':'km/L',
                 'method':'fuel','numerator':distance,'denominator':fuel,'scale':Decimal(1),'raw':number(distance/fuel),
+                'denominator_unit':'L',
                 'value':distance/fuel,'known':True,'source':source,'version':'消費量から算出',
                 'definition':'対象運行の距離合計 ÷ 消費燃料合計','threshold':'対象運行を一致','road':'区分なし',
                 'scope':p.get('report_scope') or 'trip','reason':''})
@@ -198,7 +200,8 @@ def summarize(facts, metric_id=None):
     count=len(facts);known=[f['distance'] for f in facts if f['distance'] is not None]
     summary={'count':count,'distance':sum(known) if known else None,'distance_count':len(known),
              'metric_count':len(chosen),'value':None,'display':'—','raw_count':0,'sources':[f['row'].id for f,_ in chosen],
-             'report_ids':[f['row'].id for f in facts],'paired_distance':None,'numerator':None,'denominator':None,'unit':'','method':'raw'}
+             'report_ids':[f['row'].id for f in facts],'paired_distance':None,'numerator':None,'denominator':None,'unit':'','method':'raw',
+             'basis_display':'','numerator_unit':'','denominator_unit':''}
     summary['distance_state']='記録なし' if not count else '未取得' if not known else '一部取得' if len(known)<count else '取得済み'
     summary['distance_display']=('記録なし' if not count else '距離未取得' if not known else number(summary['distance'])+' km')
     if known and len(known)<count:
@@ -210,6 +213,17 @@ def summarize(facts, metric_id=None):
         value=n/den*m['scale']
         summary.update(value=value,display=number(value),numerator=n,denominator=den,
             paired_distance=sum(f['distance'] for f,_ in chosen if f['distance'] is not None))
+        if m['method']=='fuel':
+            nu,du='km','L';basis=f'{number(n)} km ／ 消費燃料 {number(den)} L'
+        elif m['method']=='rate':
+            nu='件' if m['unit'].startswith('件') else '回'
+            du='h' if m['unit'].endswith('/h') else 'km'
+            basis=f'{number(n)}{nu} ／ '+('対象時間 ' if du=='h' else '対象距離 ')+f'{number(den)} {du}'
+        else:
+            nu='';du=m.get('denominator_unit','')
+            basis=f'原数値 {number(n)} ／ 対象 {number(den)}'+(' '+du if du else '')
+        summary.update(basis_display=basis,numerator_unit=nu,denominator_unit=du,
+                       paired_distance=n if m['method']=='fuel' else den if du=='km' else None)
     else:
         last_f,last_m=max(chosen,key=lambda item:(item[0]['date'],item[0]['row'].id))
         summary.update(display=last_m['raw'],raw_count=len(chosen),latest_date=last_f['date'])

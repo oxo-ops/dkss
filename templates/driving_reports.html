@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% macro metric_value(entry) %}
 <strong>{{ entry.current.display }}{% if entry.metric.method!='raw' %}<small>{{ entry.metric.unit }}</small>{% endif %}</strong>
+{% if entry.current.basis_display %}<small>{{ entry.current.basis_display }}</small>{% endif %}
 {% if entry.change is not none %}<small>前期間 {{ entry.previous.display }} ／ 差 {{ entry.change }} {{ entry.metric.unit }}</small>{% else %}<small>{{ '原本値' if entry.metric.method=='raw' else '前期間の比較記録なし' }}</small>{% endif %}
 {% endmacro %}
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
