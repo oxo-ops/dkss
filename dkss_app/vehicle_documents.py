@@ -324,6 +324,9 @@ def review_vehicle_maintenance_document_cost(document_id, cost_mode):
                     "before": str(before_costs[field]) if before_costs[field] is not None else None,
                     "after": str(value) if value is not None else None,
                 })
+        if incoming.cost_office and not target.cost_office:
+            changes.append({"field": "cost_office", "before": None, "after": incoming.cost_office})
+            target.cost_office = incoming.cost_office
         target.updated_by_username = username
         target.updated_at = _dkss_common.datetime.now(
             _dkss_common.ZoneInfo("Asia/Tokyo")

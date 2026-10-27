@@ -1,4 +1,5 @@
 """Vehicle Costs responsibilities; routes are registered by the application factory."""
+from .maintenance_facts import factual_history
 from . import analysis as _dkss_analysis, checklists as _dkss_checklists, common as _dkss_common, models as _dkss_models, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -62,7 +63,7 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
     if not 2 <= selected_year <= 9999:
         raise ValueError("集計年が不正です。")
 
-    records, _, synthetic_exclusions = _dkss_analysis.filter_vehicle_maintenance_factual_history(maintenance_records)
+    records, _, synthetic_exclusions = factual_history(maintenance_records)
     dated_records = []
     undated_records = []
 

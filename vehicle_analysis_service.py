@@ -190,3 +190,76 @@ class VehicleAnalysisJobService:
             self.logger.warning("車両自動分析に失敗しました: %s", code)
             self.repository.fail(state_id, token, code, self.utc_now() + timedelta(hours=1))
             return False
+
+
+def analysis_input_projection(payload):
+    records = payload.get("records", [])
+    return {
+        "fingerprints": payload["_fingerprints"],
+        "comparison": payload.get("comparison"),
+        "input_summary": {
+            label: sum(
+                str(row.get("source_id", "")).startswith(prefix) for row in records
+            )
+            for label, prefix in (
+                ("daily_inspections", "inspection:"),
+                ("periodic_inspections", "periodic:"),
+                ("maintenance", "maintenance:"),
+                ("parts", "part:"),
+            )
+        },
+    }
+
+
+class AnalysisReadProjectionService:
+    def __init__(
+        self,
+        *,
+        repository,
+        load_projection,
+        context_key,
+        clock,
+        load_legacy_projection=None
+    ):
+        self.repository = repository
+        self.load_projection = load_projection
+        self.context_key = context_key
+        self.clock = clock
+        self.load_legacy_projection = load_legacy_projection or load_projection
+
+    def read(self, company, vehicle_id):
+        key = self.context_key(self.clock())
+        token = self.repository.token(company, self.clock())
+        if token is None:
+            return self.load_legacy_projection(), True
+        cached = self.repository.get(company, vehicle_id, key, token, self.clock())
+        if cached is not None:
+            checked_at = self.clock()
+            after = self.repository.token(company, checked_at)
+            if (
+                after is not None
+                and token.revision == after.revision
+                and key == self.context_key(checked_at)
+                and token.observed_at <= checked_at < token.expires_at
+            ):
+                return cached, True
+        projection = None
+        for _ in range(2):
+            before_time = self.clock()
+            key = self.context_key(before_time)
+            before = self.repository.token(company, before_time)
+            if before is None:
+                return self.load_legacy_projection(), True
+            projection = self.load_projection()
+            after_time = self.clock()
+            after = self.repository.token(company, after_time)
+            stable = (
+                after is not None
+                and before.revision == after.revision
+                and key == self.context_key(after_time)
+                and before_time <= after_time < before.expires_at
+            )
+            if stable:
+                self.repository.put(company, vehicle_id, key, before, projection)
+                return projection, True
+        return projection, False

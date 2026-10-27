@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db
 from .models import VehicleDocumentImportDraft as Draft, Company, User
 from document_type_detection import detect_document_types, validate_detection
+from .document_sources import store_source
 
 MB = 1024 * 1024
 MAX_FILE_BYTES = 20 * MB
@@ -69,6 +70,9 @@ def delete_receipt(batch_id, company_code, username):
             row.preview_json = '{}'
             data = {'receipt_hidden': True, 'deleted': True, 'at': now().isoformat()}
         row.result_json = encode(data)
+    from .document_sources import purge_unreferenced
+    for company, digest in sorted({(r.company_code, r.source_sha256) for r in rows}):
+        purge_unreferenced(company, digest)
     db.session.commit()
     return True
 
@@ -131,7 +135,7 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
             accepted += 1
             row = Draft(id=str(uuid5(UUID(batch_id), company_code + ':' + username + ':' + str(position))), batch_id=batch_id, company_code=company_code,
                 created_by_username=username, document_type=document_type, source_filename=filename,
-                source_file=source, source_sha256=hashlib.sha256(source).hexdigest(), status='queued',
+                source_file=store_source(company_code,digest,source), source_sha256=digest, status='queued',
                 preview_json='{}', result_json=result({'phase':'queued', 'attempts':0,
                 'position':position, 'requested_type':document_type, 'generation':0,
                 'updated_at':now().isoformat(), 'bytes':len(source)}))
@@ -161,6 +165,11 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
 
 
 def claim_next():
+    from .document_schedule import claim_fair, ready as schedule_ready
+    return claim_fair() if schedule_ready() else claim_legacy()
+
+
+def claim_legacy():
     """Compare-and-swap ownership, compatible with both SQLite and PostgreSQL."""
     rows = lightweight_query().filter(Draft.status.in_(ACTIVE)).order_by(Draft.created_at, Draft.id).limit(200).all()
     for row in rows:
@@ -290,7 +299,7 @@ def route_detection(draft_id, token, detection):
                 'routing_notice':'混在する資料から、' + KINDS[kind] + 'を読み取りました。'}
             db.session.add(Draft(id=child_id, batch_id=row.batch_id, company_code=row.company_code,
                 created_by_username=row.created_by_username, document_type=kind,
-                source_filename=row.source_filename, source_file=row.source_file, source_sha256=row.source_sha256,
+                source_filename=row.source_filename, source_file=store_source(row.company_code,row.source_sha256,row.source_file), source_sha256=row.source_sha256,
                 status='queued', preview_json='{}', result_json=result(child_job)))
     kind = kinds[0]
     row.document_type = kind

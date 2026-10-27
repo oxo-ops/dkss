@@ -127,6 +127,10 @@
             記録内容
             <textarea id="content_{{ row_key }}" name="content_{{ row_key }}" rows="2" maxlength="5000">{{ record.get('content') or '' }}</textarea>
         </label>
+        <label>整備時の営業所
+            <input type="text" name="cost_office_{{ row_key }}" id="cost_office_{{ row_key }}" value="{{ record.get('cost_office') or '' }}" maxlength="100" list="cost_offices_{{ row_key }}">
+            <datalist id="cost_offices_{{ row_key }}">{% for office in cost_offices|default([]) %}<option value="{{ office }}">{% endfor %}</datalist>
+        </label>
         <label>作業区分
             <select id="maintenance_category_{{ row_key }}" name="maintenance_category_{{ row_key }}">
                 <option value="">未判定</option>

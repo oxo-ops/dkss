@@ -6,56 +6,13 @@ from . import analysis_feedback as _dkss_analysis_feedback, checklists as _dkss_
 
 
 def vehicle_maintenance_synthetic_evidence(row):
-    """Explicit synthetic-document declarations only; never infer from 'test'."""
-    import unicodedata
-    details = _dkss_serialization.safe_json_dict(getattr(row, "invoice_details_json", "{}"))
-    for field, value in (
-        ("notes", getattr(row, "notes", None)),
-        ("attached_invoice_notes", details.get("attached_invoice_notes")),
-    ):
-        if not isinstance(value, str):
-            continue
-        normalized = _dkss_common.re.sub(r"\s+", "", unicodedata.normalize("NFKC", value))
-        # A compound declaration from the source, not a generic maintenance/test term.
-        declarations = ("テスト用資料・支払不要(発行元・取引内容は架空です)",)
-        matched = next((text for text in declarations if normalized.startswith(text)), None)
-        if matched is None:
-            continue
-        source = details.get("source")
-        source = source if isinstance(source, dict) else {}
-        return {
-            "source_id": f"maintenance:{row.id}",
-            "company_code": row.company_code,
-            "vehicle_record_id": row.vehicle_record_id,
-            "reason": "explicit_synthetic_document_declaration",
-            "evidence_field": field,
-            "declaration": matched,
-            "document_source": {
-                key: source.get(key) for key in ("sha256", "pages", "record_index")
-            },
-            "scope": "Excluded from factual calculations; stored records retained.",
-        }
-    return None
-
+    from .maintenance_facts import synthetic_evidence
+    return synthetic_evidence(row)
 
 
 def filter_vehicle_maintenance_factual_history(maintenance, parts=()):
-    """Apply one parent decision to children, retaining company/vehicle boundaries."""
-    kept, excluded, parents = [], [], {}
-    for row in maintenance:
-        evidence = vehicle_maintenance_synthetic_evidence(row)
-        key = (row.company_code, row.vehicle_record_id, row.id)
-        if evidence is not None:
-            excluded.append(evidence)
-        else:
-            kept.append(row)
-            parents[key] = row
-    kept_parts = [
-        row for row in parts
-        if (row.company_code, row.vehicle_record_id, row.maintenance_record_id) in parents
-    ]
-    return kept, kept_parts, excluded
-
+    from .maintenance_facts import factual_history
+    return factual_history(maintenance, parts)
 
 
 def vehicle_analysis_summary_service():
@@ -127,15 +84,11 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     input_summary = None
     scheduled_comparison = None
     try:
-        current_payload, _current_sources = get_vehicle_karte_analysis_job_data(vehicle)
-        scheduled_comparison = current_payload.get("comparison")
-        input_records = current_payload.get("records", [])
-        input_summary = {
-            label: sum(str(row.get("source_id", "")).startswith(prefix) for row in input_records)
-            for label, prefix in (("daily_inspections", "inspection:"), ("periodic_inspections", "periodic:"), ("maintenance", "maintenance:"), ("parts", "part:"))
-        }
-        if has_result:
-            is_current = vehicle_karte_analysis_matches_input(bundle, current_payload)
+        projection, stable = get_vehicle_analysis_read_projection(vehicle)
+        scheduled_comparison = projection.get('comparison')
+        input_summary = projection['input_summary']
+        if has_result and stable:
+            is_current = vehicle_karte_analysis_matches_input(bundle, {'_fingerprints': projection['fingerprints']})
     except Exception:
         _dkss_runtime.app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 
@@ -190,6 +143,59 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     response.headers["Cache-Control"] = "no-store"
     return response
 
+
+
+def get_vehicle_analysis_read_projection(vehicle):
+    from flask import current_app
+    from vehicle_analysis_service import (
+        AnalysisReadProjectionService,
+        analysis_input_projection,
+    )
+    from .analysis_read_cache import AnalysisReadCacheRepository, code_hash
+
+    app = current_app._get_current_object()
+    company, vehicle_id = vehicle.company_code, vehicle.id
+
+    def clock():
+        return _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC"))
+
+    def key(now):
+        settings = _dkss_common.AnalysisComparisonSettings.from_environ(
+            _dkss_common.os.environ
+        )
+        scope = [
+            code_hash(),
+            now.astimezone(_dkss_common.ZoneInfo("Asia/Tokyo")).date().isoformat(),
+            settings.registration_scope,
+            settings.include_inactive,
+        ]
+        return _dkss_common.hashlib.sha256(
+            _dkss_common.json.dumps(scope).encode()
+        ).hexdigest()
+
+    def legacy():
+        payload, _sources = get_vehicle_karte_analysis_job_data(vehicle)
+        return analysis_input_projection(payload)
+
+    def load():
+        with app.app_context():
+            fresh = _dkss_models.Vehicle.query.filter_by(
+                id=vehicle_id, company_code=company, deleted=False
+            ).first_or_404()
+            payload, _sources = get_vehicle_karte_analysis_job_data(fresh)
+            return analysis_input_projection(payload)
+
+    try:
+        return AnalysisReadProjectionService(
+            repository=AnalysisReadCacheRepository(),
+            load_projection=load,
+            load_legacy_projection=legacy,
+            context_key=key,
+            clock=clock,
+        ).read(company, vehicle_id)
+    except _dkss_common.SQLAlchemyError:
+        app.logger.warning("Analysis read cache unavailable; rebuilding inputs")
+        return legacy(), True
 
 
 def get_vehicle_karte_analysis_job_data(vehicle):

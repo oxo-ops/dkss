@@ -1263,6 +1263,7 @@ def get_vehicle_maintenance_record_events(record):
         "repair_hours": "作業時間",
         "invoice_number": "請求書番号",
         "invoice_date": "請求日",
+        "cost_office": "整備時の営業所",
         "parts_cost": "部品代（円）",
         "labor_cost": "工賃（円）",
         "other_cost": "その他費用（円）",
@@ -1375,6 +1376,7 @@ def validate_vehicle_maintenance_form(form, *, entry_date_required=True):
         "maintenance_company": ("整備会社", 200),
         "maintenance_person": ("整備担当", 100),
         "invoice_number": ("請求書番号", 100),
+        "cost_office": ("整備時の営業所", 100),
         "notes": ("備考", 10000),
     }
 
@@ -2333,7 +2335,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         "entry_date", "completion_date", "mileage",
         "symptom", "cause", "temporary_action", "repair_content",
         "maintenance_company", "maintenance_person", "repair_hours",
-        "invoice_number", "invoice_date",
+        "invoice_number", "invoice_date", "cost_office",
         "parts_cost", "labor_cost", "other_cost",
         "tax_amount", "total_cost", "notes",
     )
@@ -2341,6 +2343,8 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         field: getattr(record, field) if record is not None else ""
         for field in field_names
     }
+    if record is None:
+        form_values["cost_office"] = vehicle.office or ""
     record_version = (
         vehicle_maintenance_record_version(record) if record else ""
     )
@@ -2373,6 +2377,8 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         values, errors = validate_vehicle_maintenance_form(
             _dkss_common.request.form, entry_date_required=entry_date_required,
         )
+        if record is not None and "cost_office" not in _dkss_common.request.form:
+            values["cost_office"] = record.cost_office
         intent = _dkss_common.request.form.get("maintenance_action", "save")
         selected_inspection_tokens = _dkss_common.request.form.getlist("inspection_defect")
         try:

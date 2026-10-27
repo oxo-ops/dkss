@@ -155,6 +155,8 @@ def register_document_deletion(app,db,g):
                 db.session.delete(row);db.session.flush()
             metadata={'filename':draft.source_filename,'sha256':draft.source_sha256,'removed_sources':p['ids'],'counts':p['counts']}
             draft.status='deleted';draft.source_file=b'';draft.preview_json='{}';draft.result_json=json.dumps({'deleted':True,'at':datetime.now(timezone.utc).isoformat(),'by':session['username']},ensure_ascii=False)
+            from dkss_app.document_sources import purge_unreferenced
+            purge_unreferenced(draft.company_code,draft.source_sha256)
             state=p['state']
             if state:
                 state.result_json='{}';state.status='pending';state.input_hash=None;state.lease_token=None;state.lease_expires_at=None;state.last_error=None
