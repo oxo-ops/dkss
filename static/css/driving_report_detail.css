@@ -1,0 +1,45 @@
+.driving-detail-page{font-size:14px;line-height:1.65;color:#17385d;min-width:0}
+.driving-detail-page .card{padding:15px;border:1px solid #e1e8f5;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgb(41 77 126 / 3%);margin:12px 0}
+.driving-detail-page h2{font-size:22px;margin:0;overflow-wrap:anywhere}
+.driving-detail-page h3{font-size:15px;margin:0}
+.driving-detail-page h4{font-size:14px;margin:0;overflow-wrap:anywhere}
+.driving-detail-page p{margin:7px 0;overflow-wrap:anywhere}
+.driving-detail-page .driving-heading{margin-bottom:12px}
+.driving-detail-page .driving-section-heading{gap:8px;margin-bottom:8px;align-items:start}
+.driving-detail-page .driving-facts{grid-template-columns:repeat(3,minmax(0,1fr));margin:8px 0;gap:6px 16px}
+.driving-detail-page .driving-facts div{min-width:0;padding:5px 0}
+.driving-detail-page .driving-facts :is(dt,dd){overflow-wrap:anywhere}
+.driving-detail-page .driving-facts dt{font-size:12px;color:#5c7391}
+.driving-detail-page .driving-facts dd{font-size:14px;margin:3px 0;white-space:pre-wrap}
+.driving-detail-page .driving-detail-links{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;margin-top:10px}
+.driving-detail-page .driving-report-item-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:10px}
+.driving-detail-page .driving-report-item{border:1px solid #dfe7f5;border-radius:10px;padding:12px;background:#f8faff;min-width:0}
+.driving-detail-page .driving-report-raw{font-size:16px;font-weight:600;white-space:pre-wrap;color:#183c65}
+.driving-detail-page .driving-event-facts{margin:8px 0;font-size:13px}
+.driving-detail-page .driving-event-facts>div{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;margin:4px 0}
+.driving-detail-page .driving-event-facts dt{color:#5c7391;font-size:12px}
+.driving-detail-page .driving-event-facts dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.driving-detail-page :is(.driving-item-source,.driving-item-conditions){font-size:12px;margin-top:8px}
+.driving-detail-page .driving-item-conditions[open]{border-top:1px solid #dce5f4;padding-top:8px}
+.driving-detail-page .driving-notes{overflow-wrap:anywhere;white-space:pre-wrap}
+.driving-detail-page details>summary{font-size:13px;cursor:pointer;overflow-wrap:anywhere;color:#49638a}
+.driving-detail-page details.card>summary{font-weight:600;color:#17385d}
+.driving-detail-page .btn{font-size:13px;border:1px solid #d9d9f3;border-radius:8px;padding:7px 10px;min-height:36px;background:linear-gradient(#fff,#f7f6ff);color:#6655b6;white-space:normal}
+.driving-detail-page :is(input:not([type=hidden]),select,textarea){max-width:100%;box-sizing:border-box}
+.driving-detail-page label{margin:8px 0;min-width:0}
+.driving-detail-page :is(.driving-review-editor,.driving-source-facts){scroll-margin-top:18px}
+.driving-detail-page .driving-report-item .driving-badge{font-size:11px;padding:2px 6px;font-weight:400}
+@media(max-width:650px){
+ .driving-detail-page h2{font-size:19px}.driving-detail-page .card{padding:12px}
+ .driving-detail-page .driving-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px}
+ .driving-detail-page .driving-report-item-grid{grid-template-columns:1fr}
+ .driving-detail-page :is(input:not([type=hidden]),select,textarea){font-size:16px;min-height:42px}
+ .driving-detail-page .btn{min-height:40px}.driving-detail-page .driving-review-grid{grid-template-columns:1fr}
+ .driving-detail-page .driving-detail-links a{min-height:36px;display:inline-flex;align-items:center}
+ .driving-detail-page .driving-item-source a{display:inline-flex;align-items:center;min-height:36px}
+ .driving-detail-page .driving-filters{display:grid;grid-template-columns:1fr;width:100%}
+ .driving-detail-page .driving-filters label{min-width:0;width:100%}
+ .driving-detail-page .driving-report-item .driving-section-heading{align-items:start}
+}
+
+.driving-detail-page a:not(.btn){color:#35649b;text-decoration:none}.driving-detail-page a:not(.btn):hover{text-decoration:underline}
