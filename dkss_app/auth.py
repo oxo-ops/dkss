@@ -202,6 +202,34 @@ def create_mfa_code(user):
 
 
 
+def mfa_challenge_key(user):
+    """Opaque identity for one issued code; never store the code in audit logs."""
+    if not user.mfa_code_hash:
+        return ""
+    return _dkss_common.hashlib.sha256(
+        user.mfa_code_hash.encode("utf-8")
+    ).hexdigest()
+
+
+def mfa_failed_attempt_count(user, challenge_key):
+    """Persistent failures for one challenge, independent of client cookies.
+
+    The caller holds the user row lock until the failure and invalidation commit.
+    Only a fingerprint of the salted hash is stored with each audit event.
+    """
+    return _dkss_models.AuditLog.query.filter_by(
+        company_code=user.company_code,
+        username=user.username,
+        action="mfa_failed",
+        target_type="user",
+        target_id=user.username,
+    ).filter(
+        _dkss_models.AuditLog.detail.startswith(
+            f"MFA challenge {challenge_key}: "
+        )
+    ).count()
+
+
 def login_csrf_token():
     from flask_wtf.csrf import generate_csrf
 
@@ -452,6 +480,7 @@ def login():
             _dkss_common.session["mfa_password_changed_at"] = (
                 user.password_changed_at
             )
+            _dkss_common.session["mfa_pending_challenge"] = mfa_challenge_key(user)
             _dkss_common.session["mfa_attempts"] = 0
 
             return _dkss_common.redirect("/mfa")
@@ -505,10 +534,14 @@ def mfa():
     if not company_code or not username:
         return _dkss_common.redirect("/login")
 
-    user = _dkss_models.User.query.filter_by(
+    user_query = _dkss_models.User.query.filter_by(
         company_code=company_code,
         username=username
-    ).first()
+    )
+    if _dkss_common.request.method == "POST":
+        # Serialize code consumption and failure accounting on PostgreSQL.
+        user_query = user_query.with_for_update().populate_existing()
+    user = user_query.first()
 
     if not user or user.login_locked:
         _dkss_common.session.clear()
@@ -526,6 +559,14 @@ def mfa():
     if (
         _dkss_common.session.get("mfa_password_changed_at")
         != user.password_changed_at
+    ):
+        _dkss_common.session.clear()
+        return _dkss_common.redirect("/login")
+
+    challenge_key = mfa_challenge_key(user)
+    if (
+        not challenge_key
+        or _dkss_common.session.get("mfa_pending_challenge") != challenge_key
     ):
         _dkss_common.session.clear()
         return _dkss_common.redirect("/login")
@@ -576,21 +617,17 @@ def mfa():
                     code
                 )
             ):
-                attempts = (
-                    _dkss_common.session.get("mfa_attempts", 0) + 1
-                )
+                attempts = mfa_failed_attempt_count(user, challenge_key) + 1
                 _dkss_common.session["mfa_attempts"] = attempts
 
                 _dkss_audit.add_audit_log(
                     action="mfa_failed",
                     target_type="user",
                     target_id=user.username,
-                    detail=f"MFA認証失敗 {attempts}回目",
+                    detail=f"MFA challenge {challenge_key}: MFA認証失敗 {attempts}回目",
                     company_code=user.company_code,
                     username=user.username,
                 )
-
-                _dkss_common.db.session.commit()
 
                 if attempts >= 5:
                     user.mfa_code_hash = None
@@ -617,6 +654,8 @@ def mfa():
                             "もう一度ログインしてください。"
                         )
                     )
+
+                _dkss_common.db.session.commit()
 
                 error = (
                     "認証コードが違います。"
