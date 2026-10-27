@@ -219,6 +219,7 @@ def register_driving_reports(app, db, g):
         board['reader_version']=hashlib.sha256(json.dumps([(r.id,version(r)) for r in scope]).encode()).hexdigest()
         board['reader_rows']=scope
         workspace.enrich(board,facts,before,master_drivers,company_users,confirmed,office_options,resolved,readership.administrator())
+        board['scope']=resolved['scope']
         mode=resolved.get('breakdown') or ('vehicles' if focus else 'offices' if resolved['scope']=='company' else 'people')
         comparison_ready=not ((mode=='vehicle' and not resolved.get('vehicle')) or (mode=='vehicles' and not focus))
         board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,readership.administrator())
