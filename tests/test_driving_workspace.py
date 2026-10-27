@@ -68,7 +68,9 @@ class WorkspaceTests(unittest.TestCase):
         response,context=self.render(self.base+'&scope=company&focus='+key)
         self.assertEqual([r.id for r in context['insights']['reader_rows']],[self.a.id])
         self.assertEqual(context['total'],1)
-        self.assertNotIn('小山の人',response.get_data(as_text=True))
+        # A company-level person detail may show other recorded users of the same vehicle.
+        # The person's report list and exports must still contain only that person's records.
+        self.assertNotIn('小山の人',response.get_data(as_text=True).split('id="report-list"')[-1])
         for suffix in ['','&view=comparison']:
             response=self.client.get('/safety/driving-reports/export.csv?period=all&scope=company&focus='+key+suffix)
             self.assertEqual(response.status_code,200);self.assertNotIn('小山の人',response.data.decode('utf-8-sig'))

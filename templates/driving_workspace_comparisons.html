@@ -27,7 +27,7 @@
 <p>前期間 {{ row.previous.metric_count }}／{{ row.previous.count }}運行（{{ row.previous_coverage }}%）</p>
 {% if row.current.numerator is not none %}<p>分子 {{ insight_number(row.current.numerator) }} ／ 分母 {{ insight_number(row.current.denominator) }}。対応距離 {{ insight_number(row.current.paired_distance) }} km</p>{% endif %}
 <p>使用車両 {{ row.conditions.vehicles|join(' ／ ') or '記録なし' }}</p><p>前期間の車両 {{ row.previous_conditions.vehicles|join(' ／ ') or '記録なし' }}</p>
-<p>道路区分 {{ row.conditions.roads|join(' ／ ') or '未取得' }}。積載・路線は未取得です。</p>
+{% if row.conditions.registration_attributes %}<p>メーカー ／ 型式 ／ 車体形状 ／ 初年度（現在の台帳）</p>{% for values in row.conditions.registration_attributes %}<p>{{ values|join(' ／ ') }}</p>{% endfor %}{% endif %}<p>道路区分 {{ row.conditions.roads|join(' ／ ') or '未取得' }}。積載・路線は未取得です。</p>
 {% if insights.metric %}<p>{{ insights.metric.source }} ／ {{ insights.metric.version }} ／ {{ insights.metric.definition }} ／ {{ insights.metric.threshold }} ／ {{ insights.metric.road }} ／ {{ driving_scope_labels.get(insights.metric.scope,'不明') }}</p>{% endif %}
 <p>対象日報 {% for rid in row.current.sources %}<a href="{{ url_for('driving_report_detail',record_id=rid,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-detail'))) }}">{{ rid }}</a> {% else %}なし{% endfor %}</p>
 </details></td></tr>{% endfor %}</tbody></table></div>
