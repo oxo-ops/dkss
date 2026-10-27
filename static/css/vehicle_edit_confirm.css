@@ -1,0 +1,41 @@
+/* This card contains a full confirmation workflow, not a horizontal filter. */
+.main-content .page-header + .vehicle-edit-confirm {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+}
+.vehicle-edit-confirm > .help-text {
+    margin: 0 0 12px;
+}
+.vehicle-edit-confirm > .table-scroll {
+    width: 100%;
+    margin: 0;
+}
+.vehicle-edit-confirm .checklist-table {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    table-layout: fixed;
+}
+.vehicle-edit-confirm .checklist-table th,
+.vehicle-edit-confirm .checklist-table td {
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-align: left;
+}
+.vehicle-edit-confirm .checklist-table th:first-child { width: 28%; }
+.vehicle-edit-confirm > .responsive-form { width: 100%; margin-top: 14px; }
+.vehicle-edit-confirm .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+}
+.vehicle-edit-confirm .form-actions .btn { width: auto; margin: 0; }
+@media (max-width: 768px) {
+    .vehicle-edit-confirm .checklist-table tbody th:first-child { width: 100%; box-sizing: border-box; }
+}
+@media (max-width: 640px) {
+    body .main-content .vehicle-edit-confirm .form-actions .btn { flex: 1 1 auto; min-height: 44px; }
+}

@@ -4,6 +4,7 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_master_form.css', v='20261027-layout-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_edit_confirm.css', v='20261028-confirm-layout-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -12,7 +13,7 @@
     <h2>車両の変更内容確認</h2>
 </div>
 
-<div class="card form-card vehicle-master-review-card">
+<div class="card form-card vehicle-master-review-card vehicle-edit-confirm">
     <p class="help-text">
         変更前・変更後の内容を確認し、
         問題がなければ「この内容で更新」を押してください。
