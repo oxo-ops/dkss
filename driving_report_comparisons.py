@@ -8,6 +8,7 @@ from driving_report_insights import number, summarize
 
 def conditions(facts, labels):
     return {
+        'registration_attributes': sorted({tuple((f.get('vehicle_conditions') or {}).get(field) or '未登録・不明' for field in ['vehicle_make','vehicle_model','vehicle_body','vehicle_year']) for f in facts}),
         'vehicle_ids': sorted({f['vehicle_id'] for f in facts}),
         'vehicles': sorted({labels.get(f['vehicle_id'], '車両 '+str(f['vehicle_id'])) for f in facts}),
         'roads': sorted({m['road'] for f in facts for m in f['metrics'] if m['road'] != '区分なし'}),
