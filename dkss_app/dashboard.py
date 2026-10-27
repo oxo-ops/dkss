@@ -239,7 +239,7 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
 
 
 def dashboard():
-    today = _dkss_common.datetime.now().date()
+    today = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).date()
     company_code = _dkss_common.session.get("company_code")
     _dkss_audit.update_company_usage_summary(company_code)
     _dkss_common.db.session.commit()
