@@ -6,6 +6,7 @@ import json
 from urllib.parse import urlsplit
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
+from sqlalchemy import and_, or_
 from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 from driving_report_pdf import export_pdf
 import driving_report_workspace as workspace
@@ -84,6 +85,11 @@ def register_driving_reports(app, db, g):
         if state:
             if state not in STATES and state!='cancelled':abort(400)
             rows=[r for r in rows if (payload(r).get('lifecycle')=='cancelled' if state=='cancelled' else (payload(r).get('review') or {}).get('state','unreviewed')==state and payload(r).get('lifecycle') not in {'cancelled','superseded'})]
+        due=args.get('followup_due','')
+        if due not in {'','due','upcoming'}:abort(400)
+        if due:
+            today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
+            rows=[r for r in rows if comparisons.followup_status(r,today)==due]
         return rows
     def view(row,ops=None,vehicle_label=None):
         p=payload(row);v=Vehicle.query.filter_by(company_code=row.company_code,id=row.vehicle_record_id).first() if vehicle_label is None else None
@@ -114,7 +120,7 @@ def register_driving_reports(app, db, g):
         db.session.commit()
     def prepare_insights(args,scope_override=None):
         access()
-        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown'}
+        allowed={'period','start','end','driver','office','vehicle','state','metric','focus','page','compare','scope','listing','breakdown','compare_start','compare_end','followup_due'}
         args={key:args[key] for key in allowed if key in args}
         for key in ('metric','focus'):
             if args.get(key) and (len(args[key])!=24 or any(c not in '0123456789abcdef' for c in args[key])):abort(400)
@@ -131,8 +137,14 @@ def register_driving_reports(app, db, g):
         rows=selected(resolved)
         previous=selected(dict(resolved,start=period['previous_start'],end=period['previous_end'])) if period['previous_start'] else []
         q=Record.query.filter_by(company_code=session['company_code'])
-        if period['start']:q=q.filter(Record.operation_date>=(period['previous_start'] or period['start']))
-        if period['end']:q=q.filter(Record.operation_date<=period['end'])
+        def date_windows(column):
+            current=[]
+            if period['start']:current.append(column>=period['start'])
+            if period['end']:current.append(column<=period['end'])
+            windows=[and_(*current)]
+            if period['previous_start']:windows.append(and_(column>=period['previous_start'],column<=period['previous_end']))
+            return or_(*windows)
+        if period['start'] or period['end']:q=q.filter(date_windows(Record.operation_date))
         context=readership.visible(q.all())
         vehicle_query=Vehicle.query.filter_by(company_code=session['company_code'])
         if not readership.administrator():vehicle_query=vehicle_query.filter(Vehicle.id.in_({r.vehicle_record_id for r in context}))
@@ -141,8 +153,7 @@ def register_driving_reports(app, db, g):
         ids={r.vehicle_record_id for r in context};ops={}
         if ids:
             query=Operation.query.filter(Operation.company_code==session['company_code'],Operation.vehicle_record_id.in_(ids))
-            if period['start']:query=query.filter(Operation.operation_date>=(period['previous_start'] or period['start']))
-            if period['end']:query=query.filter(Operation.operation_date<=period['end'])
+            if period['start'] or period['end']:query=query.filter(date_windows(Operation.operation_date))
             for row in query.all():ops.setdefault((row.company_code,row.vehicle_record_id),[]).append(row)
         keys,conflicting=driver_keys(context)
         warning_keys={keys[r.id] for r in context if driver_keys([r])[0][r.id] in conflicting}
@@ -187,7 +198,12 @@ def register_driving_reports(app, db, g):
         comparison_ready=not ((mode=='vehicle' and not resolved.get('vehicle')) or (mode=='vehicles' and not focus))
         board['comparison']=comparisons.build(board,facts if comparison_ready else [],before if comparison_ready else [],mode,readership.administrator())
         board['comparison']['ready']=comparison_ready
-        board['followups']=comparisons.followups(rows) if focus else []
+        review_items=comparisons.followups(rows)
+        board['followups']=review_items if focus else []
+        due_ids={r.id for r in rows if comparisons.followup_status(r,today)=='due'}
+        board['due_followups']=sorted([dict(item,driver_key=keys.get(item['id'],'')) for item in review_items if item['id'] in due_ids],key=lambda item:(item['review']['next_date'],item['id']))
+        board['period_days']=(date.fromisoformat(period['end'])-date.fromisoformat(period['start'])).days+1 if period['start'] and period['end'] else None
+        board['comparison_days']=(date.fromisoformat(period['previous_end'])-date.fromisoformat(period['previous_start'])).days+1 if period['previous_start'] else None
         summaries={rid:fact for fact in facts for rid in fact['copies']}
         board['report_metrics']={rid:[m for m in fact['metrics'] if m['id']==board['metric_id']] for rid,fact in summaries.items()}
         return rows,previous,ops,vehicles,resolved,board,facts

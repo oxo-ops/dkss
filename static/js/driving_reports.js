@@ -57,9 +57,28 @@
   if(reflection?.dataset.status==='new'&&reflection.dataset.autoRefresh==='true')reflectionForm?.requestSubmit();
   window.addEventListener('pagehide',()=>clearTimeout(pollTimer));
   form?.querySelector('[name=period]')?.addEventListener('change',event=>{if(event.target.value==='custom'){const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;}});
-  form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',()=>{
+  form?.querySelectorAll('input[name=start],input[name=end]').forEach(input=>input.addEventListener('change',()=>{
    const select=form.querySelector('[name=period]');if(select)select.value='custom';
   }));
+  const comparisonSelect=form?.querySelector('[name=compare]');
+  function comparisonFields(){
+   const custom=comparisonSelect?.value==='custom';
+   form?.querySelectorAll('[data-comparison-date]').forEach(label=>{label.hidden=!custom;label.querySelector('input').required=custom;});
+   if(custom&&form?.querySelector('[name=period]')?.value==='all')form.querySelector('[name=period]').value='custom';
+   const targetStart=form?.querySelector('[name=start]')?.value;
+   const beforeStart=form?.querySelector('[name=compare_start]'),beforeEnd=form?.querySelector('[name=compare_end]');
+   if(beforeStart&&beforeEnd){
+    const limit=validDay(targetStart)?new Date(Date.parse(targetStart)-86400000).toISOString().slice(0,10):'';
+    beforeEnd.max=limit;beforeEnd.min=beforeStart.value;
+    beforeStart.max=beforeEnd.value||limit;
+   }
+  }
+  comparisonSelect?.addEventListener('change',comparisonFields);comparisonFields();
+  form?.querySelector('[name=period]')?.addEventListener('change',event=>{
+   if(event.target.value==='all'&&comparisonSelect?.value==='custom')comparisonSelect.value='previous';
+   comparisonFields();
+  });
+  form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',comparisonFields));
   document.querySelectorAll('[data-driving-chart]').forEach(svg=>{
    let rows;try{rows=series(JSON.parse(svg.dataset.series));}catch{return;}
    const measured=rows.filter(r=>r.value!==null);
