@@ -755,43 +755,41 @@ def s3_uploads_file(filename):
 
 def s3_manual_file(filename):
     company_code = _dkss_common.session.get("company_code")
-
     if not company_code:
         return "File not found", 404
 
     filename = _dkss_common.os.path.basename(filename)
-
-    if not file_belongs_to_current_company(
-        filename,
-        "manuals"
-    ):
+    if not file_belongs_to_current_company(filename, "manuals"):
         return "File not found", 404
 
-    if _dkss_runtime.app.extensions["dkss"]['s3_client'] and _dkss_runtime.app.config['S3_BUCKET_NAME']:
+    app = _dkss_runtime.app
+    client = app.extensions["dkss"]["s3_client"]
+    bucket = app.config["S3_BUCKET_NAME"]
+    keys = [f"manuals/{company_code}/{filename}", f"manuals/{filename}"]
+    if client and bucket:
+        for key in keys:
+            try:
+                client.head_object(Bucket=bucket, Key=key)
+                url = client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": key,
+                            "ResponseCacheControl": "no-store"},
+                    ExpiresIn=300,
+                )
+                return _dkss_common.redirect(url)
+            except _dkss_common.ClientError as error:
+                code = str(error.response.get("Error", {}).get("Code", ""))
+                if code not in {"404", "NoSuchKey", "NotFound"}:
+                    app.logger.warning("Manual retrieval failed: %s", code)
+                    return "File not found", 404
+        return "File not found", 404
+
+    for key in keys:
         try:
-            url = _dkss_runtime.app.extensions["dkss"]['s3_client'].generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": _dkss_runtime.app.config['S3_BUCKET_NAME'],
-                    "Key": (
-                        f"manuals/"
-                        f"{company_code}/"
-                        f"{filename}"
-                    ),
-                    "ResponseCacheControl": "no-store"
-                },
-                ExpiresIn=300
-            )
-
-            return _dkss_common.redirect(url)
-
-        except _dkss_common.ClientError:
-            print("S3取得エラー")
-            return "File not found", 404
-
-    return _dkss_runtime.app.send_static_file(
-        f"manuals/{company_code}/{filename}"
-    )
+            return app.send_static_file(key)
+        except _dkss_common.NotFound:
+            continue
+    return "File not found", 404
 
 
 
