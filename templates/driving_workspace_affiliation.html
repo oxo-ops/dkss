@@ -1,0 +1,5 @@
+<div class="driving-affiliation">
+{% if person.has_records %}<small>日報当時 {{ person.offices|join('・') }}</small>{% endif %}
+<small>現在所属 {{ person.current_office or '未確認' }}</small>
+{% if person.affiliation_status in ['other','history_unknown'] %}<small>{{ person.affiliation_label }}</small>{% endif %}
+</div>

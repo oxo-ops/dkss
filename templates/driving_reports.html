@@ -5,7 +5,7 @@
 {% endmacro %}
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261027-driving-conditions-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261027-driving-membership-1') }}">
 <div class="driving-page driving-insights driving-release driving-workspace{{ ' driving-own' if not driving_is_admin else '' }}">
 <nav class="page-breadcrumb"><a href="{{ url_for('dashboard') }}">ホーム</a><span>› 安全管理 › 運転実績</span></nav>
 <div class="driving-heading"><h2>{{ insights.selected_driver.name ~ 'さんの運転傾向' if insights.selected_driver else insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}</h2><div class="driving-actions">{% if driving_is_admin %}<a class="btn btn-outline driving-small-button" href="{{ url_for('vehicle_data_import') }}#import-driving_report">日報を取り込む</a>{% endif %}<details class="driving-export-menu"><summary class="btn btn-outline driving-small-button">出力</summary><div><a href="{{ url_for('driving_report_export',format='csv',**filter_query) }}">日報CSV</a><a href="{{ url_for('driving_report_export',format='csv',**dict(filter_query,view='comparison')) }}">比較CSV</a><a href="{{ url_for('driving_report_export',format='pdf',**filter_query) }}">PDF出力</a></div></details></div></div>
@@ -32,5 +32,5 @@
 {% include 'driving_workspace_followups.html' %}
 {% if insights.review_notes %}<details class="card driving-review-notes" id="comparison-review"><summary>データの確認事項 {{ insights.review_notes|length }}件</summary>{% for note in insights.review_notes %}<div class="driving-review-note"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline driving-small-button" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-review'))) }}">日報を確認</a></div>{% endfor %}</details>{% endif %}
 {% include 'driving_workspace_reports.html' %}
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261027-driving-conditions-1') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261027-driving-membership-1') }}" defer></script>
 {% endblock %}
