@@ -1,0 +1,114 @@
+/* Driving workspace uses the dashboard's compact surfaces and action hierarchy. */
+.driving-designed{--driving-ink:#17385d;--driving-muted:#5c7391;--driving-line:#dce5f5;color:var(--driving-ink);font-size:14px;line-height:1.6;min-width:0}
+.driving-designed .page-breadcrumb{display:none}
+.driving-designed .driving-heading{margin:0 0 12px;gap:12px}
+.driving-designed .driving-heading h2{font-size:23px;line-height:1.4;color:var(--driving-ink)}
+.driving-designed .card{padding:14px;margin:12px 0;border:1px solid #fff;border-radius:13px;background:linear-gradient(120deg,#fff,#fbfdff);box-shadow:0 2px 9px rgb(41 77 126 / 3%)}
+.driving-designed h3{font-size:15px;font-weight:700;color:var(--driving-ink)}
+.driving-designed h4{font-size:14px;line-height:1.6;margin:0;font-weight:600}
+.driving-designed p{margin:6px 0}
+.driving-designed :is(a,summary){overflow-wrap:anywhere}
+.driving-designed .driving-section-heading{margin-bottom:10px;gap:9px}
+.driving-designed .driving-actions{gap:8px;justify-content:flex-start}
+.driving-designed .btn{font-size:12px;line-height:1.5;min-height:34px;padding:6px 11px;border:1px solid #d9d9f3;border-radius:8px;background:linear-gradient(#fff,#f7f6ff);color:#6655b6;box-shadow:0 2px 4px rgb(38 59 107 / 3%);white-space:normal}
+.driving-designed label{font-size:12px;gap:4px}
+.driving-designed :is(input:not([type=hidden]),select){font-size:14px;min-height:36px;border-color:#d5def1;padding:6px 9px}
+.driving-designed .driving-main-filters>label{flex:0 1 220px}
+.driving-designed .driving-main-filters{gap:10px;align-items:end}
+.driving-designed .driving-filter-actions{display:flex;align-items:center;gap:10px;margin:0;font-size:12px}
+.driving-designed .driving-extra-filters{font-size:12px;margin-top:9px}
+.driving-designed .driving-extra-filters[open]{padding:10px 12px;background:#f8faff;border:1px solid var(--driving-line);border-radius:9px}
+.driving-designed .driving-filters{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+.driving-designed .driving-workspace-period{margin:9px 0;font-size:12px;color:var(--driving-muted)}
+.driving-designed .driving-compact-summary{padding:0 2px;margin:10px 0;gap:7px 18px;font-size:12px;color:var(--driving-muted)}
+.driving-designed .driving-compact-summary strong{font-size:15px;font-weight:600}
+.driving-designed .driving-reflection-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.driving-designed .driving-reflection-items .driving-finding{padding:11px;background:#f9fbff;border:1px solid #e0e7f4;border-radius:10px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.driving-designed .driving-reflection-items .driving-finding-attention{background:#fffdf8;border-color:#eee7d7}
+.driving-designed .driving-reflection-items .driving-finding-vehicle{background:#faf8ff;border-color:#e5def8}
+.driving-designed .driving-finding-label{font-size:12px;color:#5e709b}
+.driving-designed .driving-finding-attention .driving-finding-label{color:#91651c}
+.driving-designed .driving-finding p{font-size:12px;color:#526d8b;margin:0}
+.driving-designed .driving-finding .driving-next-action{font-size:12px;color:var(--driving-ink)}
+.driving-designed .driving-reflection-links{margin-top:auto;gap:7px}
+.driving-designed .driving-reflection-links a{font-size:12px;padding:3px 0;min-height:28px;background:none;box-shadow:none;border:0;text-align:left;justify-content:flex-start;color:#5a6fb0}
+.driving-designed .driving-finding details{font-size:12px;color:#5a6fb0}
+.driving-designed .driving-finding details[open]{border-top:1px solid var(--driving-line);padding-top:7px}
+.driving-designed .driving-finding details p{margin:7px 0}
+.driving-designed [data-reflection-status]{font-size:12px;color:var(--driving-muted);margin:3px 0 10px}
+.driving-designed .driving-metrics-panel .driving-section-heading{margin-bottom:10px}
+.driving-designed .driving-metric-tabs{display:flex;gap:3px;padding:3px;border:1px solid #dedbf3;border-radius:8px;background:#f0eef9;flex-wrap:wrap}
+.driving-designed .driving-metric-tabs a{padding:4px 11px;min-height:29px;display:inline-flex;align-items:center;border-radius:6px;color:#536987;text-decoration:none;font-size:12px}
+.driving-designed .driving-metric-tabs a[aria-current=page]{background:linear-gradient(#a794ef,#8872dc);color:#fff;box-shadow:0 2px 4px rgb(118 101 179 / 16%)}
+.driving-designed .driving-key-metrics{grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px;margin:0}
+.driving-designed .driving-key-metrics article{background:#f7faff;border:1px solid var(--driving-line);padding:10px 12px;border-radius:10px;min-width:0}
+.driving-designed .driving-key-metrics article.is-current{border-color:#9ab9e8;box-shadow:inset 0 0 0 1px #bdd2ed;background:#f2f7ff}
+.driving-designed .driving-metric-select{font-size:12px;color:#4e6688;display:flex;justify-content:space-between;gap:8px;text-decoration:none}
+.driving-designed .driving-key-metrics strong{font-size:25px;line-height:1.45;letter-spacing:.01em;margin:3px 0;display:flex;gap:4px;align-items:baseline;flex-wrap:wrap}
+.driving-designed .driving-key-metrics strong small{display:inline;font-size:12px;margin:0}
+.driving-designed .driving-key-metrics small{font-size:12px;color:var(--driving-muted);margin-top:4px}
+.driving-designed .driving-key-metrics details{font-size:11px;color:#627891;margin-top:6px}
+.driving-designed .driving-metrics-caption{font-size:11px;color:var(--driving-muted);margin:8px 0 0}
+.driving-designed .driving-workspace-table{font-size:12px;table-layout:fixed}
+.driving-designed .driving-workspace-table th{background:#f0f5fd;color:#536b8d;padding:9px 10px;font-size:12px;white-space:normal}
+.driving-designed .driving-workspace-table th:first-child{width:25%}
+.driving-designed .driving-workspace-table th:nth-child(2){width:34%}
+.driving-designed .driving-workspace-table th:nth-child(3){width:21%}
+.driving-designed .driving-workspace-table td{padding:10px;line-height:1.6}
+.driving-designed .driving-workspace-table td strong{font-size:15px}
+.driving-designed .driving-workspace-table td small{font-size:11px;line-height:1.6;margin-top:3px}
+.driving-designed .driving-workspace-table td .driving-person-link{font-size:14px;font-weight:600}
+.driving-designed .driving-workspace-table td :is(p,div){margin-top:0}
+.driving-designed .driving-workspace-table td .driving-state{font-size:11px;padding:2px 7px}
+.driving-designed .driving-roster-search{display:flex;align-items:end;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+.driving-designed .driving-roster-search label{max-width:220px;flex:0 1 190px}
+.driving-designed .driving-person-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:11px;align-items:start}
+.driving-designed .driving-person-grid>.card{margin-top:0;margin-bottom:0}
+.driving-designed .driving-person-grid{margin:12px 0}
+.driving-designed .driving-detail-metric{display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin:8px 0}
+.driving-designed .driving-detail-metric label{flex:1;min-width:0}
+.driving-designed .driving-chart-caption{font-size:12px;color:var(--driving-muted);margin:9px 0}
+.driving-designed .driving-chart{display:block;width:100%;max-width:none;height:160px}
+.driving-designed :is(.driving-day-records,.driving-reader-setting,.driving-maintenance-detail,.driving-affiliation-detail){font-size:12px;margin-top:10px}
+.driving-designed .driving-affiliation-detail{margin:2px 0 9px}
+.driving-designed .driving-vehicle-history{margin-top:9px;padding:9px 0;border-bottom:1px solid var(--driving-line)}
+.driving-designed .driving-vehicle-history:last-child{border-bottom:0}
+.driving-designed .driving-vehicle-history>strong{font-size:14px;display:block}
+.driving-designed .driving-vehicle-history>small{font-size:11px;color:var(--driving-muted)}
+.driving-designed .driving-vehicle-history>p{font-size:12px;color:#597490}
+.driving-designed .driving-vehicle-primary-links{font-size:12px;gap:13px}
+.driving-designed .driving-used-vehicles .driving-facts{grid-template-columns:1fr;font-size:12px}
+.driving-designed .driving-next-review>strong{font-size:14px;font-weight:600}
+.driving-designed .driving-next-review .driving-badge{font-size:12px;background:#f0edff;color:#7059bc}
+.driving-designed .driving-next-review .driving-section-heading:last-child{margin-bottom:0;font-size:12px;flex-wrap:wrap}
+.driving-designed .driving-person-explanation{font-size:12px;color:#526c8c}
+.driving-designed .driving-review-excerpt{font-size:12px;color:#526c8c;border-left:3px solid #bdd0eb;padding:4px 0 4px 9px;margin:9px 0}
+.driving-designed :is(.driving-followup-history,.driving-comparison-detail,.driving-review-notes,.driving-due-list,.driving-report-fold)>summary{font-size:13px;font-weight:600}
+.driving-designed :is(.driving-followup-history,.driving-report-fold,.driving-review-notes){padding:12px 14px}
+.driving-designed .driving-record-table,.driving-designed .driving-report-table{font-size:12px}
+.driving-designed .driving-record-table :is(td,th),.driving-designed .driving-report-table :is(td,th){padding:9px 8px}
+.driving-designed .driving-comparison-detail{margin-top:12px}
+.driving-designed .driving-muted{font-size:12px;color:var(--driving-muted)}
+@media(max-width:1000px){.driving-designed .driving-reflection-items{grid-template-columns:1fr}.driving-designed .driving-finding{gap:5px}.driving-designed .driving-reflection-items .driving-finding{display:grid;grid-template-columns:145px minmax(0,1fr);gap:5px 10px}.driving-designed .driving-finding-label{grid-row:1/3}.driving-designed .driving-finding h4,.driving-designed .driving-finding>p,.driving-designed .driving-finding .driving-actions,.driving-designed .driving-finding details{grid-column:2}}
+@media(max-width:820px){.driving-designed .driving-person-grid{grid-template-columns:1fr}.driving-designed .driving-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){
+ .driving-designed{font-size:14px}.driving-designed .driving-heading h2{font-size:19px}.driving-designed .driving-heading{gap:8px}.driving-designed .card{padding:12px;margin:11px 0}
+ .driving-designed .driving-main-filters{grid-template-columns:1fr 1fr;gap:9px}.driving-designed .driving-main-filters label{margin:0}.driving-designed :is(select,input:not([type=hidden])){font-size:16px;min-height:42px}
+ .driving-designed .btn{min-height:40px;padding:6px 9px}.driving-designed .driving-filter-actions{font-size:12px}.driving-designed .driving-workspace-period{font-size:11px}
+ .driving-designed .driving-reflection-items .driving-finding{display:flex;gap:6px;padding:11px}.driving-designed .driving-finding h4{font-size:14px}.driving-designed .driving-reflection-links a{min-height:34px}
+ .driving-designed .driving-compact-summary{gap:6px 13px;font-size:11px}.driving-designed .driving-compact-summary strong{font-size:14px}
+ .driving-designed .driving-key-metrics{grid-template-columns:1fr;gap:8px}.driving-designed .driving-key-metrics article{padding:10px 12px}.driving-designed .driving-key-metrics strong{font-size:24px}.driving-designed .driving-key-metrics small{font-size:11px}
+ .driving-designed .driving-section-heading{flex-wrap:wrap}.driving-designed .driving-metric-tabs a{min-height:35px;padding:4px 10px}
+ .driving-designed .driving-workspace-table tbody tr{display:block!important;border:1px solid var(--driving-line);border-radius:9px;background:#fafcff;margin:8px 0;padding:10px!important}
+ .driving-designed .driving-workspace-table td{display:grid!important;grid-template-columns:85px minmax(0,1fr);gap:4px 8px;padding:4px 0!important;line-height:1.65}
+ .driving-designed .driving-workspace-table td:first-child{display:block!important;border-bottom:1px solid #e5ecf7!important;padding-bottom:7px!important;margin-bottom:4px}
+ .driving-designed .driving-workspace-table td:before{grid-column:1;font-size:11px}.driving-designed .driving-workspace-table td>small{grid-column:2}.driving-designed .driving-workspace-table td:first-child>small{display:block;margin-top:3px}
+ .driving-designed .driving-workspace-table td>.driving-state{justify-self:start}.driving-designed .driving-roster-search{display:grid;grid-template-columns:1fr;gap:8px}.driving-designed .driving-roster-search label{max-width:none;width:100%}
+ .driving-designed .driving-person-grid>.card{margin:0}.driving-designed .driving-detail-metric .btn{min-height:42px}.driving-designed .driving-facts{grid-template-columns:1fr}.driving-designed .driving-filters{grid-template-columns:1fr 1fr}.driving-designed .driving-used-vehicles .driving-actions{flex-wrap:wrap}
+}
+
+.driving-designed.driving-own .driving-main-filters{grid-template-columns:minmax(160px,220px) auto;justify-content:start}
+.driving-designed.driving-own .driving-main-filters .driving-filter-actions{margin:0;align-self:end;grid-column:auto;min-height:36px}
+.driving-designed .driving-workspace-table td strong small{display:inline;margin:0 0 0 3px}
+.driving-designed .driving-workspace-table td>div+div{margin-top:7px}
+@media(max-width:650px){.driving-designed.driving-own .driving-main-filters{grid-template-columns:minmax(0,1fr) auto}.driving-designed.driving-own .driving-main-filters .driving-filter-actions{min-height:42px;gap:8px}.driving-designed .driving-heading{flex-direction:row;align-items:center}.driving-designed .driving-heading h2{flex:1}.driving-designed .driving-heading .driving-actions{width:auto}}

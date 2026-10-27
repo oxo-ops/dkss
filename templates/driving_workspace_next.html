@@ -1,0 +1,9 @@
+<section class="card driving-next-review" aria-labelledby="driving-next-title"><div class="driving-section-heading"><h3 id="driving-next-title">{{ '本人の説明・次の振り返り' if driving_is_admin else '次の振り返り' }}</h3>{% if insights.next_followup_date %}<span class="driving-badge">{{ insights.next_followup_date }}</span>{% endif %}</div>
+{% if insights.next_followup %}{% set item=insights.next_followup %}
+<strong>{{ item.review.get('action') or '運行時の状況を振り返る' }}</strong>
+<p><span class="driving-state driving-state-{{ item.review.get('state','unreviewed') }}">{{ driving_review_states.get(item.review.get('state','unreviewed')) }}</span></p>
+{% if item.review.get('driver_explanation') %}<p class="driving-person-explanation">{{ item.review.driver_explanation }}</p>{% endif %}
+{% if item.review.get('note') %}<p class="driving-review-excerpt">{{ item.review.note }}</p>{% endif %}
+<div class="driving-section-heading"><a href="{{ url_for('driving_report_detail',record_id=item.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='driving-followups'))) }}">{{ '確認・指導を記録' if driving_is_admin else '日報を確認' }}</a><a href="#driving-followups">振り返りの履歴</a></div>
+{% else %}<p class="driving-muted">次の振り返りはまだ登録されていません。</p>{% if driving_is_admin %}<a href="#report-list" data-open-section="report-list">日報から確認・指導を記録</a>{% endif %}{% endif %}
+</section>
