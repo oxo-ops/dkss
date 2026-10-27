@@ -223,3 +223,10 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
 .driving-designed .driving-vehicle-edit label{display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%;flex:1 1 180px}
 .driving-designed .driving-vehicle-edit select{width:100%;min-width:0;max-width:100%}
 .driving-designed .driving-vehicle-corrections{margin-top:10px;font-size:12px}
+
+/* Personal and management views are always one click away for managers. */
+.driving-designed .driving-view-switch{display:inline-flex;gap:3px;padding:3px;border:1px solid #dfd6fa;border-radius:8px;background:#f0edfa;flex-shrink:0}
+.driving-designed .driving-view-switch a{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:2px 10px;border-radius:5px;font-size:12px;white-space:nowrap;text-decoration:none;color:#5f7595}
+.driving-designed .driving-view-switch a[aria-current=page]{background:linear-gradient(#aa94f4,#8e75dd);color:#fff;font-weight:600;box-shadow:0 2px 4px #8872dc22}
+.driving-designed .driving-view-switch a:focus-visible{outline:2px solid #8669de;outline-offset:2px}
+@media(max-width:650px){.driving-designed .driving-view-switch a{min-height:34px}}
