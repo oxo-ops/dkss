@@ -4,7 +4,7 @@ from datetime import datetime
 import unittest
 from openpyxl import load_workbook
 from test_inspection_plans import InspectionPlanTests
-from inspection_plan_excel import build_annual_workbook
+from inspection_plan_excel import build_annual_workbook, annual_filename
 
 
 class InspectionPlanExcelTests(unittest.TestCase):
@@ -29,6 +29,7 @@ class InspectionPlanExcelTests(unittest.TestCase):
         before=self.m.VehicleInspectionPlanEvent.query.count()
         wb=self.workbook(self.export())
         self.assertEqual(wb.sheetnames,['年間点検計画','点検明細'])
+        self.assertEqual(wb.worksheets[0]['A1'].value, '2026年度 点検計画')
         ws=wb.worksheets[0]
         self.assertEqual([ws.cell(4,c).value.month for c in range(3,15)],[4,5,6,7,8,9,10,11,12,1,2,3])
         self.assertEqual(ws['N4'].value.year,2027)
@@ -67,6 +68,37 @@ class InspectionPlanExcelTests(unittest.TestCase):
         self.assertEqual(self.export('&vehicle_id='+str(foreign.id)).status_code,404)
         self.assertEqual(self.export('&office=foreign-office').status_code,400)
         self.assertNotIn('SECRET',str([c.value for row in wb.worksheets[0] for c in row]))
+
+    def test_office_filename_and_sheet_scope_match_applied_filter(self):
+        from urllib.parse import unquote
+        self.vehicle.office = 'テスト営業所'
+        self.m.db.session.commit()
+        for args in ({'scope':'company','office':'テスト営業所'}, {'scope':'office','office':'テスト営業所'}):
+            response = self.client.get('/vehicle/inspection-plans/export.xlsx', query_string={'year':2026, **args})
+            workbook = self.workbook(response)
+            self.assertIn('点検計画_2026年度_テスト営業所.xlsx', unquote(response.headers['Content-Disposition']))
+            self.assertTrue(workbook.worksheets[0]['A2'].value.startswith('テスト営業所 ／'))
+        response = self.export()
+        self.assertIn('点検計画_2026年度.xlsx', unquote(response.headers['Content-Disposition']))
+        self.assertTrue(self.workbook(response).worksheets[0]['A2'].value.startswith('会社全体 ／'))
+
+    def test_vehicle_export_uses_selected_vehicle_office(self):
+        from urllib.parse import unquote
+        self.vehicle.office = '対象営業所'
+        self.m.db.session.add(self.m.Office(company_code='TEST', name='対象営業所'))
+        self.m.db.session.commit()
+        response = self.client.get('/vehicle/inspection-plans/export.xlsx', query_string={
+            'year':2026, 'scope':'vehicle', 'vehicle_id':self.vehicle.id})
+        self.assertIn('点検計画_2026年度_対象営業所.xlsx', unquote(response.headers['Content-Disposition']))
+        self.assertTrue(self.workbook(response).worksheets[0]['A2'].value.startswith('対象営業所 ／'))
+
+    def test_filename_ignores_default_office_and_sanitizes_special_characters(self):
+        data = {'year':2026, 'scope':'company', 'office':'既定営業所'}
+        self.assertEqual(annual_filename(data, {}), '点検計画_2026年度.xlsx')
+        data['office'] = '営業所/部門:第1\\第2\r\n'
+        self.assertEqual(annual_filename(data, {'office':data['office']}), '点検計画_2026年度_営業所_部門_第1_第2__.xlsx')
+        data['office'] = '長' * 300
+        self.assertLess(len(annual_filename(data, {'office':data['office']})), 110)
 
     def test_export_requires_login_and_valid_period(self):
         self.assertEqual(self.export('&kind=bogus').status_code,400)

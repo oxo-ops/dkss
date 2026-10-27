@@ -460,7 +460,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     @app.get('/vehicle/inspection-plans/export.xlsx')
     def vehicle_inspection_plans_excel():
         from flask import send_file
-        from inspection_plan_excel import build_annual_workbook, KINDS, STATES
+        from inspection_plan_excel import build_annual_workbook, annual_filename, KINDS, STATES
         if request.args.get('kind') and request.args['kind'] not in KINDS:
             abort(400, '点検種別を確認してください。')
         if request.args.get('state') and request.args['state'] not in STATES:
@@ -468,7 +468,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         data = data_for(session['company_code'], request.args)
         response = send_file(build_annual_workbook(data, request.args),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True, download_name=f'点検計画_{data["year"]}年度.xlsx', max_age=0)
+            as_attachment=True, download_name=annual_filename(data, request.args), max_age=0)
         response.headers['Cache-Control'] = 'private, no-store'
         return response
 
