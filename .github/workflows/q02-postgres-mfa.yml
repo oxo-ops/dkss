@@ -1,0 +1,70 @@
+name: Q02 PostgreSQL MFA Concurrency
+
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/auth.py'
+      - 'dkss_app/access.py'
+      - 'dkss_app/audit.py'
+      - 'dkss_app/models.py'
+      - 'dkss_app/__init__.py'
+      - 'dkss_app/routes.py'
+      - 'dkss_app/common.py'
+      - 'requirements.txt'
+      - 'tests/test_q02_postgres_mfa_concurrency.py'
+      - '.github/workflows/q02-postgres-mfa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'dkss_app/auth.py'
+      - 'dkss_app/access.py'
+      - 'dkss_app/audit.py'
+      - 'dkss_app/models.py'
+      - 'dkss_app/__init__.py'
+      - 'dkss_app/routes.py'
+      - 'dkss_app/common.py'
+      - 'requirements.txt'
+      - 'tests/test_q02_postgres_mfa_concurrency.py'
+      - '.github/workflows/q02-postgres-mfa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-mfa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q02_ci
+          POSTGRES_USER: q02
+          POSTGRES_PASSWORD: q02-disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U q02 -d dkss_q02_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Q02_POSTGRES_TEST_URL: postgresql+psycopg2://q02:q02-disposable-ci-only@127.0.0.1:5432/dkss_q02_ci
+      Q02_REQUIRE_POSTGRES: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Verify MFA races on PostgreSQL
+        run: python -m unittest discover -s tests -p 'test_q02_postgres_mfa_concurrency.py' -v
