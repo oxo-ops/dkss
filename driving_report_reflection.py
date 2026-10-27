@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from flask import abort, jsonify, request, session
+from flask import abort, jsonify, request, session, url_for
 from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 from dkss_app import driving_access
@@ -52,6 +52,18 @@ def build_evidence(board, facts, history):
         evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の傾向', 'finding':finding,
             'reports':now['sources'],'driver_key':'','allowed_actions':['review_context','verify_data'],
             'context':'取得済みの同一定義の指標を集計。車両・道路・積載等の条件差は未確認。良否や責任の確定ではありません。','kind':'scope'})
+    if board.get('scope') == 'company' and not board.get('selected_driver'):
+        for office in board.get('office_summaries', []):
+            for entry in office['highlights']:
+                metric=entry['metric'];now=entry['current'];old=entry['previous']
+                if not now['metric_count']:continue
+                finding=f"{office['name']}：{metric['name']} {now['display']} {metric['unit'] if metric['method']!='raw' else '（原本値）'}"
+                if entry['change'] is not None:finding+=f"。前期間 {old['display']}、差 {entry['change']} {metric['unit']}"
+                finding+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
+                evidence.append({'id':str(len(evidence)), 'title':office['name']+'の傾向', 'finding':finding,
+                    'reports':now['sources'], 'driver_key':'', 'office_key':office['key'],
+                    'allowed_actions':['review_context','verify_data'], 'kind':'office',
+                    'context':f"{metric['source']} ／ {metric['version']} ／ {metric['definition']} ／ {metric['threshold']} ／ {metric['road']}。日報当時の営業所で集計。運行条件・取得率を確認し、順位や安全性を数値差だけで確定しない。"})
     for item in board.get('due_followups',[])[:20]:
         evidence.append({'id':str(len(evidence)), 'title':'次回確認日を迎えた振り返り',
             'finding':item['name']+'：次回確認日 '+item['review']['next_date']+'。記録済みの行動：'+str(item['review'].get('action') or '未設定')[:300],
@@ -120,15 +132,46 @@ def build_evidence(board, facts, history):
             evidence.append({'id':str(len(evidence)), 'title':'交換後の使用状況',
                 'finding':vehicle['label']+'：'+part['name']+' '+part['date']+'交換。'+elapsed+'。経過 '+str(part['days_since'])+'日',
                 'reports':[f['row'].id for f in facts if f['vehicle_id']==vehicle['id']],
-                'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
+                'vehicle_id':vehicle['id'], 'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
                 'allowed_actions':['maintenance'], 'context':'登録された交換記録と積算距離からの経過。交換期限・残寿命や乗務員の責任を示す値ではない。','kind':'maintenance'})
         for record in vehicle['records'][:1]:
             evidence.append({'id':str(len(evidence)), 'title':'使用車両の整備確認',
                 'finding':vehicle['label']+'：'+record.completion_date+' '+str(record.content or '整備記録')[:200],
                 'reports':[f['row'].id for f in facts if f['vehicle_id']==vehicle['id']],
-                'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
+                'vehicle_id':vehicle['id'], 'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
                 'allowed_actions':['maintenance'], 'context':'この記録だけで交換期限・摩耗・故障原因を確定しない。', 'kind':'maintenance'})
     return evidence
+
+
+def navigation(item, filters, board, rows, administrator):
+    """Build local targets from current authorized evidence, never model URLs."""
+    links=[]
+    return_to=url_for('driving_reports',**dict(filters,_anchor='reflection-title'))
+    reports={r.id:r for r in rows}
+    report_links=[{'url':url_for('driving_report_detail',record_id=rid,return_to=return_to),
+                   'label':(reports[rid].operation_date or '日付不明')+'の日報'}
+                  for rid in item['reports'][:10] if rid in reports]
+    if item.get('kind')=='followup_due' and report_links:
+        links.append({'url':report_links[0]['url'],'label':'振り返りを記録'})
+    office=item.get('office_key')
+    if administrator and filters['scope']=='company' and office in {o['key'] for o in board['office_choices']}:
+        links.append({'url':url_for('driving_reports',**dict(filters,scope='office',office=office,focus='',listing='people',breakdown='people',page=1,_anchor='driver-comparison')),
+                      'label':'この営業所を確認'})
+    person=item.get('driver_key');vehicle=item.get('vehicle_id')
+    if person and not vehicle and person in {p['key'] for p in board['drivers'] if p.get('has_records')}:
+        links.append({'url':url_for('driving_reports',**dict(filters,focus=person,breakdown='vehicles',page=1,_anchor='driver-trend')),
+                      'label':'前後の記録を比較' if item.get('kind')=='followup_due' else 'この乗務員を確認' if administrator else '自分の記録を確認'})
+    if administrator and vehicle in board.get('labels',{}):
+        cost=item.get('kind')=='maintenance_cost'
+        links.append({'url':url_for('vehicle_karte_costs' if cost else 'vehicle_karte_analysis',vehicle_record_id=vehicle),
+                      'label':'車両の費用を確認' if cost else '車両の分析を確認'})
+        if not cost:
+            links.append({'url':url_for('vehicle_karte_parts',vehicle_record_id=vehicle),'label':'部品・交換履歴を確認'})
+    if not links and item.get('kind')=='scope':
+        company=administrator and filters['scope']=='company'
+        links.append({'url':url_for('driving_reports',**dict(filters,listing='offices' if company else 'people',page=1,_anchor='office-comparison' if company else 'driver-comparison' if administrator else 'driver-trend')),
+                      'label':'営業所ごとの傾向を見る' if company else '乗務員の傾向を見る' if administrator else '自分の記録を確認'})
+    return links, report_links
 
 
 def generate(document):
@@ -207,7 +250,14 @@ def register_reflections(app, db, prepare, history):
             state['generated_label']=datetime.fromisoformat(cached.updated_at).astimezone(ZoneInfo('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M')
             if cached.status=='pending' and cached.updated_at < (datetime.now(timezone.utc)-timedelta(minutes=3)).isoformat():
                 state['status']='failed'
-            if cached.status=='completed':state['items']=json.loads(cached.result_json).get('items',[])
+            if cached.status=='completed':
+                current={e['id']:e for e in document['evidence']}
+                for saved in json.loads(cached.result_json).get('items',[]):
+                    evidence=current.get(saved.get('id'))
+                    if not evidence or saved.get('action') not in [ACTIONS[a] for a in evidence['allowed_actions']]:
+                        state.update(status='failed',items=[]);break
+                    links,sources=navigation(evidence,filters,board,rows+previous,driving_access.administrator())
+                    state['items'].append({**evidence,'action':saved['action'],'links':links,'report_links':sources})
         elif state['status']=='new' and state['configured']:
             state['auto_refresh']=DrivingReportReflection.query.filter_by(company_code=session['company_code'],status='completed').filter(
                 DrivingReportReflection.result_json.contains(document['refresh_scope'])).first() is not None
