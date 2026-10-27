@@ -48,15 +48,24 @@ def register_driving_reports(app, db, g):
         return Record.query.filter_by(company_code=company,vehicle_record_id=vehicle).all()
     def canonical(company,vehicle,rows=None):
         return canonical_operations(operations(company,vehicle) if rows is None else rows,reports(company,vehicle))
-    def workspace_scope(args):
-        admin=readership.administrator()
-        if not admin:return workspace.scope_filter(args,[],None,False),[],[],[]
-        users=g['User'].query.filter_by(company_code=session['company_code']).all()
+    def request_read(key, load):
+        # Never retain records across HTTP requests, accounts, roles or companies.
+        owner=(session.get('company_code'),session.get('username'),session.get('role'))
+        cache=request.environ.setdefault('dkss.driving.reads',{})
+        key=(owner,key)
+        if key not in cache:cache[key]=load()
+        return cache[key]
+    def workspace_sources():
         from dkss_app.models import Office, Driver
+        users=g['User'].query.filter_by(company_code=session['company_code']).all()
         masters=Driver.query.filter_by(company_code=session['company_code']).all()
         registered=Office.query.filter_by(company_code=session['company_code']).all()
         company_rows=Record.query.filter_by(company_code=session['company_code']).all()
-        choices=workspace.office_choices(registered,masters,company_rows)
+        return users,masters,workspace.office_choices(registered,masters,company_rows)
+    def workspace_scope(args):
+        admin=readership.administrator()
+        if not admin:return workspace.scope_filter(args,[],None,False),[],[],[]
+        users,masters,choices=request_read('workspace',workspace_sources)
         user=next((u for u in users if u.username==session.get('username')),None)
         try:resolved=workspace.scope_filter(args,choices,user.office if user else None,True)
         except ValueError as exc:abort(400,str(exc))
@@ -64,11 +73,14 @@ def register_driving_reports(app, db, g):
     def personal_view(args):
         return not readership.administrator() or args.get('scope')=='self'
     def condition_vehicles(args):
-        query=Vehicle.query.filter_by(company_code=session['company_code'])
-        if personal_view(args):
-            visible=readership.visible(Record.query.filter_by(company_code=session['company_code']).all(),personal=True)
-            query=query.filter(Vehicle.id.in_({r.vehicle_record_id for r in visible}))
-        return query.all()
+        personal=personal_view(args)
+        def load():
+            query=Vehicle.query.filter_by(company_code=session['company_code'])
+            if personal:
+                visible=readership.visible(Record.query.filter_by(company_code=session['company_code']).all(),personal=True)
+                query=query.filter(Vehicle.id.in_({r.vehicle_record_id for r in visible}))
+            return query.all()
+        return request_read(('condition_vehicles',personal),load)
     def selected(args=None):
         args=request.args if args is None else args
         access();args,choices,_,_=workspace_scope(args);q=Record.query.filter_by(company_code=session['company_code'])
@@ -164,7 +176,7 @@ def register_driving_reports(app, db, g):
         context=readership.visible(q.all(),personal=not manager)
         vehicle_query=Vehicle.query.filter_by(company_code=session['company_code'])
         if not manager:vehicle_query=vehicle_query.filter(Vehicle.id.in_({r.vehicle_record_id for r in context}))
-        vehicles=vehicle_query.all()
+        vehicles=vehicle_query.all() if not manager else condition_vehicles(resolved)
         labels={v.id:g['vehicle_number']({f:getattr(v,f) or '' for f in ['plate_area','plate_class','plate_kana','plate_number']}) or v.chassis_number or '車両 '+str(v.id) for v in vehicles}
         ids={r.vehicle_record_id for r in context};ops={}
         if ids:
