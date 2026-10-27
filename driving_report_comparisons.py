@@ -1,5 +1,6 @@
 """Read-only comparison details built exclusively from authorized, deduplicated facts."""
 from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 from driving_report_data import payload
 from driving_report_insights import number, summarize
@@ -72,6 +73,16 @@ def followups(rows):
             events.append({k: detail.get(k, '') for k in
                            ('state', 'note', 'action', 'driver_explanation', 'next_date', 'outcome', 'comparison_note')} |
                           {'at': str(event.get('at') or '')[:16].replace('T', ' ')})
-        result.append({'id': row.id, 'date': row.operation_date,
+        result.append({'id': row.id, 'date': row.operation_date, 'name': p.get('driver_name') or '乗務員不明',
                        'review': review, 'events': list(reversed(events))})
     return sorted(result, key=lambda x: (x['date'] or '', x['id']), reverse=True)
+
+
+def followup_status(row, today):
+    p=payload(row)
+    review=p.get('review') or {}
+    if p.get('lifecycle') in {'cancelled','superseded'} or review.get('state')=='completed':
+        return ''
+    try:scheduled=date.fromisoformat(review.get('next_date') or '')
+    except (TypeError,ValueError):return ''
+    return 'due' if scheduled<=today else 'upcoming'

@@ -24,7 +24,9 @@ def digest(value):
 
 def periods(args, today):
     mode = args.get('period') or ('custom' if args.get('start') or args.get('end') else 'month')
-    if mode == 'all': return {'mode':mode, 'start':'', 'end':'', 'previous_start':'', 'previous_end':''}
+    if mode == 'all':
+        if args.get('compare')=='custom':raise ValueError('比較する場合は対象期間も指定してください。')
+        return {'mode':mode, 'start':'', 'end':'', 'previous_start':'', 'previous_end':''}
     if mode == 'month': start, end = today.replace(day=1), today
     elif mode == '30d': start, end = today-timedelta(days=29), today
     elif mode == 'prev_month':
@@ -37,9 +39,17 @@ def periods(args, today):
     if start > end: raise ValueError('開始日と終了日を確認してください。')
     previous_end=start-timedelta(days=1); previous_start=previous_end-(end-start)
     comparison=args.get('compare','previous')
-    if comparison not in {'previous','month'}:raise ValueError('比較期間を選択してください。')
+    if comparison not in {'previous','month','custom'}:raise ValueError('比較期間を選択してください。')
     if comparison=='month':
         previous_end=start.replace(day=1)-timedelta(days=1);previous_start=previous_end.replace(day=1)
+    if comparison=='custom':
+        if not args.get('compare_start') or not args.get('compare_end'):
+            raise ValueError('比較期間の開始日と終了日を指定してください。')
+        previous_start=date.fromisoformat(args['compare_start']);previous_end=date.fromisoformat(args['compare_end'])
+        if previous_start.isoformat()!=args['compare_start'] or previous_end.isoformat()!=args['compare_end']:
+            raise ValueError('比較期間の日付の形式を確認してください。')
+        if previous_start>previous_end:raise ValueError('比較期間の開始日と終了日を確認してください。')
+        if previous_end>=start:raise ValueError('比較期間は対象期間より前に指定してください。')
     return {'mode':mode, 'start':start.isoformat(), 'end':end.isoformat(),
             'previous_start':previous_start.isoformat(), 'previous_end':previous_end.isoformat()}
 
