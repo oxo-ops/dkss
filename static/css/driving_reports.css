@@ -199,3 +199,5 @@
  .driving-workspace .driving-filters{grid-template-columns:1fr 1fr}
  .driving-workspace .driving-small-button{max-width:100%;white-space:normal}
 }
+
+.driving-part-context{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:12px 0}.driving-part-context article{display:grid;gap:5px;border:1px solid #dce6f0;border-radius:8px;padding:12px;min-width:0;overflow-wrap:anywhere}.driving-part-context span{font-size:.85rem;color:#58718b}.driving-vehicle-context small{display:block;color:#62788c;font-size:.8rem}.driving-recent-maintenance{margin-top:14px}.driving-vehicle-context-links{gap:16px;flex-wrap:wrap}

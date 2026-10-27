@@ -10,6 +10,7 @@ from flask import abort, flash, redirect, render_template, request, send_file, s
 from driving_report_pdf import export_pdf
 import driving_report_workspace as workspace
 import driving_report_comparisons as comparisons
+import driving_report_maintenance as maintenance_context
 from driving_report_reflection import register_reflections
 from dkss_app import driving_access as readership
 from driving_report_insights import periods, driver_keys, collect, dashboard as insights_dashboard, number, review_notes
@@ -205,9 +206,24 @@ def register_driving_reports(app, db, g):
         grouped={vid:[] for vid in ids}
         for row in records:
             if len(grouped[row.vehicle_record_id])<5:grouped[row.vehicle_record_id].append(row)
-        return [{'id':vid,'label':board['labels'].get(vid,'車両 '+str(vid)),
-            'summary':insights_dashboard([f for f in facts if f['vehicle_id']==vid and f['driver_key']==focus['key']],[],board['labels'],board['metric_id'])['summary'],
-            'records':grouped[vid]} for vid in sorted(ids)]
+        from dkss_app.models import VehiclePartReplacement, VehiclePeriodicInspectionRecord
+        all_maintenance=M.query.filter(M.company_code==session['company_code'],M.vehicle_record_id.in_(ids)).all()
+        parts=VehiclePartReplacement.query.filter(VehiclePartReplacement.company_code==session['company_code'],VehiclePartReplacement.vehicle_record_id.in_(ids)).all()
+        periodic=VehiclePeriodicInspectionRecord.query.filter(VehiclePeriodicInspectionRecord.company_code==session['company_code'],VehiclePeriodicInspectionRecord.vehicle_record_id.in_(ids)).all()
+        all_ops=Operation.query.filter(Operation.company_code==session['company_code'],Operation.vehicle_record_id.in_(ids)).all()
+        all_reports=Record.query.filter(Record.company_code==session['company_code'],Record.vehicle_record_id.in_(ids),Record.operation_date<=cutoff).all()
+        vehicles=Vehicle.query.filter(Vehicle.company_code==session['company_code'],Vehicle.id.in_(ids)).all()
+        result=[]
+        for vehicle in sorted(vehicles,key=lambda v:v.id):
+            vid=vehicle.id
+            own=lambda rows:[r for r in rows if r.vehicle_record_id==vid]
+            context=maintenance_context.build(vehicle,own(all_maintenance),own(parts),
+                canonical_operations(own(all_ops),own(all_reports)),own(periodic),board['period']['start'],cutoff)
+            factual,_,_=maintenance_context.filter_vehicle_maintenance_factual_history(grouped[vid])
+            result.append({'id':vid,'label':board['labels'].get(vid,'車両 '+str(vid)),
+                'summary':insights_dashboard([f for f in facts if f['vehicle_id']==vid and f['driver_key']==focus['key']],[],board['labels'],board['metric_id'])['summary'],
+                'records':factual,'context':context})
+        return result
 
     @app.route('/safety/driving-reports')
     def driving_reports():
@@ -312,7 +328,7 @@ def register_driving_reports(app, db, g):
         if 'period' not in export_args and bool(export_args.get('start'))!=bool(export_args.get('end')):
             partial={'mode':'custom','start':export_args.get('start',''),'end':export_args.get('end',''),'previous_start':'','previous_end':''}
         else:partial=None
-        rows,_,_,_,export_args,export_board,_=prepare_insights(export_args,partial)
+        rows,_,_,_,export_args,export_board,export_facts=prepare_insights(export_args,partial)
         if format not in {'csv','pdf'}:abort(404)
         heading=['日報ID','運行日','対象期間終了','車両','乗務員','営業所','メーカー','帳票','粒度','状態','取込確認','開始時刻','終了時刻','開始積算距離km','終了積算距離km','走行距離km','走行時間','アイドリング時間','消費燃料','燃料単位','燃費','燃費単位','確認指導内容','次回確認日','確認担当','CSV照合状態','採用元','CSV記録ID','抽出条件','出力日時','区分','項目','原文値','数値','単位','分子','分母','分母単位','点数','評価','定義','閾値','道路','開始','終了','場所','話者','備考','原本ページ','原本ID']
         output=[]
@@ -348,6 +364,14 @@ def register_driving_reports(app, db, g):
             for item in comparison['rows']:
                 now=item['current'];before=item['previous']
                 output.append([board['scope_name'],period['start'],period['end'],period['previous_start'],period['previous_end'],comparison['title'],item['label'],m.get('name'),m.get('unit'),now['display'],before['display'],item['change'],now['count'],number(now['distance']),now['metric_count'],item['coverage'],number(now['numerator']),number(now['denominator']),number(now['paired_distance']),' / '.join(item['conditions']['vehicles']),' / '.join(item['previous_conditions']['vehicles']),'あり' if item['conditions_changed'] else '未確認',m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),' / '.join(str(i) for i in now['sources'])])
+        if format=='csv' and request.args.get('view')=='maintenance':
+            heading=['車両ID','車両','基準日','区分','項目','金額円','交換日','交換時積算距離km','交換後距離km','経過日数','整備記録ID','集計開始','集計終了']
+            output=[]
+            for vehicle in history_context(board,export_facts):
+                context=vehicle['context'];cost=context['cost']
+                output.append([vehicle['id'],vehicle['label'],context['as_of'],'車両全体の実費','整備実費',cost['total'],'','','','',' / '.join(map(str,cost['source_ids'])),cost['start'],cost['end']])
+                for part in context['parts']:
+                    output.append([vehicle['id'],vehicle['label'],context['as_of'],'交換記録',part['name'],'',part['date'],part['mileage'],part['distance_since'],part['days_since'],part['maintenance_id'],cost['start'],cost['end']])
         if format=='csv':
             out=io.StringIO();writer=csv.writer(out);writer.writerow(heading)
             def safe(value):
@@ -379,6 +403,11 @@ def register_driving_reports(app, db, g):
                               '使用車両 '+ ' / '.join(item['conditions']['vehicles']),
                               '前期間の車両 '+ ' / '.join(item['previous_conditions']['vehicles']),
                               '出典日報 '+ ', '.join(str(rid) for rid in now['sources'])]
+            for vehicle in history_context(board,export_facts):
+                context=vehicle['context'];cost=context['cost']
+                lines += [vehicle['label']+' 使用車両の整備情報',f'車両全体の実費 {number(cost["total"])}円 ({cost["start"] or "登録開始"} ～ {cost["end"]})', '他の乗務員の使用分を含む車両全体の実費。最後の乗務員へ帰属させない。']
+                for part in context['parts']:
+                    lines += [f'{part["name"]} {part["date"]}交換 経過 {part["days_since"] if part["days_since"] is not None else "未算出"}日 交換後 {number(part["distance_since"])}km 整備記録 {part["maintenance_id"]}']
             for group in summary['groups']:
                 lines += [f'比較可能指標 {group["source_system"]} {group["version"]} {group["name"]} 単位 {group["unit"]} {group["count"]}件',f'定義 {group["definition"]} 条件 {group["threshold"] or "不明"} 分子合計/分母合計 {group["ratio"] or "算出対象外"}']
             for r in rows:

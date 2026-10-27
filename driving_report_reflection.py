@@ -31,6 +31,7 @@ ACTIONS = {
     'followup': '記録済みの改善行動と次回確認日を確認し、同じ条件の記録で変化を確認する。',
     'verify_data': '対象日報の読取値と指標の定義を確認し、比較可能な記録をそろえる。',
     'maintenance': '使用車両の整備履歴を開き、交換後の距離と整備士の所見を確認する。',
+    'vehicle_cost': '車両の費用内訳と対象期間・整備内容を確認する。乗務員個人の負担額とは分けて扱う。',
 }
 
 
@@ -98,6 +99,24 @@ def build_evidence(board, facts, history):
                 'kind':'comparison'})
     # Maintenance is restricted to administrator-authorized, selected-driver history.
     for vehicle in history:
+        context=vehicle.get('context') or {}
+        cost=context.get('cost') or {}
+        if cost.get('total') is not None:
+            evidence.append({'id':str(len(evidence)), 'title':'使用車両の実費',
+                'finding':vehicle['label']+'：車両全体の整備実費 '+number(cost['total'])+'円。'+(cost['start'] or '登録開始')+' ～ '+cost['end']+'、'+str(cost['count'])+'件',
+                'reports':[f['row'].id for f in facts if f['vehicle_id']==vehicle['id']],
+                'vehicle_id':vehicle['id'],'maintenance_sources':cost['source_ids'],
+                'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
+                'allowed_actions':['vehicle_cost'], 'context':'完了日のある記録の車両全体の実費。部品代と整備合計は二重加算しない。他の乗務員の使用分も含み、最後の乗務員の負担や責任には帰属させない。','kind':'maintenance_cost'})
+        for part in context.get('parts',[]):
+            if part['needs_review']:
+                continue
+            elapsed=f"交換後 {part['distance_since']} km" if part['distance_since'] is not None else '交換後距離は確認待ち'
+            evidence.append({'id':str(len(evidence)), 'title':'交換後の使用状況',
+                'finding':vehicle['label']+'：'+part['name']+' '+part['date']+'交換。'+elapsed+'。経過 '+str(part['days_since'])+'日',
+                'reports':[f['row'].id for f in facts if f['vehicle_id']==vehicle['id']],
+                'driver_key':board['selected_driver']['key'] if board['selected_driver'] else '',
+                'allowed_actions':['maintenance'], 'context':'登録された交換記録と積算距離からの経過。交換期限・残寿命や乗務員の責任を示す値ではない。','kind':'maintenance'})
         for record in vehicle['records'][:1]:
             evidence.append({'id':str(len(evidence)), 'title':'使用車両の整備確認',
                 'finding':vehicle['label']+'：'+record.completion_date+' '+str(record.content or '整備記録')[:200],
@@ -163,7 +182,8 @@ def register_reflections(app, db, prepare, history):
         document={'scope':board['scope_name'], 'period':board['period'], 'role':'manager' if driving_access.administrator() else 'self',
                   'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence)),
                   'refresh_scope':refresh_scope}
-        identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,document,'reflection-v1']
+        vehicle_context=[(v['id'],v.get('context')) for v in vehicles]
+        identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,'reflection-v2-maintenance']
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
         return cache_key,document
 
