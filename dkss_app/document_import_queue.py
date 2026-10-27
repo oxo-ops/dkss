@@ -334,7 +334,8 @@ def process_one(app):
             return True
         company = Company.query.filter_by(company_code=row.company_code, active=True).first()
         user = User.query.filter_by(company_code=row.company_code, username=row.created_by_username).first()
-        allowed = company is not None and user is not None and user.role in {'admin','itc'}
+        allowed = (company is not None and user is not None
+                   and not user.login_locked and user.role in {'admin', 'itc'})
         source, filename, kind, digest = row.source_file, row.source_filename, row.document_type, row.source_sha256
         forced = metadata(row.result_json).get('forced_type', False)
         db.session.remove()
