@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}資料・データ取込{% endblock %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_data_import.css', v='20261026-spacing-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_data_import.css', v='20261027-inline-progress-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -101,7 +101,7 @@
         </ul>
     </section>
     <script defer src="{{ url_for('static', filename='js/import_file_selections.js', v='20261026-kind-recovery-1') }}"></script>
-    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261026-kind-recovery-1') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261027-inline-progress-1') }}"></script>
     <details class="import-note">
         <summary>取り込みについて・ファイルの上限</summary>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>

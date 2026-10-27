@@ -1,6 +1,90 @@
 (function () {
     "use strict";
     const MAX_BATCH_BYTES = 200 * 1024 * 1024;
+    function localUrl(value) {
+        if (!value) return null;
+        try {
+            const url = new URL(value, location.href);
+            return url.origin === location.origin && /^\/vehicle\/data-import(\/|$)/.test(url.pathname) ? url : null;
+        } catch (_) { return null; }
+    }
+    function watchInline(form, initial, release) {
+        const statusUrl = localUrl(initial.status_url);
+        if (!statusUrl) { release("読取状況の確認先が不正です。受付済みの資料から確認してください。"); return; }
+        form.querySelector(".import-inline-progress")?.remove();
+        const panel = document.createElement("div");
+        panel.className = "import-inline-progress";
+        const progress = document.createElement("progress");
+        progress.className = "import-progress";
+        progress.setAttribute("aria-label", "資料の読み取り状況");
+        const files = document.createElement("ul"); files.className = "import-inline-files";
+        const actions = document.createElement("div"); actions.className = "import-inline-actions";
+        panel.append(progress, files, actions); form.append(panel);
+        const status = form.querySelector(".import-file-status");
+        const button = form.querySelector('button[type="submit"]');
+        const zone = form.querySelector(".import-dropzone");
+        form.dataset.loading = "1";
+        form.setAttribute("aria-busy", "true");
+        zone?.classList.add("is-loading");
+        button.textContent = "読み取り中…";
+        const labels = {queued:"順番待ち", reading:"読み取り中", type_review:"種類を確認", preview:"確認できます", read_error:"読み取り失敗", completed:"登録済み", skipped:"確認済み"};
+        let failures = 0;
+        function active() { return panel.isConnected && form.dataset.loading === "1"; }
+        function link(label, value) {
+            const url = localUrl(value);
+            if (!url) return;
+            const a = document.createElement("a"); a.href = url.href;
+            a.className = "btn btn-outline"; a.textContent = label; actions.append(a);
+        }
+        function render(job) {
+            const completed = Number(job.completed) || 0;
+            const total = Number(job.total) || 1;
+            status.textContent = completed + " / " + total + "資料処理済み";
+            progress.max = total;
+            if (completed > 0 || job.finished) progress.value = completed;
+            else progress.removeAttribute("value");
+            const items = (job.files || []).map(file => {
+                const item = document.createElement("li");
+                let state = labels[file.status] || "処理中";
+                if (file.status === "reading" && file.phase === "classifying") state = "資料の種類を確認中";
+                if (file.status === "reading" && file.phase === "ai_output") state = "読取結果を受信中";
+                if (file.status === "reading" && Number(file.received_lines) > 0) state += "・明細 " + file.received_lines + "件";
+                item.textContent = file.filename + "：" + state + (file.message ? "（" + file.message + "）" : "");
+                return item;
+            });
+            files.replaceChildren(...items); actions.replaceChildren();
+            if (job.preview_ready && !job.failed && !job.needs_review) {
+                const preview = localUrl(job.preview_url);
+                if (preview) { location.assign(preview.href); return true; }
+            }
+            if (job.needs_review) (job.files || []).filter(file => file.status === "type_review").forEach(file => link("種類を確認して続ける", file.kind_url));
+            if (job.preview_ready) link("読取結果を確認", job.preview_url);
+            if (job.failed) link("失敗した資料を確認・再実行", job.page_url || initial.page_url);
+            if (job.finished) {
+                release();
+                status.textContent = job.failed ? "読み取れなかった資料があります。" : job.needs_review ? "資料の種類を確認してください。" : "読み取りが完了しました。";
+                return true;
+            }
+            return false;
+        }
+        async function poll() {
+            if (!active()) return;
+            try {
+                const response = await fetch(statusUrl.href, {headers:{Accept:"application/json"}, cache:"no-store"});
+                if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/json")) throw new Error("status");
+                const job = await response.json();
+                if (!active()) return;
+                failures = 0;
+                if (render(job)) return;
+            } catch (_) {
+                if (!active()) return;
+                failures++;
+                status.textContent = "通信を再確認しています。資料は受付済みです。再送信せずお待ちください。";
+            }
+            window.setTimeout(poll, failures ? 10000 : 2000);
+        }
+        if (!render(initial)) window.setTimeout(poll, 1000);
+    }
     function submit(form, showError) {
         if (form.dataset.loading === "1") return;
         const input = form.querySelector('input[type="file"]');
@@ -37,7 +121,9 @@
             input.disabled = false;
             button.textContent = originalButtonText;
             if (clear) clear.disabled = false;
-            showError(message);
+            form.removeAttribute("aria-busy");
+            form.querySelector(".import-dropzone")?.classList.remove("is-loading");
+            if (message) showError(message);
         }
         xhr.addEventListener("load", () => {
             let data;
@@ -49,12 +135,9 @@
                 fail((data.errors || []).map(item => item.message).join("\n") || "受付に失敗しました。");
                 return;
             }
-            const destination = new URL(data.page_url, location.href);
-            if (destination.origin !== location.origin) { fail("確認先が不正です。"); return; }
-            destination.searchParams.set("open", "1");
-            const move = () => location.assign(destination.href);
-            if (window.DKSSImportSelections) window.DKSSImportSelections.accepted(form).then(move);
-            else move();
+            const start = () => watchInline(form, data, fail);
+            if (window.DKSSImportSelections) window.DKSSImportSelections.accepted(form).then(start, start);
+            else start();
         });
         xhr.addEventListener("abort", () => fail("送信を中断しました。受付済みの場合もあるため、元の画面で状況を確認してください。"));
         xhr.addEventListener("error", () => fail("通信が中断しました。再送信すると同じ受付番号で確認します。"));

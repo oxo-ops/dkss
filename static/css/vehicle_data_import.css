@@ -90,3 +90,9 @@
     .import-workspace.vehicle-registration-page .import-form { gap: 6px; }
     .import-workspace.vehicle-registration-page .import-actions .btn { min-height: 34px; padding: 6px 14px; }
 }
+
+/* Reading stays inside the card where the user dropped the documents. */
+.import-workspace .import-inline-progress { grid-column: 1 / -1; min-width: 0; }
+.import-workspace .import-inline-progress .import-progress { display: block; width: 100%; margin: 4px 0 8px; }
+.import-workspace .import-inline-files { margin: 0; padding-left: 18px; max-height: 160px; overflow-y: auto; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.import-workspace .import-inline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
