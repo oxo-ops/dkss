@@ -1,4 +1,4 @@
-{% if insights.selected_driver %}<details class="card driving-followup-history" id="driving-followups"><summary>振り返りの履歴 {{ insights.followups|length }}件</summary><div class="driving-section-heading"><h3>振り返りと次の確認</h3></div>
+{% if insights.followups or insights.selected_driver %}<details class="card driving-followup-history" id="driving-followups"><summary>振り返りの履歴 {{ insights.followups|length }}件</summary><div class="driving-section-heading"><h3>振り返りと次の確認</h3></div>
 {% for item in insights.followups %}<article class="driving-followup"><div class="driving-section-heading"><strong>{{ item.date or '日付不明' }}</strong><span class="driving-state">{{ driving_review_states.get(item.review.get('state','unreviewed')) }}</span></div>
 <dl class="driving-facts">{% for key,label in [('action','改善する行動'),('driver_explanation','本人の説明'),('note','確認内容'),('next_date','次回確認日'),('comparison_note','比較条件と根拠')] %}{% if item.review.get(key) %}<div><dt>{{ label }}</dt><dd>{{ item.review[key] }}</dd></div>{% endif %}{% endfor %}</dl>
 <p>前後比較：{{ driving_outcomes.get(item.review.get('outcome',''),'未確認') }}</p>

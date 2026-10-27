@@ -100,6 +100,25 @@ class WorkspaceUITests(unittest.TestCase):
         ambiguous=finding(item,{'available_highlights':[entry,dict(entry,change='1')]})
         self.assertEqual(ambiguous['display_headline'],item['finding'].split('。',1)[0])
 
+    def test_empty_and_raw_reports_keep_the_primary_screen_structure(self):
+        from driving_report_data import payload
+        self.a.details_json=json.dumps(dict(payload(self.a),source_system=None,definition_version=None,
+            report_items=[dict(item_name='休憩',raw_result='1時間00分',status='confirmed')]))
+        self.m.db.session.commit()
+        response,context=self.render(self.base)
+        html=response.get_data(as_text=True)
+        for marker in ['id="reflection-title"','id="driving-metrics"','id="driver-trend"','id="driving-next-title"','id="driving-roster"']:
+            self.assertIn(marker,html)
+        self.assertEqual(context['insights']['display_metrics'],[])
+        self.assertEqual(context['insights']['empty_metric_names'],['急加速','急減速','速度超過'])
+        self.assertNotIn('data-driving-chart',html)
+        self.assertIn('1時間00分',html)
+        self.assertLess(html.index('id="driving-next-title"'),html.index('id="driving-roster"'))
+        _,economy=self.render(self.base+'&category=economy')
+        self.assertEqual(economy['insights']['empty_metric_names'],['燃費','アイドリング','回転超過'])
+        self.assertEqual(economy['insights']['summary']['distance'],20)
+        self.assertEqual(self.client.get(self.base+'&category=invalid').status_code,400)
+
     def test_compact_ai_cards_keep_full_authorized_evidence(self):
         source={'kind':'change','finding':'検知回数は前期間から変わりました。取得距離も確認してください。',
                 'context':'原数値 3回 ／ 対象距離 100 km','reports':[1],'action':'原本を確認'}
