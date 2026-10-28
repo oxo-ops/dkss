@@ -5,6 +5,7 @@ import json
 import unittest
 from decimal import Decimal
 from flask import session
+from identity_fixture import identity_for
 from driving_report_data import payload
 from driving_report_insights import collect, dashboard, driver_keys
 from driving_report_workspace import enrich
@@ -181,7 +182,8 @@ class AnalysisAccuracyRouteTests(unittest.TestCase):
                         session.update(company_code='TEST',username='admin',role='admin')
                         driving_access.assign([self.a,old],'reader','admin');self.m.db.session.commit()
                     with self.client.session_transaction() as state:
-                        state.update(username='reader',role='user',password_changed_at='stamp')
+                        state.update(username='reader',role='user',password_changed_at='stamp',
+                                     account_identity=identity_for('TEST', 'reader', app=self.m.app))
                 _,context,document=self.generate_for(query,'change')
                 item=context['reflection']['items'][0]
                 self.assertEqual(set(item['reports']),{self.a.id,old.id})

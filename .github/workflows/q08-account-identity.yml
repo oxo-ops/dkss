@@ -58,6 +58,10 @@ jobs:
             test_q08_vehicle_null_capacity.VehicleNullCapacityTests \
             test_q08_postgres_identity.PostgresAccountIdentityTests \
             test_q08_postgres_identity.PostgresNullCapacityTests \
+            test_q08_driving_generation.DrivingGenerationTests \
+            test_q08_postgres_driving_generation.PostgresDrivingGenerationTests \
+            test_q08_reminder_generation.ReminderGenerationTests \
+            test_q08_postgres_reminder_generation.PostgresReminderGenerationTests \
             2>&1 | tee q08-identity-results.log
       - uses: actions/upload-artifact@v7
         if: always()
