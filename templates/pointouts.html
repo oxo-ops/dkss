@@ -458,7 +458,10 @@
         <td class="pointouts-col-files">
             {% if item.files %}
                 <img
-                    src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0]) }}"
+                    src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=160) }}"
+                    srcset="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=160) }} 160w, {{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=320) }} 320w, {{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=480) }} 480w"
+                    sizes="(max-width: 768px) 120px, 76px"
+                    loading="lazy" decoding="async" width="80" height="60"
                     class="thumb"
                     alt=""
                 >
@@ -580,7 +583,10 @@
                     </span>
                     {% if item.files %}
                         <img
-                            src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0]) }}"
+                            src="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=160) }}"
+                            srcset="{{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=160) }} 160w, {{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=320) }} 320w, {{ url_for('uploaded_file', folder='uploads', filename=item.files[0], thumb=480) }} 480w"
+                            sizes="(max-width: 768px) 120px, 76px"
+                            loading="lazy" decoding="async" width="120" height="90"
                             class="thumb"
                             alt=""
                         >

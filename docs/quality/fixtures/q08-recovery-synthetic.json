@@ -1,0 +1,25 @@
+{
+  "synthetic_only": true,
+  "automatic_restoration_allowed": false,
+  "accounts": [
+    {"company": "SYNTHETIC-C1", "username": "reused", "uuid": "11111111-1111-4111-8111-111111111111", "person": "A", "state": "physically_deleted"},
+    {"company": "SYNTHETIC-C1", "username": "reused", "uuid": "22222222-2222-4222-8222-222222222222", "person": "B", "state": "active"},
+    {"company": "SYNTHETIC-C2", "username": "reused", "uuid": "33333333-3333-4333-8333-333333333333", "person": "C", "state": "active"}
+  ],
+  "records": [
+    {"id": "L01", "kind": "notification", "company": "SYNTHETIC-C1", "owner_uuid": "11111111-1111-4111-8111-111111111111", "decision": "old_generation_identified_approval_required", "evidence_needed": ["same_person_proof", "two_approvals", "record_manifest"]},
+    {"id": "L02", "kind": "checklist", "numeric_user_id": 42, "archived_mapping": "verified_backup_links_42_to_old_uuid_at_creation", "decision": "conditional_candidate", "evidence_needed": ["backup_integrity", "company_and_period", "same_person_proof", "two_approvals"]},
+    {"id": "L03", "kind": "checklist", "numeric_user_id": 42, "current_user_at_42": "B", "decision": "hold", "evidence_needed": ["original_generation_mapping"]},
+    {"id": "L04", "kind": "notification", "username": "reused", "decision": "hold", "evidence_needed": ["original_generation_mapping", "same_person_proof"]},
+    {"id": "L05", "kind": "driving_report", "name": "架空 同姓同名", "decision": "hold_for_restoration_even_if_existing_name_resolver_matches", "evidence_needed": ["original_generation_mapping", "same_person_proof"]},
+    {"id": "L06", "kind": "employee_history", "employee_id": "EMP-REUSED", "decision": "hold", "evidence_needed": ["non_reusable_hr_person_key", "assignment_period", "original_generation_mapping"]},
+    {"id": "L07", "kind": "audit", "actor_uuid": "11111111-1111-4111-8111-111111111111", "actor_name_snapshot": "架空 旧姓", "decision": "retain_original_actor_never_relabel_as_B", "evidence_needed": ["independent_audit_view_permission"]},
+    {"id": "L08", "kind": "orphan_attachment", "company": "SYNTHETIC-C1", "filename": "synthetic-old.pdf", "decision": "hold", "evidence_needed": ["authorized_parent_record", "content_hash"]},
+    {"id": "L09", "kind": "attachment", "parent": "L01", "content_integrity": "verified_synthetic_digest", "decision": "conditional_candidate_only_with_parent", "evidence_needed": ["parent_approval", "same_company", "manifest_digest"]},
+    {"id": "L10", "kind": "notification", "company": "SYNTHETIC-C2", "requested_company": "SYNTHETIC-C1", "username": "reused", "decision": "deny_cross_company", "evidence_needed": []},
+    {"id": "L11", "kind": "attachment", "content_integrity": "mismatch", "decision": "deny_integrity_failure", "evidence_needed": ["investigate_original_source"]},
+    {"id": "L12", "kind": "retained_user", "same_row_and_uuid": true, "name_changed": true, "locked": true, "decision": "ordinary_unlock_after_reason_resolved_no_identity_rebinding", "evidence_needed": ["unlock_authority", "reauthentication"]},
+    {"id": "L13", "kind": "async_job", "username": "reused", "account_uuid_at_acceptance": null, "decision": "hold_do_not_execute_as_B", "evidence_needed": ["acceptance_generation", "current_authority", "source_integrity"]},
+    {"id": "L14", "kind": "q03_person_id_only", "numeric_user_id": 42, "account_uuid": null, "decision": "hold_numeric_id_alone_is_not_person_proof", "evidence_needed": ["original_generation_mapping", "same_person_proof", "two_approvals"]}
+  ]
+}

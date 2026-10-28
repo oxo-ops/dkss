@@ -286,6 +286,9 @@ def delete_uploaded_file(filename, folder=None):
     if not filename:
         return
 
+    from .profile_images import forget
+    forget(company_code, filename)
+
     if folder == "static/manuals":
         storage_folder = "manuals"
         base_folder = "static/manuals"
@@ -629,6 +632,13 @@ def uploaded_file(folder, filename):
         folder
     ):
         return "File not found", 404
+
+    if folder == "uploads" and ("avatar" in _dkss_common.request.args or "thumb" in _dkss_common.request.args):
+        from .profile_images import display_avatar, display_thumbnail
+        display = (display_avatar(filename) if "avatar" in _dkss_common.request.args
+                   else display_thumbnail(filename))
+        if display is not None:
+            return display
 
     if _dkss_runtime.app.extensions["dkss"]['s3_client'] and _dkss_runtime.app.config['S3_BUCKET_NAME']:
         object_keys = [

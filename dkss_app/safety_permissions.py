@@ -1,5 +1,6 @@
 """Safety Permissions responsibilities; routes are registered by the application factory."""
 from . import checklist_common as _dkss_checklist_common, common as _dkss_common, models as _dkss_models
+from . import safety_identity as _person_identity
 
 
 def is_same_company_result(result):
@@ -20,13 +21,12 @@ def can_view_patrol_result(result):
     if result.get("target_type") == "delivery_place":
         return True
 
-    if result.get("created_by_username") == _dkss_common.session.get("username"):
+    if _person_identity.is_current(result.get("created_by_identity")):
         return True
 
     return (
         result.get("target_type") == "user"
-        and result.get("target_username")
-        == _dkss_common.session.get("username")
+        and _person_identity.is_current(result.get("target_identity"))
     )
 
 
@@ -39,8 +39,7 @@ def can_edit_patrol_result(result):
         return True
 
     return (
-        result.get("created_by_username")
-        == _dkss_common.session.get("username")
+        _person_identity.is_current(result.get("created_by_identity"))
     )
 
 
@@ -54,16 +53,14 @@ def can_countermeasure_patrol_result(result):
 
     # 作成者
     if (
-        result.get("created_by_username")
-        == _dkss_common.session.get("username")
+        _person_identity.is_current(result.get("created_by_identity"))
     ):
         return True
 
     # 個人対象なら対象本人
     return (
         result.get("target_type") == "user"
-        and result.get("target_username")
-        == _dkss_common.session.get("username")
+        and _person_identity.is_current(result.get("target_identity"))
     )
 
 
@@ -91,15 +88,13 @@ def can_view_checklist_result(result):
         return True
 
     if (
-        result.get("checked_by_username")
-        == _dkss_common.session.get("username")
+        _person_identity.is_current(result.get("checked_by_identity"))
     ):
         return True
 
     if (
         result.get("target_type") == "user"
-        and result.get("target_username")
-        == _dkss_common.session.get("username")
+        and _person_identity.is_current(result.get("target_identity"))
     ):
         return True
 
@@ -127,12 +122,11 @@ def can_view_checklist_result(result):
         ))
         for index, approval in enumerate(approvals)
     ]
-    username = _dkss_common.session.get("username")
     if any(
-        username and (
-            approval.get("approved_by_username") == username
+        (
+            _person_identity.is_current(approval.get("approved_by_identity"))
             or (approval.get("allow_general")
-                and username in (approval.get("candidate_usernames") or []))
+                and _person_identity.is_candidate(approval))
         )
         for approval in approvals
     ):
@@ -155,8 +149,7 @@ def can_manage_checklist_result(result):
         return True
 
     return (
-        result.get("checked_by_username")
-        == _dkss_common.session.get("username")
+        _person_identity.is_current(result.get("checked_by_identity"))
     )
 
 
