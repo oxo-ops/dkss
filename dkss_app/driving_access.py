@@ -46,7 +46,7 @@ def ready():
 
 
 def initialize_driving_access(app):
-    from .driving_vehicle_links import DrivingVehicleCorrection
+    from .driving_vehicle_links import DrivingVehicleCorrection, upgrade_correction_identities
     with app.app_context():
         with db.engine.begin() as connection:
             if connection.dialect.name == 'postgresql':
@@ -55,6 +55,7 @@ def initialize_driving_access(app):
             DrivingReaderAccount.__table__.create(connection, checkfirst=True)
             DrivingReportReflection.__table__.create(connection, checkfirst=True)
             DrivingVehicleCorrection.__table__.create(connection, checkfirst=True)
+            upgrade_correction_identities(connection)
         app.extensions['dkss']['driving_readers_ready'] = True
 
 
