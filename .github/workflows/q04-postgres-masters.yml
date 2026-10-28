@@ -1,0 +1,105 @@
+name: Q04 PostgreSQL Master Concurrency
+
+on:
+  push:
+    branches:
+      - 'test/q04-master-concurrency-*'
+      - 'fix/q04-master-concurrency-*'
+  pull_request:
+    paths:
+      - 'tests/test_q04_postgres_master_concurrency.py'
+      - 'tests/test_q04_master_uniqueness.py'
+      - 'tests/fixtures/application_contract.json'
+      - '.github/workflows/q04-postgres-masters.yml'
+      - 'dkss_app/masters.py'
+      - 'dkss_app/master_readers.py'
+      - 'dkss_app/models.py'
+      - 'dkss_app/database.py'
+      - 'dkss_app/__init__.py'
+      - 'dkss_app/routes.py'
+      - 'dkss_app/access.py'
+      - 'dkss_app/auth.py'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-masters:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q04_ci
+          POSTGRES_USER: q04
+          POSTGRES_PASSWORD: q04-disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U q04 -d dkss_q04_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Q04_POSTGRES_TEST_URL: postgresql+psycopg2://q04:q04-disposable-ci-only@127.0.0.1:5432/dkss_q04_ci
+      Q04_REQUIRE_POSTGRES: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Verify master regressions on disposable SQLite
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_master_*.py' -v 2>&1 | tee q04-sqlite-results.log
+          python -m unittest discover -s tests -p 'test_application_foundation.py' -v 2>&1 | tee -a q04-sqlite-results.log
+      - name: Confirm the concurrency checks still detect the original failures
+        shell: bash
+        env:
+          Q04_BASELINE_REF: b5321c60914cce301ac80672af51572b187fbe03
+        run: |
+          git fetch --no-tags --depth=1 origin "$Q04_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-master-baseline" "$Q04_BASELINE_REF"
+          cp tests/test_q04_postgres_master_concurrency.py "$RUNNER_TEMP/q04-master-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-master-baseline" && python -m unittest discover -s tests -p 'test_q04_postgres_master_concurrency.py' -v) > q04-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-baseline-results.log').read_text()
+          assert sys.argv[1] == '1', 'Baseline must fail integrity assertions'
+          assert re.search(r'Ran 16 tests\b', log), 'All baseline checks must execute'
+          assert 'FAILED (failures=13)' in log, 'Baseline failure count changed; inspect evidence'
+          assert log.count('Q04_EVIDENCE:') == 14, 'All parallel schedules must execute'
+          print('BASELINE_CONFIRMED: 16 tests, 13 expected integrity failures')
+          PY
+      - name: Verify master races on disposable PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_postgres_master_concurrency.py' -v 2>&1 | tee q04-postgres-results.log
+      - name: Keep concurrency evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: q04-postgres-master-evidence
+          path: |
+            q04-sqlite-results.log
+            q04-baseline-results.log
+            q04-postgres-results.log
+          if-no-files-found: warn
+          retention-days: 7

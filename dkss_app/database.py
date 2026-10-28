@@ -167,6 +167,28 @@ def init_db():
             )
         )
 
+        duplicate_office = (
+            _dkss_common.db.session.query(
+                _dkss_models.Office.company_code, _dkss_models.Office.name
+            )
+            .group_by(_dkss_models.Office.company_code, _dkss_models.Office.name)
+            .having(_dkss_common.db.func.count(_dkss_models.Office.id) > 1)
+            .first()
+        )
+
+        if duplicate_office:
+            raise RuntimeError(
+                "営業所マスタに同一会社・同一名称の重複があります。"
+            )
+
+        _dkss_common.db.session.execute(
+            _dkss_common.db.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "uq_office_company_name "
+                "ON office (company_code, name)"
+            )
+        )
+
         duplicate_vehicle_type = (
             _dkss_common.db.session.query(
                 _dkss_models.VehicleType.company_code,

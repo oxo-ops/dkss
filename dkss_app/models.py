@@ -274,6 +274,9 @@ class VehicleKarteNote(db.Model):
 
 
 class VehicleType(db.Model):
+    __table_args__ = (
+        db.Index("uq_vehicle_type_company_name", "company_code", "name", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -461,6 +464,9 @@ class AuditLog(db.Model):
 
 
 class Office(db.Model):
+    __table_args__ = (
+        db.Index("uq_office_company_name", "company_code", "name", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)

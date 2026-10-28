@@ -2443,7 +2443,9 @@
     "CREATE INDEX ix_vehicle_part_replacement_vehicle_record_id ON vehicle_part_replacement (vehicle_record_id)",
     "CREATE INDEX ix_vehicle_periodic_inspection_record_company_code ON vehicle_periodic_inspection_record (company_code)",
     "CREATE INDEX ix_vehicle_periodic_inspection_record_inspection_date ON vehicle_periodic_inspection_record (inspection_date)",
-    "CREATE INDEX ix_vehicle_periodic_inspection_record_vehicle_record_id ON vehicle_periodic_inspection_record (vehicle_record_id)"
+    "CREATE INDEX ix_vehicle_periodic_inspection_record_vehicle_record_id ON vehicle_periodic_inspection_record (vehicle_record_id)",
+    "CREATE UNIQUE INDEX uq_office_company_name ON office (company_code, name)",
+    "CREATE UNIQUE INDEX uq_vehicle_type_company_name ON vehicle_type (company_code, name)"
   ],
   "hooks": {
     "before_request_funcs": {
