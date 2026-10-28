@@ -9,6 +9,7 @@ on:
       - 'test/q04-master-upgrade-*'
       - 'test/q04-related-writes-*'
       - 'test/q04-master-order-*'
+      - 'test/q04-news-office-*'
   pull_request:
     paths:
       - 'tests/test_q04_postgres_master_concurrency.py'
@@ -16,6 +17,8 @@ on:
       - 'tests/test_q04_postgres_master_upgrade.py'
       - 'tests/test_q04_postgres_related_writes.py'
       - 'tests/test_q04_postgres_master_order.py'
+      - 'tests/test_q04_postgres_news_office.py'
+      - 'tests/test_q04_postgres_news_resilience.py'
       - 'tests/test_q04_postgres_delivery_integrity.py'
       - 'tests/test_q04_postgres_history_master_links.py'
       - 'tests/test_q04_postgres_checklist_office_links.py'
@@ -27,6 +30,8 @@ on:
       - 'tests/fixtures/application_contract.json'
       - '.github/workflows/q04-postgres-masters.yml'
       - 'dkss_app/masters.py'
+      - 'dkss_app/news.py'
+      - 'dkss_app/notifications_delivery.py'
       - 'dkss_app/vehicle_master.py'
       - 'dkss_app/master_readers.py'
       - 'dkss_app/models.py'
@@ -177,6 +182,32 @@ jobs:
           for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
             python -m unittest discover -s tests -p "test_q04_postgres_${name}.py" -v || exit $?
           done 2>&1 | tee q04-postgres-gaps-results.log
+      - name: Confirm office news checks detect the unfixed main
+        shell: bash
+        env:
+          Q04_NEWS_BASELINE_REF: bb3a1183c8cb9511e9e883351f5df2351f114197
+        run: |
+          git fetch --no-tags origin "$Q04_NEWS_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-news-baseline" "$Q04_NEWS_BASELINE_REF"
+          cp tests/test_q04_postgres_news_office.py "$RUNNER_TEMP/q04-news-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-news-baseline" && python -m unittest discover -s tests -p 'test_q04_postgres_news_office.py' -v) > q04-news-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-news-baseline-results.log').read_text()
+          assert sys.argv[1] == '1', 'Unfixed main must fail integrity assertions'
+          assert re.search(r'Ran 6 tests\b', log), 'All six original scenarios must execute'
+          assert 'FAILED (failures=4)' in log, 'Inspect changed baseline evidence'
+          assert log.count('Q04_NEWS_CONTROL:') == 2, 'Both ordinary saves must pass'
+          print('NEWS_BASELINE_CONFIRMED: 6 tests, 4 integrity failures')
+          PY
+      - name: Verify office-targeted news racing office mutations
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_postgres_news*.py' -v 2>&1 | tee q04-postgres-news-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -192,5 +223,7 @@ jobs:
             q04-postgres-order-results.log
             q04-postgres-gaps-results.log
             q04-gaps-baseline-results.log
+            q04-postgres-news-results.log
+            q04-news-baseline-results.log
           if-no-files-found: warn
           retention-days: 7
