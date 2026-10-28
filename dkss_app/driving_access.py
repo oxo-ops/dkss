@@ -1,4 +1,4 @@
-"""Explicit, company-scoped readership; OCR names never grant access."""
+"""Company-scoped report access through explicit or unambiguous identities."""
 import hashlib
 import json
 from datetime import datetime
@@ -49,10 +49,9 @@ def visible(rows, personal=False):
         return []
     user=User.query.filter_by(company_code=session.get('company_code'),username=session.get('username')).first()
     if not user:return []
-    grants = {r.report_id: r for r in DrivingReportReader.query.filter_by(
-        company_code=session.get('company_code'), user_id=user.id).all()}
+    grants = bindings(rows)
     return [r for r in rows if r.company_code == session.get('company_code') and
-            r.id in grants and grants[r.id].identity_hash == fingerprint(r)]
+            r.id in grants and grants[r.id].user_id == user.id]
 
 
 def require_report(row):
@@ -71,7 +70,7 @@ def assign(rows, username, actor):
     if not ready():
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
     user=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES)).first() if username else None
-    if username and not user:abort(400)
+    if username and (not user or user.login_locked):abort(400)
     for row in rows:
         if row.company_code != session['company_code']:
             abort(404)
@@ -91,10 +90,41 @@ def assign(rows, username, actor):
 
 def bindings(rows):
     if not ready():return {}
-    ids={r.id:r for r in rows}
-    grants=DrivingReportReader.query.filter(DrivingReportReader.company_code==session['company_code'],DrivingReportReader.report_id.in_(ids)).all() if ids else []
-    users={u.id:u for u in User.query.filter_by(company_code=session['company_code']).all()} if grants else {}
-    return {grant.report_id:grant for grant in grants if grant.user_id in users and users[grant.user_id].role in READER_ROLES and grant.identity_hash==fingerprint(ids[grant.report_id])}
+    from driving_identity_resolution import resolver
+    return resolver().bindings(rows)
+
+
+def resolve_import(row, username=None, reidentify=False):
+    """Runs in the existing registration transaction, including pending vehicles."""
+    from driving_identity_resolution import resolver, AUTO, usable
+    if not administrator() or not ready():return
+    service=resolver(fresh=reidentify)
+    service.observe(row)
+    if reidentify:
+        service.grants.pop(row.id,None)
+    if username == '__hold__':
+        p=payload(row);p['identity_resolution']={'basis':'hold','at':datetime.now(ZoneInfo('Asia/Tokyo')).isoformat()}
+        row.details_json=json.dumps(p,ensure_ascii=False)
+        return
+    if username:
+        user=next((u for u in service.users.values() if u.username==username and usable(u)),None)
+        if not user:abort(400, '同じ会社のアカウントを選択してください。')
+        basis='manual'
+    else:
+        user,basis=service.resolve(row)
+    if not user:return
+    assign([row],user.username,session['username'] if basis=='manual' else AUTO)
+    # Keep the original fields; only record the resolution and its evidence.
+    p=payload(row)
+    p['identity_resolution']={'user_id':user.id,'basis':basis,'identity_hash':fingerprint(row),
+        'source_system':p.get('source_system'),'driver_code':p.get('driver_code'),
+        'valid_from':row.operation_date,'at':datetime.now(ZoneInfo('Asia/Tokyo')).isoformat()}
+    row.details_json=json.dumps(p,ensure_ascii=False)
+    # Reuse this transaction's evidence for subsequent records in the same batch.
+    from driving_identity_resolution import code_key, name
+    key=code_key(row)
+    if key and row.operation_date:
+        service.evidence[key].append((row.operation_date,name(p.get('driver_name')),user))
 
 
 def account_key(grant):

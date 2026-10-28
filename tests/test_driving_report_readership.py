@@ -37,7 +37,7 @@ class DrivingReadershipTests(unittest.TestCase):
         response=self.client.get('/safety/driving-reports?scope=company&period=all')
         self.assertEqual(response.status_code,200)
         text=response.get_data(as_text=True)
-        self.assertIn('自分の運転実績',text);self.assertIn('本人確認済みの日報はありません',text)
+        self.assertIn('自分の運転実績',text);self.assertIn('自分の日報はありません',text)
         self.assertNotIn('DTG',text)
         self.assertIn('no-store',response.headers['Cache-Control'])
 
@@ -112,9 +112,9 @@ class DrivingReadershipTests(unittest.TestCase):
         self.assertEqual({g.report_id for g in DrivingReportReader.query.all()},{own.id,second.id})
         self.login();self.assertEqual(self.client.post('/safety/driving-reports/readers',data=data).status_code,403)
         self.assertEqual(self.client.get(f'/safety/driving-reports/{other.id}').status_code,404)
-        # Later OCR imports remain private until explicitly confirmed.
+        # v0.24 reuses the established company/system/code identity on later imports.
         fourth=self.save(4)
-        self.assertEqual(self.client.get(f'/safety/driving-reports/{fourth.id}').status_code,404)
+        self.assertEqual(self.client.get(f'/safety/driving-reports/{fourth.id}').status_code,200)
 
     def test_missing_schema_fails_closed_and_explicit_initializer_is_idempotent(self):
         with self.m.db.engine.begin() as connection:DrivingReportReader.__table__.drop(connection)
