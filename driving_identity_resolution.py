@@ -45,7 +45,7 @@ def revoked(row):
 class Resolver:
     def __init__(self, company):
         from dkss_app.models import User, VehicleDrivingReportRecord, DrivingReportReader
-        from dkss_app.driving_access import fingerprint, ready
+        from dkss_app.driving_access import DrivingReaderAccount, fingerprint, ready
         self.company = company
         self.users = {u.id: u for u in User.query.filter_by(company_code=company).all()}
         self.by_name = defaultdict(list)
@@ -54,6 +54,8 @@ class Resolver:
             if account_name(u): self.by_name[account_name(u)].append(u)
         self.rows = {r.id: r for r in VehicleDrivingReportRecord.query.filter_by(company_code=company).all()}
         self.grants = {g.report_id: g for g in DrivingReportReader.query.filter_by(company_code=company).all()} if ready() else {}
+        self.accounts = {g.report_id: g for g in DrivingReaderAccount.query.filter_by(
+            company_code=company).order_by(DrivingReaderAccount.id).all()} if ready() else {}
         self.code_names = defaultdict(set)
         self.evidence = defaultdict(list)
         for r in self.rows.values():
@@ -64,6 +66,7 @@ class Resolver:
             grant = self.grants.get(r.id)
             user = self.users.get(grant.user_id) if grant else None
             if not (key and n and r.operation_date and user and usable(user) and
+                    self.same_account(r, grant, user) and
                     grant.identity_hash == fingerprint(r) and not revoked(r)):
                 continue
             # A previous automatic guess must not defeat a newly ambiguous name.
@@ -71,6 +74,12 @@ class Resolver:
             if grant.confirmed_by == AUTO and not (len(matches) == 1 and matches[0].id == user.id):
                 continue
             self.evidence[key].append((r.operation_date, n, user))
+
+    def same_account(self, row, grant, user):
+        evidence = self.accounts.get(row.id)
+        return bool(evidence and evidence.account_identity and user.account_identity and
+                    evidence.account_identity == user.account_identity and
+                    evidence.identity_hash == grant.identity_hash)
 
     def observe(self, row):
         """Include a just-inserted batch member without reloading the company."""
@@ -84,10 +93,19 @@ class Resolver:
         p = payload(row)
         if revoked(row): return None, '本人への表示を解除しています'
         grant = self.grants.get(row.id)
+        # A missing FK grant must not turn a deleted person's report into a new
+        # name match. Legacy grants have no verified generation and stay held.
+        if row.id in self.accounts and not grant:
+            return None, '本人の閲覧設定を確認してください'
+        prior = p.get('identity_resolution') or {}
+        if not grant and (prior.get('user_id') is not None or
+                any(e.get('kind') == 'reader' for e in p.get('audit', []))):
+            return None, '過去の閲覧設定の本人を確認してください'
         if grant:
             user = self.users.get(grant.user_id)
             if grant.identity_hash != fingerprint(row): return None, '乗務員情報が変更されています'
             if not user or not usable(user): return None, 'アカウントを確認してください'
+            if not self.same_account(row, grant, user): return None, 'アカウント世代を確認してください'
             if grant.confirmed_by != AUTO: return user, 'manual'
         crew = {str(i.get('driver_code') or '').strip() for i in p.get('duties', []) if i.get('driver_code')}
         if p.get('driver_code'): crew.add(str(p['driver_code']).strip())
