@@ -4,7 +4,6 @@ These are desired integrity assertions, not expected failures. Failures are
 evidence to investigate. A holds a real transaction while B either reads stale
 data or waits on A's PostgreSQL row lock. SQL and lock semantics are unchanged.
 """
-from identity_fixture import identity_for
 import json
 import os
 import re
@@ -115,8 +114,13 @@ class MasterConcurrencyTests(unittest.TestCase):
 
     def client(self, company=None):
         client = self.app.test_client()
+        # CI also copies this test alone into the historical pre-Q08 checkout.
+        # Keep that fixture self-contained; all integrity assertions stay intact.
+        with self.app.app_context():
+            user = self.m.User.query.filter_by(company_code=company or self.company, username='admin').one()
+            identity = getattr(user, 'account_identity', None)
         with client.session_transaction() as state:
-            state.update(account_identity=identity_for(company or self.company, 'admin', app=(client).application), company_code=company or self.company, username='admin',
+            state.update(account_identity=identity, company_code=company or self.company, username='admin',
                          role='admin', password_changed_at=self.stamp)
         return client
 
