@@ -1,4 +1,5 @@
 """Current roster and historical operation offices remain separate facts."""
+from identity_fixture import identity_for
 import csv
 import io
 import json
@@ -24,7 +25,7 @@ class OfficeMembershipTests(unittest.TestCase):
         from dkss_app import driving_access
         from flask import session
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign([self.a],'A','admin');self.m.db.session.commit()
 
     def people(self,context):
@@ -94,7 +95,7 @@ class OfficeMembershipTests(unittest.TestCase):
         with patch('driving_report_management.export_pdf',return_value=b'fake-pdf') as pdf:
             self.assertEqual(self.client.get('/safety/driving-reports/export.pdf?period=all').status_code,200)
             self.assertIn('現在所属 小山',str(pdf.call_args))
-        with self.client.session_transaction() as state:state.update(username='A',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'A', app=(self.client).application), username='A',role='user',password_changed_at='stamp')
         response,context=self.render(self.base+'&scope=company')
         self.assertEqual(context['insights']['current_affiliations'],[])
         self.assertNotIn('他営業所所属',response.get_data(as_text=True))

@@ -1,4 +1,5 @@
 """v0.21 integration, source preservation, duplicate and access boundaries."""
+from identity_fixture import identity_for
 import copy,json,unittest
 from decimal import Decimal
 from types import SimpleNamespace
@@ -168,7 +169,7 @@ class DrivingReportManagementTests(unittest.TestCase):
         self.assertEqual(self.client.get('/safety/driving-reports?start=bad').status_code,400)
         self.m.db.session.add(self.m.User(company_code='TEST',username='viewer',role='user',password='unused',last_name='一般',password_changed_at='viewer-stamp'))
         self.m.db.session.commit()
-        with self.client.session_transaction() as state:state.update(username='viewer',role='user',password_changed_at='viewer-stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'viewer', app=(self.client).application), username='viewer',role='user',password_changed_at='viewer-stamp')
         for path in ['/safety/driving-reports','/safety/driving-reports/export.csv']:
             response=self.client.get(path)
             self.assertEqual(response.status_code,200)
@@ -179,7 +180,7 @@ class DrivingReportManagementTests(unittest.TestCase):
         r=self.imported();m=self.m
         with m.app.test_request_context('/'):
             from flask import session
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             ai_payload,sources=m.get_vehicle_karte_analysis_job_data(self.vehicle)
         fact=next(x for x in ai_payload['records'] if x['source_id']==f'driving_report:{r.id}')
         self.assertEqual(fact['report_items'][0]['raw_result'],'0.0回/h');self.assertIn(f'driving_report:{r.id}',sources)

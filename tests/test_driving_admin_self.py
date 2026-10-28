@@ -1,4 +1,5 @@
 """Managers retain authority while requesting a strictly personal report scope."""
+from identity_fixture import identity_for
 import json
 import unittest
 from unittest.mock import patch
@@ -30,7 +31,7 @@ class AdminSelfTests(unittest.TestCase):
 
     def bind(self,row,username):
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign([row],username,'admin');self.m.db.session.commit()
 
     def render(self,url):
@@ -111,18 +112,18 @@ class AdminSelfTests(unittest.TestCase):
         _,ctx=self.render(self.base+'&scope=company');self.assertEqual(ctx['total'],3)
 
     def test_general_user_cannot_widen_scope_or_assign_a_reader(self):
-        with self.client.session_transaction() as state:state.update(username='two',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'two', app=(self.client).application), username='two',role='user',password_changed_at='stamp')
         _,ctx=self.render(self.base+'&scope=company&office=__company__')
         self.assertEqual(ctx['total'],1);self.assertEqual(ctx['filters']['scope'],'self')
         self.assertFalse(ctx['driving_can_manage'])
         self.assertEqual(self.client.post(f'/safety/driving-reports/{self.theirs.id}/reader',data={}).status_code,403)
 
     def test_itc_self_uses_own_account_and_personal_candidates(self):
-        with self.client.session_transaction() as state:state.update(username='support',role='itc',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'support', app=(self.client).application), username='support',role='itc',password_changed_at='stamp')
         _,ctx=self.render(self.base+'&scope=self')
         self.assertEqual(ctx['total'],1);self.assertEqual(ctx['insights']['summary']['distance'],50)
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='support',role='itc')
+            session.update(account_identity=identity_for('TEST', 'support'), company_code='TEST',username='support',role='itc')
             self.m.db.session.add(VehicleChecklistResult(company_code='TEST',checklist_id=1,
                 vehicle_record_id=self.vehicle.id,year='2026',month='10',day='20',status='点検完了',
                 checked_by_username='support',answers_json='[]',
@@ -177,7 +178,7 @@ class AdminSelfTests(unittest.TestCase):
             self.assertEqual(back['filters']['scope'],'office');self.assertNotIn('秘密',back['filters'].values())
 
     def test_regular_user_has_no_management_switch(self):
-        with self.client.session_transaction() as state:state.update(username='two',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'two', app=(self.client).application), username='two',role='user',password_changed_at='stamp')
         response,ctx=self.render(self.base)
         self.assertIsNone(ctx['driving_view_navigation']);self.assertNotIn('class="driving-view-switch"',response.get_data(as_text=True))
 

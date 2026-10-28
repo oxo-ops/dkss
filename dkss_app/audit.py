@@ -51,7 +51,21 @@ def add_audit_log(
     if len(target_id) > 100:
         target_id = target_id[:100]
 
+    identity = _dkss_common.session.get('account_identity')
+    actor = None
+    if identity and username == _dkss_common.session.get('username'):
+        actor = _dkss_models.User.query.filter_by(
+            company_code=_dkss_common.session.get('company_code'), account_identity=identity
+        ).first()
+    elif action in {'login_success', 'user_registered'}:
+        # These callers have just verified credentials or created the account.
+        actor = _dkss_models.User.query.filter_by(company_code=company_code, username=username).first()
+    if action in {'login_failed', 'account_locked', 'mfa_failed', 'mfa_code_invalidated'}:
+        actor = None  # An attempted login ID is not proof of the actor's identity.
+    # Login failure may have no authenticated actor; never resolve on display.
     audit_log = _dkss_models.AuditLog(
+        actor_identity=actor.account_identity if actor else None,
+        actor_name=(f"{actor.last_name or ''}{actor.first_name or ''}") if actor else None,
         company_code=company_code,
         username=username,
         action=action,

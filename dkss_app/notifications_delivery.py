@@ -1,4 +1,5 @@
 """Notifications Delivery responsibilities; routes are registered by the application factory."""
+from .account_identity import current_identity
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime
 
 
@@ -70,9 +71,13 @@ def push_subscribe():
         endpoint=endpoint
     ).first()
 
+    if subscription and subscription.owner_identity not in (None, current_identity()):
+        return {"error": "Subscription belongs to another account generation."}, 409
+
     if subscription:
         subscription.company_code = company_code
         subscription.username = username
+        subscription.owner_identity = current_identity()
         subscription.p256dh = p256dh
         subscription.auth = auth
 
@@ -80,6 +85,7 @@ def push_subscribe():
         subscription = _dkss_models.PushSubscription(
             company_code=company_code,
             username=username,
+            owner_identity=current_identity(),
             endpoint=endpoint,
             p256dh=p256dh,
             auth=auth,
@@ -116,7 +122,8 @@ def push_unsubscribe():
     subscription = _dkss_models.PushSubscription.query.filter_by(
         endpoint=endpoint,
         company_code=company_code,
-        username=username
+        username=username,
+        owner_identity=current_identity()
     ).first()
 
     if subscription:
@@ -146,9 +153,12 @@ def send_web_push_notification(
         )
         return False
 
+    if not user.account_identity:
+        return False
+
     subscriptions = _dkss_models.PushSubscription.query.filter_by(
         company_code=user.company_code,
-        username=user.username
+        owner_identity=user.account_identity
     ).all()
 
     if not subscriptions:
@@ -156,7 +166,7 @@ def send_web_push_notification(
 
     unread_count = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == user.company_code,
-        _dkss_models.Notification.target_username == user.username,
+        _dkss_models.Notification.owner_identity == user.account_identity,
         _dkss_models.Notification.deleted_at.is_(None),
         _dkss_common.db.or_(
             _dkss_models.Notification.read.is_(False),
@@ -234,7 +244,8 @@ def push_test():
 
     user = _dkss_models.User.query.filter_by(
         company_code=company_code,
-        username=username
+        username=username,
+        account_identity=current_identity()
     ).first()
 
     if not user:
@@ -380,6 +391,17 @@ def dispatch_external_notification(
     if not user:
         return
 
+    # A committed notification may outlive its account before delivery starts.
+    # Do not resolve a replacement by username or send to a retired principal.
+    if not user.account_identity or not _dkss_models.User.query.filter_by(
+        company_code=user.company_code, account_identity=user.account_identity
+    ).with_for_update(read=True).first():
+        return
+    if notification_id is not None and not _dkss_models.Notification.query.filter_by(
+        id=notification_id, company_code=user.company_code, owner_identity=user.account_identity
+    ).first():
+        return
+
     push_link = link
 
     if notification_id is not None:
@@ -441,7 +463,8 @@ def add_notification(
     files=None,
     company_code=None,
     target_username=None,
-    workflow_context=None
+    workflow_context=None,
+    target_identity=None,
 ):
     target_user = str(target_user or "").strip()
     title = str(title or "").strip()
@@ -492,10 +515,13 @@ def add_notification(
     target_user_record = None
 
     if target_username:
-        target_user_record = _dkss_models.User.query.filter_by(
+        recipient_query = _dkss_models.User.query.filter_by(
             company_code=notification_company_code,
             username=target_username
-        ).first()
+        )
+        if target_identity is not None:
+            recipient_query = recipient_query.filter_by(account_identity=target_identity)
+        target_user_record = recipient_query.with_for_update(read=True).first()
 
         if not target_user_record:
             return
@@ -510,6 +536,7 @@ def add_notification(
         company_code=notification_company_code,
         target_user=target_user,
         target_username=target_username,
+        owner_identity=target_user_record.account_identity if target_user_record else None,
         title=title,
         message=message,
         link=link,
@@ -529,16 +556,21 @@ def add_notification(
         )
     )
 
+    recipient_identity = target_user_record.account_identity if target_user_record else None
     _dkss_common.db.session.add(notification)
+    _dkss_common.db.session.flush()
+    saved_notification_id = notification.id
     _dkss_common.db.session.commit()
 
-    if target_user_record:
+    recipient = _dkss_models.User.query.filter_by(company_code=notification_company_code,
+        account_identity=recipient_identity).with_for_update(read=True).first() if recipient_identity else None
+    if recipient:
         dispatch_external_notification(
-            target_user_record,
+            recipient,
             title,
             message,
             link,
-            notification_id=notification.id
+            notification_id=saved_notification_id
         )
 
 
@@ -573,7 +605,8 @@ def add_news(
     files=None,
     target_type="",
     target_value="",
-    company_code=None
+    company_code=None,
+    target_identity=None,
 ):
     title = str(title or "").strip()
     message = str(message or "")
@@ -603,6 +636,7 @@ def add_news(
         )
 
     news = _dkss_models.News(
+        owner_identity=target_identity if target_type == 'user' else None,
         company_code=news_company_code,
         title=title,
         message=message,
@@ -639,6 +673,9 @@ def notify_mentions(text, link=""):
     users = _dkss_models.User.query.filter_by(
         company_code=_dkss_common.session.get("company_code")
     ).all()
+    from types import SimpleNamespace
+    users = [SimpleNamespace(username=u.username, account_identity=u.account_identity,
+        last_name=u.last_name, first_name=u.first_name) for u in users]
 
     users_by_name = {}
 
@@ -676,6 +713,7 @@ def notify_mentions(text, link=""):
                 "メンションされました",
                 text,
                 link,
+                target_identity=user.account_identity,
                 target_username=username
             )
             notified_usernames.add(username)
@@ -704,6 +742,7 @@ def notify_mentions(text, link=""):
                 "メンションされました",
                 text,
                 link,
+                target_identity=user.account_identity,
                 target_username=username
             )
             notified_usernames.add(username)

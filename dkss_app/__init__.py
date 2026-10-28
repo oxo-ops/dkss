@@ -49,6 +49,7 @@ def create_app(config=None, *, initialize_database=False):
     from .display import format_distance_km
     app.jinja_env.filters["distance_km"] = format_distance_km
     db.init_app(app)
+    from . import account_identity
     csrf.init_app(app)
     limiter.init_app(app)
     app.extensions["dkss"] = {"s3_client": None}
@@ -74,6 +75,12 @@ def create_app(config=None, *, initialize_database=False):
         upgrade_storage()
         upgrade_read_cache()
         print("DATABASE_INITIALIZED")
+
+    @app.cli.command("upgrade-account-identity")
+    def upgrade_account_identity_command():
+        """Add account-generation columns; quarantine ambiguous old ownership."""
+        account_identity.upgrade_account_identity()
+        print("ACCOUNT_IDENTITY_UPGRADED")
 
     @app.cli.command("upgrade-domain-storage")
     def upgrade_domain_storage():

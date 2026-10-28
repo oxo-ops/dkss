@@ -106,6 +106,11 @@ def itc_new_news():
                 form_error_status
             )
 
+        # add_news / each recipient commits. Capture the selected generations
+        # before commits expire ORM objects or another request reuses a login ID.
+        from types import SimpleNamespace
+        target_users = [SimpleNamespace(username=u.username, account_identity=u.account_identity,
+            last_name=u.last_name, first_name=u.first_name) for u in target_users]
         file_names = []
 
         uploaded_files = [
@@ -145,7 +150,8 @@ def itc_new_news():
             message,
             files=file_names,
             target_type=target_type,
-            target_value=target_value
+            target_value=target_value,
+            target_identity=target_users[0].account_identity if target_type == 'user' and target_users else None,
         )
 
         # 通知登録
@@ -161,6 +167,7 @@ def itc_new_news():
                 "",
                 files=file_names,
                 company_code=company_code,
+                target_identity=user.account_identity,
                 target_username=user.username
             )
 

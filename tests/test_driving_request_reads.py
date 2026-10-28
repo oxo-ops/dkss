@@ -1,4 +1,5 @@
 """Request-local reuse reduces database round trips without retaining permissions."""
+from identity_fixture import identity_for
 import json
 import re
 import unittest
@@ -46,7 +47,7 @@ class DrivingRequestReadTests(unittest.TestCase):
         grant=DrivingReportReader.query.filter_by(report_id=self.own.id).one()
         self.m.db.session.delete(grant);self.m.db.session.commit()
         _,after=self.render(self.base+'&scope=self');self.assertEqual(after['total'],0)
-        with self.client.session_transaction() as state:state.update(username='two',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'two', app=(self.client).application), username='two',role='user',password_changed_at='stamp')
         _,other=self.render(self.base+'&scope=company')
         self.assertEqual(other['total'],1);self.assertEqual(other['reports'][0]['row'].id,self.theirs.id)
         self.assertFalse(other['driving_can_manage'])

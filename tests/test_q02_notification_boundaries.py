@@ -3,6 +3,7 @@
 Synthetic temporary SQLite only. These tests do not establish PostgreSQL
 locking guarantees, MFA correctness, production deployment or full Q02 coverage.
 """
+from identity_fixture import identity_for
 import json
 import os
 from datetime import datetime
@@ -68,7 +69,7 @@ class Q02NotificationBoundaryTests(unittest.TestCase):
         self.own,self.deleted,self.other,self.foreign,self.other_deleted,self.foreign_deleted=self.rows
         self.client=self.app.test_client()
         with self.client.session_transaction() as session:
-            session.update(company_code='A',username='same',role='user',
+            session.update(account_identity=identity_for('A', 'same', app=(self.client).application), company_code='A',username='same',role='user',
                            password_changed_at='2026-10-27 10:00:00')
 
     def tearDown(self):

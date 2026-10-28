@@ -1,4 +1,5 @@
 """Analysis reads and writes retain company, vehicle and current-account boundaries."""
+from identity_fixture import identity_for
 import unittest
 from unittest.mock import patch
 from test_workflow_regressions import WorkflowRegressionTests as Fixture
@@ -41,7 +42,7 @@ class Q02AnalysisBoundaryTests(unittest.TestCase):
     def actor(self, company='TEST', username='admin', role='admin'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username=username, role=role, password_changed_at=self.stamp)
+            session.update(account_identity=identity_for(company, username, app=(self.client).application), company_code=company, username=username, role=role, password_changed_at=self.stamp)
 
     def url(self, suffix, vehicle=None):
         return f'/vehicle/karte/{(vehicle or self.vehicle).id}/analysis/{suffix}'

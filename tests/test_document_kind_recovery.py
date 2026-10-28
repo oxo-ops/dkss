@@ -1,4 +1,5 @@
 """Real queue/routes and transactions; only external classification/OCR are mocked."""
+from identity_fixture import identity_for
 import hashlib
 import json
 import re
@@ -122,9 +123,9 @@ class DocumentKindRecoveryTests(TestCase):
         stamp=self.m.User.query.filter_by(company_code='TEST',username='admin').one().password_changed_at
         self.m.db.session.add(self.m.User(company_code='TEST',username='other',role='admin',password='unused',last_name='検証',password_changed_at=stamp))
         db.session.commit()
-        with self.client.session_transaction() as state:state['username']='other'
+        with self.client.session_transaction() as state:state['username']='other'; state['account_identity'] = identity_for(state.get('company_code'), state.get('username'))
         self.assertEqual(self.client.get('/vehicle/data-import/'+row.id+'/kind').status_code,404)
-        with self.client.session_transaction() as state:state['username']='admin'
+        with self.client.session_transaction() as state:state['username']='admin'; state['account_identity'] = identity_for(state.get('company_code'), state.get('username'))
         self.m.app.config['WTF_CSRF_ENABLED']=True
         try:self.assertEqual(self.client.post('/vehicle/data-import/'+row.id+'/kind',data={'action':'cancel'}).status_code,400)
         finally:self.m.app.config['WTF_CSRF_ENABLED']=False
