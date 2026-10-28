@@ -133,7 +133,7 @@ def get_dashboard_office_maintenance_trend(company_code, office):
             if item["known"]
             else None
         )
-        item["formatted"] = f"{item['amount']:,.0f}"
+        item["formatted"] = f"{item['amount']:,.2f}".rstrip("0").rstrip(".")
 
     result["maximum"] = f"{high / 10000:,.1f}"
     result["minimum"] = f"{low / 10000:,.1f}"

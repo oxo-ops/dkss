@@ -2,8 +2,8 @@
 
 import json
 import re
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from vehicle_analysis_dates import maintenance_cost_date
 from .serialization import safe_json_dict
 
 
@@ -78,14 +78,7 @@ def set_cost_office(record, office):
 
 
 def cost_date(record):
-    value = (
-        str(record.entry_date or "").strip()
-        or str(record.completion_date or "").strip()
-    )
-    try:
-        return datetime.strptime(value[:10].replace("/", "-"), "%Y-%m-%d").date()
-    except ValueError:
-        return None
+    return maintenance_cost_date(record)
 
 
 class MaintenanceCostService:

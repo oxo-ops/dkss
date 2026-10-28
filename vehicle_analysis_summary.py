@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from vehicle_analysis_dates import parse_record_date
+from vehicle_analysis_dates import maintenance_cost_date, parse_record_date
 
 
 class VehicleAnalysisSummaryService:
@@ -259,7 +259,8 @@ class VehicleAnalysisSummaryService:
 
         selected_maintenance = [
             row for row in maintenance
-            if in_period(row.entry_date or row.completion_date)
+            if (day := maintenance_cost_date(row)) is not None
+            and start <= day <= end
         ]
         selected_operations = [
             row for row in operations
@@ -312,7 +313,7 @@ class VehicleAnalysisSummaryService:
             ),
         ):
             for row in rows:
-                day = parse_date(
+                day = maintenance_cost_date(row) if date_field == "entry_date" else parse_date(
                     getattr(row, date_field)
                     or getattr(row, "completion_date", None)
                 )
@@ -419,9 +420,7 @@ class VehicleAnalysisSummaryService:
             "missing_cost_count": missing_cost,
             "missing_distance_count": missing_distance,
             "undated_maintenance_count": sum(
-                parse_date(
-                    row.entry_date or row.completion_date
-                ) is None
+                maintenance_cost_date(row) is None
                 for row in maintenance
             ),
             "monthly": list(monthly.values()),
