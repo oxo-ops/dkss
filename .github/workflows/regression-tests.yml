@@ -33,7 +33,7 @@ jobs:
       - name: Check durable import browser controller
         run: node --test tests/document_import_queue_js.cjs
       - name: Check driving trend data and missing measurements
-        run: node --test tests/driving_report_insights_js.cjs
+        run: node --test tests/driving_report_insights_js.cjs tests/driving_report_periods_js.cjs tests/driving_report_navigation_js.cjs
       - name: Check shared vehicle-choice labels
         run: node --test tests/vehicle_karte_selector_js.cjs
       - name: Check shared responsive viewport behavior

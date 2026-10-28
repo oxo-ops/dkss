@@ -31,6 +31,13 @@ class AiNavigationTests(unittest.TestCase):
         self.m.db.session.expire_all()
         response,context=self.render(url)
         self.assertEqual(context['reflection']['status'],'completed')
+        from test_driving_analysis_navigation import Tree
+        tree=Tree(response.get_data(as_text=True))
+        actions=[n for n in tree.nodes if n['tag']=='a' and 'data-analysis-destination' in n['attrs']]
+        self.assertTrue(actions)
+        for action in actions:
+            self.assertFalse(any(p['tag']=='details' for p in action['parents']))
+            self.assertIn('btn',action['attrs'].get('class','').split())
         return response,context,document
 
     def test_company_office_finding_links_to_scoped_office_then_person(self):
@@ -43,7 +50,8 @@ class AiNavigationTests(unittest.TestCase):
         link=item['links'][0];target=urlsplit(link['url']);args=parse_qs(target.query)
         self.assertEqual(args['scope'],['office']);self.assertEqual(args['compare_start'],['2026-06-01'])
         self.assertEqual(args['vehicle_make'],[digest(['vehicle_make','日野'])])
-        self.assertEqual(target.fragment,'driver-comparison')
+        self.assertEqual(target.fragment,'')
+        self.assertEqual(args['panel'],['analysis'])
         page,next_context=self.render(link['url'])
         self.assertEqual(next_context['total'],1)
         for evidence in document['evidence']:
@@ -58,8 +66,30 @@ class AiNavigationTests(unittest.TestCase):
         item=context['reflection']['items'][0];link=item['links'][0]
         _,focused=self.render(link['url'])
         self.assertEqual(focused['total'],1)
+        self.assertEqual(urlsplit(link['url']).fragment,'')
+        self.assertEqual(parse_qs(urlsplit(link['url']).query)['panel'],['analysis'])
         self.assertEqual(focused['insights']['selected_driver']['name'],'乗務員A')
         self.assertNotIn('小山の人',str(context['reflection']))
+
+    def test_next_actions_are_visible_without_opening_evidence(self):
+        from test_driving_analysis_navigation import Tree
+        from dkss_app import driving_access
+        from flask import session
+        with self.m.app.test_request_context():
+            session.update(company_code='TEST',username='admin',role='admin')
+            driving_access.assign([self.a],'admin','admin');self.m.db.session.commit()
+        for scope,kind in [('company','office'),('office','scope'),('self','record')]:
+            with self.subTest(scope=scope):
+                response,context,_=self.generate_for(self.base+'&scope='+scope,kind)
+                tree=Tree(response.get_data(as_text=True))
+                actions=[n for n in tree.nodes if n['tag']=='a' and any(
+                    'driving-reflection-links' in p['attrs'].get('class','').split() for p in n['parents'])]
+                self.assertTrue(actions)
+                for action in actions:
+                    self.assertFalse(any(p['tag']=='details' or 'hidden' in p['attrs'] for p in action['parents']))
+                    self.assertIn('btn',action['attrs'].get('class','').split())
+                self.assertIn('次の行動と確認',response.get_data(as_text=True))
+                self.assertTrue(context['reflection']['items'][0]['report_links'])
 
     def test_cached_urls_and_targets_are_rebuilt_from_current_evidence(self):
         _,context,_=self.generate_for(self.base,'scope')
@@ -81,6 +111,10 @@ class AiNavigationTests(unittest.TestCase):
         self.assertEqual(self.client.get(links[0]['url']).status_code,200)
         _,focused=self.render(links[1]['url']);self.assertEqual(focused['total'],1)
         self.assertEqual(focused['filters']['followup_due'],'due')
+        from test_driving_analysis_navigation import Tree
+        shown=Tree(self.client.get(self.base+'&followup_due=due').get_data(as_text=True))
+        next_date=next(n for n in shown.nodes if 'driving-followup-date' in n['attrs'].get('class','').split())
+        self.assertFalse(any(p['tag']=='details' for p in next_date['parents']))
 
     def test_user_actions_and_sources_remain_within_confirmed_own_reports(self):
         self.m.db.session.add(self.m.User(company_code='TEST',username='one',role='user',password='unused',last_name='本人',password_changed_at='stamp'))
@@ -99,6 +133,29 @@ class AiNavigationTests(unittest.TestCase):
         self.assertEqual(item['report_links'][0]['label'],'2026-10-10の日報')
         self.assertEqual(self.client.get(item['report_links'][0]['url']).status_code,200)
         self.assertNotIn('小山の人',response.get_data(as_text=True))
+
+    def test_person_finding_opens_its_source_instead_of_reopening_same_person(self):
+        from driving_report_insights import driver_keys
+        key=driver_keys([self.a])[0][self.a.id]
+        _,context,_=self.generate_for(self.base+'&focus='+key,'record')
+        item=context['reflection']['items'][0]
+        self.assertEqual([link['label'] for link in item['links']],['対象日報を確認'])
+        self.assertEqual(item['links'][0]['url'],item['report_links'][0]['url'])
+        self.assertEqual(self.client.get(item['links'][0]['url']).status_code,200)
+
+    def test_finding_without_a_specialized_action_offers_its_authorized_source(self):
+        from flask import render_template
+        from test_driving_analysis_navigation import Tree
+        _,context,_=self.generate_for(self.base,'record')
+        item=dict(context['reflection']['items'][0],links=[])
+        reflection=dict(context['reflection'],items=[item])
+        with self.m.app.test_request_context():
+            html=render_template('driving_workspace_reflection.html',reflection=reflection,
+                insights=context['insights'],filter_query=context['filter_query'],driving_is_admin=True)
+        actions=[n for n in Tree(html).nodes if n['tag']=='a' and 'data-analysis-destination' in n['attrs']]
+        self.assertEqual(len(actions),1)
+        self.assertEqual(actions[0]['attrs']['href'],item['report_links'][0]['url'])
+        self.assertFalse(any(p['tag']=='details' for p in actions[0]['parents']))
 
     def test_maintenance_and_cost_findings_use_different_vehicle_destinations(self):
         self.m.db.session.add(self.m.VehicleMaintenanceRecord(company_code='TEST',vehicle_record_id=self.vehicle.id,

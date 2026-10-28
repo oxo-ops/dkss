@@ -1,6 +1,7 @@
 """The office analysis and driver directory are primary content, not disclosures."""
 from html.parser import HTMLParser
 import unittest
+from urllib.parse import parse_qs, urlsplit
 import test_driving_workspace_ui as ui
 from driving_report_insights import driver_keys
 
@@ -76,3 +77,19 @@ class AnalysisNavigationTests(unittest.TestCase):
         self.assertNotIn('#driver-trend',row['attrs']['href'])
         self.assertIn('日報の取込後に表示',html)
         self.assertIn('振り返り未記入',html)
+
+    def test_empty_custom_comparison_can_open_all_records_without_expanding_scope(self):
+        query='?period=custom&start=2030-10-01&end=2030-10-26&compare=custom&compare_start=2026-06-01&compare_end=2026-06-07'
+        for scope in ['office','company','self']:
+            response,context=self.render('/safety/driving-reports'+query+'&scope='+scope+'&panel=reports')
+            self.assertEqual(context['total'],0)
+            tree=Tree(response.get_data(as_text=True))
+            link=next(n['attrs']['href'] for n in tree.nodes if n['tag']=='a' and
+                      parse_qs(urlsplit(n['attrs'].get('href','')).query).get('period')==['all'])
+            response,all_records=self.render(link)
+            self.assertEqual(all_records['filters']['scope'],scope)
+            self.assertEqual(all_records['workspace_panel'],'reports')
+            self.assertEqual(all_records['insights']['period']['mode'],'all')
+            self.assertEqual(all_records['insights']['period']['previous_start'],'')
+            self.assertEqual(all_records['total'],{'office':1,'company':2,'self':0}[scope])
+            self.assertNotIn('他社の秘密',response.get_data(as_text=True))

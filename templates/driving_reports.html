@@ -7,7 +7,7 @@
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261027-membership-1') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261028-analysis-navigation-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261028-visible-ai-actions-2') }}">
 {% endblock %}
 {% block top_bar_heading %}
 <header class="driving-page-title"><h2>{{ insights.selected_driver.name ~ 'さんの運転実績' if driving_is_admin and insights.selected_driver else insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}</h2>{% if not driving_is_admin %}<span>{{ driving_user_office }}</span>{% endif %}</header>
@@ -32,7 +32,7 @@
 {% if insights.condition_caption!='指定なし' %}<p class="driving-muted">現在の台帳条件：{{ insights.condition_caption }}</p>{% endif %}
 {% if insights.period_days and insights.comparison_days and insights.period_days!=insights.comparison_days %}<p class="driving-muted">対象 {{ insights.period_days }}日間 ／ 比較 {{ insights.comparison_days }}日間。日数が異なるため、運行数・距離・指標の取得率も確認してください。</p>{% endif %}
 {% if insights.scope_missing %}<div class="card driving-empty"><h3>表示する営業所を選択してください</h3><p>所属営業所が設定されていません。表示範囲から営業所または会社全体を選べます。</p></div>{% else %}
-{% if total==0 %}<div class="driving-empty-actions"><span>{{ 'この範囲・期間の日報はありません。' if driving_is_admin else 'この条件で表示できる自分の日報はありません。' }}</span><a href="{{ url_for('driving_reports',**dict(filter_query,period='all',start='',end='',page=1)) }}">全期間の記録を確認</a>{% if driving_is_admin %}{% if filters.scope!='company' %}<a href="{{ url_for('driving_reports',**dict(filter_query,scope='company',office='',focus='',driver='',state='',page=1)) }}">会社全体の記録を確認</a>{% endif %}<a href="{{ url_for('vehicle_data_import') }}#import-driving_report">日報を取り込む</a>{% endif %}</div>{% endif %}
+{% if total==0 %}<div class="driving-empty-actions"><span>{{ 'この範囲・期間の日報はありません。' if driving_is_admin else 'この条件で表示できる自分の日報はありません。' }}</span><a href="{{ url_for('driving_reports',**dict(filter_query,period='all',start='',end='',compare='previous',compare_start='',compare_end='',page=1)) }}">全期間の記録を確認</a>{% if driving_is_admin %}{% if filters.scope!='company' %}<a href="{{ url_for('driving_reports',**dict(filter_query,scope='company',office='',focus='',driver='',state='',page=1)) }}">会社全体の記録を確認</a>{% endif %}<a href="{{ url_for('vehicle_data_import') }}#import-driving_report">日報を取り込む</a>{% endif %}</div>{% endif %}
 <nav class="driving-page-tabs" id="driving-view" aria-label="運転実績の表示内容">
 {% for key,label in [('analysis','分析'),('reports','日報一覧'),('comparison','詳しく比較'),('data','読取内容')] %}
 {% if key!='comparison' or driving_is_admin %}<a data-panel-link="{{ key }}" href="{{ url_for('driving_reports',**dict(filter_query,panel=key,page=1,_anchor='driving-view')) }}" {% if workspace_panel==key %}aria-current="page"{% endif %}>{{ label }}{% if key=='reports' %}<span>{{ total }}件</span>{% endif %}</a>{% endif %}{% endfor %}
@@ -66,5 +66,5 @@
 {% for note in insights.review_notes %}<div class="driving-review-note" id="driving-review-{{ note.id }}"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,panel='data',_anchor='driving-review-' ~ note.id))) }}">日報の読取内容を見る</a></div>{% else %}<p>この範囲に追加の確認事項はありません。</p>{% endfor %}</section>
 {% if insights.raw_metrics %}<section class="card driving-raw-fold" id="driving-raw-values"><h3>日報に記載された値</h3><div class="driving-raw-values">{% for entry in insights.raw_metrics %}<article><h4>{{ entry.metric.name }}</h4>{{ metric_value(entry) }}</article>{% endfor %}</div></section>{% endif %}
 </div>
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-analysis-navigation-1') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-analysis-destinations-2') }}" defer></script>
 {% endblock %}
