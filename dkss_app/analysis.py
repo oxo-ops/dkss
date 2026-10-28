@@ -1511,6 +1511,7 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope='auto
 def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_date, end_date):
     """Use registered monetary fields; never infer a repair category or tax rate."""
     from decimal import Decimal, InvalidOperation
+    from .maintenance_facts import cost_date
     def money(value):
         if value is None or value == "": return None
         try:
@@ -1524,10 +1525,8 @@ def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_dat
     totals["内訳未確定"] = Decimal("0")
     total = Decimal("0"); records = 0; incomplete = 0
     for row in parents:
-        day = str(row.entry_date or row.completion_date or "")[:10]
-        try: _dkss_common.datetime.strptime(day, "%Y-%m-%d")
-        except ValueError: continue
-        if not start_date <= day <= end_date: continue
+        day = cost_date(row)
+        if day is None or not start_date <= day.isoformat() <= end_date: continue
         amount = money(row.total_cost)
         if amount is None: continue
         records += 1; total += amount
