@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from flask import abort, has_request_context, session
+from flask import abort, has_request_context, request, session
 from sqlalchemy import event, inspect, select
 from sqlalchemy.exc import IntegrityError
 
@@ -135,13 +135,63 @@ def group_vehicles(panel):
     return panel
 
 
+def correction_state():
+    """Reuse one company-scoped read within this HTTP request, never across users."""
+    key = ('dkss.driving.corrections', session['company_code'])
+    if key not in request.environ:
+        ready = inspect(db.engine).has_table(DrivingVehicleCorrection.__tablename__)
+        items = DrivingVehicleCorrection.query.filter_by(company_code=session['company_code']).order_by(DrivingVehicleCorrection.revision).all() if ready else []
+        request.environ[key] = (ready, items)
+    return request.environ[key]
+
+
+def mark_personal_holds(facts, bindings, company_users):
+    """A correction can hold personal attribution, never grant or revoke access.
+
+    Only the latest correction on unchanged, authenticated daily inspection
+    evidence can conflict with the same account / vehicle / target day.
+    Company and vehicle totals keep the underlying operation.
+    """
+    if not facts:
+        return
+    company = session['company_code']
+    ready, corrections = correction_state()
+    if not ready or not corrections:
+        return
+    users = {bindings[f['row'].id].user_id for f in facts if f['row'].id in bindings}
+    days = [f['date'] for f in facts if f['date']]
+    if not days:
+        return
+    edits = {}
+    for item in corrections:
+        edits[(item.user_id, item.inspection_id)] = item
+    conflicts = set()
+    period = {'start': min(days), 'end': max(days)}
+    if not company_users:
+        from driving_identity_resolution import resolver
+        company_users = resolver().users.values()
+    for user in company_users:
+        if user.company_code != company or user.id not in users:
+            continue
+        for result, origin, day in sources(user, period):
+            correction = edits.get((user.id, result.id))
+            if not correction or correction.evidence_key != evidence_key(result, origin, day):
+                continue
+            if correction.action == 'exclude' or (correction.action == 'replace' and correction.vehicle_id != result.vehicle_record_id):
+                conflicts.add((user.id, result.vehicle_record_id, day))
+    for fact in facts:
+        grant = bindings.get(fact['row'].id)
+        if grant and (grant.user_id, fact['vehicle_id'], fact['date']) in conflicts:
+            fact['personal_hold'] = True
+
+
 def build(board, facts, filters):
     user = subject(board)
     focus = board.get('selected_driver')
-    own = [f for f in facts if (focus and f['driver_key'] == focus['key']) or
+    own = [f for f in facts + board.get('personal_held_facts', []) if (focus and f['driver_key'] == focus['key']) or
            (user and not driving_access.administrator())]
     # An administrator's unresolved OCR identity is not a confirmed personal link.
-    confirmed = [f for f in own if f.get('identity_confirmed')]
+    confirmed = [f for f in own if f.get('identity_confirmed') and not f.get('personal_hold')]
     vehicles = Vehicle.query.filter_by(company_code=session['company_code']).all()
     by_id = {v.id: v for v in vehicles}
     trips = []
@@ -155,14 +205,16 @@ def build(board, facts, filters):
               'choices': [], 'corrections': [], 'ready': False}
     if user is None:
         return group_vehicles(result)
-    ready = inspect(db.engine).has_table(DrivingVehicleCorrection.__tablename__)
+    ready, corrections = correction_state()
     result['ready'] = ready
     edits, history = {}, {}
     if ready:
-        for edit in DrivingVehicleCorrection.query.filter_by(company_code=user.company_code, user_id=user.id).order_by(DrivingVehicleCorrection.revision).all():
+        for edit in corrections:
+            if edit.user_id != user.id:
+                continue
             edits[edit.inspection_id] = edit
             history.setdefault(edit.inspection_id, []).append(edit)
-    used = {(f['vehicle_id'], f['date']) for f in confirmed}
+    used = {(f['vehicle_id'], f['date']) for f in own if f.get('identity_confirmed')}
     for inspection, origin, day in sources(user, board['period']):
         vid = inspection.vehicle_record_id
         if vid not in by_id:

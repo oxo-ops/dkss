@@ -1,7 +1,7 @@
 """Office navigation and roster; organizational filters never grant readership."""
 from collections import defaultdict
 from driving_report_data import payload
-from driving_report_insights import dashboard, digest, number, summarize, identity_counts
+from driving_report_insights import dashboard, digest, number, summarize, identity_counts, attributed
 
 
 UNKNOWN_OFFICE = '所属不明'
@@ -99,6 +99,7 @@ def current_affiliation(person, facts, bindings, users, drivers, selected_office
 def enrich(board, facts, previous, drivers, users, bindings, choices, filters, administrator):
     """Master roster includes no-report members; historical office stays on the report."""
     by_key = {p['key']: p for p in board['drivers']}
+    provenance = facts + board.get('personal_held_facts', [])
     selected_office = scope_name(filters, choices, administrator)
     keys_by_user = defaultdict(set)
     for fact in facts:
@@ -108,18 +109,18 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
                 keys_by_user[grant.user_id].add(fact['driver_key'])
     for person in board['drivers']:
         person['has_records'] = True
-        person['reader_confirmed'] = any(rid in bindings for f in facts if f['driver_key']==person['key'] for rid in f['copies'])
+        person['reader_confirmed'] = any(rid in bindings for f in provenance if f['driver_key']==person['key'] for rid in f['copies'])
         person['master_id'] = None
         if administrator:
-            person.update(current_affiliation(person, facts, bindings, users, drivers,
+            person.update(current_affiliation(person, provenance, bindings, users, drivers,
                                                selected_office, filters['scope'] == 'company'))
         person['review_states'] = sorted({(payload(f['row']).get('review') or {}).get('state', 'unreviewed')
                                          for f in facts if f['driver_key'] == person['key']})
         person['next_date'] = min(((payload(f['row']).get('review') or {}).get('next_date')
                                    for f in facts if f['driver_key'] == person['key'] and
                                    (payload(f['row']).get('review') or {}).get('next_date')), default='')
-        person['analysis_metrics'] = metric_changes([f for f in facts if f['driver_key'] == person['key']],
-                                                    [f for f in previous if f['driver_key'] == person['key']], board['labels'])
+        person['analysis_metrics'] = metric_changes(attributed([f for f in facts if f['driver_key'] == person['key']]),
+                                                    attributed([f for f in previous if f['driver_key'] == person['key']]), board['labels'])
         person['highlights'] = person['analysis_metrics'][:2]
     if administrator and not filters.get('focus') and not filters.get('state') and not filters.get('vehicle') and not filters.get('followup_due') and not any(filters.get(field) for field in ('vehicle_make','vehicle_model','vehicle_body','vehicle_year')):
         for master in drivers:

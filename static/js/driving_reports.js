@@ -35,13 +35,29 @@
     if(root)root.scrollTop=target?root.scrollTop+target.getBoundingClientRect().top-top:fallback;
    }));
   }
-  function rememberPosition(url,target){
+  function capturePosition(url,target){
    const root=scrollRoot(target||workspace),folds={};
    workspace?.querySelectorAll('details[id]').forEach(item=>{folds[item.id]=item.open;});
-   try{sessionStorage.setItem(positionKey,JSON.stringify({
-    url:localURL(url),id:target?.id||'',top:target?.getBoundingClientRect().top||0,
-    y:root?.scrollTop||0,folds,at:Date.now()
-   }));}catch{}
+   return {url:localURL(url),id:target?.id||'',top:target?.getBoundingClientRect().top||0,
+    y:root?.scrollTop||0,folds,at:Date.now()};
+  }
+  function rememberPosition(url,target){
+   try{sessionStorage.setItem(positionKey,JSON.stringify(capturePosition(url,target)));}catch{}
+  }
+  const returnKey='driving-workspace-returns',owner=workspace?.dataset.positionOwner;
+  const withoutHash=value=>localURL(value).split('#')[0];
+  let returns=[];
+  try{
+   returns=JSON.parse(sessionStorage.getItem(returnKey)||'[]').filter(item=>
+    item.owner===owner&&Date.now()-item.at>=0&&Date.now()-item.at<1800000&&
+    Number.isFinite(item.top)&&Number.isFinite(item.y)&&new URL(item.url,location.href).origin===location.origin&&
+    new URL(item.url,location.href).pathname===location.pathname);
+  }catch{}
+  function saveReturns(){try{sessionStorage.setItem(returnKey,JSON.stringify(returns.slice(-12)));}catch{}}
+  const focus=new URL(location.href).searchParams.get('focus');
+  const previousView=returns.findLast(item=>item.focus&&item.focus===focus);
+  if(previousView){
+   const back=workspace?.querySelector('.driving-back-link');if(back)back.href=previousView.url;
   }
   let position=null;
   try{
@@ -50,6 +66,12 @@
    if(saved&&saved.url===localURL(location.href)&&Number.isFinite(saved.top)&&Number.isFinite(saved.y)&&
       Date.now()-saved.at>=0&&Date.now()-saved.at<60000)position=saved;
   }catch{}
+  if(!position){
+   const index=returns.findLastIndex(item=>withoutHash(item.url)===withoutHash(location.href));
+   if(index>=0&&document.referrer.startsWith(location.origin+'/safety/driving-reports')){
+    position=returns.splice(index,1)[0];saveReturns();
+   }
+  }
   function revealHash(hash){
    let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
    if(!target)return;
@@ -69,7 +91,22 @@
    const link=event.target.closest('a[href]');
    if(!link||!workspace?.contains(link)||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.target==='_blank'||link.hasAttribute('download'))return;
    const url=new URL(link.href,location.href);
-   if(url.origin!==location.origin||url.pathname!==location.pathname)return;
+   if(url.origin!==location.origin)return;
+   if(link.classList.contains('driving-back-link')&&previousView){
+    try{sessionStorage.setItem(positionKey,JSON.stringify({...previousView,url:localURL(url.href),at:Date.now()}));}catch{}
+    returns=returns.filter(item=>item!==previousView);saveReturns();return;
+   }
+   const personLink=url.pathname===location.pathname&&url.searchParams.get('focus')&&
+    url.searchParams.get('focus')!==focus&&['#driver-trend','#reader-setting'].includes(url.hash);
+   const reportLink=url.pathname.startsWith(location.pathname+'/')&&url.searchParams.has('return_to');
+   if(personLink||reportLink){
+    const saved=capturePosition(location.href,link.closest('tr[id]')||link.closest('[id]'));
+    returns=returns.filter(item=>withoutHash(item.url)!==withoutHash(saved.url));
+    returns.push({...saved,owner,focus:personLink?url.searchParams.get('focus'):null});saveReturns();
+    if(reportLink){url.searchParams.set('return_to',location.pathname+location.search+location.hash);link.href=url.href;}
+    return;
+   }
+   if(url.pathname!==location.pathname)return;
    let target=null;
    if(link.hasAttribute('data-preserve-driving-metrics'))target=document.getElementById('driving-metrics');
    else if(link.closest('.driving-view-switch')||link.classList.contains('driving-reset'))target=form;

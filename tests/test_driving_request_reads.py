@@ -18,8 +18,9 @@ class DrivingRequestReadTests(unittest.TestCase):
     render=admin_tests.AdminSelfTests.render
 
     def test_reference_lists_are_read_once_per_page(self):
-        for scope,limit in [('company',23),('self',36),('office',23)]:
+        for scope,limit in [('company',24),('self',36),('office',24)]:
             with self.subTest(scope=scope):
+                # Overview now reads correction evidence once to hold conflicting personal metrics.
                 # Warm template compilation before counting the complete route.
                 self.render(self.base+'&scope='+scope)
                 statements=[]

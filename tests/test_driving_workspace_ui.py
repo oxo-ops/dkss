@@ -107,17 +107,35 @@ class WorkspaceUITests(unittest.TestCase):
         self.m.db.session.commit()
         response,context=self.render(self.base)
         html=response.get_data(as_text=True)
-        for marker in ['id="reflection-title"','id="driving-metrics"','id="driver-trend"','id="driving-next-title"','id="driving-roster"']:
+        for marker in ['id="reflection-title"','id="driving-metrics"','id="driving-roster"']:
             self.assertIn(marker,html)
         self.assertEqual(context['insights']['display_metrics'],[])
         self.assertEqual(context['insights']['empty_metric_names'],['急加速','急減速','速度超過'])
         self.assertNotIn('data-driving-chart',html)
         self.assertIn('1時間00分',html)
-        self.assertLess(html.index('id="driving-next-title"'),html.index('id="driving-roster"'))
+        self.assertNotIn('id="driver-trend"',html)
+        self.assertNotIn('id="driving-next-title"',html)
+        self.assertLess(html.index('id="driving-metrics"'),html.index('id="driving-roster"'))
+        self.assertIn('id="driving-roster" open',html)
         _,economy=self.render(self.base+'&category=economy')
         self.assertEqual(economy['insights']['empty_metric_names'],['燃費','アイドリング','回転超過'])
         self.assertEqual(economy['insights']['summary']['distance'],20)
         self.assertEqual(self.client.get(self.base+'&category=invalid').status_code,400)
+
+    def test_manager_overview_prioritizes_roster_but_individual_keeps_trend(self):
+        for scope in ['company','office']:
+            response,_=self.render(self.base+'&scope='+scope)
+            html=response.get_data(as_text=True)
+            self.assertIn('id="driving-roster" open',html)
+            self.assertLess(html.index('id="driving-metrics"'),html.index('id="driving-roster"'))
+            self.assertNotIn('id="driver-trend"',html)
+            self.assertNotIn('id="driving-next-title"',html)
+        key=driver_keys([self.a])[0][self.a.id]
+        response,_=self.render(self.base+'&focus='+key)
+        html=response.get_data(as_text=True)
+        self.assertIn('id="driver-trend"',html)
+        self.assertIn('id="driving-next-title"',html)
+        self.assertNotIn('id="driving-roster"',html)
 
     def test_compact_ai_cards_keep_full_authorized_evidence(self):
         source={'kind':'change','finding':'検知回数は前期間から変わりました。取得距離も確認してください。',

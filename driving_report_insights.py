@@ -251,7 +251,11 @@ def review_notes(rows, facts, issues, conflicting):
              'reasons':values} for rid,values in sorted(reasons.items(),key=lambda item:(by_id[item[0]].operation_date or '',item[0]),reverse=True)]
 
 
-def dashboard(current, previous, labels, selected_metric='', selected_driver=''):
+def attributed(facts):
+    return [f for f in facts if not f.get('personal_hold')]
+
+
+def dashboard(current, previous, labels, selected_metric='', selected_driver='', personal=False):
     available={}
     for fact in current+previous:
         for item in fact['metrics']:available[item['id']]=item
@@ -266,13 +270,14 @@ def dashboard(current, previous, labels, selected_metric='', selected_driver='')
     present,past=person(current),person(previous)
     drivers=[]
     for key,facts in present.items():
-        now=summarize(facts,metric_id);before=summarize(past.get(key,[]),metric_id)
+        now=summarize(attributed(facts),metric_id);before=summarize(attributed(past.get(key,[])),metric_id)
         value=now['value'];old=before['value'];change=value-old if value is not None and old is not None else None
         sample=facts[-1]
         drivers.append({'key':key,'name':sample['driver_name'],'code':sample['driver_code'],
             'identified':all(f['identified'] for f in facts),'offices':sorted({f['office'] for f in facts}),
-            'vehicles':[{'id':vid,'label':labels.get(vid,'車両 '+str(vid))} for vid in sorted({f['vehicle_id'] for f in facts})],
-            'current':now,'previous':before,'change':number(change) if change is not None else None})
+            'vehicles':[{'id':vid,'label':labels.get(vid,'車両 '+str(vid))} for vid in sorted({f['vehicle_id'] for f in attributed(facts)})],
+            'current':now,'previous':before,'change':number(change) if change is not None else None,
+            'hold_count':sum(bool(f.get('personal_hold')) for f in facts)})
     drivers.sort(key=lambda x:(x['name'],x['code'],x['key']))
     columns=[];column_names=set()
     for group in groups:
@@ -282,15 +287,16 @@ def dashboard(current, previous, labels, selected_metric='', selected_driver='')
     for driver in drivers:
         driver['cells']=[]
         for column in columns:
-            now=summarize(present[driver['key']],column['id']);old=summarize(past.get(driver['key'],[]),column['id'])
+            now=summarize(attributed(present[driver['key']]),column['id']);old=summarize(attributed(past.get(driver['key'],[])),column['id'])
             difference=now['value']-old['value'] if now['value'] is not None and old['value'] is not None else None
             driver['cells'].append({'current':now,'previous':old,'change':number(difference) if difference is not None else None})
     selected=next((r for r in drivers if r['key']==selected_driver),None)
-    focused=[f for f in current if selected and f['driver_key']==selected['key']]
+    focused=[f for f in attributed(current) if selected and f['driver_key']==selected['key']]
     days=defaultdict(list)
     for fact in focused:days[fact['date']].append(fact)
     trend=[{'date':day,**summarize(rows,metric_id)} for day,rows in sorted(days.items())]
     series=[{'date':day['date'],'value':str(day['value']) if day['value'] is not None else None,'report_id':day['report_ids'][0]} for day in trend]
     chart=[point for point in series if point['value'] is not None]
     return {'chart':chart,'trend_series':series,'groups':groups,'metric':metric_info,'metric_id':metric_id,'drivers':drivers,'selected_driver':selected,
-            'columns':columns,'trend':trend,'summary':summarize(current,metric_id),'previous':summarize(previous,metric_id)}
+            'columns':columns,'trend':trend,'summary':summarize(attributed(current) if personal else current,metric_id),
+            'previous':summarize(attributed(previous) if personal else previous,metric_id)}

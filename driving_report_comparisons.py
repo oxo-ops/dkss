@@ -24,6 +24,9 @@ def build(board, facts, previous, mode, administrator):
     """Never fetch peers here: caller has already enforced company, office and readership."""
     if not administrator:
         mode = 'vehicles'
+    if mode in {'people','vehicle','vehicles'}:
+        facts=[f for f in facts if not f.get('personal_hold')]
+        previous=[f for f in previous if not f.get('personal_hold')]
     labels = board['labels']
     metric = board['metric']
     mid = board['metric_id']
