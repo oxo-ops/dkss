@@ -12,6 +12,19 @@ from driving_report_data import payload
 READER_ROLES = {'user', 'admin', 'itc'}
 
 
+class DrivingReaderAccount(db.Model):
+    """Assignment evidence survives account deletion; never infer it from a name."""
+    __table_args__ = (db.Index('ix_driving_reader_account_report', 'company_code', 'report_id', 'id'),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False)
+    report_id = db.Column(db.Integer, nullable=False)
+    account_identity = db.Column(db.String(36))
+    identity_hash = db.Column(db.String(64), nullable=False)
+    actor_identity = db.Column(db.String(36))
+    actor_name = db.Column(db.String(200))
+    confirmed_at = db.Column(db.String(40), nullable=False)
+
+
 def administrator():
     return session.get('role') in {'admin', 'itc'}
 
@@ -26,7 +39,9 @@ def fingerprint(row):
 def ready():
     state = current_app.extensions['dkss']
     if not state.get('driving_readers_ready'):
-        state['driving_readers_ready'] = inspect(db.engine).has_table(DrivingReportReader.__tablename__)
+        inspector = inspect(db.engine)
+        state['driving_readers_ready'] = all(inspector.has_table(model.__tablename__)
+                                           for model in (DrivingReportReader, DrivingReaderAccount))
     return bool(state.get('driving_readers_ready'))
 
 
@@ -37,6 +52,7 @@ def initialize_driving_access(app):
             if connection.dialect.name == 'postgresql':
                 connection.execute(text('SELECT pg_advisory_xact_lock(824700027)'))
             DrivingReportReader.__table__.create(connection, checkfirst=True)
+            DrivingReaderAccount.__table__.create(connection, checkfirst=True)
             DrivingReportReflection.__table__.create(connection, checkfirst=True)
             DrivingVehicleCorrection.__table__.create(connection, checkfirst=True)
         app.extensions['dkss']['driving_readers_ready'] = True
@@ -71,10 +87,19 @@ def assign(rows, username, actor):
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
     user=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES)).first() if username else None
     if username and (not user or user.login_locked):abort(400)
+    if user and not user.account_identity:abort(400)
+    # The actor is the authenticated account, including when resolution is automatic.
+    actor_user = User.query.filter_by(company_code=session['company_code'],
+        account_identity=session.get('account_identity')).first() if session.get('account_identity') else None
     for row in rows:
         if row.company_code != session['company_code']:
             abort(404)
         grant = reader(row)
+        db.session.add(DrivingReaderAccount(company_code=row.company_code, report_id=row.id,
+            account_identity=user.account_identity if user else None,
+            identity_hash=fingerprint(row), actor_identity=actor_user.account_identity if actor_user else None,
+            actor_name=((actor_user.last_name or '') + (actor_user.first_name or '')) if actor_user else None,
+            confirmed_at=datetime.now(ZoneInfo('Asia/Tokyo')).isoformat()))
         if not username:
             if grant: db.session.delete(grant)
             continue
