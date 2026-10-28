@@ -90,3 +90,22 @@
     .import-workspace.vehicle-registration-page .import-form { gap: 6px; }
     .import-workspace.vehicle-registration-page .import-actions .btn { min-height: 34px; padding: 6px 14px; }
 }
+
+/* OCR queue: keep the progress indicator visible inside the original upload card. */
+.vehicle-data-import .import-form.ocr-queue-busy .import-file-status::before {
+    content: "";
+    display: inline-block;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    border: 2px solid #b8cbe0;
+    border-top-color: #2369a4;
+    border-radius: 50%;
+    vertical-align: -3px;
+    animation: dkss-ocr-queue-spin .8s linear infinite;
+}
+@keyframes dkss-ocr-queue-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .vehicle-data-import .import-form.ocr-queue-busy .import-file-status::before { animation: none; }
+}

@@ -1165,3 +1165,23 @@ body .main-content .vehicle-confirm-card .form-actions .btn:not(.btn-outline) {
     }
     .invoice-import-review .invoice-switch small { font-size: 11px; }
 }
+
+/* Keep preview mode controls compact, not stretched into large pills. */
+.invoice-review-page .invoice-document-tools .invoice-view-switch {
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: 100%;
+    border-radius: 5px;
+}
+.invoice-review-page .invoice-document-tools .invoice-view-switch button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.35;
+}
+.invoice-review-page .invoice-document-tools { min-width: 0; }
