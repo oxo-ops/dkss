@@ -38,6 +38,8 @@ jobs:
         run: node --test tests/vehicle_karte_selector_js.cjs
       - name: Check shared responsive viewport behavior
         run: node tests/responsive_layout_js.cjs
+      - name: Check invoice summary display and source selection
+        run: node --test tests/invoice_summary_ui_js.cjs
       - name: Inspect architecture without starting the app
         run: python tools/architecture_inventory.py > architecture-inventory.json
       - name: Verify generated schema documentation

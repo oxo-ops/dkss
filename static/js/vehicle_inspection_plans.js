@@ -239,7 +239,13 @@
             (mon ? f.performed_date?.slice(0, 7) === mon : !f.performed_date));
     }
     function invoiceLink(fact) {
-        const a=node('a',fact.summary,'ip-invoice-summary');
+        const a=node('a',undefined,'ip-invoice-summary ip-chip');
+        a.dataset.status='completed';
+        const match=fact.summary.match(/\d{4}\/\d{2}\/\d{2}/);
+        const day=match?match[0].slice(5):'日付不明';
+        const content=fact.summary.replace(/^\d{4}\/\d{2}\/\d{2}\s*|^実施日不明\s*/,'').replace(/\s+実施$/,'');
+        a.append(node('span','✓ '+day,'ip-invoice-date'),node('span',content,'ip-invoice-content'));
+        a.setAttribute('aria-label',fact.summary+' ／ 請求書原本を開く');
         a.href=fact.source_url; a.target='_blank'; a.rel='noopener';
         a.title=fact.summary+' ／ 請求書原本を開く';
         if(fact.sources?.length>1) a.addEventListener('click',event=>{
@@ -248,7 +254,7 @@
             dialog.querySelector('#ip-events-title').textContent='請求書原本';
             const list=dialog.querySelector('[data-events-list]');list.replaceChildren();
             for(const source of fact.sources) {
-                const link=node('a',source.filename);
+                const link=node('a',source.filename,'btn btn-outline');
                 link.href=source.url;link.target='_blank';link.rel='noopener';list.append(link);
             }
             dialog.showModal();
@@ -303,7 +309,13 @@
         const v=data.vehicles.find(v=>v.id===entry.p.vehicle_record_id);
         if(entry.invoice || entry.p.invoice_summary) {
             const fact=entry.invoice || {summary:entry.p.invoice_summary,source_url:entry.p.record_url,sources:entry.p.invoice_sources};
-            const a=invoiceLink({...fact,summary:v.number+' '+fact.summary});
+            const a=invoiceLink(fact);
+            const content=fact.summary.replace(/^\d{4}\/\d{2}\/\d{2}\s*/,'').replace(/\s+実施$/,'');
+            a.replaceChildren(node('span',compact?'実施':'実施済み','ip-cal-event-type'),
+                node(compact?'span':'strong',v.number+(compact?' '+content:'')));
+            if(!compact)a.append(node('span',content));
+            a.title=v.number+' ／ '+fact.summary+' ／ 請求書原本を開く';
+            a.setAttribute('aria-label',a.title);
             a.classList.add('ip-cal-event');a.dataset.event='actual';
             if(compact)a.classList.add('ip-cal-event-compact');
             return a;
