@@ -7,7 +7,7 @@
 {% block title %}{{ insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}{% endblock %}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261027-membership-1') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261028-visible-actions-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261028-visible-ai-actions-2') }}">
 {% endblock %}
 {% block top_bar_heading %}
 <header class="driving-page-title"><h2>{{ insights.selected_driver.name ~ 'さんの運転実績' if driving_is_admin and insights.selected_driver else insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}</h2>{% if not driving_is_admin %}<span>{{ driving_user_office }}</span>{% endif %}</header>
@@ -66,5 +66,5 @@
 {% for note in insights.review_notes %}<div class="driving-review-note" id="driving-review-{{ note.id }}"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,panel='data',_anchor='driving-review-' ~ note.id))) }}">日報の読取内容を見る</a></div>{% else %}<p>この範囲に追加の確認事項はありません。</p>{% endfor %}</section>
 {% if insights.raw_metrics %}<section class="card driving-raw-fold" id="driving-raw-values"><h3>日報に記載された値</h3><div class="driving-raw-values">{% for entry in insights.raw_metrics %}<article><h4>{{ entry.metric.name }}</h4>{{ metric_value(entry) }}</article>{% endfor %}</div></section>{% endif %}
 </div>
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-period-navigation-1') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-analysis-destinations-2') }}" defer></script>
 {% endblock %}

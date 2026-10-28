@@ -108,7 +108,7 @@
     returns=returns.filter(item=>item!==previousView);saveReturns();return;
    }
    const personLink=url.pathname===location.pathname&&url.searchParams.get('focus')&&
-    url.searchParams.get('focus')!==focus&&(link.closest('#driver-comparison')||['#driving-analysis-top','#driver-trend','#reader-setting'].includes(url.hash));
+    url.searchParams.get('focus')!==focus;
    const reportLink=url.pathname.startsWith(location.pathname+'/')&&url.searchParams.has('return_to');
    if(personLink||reportLink){
     const saved=capturePosition(location.href,link.closest('tr[id]')||link.closest('[id]'));
@@ -118,6 +118,7 @@
     return;
    }
    if(url.pathname!==location.pathname)return;
+   if(link.hasAttribute('data-analysis-destination'))return;
    if(link.closest('#office-comparison')&&url.searchParams.get('scope')==='office')return;
    if(link.closest('.driving-analysis-path'))return;
    let target=null;

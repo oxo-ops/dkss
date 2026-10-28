@@ -158,11 +158,14 @@ def navigation(item, filters, board, rows, administrator):
         links.append({'url':report_links[0]['url'],'label':'振り返りを記録'})
     office=item.get('office_key')
     if administrator and filters['scope']=='company' and office in {o['key'] for o in board['office_choices']}:
-        links.append({'url':url_for('driving_reports',**dict(filters,scope='office',office=office,focus='',listing='people',breakdown='people',page=1,_anchor='driver-comparison')),
+        links.append({'url':url_for('driving_reports',**dict(filters,scope='office',office=office,focus='',listing='people',breakdown='people',page=1,panel='analysis')),
                       'label':'この営業所を確認'})
     person=item.get('driver_key');vehicle=item.get('vehicle_id')
-    if person and not vehicle and person in {p['key'] for p in board['drivers'] if p.get('has_records')}:
-        links.append({'url':url_for('driving_reports',**dict(filters,focus=person,breakdown='vehicles',page=1,_anchor='driver-trend')),
+    selected=board.get('selected_driver') or {}
+    if administrator and person and not vehicle and person==selected.get('key') and item.get('kind')!='followup_due' and report_links:
+        links.append({'url':report_links[0]['url'],'label':'対象日報を確認'})
+    elif person and not vehicle and person in {p['key'] for p in board['drivers'] if p.get('has_records')}:
+        links.append({'url':url_for('driving_reports',**dict(filters,focus=person,breakdown='vehicles',page=1,panel='analysis')),
                       'label':'前後の記録を比較' if item.get('kind')=='followup_due' else 'この乗務員を確認' if administrator else '自分の記録を確認'})
     if administrator and vehicle in board.get('labels',{}):
         cost=item.get('kind')=='maintenance_cost'
