@@ -5,7 +5,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from flask import abort, has_request_context, request, session
-from sqlalchemy import event, inspect, select
+from sqlalchemy import event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
@@ -30,7 +30,23 @@ class DrivingVehicleCorrection(db.Model):
     action = db.Column(db.String(20), nullable=False)
     vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'))
     actor_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_identity = db.Column(db.String(36))
+    actor_identity = db.Column(db.String(36))
+    actor_name = db.Column(db.String(200))
     created_at = db.Column(db.String(40), nullable=False)
+
+
+CORRECTION_IDENTITIES = {'user_identity': 'VARCHAR(36)', 'actor_identity': 'VARCHAR(36)',
+                         'actor_name': 'VARCHAR(200)'}
+
+
+def upgrade_correction_identities(connection):
+    """Explicit additive migration; numeric IDs cannot prove legacy ownership."""
+    table = DrivingVehicleCorrection.__tablename__
+    columns = {c['name'] for c in inspect(connection).get_columns(table)}
+    for name, kind in CORRECTION_IDENTITIES.items():
+        if name not in columns:
+            connection.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{name}" {kind}'))
 
 
 def as_dict(value):
@@ -63,16 +79,22 @@ def preserve_inspection_origin(mapper, connection, result):
         return
     if result.company_code != session.get('company_code'):
         return
-    actor = connection.execute(select(User.id).where(
-        User.company_code == result.company_code, User.username == session.get('username'))).scalar_one_or_none()
+    identity = session.get('account_identity')
+    if not identity or result.checked_by_identity != identity:
+        return
+    actor = connection.execute(select(User.id, User.account_identity, User.last_name, User.first_name).where(
+        User.company_code == result.company_code, User.username == session.get('username'),
+        User.account_identity == identity).with_for_update(read=True, key_share=True)).one_or_none()
     if actor is None or result.checked_by_username != session.get('username'):
         return
     connection.execute(ChecklistEvent.__table__.insert().values(
         company_code=result.company_code, result_type='vehicle', result_id=result.id,
-        event_type=ORIGIN, actor_username=session['username'], actor_name=session.get('name', ''),
-        detail_json=json.dumps({'user_id': actor, 'vehicle_id': result.vehicle_record_id,
+        event_type=ORIGIN, actor_username=session['username'],
+        actor_user_id=actor.id, actor_identity=actor.account_identity,
+        actor_name=f'{actor.last_name or ""}{actor.first_name or ""}'[:100],
+        detail_json=json.dumps({'user_id': actor.id, 'vehicle_id': result.vehicle_record_id,
                                 'day': target_day(result), 'checklist_id': result.checklist_id}, ensure_ascii=False),
-        created_at=datetime.now(ZoneInfo('Asia/Tokyo')).isoformat()))
+        created_at=datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='milliseconds')))
 
 
 def label(vehicle):
@@ -84,6 +106,7 @@ def subject(board):
     company = session['company_code']
     if not driving_access.administrator() or board.get('personal_view'):
         return User.query.filter(User.company_code==company, User.username==session['username'],
+                                 User.account_identity==session.get('account_identity'),
                                  User.role.in_(driving_access.READER_ROLES)).first()
     focus = board.get('selected_driver')
     if not focus:
@@ -105,11 +128,14 @@ def sources(user, period):
         query = query.filter(VehicleChecklistResult.year >= period['start'][:4])
     if period.get('end'):
         query = query.filter(VehicleChecklistResult.year <= period['end'][:4])
-    by_result = {}
+    by_result, origin_counts = {}, {}
     for result, origin in query.all():
+        origin_counts[result.id] = origin_counts.get(result.id, 0) + 1
         evidence = as_dict(origin.detail_json)
         day = target_day(result)
-        if not day or not daily(result) or evidence.get('user_id') != user.id:
+        if (not day or not daily(result) or evidence.get('user_id') != user.id
+                or not user.account_identity or origin.actor_identity != user.account_identity
+                or origin.actor_user_id != user.id):
             continue
         if evidence.get('vehicle_id') != result.vehicle_record_id or evidence.get('day') != day or evidence.get('checklist_id') != result.checklist_id:
             continue
@@ -117,7 +143,7 @@ def sources(user, period):
             continue
         by_result.setdefault(result.id, []).append((result, origin, day))
     # Multiple origins are ambiguous even if an old import duplicated an event.
-    return [values[0] for values in by_result.values() if len(values) == 1]
+    return [values[0] for ident, values in by_result.items() if origin_counts[ident] == 1]
 
 
 def evidence_key(result, origin, day):
@@ -139,10 +165,31 @@ def correction_state():
     """Reuse one company-scoped read within this HTTP request, never across users."""
     key = ('dkss.driving.corrections', session['company_code'])
     if key not in request.environ:
-        ready = inspect(db.engine).has_table(DrivingVehicleCorrection.__tablename__)
+        inspector = inspect(db.engine)
+        table = DrivingVehicleCorrection.__tablename__
+        ready = inspector.has_table(table) and set(CORRECTION_IDENTITIES).issubset(
+            c['name'] for c in inspector.get_columns(table))
         items = DrivingVehicleCorrection.query.filter_by(company_code=session['company_code']).order_by(DrivingVehicleCorrection.revision).all() if ready else []
         request.environ[key] = (ready, items)
     return request.environ[key]
+
+
+def account_corrections(user, corrections):
+    """Hold ambiguous legacy revisions without deleting or rebinding them.
+
+    Keep the existing numeric revision uniqueness/FKs. An unresolved revision
+    also holds this occurrence, so a new writer cannot collide with its counter.
+    """
+    edits, history, held = {}, {}, set()
+    for edit in corrections:
+        if edit.user_id != user.id:
+            continue
+        if edit.user_identity != user.account_identity or not edit.actor_identity:
+            held.add(edit.inspection_id)
+            continue
+        edits[edit.inspection_id] = edit
+        history.setdefault(edit.inspection_id, []).append(edit)
+    return edits, history, held
 
 
 def mark_personal_holds(facts, bindings, company_users):
@@ -162,9 +209,6 @@ def mark_personal_holds(facts, bindings, company_users):
     days = [f['date'] for f in facts if f['date']]
     if not days:
         return
-    edits = {}
-    for item in corrections:
-        edits[(item.user_id, item.inspection_id)] = item
     conflicts = set()
     period = {'start': min(days), 'end': max(days)}
     if not company_users:
@@ -173,8 +217,9 @@ def mark_personal_holds(facts, bindings, company_users):
     for user in company_users:
         if user.company_code != company or user.id not in users:
             continue
+        edits, _, held = account_corrections(user, corrections)
         for result, origin, day in sources(user, period):
-            correction = edits.get((user.id, result.id))
+            correction = edits.get(result.id) if result.id not in held else None
             if not correction or correction.evidence_key != evidence_key(result, origin, day):
                 continue
             if correction.action == 'exclude' or (correction.action == 'replace' and correction.vehicle_id != result.vehicle_record_id):
@@ -201,21 +246,18 @@ def build(board, facts, filters):
         vf = [f for f in confirmed if f['vehicle_id'] == vid]
         trips.append({'id': vid, 'label': label(by_id[vid]), 'dates': sorted({f['date'] for f in vf}),
                       'summary': summarize(vf)})
-    result = {'user_id': user.id if user else None, 'trips': trips, 'candidates': [],
+    result = {'user_id': user.id if user else None,
+              'user_identity': user.account_identity if user else None, 'trips': trips, 'candidates': [],
               'choices': [], 'corrections': [], 'ready': False}
     if user is None:
         return group_vehicles(result)
     ready, corrections = correction_state()
     result['ready'] = ready
-    edits, history = {}, {}
-    if ready:
-        for edit in corrections:
-            if edit.user_id != user.id:
-                continue
-            edits[edit.inspection_id] = edit
-            history.setdefault(edit.inspection_id, []).append(edit)
+    edits, history, held = account_corrections(user, corrections)
     used = {(f['vehicle_id'], f['date']) for f in own if f.get('identity_confirmed')}
     for inspection, origin, day in sources(user, board['period']):
+        if inspection.id in held:
+            continue
         vid = inspection.vehicle_record_id
         if vid not in by_id:
             continue
@@ -254,6 +296,22 @@ def build(board, facts, filters):
 def save_correction(panel, actor, form):
     if not panel['ready']:
         abort(503, '車両候補の修正は準備中です。')
+    # Revalidate the authenticated actor and displayed subject under deletion
+    # locks; a numerical ID/username resolved after authentication is not proof.
+    if (not session.get('account_identity') or actor.account_identity != session['account_identity']
+            or actor.company_code != session.get('company_code')):
+        abort(404)
+    people = User.query.filter(User.company_code==actor.company_code,
+        User.id.in_([actor.id, panel['user_id']])).populate_existing().with_for_update(read=True, key_share=True).all()
+    current = {p.id: p for p in people}
+    target = current.get(panel['user_id'])
+    if (actor.id not in current or current[actor.id].account_identity != session['account_identity']
+            or current[actor.id].login_locked or not target or not panel.get('user_identity')
+            or target.account_identity != panel['user_identity']
+            or current[actor.id].role not in driving_access.READER_ROLES
+            or (current[actor.id].role not in {'admin', 'itc'} and target.id != actor.id)):
+        abort(404)
+    actor = current[actor.id]
     try:
         iid, revision = int(form.get('inspection_id', '')), int(form.get('revision', ''))
     except (TypeError, ValueError):
@@ -276,8 +334,14 @@ def save_correction(panel, actor, form):
             abort(404)
     edit = DrivingVehicleCorrection(company_code=actor.company_code, user_id=panel['user_id'],
         inspection_id=iid, evidence_key=item['evidence_key'], revision=revision + 1, action=action,
-        vehicle_id=vid, actor_user_id=actor.id, created_at=datetime.now(ZoneInfo('Asia/Tokyo')).isoformat())
+        vehicle_id=vid, actor_user_id=actor.id, user_identity=target.account_identity,
+        actor_identity=actor.account_identity, actor_name=f'{actor.last_name or ""}{actor.first_name or ""}',
+        created_at=datetime.now(ZoneInfo('Asia/Tokyo')).isoformat())
     db.session.add(edit)
+    from .audit import add_audit_log
+    add_audit_log('driving_vehicle_candidate_corrected', target_type='vehicle_checklist_result',
+        target_id=str(iid), detail=json.dumps({'subject_identity': target.account_identity,
+            'revision': revision + 1, 'action': action, 'vehicle_id': vid}, ensure_ascii=False))
     try:
         db.session.commit()
     except IntegrityError:

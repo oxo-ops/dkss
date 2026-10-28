@@ -1,0 +1,56 @@
+name: Q05 PostgreSQL Scheduled Starts
+
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/dashboard_service.py'
+      - 'dkss_app/dashboard_repository.py'
+      - 'dkss_app/driver_safe_start.py'
+      - 'dkss_app/masters.py'
+      - 'templates/index.html'
+      - 'static/css/driver_safe_start.css'
+      - 'tests/test_q05_scheduled_safe_start*.py'
+      - '.github/workflows/q05-postgres-dates.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-dates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q05_ci
+          POSTGRES_USER: q05
+          POSTGRES_PASSWORD: q05-disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U q05 -d dkss_q05_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Q05_POSTGRES_TEST_URL: postgresql+psycopg2://q05:q05-disposable-ci-only@127.0.0.1:5432/dkss_q05_ci
+      Q05_REQUIRE_POSTGRES: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Verify calendar boundaries and concurrent profiles
+        run: python -m unittest discover -s tests -p 'test_q05_scheduled_safe_start_postgres.py' -v
