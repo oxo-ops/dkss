@@ -465,6 +465,8 @@ def add_notification(
     target_username=None,
     workflow_context=None,
     target_identity=None,
+    *,
+    pending=None
 ):
     target_user = str(target_user or "").strip()
     title = str(title or "").strip()
@@ -560,6 +562,10 @@ def add_notification(
     _dkss_common.db.session.add(notification)
     _dkss_common.db.session.flush()
     saved_notification_id = notification.id
+    if pending is not None:
+        pending.append((target_user_record.id if target_user_record else None,
+                        saved_notification_id, title, message, link))
+        return
     _dkss_common.db.session.commit()
 
     recipient = _dkss_models.User.query.filter_by(company_code=notification_company_code,
@@ -607,6 +613,8 @@ def add_news(
     target_value="",
     company_code=None,
     target_identity=None,
+    *,
+    commit=True
 ):
     title = str(title or "").strip()
     message = str(message or "")
@@ -662,13 +670,16 @@ def add_news(
         company_code=news.company_code,
     )
 
-    _dkss_common.db.session.commit()
+    if commit:
+        _dkss_common.db.session.commit()
 
 
 
-def notify_mentions(text, link=""):
+def notify_mentions(text, link="", *, pending=None):
     if not text:
         return
+
+    options = {"pending": pending} if pending is not None else {}
 
     users = _dkss_models.User.query.filter_by(
         company_code=_dkss_common.session.get("company_code")
@@ -714,7 +725,8 @@ def notify_mentions(text, link=""):
                 text,
                 link,
                 target_identity=user.account_identity,
-                target_username=username
+                target_username=username,
+                **options
             )
             notified_usernames.add(username)
             continue
@@ -743,6 +755,7 @@ def notify_mentions(text, link=""):
                 text,
                 link,
                 target_identity=user.account_identity,
-                target_username=username
+                target_username=username,
+                **options
             )
             notified_usernames.add(username)
