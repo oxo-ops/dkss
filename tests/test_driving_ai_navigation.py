@@ -61,6 +61,26 @@ class AiNavigationTests(unittest.TestCase):
         self.assertEqual(focused['insights']['selected_driver']['name'],'乗務員A')
         self.assertNotIn('小山の人',str(context['reflection']))
 
+    def test_next_actions_are_visible_without_opening_evidence(self):
+        from test_driving_analysis_navigation import Tree
+        from dkss_app import driving_access
+        from flask import session
+        with self.m.app.test_request_context():
+            session.update(company_code='TEST',username='admin',role='admin')
+            driving_access.assign([self.a],'admin','admin');self.m.db.session.commit()
+        for scope,kind in [('company','office'),('office','scope'),('self','record')]:
+            with self.subTest(scope=scope):
+                response,context,_=self.generate_for(self.base+'&scope='+scope,kind)
+                tree=Tree(response.get_data(as_text=True))
+                actions=[n for n in tree.nodes if n['tag']=='a' and any(
+                    'driving-reflection-links' in p['attrs'].get('class','').split() for p in n['parents'])]
+                self.assertTrue(actions)
+                for action in actions:
+                    self.assertFalse(any(p['tag']=='details' or 'hidden' in p['attrs'] for p in action['parents']))
+                    self.assertIn('btn',action['attrs'].get('class','').split())
+                self.assertIn('次の行動と確認',response.get_data(as_text=True))
+                self.assertTrue(context['reflection']['items'][0]['report_links'])
+
     def test_cached_urls_and_targets_are_rebuilt_from_current_evidence(self):
         _,context,_=self.generate_for(self.base,'scope')
         cached=DrivingReportReflection.query.filter_by(cache_key=context['reflection']['key']).one()

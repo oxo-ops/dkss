@@ -55,6 +55,7 @@ body:has(.driving-designed) .top-bar-user-name{font-size:12px;font-weight:400;co
 .driving-designed .driving-finding-vehicle .driving-finding-label{color:#9268ee}
 .driving-designed .driving-finding-content{min-width:0}
 .driving-designed .driving-finding-content>p{font-size:11px;color:#6582ac;margin:3px 0}
+.driving-designed .driving-finding-content>.driving-next-action{font-size:13px;margin:10px 0 6px}
 .driving-designed .driving-finding .driving-reflection-links{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px}
 .driving-designed .driving-finding .driving-reflection-links:empty{display:none}
 .driving-designed .driving-finding details{font-size:11px;color:#6582ac;margin-top:3px}
