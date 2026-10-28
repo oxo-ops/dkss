@@ -6,6 +6,8 @@ on:
       - 'test/q04-master-concurrency-*'
       - 'fix/q04-master-concurrency-*'
       - 'fix/q04-master-integrity-*'
+      - 'fix/q04-news-office-*'
+      - 'test/q04-news-office-*'
       - 'test/q04-master-upgrade-*'
       - 'test/q04-related-writes-*'
       - 'test/q04-master-order-*'
@@ -24,6 +26,9 @@ on:
       - 'tests/test_q04_postgres_master_reuse_and_reverse.py'
       - 'tests/test_q04_postgres_vehicle_batch_master_links.py'
       - 'tests/q04_pg_helpers.py'
+      - 'tests/test_q04_postgres_news_office.py'
+      - 'tests/test_q04_postgres_news_resilience.py'
+      - 'tests/test_q04_postgres_master_index_acceptance.py'
       - 'tests/fixtures/application_contract.json'
       - '.github/workflows/q04-postgres-masters.yml'
       - 'dkss_app/masters.py'
@@ -36,6 +41,8 @@ on:
       - 'dkss_app/access.py'
       - 'dkss_app/auth.py'
       - 'dkss_app/safety.py'
+      - 'dkss_app/news.py'
+      - 'dkss_app/notifications_delivery.py'
       - 'dkss_app/checklists.py'
       - 'requirements.txt'
 
@@ -177,6 +184,32 @@ jobs:
           for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
             python -m unittest discover -s tests -p "test_q04_postgres_${name}.py" -v || exit $?
           done 2>&1 | tee q04-postgres-gaps-results.log
+      - name: Confirm office news and index defects on the pre-fix main
+        shell: bash
+        env:
+          Q04_NEWS_BASELINE_REF: 3d83e0cfc481c83d8da159317f8101651210cc96
+        run: |
+          git fetch --no-tags origin "$Q04_NEWS_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-news-baseline" "$Q04_NEWS_BASELINE_REF"
+          cp tests/test_q04_postgres_news_office.py tests/test_q04_postgres_master_index_acceptance.py "$RUNNER_TEMP/q04-news-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-news-baseline" && PYTHONPATH=tests python -m unittest test_q04_postgres_news_office test_q04_postgres_master_index_acceptance -v) > q04-news-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-news-baseline-results.log').read_text()
+          assert sys.argv[1] == '1'
+          assert re.search(r'Ran 22 tests\b', log)
+          assert 'FAILED (failures=20)' in log
+          print('NEWS_INDEX_BASELINE_CONFIRMED: 22 tests, 20 integrity failures')
+          PY
+      - name: Verify office news and transaction recovery on PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_postgres_news*.py' -v 2>&1 | tee q04-postgres-news-results.log
+          python -m unittest discover -s tests -p 'test_q04_postgres_master_index_acceptance.py' -v 2>&1 | tee q04-postgres-index-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -192,5 +225,8 @@ jobs:
             q04-postgres-order-results.log
             q04-postgres-gaps-results.log
             q04-gaps-baseline-results.log
+            q04-news-baseline-results.log
+            q04-postgres-news-results.log
+            q04-postgres-index-results.log
           if-no-files-found: warn
           retention-days: 7

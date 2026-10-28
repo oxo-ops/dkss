@@ -241,6 +241,27 @@ def init_db():
             )
         )
 
+        # IF NOT EXISTS checks only the name. An interrupted or mismatched
+        # existing index must not silently leave master names unprotected.
+        connection = _dkss_common.db.session.connection()
+        inspector = _dkss_common.inspect(connection)
+        for model in (_dkss_models.Office, _dkss_models.VehicleType,
+                      _dkss_models.DeliveryPlace, _dkss_models.LicenseType,
+                      _dkss_models.PatrolContentType):
+            table = model.__tablename__
+            name = f"uq_{table}_company_name"
+            index = next((item for item in inspector.get_indexes(table) if item["name"] == name), None)
+            if (not index or not index["unique"]
+                    or set(index["column_names"]) != {"company_code", "name"}
+                    or any(value is not None for key, value in index.get("dialect_options", {}).items()
+                           if key.endswith("_where"))):
+                raise RuntimeError(f"マスタの一意インデックス定義が不正です: {name}")
+            if connection.dialect.name == "postgresql" and not connection.scalar(
+                _dkss_common.db.text("SELECT indisvalid AND indisready FROM pg_index WHERE indexrelid=to_regclass(:name)"),
+                {"name": name}
+            ):
+                raise RuntimeError(f"マスタの一意インデックスが無効です: {name}")
+
         duplicate_vehicle_checklist_result = (
             _dkss_common.db.session.query(
                 _dkss_models.VehicleChecklistResult.company_code,
