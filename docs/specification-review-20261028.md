@@ -2,6 +2,8 @@
 
 確認日：2026年10月28日（日本時間）。コード基準：main `6d7d8c9ccc7bd661cd86a6b5fa68b99da2a7c668`（PR #272まで）。
 
+最終追加照合：main `6c13df3859b0c6b7e2c35bfe360f4a15ff7bc85e`（PR #274・#275反映後）。以下の19章照合は初回基準を保持し、追加差分だけを末尾の追補へ記録する。
+
 添付仕様書v0.25の全19章を一次照合し、正本へ反映するための[章別変更案](specification-change-proposals-20261028.md)を作成した。利用者から「正本は別の場所。今回は変更案のみ」と回答を受けたため、正本の更新・版上げは行っていない。本記録も代替の正式仕様書ではない。
 
 ## 正本と参照版
@@ -122,7 +124,7 @@ v0.23は初回の本人確認を必須としていたが、v0.24で一意に特�
 
 ### 今回の対象から除外したPR
 
-確認時点で#273（お知らせとマスタ競合調査）、#274（削除車両の分析アクセス）、#275（整備分析日付・精度）はopen。headのコード・調査結果を基準mainの実装済み事実へ取り込んでいない。後日マージされた場合は、そのmerge SHAと実装・試験を改めて確認する。
+初回確認時点で#273（お知らせとマスタ競合調査）、#274（削除車両の分析アクセス）、#275（整備分析日付・精度）はopenだった。#274・#275は最終確認でマージを確認したため、下記追補にのみ追加する。最終確認時にopenの#273・#276（点検原本の車両所属）・#277（無事故日数の日本時間）・#278（Q11架空データ復旧試験）のコード・調査結果を実装済み事実へ取り込んでいない。特に#278の試験報告をmainの復旧能力や正式なRPO/RTOの証明にしない。
 
 ## docs棚卸し
 
@@ -136,6 +138,22 @@ v0.23は初回の本人確認を必須としていたが、v0.24で一意に特�
 - quality/請求：invoice-plan-summary-20261028.md、Q07-cost-date-consistency-20261028.md、Q07-invoice-lifecycle-20261028.md、Q07-invoice-reimports-20261028.md。
 
 JSON2件はread_path_performance_20261025.json、analysis_read_cache_20261027.json。backend・samples・concurrent_requests・external_callsを確認し、逐次SQLite測定であることを照合した。
+
+## 最終main追加照合
+
+作業中に進んだmainの差分を再取得し、コード・追加テスト・追加技術資料を読取確認した。初回基準からの追加は#274・#275の2件。業務Aと既知のD06・D07は変更しない。
+
+| PRとmerge SHA | Bとして確認した追加内容 | 関連章・残る範囲 |
+| --- | --- | --- |
+| [#274](https://github.com/oxo-ops/dkss/pull/274)、`2ad5462e264872fea6ec8ae1917f0ead76808cea` | 分析ページ本体の車両取得にもdeleted=Falseを加え、削除済みは集計・描画前に404。一般利用者の有効車両閲覧は維持。追加3件と関連22件成功は当該技術資料の報告 | 03・06・14・18章。過去履歴の消去ではなく現行ページの認可境界。外部AI・本番・PG受入は未完了 |
+| [#275](https://github.com/oxo-ops/dkss/pull/275)、`6c13df3859b0c6b7e2c35bfe360f4a15ff7bc85e` | maintenance_cost_dateへ費用日付の読取を共通化し、分析期間・月別・内訳と費用画面等を統一。ダッシュボードの吹き出しは小数2桁まで保持し末尾0を除去。追加7件・関連200件成功は当該資料の報告 | 04・06・07・08・13・18章。保存値・原本・DB型を変更せず、D07の費用履歴不一致は未解消 |
+
+追加出典：
+
+- [Q02削除車両の技術記録](https://github.com/oxo-ops/dkss/blob/6c13df3859b0c6b7e2c35bfe360f4a15ff7bc85e/docs/q02_deleted_analysis_page_20261028.md)、[分析コード](https://github.com/oxo-ops/dkss/blob/6c13df3859b0c6b7e2c35bfe360f4a15ff7bc85e/dkss_app/analysis.py)、tests/test_q02_analysis_boundaries.py。
+- [Q07費用表示の技術記録](https://github.com/oxo-ops/dkss/blob/6c13df3859b0c6b7e2c35bfe360f4a15ff7bc85e/docs/quality/Q07-cost-display-consistency-20261028.md)、vehicle_analysis_dates.py、vehicle_analysis_summary.py、dkss_app/maintenance_facts.py、dkss_app/dashboard.py、tests/test_q07_cost_display_consistency.py（いずれも追補SHAの差分を確認）。
+
+GitHubメタデータで両PRのmerged=trueとmerge SHAを確認した。追補のテストは今回再実行しておらず、CI成功の独立確認も初回の上表とは別に扱う。初回のQ02通常DB200件をそのまま最終mainの全件数とはしない。技術資料は初回40件にこの2件を加え42件となる（本PRの新規2ファイルは含めない）。
 
 ## 残作業
 
