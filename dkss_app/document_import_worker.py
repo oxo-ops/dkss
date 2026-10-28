@@ -3,6 +3,7 @@
 import os
 import threading
 from .extensions import db
+from .memory_observability import memory_mb
 
 _lock = threading.Lock()
 
@@ -30,10 +31,11 @@ def run_worker(app, stopped, wake=None):
                     )
                     db.session.remove()
                 app.logger.info(
-                    "OCR_WORKER_HEARTBEAT queued=%s reading=%s failed=%s",
+                    "OCR_WORKER_HEARTBEAT queued=%s reading=%s failed=%s rss_mb=%s peak_rss_mb=%s",
                     counts.get("queued", 0),
                     counts.get("reading", 0),
                     counts.get("read_error", 0),
+                    *memory_mb(),
                 )
                 heartbeat_at = time.monotonic() + 60
         except Exception:

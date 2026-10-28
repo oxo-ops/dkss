@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
+import time
+from .memory_observability import memory_mb
 from uuid import uuid4, uuid5, UUID
 from sqlalchemy.orm import load_only
 from sqlalchemy.exc import IntegrityError
@@ -369,6 +371,12 @@ def process_one(app):
             finally:
                 db.session.remove()
 
+    started_at = time.monotonic()
+    start_rss_mb, start_peak_mb = memory_mb()
+    app.logger.info(
+        'OCR_MEMORY_START job_id=%s kind=%s source_bytes=%s rss_mb=%s peak_rss_mb=%s',
+        draft_id, kind, len(source), start_rss_mb, start_peak_mb,
+    )
     keeper = threading.Thread(target=heartbeat, daemon=True, name='ocr-lease')
     keeper.start()
     extraction, error = None, None
@@ -393,9 +401,22 @@ def process_one(app):
     except Exception as exc:
         error = exc
         app.logger.error('OCR job failed: %s (%s)', draft_id, type(exc).__name__)
+        app.logger.warning(
+            'OCR_MEMORY_ERROR job_id=%s kind=%s error_type=%s rss_mb=%s peak_rss_mb=%s',
+            draft_id, kind, type(exc).__name__, *memory_mb(),
+        )
     finally:
         stopped.set()
         keeper.join(timeout=2)
+        end_rss_mb, end_peak_mb = memory_mb()
+        delta_mb = (round(end_rss_mb - start_rss_mb, 1)
+                    if end_rss_mb is not None and start_rss_mb is not None else None)
+        app.logger.info(
+            'OCR_MEMORY_END job_id=%s kind=%s elapsed_s=%.2f rss_mb=%s '
+            'rss_delta_mb=%s peak_rss_mb=%s status=%s',
+            draft_id, kind, time.monotonic() - started_at, end_rss_mb,
+            delta_mb, end_peak_mb, 'error' if error else 'finished',
+        )
     if not lost.is_set():
         with app.app_context():
             try:
