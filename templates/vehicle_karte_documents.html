@@ -318,10 +318,12 @@
     </div>
 </div>
 
+{% if selected_document and selected_document.extension == 'pdf' %}
 <script
     type="module"
     src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261017-pdf-fix-1') }}"
 ></script>
+{% endif %}
 <script
     defer
     src="{{ url_for('static', filename='js/vehicle_karte_documents.js', v='20261017-1') }}"
