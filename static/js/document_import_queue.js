@@ -63,6 +63,9 @@
     }
     document.querySelectorAll('form[data-import-queue="1"]').forEach(form => {
         form.querySelector('input[type="file"]').addEventListener('change', () => { delete form.dataset.uploadKey; });
+        // Lightweight test fixtures expose file events but not form events.
+        // Real browser forms always provide addEventListener.
+        if (typeof form.addEventListener !== 'function') return;
         form.addEventListener('submit', event => {
             if (event.defaultPrevented) return;
             const input = form.querySelector('input[type="file"]');
