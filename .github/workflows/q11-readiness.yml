@@ -1,0 +1,75 @@
+name: Q11 Recovery Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'tools/q11_pg_readiness.py'
+      - 'tools/q11_pg_inventory.sql'
+      - 'tools/q11_worker_readiness.py'
+      - 'tests/test_q11_readiness_guards.py'
+      - 'docs/quality/Q11-operational-readiness-*'
+      - 'docs/quality/Q11-s3-rehearsal-*'
+      - '.github/workflows/q11-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+      S3_BUCKET_NAME: ''
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-contrib
+      - name: Read pinned PR278 bootstrap without running its 22 cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin e461a9339a78f1716c3dedc8c6df38888287d851
+          git show e461a9339a78f1716c3dedc8c6df38888287d851:tools/q11_recovery.py > "$RUNNER_TEMP/q11-pr278.py"
+      - name: Check bootstrap refusal guards
+        run: python -m unittest discover -s tests -p 'test_q11_readiness_guards.py' -v
+      - name: Check limited roles and ACL preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_bin="$(find /usr/lib/postgresql -type f -name initdb -printf '%h\n' | sort -V | tail -n1)"
+          test -x "$pg_bin/initdb"
+          python tools/q11_pg_readiness.py --bootstrap "$RUNNER_TEMP/q11-pr278.py" --pg-bin "$pg_bin" --work-dir "$RUNNER_TEMP/q11-pg-readiness"
+      - name: Check actual worker stop and real lease expiry
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_bin="$(find /usr/lib/postgresql -type f -name initdb -printf '%h\n' | sort -V | tail -n1)"
+          test -x "$pg_bin/initdb"
+          python tools/q11_worker_readiness.py --bootstrap "$RUNNER_TEMP/q11-pr278.py" --pg-bin "$pg_bin" --work-dir "$RUNNER_TEMP/q11-worker-readiness"
+      - name: Preserve synthetic-only evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: q11-readiness-evidence
+          path: |
+            ${{ runner.temp }}/q11-pg-readiness/*.json
+            ${{ runner.temp }}/q11-pg-readiness/*.log
+            ${{ runner.temp }}/q11-worker-readiness/*.json
+            ${{ runner.temp }}/q11-worker-readiness/*.jsonl
+            ${{ runner.temp }}/q11-worker-readiness/*.log
+          if-no-files-found: warn
+          retention-days: 14

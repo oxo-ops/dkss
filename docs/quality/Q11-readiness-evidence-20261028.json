@@ -1,0 +1,172 @@
+{
+  "main": "c7efecbc3ede1c7c44855d1f768544531eee3172",
+  "bootstrap_pr": 278,
+  "bootstrap_head": "e461a9339a78f1716c3dedc8c6df38888287d851",
+  "postgres": "18.6",
+  "python": "3.12.14",
+  "scope": "new loopback-only clusters, fictional fixtures and fake AI; no AWS account accessed",
+  "pg": {
+    "cases": [
+      {
+        "name": "runtime_dml_sequence_and_extension",
+        "status": "passed",
+        "seconds": 0.04195919999619946,
+        "evidence": {
+          "new_manual_id": 3,
+          "hstore": "b"
+        }
+      },
+      {
+        "name": "runtime_cannot_create_table",
+        "status": "passed",
+        "seconds": 0.04161339999700431,
+        "evidence": {
+          "expected_sqlstate": "42501"
+        }
+      },
+      {
+        "name": "runtime_cannot_assume_owner",
+        "status": "passed",
+        "seconds": 0.040389300003880635,
+        "evidence": {
+          "expected_sqlstate": "42501"
+        }
+      },
+      {
+        "name": "backup_cannot_write",
+        "status": "passed",
+        "seconds": 0.040962800005218014,
+        "evidence": {
+          "expected_sqlstate": "42501"
+        }
+      },
+      {
+        "name": "backup_missing_read_privilege_rejected",
+        "status": "passed",
+        "seconds": 1.4999968698248267e-06,
+        "evidence": {
+          "expected_nonzero": 1
+        }
+      },
+      {
+        "name": "limited_restore_preserves_owner_acl_defaults_extension",
+        "status": "passed",
+        "seconds": 0.0004602999979397282,
+        "evidence": {
+          "restore_seconds": 0.5972413000126835,
+          "archive_sha256": "dceaabb90540052430c92c8dee58b774ae2332dccca5958a57173fdd3158f997",
+          "catalog_sha256": "6e6c1d581aeffd623e7f44fd442e53bb2abd991f9ca18cc743f9e7aa341ba746",
+          "catalog_group_counts": {
+            "extensions": 2,
+            "objects": 120,
+            "defaults": 4,
+            "functions": 62,
+            "schemas": 1
+          }
+        }
+      },
+      {
+        "name": "future_table_and_sequence_default_acl",
+        "status": "passed",
+        "seconds": 3.9000005926936865e-06,
+        "evidence": {
+          "rows": 1
+        }
+      },
+      {
+        "name": "future_function_not_public",
+        "status": "passed",
+        "seconds": 0.03952360000403132,
+        "evidence": {
+          "expected_sqlstate": "42501"
+        }
+      },
+      {
+        "name": "omitted_acl_runtime_access_rejected",
+        "status": "passed",
+        "seconds": 0.04615429999830667,
+        "evidence": {
+          "expected_sqlstate": "42501"
+        }
+      },
+      {
+        "name": "unapproved_restore_role_rejected",
+        "status": "passed",
+        "seconds": 6.999995093792677e-06,
+        "evidence": {
+          "returncode": 1,
+          "partial_tables": 0
+        }
+      },
+      {
+        "name": "read_only_inventory_and_target_guard",
+        "status": "passed",
+        "seconds": 2.4000037228688598e-06,
+        "evidence": {
+          "wrong_target_returncode": 3
+        }
+      }
+    ],
+    "bootstrap_blob": "8bc201d336d45d92a393221b5745f71e25f3ab15",
+    "status": "passed",
+    "cluster_stopped": true,
+    "total_seconds": 11.669549799989909
+  },
+  "worker": {
+    "status": "passed",
+    "cases": [
+      {
+        "name": "actual_worker_cooperative_stop_drains_current_job",
+        "status": "passed",
+        "evidence": {
+          "exitcode": 0,
+          "status": "preview"
+        }
+      },
+      {
+        "name": "actual_worker_heartbeat_renews_while_ai_waits",
+        "status": "passed",
+        "evidence": {
+          "initial_lease": "2026-10-28T11:35:53.713987+00:00",
+          "renewed_lease": "2026-10-28T11:36:08.789495+00:00"
+        }
+      },
+      {
+        "name": "successor_does_not_steal_real_unexpired_lease",
+        "status": "passed",
+        "evidence": {
+          "lease_deadline": "2026-10-28T11:36:08.789495+00:00"
+        }
+      },
+      {
+        "name": "crash_recovers_after_real_expiry_without_business_duplication",
+        "status": "passed",
+        "evidence": {
+          "status": "preview",
+          "attempts": 2,
+          "fake_ai_calls": 2,
+          "draft_rows": 1,
+          "business_rows": 0,
+          "external_api_calls": 0
+        }
+      }
+    ],
+    "cluster_stopped": true,
+    "total_seconds": 149.07698450000316
+  },
+  "unit_tests": {
+    "passed": 2,
+    "seconds": 0.008
+  },
+  "remaining_person_hours": [
+    12,
+    21
+  ],
+  "not_executed": [
+    "AWS IAM/VersionId/markers/KMS/presigned URLs",
+    "provider and capacity conditions",
+    "selected old release UI",
+    "supervisor signals/network outage",
+    "business RPO/RTO signoff"
+  ]
+}
