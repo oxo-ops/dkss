@@ -1,5 +1,47 @@
 """Masters responsibilities; routes are registered by the application factory."""
+from functools import wraps
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
+
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_readers as _dkss_vehicle_readers
+
+
+def _master_write_conflicts(view):
+    """Roll back expected write conflicts, including autoflush during a query."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except IntegrityError as error:
+            constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
+            known_name_conflict = constraint in {
+                "uq_office_company_name", "uq_vehicle_type_company_name"
+            } or str(error.orig) in {
+                "UNIQUE constraint failed: office.company_code, office.name",
+                "UNIQUE constraint failed: vehicle_type.company_code, vehicle_type.name",
+            }
+            if not known_name_conflict or _dkss_common.request.method != "POST":
+                raise
+            _dkss_common.db.session.rollback()
+            return "同じ名称が登録されています。一覧を再読み込みしてください。", 409
+        except StaleDataError:
+            if _dkss_common.request.method != "POST":
+                raise
+            _dkss_common.db.session.rollback()
+            return "別の操作で更新されています。一覧を再読み込みしてください。", 409
+    return wrapped
+
+
+def _master_row(model, index):
+    query = model.query.filter_by(
+        id=index, company_code=_dkss_common.session.get("company_code")
+    )
+    if _dkss_common.request.method == "POST":
+        # Hold the row until commit/teardown. A waiting writer must use the
+        # committed name, not an instance previously loaded into this session.
+        query = query.populate_existing().with_for_update()
+    return query.first()
 
 
 def vehicle_type_master():
@@ -165,6 +207,7 @@ def delete_license_type(index):
 
 
 
+@_master_write_conflicts
 def new_vehicle_type():
     if _dkss_common.request.method == "POST":
         name = _dkss_common.request.form.get("name", "").strip()
@@ -199,11 +242,9 @@ def new_vehicle_type():
 
 
 
+@_master_write_conflicts
 def edit_vehicle_type(index):
-    vehicle_type = _dkss_models.VehicleType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    vehicle_type = _master_row(_dkss_models.VehicleType, index)
 
     if not vehicle_type:
         return _dkss_common.redirect("/master/vehicle-types")
@@ -260,11 +301,9 @@ def edit_vehicle_type(index):
 
 
 
+@_master_write_conflicts
 def delete_vehicle_type(index):
-    vehicle_type = _dkss_models.VehicleType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    vehicle_type = _master_row(_dkss_models.VehicleType, index)
 
     if not vehicle_type:
         return _dkss_common.redirect("/master/vehicle-types")
@@ -311,6 +350,7 @@ def office_master():
 
 
 
+@_master_write_conflicts
 def new_office():
     if _dkss_common.request.method == "POST":
         name = _dkss_common.request.form.get("name", "").strip()
@@ -346,11 +386,9 @@ def new_office():
 
 
 
+@_master_write_conflicts
 def edit_office(index):
-    office = _dkss_models.Office.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    office = _master_row(_dkss_models.Office, index)
 
     if not office:
         return _dkss_common.redirect("/master/offices")
@@ -443,11 +481,9 @@ def edit_office(index):
 
 
 
+@_master_write_conflicts
 def delete_office(index):
-    office = _dkss_models.Office.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    office = _master_row(_dkss_models.Office, index)
 
     if not office:
         return _dkss_common.redirect("/master/offices")
