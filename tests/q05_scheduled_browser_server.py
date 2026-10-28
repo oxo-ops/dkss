@@ -61,11 +61,14 @@ def main():
 
         def snapshot():
             drivers = [(d.company_code, d.employee_id, d.safe_start_date) for d in m.Driver.query.order_by(m.Driver.id)]
-            history = [(n.id, n.created_at, n.title, n.message, n.read) for n in m.Notification.query.order_by(m.Notification.id)]
-            history += [(a.id, a.created_at, a.action, a.detail) for a in m.AuditLog.query.order_by(m.AuditLog.id)]
-            return dict(drivers=drivers, user_timezones=[(u.username, u.timezone)
-                for u in m.User.query.order_by(m.User.id)], history_sha256=hashlib.sha256(
-                json.dumps(history, ensure_ascii=False).encode()).hexdigest(),
+            zones = [(u.username, u.timezone) for u in m.User.query.order_by(m.User.id)]
+            history = [(n.id, n.created_at, n.title, n.message, n.read, n.owner_identity)
+                       for n in m.Notification.query.order_by(m.Notification.id)]
+            history += [(a.id, a.created_at, a.action, a.detail, a.actor_identity)
+                        for a in m.AuditLog.query.order_by(m.AuditLog.id)]
+            def digest(value):
+                return hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).hexdigest()
+            return dict(dates_sha256=digest(drivers), timezones_sha256=digest(zones), history_sha256=digest(history),
                 usage=[dict(company=r.company_code, users=r.user_count, vehicles=r.vehicle_count,
                             login=r.login_count) for r in m.CompanyUsageSummary.query.order_by(m.CompanyUsageSummary.company_code)])
 
@@ -103,11 +106,15 @@ def main():
                 return redirect('/')
         # Hooks exist only in this standalone test process, never the app factory.
         app.before_request_funcs.setdefault(None, []).insert(0, fixture_control)
+        # Only authored synthetic expectations go to disk; no DB-derived values,
+        # identities, cookies, or history are persisted in the manifest.
+        expected_drivers = [('admin', '架空本人', '2027-01-01', 'admin')] + entries
         manifest = dict(marker='q05-synthetic-only', host='127.0.0.1', port=args.port,
-            control=str(control), initial=snapshot(), expected_users=len(actors),
-            drivers=[dict(company=d.company_code, actor=d.employee_id, name=d.name,
-                          start=d.safe_start_date, role=d.role, office=d.office)
-                     for d in m.Driver.query.order_by(m.Driver.id)])
+            control=str(control), expected_users=1+len(entries),
+            drivers=[dict(company='TEST', actor=username, name=name, start=start, role=role, office='Tokyo')
+                     for username, name, start, role in expected_drivers]
+                    + [dict(company='OTHER', actor='foreign', name='他社除外', start='2000-01-01',
+                            role='admin', office='Tokyo')])
         (work / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
         print('Q05 browser fixture ready on loopback', flush=True)
         try:
