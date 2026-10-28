@@ -7,6 +7,7 @@ from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from flask import session
 from pypdf import PdfReader
+from werkzeug.exceptions import HTTPException
 from dkss_app import driving_access
 from driving_report_data import version
 from driving_identity_fixture import DrivingIdentityFixture
@@ -93,6 +94,17 @@ class VerifiedReadershipTests(DrivingIdentityFixture,unittest.TestCase):
         self.m.db.session.rollback()
         self.assertEqual(driving_access.DrivingReaderAccount.query.count(),1)
         self.assertEqual(self.m.VehicleDrivingReportRecord.query.count(),1)
+
+    def test_automatic_grant_rechecks_candidate_uuid_before_persisting(self):
+        person=self.person();row=self.save()
+        with self.m.app.test_request_context():
+            admin=self.manager()
+            session.update(company_code='TEST',username='admin',role='admin',account_identity=admin.account_identity)
+            with self.assertRaises(HTTPException) as error:
+                driving_access.assign([row],person.username,'__automatic_identity_v1__',
+                                      expected_identity='deleted-generation')
+            self.assertEqual(error.exception.code,409)
+        self.assertEqual(driving_access.DrivingReaderAccount.query.count(),0)
 
     def test_previous_accounts_saved_ai_cannot_reappear_for_reused_numeric_id(self):
         old=self.person();row=self.save();self.grant(row,old);self.login(old)

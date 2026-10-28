@@ -1,4 +1,4 @@
-"""Company-scoped report access through explicit or unambiguous identities."""
+"""Company-scoped report access through durable account-generation evidence."""
 import hashlib
 import json
 from datetime import datetime
@@ -93,12 +93,16 @@ def reader(row):
     return DrivingReportReader.query.filter_by(company_code=row.company_code, report_id=row.id).first() if ready() else None
 
 
-def assign(rows, username, actor):
+def assign(rows, username, actor, expected_identity=None):
     if not administrator():
         abort(403)
     if not ready():
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
-    user=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES)).first() if username else None
+    query=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES))
+    if expected_identity is not None:query=query.populate_existing().with_for_update()
+    user=query.first() if username else None
+    if expected_identity is not None and (not user or user.account_identity != expected_identity):
+        abort(409, '本人候補のアカウントが変更されました。再確認してください。')
     if username and (not user or user.login_locked):abort(400)
     if user and not user.account_identity:abort(400)
     # The actor is the authenticated account, including when resolution is automatic.
@@ -155,7 +159,9 @@ def resolve_import(row, username=None, reidentify=False):
         # Reuse only a company/system/code/date anchor with current UUID evidence.
         if basis != 'code':return
     if not user:return
-    assign([row],user.username,session['username'] if basis=='manual' else AUTO)
+    expected_identity=user.account_identity if basis != 'manual' else None
+    assign([row],user.username,session['username'] if basis=='manual' else AUTO,
+           expected_identity=expected_identity)
     # Keep the original fields; only record the resolution and its evidence.
     p=payload(row)
     p['identity_resolution']={'user_id':user.id,'basis':basis,'identity_hash':fingerprint(row),

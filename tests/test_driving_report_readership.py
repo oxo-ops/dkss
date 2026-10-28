@@ -38,7 +38,7 @@ class DrivingReadershipTests(unittest.TestCase):
         response=self.client.get('/safety/driving-reports?scope=company&period=all')
         self.assertEqual(response.status_code,200)
         text=response.get_data(as_text=True)
-        self.assertIn('自分の運転実績',text);self.assertIn('自分の日報はありません',text)
+        self.assertIn('自分の運転実績',text);self.assertIn('実績が0件であることを意味しません',text)
         self.assertNotIn('DTG',text)
         self.assertIn('no-store',response.headers['Cache-Control'])
 
