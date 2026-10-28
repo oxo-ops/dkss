@@ -355,7 +355,7 @@ def register_driving_reports(app, db, g):
         row=target(record_id)
         return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all() if readership.administrator() else [],
             reader=readership.reader(row) if readership.administrator() else None,
-            reader_current=bool(readership.reader(row) and readership.reader(row).identity_hash==readership.fingerprint(row)) if readership.administrator() else False,
+            reader_current=row.id in readership.bindings([row]) if readership.administrator() else False,
             reader_users=g['User'].query.filter(g['User'].company_code==row.company_code,g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
     def change(row,kind,detail):
         p=payload(row);events=p.setdefault('audit',[])
@@ -549,6 +549,7 @@ def register_driving_reports(app, db, g):
                     for item in p.get(collection,[]):lines += [f'{item.get("category") or collection} {item.get("item_name")} {item.get("raw_result") or "未取得"} 点数 {shown(item.get("score"))} 評価 {item.get("result_text") or "未取得"}',f'定義 {item.get("definition") or "不明"} 単位 {item.get("unit") or "不明"} 条件 {item.get("threshold") or "不明"} 原本 {item.get("source_page")}頁',f'数値 {shown(item.get("value"))} 分子 {shown(item.get("numerator"))} 分母 {shown(item.get("denominator"))} {item.get("denominator_unit") or ""}',f'日時 {item.get("start_at") or "不明"} ～ {item.get("end_at") or "不明"} 場所 {item.get("place") or "不明"}',str(item.get('notes') or '')]
                 for e in (p.get('audit',[]) if readership.administrator() else []):lines += ['確認履歴 '+json.dumps(e,ensure_ascii=False)]
                 lines += [f'出典 日報:{r.id} 原本:{r.source_draft_id}','']
+            if export_board['personal_view']:lines.insert(1,'本人未確定の日報は、一覧・件数・距離・比較・出力・AI分析に含まれません。表示対象がない場合も、実績が0件であることを意味しません。本人確認・閲覧設定は管理者へご相談ください。')
             content=export_pdf(lines);mime='application/pdf'
         response=send_file(io.BytesIO(content),mimetype=mime,as_attachment=True,download_name='driving-reports.'+format,max_age=0);response.headers['Cache-Control']='private, no-store';return response
     @app.route('/safety/driving-reports/readers',methods=['POST'])

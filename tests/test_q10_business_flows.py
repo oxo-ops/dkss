@@ -336,10 +336,12 @@ class ImportedDrivingReadFlowTests(unittest.TestCase):
     login = identity.DrivingIdentityTests.login
     context = identity.DrivingIdentityTests.context
 
-    def test_confirmed_report_auto_identity_person_admin_and_unrelated_reader(self):
+    def test_confirmed_report_identity_person_admin_and_unrelated_reader(self):
         admin = self.m.User.query.filter_by(company_code='TEST', username='admin').one()
         unrelated = self.add_user('unrelated', '別の', '利用者')
-        response, record, draft = self.import_matching()
+        # A name-only first import needs the existing explicit choice; automatic
+        # current-UUID code reuse is exercised by the driving import contract.
+        response, record, draft = self.import_matching(self.person.username)
         self.assertEqual(response.status_code, 302)
         grant = identity.DrivingReportReader.query.filter_by(report_id=record.id).one()
         self.assertEqual(grant.user_id, self.person.id)
