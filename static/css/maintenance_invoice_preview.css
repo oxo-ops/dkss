@@ -1130,7 +1130,8 @@ body .main-content .vehicle-confirm-card .form-actions .btn:not(.btn-outline) {
     body:has(.invoice-import-review) .notification-bell { width: 30px; height: 30px; }
     body:has(.invoice-import-review) .notification-bell img { width: 26px; height: 26px; }
     body:has(.invoice-import-review) .top-bar-user { min-height: 30px; padding-block: 0; }
-    body:has(.invoice-import-review) .top-bar-user-avatar { width: 28px; height: 28px; }
+    body:has(.invoice-import-review) .top-bar-user-avatar { width: 28px; height: 28px; flex: 0 0 28px; min-width: 28px; aspect-ratio: 1 / 1; border-radius: 50%; }
+    body:has(.invoice-import-review) .top-bar-user-avatar-image { width: 100%; height: 100%; object-fit: cover; }
     body:has(.invoice-import-review) #importFlow > .form-actions { margin: 0; }
     body:has(.invoice-import-review) #importFlow > .form-actions:empty { display: none; }
     .invoice-import-review .page-breadcrumb { min-height: 30px; padding-right: 220px; margin: 0 0 2px; font-size: 11px; line-height: 18px; }
