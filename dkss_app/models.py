@@ -1456,6 +1456,8 @@ class ChecklistResult(db.Model):
     target_type = db.Column(db.String(50))
     target_user = db.Column(db.String(100))
     target_username = db.Column(db.String(50))
+    target_user_id = db.Column(db.Integer)
+    target_identity = db.Column(db.String(36))
     target_vehicle_record_id = db.Column(
         db.Integer,
         db.ForeignKey("vehicle.id")
@@ -1464,12 +1466,16 @@ class ChecklistResult(db.Model):
 
     checked_by = db.Column(db.String(100))
     checked_by_username = db.Column(db.String(50))
+    checked_by_user_id = db.Column(db.Integer)
+    checked_by_identity = db.Column(db.String(36))
     checked_date = db.Column(db.String(30))
 
     status = db.Column(db.String(30))
 
     approved_by = db.Column(db.String(100))
     approved_by_username = db.Column(db.String(50))
+    approved_by_user_id = db.Column(db.Integer)
+    approved_by_identity = db.Column(db.String(36))
     approved_date = db.Column(db.String(30))
     reject_reason = db.Column(db.Text)
 
@@ -1482,6 +1488,7 @@ class ChecklistResult(db.Model):
         db.Text,
         default="[]"
     )
+    notification_identities_json = db.Column(db.Text, default='{}')
 
     answers_json = db.Column(
         db.Text,
@@ -1519,12 +1526,16 @@ class VehicleChecklistResult(db.Model):
 
     checked_by = db.Column(db.String(100))
     checked_by_username = db.Column(db.String(50))
+    checked_by_user_id = db.Column(db.Integer)
+    checked_by_identity = db.Column(db.String(36))
     checked_date = db.Column(db.String(30))
 
     status = db.Column(db.String(30))
 
     approved_by = db.Column(db.String(100))
     approved_by_username = db.Column(db.String(50))
+    approved_by_user_id = db.Column(db.Integer)
+    approved_by_identity = db.Column(db.String(36))
     approved_date = db.Column(db.String(30))
 
     reject_reason = db.Column(db.Text)
@@ -1538,6 +1549,7 @@ class VehicleChecklistResult(db.Model):
         db.Text,
         default="[]"
     )
+    notification_identities_json = db.Column(db.Text, default='{}')
 
     answers_json = db.Column(
         db.Text,
@@ -1581,6 +1593,8 @@ class ChecklistEvent(db.Model):
     actor_username = db.Column(
         db.String(50)
     )
+    actor_user_id = db.Column(db.Integer)
+    actor_identity = db.Column(db.String(36))
 
     actor_name = db.Column(
         db.String(100)
@@ -1633,6 +1647,8 @@ class PatrolResult(db.Model):
     created_by_username = db.Column(
         db.String(100)
     )
+    created_by_user_id = db.Column(db.Integer)
+    created_by_identity = db.Column(db.String(36))
 
     created_by_name = db.Column(
         db.String(100)
@@ -1669,6 +1685,8 @@ class PatrolResult(db.Model):
     target_username = db.Column(
         db.String(50)
     )
+    target_user_id = db.Column(db.Integer)
+    target_identity = db.Column(db.String(36))
 
     content = db.Column(
         db.Text
@@ -1695,6 +1713,8 @@ class PatrolResult(db.Model):
     countermeasure_by_username = db.Column(
         db.String(50)
     )
+    countermeasure_by_user_id = db.Column(db.Integer)
+    countermeasure_by_identity = db.Column(db.String(36))
 
     countermeasure_due_date = db.Column(
         db.String(20)
@@ -1717,3 +1737,7 @@ class VehicleMaintenanceInspectionLink(db.Model):
     inspection_result_id = db.Column(db.Integer, db.ForeignKey("vehicle_checklist_result.id"), nullable=False, index=True)
     defect_no = db.Column(db.Integer, nullable=False)
     __table_args__ = (db.UniqueConstraint("maintenance_record_id", "inspection_result_id", "defect_no", name="uq_maintenance_inspection_defect"),)
+
+
+from .safety_identity import register_models as _register_safety_identities
+_register_safety_identities((ChecklistResult, VehicleChecklistResult, PatrolResult, ChecklistEvent))
