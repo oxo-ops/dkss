@@ -52,7 +52,62 @@
             const destination = new URL(data.page_url, location.href);
             if (destination.origin !== location.origin) { fail("確認先が不正です。"); return; }
             destination.searchParams.set("open", "1");
-            const move = () => location.assign(destination.href);
+            const move = () => {
+                // Keep the durable queue, but show its progress in the upload card.
+                // Older API fixtures without status_url retain their existing behavior.
+                if (!data.status_url || typeof window.fetch !== "function") {
+                    location.assign(destination.href);
+                    return;
+                }
+                const statusUrl = new URL(data.status_url, location.href);
+                if (statusUrl.origin !== location.origin) { fail("確認先が不正です。"); return; }
+                button.textContent = "読み取り中…";
+                status.textContent = "資料を受け付けました。読み取りを開始します。";
+                let failures = 0;
+                async function checkProgress() {
+                    try {
+                        const response = await window.fetch(statusUrl.href, {headers:{Accept:"application/json"},cache:"no-store"});
+                        if (!response.ok) throw new Error("status");
+                        const job = await response.json();
+                        failures = 0;
+                        const files = Array.isArray(job.files) ? job.files : [];
+                        const current = files.find(file => file.status === "reading");
+                        const summary = current ? " / " + current.filename + "：" +
+                            (current.phase === "classifying" ? "資料の種類を確認中" :
+                             current.phase === "ai_output" ? "読取結果を受信中" : "読み取り中") : "";
+                        status.textContent = (job.completed || 0) + " / " + (job.total || files.length) +
+                            " 資料処理済み" + summary;
+                        if (job.finished) {
+                            if (job.preview_ready && job.preview_url && !job.failed && !job.needs_review) {
+                                const preview = new URL(job.preview_url, location.href);
+                                if (preview.origin === location.origin) { location.assign(preview.href); return; }
+                            }
+                            // Errors and document-type reviews require the existing recovery UI.
+                            if (job.failed || job.needs_review) {
+                                status.textContent = "資料の確認が必要です。受付済みの資料から確認できます。";
+                                const link = document.createElement("a");
+                                link.href = destination.href;
+                                link.textContent = "資料の確認へ進む";
+                                link.className = "btn btn-outline";
+                                status.append(" ", link);
+                            } else {
+                                status.textContent = "読み取りが完了しました。受付済みの資料から確認できます。";
+                            }
+                            delete form.dataset.loading;
+                            button.disabled = false;
+                            input.disabled = false;
+                            if (clear) clear.disabled = false;
+                            button.textContent = originalButtonText;
+                            return;
+                        }
+                    } catch (_) {
+                        failures++;
+                        status.textContent = "読取状況を再確認しています。資料は受付済みです。";
+                    }
+                    window.setTimeout(checkProgress, failures ? 10000 : 2000);
+                }
+                checkProgress();
+            };
             if (window.DKSSImportSelections) window.DKSSImportSelections.accepted(form).then(move);
             else move();
         });
