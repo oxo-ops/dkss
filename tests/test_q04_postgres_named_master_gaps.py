@@ -59,8 +59,12 @@ class NamedMasterGapTests(PrivatePostgresCase):
                 second = self.action_for(kind, 'edit', 'Concurrent', ident)
             else:
                 second = first
-            responses, _ = self.schedule(first, second, table,
-                ('insert into ' if scenario == 'create' else 'update ') + table + ' ')
+            # License renames now serialize on Driver before their final UPDATE.
+            # Pause both after duplicate prechecks but before acquiring that lock;
+            # parking A at UPDATE would prevent B reaching the SQL barrier.
+            prefix = ('select driver.' if kind == 'license-types' and scenario == 'target'
+                      else ('insert into ' if scenario == 'create' else 'update ') + table + ' ')
+            responses, _ = self.schedule(first, second, table, prefix)
             self.assertCountEqual([r.get('status') for r in responses], [302, 409])
             self.assertEqual(sum(r['name'] == 'Concurrent' for r in self.snapshot(self.company)[table]), 1)
         elif scenario == 'companies':
