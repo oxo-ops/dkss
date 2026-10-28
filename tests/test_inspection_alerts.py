@@ -21,6 +21,11 @@ class InspectionAlertTests(unittest.TestCase):
 
     def setUp(self):
         _base_setup(self)
+        # HTTP polling and explicit run_alerts must use the same scenario day;
+        # the wall clock can otherwise trigger a legitimate weekly reminder.
+        clock = patch('vehicle_inspection_alerts.local_today', return_value=date(2026, 10, 22))
+        clock.start()
+        self.addCleanup(clock.stop)
         self.vehicle.office='犬塚'
         self.m.User.query.filter_by(username='admin').one().office='犬塚'
         self.m.db.session.commit()

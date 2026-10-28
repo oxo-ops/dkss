@@ -298,8 +298,10 @@
                                 src="{{ url_for(
                                     'uploaded_file',
                                     folder='uploads',
-                                    filename=session.get('profile_image')
+                                    filename=session.get('profile_image'), avatar=96
                                 ) }}"
+                                srcset="{{ url_for('uploaded_file', folder='uploads', filename=session.get('profile_image'), avatar=192) }} 2x"
+                                width="36" height="36" decoding="async"
                                 alt=""
                                 class="top-bar-user-avatar-image"
                             >
@@ -326,8 +328,10 @@
                                 src="{{ url_for(
                                     'uploaded_file',
                                     folder='uploads',
-                                    filename=session.get('profile_image')
+                                    filename=session.get('profile_image'), avatar=96
                                 ) }}"
+                                srcset="{{ url_for('uploaded_file', folder='uploads', filename=session.get('profile_image'), avatar=192) }} 2x"
+                                width="36" height="36" decoding="async"
                                 alt=""
                                 class="top-bar-user-avatar-image"
                             >
