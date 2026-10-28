@@ -86,6 +86,71 @@ class CombinedIdentityTests(unittest.TestCase):
                     'approved_by_username': 'last-candidate', 'company_code': 'A', 'reject_reason': 'forged'})
                 self.assertEqual(identity.Q03PersonIdentityTests.snapshot(self), before)
 
+    def test_explicit_same_numeric_id_does_not_transfer_personal_rights_or_history(self):
+        from flask import session
+        from dkss_app.audit import add_audit_log
+        row = self.future_candidate()
+        a = self.models.User.query.filter_by(company_code='A', username='reviewer').one()
+        old_id, old_uuid = a.id, a.account_identity
+        row.target_type, row.target_username, row.target_user = 'user', 'reviewer', 'Original A'
+        row.target_user_id, row.target_identity = old_id, old_uuid
+        self.db.session.add(self.models.Notification(company_code='A', target_username='reviewer',
+            target_user='Original A', title='EXPLICIT_OLD_NOTICE', message='EXPLICIT_OLD_PRIVATE'))
+        with self.app.test_request_context():
+            session.update(company_code='A', username='reviewer', role='user', account_identity=old_uuid)
+            add_audit_log(action='explicit_original_actor', company_code='A', username='reviewer')
+            event = self.models.ChecklistEvent(company_code='A', result_type='safety', result_id=row.id,
+                event_type='original actor', actor_username='reviewer', actor_name='Original A',
+                created_at='2026-10-22 10:00:00')
+            self.db.session.add(event)
+            self.db.session.commit()
+        event_id = event.id
+        notice = self.models.Notification.query.filter_by(title='EXPLICIT_OLD_NOTICE').one()
+        notice_id = notice.id
+        driver = self.models.Driver.query.filter_by(company_code='A', employee_id='reviewer').one()
+        # A personal target already blocks the ordinary deletion route. Keep
+        # that restriction; seed a historical physical deletion separately.
+        self.assertEqual(self.request('POST', f'/master/drivers/{driver.id}/delete').status_code, 409)
+        self.db.session.delete(a)
+        self.db.session.commit()
+        self.assertIsNone(self.db.session.get(self.models.User, old_id))
+        # Model an ID-preserving restore/import, including PostgreSQL's normally
+        # non-reusing sequence. A new account UUID must still isolate the person.
+        b = self.models.User(id=old_id, company_code='A', username='reviewer', role='user',
+            password='unused', last_name='Replacement B', password_changed_at='same-stamp')
+        self.db.session.add(b)
+        self.db.session.commit()
+        self.assertEqual(b.id, old_id)
+        self.assertNotEqual(b.account_identity, old_uuid)
+        new_uuid = b.account_identity
+        self.login('reviewer')
+        for suffix in ('', '/excel', '/edit'):
+            self.assertEqual(self.request('GET', self.url(row, suffix)).status_code, 302)
+        self.assertEqual(self.request('GET', '/files/uploads/q03-person-evidence.pdf').status_code, 404)
+        before = identity.Q03PersonIdentityTests.snapshot(self)
+        for suffix in ('/approve/0', '/approve/1', '/reject', '/edit', '/delete'):
+            self.request('POST', self.url(row, suffix), json={'reject_reason':'forged'})
+            self.assertEqual(identity.Q03PersonIdentityTests.snapshot(self), before)
+        self.assertNotIn('EXPLICIT_OLD_PRIVATE', self.request('GET', '/notifications').get_data(as_text=True))
+        self.assertEqual(self.request('POST', f'/api/notifications/{notice_id}/read').status_code, 404)
+        self.assertEqual(self.models.AuditLog.query.filter_by(action='explicit_original_actor').one().actor_identity, old_uuid)
+        old_event = self.db.session.get(self.models.ChecklistEvent, event_id)
+        self.assertEqual((old_event.actor_identity, old_event.actor_name, old_event.created_at),
+            (old_uuid, 'Original A', '2026-10-22 10:00:00'))
+        self.login('admin')
+        self.assertEqual(self.request('POST', self.url(row, '/approve/0')).status_code, 302)
+        self.assertEqual(self.models.Notification.query.filter_by(owner_identity=new_uuid).count(), 0)
+        self.login('reviewer')
+        self.assertEqual(self.request('GET', self.url(row)).status_code, 200)
+        self.assertEqual(self.request('POST', self.url(row, '/approve/1')).status_code, 302)
+        self.db.session.refresh(row)
+        approval = json.loads(row.approvals_json)[1]
+        self.assertEqual(approval['candidate_identities'], [old_uuid])
+        self.assertEqual(approval['approved_by_identity'], new_uuid)
+        self.assertEqual(row.approved_by_identity, new_uuid)
+        self.assertEqual(row.status, '承認済み')
+        self.assertEqual(self.db.session.get(self.models.ChecklistEvent, event_id).actor_identity, old_uuid)
+
     def test_advancing_to_retired_candidate_does_not_notify_replacement(self):
         row = self.future_candidate()
         original_id, replacement_id = self.replace_candidate()
@@ -118,6 +183,8 @@ class CombinedIdentityTests(unittest.TestCase):
             'audit_log': ['actor_identity', 'actor_name'],
             'vehicle_maintenance_record_event': ['actor_identity', 'actor_name']}
         with self.db.engine.begin() as c:
+            for table in ('driving_reader_account', 'vehicle_checklist_notify_account'):
+                c.execute(text(f'DROP TABLE "{table}"'))
             for index in ('uq_user_account_identity', 'ix_notification_owner_identity', 'ix_push_owner_identity'):
                 c.execute(text(f'DROP INDEX IF EXISTS {index}'))
             for table, columns in q08_columns.items():
@@ -146,10 +213,12 @@ class CombinedIdentityTests(unittest.TestCase):
             SECRET_KEY='integration-migration-only', RENDER='', S3_BUCKET_NAME='',
             DOCUMENT_IMPORT_WORKER_ENABLED='0', PYTHONUTF8='1')
         def cli(kind):
-            command = ([sys.executable, 'tools/upgrade_safety_identities.py'] if kind == 'Q03' else
-                [sys.executable, '-m', 'flask', '--app', 'app', 'upgrade-account-identity'])
-            result = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, encoding='utf8')
-            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = ([[sys.executable, 'tools/upgrade_safety_identities.py']] if kind == 'Q03' else
+                [[sys.executable, '-m', 'flask', '--app', 'app', name] for name in (
+                    'upgrade-account-identity', 'init-driving-access', 'init-checklist-notify-identities')])
+            for command in commands:
+                result = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, encoding='utf8')
+                self.assertEqual(result.returncode, 0, result.stderr)
         operations = [lambda: cli('Q03'), lambda: cli('Q08')] if first == 'Q03' else [lambda: cli('Q08'), lambda: cli('Q03')]
         for operation in operations:
             operation()
@@ -160,6 +229,8 @@ class CombinedIdentityTests(unittest.TestCase):
             self.assertEqual(saved[:5], (None,None,None,'Historical Approver','2026-10-01 10:00'))
             self.assertNotIn('candidate_user_ids', json.loads(saved[5])[0])
             self.assertTrue(assigned_uuid)
+            for table in ('driving_reader_account', 'vehicle_checklist_notify_account'):
+                self.assertEqual(c.scalar(text(f'SELECT count(*) FROM "{table}"')), 0)
             self.assertEqual(c.execute(text('SELECT target_identity,checked_by_identity,approved_by_identity,'
                 'notification_identities_json FROM checklist_result WHERE id=91')).one(), (None,None,None,None))
             self.assertEqual(c.execute(text('SELECT message,owner_identity FROM notification WHERE id=91')).one(),('KEEP_NOTICE',None))

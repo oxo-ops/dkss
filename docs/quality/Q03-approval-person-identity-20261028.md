@@ -1,6 +1,6 @@
 # Q03 承認候補と点検対象者の本人識別
 
-最新main bb3a118（Q08 PR #285の73fa933を含む）との隔離統合で検証。PR #283はドラフトを維持し、マージしない。本番DB・本番配信は操作していない。
+最新main ec0898e（Q08 #297の7b21fb8、日付依存試験の#301、#290を含む）を取り込み、最終受入を行う。全項目と最新ヘッドのCI成功を確認後に限り、ユーザー許可に基づきPR #283をレビュー可能へ変更する。マージ・本番DB・本番配信は行わない。
 
 ## 統合で判明した原因と修正
 
@@ -24,18 +24,24 @@ Q03の通知呼出元は、保存された候補・実施者・承認者・選�
 
 mainからのQ03追加は4テーブルへ20列（nullable INTEGER 9列、VARCHAR(36) 9列、通知先対応用TEXT 2列）。初版#283の9列追加済み環境には11列を追加する。User/Notification等のQ08列はQ08の移行が担当する。User削除で歴史的証拠が消えるFKは追加しない。
 
-推奨順序は、書込処理とジョブを停止、バックアップ取得、Q08のupgrade-account-identity、Q03専用スクリプト、列と件数・UUID安定性を確認後に新版起動。Q03はQ03_MIGRATION_DATABASE_URLを明示し、python tools/upgrade_safety_identities.pyを実行する。汎用DATABASE_URLやアプリ既定DBへのフォールバックはない。create_appやGETでQ03 DDLは実行しない。新規DBのcreate_allは新列を含む。
+推奨順序は、書込処理とジョブを停止、バックアップ取得、Q08のupgrade-account-identity・init-driving-access・init-checklist-notify-identities、Q03専用スクリプト、列と件数・UUID安定性を確認後に新版起動。Q03はQ03_MIGRATION_DATABASE_URLを明示し、python tools/upgrade_safety_identities.pyを実行する。汎用DATABASE_URLやアプリ既定DBへのフォールバックはない。create_appやGETでQ03 DDLは実行しない。新規DBのcreate_allは新列を含む。
 
 SQLite・PostgreSQLの使い捨てDBで、Q08→Q03とQ03→Q08の両順序、各再実行と逆順再実行をCLIで検証する。既存UserにQ08 UUIDを発行しても、過去通知owner_identity・監査actor_identity・Q03 UUID列・旧JSONはNULL/未特定のままとし、usernameから遡って帰属を作らない。初版Q03の数値IDのみのJSONも再移行でUUIDへ昇格しない。
 
 Q03の移行は列追加のみ、JSONや履歴に更新・削除を行わない。PostgreSQLではadvisory transaction lockと同一トランザクションを使う。実DB量でのロック待ち・停止時間は未測定のため、運用適用前に検証が必要。列・UUID・履歴を削除するダウングレードはしない。アプリだけ旧コードへ戻すと旧username/数値IDの認可が復活するので、安全な通常運用の切戻しにはならない。該当機能とジョブの停止を伴う保守手順が必要。
 
+バックアップでは停止時点・DB版・アプリSHA・件数・UUID/承認JSONの確認値を記録し、DBと添付/原本参照の整合した一式を保管する。SQLiteは書込停止と接続解放後のbackup APIまたは整合コピー（WAL取り残しを避ける）、PostgreSQLは停止中のpg_dump custom形式を用い、別の検証先で復元して件数・履歴・UUIDを照合する。実環境への適用許可を得た意味ではない。
+
+切戻しは書込・配信を停止したまま判断し、追加列・UUID・証跡を保持する。完全復元が必要なら取得済みスナップショットと原本参照を隔離先で照合してから復元する。復元後も旧版の個人認可・通知を再開せず、修正版と本人確認済みの権限だけを再開する。移行後の新規書込をバックアップ時点へ巻き戻す場合には欠落が生じるため、停止時間と変更差分を事前に確認する。
+
 ## 回帰検証と未解決課題
 
 tests/test_q03_account_generations.pyはSQLiteの実自動採番再利用、Driver削除・同名登録、候補の詳細/Excel/添付拒否、監査UUID、旧通知拒否、次候補への誤通知防止、独立した一般承認、改姓・ロック解除、会社境界、両順移行・再実行、旧参照保留を検証する。PostgreSQLでも同じ試験を実行し、既存Q03の承認確定POST・JSON操作・履歴・削除競合、Q02境界、Q08通知/監査試験を維持する。元のテストの認可条件は緩和せず、旧データ用fixtureから新UUIDキーも除く調整だけを行う。
 
-未解決：Q08担当範囲のchecklist_notifications.get_vehicle_checklist_notify_usersは、旧点検のusernameまたは氏名から現在の通知先を復元し、VehicleChecklistNotifySettingもusernameのみ。send_vehicle_checklist_remindersはその現在利用者のUUIDへ通知する。旧点検者Aを削除し同名Bを作る追加プローブで、B UUIDへの送信を再現した。Q08コードは無断変更しない。この経路と、これを既定通知先として使う新規点検の再紐付けはQ08側で対応が必要。保存時UUIDと履歴UUIDを使用し、不明な旧通知設定は再確認する最小案を推奨する。
+前回の受入不合格だったリマインダーと既定通知先はQ08 #297が修正済み。保存UUIDと明示設定時の証跡を使い、設定ID再利用も指紋で区別する。今回はこの製品コードを変更・再実装せず、独立プローブをtests/test_q03_vehicle_identity.pyへ保持し、両DBで実行する。新規点検のnew/complete両ルート、UUID付き旧点検とusernameのみの旧設定からBへ自動継承しないこと、管理者の明示再選択なら新規Bへ通知できることを確認する。
 
-従って、Q03の対象修正と回帰成功だけで統合受入完了とはしない。Q08側の上記修正とSQLite/PostgreSQL再試験、新PRヘッドのCI成功、運用移行・旧データ確認手順のレビューが揃ってから#283をレビュー可能と判断する。ドラフト解除・自動マージは行わない。実SMTP/Web Push/S3、本番DB、大規模実データの移行時間、ブラウザ操作は未検証。
+両DBの同username・同数値IDのBでも、旧Aの候補・個人対象・閲覧・添付・通知・監査を継承せず、独立した一般承認はB自身のUUIDで実行できることを追加試験する。個人対象が存在する場合の通常削除409は維持し、削除済み履歴の再現は検証DB内のfixtureで別に作る。既存の削除制限や認証・承認の期待値は緩和しない。
+
+全受入・Q03/Q08専用CI・全体回帰・CodeQL・依存監査の成功と競合なしを確認してから、#283のドラフトを解除する。自動マージは行わない。実SMTP/Web Push/S3、本番DB、大規模実データの移行時間、ブラウザ操作は未検証。#297が別課題として残した未紐付け日報の氏名自動照合・非同期取込所有者・フォーム表示から保存までの再作成競合は今回も解決済みとは扱わない。
 
 masters.py、Q08のaccount_identity/notifications/push/audit各モジュールとUser/Notification/PushSubscription/AuditLogモデルは変更しない。取込所有者の設計・Q02との分離はdocs/quality/Q03-import-owner-design-20261028.mdを参照し、今回追加実装しない。
