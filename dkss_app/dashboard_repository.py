@@ -44,7 +44,7 @@ class DashboardRepository:
         return models.PatrolResult.query.filter_by(
             company_code=self.scope.company_code,
             target_type="user",
-            target_username=self.scope.username,
+            target_identity=self.scope.account_identity or "__unresolved__",
             category="Good",
         ).count()
 
@@ -53,7 +53,7 @@ class DashboardRepository:
             models.PatrolResult.query.filter_by(
                 company_code=self.scope.company_code,
                 target_type="user",
-                target_username=self.scope.username,
+                target_identity=self.scope.account_identity or "__unresolved__",
             )
             .filter(
                 models.PatrolResult.category != "Good",
