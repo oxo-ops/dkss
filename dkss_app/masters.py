@@ -1372,6 +1372,7 @@ def driver_master():
     ).all()
 
     filtered_drivers = []
+    today = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).date()
 
     for driver in driver_records:
         vehicle_record_ids = _dkss_serialization.safe_json_str_list(
@@ -1441,9 +1442,9 @@ def driver_master():
                 start_date = _dkss_common.datetime.strptime(
                     safe_start_date,
                     "%Y-%m-%d"
-                )
+                ).date()
                 days = (
-                    _dkss_common.datetime.today() - start_date
+                    today - start_date
                 ).days
             except ValueError:
                 days = 0
