@@ -1,5 +1,5 @@
 """Vehicle Costs responsibilities; routes are registered by the application factory."""
-from .maintenance_facts import factual_history
+from .maintenance_facts import cost_date, factual_history
 from . import analysis as _dkss_analysis, checklists as _dkss_checklists, common as _dkss_common, models as _dkss_models, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -68,15 +68,8 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
     undated_records = []
 
     for record in records:
-        date_text = (
-            (record.entry_date or "").strip()
-            or (record.completion_date or "").strip()
-        )
-        try:
-            record_date = _dkss_common.datetime.strptime(
-                date_text, "%Y-%m-%d"
-            ).date()
-        except ValueError:
+        record_date = cost_date(record)
+        if record_date is None:
             undated_records.append(record)
             continue
 
@@ -234,15 +227,8 @@ def get_vehicle_maintenance_cost_summary(maintenance_records):
         if record.total_cost is None:
             continue
 
-        date_text = (
-            (record.entry_date or "").strip()
-            or (record.completion_date or "").strip()
-        )
-        try:
-            record_date = _dkss_common.datetime.strptime(
-                date_text, "%Y-%m-%d"
-            ).date()
-        except ValueError:
+        record_date = cost_date(record)
+        if record_date is None:
             continue
 
         year = record_date.year
