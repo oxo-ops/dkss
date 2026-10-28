@@ -189,6 +189,27 @@ def init_db():
             )
         )
 
+        for model, label in (
+            (_dkss_models.DeliveryPlace, "納入先"),
+            (_dkss_models.LicenseType, "免許種別"),
+            (_dkss_models.PatrolContentType, "内容区分"),
+        ):
+            duplicate = (
+                _dkss_common.db.session.query(model.company_code, model.name)
+                .group_by(model.company_code, model.name)
+                .having(_dkss_common.db.func.count(model.id) > 1)
+                .first()
+            )
+            if duplicate:
+                raise RuntimeError(f"{label}マスタに同一会社・同一名称の重複があります。")
+            table = model.__tablename__
+            _dkss_common.db.session.execute(
+                _dkss_common.db.text(
+                    f"CREATE UNIQUE INDEX IF NOT EXISTS uq_{table}_company_name "
+                    f"ON {table} (company_code, name)"
+                )
+            )
+
         duplicate_vehicle_type = (
             _dkss_common.db.session.query(
                 _dkss_models.VehicleType.company_code,

@@ -2037,7 +2037,7 @@ def edit_checklist_result(result_index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -2050,6 +2050,13 @@ def edit_checklist_result(result_index):
             target_user = ""
             target_username = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         previous_answers = [
             dict(answer)
@@ -9459,7 +9466,7 @@ def new_safety_checklist_result(index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -9471,6 +9478,13 @@ def new_safety_checklist_result(index):
 
             target_user = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         pending_answer_files = []
 
