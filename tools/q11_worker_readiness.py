@@ -50,7 +50,8 @@ def main():
         if key.upper().startswith("PG"):
             del os.environ[key]
     c = b.Cluster(args.pg_bin, args.work_dir)
-    processes, result, start = [], {"status": "failed", "cases": []}, time.perf_counter()
+    processes, controls = [], []
+    result, start = {"status": "failed", "cases": []}, time.perf_counter()
     ctx = multiprocessing.get_context("spawn")
     calls = c.work / "fake-ai-calls.jsonl"
 
@@ -61,6 +62,9 @@ def main():
 
     def start_worker(auto_stop=False, ready=False):
         stopped, release = ctx.Event(), ctx.Event()
+        # POSIX named semaphores must remain referenced until spawn has unpickled
+        # them; callers may intentionally discard their returned Event handles.
+        controls.append((stopped, release))
         if ready:
             release.set()
         p = ctx.Process(target=child, args=(str(Path(args.bootstrap).resolve()), c.port, stopped, release, str(calls), auto_stop))
