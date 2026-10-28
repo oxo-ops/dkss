@@ -55,8 +55,13 @@ body:has(.driving-designed) .top-bar-user-name{font-size:12px;font-weight:400;co
 .driving-designed .driving-finding-vehicle .driving-finding-label{color:#9268ee}
 .driving-designed .driving-finding-content{min-width:0}
 .driving-designed .driving-finding-content>p{font-size:11px;color:#6582ac;margin:3px 0}
+.driving-designed .driving-finding-content>.driving-next-action{font-size:13px;line-height:1.65;color:#284b6b;margin:8px 0}
 .driving-designed .driving-finding .driving-reflection-links{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px}
 .driving-designed .driving-finding .driving-reflection-links:empty{display:none}
+.driving-page.driving-designed .driving-finding .driving-reflection-links{gap:8px;margin:8px 0;align-items:center}
+.driving-page.driving-designed .driving-finding .driving-reflection-links a{white-space:normal;max-width:100%}
+.driving-designed .driving-finding-content>.driving-followup-date{font-size:12px;color:#284b6b}
+@media(max-width:650px){.driving-page.driving-designed .driving-reflection-links a.btn{width:100%;justify-content:center}}
 .driving-designed .driving-finding details{font-size:11px;color:#6582ac;margin-top:3px}
 .driving-designed .driving-finding summary{cursor:pointer;list-style:none;color:#6582ac}
 .driving-designed .driving-finding details[open]{border-top:1px solid #e4e9f6;padding-top:6px;margin-top:6px}

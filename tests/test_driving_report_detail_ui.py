@@ -1,4 +1,5 @@
 """Detail cards preserve source facts, review forms and confirmed-reader boundaries."""
+from identity_fixture import identity_for
 import json
 import unittest
 from urllib.parse import urlencode
@@ -61,9 +62,9 @@ class DrivingReportDetailUITests(unittest.TestCase):
         self.update(source_pages=[1],events=[dict(item_name='急減速',raw_result='1回',start_at='09:15',place='原文の場所',source_page=1,status='confirmed')],review=dict(state='followup',action='次の運行を振り返る',next_date='2026-11-05'))
         self.m.db.session.add(self.m.User(company_code='TEST',username='one',role='user',password='unused',last_name='本人',password_changed_at='stamp'));self.m.db.session.commit()
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign([self.a],'one','admin');self.m.db.session.commit()
-        with self.client.session_transaction() as state:state.update(username='one',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'one', app=(self.client).application), username='one',role='user',password_changed_at='stamp')
         html=self.detail()
         for value in ['09:15','原文の場所','原本 1頁','次の運行を振り返る']:self.assertIn(value,html)
         for value in ['#page=1','原本を開く','閲覧設定を保存','確認内容を保存','取込取消を確定']:self.assertNotIn(value,html)

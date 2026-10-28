@@ -3,6 +3,7 @@
 Real Flask/temporary SQLite/local synthetic files. External notification
 dispatch alone is mocked and recorded. No real mail, push, S3 or browser.
 """
+from identity_fixture import identity_for
 from io import BytesIO
 import json
 from pathlib import Path
@@ -52,7 +53,7 @@ class Q02NewsBoundaryTests(unittest.TestCase):
     def actor(self, company='A'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username='same', role='itc', office='east',
+            session.update(account_identity=identity_for(company, 'same', app=(self.client).application), company_code=company, username='same', role='itc', office='east',
                            password_changed_at='2026-10-27 10:00:00')
 
     def request(self, method, path, **kwargs):

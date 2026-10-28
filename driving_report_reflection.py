@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import urllib.request
+from itertools import zip_longest
 from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
@@ -40,6 +41,17 @@ def stamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+def comparison_sources(entry):
+    """A displayed before/after difference needs the originals from both periods."""
+    sources=entry['current']['sources']
+    if entry['change'] is not None:
+        # Navigation shows at most ten originals. Keep both periods reachable
+        # even when the current period alone has more than ten sources.
+        sources=[source for pair in zip_longest(sources,entry['previous']['sources'])
+                 for source in pair if source is not None]
+    return list(dict.fromkeys(sources))
+
+
 def build_evidence(board, facts, history):
     """Generate statements and numbers in code, never accept AI invented metrics."""
     evidence=[]
@@ -47,11 +59,12 @@ def build_evidence(board, facts, history):
     # context. An AI selection is never described as an exhaustive staff review.
     for entry in board.get('highlights',[]):
         metric=entry['metric'];now=entry['current'];old=entry['previous']
+        if not now['metric_count']:continue
         finding=f"{board['scope_name']}：{metric['name']} {now['display']} {metric['unit'] if metric['method']!='raw' else '（原本値）'}"
         if entry['change'] is not None:finding+=f"。前期間 {old['display']}、差 {entry['change']} {metric['unit']}"
         finding+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
         evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の傾向', 'finding':finding,
-            'reports':now['sources'],'driver_key':'','allowed_actions':['review_context','verify_data'],
+            'reports':comparison_sources(entry),'driver_key':'','allowed_actions':['review_context','verify_data'],
             'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'取得済みの同一定義の指標を集計。車両・道路・積載等の条件差は未確認。良否や責任の確定ではありません。','kind':'scope'})
     if board.get('scope') == 'company' and not board.get('selected_driver'):
         for office in board.get('office_summaries', []):
@@ -64,7 +77,7 @@ def build_evidence(board, facts, history):
                 if office.get('unidentified_count'):
                     finding+=f"。乗務員未確認 {office['unidentified_count']}運行（人数には含めない）"
                 evidence.append({'id':str(len(evidence)), 'title':office['name']+'の傾向', 'finding':finding,
-                    'reports':now['sources'], 'driver_key':'', 'office_key':office['key'],
+                    'reports':comparison_sources(entry), 'driver_key':'', 'office_key':office['key'],
                     'allowed_actions':['review_context','verify_data'], 'kind':'office',
                     'context':(now['basis_display']+'。' if now.get('basis_display') else '')+f"{metric['source']} ／ {metric['version']} ／ {metric['definition']} ／ {metric['threshold']} ／ {metric['road']}。日報当時の営業所で集計。運行条件・取得率を確認し、順位や安全性を数値差だけで確定しない。"})
     for item in board.get('due_followups',[])[:20]:
@@ -88,7 +101,7 @@ def build_evidence(board, facts, history):
                 statement+=f"。前期間 {old['display']}、差 {entry['change']} {metric['unit']}"
             statement+=f"。指標取得 {now['metric_count']}運行／対象 {now['count']}運行"
             evidence.append({'id':str(len(evidence)), 'title':metric['name']+'の記録', 'finding':statement,
-                'reports':now['sources'], 'driver_key':person['key'], 'allowed_actions':actions,
+                'reports':comparison_sources(entry), 'driver_key':person['key'], 'allowed_actions':actions,
                 'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'車両・道路・積載等の条件差は未確認。数値差だけで改善・悪化や責任を確定しない。',
                 'kind':'change' if entry['change'] is not None else 'record'})
         reviews=[f for f in own if (payload(f['row']).get('review') or {}).get('state') in {'coaching','followup'}]
@@ -113,7 +126,7 @@ def build_evidence(board, facts, history):
             if row['change'] is not None:
                 finding+=f"。前期間 {row['previous']['display']}、差 {row['change']} {metric.get('unit','')}"
             evidence.append({'id':str(len(evidence)), 'title':comparison['title'], 'finding':finding,
-                'reports':now['sources'], 'driver_key':row['driver_key'],
+                'reports':comparison_sources(row), 'driver_key':row['driver_key'],
                 'allowed_actions':['review_context','verify_data'],
                 'context':(now['basis_display']+'。' if now.get('basis_display') else '')+'使用車両：'+' ／ '.join(row['conditions']['vehicles'])+'。道路区分：'+(' ／ '.join(row['conditions']['roads']) or '未取得')+'。積載・路線は未取得。数値差だけで責任や改善を確定しない。',
                 'kind':'comparison'})
@@ -158,11 +171,14 @@ def navigation(item, filters, board, rows, administrator):
         links.append({'url':report_links[0]['url'],'label':'振り返りを記録'})
     office=item.get('office_key')
     if administrator and filters['scope']=='company' and office in {o['key'] for o in board['office_choices']}:
-        links.append({'url':url_for('driving_reports',**dict(filters,scope='office',office=office,focus='',listing='people',breakdown='people',page=1,_anchor='driver-comparison')),
+        links.append({'url':url_for('driving_reports',**dict(filters,scope='office',office=office,focus='',listing='people',breakdown='people',page=1,panel='analysis')),
                       'label':'この営業所を確認'})
     person=item.get('driver_key');vehicle=item.get('vehicle_id')
-    if person and not vehicle and person in {p['key'] for p in board['drivers'] if p.get('has_records')}:
-        links.append({'url':url_for('driving_reports',**dict(filters,focus=person,breakdown='vehicles',page=1,_anchor='driver-trend')),
+    selected=board.get('selected_driver') or {}
+    if administrator and person and not vehicle and person==selected.get('key') and item.get('kind')!='followup_due' and report_links:
+        links.append({'url':report_links[0]['url'],'label':'対象日報を確認'})
+    elif person and not vehicle and person in {p['key'] for p in board['drivers'] if p.get('has_records')}:
+        links.append({'url':url_for('driving_reports',**dict(filters,focus=person,breakdown='vehicles',page=1,panel='analysis')),
                       'label':'前後の記録を比較' if item.get('kind')=='followup_due' else 'この乗務員を確認' if administrator else '自分の記録を確認'})
     if administrator and vehicle in board.get('labels',{}):
         cost=item.get('kind')=='maintenance_cost'

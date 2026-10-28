@@ -4,6 +4,7 @@ Real Flask routes, disposable SQLite and synthetic users only. Candidate lists
 select notification recipients; they do not restrict an allow_general slot.
 Does not validate PostgreSQL locking, browser CSRF or live deployment.
 """
+from identity_fixture import identity_for
 import io
 import json
 import os
@@ -61,7 +62,7 @@ class Q02ChecklistBoundaryTests(unittest.TestCase):
         user = self.models.User.query.filter_by(company_code=company, username=username).one()
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username=username, role=user.role,
+            session.update(account_identity=identity_for(company, username, app=(self.client).application), company_code=company, username=username, role=user.role,
                 name='Test ' + username, password_changed_at=user.password_changed_at)
 
     def request(self, method, url, **kwargs):

@@ -1,4 +1,5 @@
 """Viewer isolation and manager-confirmed identity against real Flask/SQLite."""
+from identity_fixture import identity_for
 import json
 import unittest
 from datetime import date
@@ -26,7 +27,7 @@ class DrivingReadershipTests(unittest.TestCase):
 
     def login(self,username='one',role='user'):
         with self.client.session_transaction() as state:
-            state.update(company_code='TEST',username=username,role=role,password_changed_at='stamp' if role=='user' else self.m.User.query.filter_by(username='admin').one().password_changed_at)
+            state.update(account_identity=identity_for('TEST', username, app=(self.client).application), company_code='TEST',username=username,role=role,password_changed_at='stamp' if role=='user' else self.m.User.query.filter_by(username='admin').one().password_changed_at)
 
     def grant(self,record,username='one'):
         return self.client.post(f'/safety/driving-reports/{record.id}/reader',data={'version':version(record),'reader_username':username})

@@ -37,7 +37,6 @@ class DashboardRepository:
         return (
             self._office_query(query, models.Driver.office)
             .order_by(models.Driver.safe_start_date.asc())
-            .limit(10)
             .all()
         )
 

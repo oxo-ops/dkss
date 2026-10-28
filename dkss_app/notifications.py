@@ -1,4 +1,5 @@
 """Notifications responsibilities; routes are registered by the application factory."""
+from .account_identity import notification_owner_clause, owns_notification
 from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -178,7 +179,7 @@ def get_recheck_notification_state(notification):
 
     if (
         notification.company_code != _dkss_common.session.get("company_code")
-        or notification.target_username != _dkss_common.session.get("username")
+        or not owns_notification(notification)
         or get_notification_summary(notification)
         == str(notification.message or "")
     ):
@@ -383,7 +384,7 @@ def get_notification_legacy_judgment_event(notification):
     if (
         not company_code or not username
         or notification.company_code != company_code
-        or notification.target_username != username
+        or not owns_notification(notification)
         or _dkss_serialization.safe_json_dict(notification.workflow_context_json)
     ):
         return None
@@ -527,7 +528,7 @@ def get_notification_target_lookup(notifications):
     for notification in notifications:
         if (
             notification.company_code != company_code
-            or notification.target_username != username
+            or not owns_notification(notification)
         ):
             continue
 
@@ -602,7 +603,7 @@ def get_notification_target_info(notification, lookup=None):
         not company_code
         or not username
         or notification.company_code != company_code
-        or notification.target_username != username
+        or not owns_notification(notification)
     ):
         return None
 
@@ -983,7 +984,7 @@ def get_notification_workflow_states():
 
     records = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == username,
+        notification_owner_clause(),
         _dkss_models.Notification.deleted_at.is_(None),
         _dkss_models.Notification.workflow_context_json.isnot(None),
         _dkss_models.Notification.workflow_context_json != "{}"
@@ -1014,7 +1015,7 @@ def get_unread_notification_count():
 
     return _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == username,
+        notification_owner_clause(),
         _dkss_models.Notification.deleted_at.is_(None),
         _dkss_common.db.or_(
             _dkss_models.Notification.read.is_(False),
@@ -1041,7 +1042,7 @@ def notification_recent():
 
     records = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == username,
+        notification_owner_clause(),
         _dkss_models.Notification.deleted_at.is_(None)
     ).all()
     records = sort_notification_records(records)[:5]
@@ -1169,7 +1170,7 @@ def open_notification_target(index):
     notification = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.id == index,
         _dkss_models.Notification.company_code == _dkss_common.session.get("company_code"),
-        _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+        notification_owner_clause()
     ).first()
 
     if not notification:
@@ -1238,7 +1239,7 @@ def mark_notification_read_after_target_display(response):
         notification = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.id == notification_id,
             _dkss_models.Notification.company_code == _dkss_common.session.get("company_code"),
-            _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+            notification_owner_clause()
         ).first()
 
         if (
@@ -1441,7 +1442,7 @@ def notifications():
 
     query = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == username
+        notification_owner_clause()
     )
 
     if current_view == "deleted":
@@ -1546,7 +1547,7 @@ def notifications():
         current_sort=current_sort,
         inbox_notification_count=_dkss_models.Notification.query.filter(
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username,
+            notification_owner_clause(),
             _dkss_models.Notification.deleted_at.is_(None)
         ).count(),
         action_notification_count=get_notification_action_count(),
@@ -1566,7 +1567,7 @@ def notification_detail(index):
     notification = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.id == index,
         _dkss_models.Notification.company_code == _dkss_common.session.get("company_code"),
-        _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+        notification_owner_clause()
     ).first()
 
     current_view = _dkss_common.request.args.get("view", "inbox")
@@ -1718,7 +1719,7 @@ def mark_notification_read(index):
         notification = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.id == index,
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username
+            notification_owner_clause()
         ).with_for_update().first()
 
         if not notification:
@@ -1781,7 +1782,7 @@ def update_notification_popover_delete(index, undo):
         notification = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.id == index,
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username
+            notification_owner_clause()
         ).with_for_update().first()
 
         if not notification:
@@ -1813,7 +1814,7 @@ def update_notification_popover_delete(index, undo):
         unread_count = get_unread_notification_count()
         inbox_count = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username,
+            notification_owner_clause(),
             _dkss_models.Notification.deleted_at.is_(None)
         ).count()
         deleted_at = notification.deleted_at
@@ -1849,7 +1850,7 @@ def delete_notification(index):
     notification = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.id == index,
         _dkss_models.Notification.company_code == _dkss_common.session.get("company_code"),
-        _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+        notification_owner_clause()
     ).first()
 
     if not notification or notification.deleted_at is not None:
@@ -1904,7 +1905,7 @@ def restore_notification(index):
     notification = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.id == index,
         _dkss_models.Notification.company_code == _dkss_common.session.get("company_code"),
-        _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+        notification_owner_clause()
     ).first()
 
     if not notification or notification.deleted_at is None:
@@ -1992,7 +1993,7 @@ def bulk_notifications():
     try:
         records = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username,
+            notification_owner_clause(),
             _dkss_models.Notification.id.in_(notification_ids)
         ).order_by(
             _dkss_models.Notification.id.asc()
@@ -2092,7 +2093,7 @@ def mark_all_notifications_read():
     try:
         records = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username,
+            notification_owner_clause(),
             _dkss_models.Notification.deleted_at.is_(None),
             _dkss_common.db.or_(
                 _dkss_models.Notification.read.is_(False),
@@ -2169,7 +2170,7 @@ def undo_notification_delete():
     try:
         records = _dkss_models.Notification.query.filter(
             _dkss_models.Notification.company_code == company_code,
-            _dkss_models.Notification.target_username == username,
+            notification_owner_clause(),
             _dkss_models.Notification.deleted_at == deleted_at
         ).order_by(
             _dkss_models.Notification.id.asc()

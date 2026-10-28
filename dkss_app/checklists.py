@@ -1872,6 +1872,7 @@ def edit_checklist_result(result_index):
 
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
+        operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
 
         result_record = _dkss_models.ChecklistResult.query.filter_by(
             id=result_index,
@@ -2029,7 +2030,7 @@ def edit_checklist_result(result_index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -2042,6 +2043,13 @@ def edit_checklist_result(result_index):
             target_user = ""
             target_username = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         previous_answers = [
             dict(answer)
@@ -2436,7 +2444,7 @@ def edit_checklist_result(result_index):
                         company_code=company_code,
                         created_by_username=_dkss_common.session.get("username"),
                         created_by_name=_dkss_common.session.get("name"),
-                        date=_dkss_common.datetime.now().strftime("%Y-%m-%d"),
+                        date=operation_now.strftime("%Y-%m-%d"),
                         delivery_place="",
                         category="点検指摘",
                         content_type="安全",
@@ -2500,7 +2508,7 @@ def edit_checklist_result(result_index):
                 },
                 ensure_ascii=False
             ),
-            created_at=_dkss_common.datetime.now().strftime(
+            created_at=operation_now.strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
         )
@@ -2615,6 +2623,7 @@ def edit_checklist_result(result_index):
                 notification_message,
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=(
                     _dkss_notifications_delivery.build_notification_workflow_context(
@@ -2661,6 +2670,7 @@ def edit_checklist_result(result_index):
                     ),
                     f"/safety/checklist-results/{result_record.id}",
                     company_code=company_code,
+                    target_identity=notify_user.account_identity,
                     target_username=notify_user.username
                 )
 
@@ -4120,6 +4130,7 @@ def save_vehicle_operation_judgment(result_index):
                 company_code=result_record.company_code,
                 target_user=manager_name,
                 target_username=manager.username,
+                owner_identity=manager.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4403,6 +4414,7 @@ def save_vehicle_operation_judgment(result_index):
                 target_user=(notification_target.last_name or "")
                 + (notification_target.first_name or ""),
                 target_username=notification_target.username,
+                owner_identity=notification_target.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4435,6 +4447,7 @@ def save_vehicle_operation_judgment(result_index):
                     or target.username
                 ),
                 target_username=target.username,
+                owner_identity=target.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4795,6 +4808,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                     "次の承認をお願いします。",
                     notification_link,
                     company_code=result_record.company_code,
+                    target_identity=target_user.account_identity,
                     target_username=target_user.username,
                     workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                         result_record,
@@ -4834,6 +4848,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                 ),
                 notification_link,
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -5152,6 +5167,7 @@ def reject_vehicle_checklist_result(result_index):
                     f"&active_day={active_value}"
                 ),
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result_record,
@@ -6717,6 +6733,7 @@ def invalidate_other_vehicle_operation_judgments(result_record):
                 company_code=record.company_code,
                 target_user=(target_user.last_name or "") + (target_user.first_name or ""),
                 target_username=target_user.username,
+                owner_identity=target_user.account_identity,
                 title="運行可否の再判定依頼：" + vehicle_name,
                 message=(
                     f"対象車両：{vehicle_name}\n"
@@ -6886,6 +6903,7 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
                 target_user=(target_user.last_name or "")
                 + (target_user.first_name or ""),
                 target_username=target_user.username,
+                owner_identity=target_user.account_identity,
                 title="日常点検の異常報告：" + vehicle_name,
                 message=(
                     f"対象車両：{vehicle_name}\n"
@@ -6977,6 +6995,7 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
             company_code=result_record.company_code,
             target_user=(target_user.last_name or "") + (target_user.first_name or ""),
             target_username=target_user.username,
+            owner_identity=target_user.account_identity,
             title="運行可否の再判定依頼：" + vehicle_name,
             message=(
                 f"対象車両：{vehicle_name}\n"
@@ -8696,6 +8715,7 @@ def complete_vehicle_checklist(index):
             notification_message,
             notification_link,
             company_code=company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username,
             workflow_context=(
                 _dkss_notifications_delivery.build_notification_workflow_context(
@@ -8723,6 +8743,7 @@ def complete_vehicle_checklist(index):
                 ),
                 notification_link,
                 company_code=company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -9255,6 +9276,7 @@ def new_vehicle_checklist_result(index):
                     target_user=(target_user.last_name or "")
                     + (target_user.first_name or ""),
                     company_code=company_code,
+                    target_identity=target_user.account_identity,
                     target_username=username,
                     title="車両チェックリスト承認依頼",
                     workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
@@ -9305,6 +9327,7 @@ def new_vehicle_checklist_result(index):
                         active_day=day,
                     ),
                     company_code=company_code,
+                    target_identity=target_user.account_identity,
                     target_username=target_user.username
                 )
 
@@ -9357,7 +9380,7 @@ def new_safety_checklist_result(index):
 
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
-
+        operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
         answers = []
         answer_index = 0
 
@@ -9482,7 +9505,7 @@ def new_safety_checklist_result(index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -9494,6 +9517,13 @@ def new_safety_checklist_result(index):
 
             target_user = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         pending_answer_files = []
 
@@ -9763,7 +9793,7 @@ def new_safety_checklist_result(index):
                     company_code=_dkss_common.session.get("company_code"),
                     created_by_username=_dkss_common.session.get("username"),
                     created_by_name=_dkss_common.session.get("name"),
-                    date=_dkss_common.datetime.now().strftime("%Y-%m-%d"),
+                    date=operation_now.strftime("%Y-%m-%d"),
                     delivery_place="",
                     category="点検指摘",
                     content_type="安全",
@@ -9795,9 +9825,7 @@ def new_safety_checklist_result(index):
             target_office=target_office,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=operation_now.strftime("%Y-%m-%d %H:%M"),
             approved_by="",
             approved_by_username="",
             approved_date="",
@@ -9887,6 +9915,7 @@ def new_safety_checklist_result(index):
                 ),
                 f"/safety/checklist-results/{result.id}",
                 company_code=company_code,
+                target_identity=approval_user.account_identity,
                 target_username=approval_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result,
@@ -9927,6 +9956,7 @@ def new_safety_checklist_result(index):
                     ),
                     f"/safety/checklist-results/{result.id}",
                     company_code=company_code,
+                    target_identity=notify_user.account_identity,
                     target_username=notify_user.username
                 )
 
@@ -11188,6 +11218,7 @@ def approve_checklist_result(result_index, approval_index):
                 "次の承認をお願いします。",
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result_record,
@@ -11222,6 +11253,7 @@ def approve_checklist_result(result_index, approval_index):
                 "チェックリストの承認が完了しました。",
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -11444,6 +11476,7 @@ def reject_checklist_result(result_index):
             reject_reason or "チェックリストが差し戻されました。",
             f"/safety/checklist-results/{result_record.id}",
             company_code=result_record.company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username,
             workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                 result_record,

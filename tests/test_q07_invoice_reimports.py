@@ -1,4 +1,5 @@
 """Real upload/confirm/edit paths; only external classification and OCR are mocked."""
+from identity_fixture import identity_for
 from decimal import Decimal
 import hashlib
 from io import BytesIO
@@ -135,11 +136,11 @@ class InvoiceReimportTests(unittest.TestCase):
             password='unused', password_changed_at=user.password_changed_at))
         self.m.db.session.commit()
         with self.client.session_transaction() as state:
-            state['username'] = 'other-admin'
+            state['username'] = 'other-admin'; state['account_identity'] = identity_for(state.get('company_code'), state.get('username'))
         self.assertEqual(self.upload(source, 'other-name.pdf').status_code, 409)
         self.assert_cost(row, 100)
         with self.client.session_transaction() as state:
-            state['username'] = 'admin'
+            state['username'] = 'admin'; state['account_identity'] = identity_for(state.get('company_code'), state.get('username'))
         self.assert_source(draft, source)
 
     def test_two_receipts_before_confirm_skip_second_before_ocr(self):

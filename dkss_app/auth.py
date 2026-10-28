@@ -422,6 +422,7 @@ def login():
                 _dkss_common.session.permanent = True
                 _dkss_common.session["company_code"] = user.company_code
                 _dkss_common.session["username"] = user.username
+                _dkss_common.session["account_identity"] = user.account_identity
                 _dkss_common.session["role"] = user.role
                 _dkss_common.session["name"] = (
                     f"{user.last_name or ''}"
@@ -481,6 +482,7 @@ def login():
                 user.password_changed_at
             )
             _dkss_common.session["mfa_pending_challenge"] = mfa_challenge_key(user)
+            _dkss_common.session["mfa_account_identity"] = user.account_identity
             _dkss_common.session["mfa_attempts"] = 0
 
             return _dkss_common.redirect("/mfa")
@@ -543,7 +545,8 @@ def mfa():
         user_query = user_query.with_for_update().populate_existing()
     user = user_query.first()
 
-    if not user or user.login_locked:
+    if (not user or user.login_locked or not user.account_identity
+            or _dkss_common.session.get("mfa_account_identity") != user.account_identity):
         _dkss_common.session.clear()
         return _dkss_common.redirect("/login")
 
@@ -694,6 +697,7 @@ def mfa():
                 _dkss_common.session.permanent = True
                 _dkss_common.session["company_code"] = user.company_code
                 _dkss_common.session["username"] = user.username
+                _dkss_common.session["account_identity"] = user.account_identity
                 _dkss_common.session["role"] = user.role
                 _dkss_common.session["name"] = (
                     f"{user.last_name or ''}"
@@ -858,7 +862,7 @@ def register():
                     name=(last_name or "") + (first_name or ""),
                     role="user",
                     office=office,
-                    safe_start_date=_dkss_common.datetime.now().strftime(
+                    safe_start_date=_dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).strftime(
                         "%Y-%m-%d"
                     ),
                     vehicles_json="[]",

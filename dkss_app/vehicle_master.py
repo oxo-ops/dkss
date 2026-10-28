@@ -1,4 +1,5 @@
 """Vehicle Master responsibilities; routes are registered by the application factory."""
+from .vehicle_capacity import reserved_vehicle_count, UNKNOWN_VEHICLE_STATE
 from . import audit as _dkss_audit, common as _dkss_common, http as _dkss_http, knowledge as _dkss_knowledge, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -705,7 +706,9 @@ def confirm_vehicle_import():
         vehicle_type.name
         for vehicle_type in _dkss_models.VehicleType.query.filter_by(
             company_code=company_code
-        ).all()
+        ).filter(_dkss_models.VehicleType.name.in_([
+            value.strip() for value in vehicle_types
+        ])).order_by(_dkss_models.VehicleType.id).with_for_update(read=True).all()
     }
 
     vehicle_types = [
@@ -803,7 +806,9 @@ def confirm_vehicle_import():
         office.name
         for office in _dkss_models.Office.query.filter_by(
             company_code=company_code
-        ).all()
+        ).filter(_dkss_models.Office.name.in_([
+            value.strip() for value in offices
+        ])).order_by(_dkss_models.Office.id).with_for_update(read=True).all()
     }
 
     offices = [
@@ -859,10 +864,7 @@ def confirm_vehicle_import():
         company_code=company_code
     ).first()
 
-    current_count = _dkss_models.Vehicle.query.filter_by(
-        company_code=company_code,
-        deleted=False
-    ).count()
+    current_count = reserved_vehicle_count(company_code)
 
 
     def normalize_import_text(value):
@@ -889,6 +891,9 @@ def confirm_vehicle_import():
     existing_vehicles_by_chassis = {}
 
     for existing_vehicle in existing_vehicle_records:
+
+        if existing_vehicle.deleted is None:
+            return _dkss_http.return_form_errors([(UNKNOWN_VEHICLE_STATE, "")], 409)
 
         existing_chassis = normalize_import_text(
             existing_vehicle.chassis_number
@@ -1092,6 +1097,8 @@ def confirm_vehicle_import():
         target_deleted = target_deleted_values[i]
 
         if existing_vehicle:
+            if existing_vehicle.deleted is None:
+                return _dkss_http.return_form_errors([(UNKNOWN_VEHICLE_STATE, "")], 409)
             if existing_vehicle.deleted and not target_deleted:
                 reactivate_vehicle_count += 1
             elif not existing_vehicle.deleted and target_deleted:
@@ -1112,7 +1119,7 @@ def confirm_vehicle_import():
             return _dkss_http.return_form_errors([
                 (
                     f"登録上限を超えます。"
-                    f"現在の有効車両 {current_count} 台、"
+                    f"現在の上限判定台数（状態未確認を含む） {current_count} 台、"
                     f"有効車両の新規登録予定 {new_vehicle_count} 台、"
                     f"再有効化予定 {reactivate_vehicle_count} 台、"
                     f"無効化予定 {deactivate_vehicle_count} 台、"
@@ -1896,10 +1903,7 @@ def new_vehicle():
 
         company_code = _dkss_common.session.get("company_code")
 
-        vehicle_count = _dkss_models.Vehicle.query.filter_by(
-            company_code=company_code,
-            deleted=False
-        ).count()
+        vehicle_count = reserved_vehicle_count(company_code)
 
         company = _dkss_models.Company.query.filter_by(
             company_code=company_code
@@ -2330,6 +2334,9 @@ def toggle_vehicle_inactive(index):
     if not vehicle:
         return _dkss_common.redirect("/master/vehicles")
 
+    if vehicle.deleted is None:
+        return UNKNOWN_VEHICLE_STATE, 409
+
     new_inactive = (
         _dkss_common.request.form.get("inactive") == "1"
     )
@@ -2340,10 +2347,7 @@ def toggle_vehicle_inactive(index):
             company_code=vehicle.company_code
         ).first()
 
-        current_active_count = _dkss_models.Vehicle.query.filter_by(
-            company_code=vehicle.company_code,
-            deleted=False
-        ).count()
+        current_active_count = reserved_vehicle_count(vehicle.company_code)
 
         if (
             company
@@ -2351,7 +2355,7 @@ def toggle_vehicle_inactive(index):
         ):
             return (
                 f"登録上限を超えるため有効化できません。"
-                f"現在 {current_active_count} 台、"
+                f"現在の上限判定台数（状態未確認を含む） {current_active_count} 台、"
                 f"上限 {company.vehicle_limit} 台です。"
             )
 
@@ -2536,6 +2540,13 @@ def bulk_active_vehicles():
     if not vehicle_indexes:
         return _dkss_common.redirect("/master/vehicles")
 
+    if _dkss_models.Vehicle.query.filter(
+        _dkss_models.Vehicle.company_code == company_code,
+        _dkss_models.Vehicle.id.in_(vehicle_indexes),
+        _dkss_models.Vehicle.deleted.is_(None),
+    ).first():
+        return UNKNOWN_VEHICLE_STATE, 409
+
     vehicles_to_activate = _dkss_models.Vehicle.query.filter(
         _dkss_models.Vehicle.id.in_(vehicle_indexes),
         _dkss_models.Vehicle.company_code == company_code,
@@ -2549,10 +2560,7 @@ def bulk_active_vehicles():
         company_code=company_code
     ).first()
 
-    current_active_count = _dkss_models.Vehicle.query.filter_by(
-        company_code=company_code,
-        deleted=False
-    ).count()
+    current_active_count = reserved_vehicle_count(company_code)
 
     activate_count = len(vehicles_to_activate)
 
@@ -2563,7 +2571,7 @@ def bulk_active_vehicles():
     ):
         return (
             f"登録上限を超えるため有効化できません。"
-            f"現在 {current_active_count} 台、"
+            f"現在の上限判定台数（状態未確認を含む） {current_active_count} 台、"
             f"有効化予定 {activate_count} 台、"
             f"上限 {company.vehicle_limit} 台です。"
         )

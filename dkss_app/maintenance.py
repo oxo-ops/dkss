@@ -19,7 +19,12 @@ def add_vehicle_maintenance_record_event(
     if record.id is None:
         raise ValueError("整備記録の保存前に履歴を追加できません。")
 
+    identity = _dkss_common.session.get('account_identity')
+    actor = _dkss_models.User.query.filter_by(company_code=record.company_code,
+        account_identity=identity).first() if identity else None
     event = _dkss_models.VehicleMaintenanceRecordEvent(
+        actor_identity=actor.account_identity if actor else None,
+        actor_name=f"{actor.last_name or ''}{actor.first_name or ''}" if actor else None,
         company_code=record.company_code,
         vehicle_record_id=record.vehicle_record_id,
         maintenance_record_id=record.id,

@@ -16,7 +16,9 @@ def require_login():
             username=_dkss_common.session.get("username")
         ).first()
 
-        if not current_user or current_user.login_locked:
+        if (not current_user or current_user.login_locked
+            or not current_user.account_identity
+            or _dkss_common.session.get("account_identity") != current_user.account_identity):
             _dkss_common.session.clear()
             return _dkss_common.redirect("/login")
 
@@ -89,7 +91,9 @@ def require_login():
         username=_dkss_common.session.get("username")
     ).first()
 
-    if not current_user or current_user.login_locked:
+    if (not current_user or current_user.login_locked
+            or not current_user.account_identity
+            or _dkss_common.session.get("account_identity") != current_user.account_identity):
         _dkss_common.session.clear()
 
         if (

@@ -59,6 +59,8 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| actor_identity | VARCHAR(36) | True | False |  |
+| actor_name | VARCHAR(200) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | username | VARCHAR(100) | True | False |  |
@@ -334,6 +336,7 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| owner_identity | VARCHAR(36) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | True | False |  |
 | title | VARCHAR(200) | False | False |  |
@@ -347,6 +350,7 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| owner_identity | VARCHAR(36) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | True | False |  |
 | target_user | VARCHAR(100) | False | False |  |
@@ -486,6 +490,7 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| owner_identity | VARCHAR(36) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | username | VARCHAR(50) | False | False |  |
@@ -498,6 +503,7 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| account_identity | VARCHAR(36) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | username | VARCHAR(50) | False | False |  |
@@ -899,6 +905,8 @@ Tables: 66
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| actor_identity | VARCHAR(36) | True | False |  |
+| actor_name | VARCHAR(200) | True | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | vehicle_record_id | INTEGER | False | False | vehicle.id |

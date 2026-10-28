@@ -1,4 +1,5 @@
 """Q05: dashboard business dates must not depend on the server timezone."""
+from identity_fixture import identity_for
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
@@ -45,7 +46,7 @@ class DashboardDateBoundaryTests(unittest.TestCase):
                                 current.astimezone(timezone.utc).replace(tzinfo=None))
 
                 with self.m.app.test_request_context('/'):
-                    self.m.session.update(company_code='TEST', username='admin',
+                    self.m.session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin',
                                           role='admin', name='架空')
                     with patch.object(module._dkss_common, 'datetime', UTCServerClock), \
                          patch.object(module._dkss_common, 'render_template',

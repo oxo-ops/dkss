@@ -1,4 +1,5 @@
 """Personal vehicle provenance and corrections use an isolated SQLite database."""
+from identity_fixture import identity_for
 import json
 import unittest
 from unittest.mock import patch
@@ -37,7 +38,7 @@ class PersonalVehicleTests(unittest.TestCase):
 
     def login(self, name='one', role='user', stamp='stamp'):
         with self.client.session_transaction() as state:
-            state.update(username=name, role=role, password_changed_at=stamp)
+            state.update(account_identity=identity_for(state.get('company_code'), name, app=(self.client).application), username=name, role=role, password_changed_at=stamp)
 
     def inspection(self, vehicle=None, day='10', username='one', origin=True, status='点検完了', template='daily_inspection_truck_trailer'):
         record = self.m.VehicleChecklistResult(company_code='TEST', checklist_id=1,
@@ -46,7 +47,7 @@ class PersonalVehicleTests(unittest.TestCase):
             checklist_snapshot_json=json.dumps({'fixed_template_code':template}), answers_json='[]')
         if origin:
             with self.m.app.test_request_context():
-                session.update(company_code='TEST', username=username, role='user')
+                session.update(account_identity=identity_for('TEST', username), company_code='TEST', username=username, role='user')
                 self.m.db.session.add(record);self.m.db.session.commit()
         else:
             self.m.db.session.add(record);self.m.db.session.commit()
@@ -54,7 +55,7 @@ class PersonalVehicleTests(unittest.TestCase):
 
     def grant(self, row):
         with self.m.app.test_request_context():
-            session.update(company_code='TEST', username='admin', role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin', role='admin')
             driving_access.assign([row], 'one', 'admin');self.m.db.session.commit()
 
     def render(self, url=None):
@@ -101,6 +102,12 @@ class PersonalVehicleTests(unittest.TestCase):
         self.inspection();self.user.username='old';self.m.db.session.commit()
         replacement=self.m.User(company_code='TEST',username='one',role='user',password='unused',password_changed_at='stamp',last_name='別人')
         self.m.db.session.add(replacement);self.m.db.session.commit()
+        # The old signed session must be rejected before testing the new person's
+        # independent authenticated view. Keep the original no-inheritance check.
+        self.assertEqual(self.client.get(self.url).location,'/login')
+        with self.client.session_transaction() as state:
+            state.update(company_code='TEST',username='one',role='user',password_changed_at='stamp',
+                         account_identity=replacement.account_identity)
         _,ctx=self.render();self.assertEqual(ctx['driving_vehicles']['candidates'],[])
 
     def test_exclude_reset_and_replace_preserve_sources_and_append_history(self):
