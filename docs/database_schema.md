@@ -33,7 +33,7 @@ erDiagram
     vehicle ||--o{ vehicle_periodic_inspection_record : "vehicle_record_id"
 ```
 
-Tables: 66
+Tables: 68
 
 ## analysis_input_epoch
 
@@ -198,6 +198,19 @@ Tables: 66
 | safe_start_date | VARCHAR(20) | True | False |  |
 | vehicles_json | TEXT | True | False |  |
 | licenses_json | TEXT | True | False |  |
+
+## driving_reader_account
+
+| Column | Type | Nullable | Primary key | Foreign key |
+| --- | --- | --- | --- | --- |
+| id | INTEGER | False | True |  |
+| company_code | VARCHAR(50) | False | False |  |
+| report_id | INTEGER | False | False |  |
+| account_identity | VARCHAR(36) | True | False |  |
+| identity_hash | VARCHAR(64) | False | False |  |
+| actor_identity | VARCHAR(36) | True | False |  |
+| actor_name | VARCHAR(200) | True | False |  |
+| confirmed_at | VARCHAR(40) | False | False |  |
 
 ## driving_report_reader
 
@@ -589,6 +602,19 @@ Tables: 66
 | snapshot_json | TEXT | False | False |  |
 | created_by | VARCHAR(50) | False | False |  |
 | created_at | VARCHAR(30) | False | False |  |
+
+## vehicle_checklist_notify_account
+
+| Column | Type | Nullable | Primary key | Foreign key |
+| --- | --- | --- | --- | --- |
+| id | INTEGER | False | True |  |
+| company_code | VARCHAR(50) | False | False |  |
+| setting_id | INTEGER | False | False |  |
+| setting_hash | VARCHAR(64) | False | False |  |
+| identities_json | TEXT | False | False |  |
+| actor_identity | VARCHAR(36) | True | False |  |
+| actor_name | VARCHAR(200) | True | False |  |
+| created_at | VARCHAR(40) | False | False |  |
 
 ## vehicle_checklist_notify_setting
 
