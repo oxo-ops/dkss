@@ -23,7 +23,7 @@
             </label>
 </div>
 
-{% set identity = driving_identity_preview(record) %}
+{% set identity = driving_identity_preview(record, registered=edit_record|default(false)) %}
 {% if identity %}
 <div class="invoice-metadata driving-import-identity">
     {% if identity.resolved %}
@@ -33,7 +33,7 @@
     <label class="invoice-input-wide">乗務員を選択
         {% if not identity.resolved %}<span>{{ identity.reason }}</span>{% endif %}
         <select name="driving_account_{{ row_key }}" id="driving_account_{{ row_key }}">
-            <option value="">選択せず保存</option>
+            <option value="">選択せず保存（確定根拠がなければ本人表示を保留）</option>
             {% for user in identity.users %}<option value="{{ user.username }}" {% if record.get('_driving_account_choice') == user.username %}selected{% endif %}>{{ user.last_name }}{{ user.first_name or '' }}（{{ user.username }}{% if user.office %}・{{ user.office }}{% endif %}）</option>{% endfor %}
             <option value="__hold__" {% if record.get('_driving_account_choice') == '__hold__' %}selected{% endif %}>本人への表示を保留</option>
         </select>

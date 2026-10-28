@@ -4,12 +4,25 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import abort, current_app, session
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
+from sqlalchemy.orm import Session
 from .extensions import db
 from .models import User, VehicleDrivingReportRecord, DrivingReportReader, DrivingReportReflection
 from driving_report_data import payload
 
 READER_ROLES = {'user', 'admin', 'itc'}
+
+
+@event.listens_for(Session, 'before_flush')
+def track_new_driving_records(session, context, instances):
+    """Only this transaction's inserts can automatically save a new UUID grant."""
+    records = [row for row in session.new if isinstance(row, VehicleDrivingReportRecord)]
+    if records:session.info.setdefault('dkss.driving.inserts', set()).update(records)
+
+
+@event.listens_for(Session, 'after_transaction_end')
+def forget_new_driving_records(session, transaction):
+    if transaction.parent is None:session.info.pop('dkss.driving.inserts', None)
 
 
 class DrivingReaderAccount(db.Model):
@@ -136,7 +149,11 @@ def resolve_import(row, username=None, reidentify=False):
         if not user:abort(400, '同じ会社のアカウントを選択してください。')
         basis='manual'
     else:
-        user,basis=service.resolve(row)
+        if reidentify or row not in db.session().info.get('dkss.driving.inserts', set()):return
+        user,basis=service.candidate(row)
+        # A unique current name is a candidate, not proof about a past person.
+        # Reuse only a company/system/code/date anchor with current UUID evidence.
+        if basis != 'code':return
     if not user:return
     assign([row],user.username,session['username'] if basis=='manual' else AUTO)
     # Keep the original fields; only record the resolution and its evidence.

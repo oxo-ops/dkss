@@ -113,9 +113,9 @@ class DrivingReadershipTests(unittest.TestCase):
         self.assertEqual({g.report_id for g in DrivingReportReader.query.all()},{own.id,second.id})
         self.login();self.assertEqual(self.client.post('/safety/driving-reports/readers',data=data).status_code,403)
         self.assertEqual(self.client.get(f'/safety/driving-reports/{other.id}').status_code,404)
-        # v0.24 reuses the established company/system/code identity on later imports.
+        # A stored, unconfirmed row never inherits a code anchor on a GET.
         fourth=self.save(4)
-        self.assertEqual(self.client.get(f'/safety/driving-reports/{fourth.id}').status_code,200)
+        self.assertEqual(self.client.get(f'/safety/driving-reports/{fourth.id}').status_code,404)
 
     def test_missing_schema_fails_closed_and_explicit_initializer_is_idempotent(self):
         with self.m.db.engine.begin() as connection:DrivingReportReader.__table__.drop(connection)
