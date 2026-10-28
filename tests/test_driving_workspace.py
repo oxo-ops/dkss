@@ -1,4 +1,5 @@
 """Organization navigation, aggregate provenance, privacy and async AI lifecycle."""
+from identity_fixture import identity_for
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -49,7 +50,7 @@ class WorkspaceTests(unittest.TestCase):
         html=response.get_data(as_text=True)
         self.assertIn('記録なしの人',html);self.assertNotIn('小山の人',html);self.assertNotIn('秘密営業所',html)
         response,context=self.render(self.base+'&scope=company')
-        self.assertIn('営業所ごとの傾向',response.get_data(as_text=True))
+        self.assertIn('営業所別の分析',response.get_data(as_text=True))
         self.assertEqual(context['insights']['summary']['distance'],120)
         self.assertEqual(context['insights']['highlights'][0]['current']['display'],'2.5')
         response,context=self.render(self.base+'&scope=office&office='+digest(['office','小山']))
@@ -125,9 +126,9 @@ class WorkspaceTests(unittest.TestCase):
         from dkss_app import driving_access
         from flask import session
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign([self.a],'one','admin');self.m.db.session.commit()
-        with self.client.session_transaction() as state:state.update(username='one',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'one', app=(self.client).application), username='one',role='user',password_changed_at='stamp')
         _,context=self.render(self.base+'&scope=company&office=小山')
         self.assertEqual(context['filters']['scope'],'self')
         self.assertEqual(context['total'],1)

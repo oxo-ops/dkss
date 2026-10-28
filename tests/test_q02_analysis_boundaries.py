@@ -1,4 +1,5 @@
 """Analysis reads and writes retain company, vehicle and current-account boundaries."""
+from identity_fixture import identity_for
 import unittest
 from unittest.mock import patch
 from test_workflow_regressions import WorkflowRegressionTests as Fixture
@@ -41,7 +42,7 @@ class Q02AnalysisBoundaryTests(unittest.TestCase):
     def actor(self, company='TEST', username='admin', role='admin'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username=username, role=role, password_changed_at=self.stamp)
+            session.update(account_identity=identity_for(company, username, app=(self.client).application), company_code=company, username=username, role=role, password_changed_at=self.stamp)
 
     def url(self, suffix, vehicle=None):
         return f'/vehicle/karte/{(vehicle or self.vehicle).id}/analysis/{suffix}'
@@ -97,6 +98,43 @@ class Q02AnalysisBoundaryTests(unittest.TestCase):
         self.vehicle.deleted = True
         self.m.db.session.commit()
         self.assert_all_denied(404)
+
+    def test_deleted_vehicle_analysis_page_is_denied_before_loading_summary(self):
+        from dkss_app import analysis
+        self.vehicle.deleted = True
+        self.m.db.session.commit()
+        for role in ('admin', 'user'):
+            with self.subTest(role=role):
+                self.m.User.query.filter_by(company_code='TEST', username='admin').one().role = role
+                self.m.db.session.commit()
+                self.actor(role=role)
+                before = self.snapshot()
+                with patch.object(analysis, 'build_vehicle_karte_analysis_summary',
+                        wraps=analysis.build_vehicle_karte_analysis_summary) as summary, patch.object(
+                        self.m, 'analyze_vehicle_karte') as ai:
+                    response = self.request('GET', f'/vehicle/karte/{self.vehicle.id}/analysis')
+                self.assertEqual(response.status_code, 404)
+                self.assertNotIn('ブレーキ調整', response.get_data(as_text=True))
+                summary.assert_not_called()
+                ai.assert_not_called()
+                self.assertEqual(self.snapshot(), before)
+
+    def test_current_vehicle_analysis_page_remains_readable_by_general_user(self):
+        for role in ('admin', 'user'):
+            with self.subTest(role=role):
+                self.m.User.query.filter_by(company_code='TEST', username='admin').one().role = role
+                self.m.db.session.commit()
+                self.actor(role=role)
+                with patch.object(self.m, 'analyze_vehicle_karte') as ai:
+                    response = self.request('GET', f'/vehicle/karte/{self.vehicle.id}/analysis')
+                self.assertEqual(response.status_code, 200)
+                ai.assert_not_called()
+
+    def test_analysis_page_does_not_expose_legacy_synchronous_post(self):
+        with patch.object(self.m, 'analyze_vehicle_karte') as ai:
+            response = self.request('POST', f'/vehicle/karte/{self.vehicle.id}/analysis')
+        self.assertEqual(response.status_code, 405)
+        ai.assert_not_called()
 
     def test_locked_account_cannot_use_open_analysis_page(self):
         self.m.User.query.filter_by(company_code='TEST', username='admin').one().login_locked = True

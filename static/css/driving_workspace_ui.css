@@ -55,8 +55,13 @@ body:has(.driving-designed) .top-bar-user-name{font-size:12px;font-weight:400;co
 .driving-designed .driving-finding-vehicle .driving-finding-label{color:#9268ee}
 .driving-designed .driving-finding-content{min-width:0}
 .driving-designed .driving-finding-content>p{font-size:11px;color:#6582ac;margin:3px 0}
+.driving-designed .driving-finding-content>.driving-next-action{font-size:13px;line-height:1.65;color:#284b6b;margin:8px 0}
 .driving-designed .driving-finding .driving-reflection-links{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px}
 .driving-designed .driving-finding .driving-reflection-links:empty{display:none}
+.driving-page.driving-designed .driving-finding .driving-reflection-links{gap:8px;margin:8px 0;align-items:center}
+.driving-page.driving-designed .driving-finding .driving-reflection-links a{white-space:normal;max-width:100%}
+.driving-designed .driving-finding-content>.driving-followup-date{font-size:12px;color:#284b6b}
+@media(max-width:650px){.driving-page.driving-designed .driving-reflection-links a.btn{width:100%;justify-content:center}}
 .driving-designed .driving-finding details{font-size:11px;color:#6582ac;margin-top:3px}
 .driving-designed .driving-finding summary{cursor:pointer;list-style:none;color:#6582ac}
 .driving-designed .driving-finding details[open]{border-top:1px solid #e4e9f6;padding-top:6px;margin-top:6px}
@@ -230,3 +235,63 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
 .driving-designed .driving-view-switch a[aria-current=page]{background:linear-gradient(#aa94f4,#8e75dd);color:#fff;font-weight:600;box-shadow:0 2px 4px #8872dc22}
 .driving-designed .driving-view-switch a:focus-visible{outline:2px solid #8669de;outline-offset:2px}
 @media(max-width:650px){.driving-designed .driving-view-switch a{min-height:34px}}
+
+/* Analysis is the primary page; source records and specialist comparisons have named views. */
+.driving-page.driving-designed [data-workspace-panel][hidden]{display:none!important}
+.driving-designed .driving-page-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 12px;border-bottom:1px solid #d8e2ef;padding-bottom:10px}
+.driving-designed .driving-page-tabs a{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:8px 18px;border:1px solid #cbd8e8;border-radius:8px;background:#fff;color:#234968;font-size:14px;font-weight:600;text-decoration:none}
+.driving-designed .driving-page-tabs a[aria-current=page]{color:#fff;background:#235c9d;border-color:#235c9d}
+.driving-designed .driving-page-tabs a span{font-size:12px;font-weight:400}
+.driving-designed .driving-analysis-path{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;font-size:14px;font-weight:600;color:#284b6b}
+.driving-page.driving-designed .btn{min-height:40px;font-size:13px;padding:8px 12px}
+.driving-page.driving-designed .driving-open-analysis{background:#235c9d;border-color:#235c9d;color:#fff;font-weight:600}
+.driving-designed .driving-analysis-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.driving-designed .driving-back-link{font-size:13px;margin:0}
+.driving-designed .driving-directory-count{font-size:13px;font-weight:400;color:#55718f;margin-left:8px}
+.driving-page.driving-designed .driving-directory h3{font-size:17px}
+.driving-page.driving-designed .driving-directory-table{font-size:13px}
+.driving-designed .driving-directory-table th:first-child{width:22%}
+.driving-designed .driving-directory-table th:nth-child(2){width:29%}
+.driving-designed .driving-directory-table th:nth-child(3){width:17%}
+.driving-designed .driving-directory-table th:nth-child(4){width:16%}
+.driving-designed .driving-directory-table th:nth-child(5){width:16%}
+.driving-page.driving-designed .driving-directory-table td{padding:14px 12px}
+.driving-designed .driving-directory-table td:last-child .btn{margin:4px 0;white-space:normal;min-width:100px}
+.driving-designed .driving-workspace-table td small{font-size:11px}
+.driving-designed .driving-workspace-table .driving-person-link{font-size:15px;text-decoration:underline;text-underline-offset:3px}
+.driving-designed .driving-roster-search{padding:12px 0;gap:12px}
+.driving-page.driving-designed label{font-size:12px}
+.driving-page.driving-designed :is(input:not([type=hidden]),select){min-height:40px}
+.driving-designed .driving-extra-filters>summary{min-height:40px;padding:6px 12px;border:1px solid #cbd8e8;border-radius:7px;font-size:13px;color:#234968;background:#fff}
+.driving-designed .driving-metric-tabs a{min-height:38px;font-size:13px;padding:6px 14px}
+.driving-page.driving-designed .driving-key-metrics article{cursor:default;border-color:#d7e3ee;background:#f7faff;padding:14px}
+.driving-page.driving-designed .driving-key-metrics article.is-current{border-color:#d7e3ee;box-shadow:none}
+.driving-designed .driving-metric-name{font-size:14px;color:#234968}
+.driving-designed .driving-key-metrics small{font-size:12px;line-height:1.6}
+.driving-designed .driving-metrics-footer{font-size:12px;align-items:center;flex-wrap:wrap}
+.driving-designed .driving-metrics-footer>details{font-size:12px;max-width:100%}
+.driving-designed .driving-metrics-footer>details>summary{min-height:38px;display:flex;align-items:center;padding:6px 10px;border:1px solid #d4dfeb;border-radius:7px;background:#fff}
+.driving-designed .driving-detail-metric{padding:10px 0;margin:0 0 12px;gap:10px}
+.driving-designed .driving-detail-metric label{max-width:580px}
+.driving-designed .driving-day-records>summary{font-size:13px;min-height:40px;padding:8px 0}
+.driving-designed .driving-compact-summary{font-size:12px}
+@media(max-width:650px){
+ .driving-designed .driving-page-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .driving-designed .driving-page-tabs a{padding:8px 6px;font-size:13px}
+ .driving-page.driving-designed .driving-key-metrics{grid-template-columns:1fr}
+ .driving-page.driving-designed .driving-key-metrics article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:12px}
+ .driving-designed .driving-key-metrics article>strong{grid-column:2;grid-row:1;margin:0;justify-content:flex-end;font-size:24px}
+ .driving-designed .driving-key-metrics article>small{grid-column:1/-1;font-size:12px}
+ .driving-designed .driving-metric-name{font-size:14px;align-self:center}
+ .driving-page.driving-designed .driving-key-metrics strong small{font-size:11px}
+ .driving-designed .driving-directory-table td:last-child .btn{width:100%;margin-top:8px}
+ .driving-designed .driving-directory-table td:last-child:before{display:none}
+ .driving-designed .driving-analysis-path .btn{max-width:100%;white-space:normal}
+ .driving-designed .driving-section-heading{align-items:flex-start;gap:10px;flex-wrap:wrap}
+ .driving-designed .driving-reflection-controls{flex-wrap:wrap}
+ .driving-designed .driving-roster-search button{width:100%}
+}
+/* The shared shell has more-specific compact button rules; primary analysis actions stay touch-sized. */
+.driving-page.driving-designed :is(a.btn,button.btn){min-height:42px!important;padding:9px 12px!important;font-size:13px!important}
+.driving-page.driving-designed a.driving-open-analysis{background:#235c9d!important;border-color:#235c9d!important;color:#fff!important}
+.driving-designed .driving-finding summary,.driving-designed .driving-vehicle-suggestion summary{display:inline-flex;align-items:center;min-height:38px;padding:6px 10px;border:1px solid #d4dfeb;border-radius:6px;background:#fff;font-size:13px}

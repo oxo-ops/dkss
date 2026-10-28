@@ -197,7 +197,9 @@ class DashboardService:
                     "safe_days": (self.scope.today - start_date).days,
                 }
             )
-        return ranking
+        # Legacy strings can be unpadded or invalid; select ten only after parsing.
+        ranking.sort(key=lambda row: row["safe_days"], reverse=True)
+        return ranking[:10]
 
     def pending_pointouts(self):
         pending_records = self.repository.pending_pointouts()

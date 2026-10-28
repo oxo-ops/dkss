@@ -1,4 +1,5 @@
 """Dashboard responsibilities; routes are registered by the application factory."""
+from .account_identity import notification_owner_clause
 from .dashboard_scope import DashboardScope
 from .dashboard_repository import DashboardRepository
 from .dashboard_service import DashboardService
@@ -133,7 +134,7 @@ def get_dashboard_office_maintenance_trend(company_code, office):
             if item["known"]
             else None
         )
-        item["formatted"] = f"{item['amount']:,.0f}"
+        item["formatted"] = f"{item['amount']:,.2f}".rstrip("0").rstrip(".")
 
     result["maximum"] = f"{high / 10000:,.1f}"
     result["minimum"] = f"{low / 10000:,.1f}"
@@ -578,7 +579,7 @@ def get_dashboard_request_counts():
     }
     records = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == username,
+        notification_owner_clause(),
         _dkss_models.Notification.deleted_at.is_(None),
     ).all()
 

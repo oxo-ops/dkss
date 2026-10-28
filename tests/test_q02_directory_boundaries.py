@@ -3,6 +3,7 @@
 Real Flask requests and disposable SQLite. Sessions are seeded test cookies;
 this is not a browser login, delivery test or PostgreSQL concurrency test.
 """
+from identity_fixture import identity_for
 import json
 import unittest
 
@@ -39,7 +40,7 @@ class Q02DirectoryBoundaryTests(unittest.TestCase):
     def actor(self, company='A', role='admin', office='east'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username='same', role=role, office=office,
+            session.update(account_identity=identity_for(company, 'same', app=(self.client).application), company_code=company, username='same', role=role, office=office,
                            password_changed_at='2026-10-27 10:00:00')
 
     def request(self, path, **args):

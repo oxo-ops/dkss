@@ -3,6 +3,7 @@
 Synthetic data, real Flask requests, disposable SQLite. No external AI,
 catalogue download, delivery, browser or PostgreSQL verification.
 """
+from identity_fixture import identity_for
 import hashlib
 import json
 import unittest
@@ -53,7 +54,7 @@ class Q02KnowledgeBoundaryTests(unittest.TestCase):
     def actor(self, company='A'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username='same', role='admin', office='east',
+            session.update(account_identity=identity_for(company, 'same', app=(self.client).application), company_code=company, username='same', role='admin', office='east',
                            password_changed_at='2026-10-27 10:00:00')
 
     def request(self, method, path, **kwargs):

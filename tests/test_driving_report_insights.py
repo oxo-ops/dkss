@@ -157,7 +157,7 @@ class DrivingInsightRouteTests(unittest.TestCase):
         html=response.get_data(as_text=True)
         self.assertIn('2026-10-01',html);self.assertNotIn('過去の人',html)
         self.assertIn('period=month',html);self.assertIn('比較CSV',html)
-        self.assertIn('乗務員ごとの運転傾向',html)
+        self.assertIn('所属ドライバー',html)
         self.assertEqual(self.client.get('/safety/driving-reports?scope=company&period=custom&start=bad&end=bad').status_code,400)
 
     def test_focus_trend_and_company_scoped_maintenance_links(self):
@@ -229,5 +229,5 @@ class DrivingInsightRouteTests(unittest.TestCase):
         response=self.client.get(link)
         self.assertEqual(response.status_code,200)
         back=unescape(re.search(r'page-breadcrumb[^>]*><a href="([^"]+)"',response.get_data(as_text=True)).group(1))
-        self.assertIn('office=',back);self.assertIn('start=2026-10-01',back);self.assertTrue(back.endswith('#comparison-review'))
+        self.assertIn('office=',back);self.assertIn('start=2026-10-01',back);self.assertIn('panel=data',back);self.assertRegex(back,r'#driving-review-\d+$')
         self.assertEqual(self.client.get(back).status_code,200)

@@ -1,4 +1,5 @@
 """Real Flask/DB regression tests; all writes use a temporary SQLite database."""
+from identity_fixture import identity_for
 import json
 import os
 from pathlib import Path
@@ -48,7 +49,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         m.db.session.commit()
         self.client = m.app.test_client()
         with self.client.session_transaction() as session:
-            session.update(company_code="TEST", username="admin", role="admin", password_changed_at=stamp)
+            session.update(account_identity=identity_for("TEST", "admin", app=(self.client).application), company_code="TEST", username="admin", role="admin", password_changed_at=stamp)
 
     def tearDown(self):
         self.m.db.session.remove()
@@ -359,7 +360,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(item.source_kind, 'driving_report')
         with m.app.test_request_context():
             from flask import session
-            session.update(company_code='TEST', username='admin', role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin', role='admin')
             m.apply_vehicle_import_pending_documents(item.pending_id, self.vehicle.id, 'TEST', 'admin')
             m.db.session.commit()
         self.assertEqual(m.VehicleDrivingReportRecord.query.count(), 1)
@@ -375,18 +376,19 @@ class WorkflowRegressionTests(unittest.TestCase):
                                    last_name='検証', first_name='利用者', password_changed_at=stamp))
         m.db.session.commit()
         with self.client.session_transaction() as session:
-            session['username'] = 'other-admin'
+            session['username'] = 'other-admin'; session['account_identity'] = identity_for(session.get('company_code'), session.get('username'))
         self.assertEqual(self.client.get(f"/vehicle/data-import/{draft.batch_id}/preview").status_code, 404)
         self.assertEqual(self.client.get(f"/vehicle/data-import/files/{draft.id}").status_code, 404)
         with self.client.session_transaction() as session:
-            session['username'] = 'reader'; session['role'] = 'user'
+            session['username'] = 'reader'; session['account_identity'] = identity_for(session.get('company_code'), session.get('username')); session['role'] = 'user'
         self.assertEqual(self.client.post('/vehicle/data-import/progress', data={'document_type':'driving_report'}).status_code, 403)
         with self.client.session_transaction() as session:
-            session['username'] = 'admin'; session['role'] = 'admin'
+            session['username'] = 'admin'; session['account_identity'] = identity_for(session.get('company_code'), session.get('username')); session['role'] = 'admin'
         self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=self.inspection_form(draft))
         record = m.VehicleDrivingReportRecord.query.one()
         with self.client.session_transaction() as session:
             session['company_code'] = 'OTHER'
+            session['account_identity'] = identity_for('OTHER', session['username'])
         self.assertEqual(self.client.get(f"/vehicle/driving-reports/{record.id}/source").status_code, 404)
 
     def upload_inspection(self, streaming=False, data=None, source=None):
@@ -492,10 +494,13 @@ class WorkflowRegressionTests(unittest.TestCase):
         with patch.object(m, "require_master_admin", return_value=True):
             for field, value in [("username", "other-admin"), ("company_code", "OTHER")]:
                 with self.client.session_transaction() as session:
-                    saved = session[field]; session[field] = value
+                    saved = session[field]; saved_identity = session['account_identity']; session[field] = value
+                    session['account_identity'] = identity_for(session['company_code'], session['username'])
                 for url in [f"/vehicle/data-import/{draft.batch_id}/preview", f"/vehicle/data-import/files/{draft.id}"]:
                     self.assertEqual(self.client.get(url).status_code, 404)
-                with self.client.session_transaction() as session: session[field] = saved
+                with self.client.session_transaction() as session:
+                    session[field] = saved
+                    session['account_identity'] = saved_identity
         with patch.object(m, "require_master_admin", return_value=False):
             self.assertEqual(self.client.post(f"/vehicle/data-import/{draft.batch_id}/confirm", data=form).status_code, 403)
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
@@ -539,7 +544,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 0)
         with m.app.test_request_context():
             from flask import session
-            session.update(company_code="TEST", username="admin", role="admin")
+            session.update(account_identity=identity_for("TEST", "admin"), company_code="TEST", username="admin", role="admin")
             m.apply_vehicle_import_pending_documents(item.pending_id, self.vehicle.id, "TEST", "admin")
             m.db.session.commit()
         self.assertEqual(m.VehiclePeriodicInspectionRecord.query.count(), 1)
@@ -692,7 +697,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         m.db.session.add(draft)
         m.db.session.flush()
         with m.app.test_request_context():
-            session.update(company_code="TEST", username="admin", role="admin")
+            session.update(account_identity=identity_for("TEST", "admin"), company_code="TEST", username="admin", role="admin")
             invoice, _ = m.save_vehicle_document_pending_record(draft, 0, payload)
         self.assertEqual(invoice.pending_id, pending_id)
         m.db.session.commit()
@@ -935,7 +940,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.m.db.session.commit()
         client = self.m.app.test_client()
         with client.session_transaction() as session:
-            session.update(company_code="TEST", username="reviewer", role="user",
+            session.update(account_identity=identity_for("TEST", "reviewer", app=(client).application), company_code="TEST", username="reviewer", role="user",
                            password_changed_at=stamp)
         return client
 
@@ -1002,7 +1007,7 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(client.get(url).status_code, 200)
         self.assertEqual(client.get(url + "/excel").status_code, 200)
         with self.m.app.test_request_context("/"):
-            self.m.session.update(company_code="TEST", username="reviewer", role="user")
+            self.m.session.update(account_identity=identity_for("TEST", "reviewer"), company_code="TEST", username="reviewer", role="user")
             self.assertTrue(self.m.file_belongs_to_current_company("review-evidence.pdf", "uploads"))
         # Viewing/approving grants neither editing nor deletion.
         before = row.answers_json

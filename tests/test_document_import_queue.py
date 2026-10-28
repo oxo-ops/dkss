@@ -1,4 +1,5 @@
 """Durable OCR queue contracts; external AI is mocked, all writes are isolated."""
+from identity_fixture import identity_for
 from io import BytesIO
 import hashlib
 import json
@@ -131,12 +132,12 @@ class DocumentImportQueueTests(unittest.TestCase):
             self.m.db.session.add(self.m.User(company_code=company,username=name,role=role,password='unused',last_name='検証',password_changed_at=stamp))
         self.m.db.session.commit()
         receipt=self.send().json
-        with self.client.session_transaction() as s:s['username']='another-admin'
+        with self.client.session_transaction() as s:s['username']='another-admin'; s['account_identity'] = identity_for(s.get('company_code'), s.get('username'))
         for suffix in ['', '/status']:
             self.assertEqual(self.client.get(receipt['page_url']+suffix).status_code,404)
-        with self.client.session_transaction() as s:s.update(username='admin',company_code='OTHER')
+        with self.client.session_transaction() as s:s.update(account_identity=identity_for('OTHER', 'admin', app=(self.client).application), username='admin',company_code='OTHER')
         self.assertEqual(self.client.get(receipt['status_url']).status_code,404)
-        with self.client.session_transaction() as s:s.update(company_code='TEST',username='reader',role='user')
+        with self.client.session_transaction() as s:s.update(account_identity=identity_for('TEST', 'reader', app=(self.client).application), company_code='TEST',username='reader',role='user')
         self.assertIn(self.client.get(receipt['status_url']).status_code,[403,404])
         self.assertEqual(self.send().status_code,403)
 
@@ -251,11 +252,11 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.m.db.session.add(self.m.User(company_code='TEST', username='other-admin', role='admin', password='unused', last_name='検証', password_changed_at=stamp))
         self.m.db.session.commit()
         with self.client.session_transaction() as session:
-            session['username'] = 'other-admin'
+            session['username'] = 'other-admin'; session['account_identity'] = identity_for(session.get('company_code'), session.get('username'))
         self.assertIn(self.client.post(receipt['page_url'] + '/delete').status_code, (403, 404))
         self.assertEqual(Draft.query.one().status, 'queued')
         with self.client.session_transaction() as session:
-            session['username'] = 'admin'
+            session['username'] = 'admin'; session['account_identity'] = identity_for(session.get('company_code'), session.get('username'))
         self.m.app.config['WTF_CSRF_ENABLED'] = True
         try:
             self.assertEqual(self.client.post(receipt['page_url'] + '/delete').status_code, 400)

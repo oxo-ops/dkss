@@ -3,6 +3,7 @@
 Real Flask routes, synthetic temporary SQLite only. No PostgreSQL concurrency,
 production database, browser, mail, OCR or external storage verification.
 """
+from identity_fixture import identity_for
 from io import BytesIO
 import json
 import unittest
@@ -43,7 +44,7 @@ class Q02InspectionPlanBoundaryTests(unittest.TestCase):
     def actor(self, company):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username='admin', role='admin',
+            session.update(account_identity=identity_for(company, 'admin', app=(self.client).application), company_code=company, username='admin', role='admin',
                            password_changed_at=self.stamp)
 
     def snapshot(self):

@@ -3,6 +3,7 @@
 Real Flask endpoints and model queries, synthetic temporary SQLite only.
 No production DB or AI/OCR/mail/S3 services. PostgreSQL concurrency is excluded.
 """
+from identity_fixture import identity_for
 import hashlib
 import json
 import os
@@ -56,7 +57,7 @@ class Q02VehicleBoundaryTests(unittest.TestCase):
         self.ra,self.ra2,self.rb=self.records
         self.client=self.app.test_client()
         with self.client.session_transaction() as session:
-            session.update(company_code='A',username='same',role='admin',
+            session.update(account_identity=identity_for('A', 'same', app=(self.client).application), company_code='A',username='same',role='admin',
                            password_changed_at='2026-10-27 10:00:00')
 
     def tearDown(self):

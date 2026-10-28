@@ -1,0 +1,57 @@
+name: Q11 Synthetic Recovery
+
+on:
+  pull_request:
+    paths:
+      - 'tools/q11_recovery.py'
+      - 'tests/test_q11_recovery_tools.py'
+      - 'docs/quality/Q11-*'
+      - '.github/workflows/q11-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      S3_BUCKET_NAME: ''
+      SMTP_HOST: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies and local PostgreSQL binaries
+        run: |
+          python -m pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+      - name: Verify detectors and isolation guards
+        run: python -m unittest discover -s tests -p 'test_q11_recovery_tools.py' -v
+      - name: Run the synthetic restore and failure drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_bin="$(find /usr/lib/postgresql -type f -name initdb -printf '%h\n' | sort -V | tail -n1)"
+          test -n "$pg_bin"
+          test -x "$pg_bin/initdb"
+          python tools/q11_recovery.py --pg-bin "$pg_bin" --work-dir "$RUNNER_TEMP/q11-recovery"
+      - name: Preserve JSON evidence and command output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: q11-recovery-evidence
+          path: |
+            ${{ runner.temp }}/q11-recovery/*.json
+            ${{ runner.temp }}/q11-recovery/*.log
+          if-no-files-found: warn
+          retention-days: 14

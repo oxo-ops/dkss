@@ -199,7 +199,7 @@ def send_vehicle_checklist_reminders(company_code):
                 # 同じ人・車両・現地日付では1回だけ
                 already_sent = _dkss_models.Notification.query.filter_by(
                     company_code=company_code,
-                    target_username=target_username,
+                    owner_identity=target_user.account_identity,
                     title=title,
                     link=link
                 ).first()
@@ -220,5 +220,6 @@ def send_vehicle_checklist_reminders(company_code):
                     ),
                     link,
                     company_code=company_code,
+                    target_identity=target_user.account_identity,
                     target_username=target_username
                 )

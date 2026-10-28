@@ -1,4 +1,5 @@
 """Q05: actual vehicle inspection routes use one user-local business clock."""
+from identity_fixture import identity_for
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -65,7 +66,7 @@ class ChecklistBusinessDateTests(unittest.TestCase):
         user.timezone = 'Pacific/Honolulu'
         self.m.db.session.commit()
         with self.m.app.test_request_context('/'):
-            self.m.session.update(company_code='TEST', username='admin', role='admin')
+            self.m.session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin', role='admin')
             with patch.object(module._dkss_common, 'datetime', UTCServerClock), \
                  patch.object(module._dkss_common, 'render_template', side_effect=lambda template, **kw: kw):
                 context = module.new_vehicle_checklist_result(checklist.id)
@@ -88,7 +89,7 @@ class ChecklistBusinessDateTests(unittest.TestCase):
                 for query, selected in (('', expected),
                                         ('?year=2026&month=10&active_day=23', ('2026', '10', '23'))):
                     with self.m.app.test_request_context('/' + query):
-                        self.m.session.update(company_code='TEST', username='admin', role='admin')
+                        self.m.session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin', role='admin')
                         with patch.object(module._dkss_common, 'datetime', UTCServerClock), \
                              patch.object(module._dkss_common, 'render_template', side_effect=lambda template, **kw: kw):
                             context = module.vehicle_checklist_results(checklist.id)
@@ -104,7 +105,7 @@ class ChecklistBusinessDateTests(unittest.TestCase):
             for query in ('', '?active_day='):
                 with self.subTest(frequency=frequency, query=query):
                     with self.m.app.test_request_context('/' + query):
-                        self.m.session.update(company_code='TEST', username='admin', role='admin')
+                        self.m.session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST', username='admin', role='admin')
                         with patch.object(module._dkss_common, 'datetime', UTCServerClock), \
                              patch.object(module._dkss_common, 'render_template', side_effect=lambda template, **kw: kw):
                             context = module.vehicle_checklist_results(checklist.id)

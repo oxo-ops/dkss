@@ -1,4 +1,5 @@
 """Identity follows real report fields; fixtures are not evidence about manufacturers."""
+from identity_fixture import identity_for
 import json
 import unittest
 from unittest.mock import patch
@@ -37,12 +38,12 @@ class DrivingIdentityTests(unittest.TestCase):
 
     def resolve(self,r):
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             return resolver().resolve(r)
 
     def login(self,user):
         with self.client.session_transaction() as s:
-            s.update(username=user.username,role=user.role,password_changed_at=user.password_changed_at)
+            s.update(account_identity=identity_for(s.get('company_code'), user.username, app=(self.client).application), username=user.username,role=user.role,password_changed_at=user.password_changed_at)
 
     def context(self,url):
         contexts=[]
@@ -74,7 +75,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.add_user('duplicate','塩川','万帆');r=self.save()
         self.assertIsNone(self.resolve(r)[0])
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.resolve_import(r,self.person.username);self.m.db.session.commit()
         self.assertEqual(self.resolve(r)[0].id,self.person.id)
         later=self.save(day='2026-10-24');self.assertEqual(self.resolve(later)[0].id,self.person.id)
@@ -120,7 +121,7 @@ class DrivingIdentityTests(unittest.TestCase):
     def test_new_duplicate_invalidates_automatic_grant(self):
         r=self.save()
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.resolve_import(r);self.m.db.session.commit()
         self.assertEqual(DrivingReportReader.query.one().confirmed_by,AUTO)
         self.add_user('duplicate','塩川','万帆')

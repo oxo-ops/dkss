@@ -1,4 +1,5 @@
-"""Vehicle-combination validation, tenant isolation and bidirectional rendering."""
+﻿"""Vehicle-combination validation, tenant isolation and bidirectional rendering."""
+from identity_fixture import identity_for
 from datetime import datetime
 from types import SimpleNamespace
 import unittest
@@ -29,7 +30,7 @@ class CouplingTests(unittest.TestCase):
         db.session.commit()
         self.client = self.app.test_client()
         with self.client.session_transaction() as state:
-            state.update(company_code="TEST", username="admin", role="admin", password_changed_at=self.stamp)
+            state.update(account_identity=identity_for("TEST", "admin", app=(self.client).application), company_code="TEST", username="admin", role="admin", password_changed_at=self.stamp)
 
     def tearDown(self):
         db.session.remove(); db.engine.dispose(); self.ctx.pop()

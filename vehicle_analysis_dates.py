@@ -18,3 +18,12 @@ def parse_record_date(value, *, normalize=False):
         return datetime.strptime(text, "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def maintenance_cost_date(record):
+    """Resolve stored maintenance cost dates without guessing an invalid arrival."""
+    value = (
+        str(record.entry_date or "").strip()
+        or str(record.completion_date or "").strip()
+    )
+    return parse_record_date(value, normalize=True)
