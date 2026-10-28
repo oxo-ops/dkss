@@ -90,6 +90,96 @@ class Q02ImportWorkerAccessTests(unittest.TestCase):
         self.assertEqual(row.status, 'preview')
         self.assertTrue(row.preview_json)
 
+    def revoke_during_processing(self, reason):
+        # A different app context gives the revocation its own DB session,
+        # just as a concurrent administrator request would have.
+        with self.m.app.app_context():
+            owner = self.owner()
+            if reason == 'lock':
+                owner.login_locked = True
+            elif reason == 'delete':
+                db.session.delete(owner)
+                db.session.add(self.m.Company(company_code='OTHER', company_name='Other', active=True))
+                db.session.add(self.m.User(company_code='OTHER', username='admin', role='admin',
+                    password='unused', last_name='Synthetic', password_changed_at=owner.password_changed_at))
+            elif reason == 'demote':
+                owner.role = 'user'
+            else:
+                self.m.Company.query.filter_by(company_code='TEST').one().active = False
+            db.session.commit()
+
+    def assert_midflight_revocation(self, stage, reason, detection=None):
+        ident = self.enqueue()
+        source = Draft.query.one().source_file
+        digest = Draft.query.one().source_sha256
+        detection = detection or {'types': ['inspection', 'maintenance'],
+                                  'certainty': 'clear', 'supported': True}
+
+        def classify(*args):
+            if stage == 'classification':
+                self.revoke_during_processing(reason)
+            return detection
+
+        def extract(source, filename=None, progress_callback=None):
+            self.revoke_during_processing(reason)
+            result = extraction(source)
+            result['records'][0]['content'] = 'PRIVATE_REVOKED_EXTRACTION'
+            return result
+
+        with patch.object(queue, 'detect_document_types', side_effect=classify), patch.object(
+                vehicle_imports, 'vehicle_document_extractor', return_value=extract) as factory:
+            self.assertTrue(queue.process_one(self.m.app))
+            if stage == 'classification':
+                factory.assert_not_called()
+            else:
+                factory.assert_called_once_with('inspection')
+        db.session.expire_all()
+        row = Draft.query.filter_by(id=ident).one()
+        self.assertEqual(row.status, 'read_error')
+        self.assertEqual(json.loads(row.preview_json or '{}'), {})
+        job = queue.metadata(row.result_json)
+        self.assertEqual(job['phase'], 'error')
+        self.assertEqual(job['message'], queue.failure_message(ValueError('OWNER_UNAVAILABLE')))
+        self.assertNotIn('token', job)
+        self.assertNotIn('lease_until', job)
+        self.assertNotIn('PRIVATE_REVOKED_EXTRACTION', row.result_json)
+        self.assertEqual((row.source_file, row.source_sha256), (source, digest))
+        self.assertEqual(Draft.query.count(), 1)  # No mixed-document child after revocation.
+        self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(), 0)
+        self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 0)
+
+    def test_lock_during_classification_stops_rerouting_and_extraction(self):
+        self.assert_midflight_revocation('classification', 'lock')
+
+    def test_delete_during_classification_ignores_foreign_same_username(self):
+        self.assert_midflight_revocation('classification', 'delete')
+
+    def test_demotion_during_classification_stops_rerouting_and_extraction(self):
+        self.assert_midflight_revocation('classification', 'demote')
+
+    def test_company_stop_during_classification_stops_rerouting_and_extraction(self):
+        self.assert_midflight_revocation('classification', 'company')
+
+    def test_lock_during_uncertain_classification_does_not_publish_type_review(self):
+        self.assert_midflight_revocation('classification', 'lock',
+            {'types': [], 'certainty': 'uncertain', 'supported': False})
+
+    def test_lock_during_extraction_does_not_publish_preview(self):
+        self.assert_midflight_revocation('extraction', 'lock',
+            {'types': ['inspection'], 'certainty': 'clear', 'supported': True})
+
+    def test_delete_during_extraction_ignores_foreign_same_username(self):
+        self.assert_midflight_revocation('extraction', 'delete',
+            {'types': ['inspection'], 'certainty': 'clear', 'supported': True})
+
+    def test_demotion_during_extraction_does_not_publish_preview(self):
+        self.assert_midflight_revocation('extraction', 'demote',
+            {'types': ['inspection'], 'certainty': 'clear', 'supported': True})
+
+    def test_company_stop_during_extraction_does_not_publish_preview(self):
+        self.assert_midflight_revocation('extraction', 'company',
+            {'types': ['inspection'], 'certainty': 'clear', 'supported': True})
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
