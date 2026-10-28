@@ -6,6 +6,7 @@ on:
       - 'test/q04-master-concurrency-*'
       - 'fix/q04-master-concurrency-*'
       - 'fix/q04-master-integrity-*'
+      - 'fix/q04-news-office-*'
       - 'test/q04-master-upgrade-*'
       - 'test/q04-related-writes-*'
       - 'test/q04-master-order-*'
@@ -15,6 +16,7 @@ on:
       - 'tests/test_q04_postgres_master_concurrency.py'
       - 'tests/test_q04_master_uniqueness.py'
       - 'tests/test_q04_postgres_master_upgrade.py'
+      - 'tests/test_q04_postgres_master_index_acceptance.py'
       - 'tests/test_q04_postgres_related_writes.py'
       - 'tests/test_q04_postgres_master_order.py'
       - 'tests/test_q04_postgres_news_office.py'
@@ -208,6 +210,31 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest discover -s tests -p 'test_q04_postgres_news*.py' -v 2>&1 | tee q04-postgres-news-results.log
+      - name: Confirm existing index checks detect the unfixed main
+        shell: bash
+        env:
+          Q04_INDEX_BASELINE_REF: 25972cde39eba1454d9e3392d870af51872a07a7
+        run: |
+          git fetch --no-tags origin "$Q04_INDEX_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-index-baseline" "$Q04_INDEX_BASELINE_REF"
+          cp tests/test_q04_postgres_master_index_acceptance.py "$RUNNER_TEMP/q04-index-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-index-baseline" && PYTHONPATH=tests python -m unittest test_q04_postgres_master_index_acceptance -v) > q04-index-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-index-baseline-results.log').read_text()
+          assert sys.argv[1] == '1', 'Unfixed main must fail index integrity assertions'
+          assert re.search(r'Ran 16 tests\b', log), 'All index acceptance checks must execute'
+          assert 'FAILED (failures=16)' in log, 'Inspect changed baseline evidence'
+          print('INDEX_BASELINE_CONFIRMED: 16 tests, 16 integrity failures')
+          PY
+      - name: Verify existing master index definitions and validity on PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_postgres_master_index_acceptance.py' -v 2>&1 | tee q04-postgres-index-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -225,5 +252,7 @@ jobs:
             q04-gaps-baseline-results.log
             q04-postgres-news-results.log
             q04-news-baseline-results.log
+            q04-index-baseline-results.log
+            q04-postgres-index-results.log
           if-no-files-found: warn
           retention-days: 7
