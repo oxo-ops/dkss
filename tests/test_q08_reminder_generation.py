@@ -35,6 +35,10 @@ class ReminderGenerationTests(unittest.TestCase):
         # deliberately legacy data, not a new confirmed Q03 assignment.
         old = {name: None for name in ('checked_by_identity', 'approved_by_identity')
                if hasattr(type(result), name)}
+        if 'approvals_json' in fields:
+            # Seed persisted historical JSON after Q03's new-record listener;
+            # that listener correctly replaces identities on new submissions.
+            old['approvals_json'] = fields['approvals_json']
         if old:
             self.m.db.session.execute(type(result).__table__.update().where(type(result).id == result.id).values(**old))
             self.m.db.session.commit()
