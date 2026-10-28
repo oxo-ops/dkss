@@ -1630,10 +1630,12 @@ def validate_vehicle_master_values(
         (office, _dkss_models.Office, "営業所", "office"),
     ]:
         if value:
+            # Keep the selected name valid until the related vehicle is saved.
+            # PostgreSQL FOR SHARE makes master rename/delete wait for commit.
             valid_value = model.query.filter_by(
                 company_code=company_code,
                 name=value
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_value:
                 errors.append((
