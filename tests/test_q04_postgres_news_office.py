@@ -49,8 +49,11 @@ class NewsOfficeConcurrencyTests(unittest.TestCase):
 
     def news_client(self):
         client = self.app.test_client()
+        with self.app.app_context():
+            identity = getattr(self.m.User.query.filter_by(company_code=self.company,
+                username='news-actor').one(), 'account_identity', None)
         with client.session_transaction() as state:
-            state.update(company_code=self.company, username='news-actor', role='itc',
+            state.update(account_identity=identity, company_code=self.company, username='news-actor', role='itc',
                          password_changed_at=self.stamp)
         return client
 
