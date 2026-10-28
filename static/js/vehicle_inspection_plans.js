@@ -233,9 +233,31 @@
         planner.querySelector('[data-plan-bulk]').hidden = !data.can_edit || !selected.size;
     }
     function edit(p,v) { openEditor(p,v,data.can_edit && (['planned','candidate','cancelled'].includes(p.status) || (p.kind === '12month' && p.status === 'completed' && p.document_status === '未受領'))); }
+    function invoiceFacts(v, mon) {
+        if (kind || (state && state !== 'completed')) return [];
+        return (data.invoice_actuals || []).filter(f => f.vehicle_record_id === v.id &&
+            (mon ? f.performed_date?.slice(0, 7) === mon : !f.performed_date));
+    }
+    function invoiceLink(fact) {
+        const a=node('a',fact.summary,'ip-invoice-summary');
+        a.href=fact.source_url; a.target='_blank'; a.rel='noopener';
+        a.title=fact.summary+' ／ 請求書原本を開く';
+        if(fact.sources?.length>1) a.addEventListener('click',event=>{
+            event.preventDefault();
+            const dialog=document.querySelector('#inspection-plan-events');
+            dialog.querySelector('#ip-events-title').textContent='請求書原本';
+            const list=dialog.querySelector('[data-events-list]');list.replaceChildren();
+            for(const source of fact.sources) {
+                const link=node('a',source.filename);
+                link.href=source.url;link.target='_blank';link.rel='noopener';list.append(link);
+            }
+            dialog.showModal();
+        });
+        return a;
+    }
     function vehicleCell(v) {
         const td = node('td'), link = node('a',v.number); link.href = '/vehicle/karte/' + v.id + '/inspections'; link.className='ip-vehicle-link';
-        td.append(link,node('small',v.office)); return td;
+        td.append(link,node('small',v.office)); if(view==='year')invoiceFacts(v).forEach(f=>td.append(invoiceLink(f))); return td;
     }
     function checkbox(v) {
         const td=node('td'),cb=node('input');cb.type='checkbox';cb.checked=selected.has(v.id);cb.disabled=!data.can_edit;cb.setAttribute('aria-label',v.number+'を選択');
@@ -251,6 +273,12 @@
                 // A completed booking stays as history; it is not a future slot to fill.
                 if(type==='booking'&&p.status==='completed'&&day===p.performed_date)continue;
                 result.push({p,day,type:type==='expiry'&&p.status==='completed'?'previous_expiry':type});
+            }
+        }
+        const search=norm(filters.elements.search.value);
+        for(const v of data.vehicles.filter(v=>(!focus||v.id===focus)&&(!search||norm(v.number+' '+v.chassis_number).includes(search)))) {
+            for(const fact of invoiceFacts(v,mon)) {
+                result.push({day:fact.performed_date,type:'actual',p:{vehicle_record_id:v.id},invoice:fact});
             }
         }
         return result.sort((a,b)=>a.day.localeCompare(b.day)||a.p.vehicle_record_id-b.p.vehicle_record_id||a.type.localeCompare(b.type));
@@ -273,6 +301,13 @@
     document.querySelector('[data-events-close]')?.addEventListener('click',()=>document.querySelector('#inspection-plan-events').close());
     function calendarEvent(entry,compact=false) {
         const v=data.vehicles.find(v=>v.id===entry.p.vehicle_record_id);
+        if(entry.invoice || entry.p.invoice_summary) {
+            const fact=entry.invoice || {summary:entry.p.invoice_summary,source_url:entry.p.record_url,sources:entry.p.invoice_sources};
+            const a=invoiceLink({...fact,summary:v.number+' '+fact.summary});
+            a.classList.add('ip-cal-event');a.dataset.event='actual';
+            if(compact)a.classList.add('ip-cal-event-compact');
+            return a;
+        }
         const button=node('button',undefined,'ip-cal-event');button.type='button';button.dataset.event=entry.type;
         const due=entry.type==='expiry'?deadlineState(entry.p):'';if(due)button.dataset.due=due;
         if(compact){button.classList.add('ip-cal-event-compact');button.append(node('span',deadlineLabels[due]||(entry.type==='booking'?'予約':entry.type==='actual'?'実施':entry.type==='previous_expiry'?'旧満了':'満了'),'ip-cal-event-type'),node('span',v.number+' '+shortKinds[entry.p.kind]));}
@@ -384,6 +419,10 @@
         const period=periodRows(), rows=visiblePlans();
         const visibleIds=new Set(rows.map(p=>p.vehicle_record_id));
         const search=norm(filters.elements.search.value);
+        const invoiceRows=(data.invoice_actuals||[]).filter(f=>!kind&&
+            (view==='year'||!f.performed_date||f.performed_date.slice(0,7)===filters.elements.month.value)&&
+            data.vehicles.some(v=>v.id===f.vehicle_record_id&&(!focus||v.id===focus)&&(!search||norm(v.number+' '+v.chassis_number).includes(search))));
+        if(!state||state==='completed')invoiceRows.forEach(f=>visibleIds.add(f.vehicle_record_id));
         const vehicles=data.vehicles.filter(v=>(!focus||v.id===focus)&&(!search||norm(v.number+' '+v.chassis_number).includes(search))&&(!state||visibleIds.has(v.id)));
         selected=new Set([...selected].filter(id=>vehicles.some(v=>v.id===id)));
         planner.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(view===b.dataset.view)));
@@ -391,7 +430,7 @@
         const focusButton=planner.querySelector('[data-plan-focus]');focusButton.hidden=!focus;focusButton.textContent='対象車両の絞込を解除 ×';
         const counts=planner.querySelector('[data-plan-states]');counts.replaceChildren();
         for(const [key,label] of [['','すべて'],...Object.entries(states)]) {
-            const count=period.filter(p=>key?p.display_state===key:true).length;
+            const count=period.filter(p=>key?p.display_state===key:true).length + ((!key||key==='completed')?invoiceRows.length:0);
             const b=node('button',(stateMarks[key]?stateMarks[key]+' ':'')+label+' '+count+'件');b.type='button';b.dataset.state=key;b.setAttribute('aria-pressed',String(state===key));
             b.addEventListener('click',()=>{state=key;draw();});counts.append(b);
         }
@@ -419,12 +458,13 @@
                     const stack=node('div',undefined,'ip-year-items');
                     items.slice(0,items.length>3?2:3).forEach(p=>{
                         const expiryCandidate=p.kind==='12month'&&p.status==='candidate'&&p.expiry_date;
-                        const b=node('button',stateMarks[p.display_state]+' '+shortKinds[p.kind],'ip-chip');b.classList.toggle('ip-expiry-candidate',expiryCandidate);b.type='button';b.dataset.status=p.status;b.dataset.state=p.display_state;
+                        const b=p.invoice_summary?invoiceLink({summary:p.invoice_summary,source_url:p.record_url,sources:p.invoice_sources}):node('button',stateMarks[p.display_state]+' '+shortKinds[p.kind],'ip-chip');b.classList.toggle('ip-expiry-candidate',expiryCandidate);b.type='button';b.dataset.status=p.status;b.dataset.state=p.display_state;
                         b.title=(expiryCandidate?'12か月点検期限を基に表示 ／ 予定未登録（予約なし）':labels[p.kind]+' ／ '+states[p.display_state])+(p.source==='maintenance'?' ／ 実施月 ':' ／ 予定月 ')+p.planned_month+(p.reservation_date?' ／ 予約 '+p.reservation_date:'')+(p.expiry_date?' ／ 満了 '+p.expiry_date:'')+(p.performed_date?' ／ 実施 '+p.performed_date:'');
-                        b.setAttribute('aria-label',v.number+' '+mon+' '+b.title);b.addEventListener('click',()=>edit(p,v));stack.append(b);
+                        b.setAttribute('aria-label',v.number+' '+mon+' '+b.title);if(!p.invoice_summary)b.addEventListener('click',()=>edit(p,v));stack.append(b);
                     });
                     if(items.length>3){const more=node('button','＋'+(items.length-2)+'件','ip-year-more');more.type='button';more.addEventListener('click',()=>openEntries(v.number+' ／ '+mon,items.map(p=>({p,day:p.performed_date||p.reservation_date||mon,type:p.status==='completed'?'actual':p.expiry_date?'expiry':'booking'}))));stack.append(more);}
                     if(!items.length){if(data.can_edit){const add=node('button','＋','ip-cell-add');add.type='button';add.setAttribute('aria-label',v.number+' '+mon+'の予定を追加');add.addEventListener('click',()=>newPlan(v,mon));stack.append(add);}else stack.append(node('span','—','ip-year-empty'));}
+                    invoiceFacts(v,mon).forEach(f=>stack.append(invoiceLink(f)));
                     td.append(stack);tr.append(td);
                 }body.append(tr);
             }
@@ -433,18 +473,28 @@
                 const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),tr=node('tr');tr.append(checkbox(v),vehicleCell(v),node('td',labels[p.kind]));
                 const due=node('td');if(p.expiry_date)due.append(node('span',(p.status==='completed'?'当時の満了日 ':'12か月点検期限 ')+p.expiry_date));due.append(node('small',(p.source==='maintenance'?'実施月 ':p.status==='candidate'?'候補月 ':'予定月 ')+p.planned_month));tr.append(due,node('td',p.reservation_date||'未定'),node('td',p.factory||'—'));
                 const status=node('td');status.append(badge(p));if(p.status==='completed')status.append(node('small','書類'+(p.document_status||'未確認')));tr.append(status,node('td',p.performed_date||'—'));
-                const action=node('td'),b=node('button',p.status==='completed'?'実施内容':p.display_state==='awaiting'?'実施を確認':p.status==='candidate'?'予定に登録':!p.reservation_date?'予約日を登録':'予約を確認','btn btn-outline');b.type='button';b.addEventListener('click',()=>edit(p,v));action.append(b);tr.append(action);body.append(tr);
+                const action=node('td'),b=p.invoice_summary?invoiceLink({summary:p.invoice_summary,source_url:p.record_url,sources:p.invoice_sources}):node('button',p.status==='completed'?'実施内容':p.display_state==='awaiting'?'実施を確認':p.status==='candidate'?'予定に登録':!p.reservation_date?'予約日を登録':'予約を確認','btn btn-outline');b.type='button';if(!p.invoice_summary)b.addEventListener('click',()=>edit(p,v));action.append(b);tr.append(action);body.append(tr);
                 Array.from(tr.children).forEach((td,i)=>{td.dataset.label=['選択',...columns][i];});
+            }
+        }
+        if(view==='month') {
+            for(const v of vehicles) {
+                const facts=[...invoiceFacts(v,filters.elements.month.value),...invoiceFacts(v)];
+                for(const fact of facts) {
+                    const tr=node('tr');tr.append(checkbox(v),vehicleCell(v));
+                    const td=node('td');td.colSpan=columns.length-1;td.append(invoiceLink(fact));
+                    tr.append(td);body.append(tr);
+                }
             }
         }
         if(!body.children.length){const tr=node('tr'),td=node('td',data.needs_office?'営業所を選択してください。':state?'この条件に該当する点検はありません。':'この期間の予定・実績はありません。','ip-empty');td.colSpan=columns.length+1;tr.append(td);body.append(tr);}
         const missing=data.missing.filter(p=>(!kind||p.kind===kind)&&vehicles.some(v=>v.id===p.vehicle_record_id));
         planner.querySelector('[data-plan-missing-count]').textContent='基準未設定 '+missing.length+'件';
         const list=planner.querySelector('[data-plan-missing]');list.replaceChildren();missing.forEach(p=>{const v=data.vehicles.find(v=>v.id===p.vehicle_record_id);list.append(node('li',v.number+' ／ '+labels[p.kind]+'：'+p.reason));});
-        planner.querySelector('[data-plan-status]').textContent=data.needs_office?'所属営業所が未設定です。':(view==='year'?year+'年度（4月〜翌3月） ／ ':'')+vehicles.length+'台 ／ 対象'+period.length+'件（登録済み'+period.filter(p=>p.status!=='candidate').length+'件・予定未登録'+period.filter(p=>p.status==='candidate').length+'件）'+(state?' ／ 絞込後'+rows.length+'件':'');
+        planner.querySelector('[data-plan-status]').textContent=data.needs_office?'所属営業所が未設定です。':(view==='year'?year+'年度（4月〜翌3月） ／ ':'')+vehicles.length+'台 ／ 対象'+period.length+'件（登録済み'+period.filter(p=>p.status!=='candidate').length+'件・予定未登録'+period.filter(p=>p.status==='candidate').length+'件）'+(state?' ／ 絞込後'+rows.length+'件':'')+' ／ 整備実績'+invoiceRows.filter(f=>vehicles.some(v=>v.id===f.vehicle_record_id)).length+'件';
         planner.querySelector('[data-plan-add]').hidden=!data.can_edit||!data.vehicles.length;
         selectionChanged();
-        planner.querySelector('[data-empty-action]').hidden=!!rows.length||data.needs_office||view==='year';
+        planner.querySelector('[data-empty-action]').hidden=!!(rows.length||((!state||state==='completed')&&invoiceRows.length))||data.needs_office||view==='year';
         planner.querySelector('[data-empty-add]').hidden=!data.can_edit||!data.vehicles.length;
         const filtered=!!(kind||state||filters.elements.search.value||focus);
         planner.querySelector('[data-clear-filters]').hidden=!filtered;

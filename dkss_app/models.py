@@ -1063,6 +1063,22 @@ class VehicleOperationRecord(db.Model):
 
 class VehicleMaintenanceRecord(db.Model):
     @property
+    def is_invoice_actual(self):
+        """Imported post-service invoices are historical facts, not work in progress."""
+        import json
+        try:
+            details = json.loads(self.invoice_details_json or '{}')
+            source = details.get('source') if isinstance(details, dict) else None
+            return (isinstance(source, dict) and isinstance(source.get('draft_id'), str)
+                    and bool(source['draft_id']))
+        except (ValueError, TypeError):
+            return False
+
+    @property
+    def display_status(self):
+        return '実施済み' if self.is_invoice_actual else self.status
+
+    @property
     def cost_office(self):
         from .maintenance_facts import cost_office
         return cost_office(self)

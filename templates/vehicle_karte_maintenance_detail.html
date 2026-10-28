@@ -25,7 +25,7 @@
             <a
                 class="btn btn-outline"
                 href="{{ url_for('vehicle_karte_maintenance_form', vehicle_record_id=vehicle.id, record_id=record.id) }}"
-            >編集</a>
+            >{{ '読取内容を訂正' if record.is_invoice_actual else '編集' }}</a>
             {% endif %}
         </div>
     </header>
@@ -45,9 +45,9 @@
             {% set detail_text = (record.content or record.repair_content or record.symptom or '整備記録')|trim %}
             {% set detail_title = detail_text.split('、', 1)[0]|trim %}
             <h4>{{ detail_title }}</h4>
-            {% if record.status %}
-            <span class="vehicle-history-status" data-status="{{ record.status }}">
-                {{ record.status }}
+            {% if record.display_status %}
+            <span class="vehicle-history-status" data-status="{{ record.display_status }}">
+                {{ record.display_status }}
             </span>
             {% endif %}
         </div>

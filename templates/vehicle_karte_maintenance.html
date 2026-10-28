@@ -282,9 +282,9 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if record.status %}
-                                <span class="vehicle-history-status" data-status="{{ record.status }}">
-                                    {{ record.status }}
+                                {% if record.display_status %}
+                                <span class="vehicle-history-status" data-status="{{ record.display_status }}">
+                                    {{ record.display_status }}
                                 </span>
                                 {% else %}
                                 <span class="km-muted">—</span>

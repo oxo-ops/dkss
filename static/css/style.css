@@ -19130,6 +19130,7 @@ body.vehicle-list-ppt .vehicle-karte-inspections-panel {
 .vehicle-history-status[data-status="approved"],
 .vehicle-history-status[data-status="承認済み"],
 .vehicle-history-status[data-status="完了"],
+.vehicle-history-status[data-status="実施済み"],
 .vehicle-history-status[data-status="運行可"],
 .vehicle-history-status[data-status="解消"] {
     background: #d8f6e8;
