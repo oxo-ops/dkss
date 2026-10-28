@@ -133,6 +133,10 @@ def register_driving_reports(app, db, g):
         return [{'driver':key[0],'office':key[1],**metrics_summary(values)} for key,values in grouped.items()]
     @app.context_processor
     def driving_context():
+        from driving_identity_resolution import preview
+        # Shared by both the import readback and corrections of registered reports.
+        return dict(driving_identity_preview=preview, **driving_labels())
+    def driving_labels():
         return {'driving_is_admin':readership.administrator(),'driving_review_states':STATES,'driving_outcomes':OUTCOMES,'driving_match_labels':MATCH,'driving_conflict_labels':LABELS,'driving_scope_labels':{'trip':'1運行','daily':'日別','monthly':'月次集計','unknown':'不明'},'driving_item_status':{'candidate':'読取候補','confirmed':'確認済み','illegible':'判読不能','not_recorded':'記載なし','not_applicable':'対象外','unknown':'不明'},'driving_speaker_labels':{'auto':'自動コメント','driver':'乗務員','manager':'管理者','unknown':'話者不明'}}
     def persist(row, old_json):
         values={"details_json":row.details_json,"operation_date":row.operation_date,"mileage":row.mileage,"content":row.content,"report_number":row.report_number,"operation_record_id":row.operation_record_id}
@@ -405,6 +409,9 @@ def register_driving_reports(app, db, g):
             for key in ('audit','review','lifecycle'):values[key]=updated.get(key,p.get(key))
             values.pop('reconciliation',None);row.operation_record_id=None
             row.operation_date=values['record_date'];row.mileage=decimal(values.get('mileage'));row.content=values['content'];row.report_number=values.get('report_number');row.details_json=json.dumps(values,ensure_ascii=False)
+            # This is already the version-checked, administrator-only readback save.
+            with db.session.no_autoflush:
+                readership.resolve_import(row,request.form.get(f'driving_account_{draft.id}_{row.source_record_index}') or None,reidentify=True)
             persist(row,old_json);return redirect(url_for('driving_report_detail',record_id=row.id,return_to=report_return()))
         originals=g['safe_json_dict'](draft.preview_json).get('original_records') or []
         original=originals[row.source_record_index] if row.source_record_index<len(originals) else p

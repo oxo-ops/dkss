@@ -870,6 +870,13 @@ def vehicle_document_import_confirm(batch_id):
                 values['service_match'] = _dkss_common.request.form.get(f'service_match_{row_key}', '') if values.get('vehicle_record_id') is not None else ''
             if draft.document_type == 'driving_report':
                 values['import_confirmation'] = {'by': _dkss_common.session.get('username'), 'at': _dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).isoformat()}
+                choice = _dkss_common.request.form.get(f'driving_account_{row_key}', '').strip()
+                if choice and choice != '__hold__':
+                    from driving_identity_resolution import usable
+                    account = _dkss_models.User.query.filter_by(company_code=draft.company_code, username=choice).first()
+                    if account is None or not usable(account):
+                        row_errors.append(('同じ会社のアカウントを選択してください。', f'driving_account_{row_key}'))
+                values['_driving_account_choice'] = choice
             values['include'] = row_key in included
             updated_records.append(values)
             if row_key not in included:
@@ -982,6 +989,9 @@ def vehicle_document_import_confirm(batch_id):
             record = build_vehicle_document_record(draft, record_index, values)
             _dkss_common.db.session.add(record)
             _dkss_common.db.session.flush()
+            if draft.document_type == 'driving_report':
+                from .driving_access import resolve_import
+                resolve_import(record, values.get('_driving_account_choice') or None)
             if draft.document_type == 'maintenance':
                 _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
             if draft.document_type == 'maintenance':

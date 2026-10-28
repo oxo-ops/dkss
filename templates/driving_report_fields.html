@@ -23,6 +23,25 @@
             </label>
 </div>
 
+{% set identity = driving_identity_preview(record) %}
+{% if identity %}
+<div class="invoice-metadata driving-import-identity">
+    {% if identity.resolved %}
+    <p>乗務員：<strong>{{ identity.label }}</strong></p>
+    <details><summary>乗務員を変更</summary>
+    {% endif %}
+    <label class="invoice-input-wide">乗務員を選択
+        {% if not identity.resolved %}<span>{{ identity.reason }}</span>{% endif %}
+        <select name="driving_account_{{ row_key }}" id="driving_account_{{ row_key }}">
+            <option value="">選択せず保存</option>
+            {% for user in identity.users %}<option value="{{ user.username }}" {% if record.get('_driving_account_choice') == user.username %}selected{% endif %}>{{ user.last_name }}{{ user.first_name or '' }}（{{ user.username }}{% if user.office %}・{{ user.office }}{% endif %}）</option>{% endfor %}
+            <option value="__hold__" {% if record.get('_driving_account_choice') == '__hold__' %}selected{% endif %}>本人への表示を保留</option>
+        </select>
+    </label>
+    {% if identity.resolved %}</details>{% endif %}
+</div>
+{% endif %}
+
 <div class="invoice-record-actions">
         <label class="invoice-include"><input type="checkbox" id="include_{{ row_key }}" name="include" value="{{ row_key }}" {% if record.get("import_duplicate") %}disabled aria-label="登録済みのため取り込み対象外"{% endif %} {% if record.get('include', true) %}checked{% endif %}>この記録を取り込む</label>
         <button type="button" class="invoice-button" data-toggle-info aria-controls="invoice_info_{{ row_key }}" aria-expanded="{{ 'true' if needs_input else 'false' }}">{{ '修正を閉じる' if needs_input else '情報を修正' }}</button>
