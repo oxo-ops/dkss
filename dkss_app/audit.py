@@ -1,4 +1,6 @@
 """Audit responsibilities; routes are registered by the application factory."""
+from sqlalchemy.exc import IntegrityError
+
 from . import common as _dkss_common, models as _dkss_models
 
 
@@ -112,15 +114,30 @@ def update_company_usage_summary(
     if not company_code:
         return
 
-    summary = _dkss_models.CompanyUsageSummary.query.filter_by(
-        company_code=company_code
-    ).first()
+    def locked_summary():
+        # Refresh preloaded ORM state after waiting for another caller's update.
+        return _dkss_models.CompanyUsageSummary.query.filter_by(
+            company_code=company_code
+        ).populate_existing().with_for_update().first()
+
+    summary = locked_summary()
 
     if not summary:
-        summary = _dkss_models.CompanyUsageSummary(
-            company_code=company_code
-        )
-        _dkss_common.db.session.add(summary)
+        if _dkss_common.db.session.get_bind().dialect.name == "postgresql":
+            try:
+                # Keep pending audit/authentication writes in the outer transaction.
+                with _dkss_common.db.session.begin_nested():
+                    summary = _dkss_models.CompanyUsageSummary(company_code=company_code)
+                    _dkss_common.db.session.add(summary)
+                    _dkss_common.db.session.flush()
+            except IntegrityError:
+                summary = locked_summary()
+                if summary is None:
+                    raise
+        else:
+            # Preserve SQLite's existing transaction behavior (including rollback).
+            summary = _dkss_models.CompanyUsageSummary(company_code=company_code)
+            _dkss_common.db.session.add(summary)
 
     summary.user_count = _dkss_models.User.query.filter_by(
         company_code=company_code
