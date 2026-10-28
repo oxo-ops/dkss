@@ -82,6 +82,13 @@ def create_app(config=None, *, initialize_database=False):
         account_identity.upgrade_account_identity()
         print("ACCOUNT_IDENTITY_UPGRADED")
 
+    @app.cli.command("init-checklist-notify-identities")
+    def init_checklist_notify_identities():
+        """Create reminder assignment evidence without inferring old owners."""
+        from .checklist_notify_identity import initialize_notify_identities
+        initialize_notify_identities()
+        print("CHECKLIST_NOTIFY_IDENTITIES_INITIALIZED")
+
     @app.cli.command("upgrade-domain-storage")
     def upgrade_domain_storage():
         from .document_sources import upgrade_storage

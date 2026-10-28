@@ -19,8 +19,10 @@
                         src="{{ url_for(
                             'uploaded_file',
                             folder='uploads',
-                            filename=user.profile_image
+                            filename=user.profile_image, avatar=96
                         ) }}"
+                        srcset="{{ url_for('uploaded_file', folder='uploads', filename=user.profile_image, avatar=192) }} 2x"
+                        width="72" height="72" decoding="async"
                         alt=""
                         class="settings-profile-avatar-image"
                     >
