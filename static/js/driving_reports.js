@@ -18,6 +18,30 @@
   const ns='http://www.w3.org/2000/svg';
   const form=document.getElementById('driving-filter-form');
   const positionKey='driving-position:'+location.pathname+location.search;
+  const metricPositionKey='driving-metric-position';
+  let metricPosition=null;
+  try{
+   const saved=JSON.parse(sessionStorage.getItem(metricPositionKey)||'null');
+   sessionStorage.removeItem(metricPositionKey);
+   if(saved&&saved.url===location.pathname+location.search+location.hash&&
+      Number.isFinite(saved.top)&&Date.now()-saved.at>=0&&Date.now()-saved.at<60000)metricPosition=saved;
+  }catch{}
+  function metricScrollRoot(target){
+   for(let node=target.parentElement;node;node=node.parentElement){
+    if(/^(auto|scroll)$/.test(getComputedStyle(node).overflowY)&&node.scrollHeight>node.clientHeight)return node;
+   }
+   return document.scrollingElement;
+  }
+  document.addEventListener('click',event=>{
+   const link=event.target.closest('a[data-preserve-driving-metrics]');
+   if(!link||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.target==='_blank')return;
+   const panel=document.getElementById('driving-metrics'),url=new URL(link.href,location.href);
+   if(!panel||url.origin!==location.origin||url.pathname!==location.pathname)return;
+   if(url.search===location.search){event.preventDefault();return;}
+   try{sessionStorage.setItem(metricPositionKey,JSON.stringify({
+    url:url.pathname+url.search+url.hash,top:panel.getBoundingClientRect().top,at:Date.now()
+   }));}catch{}
+  });
   document.addEventListener('click',event=>{if(event.target.closest('a'))sessionStorage.setItem(positionKey,String(scrollY));});
   function revealHash(hash){
    let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
@@ -25,14 +49,24 @@
    for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
    requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));
   }
-  if(location.hash){requestAnimationFrame(()=>revealHash(location.hash));}
+  if(metricPosition){
+   const panel=document.getElementById('driving-metrics');
+   if(panel){
+    for(let node=panel;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+    // Wait for this page's charts/layout and the browser's native hash scroll.
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+     metricScrollRoot(panel).scrollTop+=panel.getBoundingClientRect().top-metricPosition.top;
+    }));
+   }
+  }else if(location.hash){requestAnimationFrame(()=>revealHash(location.hash));}
   window.addEventListener('hashchange',()=>revealHash(location.hash));
   document.addEventListener('click',event=>{
    const link=event.target.closest('a[href]');if(!link)return;
+   if(event.defaultPrevented||link.hasAttribute('data-preserve-driving-metrics'))return;
    const url=new URL(link.href,location.href);
    if(url.pathname===location.pathname&&url.search===location.search&&url.hash)revealHash(url.hash);
   });
-  if(!location.hash&&sessionStorage.getItem(positionKey)){requestAnimationFrame(()=>scrollTo(0,Number(sessionStorage.getItem(positionKey))||0));}
+  if(!metricPosition&&!location.hash&&sessionStorage.getItem(positionKey)){requestAnimationFrame(()=>scrollTo(0,Number(sessionStorage.getItem(positionKey))||0));}
   form?.querySelector('[data-office-select]')?.addEventListener('change',event=>{
    const scope=form.querySelector('[name=scope]');if(scope)scope.value=event.target.value==='__company__'?'company':event.target.value==='__self__'?'self':'office';
    form.querySelector('[name=focus]')?.remove();form.querySelector('[name=listing]')?.remove();

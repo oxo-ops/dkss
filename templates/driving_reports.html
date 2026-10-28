@@ -46,5 +46,5 @@
 {% if insights.review_notes %}<details class="card driving-review-notes" id="comparison-review"><summary>データの確認事項 {{ insights.review_notes|length }}件</summary>{% for note in insights.review_notes %}<div class="driving-review-note"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline driving-small-button" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-review'))) }}">日報を確認</a></div>{% endfor %}</details>{% endif %}
 {% if insights.raw_metrics %}<details class="card driving-raw-fold"><summary>日報の取得項目・原本値</summary><div class="driving-raw-values">{% for entry in insights.raw_metrics %}<article><h4>{{ entry.metric.name }}</h4>{{ metric_value(entry) }}</article>{% endfor %}</div></details>{% endif %}
 {% include 'driving_workspace_reports.html' %}
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261027-admin-self-1') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-metric-position-1') }}" defer></script>
 {% endblock %}
