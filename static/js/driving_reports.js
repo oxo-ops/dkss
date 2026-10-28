@@ -108,7 +108,7 @@
     returns=returns.filter(item=>item!==previousView);saveReturns();return;
    }
    const personLink=url.pathname===location.pathname&&url.searchParams.get('focus')&&
-    url.searchParams.get('focus')!==focus&&(link.closest('#driver-comparison')||['#driving-analysis-top','#driver-trend','#reader-setting'].includes(url.hash));
+    url.searchParams.get('focus')!==focus;
    const reportLink=url.pathname.startsWith(location.pathname+'/')&&url.searchParams.has('return_to');
    if(personLink||reportLink){
     const saved=capturePosition(location.href,link.closest('tr[id]')||link.closest('[id]'));
@@ -118,6 +118,7 @@
     return;
    }
    if(url.pathname!==location.pathname)return;
+   if(link.hasAttribute('data-analysis-destination'))return;
    if(link.closest('#office-comparison')&&url.searchParams.get('scope')==='office')return;
    if(link.closest('.driving-analysis-path'))return;
    let target=null;
@@ -182,14 +183,16 @@
   // An ordinary page open with unchanged data never starts a paid job.
   if(reflection?.dataset.status==='new'&&reflection.dataset.autoRefresh==='true')reflectionForm?.requestSubmit();
   window.addEventListener('pagehide',()=>clearTimeout(pollTimer));
-  form?.querySelector('[name=period]')?.addEventListener('change',event=>{if(event.target.value==='custom'){const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;}else{form.requestSubmit();}});
   form?.querySelectorAll('input[name=start],input[name=end]').forEach(input=>input.addEventListener('change',()=>{
    const select=form.querySelector('[name=period]');if(select)select.value='custom';
   }));
   const comparisonSelect=form?.querySelector('[name=compare]');
   function comparisonFields(){
    const custom=comparisonSelect?.value==='custom';
-   form?.querySelectorAll('[data-comparison-date]').forEach(label=>{label.hidden=!custom;label.querySelector('input').required=custom;});
+   form?.querySelectorAll('[data-comparison-date]').forEach(label=>{
+    label.hidden=!custom;
+    const input=label.querySelector('input');input.required=custom;input.disabled=!custom;
+   });
    if(custom&&form?.querySelector('[name=period]')?.value==='all')form.querySelector('[name=period]').value='custom';
    const targetStart=form?.querySelector('[name=start]')?.value;
    const beforeStart=form?.querySelector('[name=compare_start]'),beforeEnd=form?.querySelector('[name=compare_end]');
@@ -203,6 +206,10 @@
   form?.querySelector('[name=period]')?.addEventListener('change',event=>{
    if(event.target.value==='all'&&comparisonSelect?.value==='custom')comparisonSelect.value='previous';
    comparisonFields();
+   // Normalize successful controls before requestSubmit serializes and validates them.
+   if(event.target.value==='custom'){
+    const details=form.querySelector('.driving-extra-filters');if(details)details.open=true;
+   }else form.requestSubmit();
   });
   form?.querySelectorAll('input[type=date]').forEach(input=>input.addEventListener('change',comparisonFields));
   document.querySelectorAll('[data-driving-chart]').forEach(svg=>{

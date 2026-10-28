@@ -8,6 +8,15 @@ def get_company(company_code):
     ).first()
 
 
+def office_reference_is_current(company_code, name):
+    """Protect a nonempty office copied from a related row until history commits."""
+    if not name:
+        return True
+    return _dkss_models.Office.query.filter_by(
+        company_code=company_code, name=name
+    ).with_for_update(read=True).first() is not None
+
+
 
 def ordered_master_query(model, company_code, query=None):
     """Apply saved order before limiting candidates; new IDs follow saved IDs."""

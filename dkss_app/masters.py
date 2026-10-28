@@ -16,10 +16,15 @@ def _master_write_conflicts(view):
         except IntegrityError as error:
             constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
             known_name_conflict = constraint in {
-                "uq_office_company_name", "uq_vehicle_type_company_name"
+                "uq_office_company_name", "uq_vehicle_type_company_name",
+                "uq_delivery_place_company_name", "uq_license_type_company_name",
+                "uq_patrol_content_type_company_name"
             } or str(error.orig) in {
                 "UNIQUE constraint failed: office.company_code, office.name",
                 "UNIQUE constraint failed: vehicle_type.company_code, vehicle_type.name",
+                "UNIQUE constraint failed: delivery_place.company_code, delivery_place.name",
+                "UNIQUE constraint failed: license_type.company_code, license_type.name",
+                "UNIQUE constraint failed: patrol_content_type.company_code, patrol_content_type.name",
             }
             if not known_name_conflict or _dkss_common.request.method != "POST":
                 raise
@@ -60,6 +65,7 @@ def license_type_master():
 
 
 
+@_master_write_conflicts
 def new_license_type():
     if _dkss_common.request.method == "POST":
 
@@ -95,11 +101,9 @@ def new_license_type():
 
 
 
+@_master_write_conflicts
 def edit_license_type(index):
-    license_type = _dkss_models.LicenseType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    license_type = _master_row(_dkss_models.LicenseType, index)
 
     if not license_type:
         return _dkss_common.redirect("/master/license-types")
@@ -127,7 +131,7 @@ def edit_license_type(index):
 
         drivers = _dkss_models.Driver.query.filter_by(
             company_code=license_type.company_code
-        ).all()
+        ).order_by(_dkss_models.Driver.id).populate_existing().with_for_update().all()
 
         for driver in drivers:
             licenses = _dkss_serialization.safe_json_dict_list(
@@ -164,11 +168,9 @@ def edit_license_type(index):
 
 
 
+@_master_write_conflicts
 def delete_license_type(index):
-    license_type = _dkss_models.LicenseType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    license_type = _master_row(_dkss_models.LicenseType, index)
 
     if not license_type:
         return _dkss_common.redirect("/master/license-types")
@@ -954,6 +956,7 @@ def select_delivery_place_import_column():
 
 
 
+@_master_write_conflicts
 def confirm_delivery_place_import():
 
     company_code = _dkss_common.session.get("company_code")
@@ -1049,6 +1052,7 @@ def delivery_place_master():
 
 
 
+@_master_write_conflicts
 def new_delivery_place():
     if _dkss_common.request.method == "POST":
 
@@ -1085,11 +1089,9 @@ def new_delivery_place():
 
 
 
+@_master_write_conflicts
 def edit_delivery_place(index):
-    place = _dkss_models.DeliveryPlace.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    place = _master_row(_dkss_models.DeliveryPlace, index)
 
     if not place:
         return _dkss_common.redirect("/master/delivery-places")
@@ -1143,11 +1145,9 @@ def edit_delivery_place(index):
 
 
 
+@_master_write_conflicts
 def delete_delivery_place(index):
-    place = _dkss_models.DeliveryPlace.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    place = _master_row(_dkss_models.DeliveryPlace, index)
 
     if not place:
         return _dkss_common.redirect("/master/delivery-places")
@@ -1187,6 +1187,7 @@ def patrol_content_type_master():
 
 
 
+@_master_write_conflicts
 def new_patrol_content_type():
     if _dkss_common.request.method == "POST":
 
@@ -1222,11 +1223,9 @@ def new_patrol_content_type():
 
 
 
+@_master_write_conflicts
 def edit_patrol_content_type(index):
-    item = _dkss_models.PatrolContentType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    item = _master_row(_dkss_models.PatrolContentType, index)
 
     if not item:
         return _dkss_common.redirect("/master/patrol-content-types")
@@ -1274,11 +1273,9 @@ def edit_patrol_content_type(index):
 
 
 
+@_master_write_conflicts
 def delete_patrol_content_type(index):
-    item = _dkss_models.PatrolContentType.query.filter_by(
-        id=index,
-        company_code=_dkss_common.session.get("company_code")
-    ).first()
+    item = _master_row(_dkss_models.PatrolContentType, index)
 
     if not item:
         return _dkss_common.redirect("/master/patrol-content-types")
@@ -1610,10 +1607,12 @@ def new_driver():
             ))
         if safe_start_date:
             try:
-                _dkss_common.datetime.strptime(
+                parsed_start = _dkss_common.datetime.strptime(
                     safe_start_date,
                     "%Y-%m-%d"
                 )
+                if parsed_start.date().isoformat() != safe_start_date:
+                    raise ValueError()
             except ValueError:
                 form_errors.append((
                     "無事故開始日が不正です。",
@@ -1670,7 +1669,9 @@ def new_driver():
             item.name
             for item in _dkss_models.LicenseType.query.filter_by(
                 company_code=company_code
-            ).all()
+            ).filter(_dkss_models.LicenseType.name.in_([
+                value.strip() for value in _dkss_common.request.form.getlist("license_type")
+            ])).order_by(_dkss_models.LicenseType.id).with_for_update(read=True).all()
         }
 
         licenses = []
@@ -2045,10 +2046,12 @@ def edit_driver(index):
             ))
         if safe_start_date:
             try:
-                _dkss_common.datetime.strptime(
+                parsed_start = _dkss_common.datetime.strptime(
                     safe_start_date,
                     "%Y-%m-%d"
                 )
+                if parsed_start.date().isoformat() != safe_start_date:
+                    raise ValueError()
             except ValueError:
                 form_errors.append((
                     "無事故開始日が不正です。",
@@ -2108,7 +2111,9 @@ def edit_driver(index):
             item.name
             for item in _dkss_models.LicenseType.query.filter_by(
                 company_code=company_code
-            ).all()
+            ).filter(_dkss_models.LicenseType.name.in_([
+                value.strip() for value in _dkss_common.request.form.getlist("license_type")
+            ])).order_by(_dkss_models.LicenseType.id).with_for_update(read=True).all()
         }
 
         licenses = []

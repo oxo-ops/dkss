@@ -1880,6 +1880,7 @@ def edit_checklist_result(result_index):
 
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
+        operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
 
         result_record = _dkss_models.ChecklistResult.query.filter_by(
             id=result_index,
@@ -2037,7 +2038,7 @@ def edit_checklist_result(result_index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -2050,6 +2051,13 @@ def edit_checklist_result(result_index):
             target_user = ""
             target_username = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         previous_answers = [
             dict(answer)
@@ -2434,7 +2442,7 @@ def edit_checklist_result(result_index):
                         company_code=company_code,
                         created_by_username=_dkss_common.session.get("username"),
                         created_by_name=_dkss_common.session.get("name"),
-                        date=_dkss_common.datetime.now().strftime("%Y-%m-%d"),
+                        date=operation_now.strftime("%Y-%m-%d"),
                         delivery_place="",
                         category="点検指摘",
                         content_type="安全",
@@ -2497,7 +2505,7 @@ def edit_checklist_result(result_index):
                 },
                 ensure_ascii=False
             ),
-            created_at=_dkss_common.datetime.now().strftime(
+            created_at=operation_now.strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
         )
@@ -9349,7 +9357,7 @@ def new_safety_checklist_result(index):
 
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
-
+        operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
         answers = []
         answer_index = 0
 
@@ -9474,7 +9482,7 @@ def new_safety_checklist_result(index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 return _dkss_http.return_form_errors([
@@ -9486,6 +9494,13 @@ def new_safety_checklist_result(index):
 
             target_user = ""
             target_vehicle_record_id = None
+
+        if target_type in {"user", "vehicle"} and not _dkss_master_readers.office_reference_is_current(
+            company_code, target_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
+            ])
 
         pending_answer_files = []
 
@@ -9754,7 +9769,7 @@ def new_safety_checklist_result(index):
                     company_code=_dkss_common.session.get("company_code"),
                     created_by_username=_dkss_common.session.get("username"),
                     created_by_name=_dkss_common.session.get("name"),
-                    date=_dkss_common.datetime.now().strftime("%Y-%m-%d"),
+                    date=operation_now.strftime("%Y-%m-%d"),
                     delivery_place="",
                     category="点検指摘",
                     content_type="安全",
@@ -9786,9 +9801,7 @@ def new_safety_checklist_result(index):
             target_office=target_office,
             checked_by=_dkss_common.session.get("name"),
             checked_by_username=_dkss_common.session.get("username"),
-            checked_date=_dkss_common.datetime.now(
-                _dkss_common.ZoneInfo("Asia/Tokyo")
-            ).strftime("%Y-%m-%d %H:%M"),
+            checked_date=operation_now.strftime("%Y-%m-%d %H:%M"),
             approved_by="",
             approved_by_username="",
             approved_date="",

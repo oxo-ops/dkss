@@ -305,6 +305,9 @@ class VehicleTypeImportMapping(db.Model):
 
 
 class LicenseType(db.Model):
+    __table_args__ = (
+        db.Index("uq_license_type_company_name", "company_code", "name", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -483,6 +486,9 @@ class Office(db.Model):
 
 
 class DeliveryPlace(db.Model):
+    __table_args__ = (
+        db.Index("uq_delivery_place_company_name", "company_code", "name", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -501,6 +507,9 @@ class MasterDisplayOrder(db.Model):
 
 
 class PatrolContentType(db.Model):
+    __table_args__ = (
+        db.Index("uq_patrol_content_type_company_name", "company_code", "name", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)

@@ -862,7 +862,7 @@ def register():
                     name=(last_name or "") + (first_name or ""),
                     role="user",
                     office=office,
-                    safe_start_date=_dkss_common.datetime.now().strftime(
+                    safe_start_date=_dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).strftime(
                         "%Y-%m-%d"
                     ),
                     vehicles_json="[]",
