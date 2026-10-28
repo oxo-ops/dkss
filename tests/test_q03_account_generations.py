@@ -79,6 +79,12 @@ class CombinedIdentityTests(unittest.TestCase):
                 self.assertEqual(self.request('GET', self.url(row, suffix)).status_code, 302)
         with self.subTest(boundary='Q03 attachment'):
             self.assertEqual(self.request('GET', '/files/uploads/combined-private.pdf').status_code, 404)
+        before = identity.Q03PersonIdentityTests.snapshot(self)
+        for suffix in ('/approve/0', '/approve/1', '/reject', '/edit', '/delete'):
+            with self.subTest(boundary='Q03 JSON mutation ' + suffix):
+                self.request('POST', self.url(row, suffix), json={
+                    'approved_by_username': 'last-candidate', 'company_code': 'A', 'reject_reason': 'forged'})
+                self.assertEqual(identity.Q03PersonIdentityTests.snapshot(self), before)
 
     def test_advancing_to_retired_candidate_does_not_notify_replacement(self):
         row = self.future_candidate()
