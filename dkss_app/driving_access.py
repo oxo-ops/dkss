@@ -1,15 +1,35 @@
 """Explicit, company-scoped readership; OCR names never grant access."""
 import hashlib
 import json
+import unicodedata
+from collections import defaultdict
+from types import SimpleNamespace
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from flask import abort, current_app, session
+from flask import abort, current_app, session, request, has_request_context
 from sqlalchemy import inspect, text
 from .extensions import db
-from .models import User, VehicleDrivingReportRecord, DrivingReportReader, DrivingReportReflection
+from .models import User, Driver, VehicleDrivingReportRecord, DrivingReportReader, DrivingReportReflection
 from driving_report_data import payload
 
 READER_ROLES = {'user', 'admin', 'itc'}
+
+
+def _request_read(key, load):
+    if not has_request_context():return load()
+    owner = (session.get('company_code'), session.get('username'), session.get('role'))
+    cache = request.environ.setdefault('dkss.driving.reads', {})
+    cache_key = (owner, key)
+    if cache_key not in cache:cache[cache_key] = load()
+    return cache[cache_key]
+
+
+def company_users():
+    return _request_read('company_users', lambda: User.query.filter_by(company_code=session['company_code']).all())
+
+
+def company_drivers():
+    return _request_read('company_drivers', lambda: Driver.query.filter_by(company_code=session['company_code']).all())
 
 
 def administrator():
@@ -49,10 +69,9 @@ def visible(rows, personal=False):
         return []
     user=User.query.filter_by(company_code=session.get('company_code'),username=session.get('username')).first()
     if not user:return []
-    grants = {r.report_id: r for r in DrivingReportReader.query.filter_by(
-        company_code=session.get('company_code'), user_id=user.id).all()}
+    grants = bindings(rows)
     return [r for r in rows if r.company_code == session.get('company_code') and
-            r.id in grants and grants[r.id].identity_hash == fingerprint(r)]
+            r.id in grants and grants[r.id].user_id == user.id]
 
 
 def require_report(row):
@@ -91,10 +110,63 @@ def assign(rows, username, actor):
 
 def bindings(rows):
     if not ready():return {}
-    ids={r.id:r for r in rows}
-    grants=DrivingReportReader.query.filter(DrivingReportReader.company_code==session['company_code'],DrivingReportReader.report_id.in_(ids)).all() if ids else []
-    users={u.id:u for u in User.query.filter_by(company_code=session['company_code']).all()} if grants else {}
-    return {grant.report_id:grant for grant in grants if grant.user_id in users and users[grant.user_id].role in READER_ROLES and grant.identity_hash==fingerprint(ids[grant.report_id])}
+    company = session['company_code']
+    ids = {r.id:r for r in rows if r.company_code == company}
+    if not ids:return {}
+    users = {u.id:u for u in company_users() if u.role in READER_ROLES}
+    seeds = _request_read('identity_seeds', lambda: db.session.query(DrivingReportReader, VehicleDrivingReportRecord).join(
+        VehicleDrivingReportRecord, DrivingReportReader.report_id == VehicleDrivingReportRecord.id
+    ).filter(DrivingReportReader.company_code == company,
+             VehicleDrivingReportRecord.company_code == company).all())
+    explicit = {grant.report_id:grant for grant,row in seeds if row.id in ids}
+    valid = [(grant,row) for grant,row in seeds if grant.user_id in users and grant.identity_hash == fingerprint(row)]
+    result = {grant.report_id:grant for grant,row in valid if row.id in ids}
+    masters = defaultdict(list)
+    accounts = defaultdict(list)
+    for master in company_drivers():masters[_code(master.employee_id)].append(master)
+    for user in users.values():accounts[_code(user.username)].append(user)
+    confirmed = defaultdict(list)
+    for grant,row in valid:
+        key = _identity_key(row)
+        if key:confirmed[key].append((row.operation_date, grant.user_id))
+    for row in ids.values():
+        # A stale explicit decision or an explicit withdrawal must not be bypassed.
+        if row.id in explicit or _withdrawn(row):continue
+        p = payload(row)
+        code = _code(p.get('driver_code'))
+        name = _name(p.get('driver_name'))
+        key = _identity_key(row)
+        if not key or not row.operation_date:continue
+        candidates = {uid for start,uid in confirmed.get(key, []) if start and start <= row.operation_date}
+        if len(masters[code]) == len(accounts[code]) == 1:
+            master,user = masters[code][0],accounts[code][0]
+            if name and name == _name(master.name) == _name((user.last_name or '') + (user.first_name or '')):
+                candidates.add(user.id)
+        if len(candidates) == 1:
+            user = users[next(iter(candidates))]
+            result[row.id] = SimpleNamespace(report_id=row.id, company_code=company,
+                user_id=user.id, username=user.username, identity_hash=fingerprint(row),
+                confirmed_by='automatic', confirmed_at=None)
+    return result
+
+
+def _code(value):
+    return unicodedata.normalize('NFKC', str(value or '')).strip()
+
+
+def _name(value):
+    return ''.join(_code(value).split())
+
+
+def _identity_key(row):
+    p = payload(row)
+    source,code,name = _code(p.get('source_system')), _code(p.get('driver_code')), _name(p.get('driver_name'))
+    return (source,code,name) if source and code and name else None
+
+
+def _withdrawn(row):
+    events = [e for e in payload(row).get('audit',[]) if e.get('kind') == 'reader']
+    return bool(events and not (events[-1].get('detail') or {}).get('username'))
 
 
 def account_key(grant):

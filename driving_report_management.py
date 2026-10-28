@@ -57,8 +57,8 @@ def register_driving_reports(app, db, g):
         return cache[key]
     def workspace_sources():
         from dkss_app.models import Office, Driver
-        users=g['User'].query.filter_by(company_code=session['company_code']).all()
-        masters=Driver.query.filter_by(company_code=session['company_code']).all()
+        users=readership.company_users()
+        masters=readership.company_drivers()
         registered=Office.query.filter_by(company_code=session['company_code']).all()
         company_rows=Record.query.filter_by(company_code=session['company_code']).all()
         return users,masters,workspace.office_choices(registered,masters,company_rows)
@@ -335,9 +335,10 @@ def register_driving_reports(app, db, g):
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
         row=target(record_id)
+        effective_reader = (readership.bindings([row]).get(row.id) or readership.reader(row)) if readership.administrator() else None
         return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all() if readership.administrator() else [],
-            reader=readership.reader(row) if readership.administrator() else None,
-            reader_current=bool(readership.reader(row) and readership.reader(row).identity_hash==readership.fingerprint(row)) if readership.administrator() else False,
+            reader=effective_reader,
+            reader_current=bool(effective_reader and effective_reader.identity_hash==readership.fingerprint(row)),
             reader_users=g['User'].query.filter(g['User'].company_code==row.company_code,g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
     def change(row,kind,detail):
         p=payload(row);events=p.setdefault('audit',[])
