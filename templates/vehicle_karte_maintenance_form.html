@@ -79,22 +79,25 @@
         <span class="breadcrumb-separator">›</span>
         <a href="{{ back_url }}">整備・修理</a>
         <span class="breadcrumb-separator">›</span>
-        <span>{{ '編集' if editing else '新規登録' }}</span>
+        <span>{{ '読取内容の訂正' if invoice_actual else '編集' if editing else '新規登録' }}</span>
     </nav>
 
     <div class="page-header form-page-header">
-        <h2>整備記録の{{ '編集' if editing else '登録' }}</h2>
+        <h2>{{ '請求書の読取内容を訂正' if invoice_actual else '整備記録の編集' if editing else '整備記録の登録' }}</h2>
         <div class="header-actions">
             <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
-            <button type="submit" form="maintenance_form" name="maintenance_action" value="draft" class="btn btn-outline">
-                {{ '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="{{ 'save' if invoice_actual else 'draft' }}" class="btn btn-outline">
+                {{ '訂正を保存' if invoice_actual else '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
             </button>
+            {% if not invoice_actual %}
             <button type="submit" form="maintenance_form" name="maintenance_action" value="complete" class="btn">
                 整備完了
             </button>
+            {% endif %}
         </div>
     </div>
 
+    {% if invoice_actual %}<p class="help-text">請求書原本は変更せず、読取データのみ訂正します。</p>{% endif %}
     {% if form_errors %}
     <section class="error-summary" role="alert" aria-labelledby="maintenance_errors">
         <h2 id="maintenance_errors">入力内容を確認してください</h2>
@@ -205,12 +208,14 @@
         </section>
 
         <div class="form-actions">
-            <button type="submit" form="maintenance_form" name="maintenance_action" value="draft" class="btn btn-outline">
-                {{ '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
+            <button type="submit" form="maintenance_form" name="maintenance_action" value="{{ 'save' if invoice_actual else 'draft' }}" class="btn btn-outline">
+                {{ '訂正を保存' if invoice_actual else '変更を保存' if editing and form_values.get('status') == '完了' else '途中保存' }}
             </button>
+            {% if not invoice_actual %}
             <button type="submit" form="maintenance_form" name="maintenance_action" value="complete" class="btn">
                 整備完了
             </button>
+            {% endif %}
             <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
         </div>
     </form>

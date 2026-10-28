@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from flask import current_app, has_app_context, abort, jsonify, render_template, request, session, has_request_context
 from sqlalchemy import event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 KINDS = {'3month': '3か月点検', '12month': '12か月点検', 'ad_hoc': '突発修理'}
@@ -43,7 +43,7 @@ def add_months(value, count):
     return date(year, mon + 1, min(value.day, calendar.monthrange(year, mon + 1)[1]))
 
 
-def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft, *, Maintenance=None):
+def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, Draft, *, Maintenance=None, Document=None):
     from dkss_app.vehicle_inspection_plans_models import get_models
     VehicleInspectionPlan, VehicleInspectionPlanEvent, VehicleInspectionExecution, VehicleInspectionExecutionEvidence, = get_models(db)
 
@@ -118,6 +118,84 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 'mileage': str(r.mileage) if r.mileage is not None else None,
                 'document_status': ('登録済み' if evidence and evidence.document_id else '未受領') if manual else '登録済み',
                 'record_url': (f'/vehicle/inspection-plans/executions/{-r.id}/source' if evidence and evidence.document_id else None) if manual else f'/vehicle/periodic-inspections/{r.id}/source'}
+
+    def invoice_actuals(code, ids, year):
+        """Read existing invoice-backed facts; never create or complete a plan."""
+        if Maintenance is None or not ids:
+            return []
+        attachments = Document.query.filter(
+            Document.company_code == code, Document.vehicle_record_id.in_(ids),
+            Document.maintenance_record_id.isnot(None), Document.financial_status == 'confirmed',
+        ).options(load_only(
+            Document.id, Document.maintenance_record_id, Document.vehicle_record_id, Document.source_draft_id,
+        )).order_by(Document.id).all() if Document is not None else []
+        by_record = {}
+        for document in attachments:
+            by_record.setdefault(document.maintenance_record_id, []).append(document)
+        records = Maintenance.query.filter(
+            Maintenance.company_code == code, Maintenance.vehicle_record_id.in_(ids),
+            (Maintenance.invoice_details_json.isnot(None) | Maintenance.id.in_(list(by_record))),
+        ).options(load_only(
+            Maintenance.id, Maintenance.vehicle_record_id, Maintenance.invoice_details_json,
+            Maintenance.status, Maintenance.completion_date, Maintenance.content, Maintenance.repair_content,
+        )).order_by(Maintenance.id).all()
+        sources = {}
+        for record in records:
+            if record.is_invoice_actual:
+                info = json.loads(record.invoice_details_json)
+                sources[record.id] = (record, info['source']['draft_id'])
+            elif record.status in (None, '', '完了', 'completed') and by_record.get(record.id):
+                source = next((doc for doc in by_record[record.id]
+                               if doc.vehicle_record_id == record.vehicle_record_id), None)
+                if source is not None:
+                    sources[record.id] = (record, source.source_draft_id)
+        source_refs = {
+            record.id: list(dict.fromkeys([draft_id] + [
+                doc.source_draft_id for doc in by_record.get(record.id, [])
+                if doc.vehicle_record_id == record.vehicle_record_id
+            ]))
+            for record, draft_id in sources.values()
+        }
+        drafts = {d.id: d for d in Draft.query.filter(
+            Draft.company_code == code, Draft.status == 'completed', Draft.document_type == 'maintenance',
+            Draft.id.in_([key for refs in source_refs.values() for key in refs]),
+        ).options(load_only(Draft.id, Draft.result_json, Draft.source_filename)).all()} if sources else {}
+        result = []
+        for record, _ in sources.values():
+            originals = []
+            for draft_id in source_refs[record.id]:
+                draft = drafts.get(draft_id)
+                if draft is None:
+                    continue
+                try:
+                    registered = json.loads(draft.result_json or '{}').get('records', [])
+                except (TypeError, ValueError, AttributeError):
+                    continue
+                if not isinstance(registered, list) or not any(
+                    isinstance(row, dict) and str(row.get('vehicle_record_id')) == str(record.vehicle_record_id)
+                    for row in registered
+                ):
+                    continue
+                originals.append({
+                    'url': f'/vehicle/karte/{record.vehicle_record_id}/documents/{draft.id}/source',
+                    'filename': draft.source_filename,
+                })
+            if not originals:
+                continue
+            # Completion day is the source of the timeline; do not substitute invoice/entry days.
+            performed = iso_date(record.completion_date)
+            if performed and not f'{year}-04-01' <= performed.isoformat() <= f'{year+1}-03-31':
+                continue
+            content = ' '.join((record.repair_content or record.content or '整備').split())
+            if len(content) > 70:
+                content = content[:69] + '…'
+            day = performed.isoformat() if performed else None
+            result.append({
+                'maintenance_record_id': record.id, 'vehicle_record_id': record.vehicle_record_id,
+                'performed_date': day, 'summary': (day.replace('-', '/') if day else '実施日不明') + ' ' + content + ' 実施',
+                'source_url': originals[0]['url'], 'sources': originals,
+            })
+        return result
 
     def repair_actuals(code, ids):
         """Project confirmed repair facts from their source, without copying records."""
@@ -438,6 +516,18 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             abort(400, '年度を確認してください。')
         rows, missing = candidate_rows(code, vehicles, year)
         by_id = {v.id: v for v in vehicles}
+        invoice_rows = invoice_actuals(code, list(by_id), year)
+        invoice_by_id = {r['maintenance_record_id']: r for r in invoice_rows}
+        existing_repair_ids = set()
+        for row in rows:
+            invoice = invoice_by_id.get(row.get('maintenance_record_id'))
+            if invoice:
+                row['invoice_summary'] = invoice['summary']
+                row['invoice_sources'] = invoice['sources']
+                row['record_url'] = invoice['source_url']
+                row['record_link_label'] = '請求書原本を開く ↗'
+                existing_repair_ids.add(invoice['maintenance_record_id'])
+        invoice_rows = [r for r in invoice_rows if r['maintenance_record_id'] not in existing_repair_ids]
         for row in rows:
             row['display_state'] = display_state(row)
             v = by_id[row['vehicle_record_id']]
@@ -447,7 +537,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 'needs_office': scope == 'office' and not office,
                 'focus_vehicle_id': vehicle.id if vehicle else None,
                 'vehicles': [{'id': v.id, 'number': number(v), 'chassis_number': v.chassis_number or '', 'office': v.office or '営業所未設定', 'expiry_date': v.inspection_expiry} for v in vehicles],
-                'plans': rows, 'missing': missing, 'can_edit': session.get('role') in {'admin', 'itc'}}
+                'plans': rows, 'invoice_actuals': invoice_rows, 'missing': missing, 'can_edit': session.get('role') in {'admin', 'itc'}}
 
     def require_editor():
         if session.get('role') not in {'admin', 'itc'}:

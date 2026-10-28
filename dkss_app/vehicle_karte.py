@@ -2387,7 +2387,15 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
             )
             if intent not in {"save", "draft", "complete"}:
                 raise ValueError("保存操作を確認してください。")
-            if intent == "complete":
+            if record is not None and record.is_invoice_actual:
+                if intent != "save":
+                    raise ValueError("請求書の実績は読取内容の訂正として保存してください。")
+                values["status"] = record.status
+                if set(selected_inspection_tokens) != {
+                    c["token"] for c in inspection_choices if c["linked"]
+                }:
+                    raise ValueError("請求書の訂正では点検の関連を変更できません。")
+            elif intent == "complete":
                 if not values.get("completion_date"):
                     raise ValueError("整備完了日を入力してください。")
                 values["status"] = "完了"
@@ -2542,7 +2550,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 record.updated_at = now
                 _dkss_common.db.session.flush()
                 saved_id = record.id
-                if selected_inspections or intent == "complete":
+                if not record.is_invoice_actual and (selected_inspections or intent == "complete"):
                     current_user = _dkss_models.User.query.filter_by(
                         company_code=vehicle.company_code,
                         username=_dkss_common.session.get("username"),
@@ -2559,7 +2567,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                             "after": [c["key"] for c in selected_inspections],
                         })
 
-                if periodic_issues:
+                if periodic_issues and not record.is_invoice_actual:
                     periodic_user = _dkss_models.User.query.filter_by(company_code=vehicle.company_code, username=_dkss_common.session.get("username")).first()
                     if periodic_user is None:
                         raise ValueError("操作ユーザーを確認できません。")
@@ -2635,6 +2643,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         vehicle=vehicle,
         vehicle_number=number,
         maintenance_record=record if record_id is not None else None,
+        invoice_actual=bool(record is not None and record.is_invoice_actual),
         form_values=form_values,
         form_errors=errors,
         record_version=record_version,
@@ -2713,16 +2722,20 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
             _dkss_models.VehicleMaintenanceRecord.category
         ).all()
     ]
-    maintenance_statuses = [
-        row[0] for row in query.with_entities(
-            _dkss_models.VehicleMaintenanceRecord.status
-        ).filter(
-            _dkss_models.VehicleMaintenanceRecord.status.isnot(None),
-            _dkss_models.VehicleMaintenanceRecord.status != "",
-        ).distinct().order_by(
-            _dkss_models.VehicleMaintenanceRecord.status
-        ).all()
-    ]
+    invoice_actual_ids = []
+    maintenance_statuses = set()
+    for actual_id, raw_status, invoice_json in query.with_entities(
+        _dkss_models.VehicleMaintenanceRecord.id,
+        _dkss_models.VehicleMaintenanceRecord.status,
+        _dkss_models.VehicleMaintenanceRecord.invoice_details_json,
+    ):
+        fact = _dkss_models.VehicleMaintenanceRecord(invoice_details_json=invoice_json)
+        if fact.is_invoice_actual:
+            invoice_actual_ids.append(actual_id)
+            maintenance_statuses.add("実施済み")
+        elif raw_status:
+            maintenance_statuses.add(raw_status)
+    maintenance_statuses = sorted(maintenance_statuses)
 
     try:
         for date_value in (start_date, end_date):
@@ -2753,8 +2766,12 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
         )
     if selected_category:
         query = query.filter_by(category=selected_category)
-    if selected_status:
-        query = query.filter_by(status=selected_status)
+    if selected_status == "実施済み":
+        query = query.filter(_dkss_models.VehicleMaintenanceRecord.id.in_(invoice_actual_ids))
+    elif selected_status:
+        query = query.filter_by(status=selected_status).filter(
+            ~_dkss_models.VehicleMaintenanceRecord.id.in_(invoice_actual_ids)
+        )
     if start_date:
         query = query.filter(maintenance_date >= start_date)
     if end_date:

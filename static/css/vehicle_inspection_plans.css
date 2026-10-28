@@ -110,3 +110,15 @@ body:has([data-inspection-planner]) .main-content{min-width:0;max-width:100%}bod
 
 .ip-new [hidden],.inspection-plan-panel [hidden]{display:none!important}
 .ip-new [data-new-target-count]{font-size:13px;color:#516c88;margin:8px 0}
+
+/* Read-only completed invoice facts share the existing plan grid. */
+.ip-invoice-summary {
+    display: block;
+    padding: 4px 0;
+    font-size: 12px;
+    line-height: 1.5;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
