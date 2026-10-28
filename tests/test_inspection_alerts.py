@@ -21,6 +21,11 @@ class InspectionAlertTests(unittest.TestCase):
 
     def setUp(self):
         _base_setup(self)
+        # HTTP polling and explicit run_alerts must use the same scenario day;
+        # the wall clock can otherwise trigger a legitimate weekly reminder.
+        clock = patch('vehicle_inspection_alerts.local_today', return_value=date(2026, 10, 22))
+        clock.start()
+        self.addCleanup(clock.stop)
         self.vehicle.office='犬塚'
         self.m.User.query.filter_by(username='admin').one().office='犬塚'
         self.m.db.session.commit()
@@ -161,11 +166,14 @@ class InspectionAlertTests(unittest.TestCase):
 
     def test_notification_ui_and_action_filter_use_inspection_workflow(self):
         self.save([self.change(mon='2026-11')]);self.run_alerts()
-        page=self.client.get('/notifications?view=action');self.assertEqual(page.status_code,200)
-        self.assertIn('点検予定の確認',page.get_data(as_text=True))
-        n=self.m.Notification.query.one()
-        self.assertEqual(self.m.get_notification_workflow_state(n)['workflow_status'],'pending')
-        self.assertEqual(self.m.get_notification_display_info(n)['notification_type'],'inspection_plan')
+        # HTTP refresh and workflow lookup must use the same day as run_alerts.
+        # A real date >= 7 days later correctly creates another reminder.
+        with patch('vehicle_inspection_alerts.local_today',return_value=date(2026,10,22)):
+            page=self.client.get('/notifications?view=action');self.assertEqual(page.status_code,200)
+            self.assertIn('点検予定の確認',page.get_data(as_text=True))
+            n=self.m.Notification.query.one()
+            self.assertEqual(self.m.get_notification_workflow_state(n)['workflow_status'],'pending')
+            self.assertEqual(self.m.get_notification_display_info(n)['notification_type'],'inspection_plan')
 
     def test_poll_creates_notifications_and_user_cannot_read_admin_policy_status(self):
         self.save([self.change(mon='2026-11')]);self.assertEqual(self.m.Notification.query.count(),0)
