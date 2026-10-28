@@ -39,6 +39,7 @@ body:has([data-inspection-planner]) .main-content{min-width:0;max-width:100%}bod
 /* A fixed month grid: busy days reveal their full contents in a detail panel. */
 .inspection-plans .ip-cal-legend{margin:5px 0 7px!important;font-size:11px}.inspection-plans .ip-cal-pending{display:flex;gap:10px;align-items:center;margin:0 0 8px!important;padding:6px 9px!important;min-height:32px;box-sizing:border-box;max-width:100%;overflow:hidden}.inspection-plans .ip-cal-pending h3{font-size:12px!important;white-space:nowrap;margin:0!important;flex-shrink:0}.inspection-plans .ip-cal-pending-items{display:flex;gap:5px;min-width:0;overflow-x:auto;overflow-y:hidden;max-height:32px}.inspection-plans button.ip-cal-pending-item{display:flex;align-items:center;gap:6px;min-width:0;flex-shrink:0;padding:4px 7px!important;white-space:nowrap!important;font-size:10px!important;line-height:16px!important;min-height:25px!important;height:25px!important}.inspection-plans .ip-cal-pending-item strong{font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis}.inspection-plans .ip-cal-pending-item small{display:none}.inspection-plans .ip-cal-pending p{font-size:11px;white-space:nowrap}.inspection-plans .ip-cal-grid{grid-template-rows:24px repeat(var(--ip-weeks,5),minmax(0,1fr));box-sizing:border-box;align-items:stretch}.inspection-plans .ip-cal-weekday{box-sizing:border-box;height:24px;padding:3px!important;font-size:11px;line-height:17px}.inspection-plans .ip-cal-day{box-sizing:border-box;min-height:0!important;max-height:none!important;height:auto;overflow:hidden!important;padding:3px 4px!important;display:flex;flex-direction:column;gap:1px}.inspection-plans .ip-cal-day-head{height:20px;min-height:20px;line-height:20px;margin:0!important}.inspection-plans button.ip-cal-date{min-height:20px!important;height:20px!important;min-width:20px!important;line-height:18px!important;padding:0!important;font-size:11px!important}.inspection-plans .ip-cal-items{min-height:0;overflow:hidden}.inspection-plans :is(button,a).ip-cal-event-compact{box-sizing:border-box;display:flex!important;align-items:center;gap:4px;height:18px!important;min-height:18px!important;line-height:16px!important;padding:0 3px!important;margin:0 0 2px!important;overflow:hidden;white-space:nowrap!important;border-left-width:2px!important;font-size:10px!important}.inspection-plans :is(button,a).ip-cal-event-compact>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inspection-plans .ip-cal-event-compact .ip-cal-event-type{font-size:9px;flex-shrink:0}.inspection-plans .ip-cal-empty{margin:4px 0;font-size:11px}
 }
+
 .inspection-plans button.ip-cal-more{display:block;background:transparent!important;border:0!important;box-shadow:none!important;color:#486e8b!important;font-size:11px!important;padding:0 3px!important;margin:0!important;min-height:18px!important;height:18px!important;line-height:18px!important;width:auto!important;cursor:pointer}.ip-events-detail{width:min(560px,94vw)}.ip-events-detail [data-events-list]{display:grid;gap:7px;max-height:65dvh;overflow:auto;padding-top:12px}.ip-events-detail :is(button,a).ip-cal-event{display:grid;text-align:left;border:1px solid #dbe5ef;background:#f5f9fd;border-left:3px solid #88accd;border-radius:4px;padding:10px;gap:4px;color:#345975;cursor:pointer;box-shadow:none}.ip-events-detail :is(button,a).ip-cal-event[data-event=expiry]{background:#fff8ef;border-left-color:#c99b61}.ip-events-detail :is(button,a).ip-cal-event[data-event=actual]{background:#f0f8f3;border-left-color:#8ab599}
 @media(max-width:700px){body:has([data-inspection-planner]) .main-content>.inspection-plans{padding:12px!important}.inspection-plans .ip-filters input[type=search]{width:100%}.inspection-plans .ip-filters input[type=month]{width:155px;min-width:155px}.inspection-plans .ip-year-items{display:flex;flex-direction:column;gap:4px}.inspection-plans .ip-year-table .ip-chip{font-size:12px!important;min-height:28px!important;line-height:24px!important}.inspection-plans .ip-year-more{min-height:28px}.inspection-plans .ip-cal-grid{height:auto!important}.inspection-plans .ip-cal-pending h3{font-size:13px}.inspection-plans .ip-cal-legend{margin:6px 0 10px}}
 @media(min-width:701px){.inspection-plans :is(button,a).ip-cal-event-compact{height:16px!important;min-height:16px!important;line-height:14px!important}.inspection-plans .ip-cal-items button.ip-cal-more{height:16px!important;min-height:16px!important;line-height:16px!important}}
@@ -171,4 +172,27 @@ body:has([data-inspection-planner]) .main-content{min-width:0;max-width:100%}bod
     padding: 10px;
     border-left: 3px solid #8ab599;
     white-space: normal;
+}
+
+@media (max-width: 700px) {
+    /* Keep the status-filter row in place while its counts are loading. */
+    .inspection-plans .ip-filter-options .ip-states {
+        flex-basis: 100%;
+        min-block-size: 64px;
+    }
+    /* A colspan empty row is not the narrow, floated selection checkbox. */
+    .inspection-plans .ip-grid td.ip-empty {
+        float: none;
+        width: auto;
+        max-width: none;
+    }
+    .inspection-plans .ip-grid-scroll {
+        min-block-size: 82px;
+    }
+}
+
+@media (max-width: 380px) {
+    .inspection-plans .ip-filter-options .ip-states {
+        min-block-size: 98px;
+    }
 }

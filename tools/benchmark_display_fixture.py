@@ -2,7 +2,8 @@
 import argparse
 from collections import Counter
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timedelta
+from threading import Lock
 import hashlib
 import json
 import os
@@ -65,12 +66,16 @@ app.jinja_env.cache.clear()
 app.static_folder = str(static)
 app.config["UPLOAD_FOLDER"] = str(static / "uploads")
 app.config["Q12_FIXTURE"] = True
+# Synthetic loopback measurements can exceed the application's 30-minute
+# session lifetime. This is a fixture-only setting, never an application default.
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=4)
 cookie = app.session_interface.get_signing_serializer(app).dumps(dict(company_code="TEST", username="admin", role="admin",
     account_identity=user.account_identity, password_changed_at=user.password_changed_at, name="架空 検証", profile_image=user.profile_image))
 fixture = dict(port=args.port, pid=os.getpid(), cookie=cookie, db="temporary SQLite", vehicles=200,
                avatar=dict(size=image_path.stat().st_size, dimensions=[2400,1600], sha256=hashlib.sha256(image_path.read_bytes()).hexdigest()))
 (work / "fixture.json").write_text(json.dumps(fixture, ensure_ascii=False, indent=2), encoding="utf-8")
 current = ContextVar("q12_request", default=None)
+log_lock = Lock()
 
 def before_sql(conn,cursor,statement,parameters,context,executemany):
     meter = current.get()
@@ -101,8 +106,9 @@ def measured(environ, start_response):
         headers.append(("Server-Timing", f'app;dur={elapsed:.3f}, sql;dur={meter["sql_ms"]:.3f}, queries;desc="{meter["sql"]}", duplicates;desc="{duplicate}"'))
         record = dict(path=environ.get("PATH_INFO"), status=status, prepare_ms=elapsed, sql_count=meter["sql"],
                       duplicate_sql=duplicate, sql_ms=meter["sql_ms"], sql_groups=dict(meter["groups"]))
-        with (work / "requests.jsonl").open("a",encoding="utf-8") as stream:
-            stream.write(json.dumps(record,ensure_ascii=False)+"\n")
+        with log_lock:
+            with (work / "requests.jsonl").open("a",encoding="utf-8") as stream:
+                stream.write(json.dumps(record,ensure_ascii=False)+"\n")
         return start_response(status,headers,exc_info)
     try:
         result = wrapped(environ, start)

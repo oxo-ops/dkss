@@ -1,5 +1,6 @@
 """Masters responsibilities; routes are registered by the application factory."""
 from functools import wraps
+from .driver_safe_start import scheduled_safe_start_label
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
@@ -1433,6 +1434,7 @@ def driver_master():
         }
 
         safe_start_date = driver.safe_start_date
+        safe_start_label = None
 
         if safe_start_date:
             try:
@@ -1440,6 +1442,7 @@ def driver_master():
                     safe_start_date,
                     "%Y-%m-%d"
                 ).date()
+                safe_start_label = scheduled_safe_start_label(start_date, today)
                 days = (
                     today - start_date
                 ).days
@@ -1452,9 +1455,9 @@ def driver_master():
         remaining_days = days % 365
 
         driver_item["safe_days_display"] = (
-            f"{years}年{remaining_days}日継続中"
+            safe_start_label or (f"{years}年{remaining_days}日継続中"
             if years > 0
-            else f"{days}日継続中"
+            else f"{days}日継続中")
         )
 
         filtered_drivers.append(driver_item)
