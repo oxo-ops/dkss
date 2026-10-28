@@ -1607,10 +1607,12 @@ def new_driver():
             ))
         if safe_start_date:
             try:
-                _dkss_common.datetime.strptime(
+                parsed_start = _dkss_common.datetime.strptime(
                     safe_start_date,
                     "%Y-%m-%d"
                 )
+                if parsed_start.date().isoformat() != safe_start_date:
+                    raise ValueError()
             except ValueError:
                 form_errors.append((
                     "無事故開始日が不正です。",
@@ -2044,10 +2046,12 @@ def edit_driver(index):
             ))
         if safe_start_date:
             try:
-                _dkss_common.datetime.strptime(
+                parsed_start = _dkss_common.datetime.strptime(
                     safe_start_date,
                     "%Y-%m-%d"
                 )
+                if parsed_start.date().isoformat() != safe_start_date:
+                    raise ValueError()
             except ValueError:
                 form_errors.append((
                     "無事故開始日が不正です。",
