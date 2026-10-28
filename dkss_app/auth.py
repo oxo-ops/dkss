@@ -981,6 +981,8 @@ def settings():
                         old_profile_image
                         and old_profile_image != saved_filename
                     ):
+                        from .profile_images import forget
+                        forget(current_user.company_code, old_profile_image)
                         if _dkss_runtime.app.extensions["dkss"]['s3_client'] and _dkss_runtime.app.config['S3_BUCKET_NAME']:
                             try:
                                 _dkss_runtime.app.extensions["dkss"]['s3_client'].delete_object(
