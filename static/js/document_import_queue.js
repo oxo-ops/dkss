@@ -221,6 +221,72 @@
             }
         }, true);
     });
+    // Resume accepted documents in their original category card, not the legacy job page.
+    document.querySelectorAll(".import-receipt-read[data-receipt-kind]").forEach(link => {
+        link.addEventListener("click", async event => {
+            const kind = link.dataset.receiptKind;
+            const card = document.getElementById("import-" + kind);
+            if (!card || !link.dataset.receiptStatusUrl || typeof window.fetch !== "function") return;
+            event.preventDefault();
+            if (link.dataset.loading === "1") return;
+            const form = card.querySelector(".import-form");
+            const status = card.querySelector(".import-file-status");
+            const read = form && form.querySelector(".import-read");
+            const url = new URL(link.dataset.receiptStatusUrl, location.href);
+            if (url.origin !== location.origin) return;
+            link.dataset.loading = "1";
+            link.setAttribute("aria-disabled", "true");
+            card.scrollIntoView({block:"center", behavior:"smooth"});
+            if (form) form.classList.add("ocr-queue-busy");
+            if (read) read.disabled = true;
+            let errors = 0;
+            const finish = () => {
+                delete link.dataset.loading;
+                link.removeAttribute("aria-disabled");
+                if (form) form.classList.remove("ocr-queue-busy");
+                if (read) read.disabled = false;
+            };
+            async function check() {
+                try {
+                    const response = await window.fetch(url.href, {headers:{Accept:"application/json"},cache:"no-store"});
+                    if (!response.ok) throw new Error("status");
+                    const job = await response.json();
+                    errors = 0;
+                    const files = Array.isArray(job.files) ? job.files : [];
+                    status.textContent = (job.completed || 0) + " / " + (job.total || files.length) + " 資料処理済み";
+                    if (!job.finished) {
+                        status.textContent += "（読み取り中）";
+                    } else {
+                        finish();
+                        status.textContent = job.failed || job.needs_review ? "資料の確認が必要です。" : "読み取りが完了しています。";
+                        const destination = job.preview_ready && job.preview_url && !job.failed && !job.needs_review
+                            ? job.preview_url : link.href;
+                        const next = new URL(destination, location.href);
+                        if (next.origin !== location.origin) return;
+                        const action = document.createElement("a");
+                        action.href = next.href;
+                        action.className = "btn btn-outline";
+                        action.textContent = "読み取り結果を確認する";
+                        status.append(" ", action);
+                        return;
+                    }
+                } catch (_) {
+                    errors++;
+                    status.textContent = "受付状況を再確認しています。";
+                    if (errors >= 3) {
+                        finish();
+                        const fallback = document.createElement("a");
+                        fallback.href = link.href;
+                        fallback.textContent = "受付状況を開く";
+                        status.append(" ", fallback);
+                        return;
+                    }
+                }
+                window.setTimeout(check, errors ? 10000 : 2000);
+            }
+            check();
+        });
+    });
     document.querySelectorAll(".import-receipt-delete-form").forEach(form => {
         form.addEventListener("submit", event => {
             if (form.dataset.deleting === "1") { event.preventDefault(); return; }
