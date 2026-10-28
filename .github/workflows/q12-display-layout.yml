@@ -22,7 +22,6 @@ jobs:
       S3_BUCKET_NAME: ''
       VAPID_PRIVATE_KEY: ''
       VAPID_PUBLIC_KEY: ''
-      NODE_PATH: ${{ runner.temp }}/q12-node/node_modules
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -32,6 +31,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - run: echo "NODE_PATH=$RUNNER_TEMP/q12-node/node_modules" >> "$GITHUB_ENV"
       - run: python -m pip install -r requirements.txt
       - run: npm install --no-save --prefix "$RUNNER_TEMP/q12-node" playwright@1.62.1
       - run: node "$RUNNER_TEMP/q12-node/node_modules/playwright/cli.js" install --with-deps chromium

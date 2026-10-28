@@ -32,3 +32,5 @@ python tools/benchmark_display_fixture.py --port 51320 --work-dir <一時フォ�
 別端末で node tests/q12_planner_stability_browser.cjs <フォルダ>/fixture.json <結果.json>。
 開発用Playwrightとブラウザが必要。Q12_BROWSER_EXECUTABLEで手元のChromeを指定できる。
 専用CIは使い捨てSQLite/合成画像で実行し、Cookie/DBを成果物へ保存しない。
+長時間計測のfixtureだけセッション有効時間を4時間とし、ログイン状態を必須チェックする。
+本番の30分設定は変更しない。並列リクエストの計測JSONLも排他書込みにする。
