@@ -238,6 +238,21 @@ def failure_message(error):
     return mapping.get(code, '読み取りに失敗しました。原本を確認して再実行してください。')
 
 
+def owner_available(row):
+    """Read current authority at each external-processing result boundary."""
+    # Select columns so a cached User/Company ORM instance cannot authorize
+    # results after another request has revoked the owner's access.
+    return db.session.query(User.id).join(
+        Company, Company.company_code == User.company_code,
+    ).filter(
+        User.company_code == row.company_code,
+        User.username == row.created_by_username,
+        User.login_locked.is_(False),
+        User.role.in_({'admin', 'itc'}),
+        Company.active.is_(True),
+    ).first() is not None
+
+
 def finish(draft_id, token, extraction=None, error=None):
     from .vehicle_imports import build_vehicle_document_preview
     row = Draft.query.filter_by(id=draft_id, status='reading').with_for_update().first()
@@ -245,6 +260,8 @@ def finish(draft_id, token, extraction=None, error=None):
         db.session.rollback()
         return False
     job = metadata(row.result_json)
+    if not owner_available(row):
+        error = ValueError('OWNER_UNAVAILABLE')
     if error is None:
         try:
             row.status = 'preview'
@@ -278,6 +295,9 @@ def route_detection(draft_id, token, detection):
     row = Draft.query.filter_by(id=draft_id, status='reading').with_for_update().first()
     if not row or metadata(row.result_json).get('token') != token:
         db.session.rollback()
+        return None
+    if not owner_available(row):
+        finish(draft_id, token, error=ValueError('OWNER_UNAVAILABLE'))
         return None
     job = metadata(row.result_json)
     job['detection'] = detection
@@ -334,10 +354,7 @@ def process_one(app):
         if not row or metadata(row.result_json).get('token') != token:
             db.session.remove()
             return True
-        company = Company.query.filter_by(company_code=row.company_code, active=True).first()
-        user = User.query.filter_by(company_code=row.company_code, username=row.created_by_username).first()
-        allowed = (company is not None and user is not None
-                   and not user.login_locked and user.role in {'admin', 'itc'})
+        allowed = owner_available(row)
         source, filename, kind, digest = row.source_file, row.source_filename, row.document_type, row.source_sha256
         forced = metadata(row.result_json).get('forced_type', False)
         db.session.remove()
