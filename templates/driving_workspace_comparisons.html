@@ -1,5 +1,4 @@
-<details class="card driving-comparison-detail" id="comparison-detail" {% if filters.get('breakdown') %}open{% endif %}>
-<summary>条件をそろえて比較する</summary>
+<section class="card driving-comparison-detail" id="comparison-detail"><div class="driving-section-heading"><h3>条件をそろえて比較する</h3></div>
 <nav class="driving-comparison-tabs" aria-label="比較の切り替え">
 {% if driving_is_admin %}
 {% for mode,label in [('offices','営業所ごと'),('people','乗務員の変化'),('vehicle','同じ車両で比較'),('vehicles','同じ乗務員で比較')] %}
@@ -33,4 +32,4 @@
 </details></td></tr>{% endfor %}</tbody></table></div>
 <p class="driving-muted">同じ定義の指標を比較しています。車両・道路・積載や記録量の違いも確認してください。原本値は差を計算せず、取得できない値は0にしません。</p>
 <a href="{{ url_for('driving_report_export',format='csv',**dict(filter_query,view='breakdown',breakdown=insights.comparison.mode)) }}">この比較をCSVで出力</a>
-{% endif %}</details>
+{% endif %}</section>

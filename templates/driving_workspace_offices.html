@@ -1,0 +1,12 @@
+<section class="card driving-office-directory" id="office-comparison" aria-labelledby="office-directory-title">
+<div class="driving-section-heading"><h3 id="office-directory-title">営業所別の分析</h3><a class="btn btn-outline" href="{{ url_for('driving_reports',**dict(filter_query,listing='people',panel='analysis',page=1)) }}">全ドライバーを見る →</a></div>
+<div class="driving-table-wrap"><table class="driving-mobile-cards driving-workspace-table driving-directory-table"><thead><tr><th>営業所</th><th>主な運転傾向</th><th>運行実績</th><th>指導・振り返り</th><th>分析を開く</th></tr></thead><tbody>
+{% for office in insights.office_summaries %}
+{% set analysis_url=url_for('driving_reports',**dict(filter_query,scope='office',office=office.key,listing='people',focus='',driver='',state='',panel='analysis',page=1)) %}
+<tr id="driving-office-{{ office.key }}"><td data-label="営業所"><a class="driving-person-link" href="{{ analysis_url }}">{{ office.name }}</a></td>
+<td data-label="主な運転傾向">{% for entry in office.highlights %}<div>{{ entry.metric.name }} {{ metric_value(entry) }}</div>{% else %}<span class="driving-muted">この期間の記録なし</span>{% endfor %}</td>
+<td data-label="運行実績">{% if office.summary.count %}<strong>{{ office.summary.count }}運行</strong><small>{{ office.summary.distance_display }}</small>{% if office.driver_count %}<small>{{ office.driver_count }}人の実績</small>{% endif %}{% else %}記録なし{% endif %}{% if office.unidentified_count %}<small>乗務員未特定 {{ office.unidentified_count }}運行</small>{% endif %}</td>
+<td data-label="指導・振り返り">{% if office.pending %}対応中 {{ office.pending }}件{% else %}<span class="driving-muted">対応中の記録なし</span>{% endif %}</td>
+<td data-label="分析を開く"><a class="btn driving-open-analysis" href="{{ analysis_url }}" aria-label="{{ office.name }}の分析を見る">分析を見る →</a></td></tr>
+{% endfor %}</tbody></table></div>
+</section>

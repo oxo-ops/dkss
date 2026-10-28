@@ -72,9 +72,19 @@
     position=returns.splice(index,1)[0];saveReturns();
    }
   }
+  function revealPanel(target){
+   const panel=target?.closest('[data-workspace-panel]');
+   if(!panel)return;
+   workspace?.querySelectorAll('[data-workspace-panel]').forEach(item=>{item.hidden=item!==panel;});
+   workspace?.querySelectorAll('[data-panel-link]').forEach(link=>{
+    if(link.dataset.panelLink===panel.dataset.workspacePanel)link.setAttribute('aria-current','page');
+    else link.removeAttribute('aria-current');
+   });
+  }
   function revealHash(hash){
    let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
    if(!target)return;
+   revealPanel(target);
    for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
    requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));
   }
@@ -83,6 +93,7 @@
     const item=document.getElementById(id);if(item?.tagName==='DETAILS'&&typeof open==='boolean')item.open=open;
    }
    const target=document.getElementById(position.id);
+   revealPanel(target);
    for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
    restorePosition(target,position.top,position.y);
   }else if(location.hash){requestAnimationFrame(()=>revealHash(location.hash));}
@@ -97,7 +108,7 @@
     returns=returns.filter(item=>item!==previousView);saveReturns();return;
    }
    const personLink=url.pathname===location.pathname&&url.searchParams.get('focus')&&
-    url.searchParams.get('focus')!==focus&&['#driver-trend','#reader-setting'].includes(url.hash);
+    url.searchParams.get('focus')!==focus&&(link.closest('#driver-comparison')||['#driving-analysis-top','#driver-trend','#reader-setting'].includes(url.hash));
    const reportLink=url.pathname.startsWith(location.pathname+'/')&&url.searchParams.has('return_to');
    if(personLink||reportLink){
     const saved=capturePosition(location.href,link.closest('tr[id]')||link.closest('[id]'));
@@ -107,9 +118,13 @@
     return;
    }
    if(url.pathname!==location.pathname)return;
+   if(link.closest('#office-comparison')&&url.searchParams.get('scope')==='office')return;
+   if(link.closest('.driving-analysis-path'))return;
    let target=null;
-   if(link.hasAttribute('data-preserve-driving-metrics'))target=document.getElementById('driving-metrics');
+   if(link.hasAttribute('data-panel-link'))target=document.getElementById('driving-view');
+   else if(link.hasAttribute('data-preserve-driving-metrics'))target=document.getElementById('driving-metrics');
    else if(link.closest('.driving-view-switch')||link.classList.contains('driving-reset'))target=form;
+   else if(link.closest('.driving-analysis-actions'))target=document.getElementById('driving-view');
    else if(link.closest('.driving-comparison-tabs'))target=document.getElementById('comparison-detail');
    else if(!url.hash)target=link.closest('#driving-roster')||link.closest('details[id],section[id],form[id]')||form;
    if(target){

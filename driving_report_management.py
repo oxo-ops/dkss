@@ -24,7 +24,7 @@ def shown(value):
     return str(value) if value is not None and value!='' else '未取得'
 
 
-STATES={'unreviewed':'未確認','reviewed':'確認済み','coaching':'指導・対応中','followup':'次回振り返り','completed':'対応完了'}
+STATES={'unreviewed':'振り返り未記入','reviewed':'確認済み','coaching':'指導・対応中','followup':'次回振り返り','completed':'対応完了'}
 OUTCOMES={'':'未確認','improved':'改善を確認','continue':'継続確認','incomparable':'比較困難'}
 MATCH={'standalone':'日報のみ','distinct':'別運行として確認済み','matched':'CSVと照合済み','resolved':'採用値を確認済み','conflict':'CSVとの値が不一致','ambiguous':'CSVとの対応を確認'}
 LABELS={'distance':'走行距離','departure_meter':'開始積算距離','arrival_meter':'終了積算距離'}
@@ -324,6 +324,9 @@ def register_driving_reports(app, db, g):
     @app.route('/safety/driving-reports')
     def driving_reports():
         rows,previous,ops,vehicles,filters,board,facts=prepare_insights(request.args)
+        panel=request.args.get('panel','analysis')
+        if panel not in {'analysis','reports','comparison','data'}:abort(400)
+        if board['personal_view'] and panel=='comparison':panel='analysis'
         try:page=max(1,int(request.args.get('page','1')))
         except ValueError:abort(400)
         summary=metrics_summary(rows)
@@ -333,7 +336,7 @@ def register_driving_reports(app, db, g):
         user_office=getattr(g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first(),'office','') or ''
         navigation=view_navigation(filters,board,user_office)
         return render_template('driving_reports.html',reports=[view(r,ops.get((r.company_code,r.vehicle_record_id),[]),board['labels'].get(r.vehicle_record_id)) for r in rows[(page-1)*100:page*100]],
-            summary=summary,insights=board,reflection=reflection,driving_user_office=user_office,driving_view_navigation=navigation,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=filters,vehicles=vehicles,
+            summary=summary,insights=board,reflection=reflection,driving_user_office=user_office,driving_view_navigation=navigation,vehicle_history=history_context(board,facts),page=page,total=len(rows),filters=filters,filter_query=dict(filters,panel=panel),workspace_panel=panel,vehicles=vehicles,
             driving_vehicles=vehicle_links.build(board,facts,filters),
             driving_can_manage=readership.administrator(),driving_is_admin=not board['personal_view'],
             insight_number=number,reader_users=g['User'].query.filter(g['User'].company_code==session['company_code'],g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
