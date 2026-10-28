@@ -176,6 +176,71 @@ class Q02ImportDocumentBoundaryTests(unittest.TestCase):
         self.assertEqual(self.request('GET', f'/vehicle/karte/{other.id}/documents/{row.id}/source').status_code, 404)
         self.assertEqual(self.snapshot(), before)
 
+    def inspection_source_url(self):
+        record = self.m.VehiclePeriodicInspectionRecord.query.one()
+        return f'/vehicle/periodic-inspections/{record.id}/source'
+
+    def source_snapshot(self):
+        self.m.db.session.expire_all()
+        return tuple(tuple(tuple(getattr(row, col.name) for col in model.__table__.columns)
+                           for row in model.query.order_by(model.id).all())
+                     for model in (self.m.Vehicle, self.m.VehicleDocumentImportDraft,
+                                   self.m.VehiclePeriodicInspectionRecord))
+
+    def assert_inspection_source_denied_without_writes(self):
+        before = self.source_snapshot()
+        response = self.request('GET', self.inspection_source_url())
+        self.assertEqual(response.status_code, 404)
+        self.assertNotEqual(response.mimetype, 'application/pdf')
+        self.assertNotIn('Content-Disposition', response.headers)
+        self.assertEqual(self.source_snapshot(), before)
+
+    def test_inspection_record_source_is_shared_with_current_company_reader(self):
+        row, source = self.completed()
+        for name, role in [('admin', 'admin'), ('reader', 'user')]:
+            with self.subTest(name=name):
+                self.actor(name=name, role=role)
+                before = self.source_snapshot()
+                direct = self.request('GET', self.inspection_source_url())
+                canonical = self.request('GET', f'/vehicle/karte/{self.vehicle.id}/documents/{row.id}/source')
+                self.assertEqual((direct.status_code, canonical.status_code), (200, 200))
+                self.assertEqual(direct.data, source)
+                self.assertEqual(direct.data, canonical.data)
+                self.assertIn('no-store', direct.headers['Cache-Control'])
+                self.assertEqual(direct.headers['X-Content-Type-Options'], 'nosniff')
+                self.assertEqual(self.source_snapshot(), before)
+
+    def test_inspection_record_source_rechecks_vehicle_company(self):
+        self.completed()
+        self.vehicle.company_code = 'OTHER'
+        self.m.db.session.commit()
+        self.assert_inspection_source_denied_without_writes()
+
+    def test_inspection_record_source_rejects_foreign_vehicle_link(self):
+        self.completed()
+        foreign = self.m.Vehicle(company_code='OTHER', chassis_number='FOREIGN-SYNTHETIC')
+        self.m.db.session.add(foreign)
+        self.m.db.session.flush()
+        self.m.VehiclePeriodicInspectionRecord.query.one().vehicle_record_id = foreign.id
+        self.m.db.session.commit()
+        self.assert_inspection_source_denied_without_writes()
+
+    def test_inspection_record_source_requires_document_vehicle_membership(self):
+        import json
+        row, _ = self.completed()
+        data = json.loads(row.result_json)
+        data['records'][0]['vehicle_record_id'] = self.vehicle.id + 1000
+        row.result_json = json.dumps(data)
+        self.m.db.session.commit()
+        self.assertEqual(self.request('GET', f'/vehicle/karte/{self.vehicle.id}/documents/{row.id}/source').status_code, 404)
+        self.assert_inspection_source_denied_without_writes()
+
+    def test_inspection_record_source_rejects_invalid_document_membership(self):
+        row, _ = self.completed()
+        row.result_json = '{"records": {"vehicle_record_id": ' + str(self.vehicle.id) + '}}'
+        self.m.db.session.commit()
+        self.assert_inspection_source_denied_without_writes()
+
     def test_confirm_and_kind_cancel_require_csrf_and_preserve_the_source(self):
         row, _ = self.preview()
         before = self.snapshot()

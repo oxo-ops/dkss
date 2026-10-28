@@ -1039,6 +1039,22 @@ def vehicle_document_import_confirm(batch_id):
 
 
 def vehicle_periodic_inspection_source(record_id):
+    record = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
+        id=record_id, company_code=_dkss_common.session.get('company_code'),
+    ).first_or_404()
+    _dkss_models.Vehicle.query.filter_by(
+        id=record.vehicle_record_id, company_code=record.company_code,
+    ).first_or_404()
+    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
+        id=record.source_draft_id, company_code=record.company_code, status='completed',
+    ).first_or_404()
+    entries = _dkss_serialization.safe_json_dict(draft.result_json).get('records', [])
+    if not isinstance(entries, list) or not any(
+        isinstance(entry, dict)
+        and str(entry.get('vehicle_record_id', '')) == str(record.vehicle_record_id)
+        for entry in entries
+    ):
+        raise _dkss_common.NotFound()
     return vehicle_imported_record_source(_dkss_models.VehiclePeriodicInspectionRecord, record_id)
 
 
