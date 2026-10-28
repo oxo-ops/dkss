@@ -3,6 +3,7 @@
 from datetime import datetime
 from .serialization import safe_json_dict, safe_json_dict_list, safe_json_str_list
 from .dashboard_scoring import DashboardScoring
+from .driver_safe_start import scheduled_safe_start_label
 
 
 class DashboardService:
@@ -15,6 +16,7 @@ class DashboardService:
         self.history = history
         self.url_for = url_for
         self.scoring = DashboardScoring()
+        self._safe_start_label = None
 
     def build(self):
         my_safe_days, my_vehicle_record_ids = self.personal_driver()
@@ -128,6 +130,8 @@ class DashboardService:
             dashboard_period_end=self.scope.today.strftime("%Y-%m-%d"),
             is_dashboard_admin=self.scope.role in ["admin", "itc"],
         )
+        if self._safe_start_label:
+            context["my_safe_start_label"] = self._safe_start_label
         return (context, trend_groups)
 
     def setup_tasks(self):
@@ -162,6 +166,7 @@ class DashboardService:
 
     def personal_driver(self):
         my_driver = self.repository.driver()
+        self._safe_start_label = None
         my_safe_days = None
         my_vehicle_record_ids = []
         if my_driver:
@@ -173,7 +178,9 @@ class DashboardService:
         if my_driver and my_driver.safe_start_date:
             try:
                 start_date = datetime.strptime(my_driver.safe_start_date, "%Y-%m-%d").date()
-                my_safe_days = max(0, (self.scope.today - start_date).days)
+                self._safe_start_label = scheduled_safe_start_label(start_date, self.scope.today)
+                if self._safe_start_label is None:
+                    my_safe_days = (self.scope.today - start_date).days
             except ValueError:
                 my_safe_days = None
         return (my_safe_days, my_vehicle_record_ids)
@@ -185,6 +192,8 @@ class DashboardService:
             try:
                 start_date = datetime.strptime(driver.safe_start_date, "%Y-%m-%d").date()
             except ValueError:
+                continue
+            if scheduled_safe_start_label(start_date, self.scope.today):
                 continue
             ranking.append(
                 {
