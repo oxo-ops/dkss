@@ -68,6 +68,31 @@ class DriverLicenseLinkTests(PrivatePostgresCase):
     def test_edit_failure_rolls_back_both_driver_and_user(self):
         self.assert_failed_save_is_atomic(self.related_action('edit'), 'update driver ')
 
+    def test_different_license_renames_do_not_overwrite_the_same_driver_license_list(self):
+        with self.app.app_context():
+            second = self.m.LicenseType(company_code=self.company, name='License-B')
+            self.db.session.add(second)
+            self.db.session.add(self.m.LicenseType(company_code=self.other, name='License-B'))
+            licenses = [{'type': name, 'expiry': '2027-10-01'} for name in ('License-A', 'License-B')]
+            first = self.db.session.get(self.m.Driver, self.driver_id)
+            first.licenses_json = json.dumps(licenses)
+            self.db.session.add(self.m.Driver(company_code=self.company, employee_id='lic-second',
+                name='Synthetic', office='Office-A', licenses_json=json.dumps(list(reversed(licenses)))))
+            self.db.session.commit()
+            second_id = second.id
+        foreign = self.snapshot(self.other)
+        actions = [self.action(f'/master/license-types/{ident}/edit', {'name': name})
+                   for ident, name in ((self.license_id, 'Renamed-A'), (second_id, 'Renamed-B'))]
+        responses, waited = self.schedule(*actions, 'driver')
+        self.assertEqual([r.get('status') for r in responses], [302, 302], repr(responses))
+        state = self.snapshot(self.company)
+        for employee in ('lic-edit', 'lic-second'):
+            row = next(r for r in state['driver'] if r['employee_id'] == employee)
+            self.assertCountEqual(json.loads(row['licenses_json']),
+                [{'type': name, 'expiry': '2027-10-01'} for name in ('Renamed-A', 'Renamed-B')])
+        self.assertEqual(self.snapshot(self.other), foreign)
+        self.assertTrue(waited, 'Renames touching the same license list must serialize on its driver rows')
+
 
 def case(writer, operation, first):
     def check(self):

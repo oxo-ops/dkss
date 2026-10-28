@@ -131,7 +131,7 @@ def edit_license_type(index):
 
         drivers = _dkss_models.Driver.query.filter_by(
             company_code=license_type.company_code
-        ).all()
+        ).order_by(_dkss_models.Driver.id).populate_existing().with_for_update().all()
 
         for driver in drivers:
             licenses = _dkss_serialization.safe_json_dict_list(
