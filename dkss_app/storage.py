@@ -633,9 +633,10 @@ def uploaded_file(folder, filename):
     ):
         return "File not found", 404
 
-    if folder == "uploads" and "avatar" in _dkss_common.request.args:
-        from .profile_images import display_avatar
-        display = display_avatar(filename)
+    if folder == "uploads" and ("avatar" in _dkss_common.request.args or "thumb" in _dkss_common.request.args):
+        from .profile_images import display_avatar, display_thumbnail
+        display = (display_avatar(filename) if "avatar" in _dkss_common.request.args
+                   else display_thumbnail(filename))
         if display is not None:
             return display
 

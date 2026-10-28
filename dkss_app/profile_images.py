@@ -2,13 +2,14 @@
 from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
-from threading import RLock
+from threading import RLock, BoundedSemaphore
 
 from botocore.exceptions import BotoCoreError, ClientError
 from flask import current_app, request, send_file, session
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 SIZES = {96, 192}
+THUMBNAIL_SIZES = {160, 320, 480}
 
 
 class DisplayImages:
@@ -17,6 +18,7 @@ class DisplayImages:
         self.bytes = 0
         self.max_bytes, self.max_entries = max_bytes, max_entries
         self.lock = RLock()
+        self.conversions = BoundedSemaphore(2)
 
     def get(self, key):
         with self.lock:
@@ -108,6 +110,36 @@ def display_avatar(filename):
     size = request.args.get("avatar", type=int)
     if size not in SIZES or filename != session.get("profile_image"):
         return None
+    return _display(filename, size, False)
+
+
+def display_thumbnail(filename):
+    """Opt-in list thumbnails, after the ORIGINAL file authorization checks."""
+    size = request.args.get("thumb", type=int)
+    if size not in THUMBNAIL_SIZES or Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        return None
+    return _display(filename, size, True)
+
+
+def _encode(read, size, crop):
+    with Image.open(BytesIO(read())) as image:
+        if getattr(image, "is_animated", False):
+            return None  # Animation keeps the original response path.
+        icc = image.info.get("icc_profile")
+        image.draft("RGB", (size * 2, size * 2))
+        image = ImageOps.exif_transpose(image)
+        if crop:
+            image = ImageOps.fit(image, (size, size * 3 // 4), Image.Resampling.LANCZOS)
+        else:
+            image.thumbnail((size, size), Image.Resampling.LANCZOS)
+        if image.mode not in {"RGB", "RGBA"}:
+            image = image.convert("RGBA" if "transparency" in image.info else "RGB")
+        output = BytesIO()
+        image.save(output, format="WEBP", quality=85, method=4, icc_profile=icc or b"")
+        return output.getvalue()
+
+
+def _display(filename, size, crop):
     company, username = session.get("company_code"), session.get("username")
     if not company or not username:
         return None
@@ -117,22 +149,18 @@ def display_avatar(filename):
             forget(company, filename)
             return None
         revision, read = source
-        key = (company, filename, username, revision, size)
-        data = cache().get(key)
+        images = cache()
+        key = (company, filename, username, session.get("account_identity"), revision, size, crop)
+        data = images.get(key)
         if data is None:
-            with Image.open(BytesIO(read())) as image:
-                if getattr(image, "is_animated", False):
-                    return None  # Preserve animation and the original response path.
-                icc = image.info.get("icc_profile")
-                image.draft("RGB", (size * 2, size * 2))
-                image = ImageOps.exif_transpose(image)
-                image.thumbnail((size, size), Image.Resampling.LANCZOS)
-                if image.mode not in {"RGB", "RGBA"}:
-                    image = image.convert("RGBA" if "transparency" in image.info else "RGB")
-                output = BytesIO()
-                image.save(output, format="WEBP", quality=85, method=4, icc_profile=icc or b"")
-                data = output.getvalue()
-            cache().put(key, data)
+            # Bound simultaneous decodes; cache hits do not wait for conversions.
+            with images.conversions:
+                data = images.get(key)
+                if data is None:
+                    data = _encode(read, size, crop)
+                    if data is None:
+                        return None
+                    images.put(key, data)
         # HTTP/browser caches remain no-store; authorization is rechecked next time.
         return send_file(BytesIO(data), mimetype="image/webp", max_age=0)
     except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError, ClientError, BotoCoreError):
