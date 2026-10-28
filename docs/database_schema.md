@@ -595,6 +595,7 @@ Tables: 68
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | setting_id | INTEGER | False | False |  |
+| setting_hash | VARCHAR(64) | False | False |  |
 | identities_json | TEXT | False | False |  |
 | actor_identity | VARCHAR(36) | True | False |  |
 | actor_name | VARCHAR(200) | True | False |  |

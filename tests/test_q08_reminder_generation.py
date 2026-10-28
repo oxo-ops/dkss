@@ -86,6 +86,19 @@ class ReminderGenerationTests(unittest.TestCase):
         self.replace()
         self.assertEqual(self.recipients(), [])
 
+    def test_reused_setting_id_cannot_transfer_evidence_to_another_vehicle(self):
+        self.assertEqual(self.save_setting().status_code, 200)
+        setting = self.m.VehicleChecklistNotifySetting.query.one()
+        setting_id = setting.id
+        self.m.db.session.delete(setting)
+        other = self.m.Vehicle(company_code='TEST', chassis_number='SYNTHETIC-SECOND')
+        self.m.db.session.add(other)
+        self.m.db.session.commit()
+        self.m.db.session.add(self.m.VehicleChecklistNotifySetting(id=setting_id, company_code='TEST',
+            checklist_id=self.checklist_id, vehicle_record_id=other.id, notify_users_json='["reused"]'))
+        self.m.db.session.commit()
+        self.assertEqual(notifications.get_vehicle_checklist_notify_users('TEST', self.checklist_id, other.id), [])
+
     def test_explicit_same_value_reconfirmation_records_new_generation(self):
         from dkss_app.checklist_notify_identity import VehicleChecklistNotifyAccount
         self.assertEqual(self.save_setting().status_code, 200)

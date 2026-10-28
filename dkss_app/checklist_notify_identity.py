@@ -1,5 +1,6 @@
 """Generation evidence for explicit reminder settings, separate from Q03 subjects."""
 import json
+import hashlib
 from datetime import datetime, timezone
 
 from flask import has_request_context, request, session
@@ -16,10 +17,17 @@ class VehicleChecklistNotifyAccount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_code = db.Column(db.String(50), nullable=False)
     setting_id = db.Column(db.Integer, nullable=False)
+    setting_hash = db.Column(db.String(64), nullable=False)
     identities_json = db.Column(db.Text, nullable=False)
     actor_identity = db.Column(db.String(36))
     actor_name = db.Column(db.String(200))
     created_at = db.Column(db.String(40), nullable=False)
+
+
+def setting_fingerprint(setting):
+    values = [setting.company_code, setting.checklist_id, setting.vehicle_record_id,
+              sorted(safe_json_str_list(setting.notify_users_json))]
+    return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode()).hexdigest()
 
 
 def initialize_notify_identities():
@@ -52,7 +60,7 @@ def capture_explicit_setting(mapper, connection, setting):
     identities = {name: users[name][0] for name in safe_json_str_list(setting.notify_users_json)
                   if len(users.get(name, [])) == 1 and users[name][0]}
     connection.execute(VehicleChecklistNotifyAccount.__table__.insert().values(
-        company_code=setting.company_code, setting_id=setting.id,
+        company_code=setting.company_code, setting_id=setting.id, setting_hash=setting_fingerprint(setting),
         identities_json=json.dumps(identities, ensure_ascii=False), actor_identity=actor.account_identity,
         actor_name=(actor.last_name or '') + (actor.first_name or ''),
         created_at=datetime.now(timezone.utc).isoformat()))
@@ -70,7 +78,7 @@ def resolved_notify_users(company_code, checklist_id, vehicle_record_id):
             return []
         evidence = VehicleChecklistNotifyAccount.query.filter_by(company_code=company_code,
             setting_id=setting.id).order_by(VehicleChecklistNotifyAccount.id.desc()).first()
-        if not evidence:
+        if not evidence or evidence.setting_hash != setting_fingerprint(setting):
             return []
         saved = safe_json_dict(evidence.identities_json)
         names = set(safe_json_str_list(setting.notify_users_json))
