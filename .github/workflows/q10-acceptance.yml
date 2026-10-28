@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python -m unittest -v test_q10_acceptance_guards test_q10_postgres_acceptance 2>&1 | tee q10-postgres.log
+          python -m unittest -v test_q10_acceptance_guards test_q10_postgres_acceptance test_q10_import_generation_acceptance 2>&1 | tee q10-postgres.log
       - uses: actions/upload-artifact@v7
         if: always()
         with:
