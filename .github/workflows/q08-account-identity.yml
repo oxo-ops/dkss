@@ -62,6 +62,8 @@ jobs:
             test_q08_postgres_driving_generation.PostgresDrivingGenerationTests \
             test_q08_reminder_generation.ReminderGenerationTests \
             test_q08_postgres_reminder_generation.PostgresReminderGenerationTests \
+            test_q08_vehicle_origin_generation.VehicleOriginGenerationTests \
+            test_q08_postgres_vehicle_origin_generation.PostgresVehicleOriginGenerationTests \
             2>&1 | tee q08-identity-results.log
       - uses: actions/upload-artifact@v7
         if: always()
