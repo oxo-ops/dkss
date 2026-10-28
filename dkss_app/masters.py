@@ -1633,10 +1633,11 @@ def new_driver():
         # 営業所検証
 
         if office:
+            # Hold the selected office until both User and Driver are committed.
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 form_errors.append((
@@ -2070,10 +2071,11 @@ def edit_driver(index):
         # 営業所検証
 
         if office:
+            # Hold the selected office until both User and Driver are committed.
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=office
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 form_errors.append((

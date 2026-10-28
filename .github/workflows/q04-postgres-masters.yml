@@ -102,6 +102,28 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest discover -s tests -p 'test_q04_postgres_master_upgrade.py' -v 2>&1 | tee q04-postgres-upgrade-results.log
+      - name: Confirm the related-write checks detect the original twelve failures
+        shell: bash
+        env:
+          Q04_RELATED_BASELINE_REF: 7fc48cf6ae17d023d89b3cc2cb425c3139dea829
+        run: |
+          git fetch --no-tags --depth=1 origin "$Q04_RELATED_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-related-baseline" "$Q04_RELATED_BASELINE_REF"
+          cp tests/test_q04_postgres_related_writes.py "$RUNNER_TEMP/q04-related-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-related-baseline" && python -m unittest discover -s tests -p 'test_q04_postgres_related_writes.py' -v) > q04-related-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-related-baseline-results.log').read_text()
+          assert sys.argv[1] == '1', 'Related-write baseline must fail integrity assertions'
+          assert re.search(r'Ran 16 tests\b', log), 'All related-write checks must execute'
+          assert 'FAILED (failures=12)' in log, 'Inspect unexpected baseline failures'
+          assert log.count('Q04_RELATED_CONTROL:') == 4, 'All ordinary saves must execute'
+          assert log.count('Q04_RELATED_EVIDENCE:') == 12, 'All parallel schedules must execute'
+          print('RELATED_BASELINE_CONFIRMED: 4 ordinary saves pass; 12 races fail')
+          PY
       - name: Verify related writes racing master mutations on disposable PostgreSQL
         shell: bash
         run: |
@@ -118,5 +140,6 @@ jobs:
             q04-postgres-results.log
             q04-postgres-upgrade-results.log
             q04-postgres-related-results.log
+            q04-related-baseline-results.log
           if-no-files-found: warn
           retention-days: 7
