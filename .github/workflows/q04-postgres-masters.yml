@@ -7,12 +7,14 @@ on:
       - 'fix/q04-master-concurrency-*'
       - 'test/q04-master-upgrade-*'
       - 'test/q04-related-writes-*'
+      - 'test/q04-master-order-*'
   pull_request:
     paths:
       - 'tests/test_q04_postgres_master_concurrency.py'
       - 'tests/test_q04_master_uniqueness.py'
       - 'tests/test_q04_postgres_master_upgrade.py'
       - 'tests/test_q04_postgres_related_writes.py'
+      - 'tests/test_q04_postgres_master_order.py'
       - 'tests/fixtures/application_contract.json'
       - '.github/workflows/q04-postgres-masters.yml'
       - 'dkss_app/masters.py'
@@ -129,6 +131,11 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest discover -s tests -p 'test_q04_postgres_related_writes.py' -v 2>&1 | tee q04-postgres-related-results.log
+      - name: Verify shared order conflicts and retries on disposable PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_q04_postgres_master_order.py' -v 2>&1 | tee q04-postgres-order-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -141,5 +148,6 @@ jobs:
             q04-postgres-upgrade-results.log
             q04-postgres-related-results.log
             q04-related-baseline-results.log
+            q04-postgres-order-results.log
           if-no-files-found: warn
           retention-days: 7
