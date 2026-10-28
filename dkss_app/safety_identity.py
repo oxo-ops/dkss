@@ -21,6 +21,97 @@ IDENTITY_FIELDS = {
     'checklist_event': {'actor_username': 'actor_user_id'},
 }
 
+GENERATION_FIELDS = {
+    'target_user_id': 'target_identity', 'checked_by_user_id': 'checked_by_identity',
+    'approved_by_user_id': 'approved_by_identity', 'created_by_user_id': 'created_by_identity',
+    'countermeasure_by_user_id': 'countermeasure_by_identity', 'actor_user_id': 'actor_identity',
+}
+
+
+def user_identity(company, username, *, lock=False):
+    values = user_identities(company, [username]) if company and username else []
+    return values[0] if values else None
+
+
+def user_identities(company, usernames):
+    from .models import User
+    names = list(dict.fromkeys(usernames or []))
+    with db.session.no_autoflush:
+        rows = db.session.execute(select(User.username, User.account_identity).where(
+            User.company_code == company, User.username.in_(names)).order_by(User.id)
+            .with_for_update(read=True, key_share=True)).all()
+    found = dict(rows)
+    return [found.get(name) for name in names]
+
+
+def selected_candidate_identities(company, usernames, previous):
+    known = {}
+    for approval in previous:
+        names = approval.get('candidate_usernames') or []
+        identities = approval.get('candidate_identities') or []
+        for index, name in enumerate(names):
+            value = identities[index] if index < len(identities) else None
+            known.setdefault(name, set()).add(value)
+    names = list(dict.fromkeys(usernames or []))
+    fresh_names = [name for name in names if name not in known]
+    fresh = dict(zip(fresh_names, user_identities(company, fresh_names)))
+    return [(next(iter(known[name])) if len(known[name]) == 1 else None)
+        if name in known else fresh[name] for name in names]
+
+
+def as_dict(value):
+    try:
+        result = json.loads(value or '{}')
+    except (ValueError, TypeError):
+        return {}
+    return result if isinstance(result, dict) else {}
+
+
+def as_list(value):
+    try:
+        result = json.loads(value or '[]')
+    except (ValueError, TypeError):
+        return []
+    return result if isinstance(result, list) else []
+
+
+def notification_bindings(record, usernames):
+    previous = as_dict(record.notification_identities_json)
+    old_names = set(as_list(record.notify_users_json))
+    fresh = [n for n in usernames if n not in old_names]
+    resolved = dict(zip(fresh, user_identities(record.company_code, fresh)))
+    return json.dumps({n: previous.get(n) if n in old_names else resolved.get(n)
+        for n in usernames}, ensure_ascii=False)
+
+
+def recipient(record, username, role=None):
+    """Translate a stored workflow subject to Q08 without changing generation."""
+    from .models import User
+    evidence = set()
+    for field, numeric in IDENTITY_FIELDS.get(record.__tablename__, {}).items():
+        if getattr(record, field) == username:
+            evidence.add(getattr(record, GENERATION_FIELDS[numeric]))
+    for approval in as_list(getattr(record, 'approvals_json', None)):
+        for index, name in enumerate(approval.get('candidate_usernames') or []):
+            if name == username:
+                identities = approval.get('candidate_identities') or []
+                evidence.add(identities[index] if index < len(identities) else None)
+        if approval.get('approved_by_username') == username:
+            evidence.add(approval.get('approved_by_identity'))
+    judgment = as_dict(getattr(record, 'operation_judgment_json', None))
+    for index, name in enumerate(judgment.get('requested_usernames') or []):
+        if name == username:
+            identities = judgment.get('requested_identities') or []
+            evidence.add(identities[index] if index < len(identities) else None)
+    notified = as_dict(getattr(record, 'notification_identities_json', None))
+    if username in notified:
+        evidence.add(notified[username])
+    if len(evidence) != 1 or not next(iter(evidence), None):
+        return None
+    query = User.query.filter_by(company_code=record.company_code,
+        username=username, account_identity=next(iter(evidence)))
+    return query.filter_by(role=role).first() if role else query.first()
+
 
 def user_id(company, username, *, lock=False):
     from .models import User
@@ -29,15 +120,17 @@ def user_id(company, username, *, lock=False):
     query = select(User.id).where(User.company_code == company, User.username == username)
     if lock:
         query = query.with_for_update(read=True, key_share=True)
-    return db.session.execute(query).scalar_one_or_none()
+    with db.session.no_autoflush:
+        return db.session.execute(query).scalar_one_or_none()
 
 
 def user_ids(company, usernames):
     from .models import User
     names = list(dict.fromkeys(usernames or []))
-    users = dict(db.session.execute(select(User.username, User.id).where(
-        User.company_code == company, User.username.in_(names))
-        .order_by(User.id).with_for_update(read=True, key_share=True)).all())
+    with db.session.no_autoflush:
+        users = dict(db.session.execute(select(User.username, User.id).where(
+            User.company_code == company, User.username.in_(names))
+            .order_by(User.id).with_for_update(read=True, key_share=True)).all())
     return [users.get(name) for name in names]
 
 
@@ -71,13 +164,16 @@ def current_user_id():
     return request.environ[key]
 
 
-def is_current(saved_id):
-    return type(saved_id) is int and saved_id == current_user_id()
+def is_current(saved_identity):
+    if not isinstance(saved_identity, str) or not saved_identity:
+        return False
+    from .account_identity import current_identity
+    return saved_identity == current_identity()
 
 
 def is_candidate(approval):
-    values = approval.get('candidate_user_ids')
-    return isinstance(values, list) and current_user_id() is not None and any(
+    values = approval.get('candidate_identities')
+    return isinstance(values, list) and any(
         is_current(value) for value in values)
 
 
@@ -106,27 +202,41 @@ def register_models(models):
             judgment = None
         if isinstance(judgment, dict):
             names.update(judgment.get('requested_usernames', []))
+        names.update(as_list(getattr(row, 'notify_users_json', None)))
         names.discard(None)
-        users = dict(connection.execute(select(User.username, User.id).where(
+        users = {name: (ident, generation) for name, ident, generation in connection.execute(select(User.username, User.id, User.account_identity).where(
             User.company_code == row.company_code, User.username.in_(names))
-            .with_for_update(read=True, key_share=True)).all())
+            .with_for_update(read=True, key_share=True)).all()}
         for username_field, id_field in fields.items():
             # Server-side lookup also ignores supplied/foreign identity IDs.
-            setattr(row, id_field, users.get(getattr(row, username_field)))
+            ident, generation = users.get(getattr(row, username_field), (None, None))
+            setattr(row, id_field, ident)
+            setattr(row, GENERATION_FIELDS[id_field], generation)
         if hasattr(row, 'approvals_json') and isinstance(approvals, list):
             for approval in approvals:
                 if not isinstance(approval, dict):
                     continue
                 if 'candidate_user_ids' not in approval:
-                    approval['candidate_user_ids'] = [users[n] for n in
+                    approval['candidate_user_ids'] = [users[n][0] for n in
                         approval.get('candidate_usernames', []) if n in users]
-                approval['approved_by_user_id'] = users.get(approval.get('approved_by_username'))
+                if 'candidate_identities' not in approval:
+                    approval['candidate_identities'] = [users.get(n, (None, None))[1]
+                        for n in approval.get('candidate_usernames', [])]
+                ident, generation = users.get(approval.get('approved_by_username'), (None, None))
+                approval['approved_by_user_id'] = ident
+                approval['approved_by_identity'] = generation
             row.approvals_json = json.dumps(approvals, ensure_ascii=False)
         if hasattr(row, 'operation_judgment_json') and isinstance(judgment, dict) and judgment:
             if 'requested_user_ids' not in judgment:
-                judgment['requested_user_ids'] = [users[n] for n in
+                judgment['requested_user_ids'] = [users[n][0] for n in
                     judgment.get('requested_usernames', []) if n in users]
+            if 'requested_identities' not in judgment:
+                judgment['requested_identities'] = [users.get(n, (None, None))[1]
+                    for n in judgment.get('requested_usernames', [])]
             row.operation_judgment_json = json.dumps(judgment, ensure_ascii=False)
+        if hasattr(row, 'notification_identities_json') and not row.notification_identities_json:
+            row.notification_identities_json = json.dumps({n: users.get(n, (None, None))[1]
+                for n in as_list(row.notify_users_json)}, ensure_ascii=False)
     for model in models:
         event.listen(model, 'before_insert', capture)
 
@@ -145,3 +255,8 @@ def upgrade_storage():
             for column in fields.values():
                 if column not in existing:
                     connection.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} INTEGER'))
+            for column in (GENERATION_FIELDS[field] for field in fields.values()):
+                if column not in existing:
+                    connection.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} VARCHAR(36)'))
+            if table in {'checklist_result', 'vehicle_checklist_result'} and 'notification_identities_json' not in existing:
+                connection.execute(text(f'ALTER TABLE {table} ADD COLUMN notification_identities_json TEXT'))

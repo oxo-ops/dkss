@@ -524,7 +524,7 @@ def get_dashboard_checklist_history(checklist_record, checklist, records, score_
             label = record.target_user or "個人対象"
             if (
                 _dkss_common.session.get("role") not in ["admin", "itc"]
-                and not _person_identity.is_current(record.target_user_id)
+                and not _person_identity.is_current(record.target_identity)
             ):
                 label = "個人対象"
 

@@ -21,12 +21,12 @@ def can_view_patrol_result(result):
     if result.get("target_type") == "delivery_place":
         return True
 
-    if _person_identity.is_current(result.get("created_by_user_id")):
+    if _person_identity.is_current(result.get("created_by_identity")):
         return True
 
     return (
         result.get("target_type") == "user"
-        and _person_identity.is_current(result.get("target_user_id"))
+        and _person_identity.is_current(result.get("target_identity"))
     )
 
 
@@ -39,7 +39,7 @@ def can_edit_patrol_result(result):
         return True
 
     return (
-        _person_identity.is_current(result.get("created_by_user_id"))
+        _person_identity.is_current(result.get("created_by_identity"))
     )
 
 
@@ -53,14 +53,14 @@ def can_countermeasure_patrol_result(result):
 
     # 作成者
     if (
-        _person_identity.is_current(result.get("created_by_user_id"))
+        _person_identity.is_current(result.get("created_by_identity"))
     ):
         return True
 
     # 個人対象なら対象本人
     return (
         result.get("target_type") == "user"
-        and _person_identity.is_current(result.get("target_user_id"))
+        and _person_identity.is_current(result.get("target_identity"))
     )
 
 
@@ -88,13 +88,13 @@ def can_view_checklist_result(result):
         return True
 
     if (
-        _person_identity.is_current(result.get("checked_by_user_id"))
+        _person_identity.is_current(result.get("checked_by_identity"))
     ):
         return True
 
     if (
         result.get("target_type") == "user"
-        and _person_identity.is_current(result.get("target_user_id"))
+        and _person_identity.is_current(result.get("target_identity"))
     ):
         return True
 
@@ -124,7 +124,7 @@ def can_view_checklist_result(result):
     ]
     if any(
         (
-            _person_identity.is_current(approval.get("approved_by_user_id"))
+            _person_identity.is_current(approval.get("approved_by_identity"))
             or (approval.get("allow_general")
                 and _person_identity.is_candidate(approval))
         )
@@ -149,7 +149,7 @@ def can_manage_checklist_result(result):
         return True
 
     return (
-        _person_identity.is_current(result.get("checked_by_user_id"))
+        _person_identity.is_current(result.get("checked_by_identity"))
     )
 
 

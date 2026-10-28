@@ -117,9 +117,12 @@ class Q03PersonIdentityTests(unittest.TestCase):
         legacy = json.loads(row.approvals_json)
         for approval in legacy:
             approval.pop('candidate_user_ids', None)
+            approval.pop('candidate_identities', None)
             approval.pop('approved_by_user_id', None)
+            approval.pop('approved_by_identity', None)
         row.approvals_json = json.dumps(legacy)
         row.checked_by_user_id = None
+        row.checked_by_identity = None
         self.db.session.commit()
         old_json = row.approvals_json
         self.login('reviewer')
@@ -183,6 +186,7 @@ class Q03PersonIdentityTests(unittest.TestCase):
         row.target_type = 'user'
         row.target_username, row.target_user = a.username, 'Original subject'
         row.target_user_id = a.id
+        row.target_identity = a.account_identity
         self.db.session.commit()
         self.login('reviewer')
         self.assertEqual(self.request('GET', self.url(row)).status_code, 200)

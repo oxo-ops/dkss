@@ -49,8 +49,8 @@ class DashboardService:
                 else [
                     row
                     for row in rows
-                    if row.target_type == "user" and self.scope.user_id is not None
-                    and row.target_user_id == self.scope.user_id
+                    if row.target_type == "user" and self.scope.account_identity is not None
+                    and row.target_identity == self.scope.account_identity
                 ]
             )
             trend_groups.append((checklist_record, checklist, rows))
@@ -638,7 +638,7 @@ class DashboardService:
                 target_vehicle_record.id
                 if target_type == "vehicle"
                 else (
-                    (result_record.target_user_id if result_record.target_user_id is not None
+                    (result_record.target_identity if result_record.target_identity is not None
                      else ("unresolved", result_record.target_username))
                     if target_type == "user"
                     else result_record.target_office

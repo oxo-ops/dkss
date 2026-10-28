@@ -10,7 +10,7 @@ on:
       - 'dkss_app/safety.py'
       - 'dkss_app/models.py'
       - 'dkss_app/database.py'
-      - 'tests/test_q03*identity.py'
+      - 'tests/test_q03*.py'
       - '.github/workflows/q03-person-identity.yml'
   workflow_dispatch:
 
@@ -52,4 +52,4 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - run: python -m unittest test_q03_postgres_person_identity.Q03PostgresPersonIdentityTests -v
+      - run: python -m unittest test_q03_postgres_person_identity.Q03PostgresPersonIdentityTests test_q03_account_generations.CombinedPostgresIdentityTests -v

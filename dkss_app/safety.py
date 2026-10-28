@@ -861,6 +861,8 @@ def edit_pointout(index):
         if validated_target_username != result_record.target_username:
             result_record.target_user_id = _person_identity.user_id(
                 result_record.company_code, validated_target_username, lock=True)
+            result_record.target_identity = _person_identity.user_identity(
+                result_record.company_code, validated_target_username, lock=True)
         else:
             validated_target_user = result_record.target_user
         result_record.target_user = validated_target_user
@@ -1149,6 +1151,7 @@ def register_countermeasure(index):
         countermeasure_user.username
     )
     result_record.countermeasure_by_user_id = _person_identity.user_id(result_record.company_code, result_record.countermeasure_by_username, lock=True)
+    result_record.countermeasure_by_identity = _person_identity.user_identity(result_record.company_code, result_record.countermeasure_by_username, lock=True)
 
     result_record.countermeasure_due_date = (
         countermeasure_due_date
@@ -1237,10 +1240,7 @@ def approve_countermeasure(index):
     _dkss_common.db.session.commit()
 
     for target_username in notify_usernames:
-        target_user = _dkss_models.User.query.filter_by(
-            company_code=result_record.company_code,
-            username=target_username
-        ).first()
+        target_user = _person_identity.recipient(result_record, target_username)
 
         if not target_user:
             continue
@@ -1310,10 +1310,7 @@ def reject_countermeasure(index):
     _dkss_common.db.session.commit()
 
     for target_username in notify_usernames:
-        target_user = _dkss_models.User.query.filter_by(
-            company_code=result_record.company_code,
-            username=target_username
-        ).first()
+        target_user = _person_identity.recipient(result_record, target_username)
 
         if not target_user:
             continue
