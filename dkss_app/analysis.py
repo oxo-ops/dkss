@@ -1601,7 +1601,10 @@ def vehicle_karte_analysis(vehicle_record_id):
     from flask import abort
     if not _dkss_common.session.get('username'):
         return _dkss_common.redirect(_dkss_common.url_for('login'))
-    vehicle = _dkss_models.Vehicle.query.filter_by(id=vehicle_record_id, company_code=_dkss_common.session.get('company_code')).first_or_404()
+    vehicle = _dkss_models.Vehicle.query.filter_by(
+        id=vehicle_record_id, company_code=_dkss_common.session.get('company_code'),
+        deleted=False,
+    ).first_or_404()
     today = _dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).date()
     default_start = today.replace(year=today.year - 2, day=min(today.day, _dkss_common.calendar.monthrange(today.year - 2, today.month)[1]))
     start_text = _dkss_common.request.args.get('start_date', default_start.isoformat())
