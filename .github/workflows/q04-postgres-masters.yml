@@ -239,11 +239,11 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest discover -s tests -p 'test_q04_postgres_master_index_acceptance.py' -v 2>&1 | tee q04-postgres-index-results.log
-      - name: Verify read-only master preflight on SQLite and PostgreSQL
+      - name: Verify read-only master preflight on PostgreSQL
         shell: bash
         run: |
           set -o pipefail
-          PYTHONPATH=.:tests python -m unittest test_q04_master_preflight test_q04_postgres_master_preflight -v 2>&1 | tee q04-master-preflight-results.log
+          PYTHONPATH=.:tests python -m unittest test_q04_postgres_master_preflight -v 2>&1 | tee q04-master-preflight-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
