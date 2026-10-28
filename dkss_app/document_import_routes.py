@@ -5,6 +5,7 @@ from werkzeug.exceptions import NotFound
 from . import access, http
 from .models import VehicleDocumentImportDraft as Draft
 from . import document_import_queue as queue
+from . import import_owner
 from .document_import_worker import start_worker
 
 
@@ -81,8 +82,8 @@ def delete_document_import(batch_id):
 def recent_imports():
     if not access.require_master_admin():
         return []
-    rows = queue.lightweight_query().filter_by(company_code=session.get('company_code'),
-        created_by_username=session.get('username')).filter(Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error', 'type_review'))).order_by(Draft.created_at.desc()).limit(100).all()
+    rows = queue.lightweight_query().filter(import_owner.owner_clause(Draft),
+        Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error', 'type_review'))).order_by(Draft.created_at.desc()).limit(100).all()
     batches = OrderedDict()
     for row in rows:
         if row.document_type not in {'maintenance', 'inspection', 'driving_report'} or row.status not in {*queue.ACTIVE, 'preview', 'read_error', 'type_review'}:

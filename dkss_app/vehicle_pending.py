@@ -756,6 +756,7 @@ def vehicle_import_pending_document_source(pending_id, draft_id):
     ).filter(
         _dkss_models.VehicleDocumentImportDraft.id == draft_id,
         _dkss_models.VehicleDocumentImportDraft.company_code == company_code,
+        _dkss_models.VehicleDocumentImportDraft.status == 'completed',
         _dkss_models.VehicleImportPendingRecord.company_code == company_code,
         _dkss_models.VehicleImportPendingRecord.pending_id == pending_id,
         _dkss_models.VehicleImportPendingRecord.source_kind == _dkss_models.VehicleDocumentImportDraft.document_type

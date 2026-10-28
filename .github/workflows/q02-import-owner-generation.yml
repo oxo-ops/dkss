@@ -1,0 +1,45 @@
+name: Q02 Import Owner Generation
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/**'
+      - 'tests/test_q02*import_owner_generation.py'
+      - '.github/workflows/q02-import-owner-generation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q08_ci
+          POSTGRES_USER: q02
+          POSTGRES_PASSWORD: q02-disposable-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U q02 -d dkss_q08_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PYTHONPATH: .:tests
+      Q08_POSTGRES_TEST_URL: postgresql+psycopg2://q02:q02-disposable-ci-only@127.0.0.1:5432/dkss_q08_ci
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: >-
+          python -m unittest -v test_q02_import_owner_generation
+          test_q02_postgres_import_owner_generation.PostgresImportOwnerGenerationTests
+          test_q02_postgres_import_owner_generation.PostgresImportOwnerMigrationTests
