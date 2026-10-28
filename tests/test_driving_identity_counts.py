@@ -1,4 +1,5 @@
 """Unknown or conflicting identities are operations, never invented people."""
+from identity_fixture import identity_for
 import csv
 import io
 import json
@@ -22,7 +23,7 @@ class IdentityCountTests(unittest.TestCase):
 
     def assign(self,rows,username):
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign(rows,username,'admin');self.m.db.session.commit()
 
     def test_unknown_same_names_are_not_counted_as_people_in_office_or_export(self):
@@ -72,7 +73,7 @@ class IdentityCountTests(unittest.TestCase):
         self.unknown(self.a)
         self.m.db.session.add(self.m.User(company_code='TEST',username='one',role='user',password='unused',last_name='本人',password_changed_at='stamp'))
         self.m.db.session.commit();self.assign([self.a],'one')
-        with self.client.session_transaction() as state:state.update(username='one',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'one', app=(self.client).application), username='one',role='user',password_changed_at='stamp')
         response,context=self.render(self.base+'&scope=company')
         self.assertEqual(context['insights']['identity_counts']['driver_count'],1)
         self.assertEqual(context['insights']['identity_counts']['unidentified_count'],0)

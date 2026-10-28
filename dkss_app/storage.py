@@ -1,4 +1,5 @@
 """Storage responsibilities; routes are registered by the application factory."""
+from .account_identity import notification_owner_clause
 from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization
 
 
@@ -391,8 +392,8 @@ def file_belongs_to_current_company(filename, folder="uploads"):
 
         elif news.target_type == "user":
             can_view_news = (
-                news.target_value
-                == _dkss_common.session.get("username")
+                news.owner_identity is not None
+                and news.owner_identity == _dkss_common.session.get("account_identity")
             )
 
         if not can_view_news:
@@ -408,7 +409,7 @@ def file_belongs_to_current_company(filename, folder="uploads"):
     # 通知
     notification_records = _dkss_models.Notification.query.filter(
         _dkss_models.Notification.company_code == company_code,
-        _dkss_models.Notification.target_username == _dkss_common.session.get("username")
+        notification_owner_clause()
     ).all()
 
     for notification in notification_records:

@@ -5,6 +5,8 @@ from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, 
 def init_db():
     with _dkss_runtime.app.app_context():
         _dkss_common.db.create_all()
+        from .account_identity import upgrade_account_identity
+        upgrade_account_identity()
 
         # VEHICLE_MAINTENANCE_ATTRIBUTES_MIGRATION
         maintenance_columns = {
@@ -90,7 +92,8 @@ def init_db():
             )
             _dkss_common.db.session.commit()
 
-        _dkss_audit.cleanup_old_audit_logs()
+        # Schema/bootstrap must not erase historical identity evidence. Retention
+        # cleanup is an explicit operational policy, not a migration side effect.
 
         if not _dkss_models.Company.query.filter_by(company_code="ITC").first():
             _dkss_common.db.session.add(_dkss_models.Company(

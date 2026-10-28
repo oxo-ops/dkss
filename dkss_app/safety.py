@@ -377,6 +377,7 @@ def new_pointout():
                         ))
                     else:
                         target_username = target_user_record.username
+                        target_identity = target_user_record.account_identity
                         target_user = target_driver.name
                         target_office = target_driver.office or ""
 
@@ -505,6 +506,7 @@ def new_pointout():
                 "あなたに確認が必要な安全パトロールがあります。",
                 f"/pointouts/{result.id}",
                 company_code=company_code,
+                target_identity=target_identity,
                 target_username=result.target_username
             )
 
@@ -1242,6 +1244,7 @@ def approve_countermeasure(index):
             "安全パトロールの対応が承認されました。",
             f"/pointouts/{result_record.id}",
             company_code=result_record.company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username
         )
 
@@ -1315,6 +1318,7 @@ def reject_countermeasure(index):
             or "安全パトロールが差し戻されました。",
             f"/pointouts/{result_record.id}",
             company_code=result_record.company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username
         )
 

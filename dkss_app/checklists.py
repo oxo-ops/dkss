@@ -2620,6 +2620,7 @@ def edit_checklist_result(result_index):
                 notification_message,
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=(
                     _dkss_notifications_delivery.build_notification_workflow_context(
@@ -2666,6 +2667,7 @@ def edit_checklist_result(result_index):
                     ),
                     f"/safety/checklist-results/{result_record.id}",
                     company_code=company_code,
+                    target_identity=notify_user.account_identity,
                     target_username=notify_user.username
                 )
 
@@ -4124,6 +4126,7 @@ def save_vehicle_operation_judgment(result_index):
                 company_code=result_record.company_code,
                 target_user=manager_name,
                 target_username=manager.username,
+                owner_identity=manager.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4403,6 +4406,7 @@ def save_vehicle_operation_judgment(result_index):
                 target_user=(notification_target.last_name or "")
                 + (notification_target.first_name or ""),
                 target_username=notification_target.username,
+                owner_identity=notification_target.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4435,6 +4439,7 @@ def save_vehicle_operation_judgment(result_index):
                     or target.username
                 ),
                 target_username=target.username,
+                owner_identity=target.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,
@@ -4792,6 +4797,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                     "次の承認をお願いします。",
                     notification_link,
                     company_code=result_record.company_code,
+                    target_identity=target_user.account_identity,
                     target_username=target_user.username,
                     workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                         result_record,
@@ -4831,6 +4837,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
                 ),
                 notification_link,
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -5147,6 +5154,7 @@ def reject_vehicle_checklist_result(result_index):
                     f"&active_day={active_value}"
                 ),
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result_record,
@@ -6721,6 +6729,7 @@ def invalidate_other_vehicle_operation_judgments(result_record):
                 company_code=record.company_code,
                 target_user=(target_user.last_name or "") + (target_user.first_name or ""),
                 target_username=target_user.username,
+                owner_identity=target_user.account_identity,
                 title="運行可否の再判定依頼：" + vehicle_name,
                 message=(
                     f"対象車両：{vehicle_name}\n"
@@ -6890,6 +6899,7 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
                 target_user=(target_user.last_name or "")
                 + (target_user.first_name or ""),
                 target_username=target_user.username,
+                owner_identity=target_user.account_identity,
                 title="日常点検の異常報告：" + vehicle_name,
                 message=(
                     f"対象車両：{vehicle_name}\n"
@@ -6981,6 +6991,7 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
             company_code=result_record.company_code,
             target_user=(target_user.last_name or "") + (target_user.first_name or ""),
             target_username=target_user.username,
+            owner_identity=target_user.account_identity,
             title="運行可否の再判定依頼：" + vehicle_name,
             message=(
                 f"対象車両：{vehicle_name}\n"
@@ -8682,6 +8693,7 @@ def complete_vehicle_checklist(index):
             notification_message,
             notification_link,
             company_code=company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username,
             workflow_context=(
                 _dkss_notifications_delivery.build_notification_workflow_context(
@@ -8709,6 +8721,7 @@ def complete_vehicle_checklist(index):
                 ),
                 notification_link,
                 company_code=company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -9240,6 +9253,7 @@ def new_vehicle_checklist_result(index):
                     target_user=(target_user.last_name or "")
                     + (target_user.first_name or ""),
                     company_code=company_code,
+                    target_identity=target_user.account_identity,
                     target_username=username,
                     title="車両チェックリスト承認依頼",
                     workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
@@ -9290,6 +9304,7 @@ def new_vehicle_checklist_result(index):
                         active_day=day,
                     ),
                     company_code=company_code,
+                    target_identity=target_user.account_identity,
                     target_username=target_user.username
                 )
 
@@ -9876,6 +9891,7 @@ def new_safety_checklist_result(index):
                 ),
                 f"/safety/checklist-results/{result.id}",
                 company_code=company_code,
+                target_identity=approval_user.account_identity,
                 target_username=approval_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result,
@@ -9916,6 +9932,7 @@ def new_safety_checklist_result(index):
                     ),
                     f"/safety/checklist-results/{result.id}",
                     company_code=company_code,
+                    target_identity=notify_user.account_identity,
                     target_username=notify_user.username
                 )
 
@@ -11174,6 +11191,7 @@ def approve_checklist_result(result_index, approval_index):
                 "次の承認をお願いします。",
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username,
                 workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                     result_record,
@@ -11208,6 +11226,7 @@ def approve_checklist_result(result_index, approval_index):
                 "チェックリストの承認が完了しました。",
                 f"/safety/checklist-results/{result_record.id}",
                 company_code=result_record.company_code,
+                target_identity=target_user.account_identity,
                 target_username=target_user.username
             )
 
@@ -11428,6 +11447,7 @@ def reject_checklist_result(result_index):
             reject_reason or "チェックリストが差し戻されました。",
             f"/safety/checklist-results/{result_record.id}",
             company_code=result_record.company_code,
+            target_identity=target_user.account_identity,
             target_username=target_user.username,
             workflow_context=_dkss_notifications_delivery.build_notification_workflow_context(
                 result_record,

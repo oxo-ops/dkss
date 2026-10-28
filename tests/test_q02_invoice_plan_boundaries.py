@@ -3,6 +3,7 @@
 Real import -> plan API -> every original link; disposable SQLite and synthetic
 PDFs only. No browser, external services, PostgreSQL or production verification.
 """
+from identity_fixture import identity_for
 import hashlib
 import json
 import unittest
@@ -40,7 +41,7 @@ class Q02InvoicePlanBoundaryTests(unittest.TestCase):
         # A denial on an earlier URL must not make later checks merely anonymous.
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username='admin', role='admin',
+            session.update(account_identity=identity_for(company, 'admin', app=(self.client).application), company_code=company, username='admin', role='admin',
                            password_changed_at=self.stamp)
 
     def request(self, path, **kwargs):

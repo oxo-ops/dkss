@@ -75,6 +75,8 @@ class CompanyUsageSummary(db.Model):
 
 
 class User(db.Model):
+    __table_args__ = (db.Index('uq_user_account_identity', 'account_identity', unique=True),)
+    account_identity = db.Column(db.String(36), default=lambda: str(uuid4()))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(
@@ -351,6 +353,7 @@ class Driver(db.Model):
 
 
 class News(db.Model):
+    owner_identity = db.Column(db.String(36))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(
@@ -372,6 +375,8 @@ class News(db.Model):
 
 
 class Notification(db.Model):
+    __table_args__ = (db.Index('ix_notification_owner_identity', 'company_code', 'owner_identity'),)
+    owner_identity = db.Column(db.String(36))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50))
@@ -393,6 +398,8 @@ class Notification(db.Model):
 
 
 class PushSubscription(db.Model):
+    __table_args__ = (db.Index('ix_push_owner_identity', 'company_code', 'owner_identity'),)
+    owner_identity = db.Column(db.String(36))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(
@@ -428,6 +435,8 @@ class PushSubscription(db.Model):
 
 
 class AuditLog(db.Model):
+    actor_identity = db.Column(db.String(36))
+    actor_name = db.Column(db.String(200))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(
@@ -1269,6 +1278,8 @@ class VehicleKarteAnalysis(db.Model):
 
 
 class VehicleMaintenanceRecordEvent(db.Model):
+    actor_identity = db.Column(db.String(36))
+    actor_name = db.Column(db.String(200))
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(

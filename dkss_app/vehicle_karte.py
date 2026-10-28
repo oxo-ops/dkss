@@ -290,17 +290,11 @@ def build_vehicle_karte_documents_context(vehicle, documents):
     usernames.discard(None)
     usernames.discard("")
 
-    users = _dkss_models.User.query.filter(
-        _dkss_models.User.company_code == vehicle.company_code,
-        _dkss_models.User.username.in_(list(usernames)),
-    ).all() if usernames else []
-
+    # Import drafts only stored a login ID. Do not relabel old uploaders with a
+    # different person's current name after account deletion and ID reuse.
     user_names = {
-        user.username: (
-            f"{user.last_name or ''}{user.first_name or ''}".strip()
-            or user.username
-        )
-        for user in users
+        username: f"{username}（記録時のID・本人未確認）"
+        for username in usernames
     }
 
     now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
@@ -1318,6 +1312,8 @@ def get_vehicle_maintenance_record_events(record):
             "label": action_labels.get(event.action, "記録を更新"),
             "date": (event.created_at or "")[:16].replace("T", " "),
             "username": event.created_by_username or "",
+            "actor": (event.actor_name or event.created_by_username or "—")
+                     if event.actor_identity else f"{event.created_by_username or '—'}（旧記録・本人未確認）",
             "status_before": event.status_before,
             "status_after": event.status_after,
             "status_changed": event.action == "status_changed",
@@ -1331,31 +1327,12 @@ def get_vehicle_maintenance_record_events(record):
             "label": "登録（既存記録）",
             "date": record.created_at[:16].replace("T", " "),
             "username": record.created_by_username or "",
+            "actor": f"{record.created_by_username or '—'}（旧記録・本人未確認）",
             "status_before": None,
             "status_after": None,
             "status_changed": False,
             "changes": [],
         })
-
-    usernames = {
-        item["username"] for item in items if item["username"]
-    }
-    users = _dkss_models.User.query.filter(
-        _dkss_models.User.company_code == record.company_code,
-        _dkss_models.User.username.in_(list(usernames)),
-    ).all() if usernames else []
-
-    names = {
-        user.username: (
-            f"{user.last_name or ''}{user.first_name or ''}".strip()
-            or user.username
-        )
-        for user in users
-    }
-    for item in items:
-        item["actor"] = names.get(
-            item["username"], item["username"]
-        ) or "—"
 
     return items
 
@@ -2265,6 +2242,7 @@ def persist_vehicle_inspection_repair(result_record, company_code, current_user,
                 target_user=(target_user.last_name or "")
                 + (target_user.first_name or ""),
                 target_username=target_user.username,
+                owner_identity=target_user.account_identity,
                 title=notification_title,
                 message=notification_message,
                 link=notification_link,

@@ -1,4 +1,5 @@
 """Vehicle Pending responsibilities; routes are registered by the application factory."""
+from .vehicle_capacity import reserved_vehicle_count
 from . import access as _dkss_access, checklists as _dkss_checklists, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_imports as _dkss_vehicle_imports, vehicle_karte as _dkss_vehicle_karte, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -691,9 +692,7 @@ def create_vehicle_from_pending_operations(pending, company_code):
     if company is None:
         raise _dkss_common.UploadValidationError("会社情報を確認できません。")
 
-    active_count = _dkss_models.Vehicle.query.filter_by(
-        company_code=company_code, deleted=False
-    ).count()
+    active_count = reserved_vehicle_count(company_code)
     if active_count >= (company.vehicle_limit or 0):
         raise _dkss_common.UploadValidationError("登録可能台数の上限に達しています。")
 

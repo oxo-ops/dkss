@@ -1,4 +1,5 @@
 """Document state and company/creator access, using real routes and isolated DB."""
+from identity_fixture import identity_for
 import hashlib
 import re
 import unittest
@@ -31,7 +32,7 @@ class Q02ImportDocumentBoundaryTests(unittest.TestCase):
     def actor(self, company='TEST', name='admin', role='admin'):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code=company, username=name, role=role, password_changed_at=self.stamp)
+            session.update(account_identity=identity_for(company, name, app=(self.client).application), company_code=company, username=name, role=role, password_changed_at=self.stamp)
 
     def preview(self, width=595):
         source = pdf_bytes(width)

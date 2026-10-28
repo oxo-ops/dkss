@@ -1,4 +1,5 @@
 """Dashboard output contracts and scoped batch reads using an isolated database."""
+from identity_fixture import identity_for
 
 import json
 from datetime import datetime
@@ -180,7 +181,7 @@ class DashboardServiceTests(unittest.TestCase):
 
         engine = self.m.db.engine
         with self.m.app.test_request_context("/"):
-            self.m.session.update(company_code="TEST", username="admin", role=role, name="本人")
+            self.m.session.update(account_identity=identity_for("TEST", "admin"), company_code="TEST", username="admin", role=role, name="本人")
             event.listen(engine, "before_cursor_execute", record)
             try:
                 with patch.object(module._dkss_common, "datetime", FixedClock), patch.object(

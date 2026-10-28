@@ -3,6 +3,7 @@
 Synthetic data and temporary SQLite/files only. No production DB, network,
 AI calls or shared application edits. MFA/login and PostgreSQL are out of scope.
 """
+from identity_fixture import identity_for
 import json
 import os
 from pathlib import Path
@@ -75,7 +76,7 @@ class Q02AccessRevocationTests(unittest.TestCase):
     def login(self):
         with self.client.session_transaction() as session:
             session.clear()
-            session.update(company_code='A', username='same', role='admin', office='east',
+            session.update(account_identity=identity_for('A', 'same', app=(self.client).application), company_code='A', username='same', role='admin', office='east',
                            password_changed_at='2026-10-27 10:00:00')
 
     def user(self):

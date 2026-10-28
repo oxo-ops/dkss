@@ -1,4 +1,5 @@
 """Grounded office findings and local action targets obey the active filters."""
+from identity_fixture import identity_for
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -122,9 +123,9 @@ class AiNavigationTests(unittest.TestCase):
         from dkss_app import driving_access
         from flask import session
         with self.m.app.test_request_context():
-            session.update(company_code='TEST',username='admin',role='admin')
+            session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
             driving_access.assign([self.a],'one','admin');self.m.db.session.commit()
-        with self.client.session_transaction() as state:state.update(username='one',role='user',password_changed_at='stamp')
+        with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'one', app=(self.client).application), username='one',role='user',password_changed_at='stamp')
         response,context,document=self.generate_for(self.base+'&scope=company','record')
         self.assertFalse(any(e['kind']=='office' or e.get('vehicle_id') for e in document['evidence']))
         item=context['reflection']['items'][0];self.assertEqual(item['links'][0]['label'],'自分の記録を確認')
