@@ -106,5 +106,7 @@ def recent_imports():
             state, label = 'completed', '登録済み' if 'completed' in statuses else '確認済み'
         result.append({'batch_id': batch_id, 'filename': files[0].source_filename,
             'count': len(files), 'state': state, 'label': label,
+            'kind': files[0].document_type,
+            'status_url': url_for('document_import_status', batch_id=batch_id),
             'url': url_for('document_import_job', batch_id=batch_id)})
     return result

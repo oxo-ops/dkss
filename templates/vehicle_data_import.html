@@ -90,7 +90,7 @@
                 <div class="import-receipt-name" title="{{ item.filename }}">{{ item.filename }}{% if item.count > 1 %}<small>ほか{{ item.count - 1 }}件</small>{% endif %}</div>
                 <span class="import-receipt-state" data-state="{{ item.state }}">{{ item.label }}</span>
                 <div class="import-receipt-actions">
-                    <a class="import-receipt-read" href="{{ item.url }}?open=1" aria-label="{{ item.filename }}を読み込む">読み込む</a>
+                    <a class="import-receipt-read" href="{{ item.url }}?open=1" data-receipt-kind="{{ item.kind }}" data-receipt-status-url="{{ item.status_url }}" aria-label="{{ item.filename }}を読み込む">読み込む</a>
                     <form method="post" action="{{ url_for('delete_document_import', batch_id=item.batch_id) }}" class="import-receipt-delete-form" data-filename="{{ item.filename }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="import-receipt-delete" aria-label="{{ item.filename }}を削除">削除</button>
@@ -101,7 +101,7 @@
         </ul>
     </section>
     <script defer src="{{ url_for('static', filename='js/import_file_selections.js', v='20261026-kind-recovery-1') }}"></script>
-    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261027-semantic-transfer-1') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/document_import_queue.js', v='20261028-receipt-inline-1') }}"></script>
     <details class="import-note">
         <summary>取り込みについて・ファイルの上限</summary>
         <p>同じ種類の資料は、複数車両分をまとめて選択できます（運行実績CSVは1ファイルずつ）。</p>
