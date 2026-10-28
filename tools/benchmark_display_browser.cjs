@@ -39,6 +39,8 @@ let activeBrowser;
         await cdp.send('Network.setCacheDisabled',{cacheDisabled:visit===0});
         const response = await page.goto(base+route,{waitUntil:'load',timeout:120000});
         await page.waitForTimeout(350);
+        if(new URL(page.url()).pathname !== new URL(base+route).pathname ||
+           !await page.locator('.top-bar-user').count()) throw new Error('Authenticated fixture navigation failed: '+route);
         const metrics = await page.evaluate(() => {
           const nav=performance.getEntriesByType('navigation')[0];
           const resources=performance.getEntriesByType('resource').map(r=>({url:new URL(r.name).pathname,type:r.initiatorType,ms:r.duration,transfer:r.transferSize,encoded:r.encodedBodySize,decoded:r.decodedBodySize}));

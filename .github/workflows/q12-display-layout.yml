@@ -1,0 +1,54 @@
+name: Q12 Planner Display Layout
+on:
+  pull_request:
+    paths:
+      - 'static/css/vehicle_inspection_plans.css'
+      - 'templates/base.html'
+      - 'templates/vehicle_inspection_plans.html'
+      - 'tests/q12_planner_stability_browser.cjs'
+      - 'tools/benchmark_display_fixture.py'
+      - '.github/workflows/q12-display-layout.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  planner-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: echo "NODE_PATH=$RUNNER_TEMP/q12-node/node_modules" >> "$GITHUB_ENV"
+      - run: python -m pip install -r requirements.txt
+      - run: npm install --no-save --prefix "$RUNNER_TEMP/q12-node" playwright@1.62.1
+      - run: node "$RUNNER_TEMP/q12-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Start synthetic loopback fixture
+        run: |
+          python -u tools/benchmark_display_fixture.py --port 51320 --work-dir "$RUNNER_TEMP/q12-fixture" > "$RUNNER_TEMP/q12-server.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:51320/login; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Hold real API response and check geometry and controls
+        run: |
+          mkdir -p "$RUNNER_TEMP/q12-results"
+          node tests/q12_planner_stability_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/geometry.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q12-planner-layout
+          path: ${{ runner.temp }}/q12-results/
