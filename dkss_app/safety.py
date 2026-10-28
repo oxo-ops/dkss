@@ -392,10 +392,11 @@ def new_pointout():
                 ))
 
             if delivery_place:
+                # Keep validated master names present until the history commits.
                 valid_delivery_place = _dkss_models.DeliveryPlace.query.filter_by(
                     company_code=company_code,
                     name=delivery_place
-                ).first()
+                ).with_for_update(read=True).first()
 
                 if not valid_delivery_place:
                     form_errors.append((
@@ -411,13 +412,16 @@ def new_pointout():
             valid_content_type = _dkss_models.PatrolContentType.query.filter_by(
                 company_code=company_code,
                 name=content_type
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_content_type:
                 form_errors.append((
                     "内容区分が不正です。",
                     "content_type"
                 ))
+
+        if not _dkss_master_readers.office_reference_is_current(company_code, target_office):
+            form_errors.append(("営業所が更新されています。画面を再読み込みしてください。", "target_user_search"))
 
         if len(content) > 5000:
             form_errors.append((
@@ -678,7 +682,7 @@ def edit_pointout(index):
             valid_content_type = _dkss_models.PatrolContentType.query.filter_by(
                 company_code=company_code,
                 name=content_type
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_content_type:
                 form_errors.append((
@@ -759,7 +763,7 @@ def edit_pointout(index):
                 valid_delivery_place = _dkss_models.DeliveryPlace.query.filter_by(
                     company_code=company_code,
                     name=delivery_place
-                ).first()
+                ).with_for_update(read=True).first()
 
                 if not valid_delivery_place:
                     form_errors.append((
@@ -776,6 +780,13 @@ def edit_pointout(index):
 
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
+
+        if result_record.target_type == "user" and not _dkss_master_readers.office_reference_is_current(
+            company_code, validated_office
+        ):
+            return _dkss_http.return_form_errors([
+                ("営業所が更新されています。画面を再読み込みしてください。", "target_user_search")
+            ])
 
         # 既存添付
 

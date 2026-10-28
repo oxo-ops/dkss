@@ -705,7 +705,9 @@ def confirm_vehicle_import():
         vehicle_type.name
         for vehicle_type in _dkss_models.VehicleType.query.filter_by(
             company_code=company_code
-        ).all()
+        ).filter(_dkss_models.VehicleType.name.in_([
+            value.strip() for value in vehicle_types
+        ])).order_by(_dkss_models.VehicleType.id).with_for_update(read=True).all()
     }
 
     vehicle_types = [
@@ -803,7 +805,9 @@ def confirm_vehicle_import():
         office.name
         for office in _dkss_models.Office.query.filter_by(
             company_code=company_code
-        ).all()
+        ).filter(_dkss_models.Office.name.in_([
+            value.strip() for value in offices
+        ])).order_by(_dkss_models.Office.id).with_for_update(read=True).all()
     }
 
     offices = [

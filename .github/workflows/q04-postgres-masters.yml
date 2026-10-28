@@ -5,6 +5,7 @@ on:
     branches:
       - 'test/q04-master-concurrency-*'
       - 'fix/q04-master-concurrency-*'
+      - 'fix/q04-master-integrity-*'
       - 'test/q04-master-upgrade-*'
       - 'test/q04-related-writes-*'
       - 'test/q04-master-order-*'
@@ -15,6 +16,14 @@ on:
       - 'tests/test_q04_postgres_master_upgrade.py'
       - 'tests/test_q04_postgres_related_writes.py'
       - 'tests/test_q04_postgres_master_order.py'
+      - 'tests/test_q04_postgres_delivery_integrity.py'
+      - 'tests/test_q04_postgres_history_master_links.py'
+      - 'tests/test_q04_postgres_checklist_office_links.py'
+      - 'tests/test_q04_postgres_named_master_gaps.py'
+      - 'tests/test_q04_postgres_driver_license_links.py'
+      - 'tests/test_q04_postgres_master_reuse_and_reverse.py'
+      - 'tests/test_q04_postgres_vehicle_batch_master_links.py'
+      - 'tests/q04_pg_helpers.py'
       - 'tests/fixtures/application_contract.json'
       - '.github/workflows/q04-postgres-masters.yml'
       - 'dkss_app/masters.py'
@@ -26,6 +35,8 @@ on:
       - 'dkss_app/routes.py'
       - 'dkss_app/access.py'
       - 'dkss_app/auth.py'
+      - 'dkss_app/safety.py'
+      - 'dkss_app/checklists.py'
       - 'requirements.txt'
 
 permissions:
@@ -136,6 +147,36 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest discover -s tests -p 'test_q04_postgres_master_order.py' -v 2>&1 | tee q04-postgres-order-results.log
+      - name: Confirm new master checks detect the unfixed main snapshot
+        shell: bash
+        env:
+          Q04_GAPS_BASELINE_REF: 6d7d8c9ccc7bd661cd86a6b5fa68b99da2a7c668
+        run: |
+          git fetch --no-tags --depth=1 origin "$Q04_GAPS_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-gaps-baseline" "$Q04_GAPS_BASELINE_REF"
+          cp tests/q04_pg_helpers.py "$RUNNER_TEMP/q04-gaps-baseline/tests/"
+          for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
+            cp "tests/test_q04_postgres_${name}.py" "$RUNNER_TEMP/q04-gaps-baseline/tests/"
+          done
+          set +e
+          (cd "$RUNNER_TEMP/q04-gaps-baseline" && PYTHONPATH=tests python -m unittest test_q04_postgres_delivery_integrity test_q04_postgres_history_master_links test_q04_postgres_checklist_office_links test_q04_postgres_named_master_gaps test_q04_postgres_driver_license_links test_q04_postgres_master_reuse_and_reverse test_q04_postgres_vehicle_batch_master_links -v) > q04-gaps-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          python - "$baseline_exit" <<'PY'
+          import pathlib, re, sys
+          log = pathlib.Path('q04-gaps-baseline-results.log').read_text()
+          assert sys.argv[1] == '1', 'Unfixed snapshot must fail integrity assertions'
+          assert re.search(r'Ran 130 tests\b', log), 'All new checks must execute'
+          assert 'FAILED (failures=94)' in log, 'Inspect changed baseline evidence'
+          print('GAPS_BASELINE_CONFIRMED: 130 tests, 94 integrity failures')
+          PY
+      - name: Verify uncovered master and historical-reference paths on PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
+            python -m unittest discover -s tests -p "test_q04_postgres_${name}.py" -v || exit $?
+          done 2>&1 | tee q04-postgres-gaps-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -149,5 +190,7 @@ jobs:
             q04-postgres-related-results.log
             q04-related-baseline-results.log
             q04-postgres-order-results.log
+            q04-postgres-gaps-results.log
+            q04-gaps-baseline-results.log
           if-no-files-found: warn
           retention-days: 7
