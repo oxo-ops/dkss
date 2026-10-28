@@ -1,4 +1,5 @@
 """Vehicle Master responsibilities; routes are registered by the application factory."""
+from . import import_owner as _dkss_import_owner
 from .vehicle_capacity import reserved_vehicle_count, UNKNOWN_VEHICLE_STATE
 from . import audit as _dkss_audit, common as _dkss_common, http as _dkss_http, knowledge as _dkss_knowledge, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
@@ -686,9 +687,7 @@ def confirm_vehicle_import():
     excel_review = None
     review_id = _dkss_common.request.form.get('vehicle_excel_import_draft')
     if review_id:
-        excel_review = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-            id=review_id, document_type='vehicle_excel', company_code=_dkss_common.session.get('company_code'),
-            created_by_username=_dkss_common.session.get('username')).with_for_update().first_or_404()
+        excel_review = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=review_id, document_type='vehicle_excel', company_code=_dkss_common.session.get('company_code')).filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).with_for_update().first_or_404()
         if excel_review.status != 'preview':
             return _dkss_http.return_form_errors([('このExcelはすでに登録済み、または取消済みです。元の画面で結果を確認してください。', '')], 409)
 
