@@ -18,7 +18,7 @@
         const originalButtonText = button.textContent;
         const clear = form.querySelector(".import-clear");
         form.dataset.loading = "1";
-        form.classList.add("ocr-queue-busy");
+        if (form.classList) form.classList.add("ocr-queue-busy");
         button.disabled = true;
         input.disabled = true;
         if (clear) clear.disabled = true;
@@ -33,7 +33,7 @@
             if (event.lengthComputable) status.textContent = "ファイル送信 " + Math.round(event.loaded / event.total * 100) + "％";
         });
         function fail(message) {
-            form.classList.remove("ocr-queue-busy");
+            if (form.classList) form.classList.remove("ocr-queue-busy");
             delete form.dataset.loading;
             button.disabled = false;
             input.disabled = false;
@@ -95,7 +95,7 @@
                             } else {
                                 status.textContent = "読み取りが完了しました。受付済みの資料から確認できます。";
                             }
-                            form.classList.remove("ocr-queue-busy");
+                            if (form.classList) form.classList.remove("ocr-queue-busy");
                             delete form.dataset.loading;
                             button.disabled = false;
                             input.disabled = false;
