@@ -63,6 +63,23 @@
     }
     document.querySelectorAll('form[data-import-queue="1"]').forEach(form => {
         form.querySelector('input[type="file"]').addEventListener('change', () => { delete form.dataset.uploadKey; });
+        form.addEventListener('submit', event => {
+            if (event.defaultPrevented) return;
+            const input = form.querySelector('input[type="file"]');
+            // Type-transfer capture listener runs first and may cancel this submit.
+            if (offerTypeTransfer(form, Array.from(input.files || []))) {
+                event.preventDefault();
+                return;
+            }
+            event.preventDefault();
+            const error = form.querySelector('.import-error');
+            const showError = message => {
+                if (error) { error.textContent = message; error.hidden = false; }
+            };
+            if (error) { error.textContent = ''; error.hidden = true; }
+            if (!input.files.length) { showError('資料を選択してください。'); return; }
+            submit(form, showError);
+        });
     });
     function offerDocumentTransfer(form, suggestion, showError) {
         const labels = {maintenance:"請求書・整備資料", inspection:"点検記録", driving_report:"安全運転日報"};

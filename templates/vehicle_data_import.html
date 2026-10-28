@@ -52,7 +52,7 @@
             <p class="vehicle-registration-method-lead">{{ lead }}</p>
 
             {% if kind in ['operation', 'maintenance', 'inspection', 'driving_report'] %}
-            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'vehicle_data_import') }}" enctype="multipart/form-data" class="import-form" novalidate>
+            <form method="post" action="{{ url_for('vehicle_operation_import' if kind == 'operation' else 'enqueue_documents') }}" enctype="multipart/form-data" class="import-form" {% if kind != 'operation' %}data-import-queue="1"{% endif %} novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if kind != 'operation' %}
                 <input type="hidden" name="document_type" value="{{ kind }}">
