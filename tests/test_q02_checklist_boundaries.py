@@ -4,7 +4,7 @@ Real Flask routes, disposable SQLite and synthetic users only. Candidate lists
 select notification recipients; they do not restrict an allow_general slot.
 Does not validate PostgreSQL locking, browser CSRF or live deployment.
 """
-from identity_fixture import identity_for
+from identity_fixture import identity_for, PersonSelectionClient
 import io
 import json
 import os
@@ -28,6 +28,7 @@ class Q02ChecklistBoundaryTests(unittest.TestCase):
                'AWS_EC2_METADATA_DISABLED': 'true'}
         with patch.dict(os.environ, env):
             cls.app = create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False})
+        cls.app.test_client_class = PersonSelectionClient
         limiter.enabled = False
 
     @classmethod
