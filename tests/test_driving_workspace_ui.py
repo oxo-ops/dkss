@@ -46,7 +46,7 @@ class WorkspaceUITests(unittest.TestCase):
         response,context=self.render(self.base+'&scope=company&office=小山')
         html=response.get_data(as_text=True)
         self.assertEqual(context['filters']['scope'],'self');self.assertEqual(context['total'],1)
-        for label in ['自分の運転実績','前期間と比べる','日ごとの記録','次の振り返り']:self.assertIn(label,html)
+        for label in ['自分の運転実績','運転傾向','日ごとの記録','次の振り返り']:self.assertIn(label,html)
         for label in ['data-office-select','本人アカウントを設定','車両全体の整備実費','乗務員一覧へ戻る','小山の人','他社の秘密']:self.assertNotIn(label,html)
         self.assertEqual(self.client.post('/safety/driving-reports/readers',data={}).status_code,403)
 
@@ -116,7 +116,7 @@ class WorkspaceUITests(unittest.TestCase):
         self.assertNotIn('id="driver-trend"',html)
         self.assertNotIn('id="driving-next-title"',html)
         self.assertLess(html.index('id="driving-metrics"'),html.index('id="driving-roster"'))
-        self.assertIn('id="driving-roster" open',html)
+        self.assertIn('<div class="driving-directory" id="driving-roster">',html)
         _,economy=self.render(self.base+'&category=economy')
         self.assertEqual(economy['insights']['empty_metric_names'],['燃費','アイドリング','回転超過'])
         self.assertEqual(economy['insights']['summary']['distance'],20)
@@ -126,7 +126,7 @@ class WorkspaceUITests(unittest.TestCase):
         for scope in ['company','office']:
             response,_=self.render(self.base+'&scope='+scope)
             html=response.get_data(as_text=True)
-            self.assertIn('id="driving-roster" open',html)
+            self.assertIn('<div class="driving-directory" id="driving-roster">',html)
             self.assertLess(html.index('id="driving-metrics"'),html.index('id="driving-roster"'))
             self.assertNotIn('id="driver-trend"',html)
             self.assertNotIn('id="driving-next-title"',html)

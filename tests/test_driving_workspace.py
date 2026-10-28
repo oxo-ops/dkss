@@ -49,7 +49,7 @@ class WorkspaceTests(unittest.TestCase):
         html=response.get_data(as_text=True)
         self.assertIn('記録なしの人',html);self.assertNotIn('小山の人',html);self.assertNotIn('秘密営業所',html)
         response,context=self.render(self.base+'&scope=company')
-        self.assertIn('営業所ごとの傾向',response.get_data(as_text=True))
+        self.assertIn('営業所別の分析',response.get_data(as_text=True))
         self.assertEqual(context['insights']['summary']['distance'],120)
         self.assertEqual(context['insights']['highlights'][0]['current']['display'],'2.5')
         response,context=self.render(self.base+'&scope=office&office='+digest(['office','小山']))
