@@ -13,7 +13,7 @@
 <header class="driving-page-title"><h2>{{ insights.selected_driver.name ~ 'さんの運転実績' if driving_is_admin and insights.selected_driver else insights.scope_name ~ 'の運転傾向' if driving_is_admin and insights.scope_name else '運転実績' if driving_is_admin else '自分の運転実績' }}</h2>{% if not driving_is_admin %}<span>{{ driving_user_office }}</span>{% endif %}</header>
 {% endblock %}
 {% block content %}
-<div class="driving-page driving-insights driving-release driving-workspace driving-designed{{ ' driving-own' if not driving_is_admin else '' }}">
+<div class="driving-page driving-insights driving-release driving-workspace driving-designed{{ ' driving-own' if not driving_is_admin else '' }}" data-position-owner="{{ [session.get('company_code'),session.get('username'),session.get('role')]|tojson|forceescape }}">
 <nav class="page-breadcrumb"><a href="{{ url_for('dashboard') }}">ホーム</a><span>› 安全管理 › 運転実績</span></nav>
 <form method="get" class="driving-workspace-filters" id="driving-filter-form"><div class="driving-main-filters">
 {% if driving_can_manage %}<nav class="driving-view-switch" aria-label="運転実績の表示"><a href="{{ driving_view_navigation.self }}"{% if not driving_is_admin %} aria-current="page"{% endif %}>自分の実績</a><a href="{{ driving_view_navigation.manager }}"{% if driving_is_admin %} aria-current="page"{% endif %}>管理画面</a></nav><input type="hidden" name="scope" value="{{ filters.scope }}">{% endif %}
@@ -31,9 +31,10 @@
 {% include 'driving_workspace_reflection.html' %}
 <div class="driving-compact-summary"><span>日報 <strong>{{ total }}</strong>件</span><span>走行距離 <strong>{{ insights.summary.distance_display }}</strong></span><span>使用車両 <strong>{{ insights.vehicle_count }}</strong>台</span><a href="#{{ 'driving-followups' if insights.selected_driver else 'driving-due' if insights.due_followups else 'report-list' }}">{{ '次の振り返り' if insights.selected_driver or not driving_is_admin else '確認・対応中' }} <strong>{{ insights.pending_count }}</strong>件</a>{% if driving_is_admin and insights.identity_counts.unidentified_count %}<span>乗務員未確認 <strong>{{ insights.identity_counts.unidentified_count }}</strong>運行</span>{% endif %}</div>
 {% include 'driving_workspace_metrics.html' %}
-{% include 'driving_workspace_detail.html' %}
-{% include 'driving_workspace_followups.html' %}
-{% if driving_is_admin and not insights.selected_driver %}<details class="card driving-roster-fold" id="driving-roster" {% if filters.get('listing')=='people' or filters.get('driver') or filters.get('state') %}open{% endif %}><summary>{{ '営業所・乗務員の一覧' if filters.scope=='company' else '乗務員の一覧' }} <span>{{ insights.drivers|length }}人</span></summary>
+{% if insights.personal_hold_count %}<p class="driving-attention" role="status">車両候補の訂正と日報が矛盾する {{ insights.personal_hold_count }}運行は、本人の距離・点数への加算を保留しています。日報と修正履歴を確認できます。</p>{% endif %}
+{% if not driving_is_admin or insights.selected_driver %}{% include 'driving_workspace_detail.html' %}
+{% include 'driving_workspace_followups.html' %}{% endif %}
+{% if driving_is_admin and not insights.selected_driver %}<details class="card driving-roster-fold" id="driving-roster" open><summary>{{ '営業所・乗務員の一覧' if filters.scope=='company' else '乗務員の一覧' }} <span>{{ insights.drivers|length }}人</span></summary>
 {% if driving_is_admin and not insights.selected_driver %}
 {% if driving_is_admin and filters.scope=='company' and filters.get('listing','offices')!='people' %}
 <section class="card" id="office-comparison"><div class="driving-section-heading"><h3>営業所ごとの傾向</h3><a href="{{ url_for('driving_reports',**dict(filter_query,listing='people',page=1)) }}">全乗務員を表示</a></div><div class="driving-table-wrap"><table class="driving-mobile-cards driving-workspace-table"><thead><tr><th>営業所</th><th>主な傾向・変化</th><th>記録量</th><th>確認・対応中</th></tr></thead><tbody>{% for office in insights.office_summaries %}<tr><td data-label="営業所"><a class="driving-person-link" href="{{ url_for('driving_reports',**dict(filter_query,scope='office',office=office.key,listing='people',focus='',driver='',state='',page=1)) }}">{{ office.name }}</a></td><td data-label="主な傾向・変化">{% for entry in office.highlights %}<div>{{ entry.metric.name }} {{ metric_value(entry) }}</div>{% else %}<span class="driving-muted">記録なし</span>{% endfor %}</td><td data-label="記録量">{% if office.driver_count %}{{ office.driver_count }}人 ／ {% endif %}{{ office.summary.count }}運行{% if office.unidentified_count %}<small>乗務員未確認 {{ office.unidentified_count }}運行</small>{% endif %}<small>{{ office.summary.distance_display }}</small></td><td data-label="確認・対応中">{{ office.pending }}件</td></tr>{% endfor %}</tbody></table></div></section>
@@ -46,5 +47,5 @@
 {% if insights.review_notes %}<details class="card driving-review-notes" id="comparison-review"><summary>データの確認事項 {{ insights.review_notes|length }}件</summary>{% for note in insights.review_notes %}<div class="driving-review-note"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline driving-small-button" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,_anchor='comparison-review'))) }}">日報を確認</a></div>{% endfor %}</details>{% endif %}
 {% if insights.raw_metrics %}<details class="card driving-raw-fold" id="driving-raw-values"><summary>日報の取得項目・原本値</summary><div class="driving-raw-values">{% for entry in insights.raw_metrics %}<article><h4>{{ entry.metric.name }}</h4>{{ metric_value(entry) }}</article>{% endfor %}</div></details>{% endif %}
 {% include 'driving_workspace_reports.html' %}
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-workspace-position-2') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-spec-gaps-1') }}" defer></script>
 {% endblock %}

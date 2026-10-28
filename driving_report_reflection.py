@@ -73,7 +73,7 @@ def build_evidence(board, facts, history):
             'reports':[item['id']], 'driver_key':item.get('driver_key',''), 'allowed_actions':['followup'],
             'context':'登録済みの次回確認日を迎えた未完了の記録。期限到来を運転の悪化や指導不足と判断しない。','kind':'followup_due'})
     for person in board['drivers']:
-        own=[f for f in facts if f['driver_key']==person['key']]
+        own=[f for f in facts if f['driver_key']==person['key'] and not f.get('personal_hold')]
         if not own:
             continue
         for entry in person.get('analysis_metrics', person.get('highlights', [])):
@@ -235,7 +235,7 @@ def register_reflections(app, db, prepare, history):
                   'refresh_scope':refresh_scope,'registered_vehicle_conditions':board.get('registered_vehicle_conditions',[]),
                   'current_affiliations':board.get('current_affiliations',[])}
         vehicle_context=[(v['id'],v.get('context')) for v in vehicles]
-        identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,'reflection-v2-maintenance']
+        identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,sorted(f['row'].id for f in facts+board.get('personal_held_facts',[]) if f.get('personal_hold')),'reflection-v3-personal-holds']
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
         return cache_key,document
 

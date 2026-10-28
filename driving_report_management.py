@@ -217,13 +217,24 @@ def register_driving_reports(app, db, g):
         for fact in facts+before:
             if fact['row'].id in confirmed:
                 fact['identified']=True;fact['identity_confirmed']=True
+        vehicle_links.mark_personal_holds(facts+before,confirmed,company_users)
+        personal_analysis=not manager or bool(args.get('focus'))
+        held=[f for f in facts if f.get('personal_hold')]
+        for fact in held:
+            issues.append({'id':fact['row'].id,'reason':'車両候補の訂正と日報が矛盾しているため、本人の実績への加算を保留しています。'})
         registered={v.id:vehicle_conditions.metadata(v) for v in vehicles}
         for fact in facts+before:
             fact['vehicle_conditions']=registered.get(fact['vehicle_id'],{})
-        board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),args.get('focus',''))
+        board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),args.get('focus',''),personal=personal_analysis)
         if not manager and not args.get('focus') and len(board['drivers'])==1:
             resolved['focus']=board['drivers'][0]['key']
-            board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),resolved['focus'])
+            board=insights_dashboard(facts,before,labels,presentation.initial_metric(facts,before,args.get('metric',''),args.get('category','safety')),resolved['focus'],personal=True)
+        board['personal_held_facts']=held if personal_analysis else []
+        board['personal_hold_count']=len(held) if personal_analysis else 0
+        if personal_analysis:
+            facts=[f for f in facts if not f.get('personal_hold')]
+            before=[f for f in before if not f.get('personal_hold')]
+            if held and not facts:board['summary']['distance_display']='本人集計を保留'
         for driver in board['drivers']:
             driver['identity_warning']=not driver['identified'] or driver['key'] in warning_keys
         board['condition_choices']=vehicle_conditions.choices(condition_vehicles(resolved))
@@ -449,9 +460,12 @@ def register_driving_reports(app, db, g):
         reviews={r.id:payload(r).get('review') or {} for r in rows}
         heading += ['改善する行動','乗務員の説明','前後比較の確認結果','比較条件と根拠']
         output=[values+[reviews[values[0]].get('action'),reviews[values[0]].get('driver_explanation'),OUTCOMES.get(reviews[values[0]].get('outcome','')),reviews[values[0]].get('comparison_note')] for values in output]
+        held_ids={rid for f in export_facts+export_board.get('personal_held_facts',[]) if f.get('personal_hold') for rid in f['copies']}
+        heading += ['本人集計']
+        output=[values+['保留（車両候補の訂正と日報が矛盾）' if values[0] in held_ids else ''] for values in output]
         board=export_board
         if format=='csv' and request.args.get('view')=='comparison':
-            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合','現在所属（確認済み乗務員台帳）','所属区分','距離取得運行数','距離取得状態','前期間走行距離km','前期間距離取得運行数','前期間距離取得状態','分子単位','分母単位','算出の元値']
+            heading=['開始日','終了日','前期間開始','前期間終了','乗務員','コード','営業所','使用車両','運行数','走行距離km','指標','単位','表示値','前期間値','差','対象運行数','計算分子','計算分母','原本日付','提供元','設定版','定義','閾値','道路区分','日報ID','本人照合','現在所属（確認済み乗務員台帳）','所属区分','距離取得運行数','距離取得状態','前期間走行距離km','前期間距離取得運行数','前期間距離取得状態','分子単位','分母単位','算出の元値','本人集計保留運行数']
             output=[]
             m=board['metric'] or {}
             for driver in board['drivers']:
@@ -459,7 +473,7 @@ def register_driving_reports(app, db, g):
                 output.append([period['start'],period['end'],period['previous_start'],period['previous_end'],driver['name'],driver['code'],' / '.join(driver['offices']),
                     ' / '.join(v['label'] for v in driver['vehicles']),now['count'],number(now['distance']) if now['distance'] is not None else None,m.get('name'),m.get('unit'),now['display'],before['display'],driver['change'],
                     now['metric_count'],number(now['numerator']),number(now['denominator']),now.get('latest_date'),m.get('source'),m.get('version'),m.get('definition'),m.get('threshold'),m.get('road'),
-                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合',driver.get('current_office',''),driver.get('affiliation_label',''),now['distance_count'],now['distance_state'],number(before['distance']) if before['distance'] is not None else None,before['distance_count'],before['distance_state'],now['numerator_unit'],now['denominator_unit'],now['basis_display']])
+                    ' / '.join(str(i) for i in now['sources']),'未照合' if driver['identity_warning'] else 'コードで照合',driver.get('current_office',''),driver.get('affiliation_label',''),now['distance_count'],now['distance_state'],number(before['distance']) if before['distance'] is not None else None,before['distance_count'],before['distance_state'],now['numerator_unit'],now['denominator_unit'],now['basis_display'],driver.get('hold_count',0)])
         if format=='csv' and request.args.get('view')=='breakdown':
             heading=['表示範囲','開始日','終了日','前期間開始','前期間終了','比較','対象','指標','単位','表示値','前期間値','差','運行数','走行距離km','指標取得運行数','取得率%','計算分子','計算分母','対応距離km','使用車両','前期間使用車両','条件変化','提供元','設定版','定義','閾値','道路区分','日報ID','距離取得運行数','距離取得状態','前期間走行距離km','前期間距離取得運行数','前期間距離取得状態','識別できた乗務員数','乗務員未確認の運行数','分子単位','分母単位','算出の元値']
             output=[];comparison=board['comparison'];m=board['metric'] or {};period=board['period']
@@ -484,15 +498,18 @@ def register_driving_reports(app, db, g):
             for values in output:writer.writerow([safe(v) for v in values])
             content=('\ufeff'+out.getvalue()).encode('utf-8');mime='text/csv; charset=utf-8'
         else:
-            summary=metrics_summary(rows)
+            summary_rows=[r for r in rows if r.id not in held_ids] if board.get('personal_view') or board.get('selected_driver') else rows
+            summary=metrics_summary(summary_rows)
             lines=['運転実績と確認記録','出力日時 '+datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(),'抽出条件 '+json.dumps(request.args.to_dict(),ensure_ascii=False),'会社 '+session['company_code'],f'日報 {len(rows)}件 比較条件不足 {len(summary["not_comparable"])}項目','原本の点数は方式別に保持。異なる方式の平均・順位は算出しません。','']
             if board:
+                if board.get('personal_hold_count'):lines += [f'本人集計を保留 {board["personal_hold_count"]}運行（車両候補の訂正と日報が矛盾）']
                 p=board['period'];m=board['metric'] or {}
                 lines += ['乗務員ごとの運転傾向',f'対象 {p["start"] or "全期間"} ～ {p["end"] or ""}',
                     f'前期間 {p["previous_start"] or "なし"} ～ {p["previous_end"] or ""}',f'指標 {m.get("name", "なし")} {m.get("unit", "")}',
                     f'出典・条件 {m.get("source", "")} {m.get("version", "")} {m.get("definition", "")} {m.get("threshold", "")} {m.get("road", "")}' ]
                 for person in board['drivers']:
                     now=person['current']
+                    if person.get('hold_count'):lines += [f'{person["name"]}：本人集計を保留 {person["hold_count"]}運行']
                     lines += [f'{person["name"]} {person["code"]} {" / ".join(person["offices"])}',
                         ('現在所属 '+(person.get('current_office') or '未確認')+' ／ '+person.get('affiliation_label','') if readership.administrator() else ''),
                         f'運行 {now["count"]}件 距離 {now["distance_display"]} 指標 {now["display"]} {m.get("unit", "")} 対象 {now["metric_count"]}件',
@@ -518,6 +535,7 @@ def register_driving_reports(app, db, g):
                 lines += [f'比較可能指標 {group["source_system"]} {group["version"]} {group["name"]} 単位 {group["unit"]} {group["count"]}件',f'定義 {group["definition"]} 条件 {group["threshold"] or "不明"} 分子合計/分母合計 {group["ratio"] or "算出対象外"}']
             for r in rows:
                 p=payload(r);review=p.get('review') or {};match=match_report(r,operations(r.company_code,r.vehicle_record_id))
+                if r.id in held_ids:lines += ['本人集計を保留（車両候補の訂正と日報が矛盾）。以下は日報の原本値。']
                 lines += [f'CSV照合 {MATCH[match["status"]]} 採用 {match.get("use") or "日報のみ"} 取込状態 {"取消" if p.get("lifecycle") == "cancelled" else "有効"}']
                 lines += [f'日報 {r.id} 運行 {r.operation_date or "不明"} {p.get("registration_number") or ""}',f'乗務員 {p.get("driver_name") or "不明"} 所属 {p.get("driver_office") or p.get("office_name") or "不明"}',f'帳票 {p.get("source_system") or "不明"} {p.get("report_title") or ""} 粒度 {p.get("report_scope") or "trip"}',f'積算 {shown(p.get("mileage"))} km 距離 {shown(p.get("distance"))} km',f'確認 {STATES.get(review.get("state","unreviewed"))} 担当 {review.get("assignee") or "未設定"} 次回 {review.get("next_date") or "未設定"}',f'所見 {review.get("note") or "記載なし"}',f'改善する行動 {review.get("action") or "未設定"}',f'乗務員の説明 {review.get("driver_explanation") or "記載なし"}']
                 lines += ['前後比較 '+OUTCOMES.get(review.get('outcome',''),'未確認'), '比較条件と根拠 '+(review.get('comparison_note') or '未記録')]
