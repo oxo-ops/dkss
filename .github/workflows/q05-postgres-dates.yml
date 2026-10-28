@@ -10,6 +10,7 @@ on:
       - 'templates/index.html'
       - 'static/css/driver_safe_start.css'
       - 'tests/test_q05_scheduled_safe_start*.py'
+      - 'tests/q05_scheduled_browser*'
       - '.github/workflows/q05-postgres-dates.yml'
       - 'requirements.txt'
   workflow_dispatch:
@@ -20,7 +21,7 @@ permissions:
 jobs:
   postgres-dates:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:18
@@ -36,6 +37,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
+      PYTHONPATH: .:tests
       Q05_POSTGRES_TEST_URL: postgresql+psycopg2://q05:q05-disposable-ci-only@127.0.0.1:5432/dkss_q05_ci
       Q05_REQUIRE_POSTGRES: '1'
       AWS_EC2_METADATA_DISABLED: 'true'
@@ -54,3 +56,25 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Verify calendar boundaries and concurrent profiles
         run: python -m unittest discover -s tests -p 'test_q05_scheduled_safe_start_postgres.py' -v
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: echo "NODE_PATH=$RUNNER_TEMP/q05-node/node_modules" >> "$GITHUB_ENV"
+      - run: npm install --no-save --prefix "$RUNNER_TEMP/q05-node" playwright@1.62.1
+      - run: node "$RUNNER_TEMP/q05-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Start guarded synthetic PostgreSQL browser fixture
+        run: |
+          python -u tests/q05_scheduled_browser_server.py --work-dir "$RUNNER_TEMP/q05-fixture" > "$RUNNER_TEMP/q05-browser-server.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:51205/__q05_health; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/q05-browser-server.log"
+          exit 1
+      - name: Verify real Chromium PC/mobile and native timezone changes
+        run: node tests/q05_scheduled_browser.cjs "$RUNNER_TEMP/q05-fixture/manifest.json" "$RUNNER_TEMP/q05-results"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q05-scheduled-chromium
+          path: ${{ runner.temp }}/q05-results/
