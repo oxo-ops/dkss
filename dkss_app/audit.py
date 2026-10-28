@@ -53,13 +53,23 @@ def add_audit_log(
 
     identity = _dkss_common.session.get('account_identity')
     actor = None
-    if identity and username == _dkss_common.session.get('username'):
-        actor = _dkss_models.User.query.filter_by(
-            company_code=_dkss_common.session.get('company_code'), account_identity=identity
-        ).first()
-    elif action in {'login_success', 'user_registered'}:
-        # These callers have just verified credentials or created the account.
-        actor = _dkss_models.User.query.filter_by(company_code=company_code, username=username).first()
+    # Enrichment must not move business writes outside the caller's commit/error
+    # handling boundary (e.g. an optimistic master-order conflict).
+    with _dkss_common.db.session.no_autoflush:
+        if identity and username == _dkss_common.session.get('username'):
+            actor = _dkss_models.User.query.filter_by(
+                company_code=_dkss_common.session.get('company_code'), account_identity=identity
+            ).first()
+        elif action in {'login_success', 'user_registered'}:
+            # These callers have just verified credentials or created the account.
+            pending = [row for row in _dkss_common.db.session.new
+                if isinstance(row, _dkss_models.User) and row.company_code == company_code and row.username == username]
+            if action == 'user_registered' and len(pending) == 1:
+                actor = pending[0]
+                if not actor.account_identity:
+                    actor.account_identity = str(_dkss_common.uuid4())
+            else:
+                actor = _dkss_models.User.query.filter_by(company_code=company_code, username=username).first()
     if action in {'login_failed', 'account_locked', 'mfa_failed', 'mfa_code_invalidated'}:
         actor = None  # An attempted login ID is not proof of the actor's identity.
     # Login failure may have no authenticated actor; never resolve on display.

@@ -290,6 +290,30 @@ class AccountIdentityTests(unittest.TestCase):
         self.assertEqual(log.actor_identity,admin.account_identity)
         self.assertNotEqual(log.actor_identity,other.account_identity)
 
+    def test_audit_enrichment_leaves_pending_business_validation_to_callers_commit(self):
+        from sqlalchemy.exc import IntegrityError
+        self.m.db.session.add(self.m.Office(company_code='TEST',name=None))
+        with self.m.app.test_request_context('/'):
+            self.m.session.update(company_code='TEST',username='admin',account_identity=identity_for('TEST','admin'))
+            self.m.add_audit_log('q08_pending_business_write')
+        # The caller can still catch its own commit failure and roll back both.
+        with self.assertRaises(IntegrityError):
+            self.m.db.session.commit()
+        self.m.db.session.rollback()
+        self.assertEqual(self.m.AuditLog.query.filter_by(action='q08_pending_business_write').count(),0)
+
+    def test_registration_audit_binds_new_account_without_premature_flush(self):
+        user = self.m.User(company_code='TEST',username='new-person',password='unused',last_name='New Person')
+        self.m.db.session.add(user)
+        with self.m.app.test_request_context('/'):
+            self.m.add_audit_log('user_registered',company_code='TEST',username='new-person')
+        self.assertIsNone(user.id)
+        self.m.db.session.commit()
+        log = self.m.AuditLog.query.filter_by(action='user_registered').one()
+        self.assertTrue(user.account_identity)
+        self.assertEqual(log.actor_identity,user.account_identity)
+        self.assertEqual(log.actor_name,'New Person')
+
     def test_maintenance_event_preserves_actor_snapshot_after_reregistration(self):
         from dkss_app.maintenance import add_vehicle_maintenance_record_event
         from dkss_app.vehicle_karte import get_vehicle_maintenance_record_events
