@@ -2,6 +2,12 @@
 
 {% block title %}ダッシュボード{% endblock %}
 
+{% block page_styles %}
+{% if my_safe_start_label %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261028-1') }}">
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
 <div class="dashboard-page dashboard-design-v2">
@@ -689,8 +695,12 @@
             {% endif %}
                 <svg class="dashboard-safety-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-6h10l2 6M4 10h16v9H4zM7 19v2m10-2v2M7 14h1m8 0h1"/></svg>
                 <div class="summary-title">自分の無事故無違反</div>
+                {% if my_safe_start_label %}
+                <div class="summary-value safe-start-scheduled">{{ my_safe_start_label }}</div>
+                {% else %}
                 <div class="summary-value">{{ my_safe_days if my_safe_days is number else '—' }}</div>
                 <div class="summary-unit">日</div>
+                {% endif %}
             {% if is_dashboard_admin %}
             </a>
             {% else %}
