@@ -66,6 +66,7 @@ class DailyFlowFailuresTests(unittest.TestCase):
     decide = daily.Q02DailyInspectionFlowTests.decide
     repair = daily.Q02DailyInspectionFlowTests.repair
     snapshot = daily.Q02DailyInspectionFlowTests.snapshot
+    assert_integrity = daily.Q02DailyInspectionFlowTests.assert_integrity
 
     def test_configured_required_daily_answer_blocks_submit_then_can_resume(self):
         self.request('GET', '/vehicle/checklists')

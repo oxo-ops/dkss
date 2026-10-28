@@ -105,7 +105,7 @@ Tables: 68
 | actor_identity | VARCHAR(36) | True | False |  |
 | actor_name | VARCHAR(100) | True | False |  |
 | detail_json | TEXT | True | False |  |
-| created_at | VARCHAR(30) | False | False |  |
+| created_at | VARCHAR(40) | False | False |  |
 
 ## checklist_result
 
