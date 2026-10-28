@@ -66,6 +66,8 @@ def create_app(config=None, *, initialize_database=False):
     from .integrations import register_integrations
     register_core_routes(app)
     register_integrations(app)
+    from .public_assets import install as install_public_assets
+    install_public_assets(app)
 
     @app.cli.command("init-db")
     def init_database_command():

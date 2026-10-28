@@ -1607,7 +1607,7 @@ class ChecklistEvent(db.Model):
     )
 
     created_at = db.Column(
-        db.String(30),
+        db.String(40),
         nullable=False
     )
 
