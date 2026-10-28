@@ -99,6 +99,7 @@ Tables: 66
 | result_id | INTEGER | False | False |  |
 | event_type | VARCHAR(50) | False | False |  |
 | actor_username | VARCHAR(50) | True | False |  |
+| actor_user_id | INTEGER | True | False |  |
 | actor_name | VARCHAR(100) | True | False |  |
 | detail_json | TEXT | True | False |  |
 | created_at | VARCHAR(30) | False | False |  |
@@ -113,14 +114,17 @@ Tables: 66
 | target_type | VARCHAR(50) | True | False |  |
 | target_user | VARCHAR(100) | True | False |  |
 | target_username | VARCHAR(50) | True | False |  |
+| target_user_id | INTEGER | True | False |  |
 | target_vehicle_record_id | INTEGER | True | False | vehicle.id |
 | target_office | VARCHAR(100) | True | False |  |
 | checked_by | VARCHAR(100) | True | False |  |
 | checked_by_username | VARCHAR(50) | True | False |  |
+| checked_by_user_id | INTEGER | True | False |  |
 | checked_date | VARCHAR(30) | True | False |  |
 | status | VARCHAR(30) | True | False |  |
 | approved_by | VARCHAR(100) | True | False |  |
 | approved_by_username | VARCHAR(50) | True | False |  |
+| approved_by_user_id | INTEGER | True | False |  |
 | approved_date | VARCHAR(30) | True | False |  |
 | reject_reason | TEXT | True | False |  |
 | approvals_json | TEXT | True | False |  |
@@ -379,6 +383,7 @@ Tables: 66
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | created_by_username | VARCHAR(100) | True | False |  |
+| created_by_user_id | INTEGER | True | False |  |
 | created_by_name | VARCHAR(100) | True | False |  |
 | date | VARCHAR(20) | True | False |  |
 | office | VARCHAR(100) | True | False |  |
@@ -388,12 +393,14 @@ Tables: 66
 | target_type | VARCHAR(50) | True | False |  |
 | target_user | VARCHAR(100) | True | False |  |
 | target_username | VARCHAR(50) | True | False |  |
+| target_user_id | INTEGER | True | False |  |
 | content | TEXT | True | False |  |
 | files_json | TEXT | True | False |  |
 | countermeasure | TEXT | True | False |  |
 | countermeasure_files_json | TEXT | True | False |  |
 | countermeasure_by | VARCHAR(100) | True | False |  |
 | countermeasure_by_username | VARCHAR(50) | True | False |  |
+| countermeasure_by_user_id | INTEGER | True | False |  |
 | countermeasure_due_date | VARCHAR(20) | True | False |  |
 | approval_status | VARCHAR(30) | True | False |  |
 | reject_reason | TEXT | True | False |  |
@@ -592,10 +599,12 @@ Tables: 66
 | day | VARCHAR(10) | True | False |  |
 | checked_by | VARCHAR(100) | True | False |  |
 | checked_by_username | VARCHAR(50) | True | False |  |
+| checked_by_user_id | INTEGER | True | False |  |
 | checked_date | VARCHAR(30) | True | False |  |
 | status | VARCHAR(30) | True | False |  |
 | approved_by | VARCHAR(100) | True | False |  |
 | approved_by_username | VARCHAR(50) | True | False |  |
+| approved_by_user_id | INTEGER | True | False |  |
 | approved_date | VARCHAR(30) | True | False |  |
 | reject_reason | TEXT | True | False |  |
 | approvals_json | TEXT | True | False |  |

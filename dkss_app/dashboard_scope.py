@@ -17,6 +17,7 @@ class DashboardScope:
     office_missing: bool
     start_date: str
     end_exclusive: str
+    user_id: int | None = None
 
     @classmethod
     def for_user(cls, user, *, company_code, username, role, user_name, today):
@@ -48,4 +49,5 @@ class DashboardScope:
             not bool(office),
             (today - timedelta(days=days - 1)).strftime("%Y-%m-%d"),
             (today + timedelta(days=1)).strftime("%Y-%m-%d"),
+            user.id if user else None,
         )

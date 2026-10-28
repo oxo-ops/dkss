@@ -1,5 +1,6 @@
 """Checklists responsibilities; routes are registered by the application factory."""
 from .report_layout import spreadsheet_text_width
+from . import safety_identity as _person_identity
 from . import access as _dkss_access, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklist_notifications as _dkss_checklist_notifications, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -1622,19 +1623,10 @@ def export_checklist_result_excel(result_index):
                 )
 
                 # 押印内容
-                approval_user = _dkss_models.User.query.filter_by(
-                    company_code=result_record.company_code,
-                    username=entry.get("approved_by_username")
-                ).first()
-
                 stamp_value = (
-                    approval_user.last_name
-                    if approval_user
-                    else (
-                        entry.get("approved_by")
-                        or entry.get("approved_by_username")
-                        or ""
-                    )
+                    entry.get("approved_by")
+                    or entry.get("approved_by_username")
+                    or ""
                 )
 
                 if stamp_value and entry["approved_date"]:
@@ -2056,6 +2048,7 @@ def edit_checklist_result(result_index):
             for answer in result.get("answers", [])
         ]
 
+        previous_target_user_id = result_record.target_user_id
         previous_target = {
             "target_type": result_record.target_type or "",
             "target_user": result_record.target_user or "",
@@ -2205,8 +2198,14 @@ def edit_checklist_result(result_index):
                 )
 
         result_record.target_type = target_type
+        if target_username == previous_target["target_username"]:
+            target_user = previous_target["target_user"]
+            target_user_id = previous_target_user_id
+        else:
+            target_user_id = _person_identity.user_id(company_code, target_username, lock=True)
         result_record.target_user = target_user
         result_record.target_username = target_username
+        result_record.target_user_id = target_user_id
         result_record.target_vehicle_record_id = target_vehicle_record_id
         result_record.target_office = target_office
         result_record.answers_json = _dkss_common.json.dumps(answers, ensure_ascii=False)
@@ -2314,6 +2313,9 @@ def edit_checklist_result(result_index):
                 "candidate_usernames": list(
                     dict.fromkeys(submitted_candidate_usernames)
                 ),
+                "candidate_user_ids": _person_identity.selected_candidate_ids(
+                    company_code, submitted_candidate_usernames,
+                    _dkss_serialization.safe_json_dict_list(result_record.approvals_json)),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -2476,6 +2478,7 @@ def edit_checklist_result(result_index):
         )
         result_record.approved_by = ""
         result_record.approved_by_username = ""
+        result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
         result_record.approved_date = ""
         result_record.reject_reason = ""
 
@@ -4034,7 +4037,7 @@ def save_vehicle_operation_judgment(result_index):
             current_user.role == "admin"
             or (
                 current_user.role == "user"
-                and current_user.username == result_record.checked_by_username
+                and _person_identity.is_current(result_record.checked_by_user_id)
             )
         ):
             return _dkss_http.return_form_errors([("整備管理者・補助者の設定は、点検者または管理者が行ってください。", "")], 403)
@@ -4064,6 +4067,7 @@ def save_vehicle_operation_judgment(result_index):
 
         judgment = dict(previous)
         judgment["requested_usernames"] = [manager.username]
+        judgment["requested_user_ids"] = _person_identity.user_ids(result_record.company_code, [manager.username])
         judgment["version"] = current_version + 1
         created_at = _dkss_checklist_common.get_user_local_now(
             result_record.company_code, current_user.username
@@ -4156,7 +4160,7 @@ def save_vehicle_operation_judgment(result_index):
     if (
         not current_user
         or current_user.role != "admin"
-        or current_user.username not in previous.get("requested_usernames", [])
+        or current_user.id not in previous.get("requested_user_ids", [])
     ):
         return _dkss_http.return_form_errors([("選択された運行判断の担当者が操作してください。", "")], 403)
 
@@ -4210,6 +4214,7 @@ def save_vehicle_operation_judgment(result_index):
             "label": approval_items[0].get("approval_label", "整備管理者（又は補助者）"),
             "allow_general": False,
             "candidate_usernames": list(previous.get("requested_usernames", [])),
+            "candidate_user_ids": previous.get('requested_user_ids', []),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -4309,6 +4314,7 @@ def save_vehicle_operation_judgment(result_index):
         "reason": reason,
         "judged_by": (current_user.last_name or "") + (current_user.first_name or ""),
         "judged_by_username": current_user.username,
+        "judged_by_user_id": current_user.id,
         "judged_at": judged_at,
         "authority_role": authority_role,
         "authority_confirmed": True,
@@ -4325,6 +4331,7 @@ def save_vehicle_operation_judgment(result_index):
     if approval_added:
         approval["approved_by"] = judgment["judged_by"]
         approval["approved_by_username"] = current_user.username
+        approval["approved_by_user_id"] = _person_identity.user_id(result_record.company_code, approval["approved_by_username"], lock=True)
         approval["approved_date"] = judged_at[:16]
 
     try:
@@ -4343,6 +4350,7 @@ def save_vehicle_operation_judgment(result_index):
                 "status": "承認済み",
                 "approved_by": approval.get("approved_by", ""),
                 "approved_by_username": approval.get("approved_by_username", ""),
+                "approved_by_user_id": approval.get("approved_by_user_id"),
                 "approved_date": approval.get("approved_date", ""),
                 "reject_reason": "",
             },
@@ -4649,6 +4657,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")
+    approval["approved_by_user_id"] = _person_identity.user_id(result_record.company_code, approval["approved_by_username"], lock=True)
     approval["approved_date"] = _dkss_checklist_common.get_user_local_now(
         result_record.company_code,
         _dkss_common.session.get("username")
@@ -4673,6 +4682,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         result_record.status = "承認済み"
         result_record.approved_by = _dkss_common.session.get("name")
         result_record.approved_by_username = _dkss_common.session.get("username")
+        result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
         result_record.approved_date = _dkss_checklist_common.get_user_local_now(
             result_record.company_code,
             _dkss_common.session.get("username")
@@ -4681,6 +4691,7 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         result_record.status = "承認待ち"
         result_record.approved_by = ""
         result_record.approved_by_username = ""
+        result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
         result_record.approved_date = ""
 
     checklist_event = _dkss_models.ChecklistEvent(
@@ -5052,6 +5063,7 @@ def reject_vehicle_checklist_result(result_index):
     for approval in approvals:
         approval["approved_by"] = ""
         approval["approved_by_username"] = ""
+        approval["approved_by_user_id"] = _person_identity.user_id(result_record.company_code, approval["approved_by_username"], lock=True)
         approval["approved_date"] = ""
 
     result_record.approvals_json = _dkss_common.json.dumps(
@@ -5062,6 +5074,7 @@ def reject_vehicle_checklist_result(result_index):
     result_record.status = "差し戻し"
     result_record.approved_by = ""
     result_record.approved_by_username = ""
+    result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
     result_record.approved_date = ""
     result_record.reject_reason = reject_reason
 
@@ -6041,22 +6054,13 @@ def export_vehicle_checklist_result_excel(result_index):
 
                     column = year_offset + 2
 
-                approval_user = _dkss_models.User.query.filter_by(
-                    company_code=result_record.company_code,
-                    username=approval.get("approved_by_username")
-                ).first()
-
                 sheet.cell(
                     row=approval_row,
                     column=column,
                     value=(
-                        approval_user.last_name
-                        if approval_user
-                        else (
-                            approval.get("approved_by")
-                            or approval.get("approved_by_username")
-                            or ""
-                        )
+                        approval.get("approved_by")
+                        or approval.get("approved_by_username")
+                        or ""
                     )
                 ).alignment = _dkss_common.Alignment(
                     horizontal="center",
@@ -7374,6 +7378,7 @@ def save_vehicle_checklist_one(index):
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
+    result_record.checked_by_user_id = _person_identity.user_id(result_record.company_code, result_record.checked_by_username, lock=True)
     result_record.checked_date = local_now.strftime("%Y-%m-%d %H:%M")
     result_record.status = (
         "差し戻し"
@@ -7406,6 +7411,7 @@ def save_vehicle_checklist_one(index):
                 "candidate_usernames",
                 []
             ),
+            "candidate_user_ids": previous_approval.get('candidate_user_ids', []),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -7413,6 +7419,7 @@ def save_vehicle_checklist_one(index):
 
     result_record.approved_by = ""
     result_record.approved_by_username = ""
+    result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
     result_record.approved_date = ""
     result_record.approvals_json = _dkss_common.json.dumps(
         approvals,
@@ -7915,6 +7922,7 @@ def save_vehicle_checklist_detail(index):
                 "candidate_usernames",
                 []
             ),
+            "candidate_user_ids": previous_approval.get('candidate_user_ids', []),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -7922,6 +7930,7 @@ def save_vehicle_checklist_detail(index):
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
+    result_record.checked_by_user_id = _person_identity.user_id(result_record.company_code, result_record.checked_by_username, lock=True)
     result_record.checked_date = local_now.strftime("%Y-%m-%d %H:%M")
     result_record.status = (
         "差し戻し"
@@ -7930,6 +7939,7 @@ def save_vehicle_checklist_detail(index):
     )
     result_record.approved_by = ""
     result_record.approved_by_username = ""
+    result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
     result_record.approved_date = ""
     result_record.approvals_json = _dkss_common.json.dumps(
         approvals,
@@ -8410,6 +8420,7 @@ def complete_vehicle_checklist(index):
 
     result_record.checked_by = _dkss_common.session.get("name")
     result_record.checked_by_username = _dkss_common.session.get("username")
+    result_record.checked_by_user_id = _person_identity.user_id(result_record.company_code, result_record.checked_by_username, lock=True)
     result_record.checked_date = (
         local_now.strftime("%Y-%m-%d %H:%M")
     )
@@ -8477,6 +8488,9 @@ def complete_vehicle_checklist(index):
                 False
             ),
             "candidate_usernames": candidate_usernames,
+            "candidate_user_ids": _person_identity.selected_candidate_ids(
+                company_code, candidate_usernames,
+                _dkss_serialization.safe_json_dict_list(result_record.approvals_json)),
             "approved_by": "",
             "approved_by_username": "",
             "approved_date": "",
@@ -8523,26 +8537,33 @@ def complete_vehicle_checklist(index):
         judgment = _dkss_serialization.safe_json_dict(result_record.operation_judgment_json)
         judgment.setdefault("status", "未判定")
         judgment["requested_usernames"] = []
+        judgment["requested_user_ids"] = []
 
         for approval_index, item in enumerate(approval_items):
             if item.get("item_code") == "footer_30":
                 previous_requested_usernames = _dkss_serialization.safe_json_dict(
                     result_record.operation_judgment_json
                 ).get("requested_usernames", [])
+                previous_requested_user_ids = _dkss_serialization.safe_json_dict(
+                    result_record.operation_judgment_json
+                ).get("requested_user_ids", [])
 
                 next_requested_usernames = approvals[
                     approval_index
                 ].get("candidate_usernames", [])
 
-                if set(previous_requested_usernames) != set(
-                    next_requested_usernames
-                ):
+                if (set(previous_requested_usernames) != set(next_requested_usernames)
+                    or set(previous_requested_user_ids) != set(
+                        approvals[approval_index].get("candidate_user_ids", []))):
                     judgment["version"] = int(
                         judgment.get("version") or 0
                     ) + 1
 
                 judgment["requested_usernames"] = list(
                     approvals[approval_index].get("candidate_usernames", [])
+                )
+                judgment["requested_user_ids"] = list(
+                    approvals[approval_index].get("candidate_user_ids", [])
                 )
                 break
 
@@ -8564,6 +8585,7 @@ def complete_vehicle_checklist(index):
     )
     result_record.approved_by = ""
     result_record.approved_by_username = ""
+    result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
     result_record.approved_date = ""
     result_record.approvals_json = _dkss_common.json.dumps(
         approvals,
@@ -9097,6 +9119,7 @@ def new_vehicle_checklist_result(index):
                 "candidate_usernames": (
                     candidate_usernames
                 ),
+                "candidate_user_ids": _person_identity.user_ids(company_code, candidate_usernames),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -9704,6 +9727,7 @@ def new_safety_checklist_result(index):
                 "candidate_usernames": list(
                     dict.fromkeys(candidate_usernames)
                 ),
+                "candidate_user_ids": _person_identity.user_ids(company_code, candidate_usernames),
                 "approved_by": "",
                 "approved_by_username": "",
                 "approved_date": "",
@@ -11064,6 +11088,7 @@ def approve_checklist_result(result_index, approval_index):
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")
+    approval["approved_by_user_id"] = _person_identity.user_id(result_record.company_code, approval["approved_by_username"], lock=True)
     approval["approved_date"] = _dkss_checklist_common.get_user_local_now(
         result_record.company_code,
         _dkss_common.session.get("username")
@@ -11088,6 +11113,7 @@ def approve_checklist_result(result_index, approval_index):
         result_record.status = "承認済み"
         result_record.approved_by = _dkss_common.session.get("name")
         result_record.approved_by_username = _dkss_common.session.get("username")
+        result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
         result_record.approved_date = _dkss_checklist_common.get_user_local_now(
             result_record.company_code,
             _dkss_common.session.get("username")
@@ -11096,6 +11122,7 @@ def approve_checklist_result(result_index, approval_index):
         result_record.status = "承認待ち"
         result_record.approved_by = ""
         result_record.approved_by_username = ""
+        result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
         result_record.approved_date = ""
 
     checklist_event = _dkss_models.ChecklistEvent(
@@ -11352,6 +11379,7 @@ def reject_checklist_result(result_index):
     for approval in approvals:
         approval["approved_by"] = ""
         approval["approved_by_username"] = ""
+        approval["approved_by_user_id"] = _person_identity.user_id(result_record.company_code, approval["approved_by_username"], lock=True)
         approval["approved_date"] = ""
 
     result_record.approvals_json = _dkss_common.json.dumps(
@@ -11362,6 +11390,7 @@ def reject_checklist_result(result_index):
     result_record.status = "差し戻し"
     result_record.approved_by = ""
     result_record.approved_by_username = ""
+    result_record.approved_by_user_id = _person_identity.user_id(result_record.company_code, result_record.approved_by_username, lock=True)
     result_record.approved_date = ""
     result_record.reject_reason = reject_reason
 

@@ -2,6 +2,7 @@
 from .dashboard_scope import DashboardScope
 from .dashboard_repository import DashboardRepository
 from .dashboard_service import DashboardService
+from . import safety_identity as _person_identity
 from . import analysis_feedback as _dkss_analysis_feedback, audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, master_readers as _dkss_master_readers, models as _dkss_models, notifications as _dkss_notifications, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -522,7 +523,7 @@ def get_dashboard_checklist_history(checklist_record, checklist, records, score_
             label = record.target_user or "個人対象"
             if (
                 _dkss_common.session.get("role") not in ["admin", "itc"]
-                and record.target_username != _dkss_common.session.get("username")
+                and not _person_identity.is_current(record.target_user_id)
             ):
                 label = "個人対象"
 
