@@ -17,56 +17,84 @@
  document.addEventListener('DOMContentLoaded',()=>{
   const ns='http://www.w3.org/2000/svg';
   const form=document.getElementById('driving-filter-form');
-  const positionKey='driving-position:'+location.pathname+location.search;
-  const metricPositionKey='driving-metric-position';
-  let metricPosition=null;
-  try{
-   const saved=JSON.parse(sessionStorage.getItem(metricPositionKey)||'null');
-   sessionStorage.removeItem(metricPositionKey);
-   if(saved&&saved.url===location.pathname+location.search+location.hash&&
-      Number.isFinite(saved.top)&&Date.now()-saved.at>=0&&Date.now()-saved.at<60000)metricPosition=saved;
-  }catch{}
-  function metricScrollRoot(target){
-   for(let node=target.parentElement;node;node=node.parentElement){
+  const positionKey='driving-workspace-position';
+  const workspace=document.querySelector('.driving-page');
+  const localURL=value=>{
+   const url=new URL(value,location.href);url.searchParams.sort();
+   return url.pathname+url.search+url.hash;
+  };
+  function scrollRoot(target){
+   for(let node=target?.parentElement;node;node=node.parentElement){
     if(/^(auto|scroll)$/.test(getComputedStyle(node).overflowY)&&node.scrollHeight>node.clientHeight)return node;
    }
    return document.scrollingElement;
   }
-  document.addEventListener('click',event=>{
-   const link=event.target.closest('a[data-preserve-driving-metrics]');
-   if(!link||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.target==='_blank')return;
-   const panel=document.getElementById('driving-metrics'),url=new URL(link.href,location.href);
-   if(!panel||url.origin!==location.origin||url.pathname!==location.pathname)return;
-   if(url.search===location.search){event.preventDefault();return;}
-   try{sessionStorage.setItem(metricPositionKey,JSON.stringify({
-    url:url.pathname+url.search+url.hash,top:panel.getBoundingClientRect().top,at:Date.now()
+  function restorePosition(target,top,fallback){
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const root=scrollRoot(target||workspace);
+    if(root)root.scrollTop=target?root.scrollTop+target.getBoundingClientRect().top-top:fallback;
+   }));
+  }
+  function rememberPosition(url,target){
+   const root=scrollRoot(target||workspace),folds={};
+   workspace?.querySelectorAll('details[id]').forEach(item=>{folds[item.id]=item.open;});
+   try{sessionStorage.setItem(positionKey,JSON.stringify({
+    url:localURL(url),id:target?.id||'',top:target?.getBoundingClientRect().top||0,
+    y:root?.scrollTop||0,folds,at:Date.now()
    }));}catch{}
-  });
-  document.addEventListener('click',event=>{if(event.target.closest('a'))sessionStorage.setItem(positionKey,String(scrollY));});
+  }
+  let position=null;
+  try{
+   const saved=JSON.parse(sessionStorage.getItem(positionKey)||'null');
+   sessionStorage.removeItem(positionKey);
+   if(saved&&saved.url===localURL(location.href)&&Number.isFinite(saved.top)&&Number.isFinite(saved.y)&&
+      Date.now()-saved.at>=0&&Date.now()-saved.at<60000)position=saved;
+  }catch{}
   function revealHash(hash){
    let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
    if(!target)return;
    for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
    requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));
   }
-  if(metricPosition){
-   const panel=document.getElementById('driving-metrics');
-   if(panel){
-    for(let node=panel;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
-    // Wait for this page's charts/layout and the browser's native hash scroll.
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-     metricScrollRoot(panel).scrollTop+=panel.getBoundingClientRect().top-metricPosition.top;
-    }));
+  if(position){
+   for(const [id,open] of Object.entries(position.folds||{})){
+    const item=document.getElementById(id);if(item?.tagName==='DETAILS'&&typeof open==='boolean')item.open=open;
    }
+   const target=document.getElementById(position.id);
+   for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+   restorePosition(target,position.top,position.y);
   }else if(location.hash){requestAnimationFrame(()=>revealHash(location.hash));}
   window.addEventListener('hashchange',()=>revealHash(location.hash));
   document.addEventListener('click',event=>{
-   const link=event.target.closest('a[href]');if(!link)return;
-   if(event.defaultPrevented||link.hasAttribute('data-preserve-driving-metrics'))return;
+   const link=event.target.closest('a[href]');
+   if(!link||!workspace?.contains(link)||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.target==='_blank'||link.hasAttribute('download'))return;
    const url=new URL(link.href,location.href);
-   if(url.pathname===location.pathname&&url.search===location.search&&url.hash)revealHash(url.hash);
+   if(url.origin!==location.origin||url.pathname!==location.pathname)return;
+   let target=null;
+   if(link.hasAttribute('data-preserve-driving-metrics'))target=document.getElementById('driving-metrics');
+   else if(link.closest('.driving-view-switch')||link.classList.contains('driving-reset'))target=form;
+   else if(link.closest('.driving-comparison-tabs'))target=document.getElementById('comparison-detail');
+   else if(!url.hash)target=link.closest('#driving-roster')||link.closest('details[id],section[id],form[id]')||form;
+   if(target){
+    if(localURL(url.href)===localURL(location.href)||url.search===location.search){event.preventDefault();return;}
+    rememberPosition(url.href,target);
+   }else if(url.search===location.search&&url.hash)revealHash(url.hash);
   });
-  if(!metricPosition&&!location.hash&&sessionStorage.getItem(positionKey)){requestAnimationFrame(()=>scrollTo(0,Number(sessionStorage.getItem(positionKey))||0));}
+  workspace?.addEventListener('submit',event=>{
+   const submitted=event.target;
+   if(submitted.tagName!=='FORM'||submitted.method.toLowerCase()!=='get'||event.defaultPrevented)return;
+   const url=new URL(submitted.action||location.href,location.href);
+   if(url.origin!==location.origin||url.pathname!==location.pathname)return;
+   const data=new FormData(submitted);if(event.submitter?.name)data.append(event.submitter.name,event.submitter.value);
+   url.search=new URLSearchParams(data).toString();
+   rememberPosition(url.href,submitted.closest('form[id],details[id],section[id]')||form);
+  });
+  // Native details toggles can invoke scroll anchoring; keep the clicked summary visible in place.
+  workspace?.addEventListener('click',event=>{
+   const summary=event.target.closest('summary');
+   if(!summary||summary.parentElement.tagName!=='DETAILS')return;
+   restorePosition(summary,summary.getBoundingClientRect().top,0);
+  },true);
   form?.querySelector('[data-office-select]')?.addEventListener('change',event=>{
    const scope=form.querySelector('[name=scope]');if(scope)scope.value=event.target.value==='__company__'?'company':event.target.value==='__self__'?'self':'office';
    form.querySelector('[name=focus]')?.remove();form.querySelector('[name=listing]')?.remove();
@@ -82,7 +110,7 @@
     if(!response.ok)throw new Error('読み込みできませんでした。再表示してください。');
     const state=await response.json();
     if(state.key!==reflection.dataset.key){reflection.querySelector('[data-reflection-status]').textContent='対象の記録が更新されました。再表示してください。';return;}
-    if(state.status==='completed'){sessionStorage.setItem(positionKey,String(scrollY));location.reload();return;}
+    if(state.status==='completed'){rememberPosition(location.href,reflection);location.reload();return;}
     if(state.status==='failed'||++polls>65)throw new Error('作成できませんでした。画面を再表示して再試行できます。');
     pollTimer=setTimeout(pollReflection,2000);
    }catch(error){reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent=error.message;const button=reflectionForm?.querySelector('button');if(button){button.disabled=false;button.textContent='再試行';}}
@@ -93,7 +121,7 @@
     const response=await fetch(reflectionForm.action,{method:'POST',body:new FormData(reflectionForm),headers:{Accept:'application/json'}});
     if(!response.ok)throw new Error(response.status===409?'対象の記録が変わりました。再表示してください。':response.status===429?'ほかの分析を作成中です。少し待ってから再試行してください。':response.status===503?'AI分析を利用できません。管理者に接続設定を確認してください。':'作成できませんでした。再試行してください。');
     const state=await response.json();
-    if(state.status==='completed'){location.reload();return;}
+    if(state.status==='completed'){rememberPosition(location.href,reflection);location.reload();return;}
     reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent='振り返りを作成しています。このまま記録を確認できます。';button.textContent='作成中';polls=0;pollTimer=setTimeout(pollReflection,1500);
    }catch(error){reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent=error.message;button.disabled=false;button.textContent='再試行';}
   });
