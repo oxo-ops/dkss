@@ -1,7 +1,30 @@
 """News responsibilities; routes are registered by the application factory."""
+from functools import wraps
+
+from sqlalchemy.exc import DBAPIError
 from . import access as _dkss_access, audit as _dkss_audit, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage
 
 
+def _news_write_conflicts(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        _dkss_common.db.session.info["q04_news_committed"] = False
+        try:
+            return view(*args, **kwargs)
+        except DBAPIError as error:
+            state = getattr(error.orig, "pgcode", None) or getattr(error.orig, "sqlstate", None)
+            if (_dkss_common.db.session.info.get("q04_news_committed")
+                    or _dkss_common.request.method != "POST"
+                    or state not in {"55P03", "40P01", "40001"}):
+                raise
+            _dkss_common.db.session.rollback()
+            return "別の操作と競合しました。画面を再読み込みして再度お試しください。", 409
+        finally:
+            _dkss_common.db.session.info.pop("q04_news_committed", None)
+    return wrapped
+
+
+@_news_write_conflicts
 def itc_new_news():
     if not _dkss_access.require_itc():
         return _dkss_common.redirect("/")
@@ -66,7 +89,7 @@ def itc_new_news():
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_value
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 form_errors.append((
@@ -106,8 +129,7 @@ def itc_new_news():
                 form_error_status
             )
 
-        # add_news / each recipient commits. Capture the selected generations
-        # before commits expire ORM objects or another request reuses a login ID.
+        # Capture selected generations before recipients can be deleted/replaced.
         from types import SimpleNamespace
         target_users = [SimpleNamespace(username=u.username, account_identity=u.account_identity,
             last_name=u.last_name, first_name=u.first_name) for u in target_users]
@@ -145,6 +167,7 @@ def itc_new_news():
 
         # News登録
 
+        pending = []
         _dkss_notifications_delivery.add_news(
             title,
             message,
@@ -152,6 +175,7 @@ def itc_new_news():
             target_type=target_type,
             target_value=target_value,
             target_identity=target_users[0].account_identity if target_type == 'user' and target_users else None,
+            commit=False
         )
 
         # 通知登録
@@ -168,13 +192,25 @@ def itc_new_news():
                 files=file_names,
                 company_code=company_code,
                 target_identity=user.account_identity,
-                target_username=user.username
+                target_username=user.username,
+                pending=pending
             )
 
         _dkss_notifications_delivery.notify_mentions(
             message,
-            "/notifications"
+            "/notifications",
+            pending=pending
         )
+
+        # Persist news, audit and all recipients before any external delivery.
+        _dkss_common.db.session.commit()
+        _dkss_common.db.session.info["q04_news_committed"] = True
+        for user_id, notification_id, saved_title, saved_message, link in pending:
+            user = _dkss_common.db.session.get(_dkss_models.User, user_id) if user_id else None
+            if user:
+                _dkss_notifications_delivery.dispatch_external_notification(
+                    user, saved_title, saved_message, link, notification_id=notification_id
+                )
 
         return _dkss_common.redirect("/itc")
 
@@ -202,6 +238,7 @@ def itc_new_news():
 
 
 
+@_news_write_conflicts
 def itc_edit_news(index):
     if not _dkss_access.require_itc():
         return _dkss_common.redirect("/")
@@ -240,7 +277,7 @@ def itc_edit_news(index):
             valid_office = _dkss_models.Office.query.filter_by(
                 company_code=company_code,
                 name=target_value
-            ).first()
+            ).with_for_update(read=True).first()
 
             if not valid_office:
                 form_errors.append((
