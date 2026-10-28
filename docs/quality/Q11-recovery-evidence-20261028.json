@@ -1,0 +1,918 @@
+{
+  "status": "passed",
+  "started_at": "2026-10-28T11:13:53.615702+00:00",
+  "cases": [
+    {
+      "name": "dump_restore_exact_snapshot",
+      "status": "passed",
+      "duration_seconds": 1.8412802999955602,
+      "evidence": {
+        "dump_sha256": "4e7d1e95827c41659d6a1a6812366e1ebff10e9613ac5e0640e85fb8305c09f3",
+        "dump_seconds": 0.28719799999089446,
+        "restore_seconds": 0.8108277000137605,
+        "tables": 66,
+        "rows": 38,
+        "sequences": 54,
+        "differences": []
+      }
+    },
+    {
+      "name": "restored_hashes_foreign_keys_and_local_files",
+      "status": "passed",
+      "duration_seconds": 0.13074880000203848,
+      "evidence": {
+        "checks": {
+          "shared_hash_mismatches": 0,
+          "active_source_mismatches": 0,
+          "knowledge_hash_mismatches": 0,
+          "maintenance_company_mismatches": 0
+        },
+        "foreign_keys": {
+          "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+          "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+          "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+          "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+          "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+          "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+          "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+          "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+          "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+          "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+          "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+          "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+          "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+          "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+          "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+          "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+          "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+          "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+          "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+          "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+          "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+          "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+          "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+          "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+          "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+          "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+          "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+          "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+          "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+          "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+          "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+          "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+          "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+          "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+          "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+          "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+          "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+          "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+          "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+          "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+          "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+          "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+          "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+          "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+          "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+          "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+          "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+          "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+          "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+          "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+          "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+          "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+          "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+          "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+          "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+          "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+          "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+          "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+        },
+        "violations": 0,
+        "files": {
+          "status": "passed",
+          "checked": 4,
+          "matched": 4,
+          "duration_seconds": 0.004841399990255013,
+          "files": [
+            {
+              "key": "uploads/Q11A/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "2837b4a29b62af73eaca14dbd97e3872e5b001c32370e02a2b963eb5431e4290",
+              "actual_size": 450,
+              "actual_sha256": "2837b4a29b62af73eaca14dbd97e3872e5b001c32370e02a2b963eb5431e4290",
+              "status": "matched"
+            },
+            {
+              "key": "manuals/legacy.pdf",
+              "expected_size": 450,
+              "expected_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "actual_size": 450,
+              "actual_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "status": "matched"
+            },
+            {
+              "key": "uploads/Q11B/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "actual_size": 450,
+              "actual_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "status": "matched"
+            },
+            {
+              "key": "manuals/Q11B/b.pdf",
+              "expected_size": 450,
+              "expected_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "actual_size": 450,
+              "actual_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "status": "matched"
+            }
+          ]
+        },
+        "file_references": {
+          "checked": 4,
+          "missing": []
+        }
+      }
+    },
+    {
+      "name": "database_file_manifest_reference_missing",
+      "status": "passed",
+      "duration_seconds": 0.05170029999862891,
+      "evidence": {
+        "expected_rejection": true,
+        "references": {
+          "checked": 4,
+          "missing": [
+            [
+              "maintenance",
+              1,
+              "Q11A",
+              "uploads/Q11A/a.pdf"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "missing_file",
+      "status": "passed",
+      "duration_seconds": 0.02058979999856092,
+      "evidence": {
+        "expected_rejection": true,
+        "verification": {
+          "status": "failed",
+          "checked": 4,
+          "matched": 3,
+          "duration_seconds": 0.005426200004876591,
+          "files": [
+            {
+              "key": "uploads/Q11A/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "2837b4a29b62af73eaca14dbd97e3872e5b001c32370e02a2b963eb5431e4290",
+              "status": "missing",
+              "actual_size": null,
+              "actual_sha256": null
+            },
+            {
+              "key": "manuals/legacy.pdf",
+              "expected_size": 450,
+              "expected_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "actual_size": 450,
+              "actual_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "status": "matched"
+            },
+            {
+              "key": "uploads/Q11B/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "actual_size": 450,
+              "actual_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "status": "matched"
+            },
+            {
+              "key": "manuals/Q11B/b.pdf",
+              "expected_size": 450,
+              "expected_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "actual_size": 450,
+              "actual_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "status": "matched"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "same_size_file_corruption",
+      "status": "passed",
+      "duration_seconds": 0.016426099988166243,
+      "evidence": {
+        "expected_rejection": true,
+        "verification": {
+          "status": "failed",
+          "checked": 4,
+          "matched": 3,
+          "duration_seconds": 0.004395000010845251,
+          "files": [
+            {
+              "key": "uploads/Q11A/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "2837b4a29b62af73eaca14dbd97e3872e5b001c32370e02a2b963eb5431e4290",
+              "actual_size": 450,
+              "actual_sha256": "52189fe8c734631e6dfae213159baca785e9626c7813f25091a638615d4592ae",
+              "status": "mismatch"
+            },
+            {
+              "key": "manuals/legacy.pdf",
+              "expected_size": 450,
+              "expected_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "actual_size": 450,
+              "actual_sha256": "6459e2fe847f07e72268ac3912aecc9ec1411d60ee73393d02c9a1934d64aca7",
+              "status": "matched"
+            },
+            {
+              "key": "uploads/Q11B/a.pdf",
+              "expected_size": 450,
+              "expected_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "actual_size": 450,
+              "actual_sha256": "a68e2241301598ac78029b32683bfaab91e196903d58d5c345d92708140716d8",
+              "status": "matched"
+            },
+            {
+              "key": "manuals/Q11B/b.pdf",
+              "expected_size": 450,
+              "expected_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "actual_size": 450,
+              "actual_sha256": "e486d17faa602d2adf72af418d79f79d53ed3862e51b7e554b12f86a1b3c584b",
+              "status": "matched"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "missing_shared_source",
+      "status": "passed",
+      "duration_seconds": 1.5886071999993874,
+      "evidence": {
+        "expected_rejection": true,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 0,
+            "active_source_mismatches": 3,
+            "knowledge_hash_mismatches": 0,
+            "maintenance_company_mismatches": 0
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 3
+        }
+      }
+    },
+    {
+      "name": "tampered_shared_source",
+      "status": "passed",
+      "duration_seconds": 1.9983853999874555,
+      "evidence": {
+        "expected_rejection": true,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 1,
+            "active_source_mismatches": 2,
+            "knowledge_hash_mismatches": 0,
+            "maintenance_company_mismatches": 0
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 3
+        }
+      }
+    },
+    {
+      "name": "tampered_knowledge_original",
+      "status": "passed",
+      "duration_seconds": 2.004786499994225,
+      "evidence": {
+        "expected_rejection": true,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 0,
+            "active_source_mismatches": 0,
+            "knowledge_hash_mismatches": 1,
+            "maintenance_company_mismatches": 0
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 1
+        }
+      }
+    },
+    {
+      "name": "cross_company_reference",
+      "status": "passed",
+      "duration_seconds": 1.9900785999925574,
+      "evidence": {
+        "expected_rejection": true,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 0,
+            "active_source_mismatches": 0,
+            "knowledge_hash_mismatches": 0,
+            "maintenance_company_mismatches": 1
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 1
+        }
+      }
+    },
+    {
+      "name": "foreign_key_orphan",
+      "status": "passed",
+      "duration_seconds": 1.948934799991548,
+      "evidence": {
+        "expected_rejection": true,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 0,
+            "active_source_mismatches": 0,
+            "knowledge_hash_mismatches": 0,
+            "maintenance_company_mismatches": 0
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 1,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 1
+        }
+      }
+    },
+    {
+      "name": "row_count_mismatch",
+      "status": "passed",
+      "duration_seconds": 2.321179899998242,
+      "evidence": {
+        "expected_rejection": true,
+        "differences": [
+          {
+            "category": "tables",
+            "name": "manual",
+            "before": {
+              "count": 2,
+              "sha256": "6b53ce6d694eefa95f874ffac6daff552f6480f192cea58ae7ccaf01fcdb3985"
+            },
+            "after": {
+              "count": 1,
+              "sha256": "9c62f3ed706ef70c2a48ef81847d4ee59d6e69c50c158dc538e610f5fcc7f8b2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed_check_constraint_detected",
+      "status": "passed",
+      "duration_seconds": 2.0797125000099186,
+      "evidence": {
+        "expected_rejection": true,
+        "detected_categories": [
+          "constraints"
+        ]
+      }
+    },
+    {
+      "name": "column_length_change_detected",
+      "status": "passed",
+      "duration_seconds": 1.8550148000067566,
+      "evidence": {
+        "expected_rejection": true,
+        "detected_categories": [
+          "columns"
+        ]
+      }
+    },
+    {
+      "name": "sequence_state_change_detected",
+      "status": "passed",
+      "duration_seconds": 1.9860801000031643,
+      "evidence": {
+        "expected_rejection": true,
+        "detected_categories": [
+          "manual_id_seq"
+        ]
+      }
+    },
+    {
+      "name": "truncated_dump_restore_rejected_atomically",
+      "status": "passed",
+      "duration_seconds": 1.3437676000030478,
+      "evidence": {
+        "expected_rejection": true,
+        "restore_returncode": 1,
+        "partial_tables": 0
+      }
+    },
+    {
+      "name": "inline_rollback_and_idempotency",
+      "status": "passed",
+      "duration_seconds": 2.1962875000026543,
+      "evidence": {
+        "restored_after_repair": 5,
+        "second_run": 0,
+        "deleted_rows": 2,
+        "original_sha256": "54014b35a9dbbc8b742570250f89fc60736bfa3df7f1b6a84f3004aeae361837",
+        "partial_commit_checked": false
+      }
+    },
+    {
+      "name": "rollback_partial_failure_repair_and_retry",
+      "status": "passed",
+      "duration_seconds": 2.218070800008718,
+      "evidence": {
+        "restored_after_repair": 3,
+        "second_run": 0,
+        "deleted_rows": 2,
+        "original_sha256": "54014b35a9dbbc8b742570250f89fc60736bfa3df7f1b6a84f3004aeae361837",
+        "partial_commit_checked": true
+      }
+    },
+    {
+      "name": "rollback_process_exit_and_resume",
+      "status": "passed",
+      "duration_seconds": 6.632106799996109,
+      "evidence": {
+        "child_exitcode": 17,
+        "rows_committed_before_exit": 1,
+        "resumed": 4,
+        "repeated": 0
+      }
+    },
+    {
+      "name": "compaction_locked_row_then_retry",
+      "status": "passed",
+      "duration_seconds": 1.9705697999888798,
+      "evidence": {
+        "first": 1,
+        "after_unlock": 1,
+        "repeated": 0,
+        "integrity": {
+          "checks": {
+            "shared_hash_mismatches": 0,
+            "active_source_mismatches": 0,
+            "knowledge_hash_mismatches": 0,
+            "maintenance_company_mismatches": 0
+          },
+          "foreign_keys": {
+            "checklist_result.checklist_result_target_vehicle_record_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_report_id_fkey": 0,
+            "driving_report_reader.driving_report_reader_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_actor_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_user_id_fkey": 0,
+            "driving_vehicle_correction.driving_vehicle_correction_vehicle_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_notification_id_fkey": 0,
+            "inspection_expiry_alert_delivery.inspection_expiry_alert_delivery_vehicle_record_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_notification_id_fkey": 0,
+            "inspection_plan_alert_delivery.inspection_plan_alert_delivery_plan_id_fkey": 0,
+            "maintenance_knowledge_rule_extraction.maintenance_knowledge_rule_extraction_document_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_issue_id_fkey": 0,
+            "periodic_inspection_issue_event.periodic_inspection_issue_event_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_inspection_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_maintenance_record_id_fkey": 0,
+            "periodic_inspection_issue.periodic_inspection_issue_vehicle_record_id_fkey": 0,
+            "periodic_inspection_proposal.periodic_inspection_proposal_inspection_record_id_fkey": 0,
+            "vehicle_analysis_evaluation.vehicle_analysis_evaluation_vehicle_record_id_fkey": 0,
+            "vehicle_analysis_feedback.vehicle_analysis_feedback_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_notify_setting.vehicle_checklist_notify_setting_vehicle_record_id_fkey": 0,
+            "vehicle_checklist_result.vehicle_checklist_result_vehicle_record_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_towing_vehicle_id_fkey": 0,
+            "vehicle_coupling.vehicle_coupling_trailer_vehicle_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_operation_record_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_source_draft_id_fkey": 0,
+            "vehicle_driving_report_record.vehicle_driving_report_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_document_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_operation_draft_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_pending_id_fkey": 0,
+            "vehicle_import_pending_record.vehicle_import_pending_record_vehicle_record_id_fkey": 0,
+            "vehicle_import_pending.vehicle_import_pending_resolved_vehicle_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_document_id_fkey": 0,
+            "vehicle_inspection_execution_evidence.vehicle_inspection_execution_evidence_execution_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_plan_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_source_record_id_fkey": 0,
+            "vehicle_inspection_execution.vehicle_inspection_execution_vehicle_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_completed_record_id_fkey": 0,
+            "vehicle_inspection_plan_event.vehicle_inspection_plan_event_plan_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_source_record_id_fkey": 0,
+            "vehicle_inspection_plan.vehicle_inspection_plan_vehicle_record_id_fkey": 0,
+            "vehicle_karte_analysis.vehicle_karte_analysis_vehicle_record_id_fkey": 0,
+            "vehicle_karte_note.vehicle_karte_note_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_inspection_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_pending_record_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_related_document_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_source_draft_id_fkey": 0,
+            "vehicle_maintenance_document.vehicle_maintenance_document_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_inspection_result_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_inspection_link.vehicle_maintenance_inspection_link_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_maintenance_record_id_fkey": 0,
+            "vehicle_maintenance_record_event.vehicle_maintenance_record_event_vehicle_record_id_fkey": 0,
+            "vehicle_maintenance_record.vehicle_maintenance_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_record.vehicle_operation_record_vehicle_record_id_fkey": 0,
+            "vehicle_operation_vehicle_mapping.vehicle_operation_vehicle_mapping_vehicle_record_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_maintenance_record_id_fkey": 0,
+            "vehicle_part_replacement_source.vehicle_part_replacement_source_replacement_id_fkey": 0,
+            "vehicle_part_replacement.vehicle_part_replacement_vehicle_record_id_fkey": 0,
+            "vehicle_patrol.vehicle_patrol_vehicle_record_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_source_draft_id_fkey": 0,
+            "vehicle_periodic_inspection_record.vehicle_periodic_inspection_record_vehicle_record_id_fkey": 0
+          },
+          "violations": 0
+        }
+      }
+    },
+    {
+      "name": "restored_ocr_lease_recovery_and_retry_limit",
+      "status": "passed",
+      "duration_seconds": 2.106187500001397,
+      "evidence": {
+        "reclaims": 2,
+        "stale_renew": false,
+        "stale_finish": false,
+        "max_attempts": 3,
+        "manual_retry": 1,
+        "external_calls": 0
+      }
+    },
+    {
+      "name": "cache_clear_upgrade_and_new_sequence_write",
+      "status": "passed",
+      "duration_seconds": 2.9176920000027167,
+      "evidence": {
+        "expected_cache_differences": [
+          {
+            "category": "tables",
+            "name": "analysis_input_epoch",
+            "before": {
+              "count": 4,
+              "sha256": "685df93101514c2f3ee7aeffbec1c6f08b75e90aa64fa88ecf60c3360e05bf08"
+            },
+            "after": {
+              "count": 4,
+              "sha256": "72377ec035da48dd622eeacfb44b01b79ea78c76d5af03240d30f324e55df902"
+            }
+          },
+          {
+            "category": "tables",
+            "name": "analysis_input_read_cache",
+            "before": {
+              "count": 2,
+              "sha256": "e4f2feed267e036858e66ad08828cc9342a51f2091bc52d0d3c3b36646c62ec2"
+            },
+            "after": {
+              "count": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          }
+        ],
+        "new_vehicle_id": 3,
+        "business_tables_unchanged_before_insert": true
+      }
+    },
+    {
+      "name": "database_outage_restart_and_persistence",
+      "status": "passed",
+      "duration_seconds": 39.346025899998494,
+      "evidence": {
+        "connection_failure_observed": true,
+        "restart_and_verify_seconds": 3.541468800001894,
+        "differences": []
+      }
+    }
+  ],
+  "scope": "synthetic loopback PostgreSQL and local files; no AWS requests",
+  "script_sha256": "41ae7cfa39b0ab5a4ae68ef162bca6955c55c8e313c511d74e368d29b72e068e",
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "acceptance": "synthetic_functional_only",
+  "postgres_version": "pg_dump (PostgreSQL) 18.6",
+  "cluster_stopped": true,
+  "duration_seconds": 91.06991530000232,
+  "finished_at": "2026-10-28T11:15:24.682786+00:00"
+}
