@@ -4,6 +4,15 @@
 
 {% block content %}
 
+{% if approval_conflict %}
+<p class="help-text">
+    <a class="btn btn-outline" data-approval-conflict-reload
+       href="{{ url_for('checklist_result_detail', result_index=result_index) }}">
+        最新の回答と履歴を再表示
+    </a>
+</p>
+{% endif %}
+
 <nav class="page-breadcrumb checklist-result-detail-breadcrumb" aria-label="パンくずリスト">
     <a href="/safety/checklists/{{ checklist.id }}">
         結果一覧

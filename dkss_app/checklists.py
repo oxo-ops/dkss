@@ -694,7 +694,7 @@ def safety_checklist_results(index):
 
 
 
-def checklist_result_detail(result_index):
+def checklist_result_detail(result_index, *, approval_conflict=False):
     result_record = _dkss_models.ChecklistResult.query.filter_by(
         id=result_index,
         company_code=_dkss_common.session.get("company_code")
@@ -866,6 +866,7 @@ def checklist_result_detail(result_index):
         result=result,
         result_index=result_record.id,
         approval_version=checklist_result_edit_version(result_record),
+        approval_conflict=approval_conflict,
         summary=summary,
         total_score=total_score,
         max_score=max_score,
@@ -1846,10 +1847,30 @@ def validate_approval_version(record, result_type):
         _dkss_common.request.form.get("approval_version", "").encode("utf-8"),
         checklist_result_edit_version(record, result_type).encode("ascii"),
     ):
+        result_id = record.id
+        reload_url = (
+            _dkss_common.url_for("checklist_result_detail", result_index=result_id)
+            if result_type == "safety" else
+            _dkss_common.url_for("vehicle_checklist_results", index=record.checklist_id,
+                vehicle_record_id=record.vehicle_record_id, year=record.year,
+                month=record.month, active_day=record.day)
+            + f"#vehicle-approval-result-{result_id}"
+        )
         _dkss_common.db.session.rollback()
-        return _dkss_http.return_form_errors([
-            ("点検記録が更新されています。最新の回答と履歴を確認してから承認してください。", "")
-        ], status_code=409)
+        message = "点検記録が更新されています。最新の回答と履歴を確認してから承認してください。"
+        response = _dkss_http.return_form_errors([(message, "")], status_code=409)
+        if result_type == "safety" and not response.is_json and _dkss_http.is_html_document_request():
+            response = _dkss_runtime.app.make_response(
+                checklist_result_detail(result_id, approval_conflict=True)
+            )
+            response.status_code = 409
+        elif not response.is_json:
+            # The existing vehicle fetch handler displays text errors verbatim.
+            response.set_data(message)
+            response.mimetype = "text/plain"
+        response.headers["X-DKSS-Approval-Conflict"] = "1"
+        response.headers["X-DKSS-Approval-Reload"] = reload_url
+        return response
     return None
 
 

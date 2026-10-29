@@ -487,6 +487,12 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 
 def redirect_form_errors(response):
+    # Only the explicit checklist answer-version conflict keeps its 409 view.
+    if (response.status_code == 409
+            and _dkss_common.request.endpoint in {
+                "approve_checklist_result", "approve_vehicle_checklist_result"}
+            and response.headers.get("X-DKSS-Approval-Conflict") == "1"):
+        return response
     if response.headers.get("X-DKSS-Import-Recovery") == "1":
         return response
     if _dkss_common.request.method != "POST":
