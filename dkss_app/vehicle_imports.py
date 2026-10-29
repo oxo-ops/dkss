@@ -1,4 +1,5 @@
 """Vehicle Imports responsibilities; routes are registered by the application factory."""
+from . import import_owner as _dkss_import_owner
 from . import access as _dkss_access, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_master as _dkss_vehicle_master, vehicle_operations as _dkss_vehicle_operations, vehicle_pending as _dkss_vehicle_pending, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -8,7 +9,7 @@ def apply_maintenance_invoice_preview(draft, extraction):
 
 
 def build_vehicle_document_preview(draft, extraction, *, company_code, username):
-    if draft.document_type not in {'maintenance', 'inspection', 'driving_report'} or draft.company_code != company_code or draft.created_by_username != username or (draft.status != 'preview'):
+    if draft.document_type not in {'maintenance', 'inspection', 'driving_report'} or not _dkss_import_owner.owns(draft,company_code,username) or (draft.status != 'preview'):
         raise ValueError('この資料の読み取り結果は変更できません。')
     if extraction.get('schema_version') != 1 or extraction.get('source_sha256') != draft.source_sha256:
         raise ValueError('読み取り結果と原本PDFが一致しません。')
@@ -70,11 +71,10 @@ def resolve_invoice_import_choice(draft, values, choice):
 def apply_invoice_import_choice(draft, record_index, values):
     stored = _dkss_common.db.session.query(
         _dkss_models.VehicleDocumentImportDraft.status, _dkss_models.VehicleDocumentImportDraft.preview_json,
-    ).filter_by(id=draft.id, company_code=draft.company_code,
-                created_by_username=_dkss_common.session.get("username")).first()
+    ).filter_by(id=draft.id, company_code=draft.company_code).filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).first()
     rows = _dkss_serialization.safe_json_dict(stored.preview_json).get("records") if stored else None
     if (draft.company_code != _dkss_common.session.get("company_code")
-            or draft.created_by_username != _dkss_common.session.get("username")
+            or not _dkss_import_owner.owns(draft)
             or draft.document_type != "maintenance" or stored is None or stored.status != "processing"
             or type(record_index) is not int or not isinstance(rows, list)
             or not 0 <= record_index < len(rows) or rows[record_index] != values
@@ -133,10 +133,7 @@ def apply_invoice_import_choice(draft, record_index, values):
 def vehicle_invoice_import_candidates(batch_id, draft_id, record_index):
     if not _dkss_access.require_master_admin():
         return _dkss_common.jsonify(error="この操作は管理者のみ利用できます。"), 403
-    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-        id=draft_id, batch_id=batch_id, company_code=_dkss_common.session.get("company_code"),
-        created_by_username=_dkss_common.session.get("username"), document_type="maintenance", status="preview",
-    ).first_or_404()
+    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, batch_id=batch_id, company_code=_dkss_common.session.get("company_code"), document_type="maintenance", status="preview").filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).first_or_404()
     rows = _dkss_serialization.safe_json_dict(draft.preview_json).get("records")
     if not isinstance(rows, list) or not 0 <= record_index < len(rows):
         return _dkss_common.jsonify(error="対象の請求書明細を確認できません。"), 400
@@ -650,7 +647,7 @@ def prepare_vehicle_document_import(files, document_type):
         if document_type in {'maintenance', 'inspection', 'driving_report'} and len(source_file) > 20 * 1024 * 1024:
             errors.append((f'{filename}：資料は1ファイル20MB以下にしてください。', 'document_files'))
             continue
-        drafts.append(_dkss_models.VehicleDocumentImportDraft(id=str(_dkss_common.uuid4()), batch_id=batch_id, company_code=company_code, created_by_username=username, document_type=document_type, source_filename=filename, source_file=source_file, source_sha256=_dkss_common.hashlib.sha256(source_file).hexdigest()))
+        drafts.append(_dkss_models.VehicleDocumentImportDraft(id=str(_dkss_common.uuid4()), batch_id=batch_id, company_code=company_code, created_by_username=username, owner_identity=_dkss_import_owner.identity_for_actor(company_code,username), document_type=document_type, source_filename=filename, source_file=source_file, source_sha256=_dkss_common.hashlib.sha256(source_file).hexdigest()))
     if errors:
         return ([], errors)
     return (drafts, [])
@@ -756,6 +753,9 @@ def vehicle_data_import_progress():
                 preview = _dkss_serialization.safe_json_dict(ready[0].preview_json)
                 preview['import_failures'] = failures
                 ready[0].preview_json = _dkss_common.json.dumps(preview, ensure_ascii=False)
+            identity=_dkss_import_owner.identity_for_actor(_dkss_common.session.get('company_code'),_dkss_common.session.get('username'),lock=True)
+            if not identity or any(row.owner_identity!=identity for row in ready):
+                raise ValueError('OWNER_UNAVAILABLE')
             _dkss_common.db.session.add_all(ready)
             _dkss_common.db.session.commit()
             yield report('complete', total, redirect_url=_dkss_common.url_for('vehicle_document_import_preview', batch_id=ready[0].batch_id))
@@ -810,6 +810,9 @@ def vehicle_data_import():
             first_preview = _dkss_serialization.safe_json_dict(drafts[0].preview_json)
             first_preview['import_failures'] = failed_imports
             drafts[0].preview_json = _dkss_common.json.dumps(first_preview, ensure_ascii=False)
+        identity=_dkss_import_owner.identity_for_actor(_dkss_common.session.get('company_code'),_dkss_common.session.get('username'),lock=True)
+        if not identity or any(row.owner_identity!=identity for row in drafts):
+            raise ValueError('OWNER_UNAVAILABLE')
         _dkss_common.db.session.add_all(drafts)
         _dkss_common.db.session.commit()
     except (ValueError, RuntimeError) as error:
@@ -834,7 +837,7 @@ def vehicle_document_import_confirm(batch_id):
     if not _dkss_access.require_master_admin():
         return _dkss_http.return_form_errors([('この操作を行う権限がありません。', '')], status_code=403)
     validation_only = _dkss_common.request.headers.get('X-DKSS-Validation-Only') == '1'
-    query = _dkss_models.VehicleDocumentImportDraft.query.filter_by(batch_id=batch_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username'))
+    query = _dkss_models.VehicleDocumentImportDraft.query.filter_by(batch_id=batch_id, company_code=_dkss_common.session.get('company_code')).filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft))
     if not validation_only:
         query = query.with_for_update()
     drafts = query.order_by(_dkss_models.VehicleDocumentImportDraft.id).all()
@@ -929,10 +932,12 @@ def vehicle_document_import_confirm(batch_id):
         return _dkss_http.return_form_errors(errors)
     if validation_only:
         return _dkss_common.jsonify({'ok': True})
+    if not _dkss_import_owner.identity_for_actor(_dkss_common.session.get('company_code'),_dkss_common.session.get('username'),lock=True):
+        raise _dkss_common.NotFound()
     try:
         saved_preview_count = 0
         for draft_id, preview in previews.items():
-            saved_preview_count += _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, batch_id=batch_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username'), status='preview').update({'preview_json': _dkss_common.json.dumps(preview, ensure_ascii=False)}, synchronize_session=False)
+            saved_preview_count += _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, batch_id=batch_id, company_code=_dkss_common.session.get('company_code'), status='preview').filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).update({'preview_json': _dkss_common.json.dumps(preview, ensure_ascii=False)}, synchronize_session=False)
         if saved_preview_count != len(drafts):
             _dkss_common.db.session.rollback()
             return _dkss_http.return_form_errors([('この資料はすでに処理されています。取り込み結果を確認してください。', '')], status_code=409)
@@ -942,7 +947,9 @@ def vehicle_document_import_confirm(batch_id):
         _dkss_runtime.app.logger.exception('資料取り込みの編集内容を保存できませんでした')
         return _dkss_http.return_form_errors([('編集内容を保存できませんでした。もう一度お試しください。', '')], status_code=500)
     try:
-        claimed_count = _dkss_models.VehicleDocumentImportDraft.query.filter(_dkss_models.VehicleDocumentImportDraft.id.in_([draft.id for draft in drafts]), _dkss_models.VehicleDocumentImportDraft.company_code == _dkss_common.session.get('company_code'), _dkss_models.VehicleDocumentImportDraft.created_by_username == _dkss_common.session.get('username'), _dkss_models.VehicleDocumentImportDraft.status == 'preview').update({'status': 'processing'}, synchronize_session=False)
+        if any(_dkss_import_owner.active_owner_username(draft,lock=True) is None for draft in drafts):
+            raise _dkss_common.NotFound()
+        claimed_count = _dkss_models.VehicleDocumentImportDraft.query.filter(_dkss_models.VehicleDocumentImportDraft.id.in_([draft.id for draft in drafts]), _dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft), _dkss_models.VehicleDocumentImportDraft.status == 'preview').update({'status': 'processing'}, synchronize_session=False)
         if claimed_count != len(drafts):
             _dkss_common.db.session.rollback()
             return _dkss_http.return_form_errors([('この資料はすでに処理されています。取り込み結果を確認してください。', '')], status_code=409)
@@ -1062,7 +1069,7 @@ def vehicle_periodic_inspection_source(record_id):
 def vehicle_document_import_source(draft_id):
     if not _dkss_access.require_master_admin():
         raise _dkss_common.NotFound()
-    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, company_code=_dkss_common.session.get('company_code'), created_by_username=_dkss_common.session.get('username')).first_or_404()
+    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(id=draft_id, company_code=_dkss_common.session.get('company_code')).filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).first_or_404()
     if _dkss_common.request.args.get('preview') == 'pdf' and draft.document_type in {'maintenance', 'inspection', 'driving_report'} and (_dkss_common.os.path.splitext(draft.source_filename)[1].lower() in {'.png', '.jpg', '.jpeg'}):
         try:
             preview_pdf = _dkss_common.prepare_maintenance_invoice_pdf(draft.source_file)
@@ -1089,12 +1096,7 @@ def vehicle_document_import_preview(batch_id):
 
     from sqlalchemy.orm import defer
     drafts = (
-        _dkss_models.VehicleDocumentImportDraft.query.options(defer(_dkss_models.VehicleDocumentImportDraft.source_file))
-        .filter_by(
-            batch_id=batch_id,
-            company_code=_dkss_common.session.get("company_code"),
-            created_by_username=_dkss_common.session.get("username")
-        )
+        _dkss_models.VehicleDocumentImportDraft.query.options(defer(_dkss_models.VehicleDocumentImportDraft.source_file)).filter_by(batch_id=batch_id, company_code=_dkss_common.session.get("company_code")).filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft))
         .order_by(
             _dkss_models.VehicleDocumentImportDraft.created_at,
             _dkss_models.VehicleDocumentImportDraft.id

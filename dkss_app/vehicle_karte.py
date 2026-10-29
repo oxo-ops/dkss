@@ -1,4 +1,5 @@
 """Vehicle Karte responsibilities; routes are registered by the application factory."""
+from . import import_owner as _dkss_import_owner
 from . import access as _dkss_access, analysis as _dkss_analysis, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklists as _dkss_checklists, common as _dkss_common, maintenance as _dkss_maintenance, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_costs as _dkss_vehicle_costs, vehicle_imports as _dkss_vehicle_imports, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -1157,13 +1158,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
 
 def get_vehicle_maintenance_import_context(batch_id):
     company_code = _dkss_common.session.get("company_code")
-    drafts = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-        batch_id=batch_id,
-        company_code=company_code,
-        created_by_username=_dkss_common.session.get("username"),
-        document_type="maintenance",
-        status="completed",
-    ).order_by(_dkss_models.VehicleDocumentImportDraft.id.asc()).all()
+    drafts = _dkss_models.VehicleDocumentImportDraft.query.filter_by(batch_id=batch_id, company_code=company_code, document_type="maintenance", status="completed").filter(_dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft)).order_by(_dkss_models.VehicleDocumentImportDraft.id.asc()).all()
 
     requested = []
     for draft in drafts:
