@@ -62,3 +62,31 @@ class DocumentDisplayTests(unittest.TestCase):
         html = self.page('closed')
         self.assertNotIn('maintenance_invoice_pdf_viewer.mjs',html)
         self.assertIn('kd-download',html)
+
+    def test_vehicle_switcher_and_header_share_truck_derivatives(self):
+        from html.parser import HTMLParser
+        from unittest.mock import patch
+        class Images(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.images = []
+            def handle_starttag(self, tag, attrs):
+                if tag == 'img':
+                    self.images.append(dict(attrs))
+        self.vehicle.type = 'トラック'
+        car = self.m.Vehicle(company_code='TEST', chassis_number='Q12-CAR', type='乗用車')
+        self.m.db.session.add(car)
+        self.m.db.session.commit()
+        with patch('dkss_app.vehicle_karte.get_vehicle_karte_usage_vehicles', return_value=[self.vehicle, car]):
+            html = self.page('closed')
+        parsed = Images()
+        parsed.feed(html)
+        trucks = [i for i in parsed.images if 'truck-display' in i.get('src', '')]
+        self.assertEqual(len(trucks), 2)
+        self.assertEqual(trucks[0]['src'], trucks[1]['src'])
+        self.assertEqual(trucks[0]['srcset'], trucks[1]['srcset'])
+        self.assertIn('4x', trucks[0]['srcset'])
+        self.assertNotIn('/static/icons/truck.png', html)
+        cars = [i for i in parsed.images if '/static/icons/car.png' in i.get('src', '')]
+        self.assertEqual(len(cars), 1)
+        self.assertNotIn('srcset', cars[0])
