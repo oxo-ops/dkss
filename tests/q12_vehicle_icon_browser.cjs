@@ -19,7 +19,8 @@ const output = process.argv[3];
                 deviceScaleFactor:dpr, isMobile:mobile, serviceWorkers:'block'});
             await context.addCookies([{name:'dkss_session', value:fixture.cookie, url:base}]);
             const page = await context.newPage();
-            const errors = [], requests = [];
+            const errors = [], requests = [], responses = [];
+            page.on('response', r => responses.push({path:new URL(r.url()).pathname,status:r.status()}));
             page.on('pageerror', e => errors.push(e.message));
             page.on('request', r => {
                 assert.equal(new URL(r.url()).hostname, '127.0.0.1');
@@ -38,12 +39,14 @@ const output = process.argv[3];
             assert.equal(initial.height, 50);
             assert.equal(requests.filter(p => p.includes('/truck-display-')).length, 1);
             assert(!requests.some(p => p.endsWith('/truck.png')));
+            responses.length = 0;
             await page.reload({waitUntil:'load'});
             const cache = await page.evaluate(() => {
                 const r = performance.getEntriesByType('resource').find(r => r.name.includes('/truck-display-'));
                 return {transfer:r.transferSize, encoded:r.encodedBodySize};
             });
-            assert(cache.transfer < cache.encoded, 'repeat revalidates/reuses the public body');
+            assert(responses.some(r => r.path.includes('/truck-display-') && r.status === 304)
+                || cache.transfer === 0, 'repeat revalidates/reuses the public body');
             await page.screenshot({path:output.replace('.json', '-dpr' + dpr + '.png')});
             await page.goto(base + '/vehicle/karte/6', {waitUntil:'load'});
             assert((await image.getAttribute('src')).endsWith('/car.png'));
