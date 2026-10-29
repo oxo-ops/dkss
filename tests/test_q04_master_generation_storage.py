@@ -102,7 +102,8 @@ class StorageCases:
     def test_custom_trigger_is_rejected_before_any_metadata_or_business_update(self):
         with self.engine.begin() as c:
             if self.engine.dialect.name == 'sqlite':
-                c.exec_driver_sql("CREATE TRIGGER unexpected_master_trigger AFTER UPDATE ON office "
+                # SQLite accepts an empty trigger name: existence, not name truthiness, must be checked.
+                c.exec_driver_sql('CREATE TRIGGER "" AFTER UPDATE ON office '
                     "BEGIN UPDATE office SET name='Unexpected rewrite' WHERE id=NEW.id; END")
             else:
                 c.exec_driver_sql(f'CREATE TRIGGER unexpected_master_trigger BEFORE UPDATE ON "{self.schema}".office '

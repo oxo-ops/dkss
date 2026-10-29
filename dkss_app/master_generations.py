@@ -71,8 +71,8 @@ def _ordinary_storage(connection, schema, name):
     # silently run those, or claim complete migration through a filtered RLS view.
     if connection.dialect.name == 'sqlite':
         quote = connection.dialect.identifier_preparer.quote
-        extra = connection.scalar(text('SELECT name FROM ' + quote(schema)
-            + ".sqlite_master WHERE type='trigger' AND tbl_name=:name LIMIT 1"), {'name': name})
+        extra = connection.scalar(text('SELECT EXISTS(SELECT 1 FROM ' + quote(schema)
+            + ".sqlite_master WHERE type='trigger' AND tbl_name=:name)"), {'name': name})
     else:
         extra = connection.scalar(text(
             "SELECT c.relrowsecurity OR c.relkind <> 'r' "
