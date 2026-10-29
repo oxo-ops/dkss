@@ -25,7 +25,9 @@ def identity_for_actor(company_code, username, lock=False):
             return None
         query=query.filter(User.account_identity==identity)
     if lock:
-        query=query.with_for_update(read=True,of=[User,Company])
+        # HTTP confirmation takes its existing company write lock separately.
+        # A company share lock here can deadlock when two requests upgrade it.
+        query=query.with_for_update(read=True,of=[User])
     return query.scalar()
 
 
@@ -43,7 +45,7 @@ def owns(row, company_code=None, username=None):
     return bool(identity and row.company_code==company_code and row.owner_identity==identity)
 
 
-def active_owner_username(row, lock=False):
+def active_owner_username(row, lock=False, lock_company=True):
     from .models import User, Company
     if not row.owner_identity:
         return None
@@ -51,7 +53,7 @@ def active_owner_username(row, lock=False):
         User.company_code==row.company_code, User.account_identity==row.owner_identity,
         User.role.in_({'admin','itc'}),User.login_locked.is_(False),Company.active.is_(True))
     if lock:
-        query=query.with_for_update(read=True,of=[User,Company])
+        query=query.with_for_update(read=True,of=[User,Company] if lock_company else [User])
     return query.scalar()
 
 

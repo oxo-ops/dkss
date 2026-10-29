@@ -4,6 +4,7 @@ on:
     paths:
       - 'dkss_app/**'
       - 'tests/test_q02*import_owner_generation.py'
+      - 'tests/test_q02_postgres_import_confirmation_concurrency.py'
       - '.github/workflows/q02-import-owner-generation.yml'
   workflow_dispatch:
 permissions:
@@ -43,3 +44,4 @@ jobs:
           python -m unittest -v test_q02_import_owner_generation
           test_q02_postgres_import_owner_generation.PostgresImportOwnerGenerationTests
           test_q02_postgres_import_owner_generation.PostgresImportOwnerMigrationTests
+          test_q02_postgres_import_confirmation_concurrency.PostgresImportConfirmationConcurrencyTests

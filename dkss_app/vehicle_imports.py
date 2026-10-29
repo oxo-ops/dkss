@@ -947,14 +947,16 @@ def vehicle_document_import_confirm(batch_id):
         _dkss_runtime.app.logger.exception('資料取り込みの編集内容を保存できませんでした')
         return _dkss_http.return_form_errors([('編集内容を保存できませんでした。もう一度お試しください。', '')], status_code=500)
     try:
-        if any(_dkss_import_owner.active_owner_username(draft,lock=True) is None for draft in drafts):
+        if any(_dkss_import_owner.active_owner_username(draft,lock=True,lock_company=False) is None for draft in drafts):
             raise _dkss_common.NotFound()
         claimed_count = _dkss_models.VehicleDocumentImportDraft.query.filter(_dkss_models.VehicleDocumentImportDraft.id.in_([draft.id for draft in drafts]), _dkss_import_owner.owner_clause(_dkss_models.VehicleDocumentImportDraft), _dkss_models.VehicleDocumentImportDraft.status == 'preview').update({'status': 'processing'}, synchronize_session=False)
         if claimed_count != len(drafts):
             _dkss_common.db.session.rollback()
             return _dkss_http.return_form_errors([('この資料はすでに処理されています。取り込み結果を確認してください。', '')], status_code=409)
         if any((draft.document_type in {'maintenance', 'inspection', 'driving_report'} for draft in drafts)):
-            _dkss_models.Company.query.filter_by(company_code=_dkss_common.session.get('company_code')).with_for_update().one()
+            company = _dkss_models.Company.query.filter_by(company_code=_dkss_common.session.get('company_code')).populate_existing().with_for_update().first()
+            if company is None or company.active is not True:
+                raise _dkss_common.NotFound()
         if any((draft.document_type == 'maintenance' for draft in drafts)):
             latest_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code'))
             for draft, record_index, values in submissions:
