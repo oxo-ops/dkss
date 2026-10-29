@@ -1,5 +1,5 @@
 """Safety responsibilities; routes are registered by the application factory."""
-from . import safety_identity as _person_identity
+from . import safety_identity as _person_identity, person_selection as _person_forms
 from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -433,6 +433,11 @@ def new_pointout():
 
         if form_errors:
             return _dkss_http.return_form_errors(form_errors)
+
+        # All referenced master rows are acquired before the actor (Q04 order).
+        person_error = _person_forms.validate(actor_only=True)
+        if person_error is not None:
+            return person_error
 
         # 添付ファイル
 
