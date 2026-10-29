@@ -96,10 +96,11 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `OCR_WORKER_STARTED` / `OCR_WORKER_HEARTBEAT` | 起動とqueued/reading/failed、RSSの推移。heartbeatは通常約60秒単位で、長い処理中の常時出力を保証しない |
 | `OCR_WORKER_ITERATION_FAILED error_type=...` | ループ段階と例外種別。次のiterationは継続。SQL・認証情報を含み得る例外本文/tracebackは出さない |
 | `OCR_JOB_HEARTBEAT_FAILED job_id=... error_type=...` | 個別jobのlease更新段階で失敗。既存のrollback・後続処理を維持。例外本文/tracebackは出さない |
+| `HTTP_UNEXPECTED_ERROR stage=request error_type=...` | マージ済み#332のHTTP共通例外。例外本文・SQL引数・チェーンを記録せず、既存のrollbackと応答を維持。[既存報告](quality/Q09-http-diagnostics-20261029.md)を参照 |
 | `OperationalError` / `ProgrammingError`等 | 承認済みスキーマ証跡・権限・接続設定の有無と照合。型だけでDB原因を確定せず、移行主管へ返す |
 | queuedが続く | 組込無効フラグ、専用worker有無、Web稼働状態、対象版・lease情報を既存手順で確認。jobを直接書き換えない |
 
-今回のログ保護はOCRループとlease更新の例外ハンドラーに限定します。他の全経路や基盤側のログの秘密値非表示を保証するものではありません。詳細診断が必要な場合も、管理された環境で許可された最小情報を収集します。
+ログ保護の対象は、#329のOCRループ・lease更新の2経路と、#332のHTTP共通例外ハンドラーを分けて記録します。他の全経路や基盤側を含む全ログの対策完了を保証するものではありません。詳細診断が必要な場合も、管理された環境で許可された最小情報を収集します。
 
 ## 依存更新とCIの追跡
 

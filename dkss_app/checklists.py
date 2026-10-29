@@ -865,6 +865,7 @@ def checklist_result_detail(result_index):
         "checklist_result_detail.html",
         result=result,
         result_index=result_record.id,
+        approval_version=checklist_result_edit_version(result_record),
         summary=summary,
         total_score=total_score,
         max_score=max_score,
@@ -1823,19 +1824,33 @@ def export_checklist_result_excel(result_index):
 
 
 
-def checklist_result_edit_version(record):
+def checklist_result_edit_version(record, result_type="safety"):
     snapshot = {
         column.key: getattr(record, column.key)
         for column in _dkss_common.inspect(record).mapper.column_attrs
     }
     latest_event = _dkss_models.ChecklistEvent.query.filter_by(
-        company_code=record.company_code, result_type="safety", result_id=record.id
+        company_code=record.company_code, result_type=result_type, result_id=record.id
     ).order_by(_dkss_models.ChecklistEvent.id.desc()).first()
     # Identical resubmissions within the same minute must still invalidate a form.
     snapshot["latest_event_id"] = latest_event.id if latest_event else None
     return _dkss_common.hashlib.sha256(_dkss_common.json.dumps(
         snapshot, sort_keys=True, ensure_ascii=False, default=str,
     ).encode("utf-8")).hexdigest()
+
+
+
+def validate_approval_version(record, result_type):
+    # The result row is already locked, before User (Q04/Q03 lock order).
+    if not _dkss_common.secrets.compare_digest(
+        _dkss_common.request.form.get("approval_version", "").encode("utf-8"),
+        checklist_result_edit_version(record, result_type).encode("ascii"),
+    ):
+        _dkss_common.db.session.rollback()
+        return _dkss_http.return_form_errors([
+            ("点検記録が更新されています。最新の回答と履歴を確認してから承認してください。", "")
+        ], status_code=409)
+    return None
 
 
 
@@ -3136,6 +3151,9 @@ def vehicle_checklist_results(index):
             if str(result.get("month")).zfill(2) != str(month).zfill(2):
                 continue
 
+        if result_record.status == "承認待ち":
+            result["approval_version"] = checklist_result_edit_version(result_record, "vehicle")
+
         results.append(result)
 
     if display_mode == "day_list":
@@ -3591,7 +3609,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         company_code=company_code,
         id=vehicle_record_id,
         deleted=False
-    ).first()
+    ).with_for_update().first()
 
     if not vehicle:
         return _dkss_http.return_form_errors([
@@ -4568,6 +4586,9 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     if person_error is not None:
         return person_error
 
+    # Reload after all waits, including SQLite writer reservation.
+    _dkss_common.db.session.refresh(result_record)
+
     if result_record.status != "承認待ち":
         return _dkss_common.redirect("/vehicle/checklists")
 
@@ -4701,6 +4722,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         )
     ):
         return _dkss_common.redirect("/vehicle/checklists")
+
+    version_error = validate_approval_version(result_record, "vehicle")
+    if version_error is not None:
+        return version_error
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")
@@ -11064,6 +11089,9 @@ def approve_checklist_result(result_index, approval_index):
     if person_error is not None:
         return person_error
 
+    # Reload after all waits, including SQLite writer reservation.
+    _dkss_common.db.session.refresh(result_record)
+
     if result_record.status != "承認待ち":
         return _dkss_common.redirect(
             _dkss_common.url_for("checklist_result_detail", result_index=result_index)
@@ -11185,6 +11213,10 @@ def approve_checklist_result(result_index, approval_index):
 
     if not _dkss_safety_permissions.can_approve_checklist_result(result, approval):
         return _dkss_common.redirect(_dkss_common.url_for("checklist_result_detail", result_index=result_index))
+
+    version_error = validate_approval_version(result_record, "safety")
+    if version_error is not None:
+        return version_error
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")

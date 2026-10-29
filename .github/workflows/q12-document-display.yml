@@ -4,6 +4,12 @@ on:
     paths:
       - 'templates/vehicle_karte_documents.html'
       - 'templates/vehicle_karte_header.html'
+      - 'dkss_app/document_images.py'
+      - 'dkss_app/profile_images.py'
+      - 'dkss_app/vehicle_karte.py'
+      - 'static/js/vehicle_karte_documents.js'
+      - 'tests/test_q12_document_images.py'
+      - 'tests/q12_document_preview_sizes.cjs'
       - 'static/icons/truck*.png'
       - 'tools/build_notification_icon.py'
       - 'tests/test_q12_notification_icon.py'
@@ -54,6 +60,8 @@ jobs:
           node tests/q12_document_display_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/documents.json"
       - name: Check vehicle icon selection, cache and navigation
         run: node tests/q12_vehicle_icon_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/vehicle-icons.json"
+      - name: Check preview detail across viewports and densities
+        run: node tests/q12_document_preview_sizes.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/preview-sizes.json"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

@@ -11,6 +11,15 @@ class PersonSelectionClient(FlaskClient):
     """
     def open(self, *args, **kwargs):
         data = kwargs.get('data')
+        if kwargs.get('method', 'GET').upper() == 'POST' and 'json' not in kwargs and (data is None or hasattr(data, 'keys')):
+            if data is None or 'approval_version' not in data:
+                from approval_form_fixture import fresh_approval_version
+                path = args[0] if args else kwargs.get('path', '')
+                version = fresh_approval_version(self, path) if isinstance(path, str) else None
+                if version is not None:
+                    data = data.copy() if data is not None else {}
+                    data['approval_version'] = version
+                    kwargs['data'] = data
         if kwargs.get('method', 'GET').upper() == 'POST' and hasattr(data, 'keys') and 'person_selection_token' not in data:
             fields = set(data.keys())
             if any(key.startswith('approval_notify_users_') for key in fields) or fields & {'notify_users','reminder_notify_users','manager_username'} or (data.get('target_type') == 'user'):

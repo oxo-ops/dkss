@@ -1,4 +1,5 @@
 """No.10 acceptance: candidates never authorize a stored report without UUID evidence."""
+from driving_selection_fixture import fresh_person_proof
 import csv
 import io
 import json
@@ -21,7 +22,7 @@ class VerifiedReadershipTests(DrivingIdentityFixture,unittest.TestCase):
     def grant(self,row,user):
         self.login(self.manager())
         response=self.client.post(f'/safety/driving-reports/{row.id}/reader',data={
-            'version':version(row),'reader_username':user.username})
+            'version':version(row),'person_selection_token':fresh_person_proof(self.client),'reader_username':user.username})
         self.assertEqual(response.status_code,302)
 
     def import_identity(self,row,**kw):

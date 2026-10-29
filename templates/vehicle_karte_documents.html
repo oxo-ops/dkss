@@ -271,7 +271,19 @@
                 {% endwith %}
             {% elif selected_document.extension in ['png', 'jpg', 'jpeg', 'webp', 'gif'] %}
                 <div class="kd-image-preview">
-                    <img src="{{ selected_document.source_url }}" alt="{{ selected_document.filename }}">
+                    {% set display = selected_document.display_image %}
+                    <img src="{{ selected_document.source_url }}"
+                        {% if display %}
+                        width="{{ display.width }}" height="{{ display.height }}"
+                        {% if display.variants %}
+                        srcset="{% for size in display.variants %}{{ selected_document.source_url }}?preview={{ size }} {{ size }}w, {% endfor %}{{ selected_document.source_url }} {{ display.width }}w"
+                        {# 2.2fr:1fr column <=31.25vw, minus preview margins.
+                           Below 1440px, allow the shared shell to choose one column.
+                           Eager discovery avoids delaying high-DPR originals. #}
+                        sizes="(min-width: 1440px) calc(31.25vw - 20px), 100vw"
+                        {% endif %}
+                        {% endif %}
+                        alt="{{ selected_document.filename }}">
                 </div>
             {% else %}
                 <div class="kd-file-preview">
