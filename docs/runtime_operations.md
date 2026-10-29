@@ -133,6 +133,67 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 
 factory/`app.py`のimportはDB初期化を行いません。一方、`gunicorn.conf.py`の`post_worker_init`は日報閲覧・連結表の初期化/一部追加変更を呼びます。OCRを無効にしてもこのDB処理は止まりません。アプリ構築、開発Flask、Gunicorn worker起動、明示的移行を区別し、Gunicorn起動を既存DBの無変更診断として使わないでください。
 
+## Renderログイン障害の復旧確認（2026-10-29）
+
+移行主管のローカル復旧資料の更新分を、この既存報告へ集約します。第一候補は**利用者報告の現在版`18ae141b`を維持するログイン復旧**です。最新mainへの更新、Q04・CSVを含む全移行を前提にしません。復旧対象の完全SHAと実対象の最終照合は未完了で、**P1（移行開始承認）は保留**です。以下は確認範囲の記録であり、本番接続・Render操作・停止・移行・デプロイの開始指示ではありません。
+
+### 利用者報告で確認済みの事実と、不足証拠
+
+出典は2026年10月29日の利用者報告と、その09:54 JSTの保全記録です。書記・移行主管による再測定ではありません。記録時刻を実測時刻へ置き換えず、報告時点の確認済み事実を現在の全サービスへ外挿しません。
+
+| 項目 | 利用者報告時点の確認済み事実 | 追加で必要な不足分だけ |
+|---|---|---|
+| T01 稼働版・設定 | 稼働短縮SHA`18ae141b`、Auto-Deploy Off | 完全live SHA、全Web／worker／jobの版と設定反映版の対応、既報後の変更有無、証跡ID |
+| T02 DB・schema | 本番DB接続先・schemaの識別は確認済み | 既存の制限付き証跡への参照、元runtime role／options／search_path、同名表の実解決先 |
+| T03 実スキーマ | `user.account_identity`、Q03関連列、`vehicle_document_import_draft.owner_identity`等の欠落、`checklist_event.created_at`が`VARCHAR(30)` | Q03個別欠落列、復旧対象版に必要な残りの列・索引・制約と既存値保持の前提 |
+
+Q03全20列の欠落や、未提示の表・索引の状態を推定しません。接続先・role等の実値、接続URL、認証情報、業務行は共有資料へ転記せず、既存の制限付き証跡で照合します。リポジトリ内で短縮SHAを完全値へ解決できても、実live完全SHAの確認証拠にはしません。
+
+主管保管の既存資料では、`render_admin_confirmation.txt`のT01 A/B・T02 A/B、`production_preflight_handover.txt`の01〜03、`recovery_checklist.txt`のB/C/E-1が該当します。管理者は上表の対応・照合成否、確認者、確認日時、非秘密の証跡ID、不足理由を既存判定表へ返します。既報のOffへの再変更や、確認済みDB／schemaの実値の再送は求めません。新たな操作・接続が必要な不足分は、対象と範囲が承認されるまで未確認として止めます。
+
+### M01：ログイン欠落に直接対応する既存処理
+
+既存の`flask --app app upgrade-account-identity`（[実装](../dkss_app/account_identity.py)）を直接修復の候補とします。次の6表8列3索引について、報告済みの欠落と未提示部分を分けて現状を整理します。コマンドを実行する指示ではありません。
+
+| 表 | 必要列 |
+|---|---|
+| `user` | `account_identity VARCHAR(36)` |
+| `notification` | `owner_identity VARCHAR(36)` |
+| `news` | `owner_identity VARCHAR(36)` |
+| `push_subscription` | `owner_identity VARCHAR(36)` |
+| `audit_log` | `actor_identity VARCHAR(36)`、`actor_name VARCHAR(200)` |
+| `vehicle_maintenance_record_event` | `actor_identity VARCHAR(36)`、`actor_name VARCHAR(200)` |
+
+追加列はnullableです。索引は`uq_user_account_identity(account_identity)`が一意、`ix_notification_owner_identity(company_code, owner_identity)`と`ix_push_owner_identity(company_code, owner_identity)`が非一意です。基礎表の存在、既存列の型・NULL等、索引の完全定義・valid/ready、既存UUIDの異常・重複を承認済みの証跡で確認します。同名の誤定義を`IF NOT EXISTS`で修復できるとは扱いません。
+
+保持条件は、**NULLだったUserの`account_identity`への初期UUID付与だけを許容し、既存UUID・認証値・通知・監査・履歴を保持すること**です。旧通知等の所有者をusernameから補完しません。既存値の前後比較と、6表のALTER／索引作成、UserのSELECT／UPDATEに必要な承認済み権限を確認します。runtimeへの権限昇格、基礎表不足の`init-db`による即興補完は行いません。
+
+### 再開範囲と、採用版による追加条件
+
+| 範囲 | 選定する条件 |
+|---|---|
+| 限定ログイン受入 | M01対象・実行権限・保持前提を確認し、既存の停止／整合バックアップ／隔離復元／失敗時復旧とP1承認を満たした後、制御した入口だけでログイン・CSRF・実SMTP/MFA・監査を受け入れる。一般業務writer・OCR・通知・定期jobは停止を維持する |
+| 通常業務の再開 | Q03個別欠落列、日時幅30と報告版コードの要件40の相違、日報・点検通知等の未提示定義を対象版と照合し、必要な既存移行だけを選ぶ。ログイン成功を業務全体の合格証明にしない |
+| OCRの再開 | OCR受付の`owner_identity`は報告版のソースにも存在するため、報告欠落への対応と既存lease／原本／二重処理防止の再開条件を別に満たす。M01の直接修復と混同しない |
+| Q04／CSV対応版の採用 | その版を選び、実DBに必要な準備が不足する場合だけ追加移行を選ぶ。CSV所有者移行はOCRとは別表であり、旧NULLを補完しない |
+
+停止・保全・限定権限・復元・中止／切戻しは既存の[Q11運用受入](quality/Q11-operational-readiness-20261028.md)と[復旧手順](quality/Q11-recovery-automation-20261028.md)、主管のチェックリストD/E/G、引渡し手順05〜08を再利用します。対象版に必要な条件だけを選定し、P2（通常再開承認）と段階再開は限定ログイン受入から分けます。Gunicornの起動時DDLを移行や無変更診断の代用にしません。旧認可へ切り戻す場合は、関連私有経路・旧writerを止め、追加列・UUID・証跡・原本を削除しません。
+
+### Q04本番入口は別作業
+
+`18ae141b`に解決する解析ソースにはQ04の`master_generation`がなく、M01にもQ04依存はありません。実稼働版との最終照合後、その版を維持してM01でログインを修復する方針なら、**Q04本番入口の整備待ちは不要**です。Q04対応版を採用し、実5マスタの準備不足により適用が必要な場合だけ、その版の準備阻害条件になります。既にreadinessを満たすなら移行入口の実行は不要です。
+
+Q04設計報告の方針は、承認要件を満たす主管共通基盤があればQ04アダプタを優先し、なければ薄い専用入口を検討することです。方式は未決・未実装で、ローカル専用のrehearsal/Q11資材を本番基盤とは扱いません。主管／DBAが対象・方式・承認manifestを確定し、Q04担当が既存`upgrade_storage`／`validate_storage`へ委譲する最小差分、Q11／運用が保全・限定権限・停止復帰条件を担当します。非本番CLIのguard解除やURL／DB名偽装、一時Pythonでの直接呼出しは採りません。
+
+必要と決定・実装承認された場合の追加受入は、接続前後の対象／role／schema／TLS／承認拒否、同一接続での5表LOCK後・DDL前のOID／状態再照合、読取計画のtransaction解放、既存値保持、権限／lock異常時の停止、commit応答・台帳保存喪失時の成否不明判定と読取復帰に限定します。既存の移行本体・バックアップ・試験を重複実装しません。
+
+### 完了済み証跡と現在の判定
+
+- 旧5コマンドの隔離検証79件、復旧チェックリスト、既報6処理／62表保持は完了として再利用します。
+- 固定`288261d`の388件は387成功・Q03の1失敗で凍結し、元結果・ログを保持します。Q03は独語メッセージと英語assertの差を実例外型／SQLSTATE `55P03`で切り分け、テスト専用の最小案を別途検証済みです。担当Q03へ集約し、元388件へ成功を合算しません。
+- `1741c64426f75f682a331f99b9249a45caf7a612`の#327追加隔離受入は、新規合成バックアップの復元先で保持・定義・再実行・DDL rollback／再開と選定4HTTPケースを完了。実運用backup・実容量・Render遮断／切戻し・実SMTP受入の成功証明ではありません。
+- 本追記で既存検証・本番操作を実施していません。P1保留を維持し、不足証拠と対象版・再開範囲を運用責任者が確定するまで移行・公開・配備へ進めません。
+
 ## 未確定事項と担当境界
 
 Q09の今回確認は新規Windows/Python環境と架空SQLite、模擬故障、CI証跡です。Linuxでの現在版Web/専用OCRの実停止時間、運用サービスの台数・管理者・再起動policy、ログ保管/通知先は運用主管の確認待ちです。Linuxでの過去のGunicorn確認はOCR資料に記載済みで、現在版の新規実測と区別します。
