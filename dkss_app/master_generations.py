@@ -104,7 +104,7 @@ def validate_storage(connection, schema=None, allow_empty=False):
             seen.add(value)
 
 
-def upgrade_storage(engine, schema=None):
+def upgrade_storage(engine, schema=None, *, target_guard=None):
     """Explicit, transactional, additive metadata migration. Never repair IDs/names.
 
     Writers must be stopped, including old application binaries. Preserve assigned
@@ -112,6 +112,8 @@ def upgrade_storage(engine, schema=None):
     """
     with engine.connect() as connection:
         try:
+            if target_guard is not None:
+                target_guard(connection, 'CONNECTED')
             if connection.dialect.name == 'sqlite':
                 connection.exec_driver_sql('BEGIN IMMEDIATE')
             elif connection.dialect.name == 'postgresql':
@@ -127,6 +129,8 @@ def upgrade_storage(engine, schema=None):
             if connection.dialect.name == 'postgresql':
                 targets = ', '.join(prefix + quote(name) for name in KINDS.values())
                 connection.exec_driver_sql('LOCK TABLE ' + targets + ' IN ACCESS EXCLUSIVE MODE')
+            if target_guard is not None:
+                target_guard(connection, 'LOCKED')
             report = {}
             for name in KINDS.values():
                 _ordinary_storage(connection, schema, name)
