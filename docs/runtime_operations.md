@@ -124,10 +124,15 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `flask --app app init-checklist-notify-identities` | 通知割当のUUID証跡。`checklist_notify_identity.py`。旧本人を推定しない |
 | `tools/upgrade_checklist_event_timestamps.py` | 文字列長40への対応。`checklist_event_storage.py`が型/長さを検査。UTC/JST変換ではない |
 | `tools/upgrade_import_owners.py` | Q02受付UUID証跡。専用URL必須。`import_owner.py`、Q02 #313資料 |
+| `tools/upgrade_operation_csv_owners.py` | #327の運行CSV受付UUID証跡。`Q03_CSV_OWNER_MIGRATION_DATABASE_URL`必須で`DATABASE_URL`へフォールバックしない。`operation_csv_owner.py`が既存表、nullable文字列列（36文字以上）、会社/所有者の非一意索引とPG索引のvalid/readyを検査。旧NULLは補完しない |
 | `tools/upgrade_master_generations.py` | Q04マスタ世代列・一意制約等の検査。専用URL/対象名/非本番確認が必要、`--check`は読取確認。#317の資料を参照 |
 | `flask --app app upgrade-domain-storage` | 原本保存/分析キャッシュ用の既存処理。保存先変更は今回の対象外 |
 
 これは**調査用の索引で、上から一括実行する順序ではありません**。配備SHAごとの適用順序・適用済み判定・失敗時復帰は移行主管が管理します。旧版の5処理手順へ#313や#317を独断で付け足しません。安全な再実行可否も処理ごとに異なり、UUIDの旧データ補完を推定で行いません。
+
+#327の追加条件は[CSV所有者の既存手順](quality/Q03-operation-csv-owner-20261029.md#移行主管への追加受入適用条件)を正とします。新列は`vehicle_operation_import_draft.owner_identity VARCHAR(36) NULL`、索引は`ix_operation_csv_company_owner(company_code, owner_identity)`です。既存CSV表がなければ停止し、新アプリ起動前に列を準備します。旧NULL受付は原本・作成者文字列・状態・関連記録を保持したまま、私有preview/result/confirm/APIを404で保留します。username・数値ID・氏名で所有者を補完しません。完了済みの会社共有原本は既存会社・車両境界を維持し、私有受付の継承と区別します。
+
+切戻し時も列・索引・原本・旧行を削除しません。旧版はusername認可へ戻るため、単純なアプリ巻戻しでCSV私有経路を再開してはいけません。CSV受付・preview・confirm・APIを停止した状態を維持するか、UUID照合を保持した修正版へ戻します。旧NULLの確認・回復は別の根拠付き手続きです。固定288261dの6処理・388件にはこの追加移行を含めず、主管の追加受入をQ09で再実行しません。
 
 移行主管へ渡す記録は、対象完全SHA、関連PR、対象表/列/索引、処理入口、前後のスキーマと原値比較、終了コード・成功マーカー、部分適用の有無です。失敗時はwriter再開や自動再試行を止め、途中commitの可能性を確認して主管の復帰手順に従います。Q11のバックアップ・復旧手順を別実装しません。
 
@@ -135,6 +140,6 @@ factory/`app.py`のimportはDB初期化を行いません。一方、`gunicorn.c
 
 ## 未確定事項と担当境界
 
-Q09の今回確認は新規Windows/Python環境と架空SQLite、模擬故障、CI証跡です。Linuxでの現在版Web/専用OCRの実停止時間、運用サービスの台数・管理者・再起動policy、ログ保管/通知先は運用主管の確認待ちです。Linuxでの過去のGunicorn確認はOCR資料に記載済みで、現在版の新規実測と区別します。
+Q09の初回確認は新規Windows/Python環境と架空SQLite、模擬故障でした。既存Linux CIはfactory/キュー試験が中心で、過去の実Gunicorn受入を現在版の起動証明とは扱いません。追加の`tests/test_q09_linux_runtime.py`はLinuxの既存回帰CIで、新規一時SQLite、非loopback接続を遮断した子プロセスを使い、現在のGunicorn（gthread/1/4）、組込OCR、ログインHTTP200、明示OCR CLI、通常SIGTERM終了を確認します。Windowsではこの1件は明示的skipです。結果は各headのregressionログの`Q09_LINUX_RUNTIME_OK`と試験結果で判定します。実配備の停止時間、運用サービスの台数・管理者・再起動policy、ログ保管/通知先は未確認のまま運用主管へ残します。
 
 移行主管の6処理・388件検証/実行ハーネス、Q11の復旧、Q12性能、Q02/Q03/Q08の権限修正は再実装・再実行しません。Q05は完了状態を維持します。既存移行検証DB4件や本番DB、本番S3を第三者の起動試験に利用しないことが、この手順の前提です。
