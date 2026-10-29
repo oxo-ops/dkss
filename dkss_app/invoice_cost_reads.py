@@ -245,10 +245,12 @@ def apply_read(target, view, key, submitted_version, values, confirm_evidence=Fa
     if selected is None:
         raise ValueError('訂正する請求書・原本を選択してください。')
     revised = costs(values)
-    if revised['total_cost'] is None or any(v is not None and v < 0 for v in revised.values()):
-        raise ValueError('請求書の合計金額・内訳を確認してください。')
-    if all(revised[f] is not None for f in FIELDS[:-1]) and sum(revised[f] for f in FIELDS[:-1]) != revised['total_cost']:
-        raise ValueError('内訳と合計金額が一致しません。')
+    # Manual costs retain the existing form's signed/nullable semantics.
+    if key != 'manual':
+        if revised['total_cost'] is None or any(v is not None and v < 0 for v in revised.values()):
+            raise ValueError('請求書の合計金額・内訳を確認してください。')
+        if all(revised[f] is not None for f in FIELDS[:-1]) and sum(revised[f] for f in FIELDS[:-1]) != revised['total_cost']:
+            raise ValueError('内訳と合計金額が一致しません。')
     if view['unresolved'] and not confirm_evidence:
         raise ValueError('過去の合計訂正は未解決です。対象原本と訂正額の根拠を確認してください。')
     if revised == selected['effective'] and not view['unresolved']:

@@ -34,19 +34,24 @@ def main():
                             actual=hashlib.sha256(d.source_file).hexdigest(),
                             preview=json.loads(d.preview_json)) for d in m.VehicleDocumentImportDraft.query.all()])
 
-    row, primary, _ = case.imported()
+    mode = sys.argv[2] if len(sys.argv) > 2 else 'normal'
+    primary = None
+    if mode == 'manual':
+        row = case.target('500')
+    else:
+        row, primary, _ = case.imported()
     extra, _ = case.additional(row)
     case.assertEqual(case.review(extra).status_code, 302)
     pending, _ = case.additional(row, '20')
-    legacy = len(sys.argv) > 2 and sys.argv[2] == 'legacy'
+    legacy = mode == 'legacy'
     if legacy:
         case.legacy_total(row)
     m.User.query.filter_by(company_code='TEST', username='admin').one().password = generate_password_hash('M07-Synthetic-742!')
     m.db.session.commit()
     fixture = dict(company='TEST', username='admin', password='M07-Synthetic-742!',
                    vehicle_id=case.vehicle.id, record_id=row.id,
-                   primary_key='primary:' + primary.id + ':0', extra_id=extra.id,
-                   pending_id=pending.id, legacy=legacy)
+                   primary_key='primary:' + primary.id + ':0' if primary else None, extra_id=extra.id,
+                   pending_id=pending.id, legacy=legacy, manual=mode == 'manual')
     case.tearDown()
     app.config.update(TESTING=False, WTF_CSRF_ENABLED=True, MFA_ENABLED=False)
 

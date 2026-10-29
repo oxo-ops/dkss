@@ -10,21 +10,25 @@
     const after = document.getElementById('invoice-read-after');
     const original = document.getElementById('invoice-read-original');
     const evidence = document.getElementById('invoice-evidence');
-    const cents = value => {
+    const cents = (value, signed = false) => {
         if (value === null || value === '') return null;
         const raw = String(value).replace(/,/g, '');
-        if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) throw new Error('invalid amount');
-        const [n, d = ''] = raw.split('.');
-        return BigInt(n) * 100n + BigInt(d.padEnd(2, '0'));
+        if (!(signed ? /^-?\d+(?:\.\d{1,2})?$/ : /^\d+(?:\.\d{1,2})?$/).test(raw)) throw new Error('invalid amount');
+        const negative = raw.startsWith('-');
+        const [n, d = ''] = (negative ? raw.slice(1) : raw).split('.');
+        return (negative ? -1n : 1n) * (BigInt(n) * 100n + BigInt(d.padEnd(2, '0')));
     };
-    const money = value => value === null ? '不明' :
-        String(value / 100n) + '.' + String(value % 100n).padStart(2, '0');
+    const money = value => {
+        if (value === null) return '不明';
+        const absolute = value < 0n ? -value : value;
+        return (value < 0n ? '-' : '') + String(absolute / 100n) + '.' + String(absolute % 100n).padStart(2, '0');
+    };
     const selected = () => context.sources.find(s => s.key === select.value);
     function showTotal() {
         const source = selected();
         if (!source) { after.textContent = ''; return; }
         try {
-            const values = context.sources.map(s => cents(s === source ? inputs.total_cost.value : s.values.total_cost));
+            const values = context.sources.map(s => cents(s === source ? inputs.total_cost.value : s.values.total_cost, s.key === 'manual'));
             const total = values.some(v => v === null) ? null : values.reduce((a, b) => a + b, 0n);
             after.textContent = '訂正前：' + (source.values.total_cost ?? '不明') + ' 円 → 訂正後：' +
                 (inputs.total_cost.value || '不明') + ' 円 ／ 保存後の整備合計：' + money(total) + ' 円';

@@ -47,7 +47,7 @@ Engine.connect = connect
         S3_BUCKET_NAME='', OPENAI_API_KEY='', SMTP_HOST='', VAPID_PRIVATE_KEY='',
         VAPID_PUBLIC_KEY='', RENDER='')
     records = []
-    for mode in ['normal', 'legacy']:
+    for mode in ['normal', 'legacy', 'manual']:
         folder = destination / mode
         folder.mkdir(exist_ok=True)
         ready = root / (mode + '.json')

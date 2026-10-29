@@ -28,7 +28,7 @@ async function save(page) {
     const width = await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth}));
     assert.ok(width.document<=width.viewport+2, 'The correction form must fit the viewport: '+JSON.stringify(width));
     await page.screenshot({path:path.join(out,'edit-form-'+String(++formScreenshot)+'.png'),fullPage:false});
-    await Promise.all([page.waitForNavigation(),page.locator('#maintenance_form button[name=maintenance_action][value=save]').click()]);
+    await Promise.all([page.waitForNavigation(),page.locator('#maintenance_form button[name=maintenance_action]:not([value=complete])').click()]);
 }
 async function replace(page) {
     await page.goto(fixture.url+'/master/vehicles/invoice-reviews');
@@ -42,7 +42,7 @@ async function replace(page) {
     const browser = await chromium.launch({headless:true,executablePath:process.env.Q10_BROWSER_EXECUTABLE||undefined});
     results.version = browser.version();
     try {
-        const devices = fixture.legacy ? [{name:'legacy-pc',width:1366,height:900}] :
+        const devices = fixture.manual ? [{name:'manual-pc',width:1366,height:900}] : fixture.legacy ? [{name:'legacy-pc',width:1366,height:900}] :
             [{name:'primary-pc',width:1366,height:900},{name:'additional-mobile',width:390,height:844,isMobile:true}];
         for(const device of devices) {
             const context = await browser.newContext({viewport:{width:device.width,height:device.height},isMobile:!!device.isMobile,hasTouch:!!device.isMobile});
@@ -57,7 +57,25 @@ async function replace(page) {
             try {
                 await login(page);
                 await page.goto(fixture.url+edit);
-                if(device.name==='additional-mobile') {
+                if(fixture.manual) {
+                    await page.locator('#invoice_source').selectOption('manual');
+                    await page.locator('#total_cost').fill('-5.25');
+                    assert.match(await page.locator('#invoice-read-after').textContent(),/24\.75/);
+                    await save(page);
+                    assert.equal((await state(page)).total,'24.75');
+                    await page.goto(fixture.url+edit);
+                    await page.locator('#invoice_source').selectOption('manual');
+                    await page.locator('#total_cost').fill('');
+                    await save(page);
+                    assert.equal((await state(page)).total,'None');
+                    await page.goto(fixture.url+edit);
+                    await page.locator('#invoice_source').selectOption('manual');
+                    await page.locator('#total_cost').fill('500');
+                    await save(page);
+                    assert.equal((await state(page)).total,'530.00');
+                    await replace(page);
+                    assert.equal((await state(page)).total,'520.00');
+                } else if(device.name==='additional-mobile') {
                     await page.locator('#invoice_source').selectOption('document:'+fixture.pending_id);
                     await page.locator('#total_cost').fill('-1');
                     await save(page);

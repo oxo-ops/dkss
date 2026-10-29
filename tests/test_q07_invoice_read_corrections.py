@@ -180,6 +180,31 @@ class InvoiceReadCorrectionTests(unittest.TestCase):
         self.assertEqual(len(changes), 1)
         self.assert_cost(row, 110)
 
+    def test_manual_negative_and_unknown_values_keep_existing_edit_semantics(self):
+        row = self.target('500')
+        extra, _ = self.additional(row)
+        self.assertEqual(self.review(extra).status_code, 302)
+        data = self.read_form(row, 'manual', '-5')
+        data.update(labor_cost='-1', parts_cost='2', other_cost='3', tax_amount='4')
+        path = f'/vehicle/karte/{self.vehicle.id}/maintenance/{row.id}/edit'
+        self.assertEqual(self.client.post(path, data=data).status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertEqual(str(row.total_cost), '25.00')
+        self.assertEqual(row.status, '整備中')
+        manual = next(s for s in self.context(row)['sources'] if s['key'] == 'manual')
+        self.assertEqual(manual['values']['labor_cost'], '-1')
+        self.assertEqual(self.read(row, 'manual', '').status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertIsNone(row.total_cost)
+        self.assertEqual(self.read(row, 'manual', '500').status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertEqual(str(row.total_cost), '530.00')
+        replacement, _ = self.additional(row, '20')
+        self.assertEqual(self.review(replacement, 'correction', extra).status_code, 302)
+        self.m.db.session.refresh(row)
+        self.assertEqual(str(row.total_cost), '520.00')
+        self.assertEqual(row.status, '整備中')
+
     def test_initial_cost_document_read_and_later_replacement(self):
         row = self.target()
         first, original, _ = self.invoice(row)
