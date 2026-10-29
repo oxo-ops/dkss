@@ -22,10 +22,12 @@ class LinuxRuntimeTests(unittest.TestCase):
             (folder / 'sitecustomize.py').write_text('''
 import sys
 def guard(event, args):
-    if event == 'socket.connect':
+    if event in {'socket.connect', 'socket.sendto'}:
         address = args[1]
         if not isinstance(address, tuple) or address[0] not in {'127.0.0.1', '::1'}:
             raise RuntimeError('Q09_NON_LOOPBACK_CONNECTION_BLOCKED')
+    if event == 'socket.getaddrinfo' and args[0] not in {'127.0.0.1', '::1'}:
+        raise RuntimeError('Q09_NON_LOOPBACK_CONNECTION_BLOCKED')
 sys.addaudithook(guard)
 ''', encoding='utf-8')
             env = {key: value for key, value in os.environ.items()
@@ -37,11 +39,15 @@ sys.addaudithook(guard)
                 VAPID_PUBLIC_KEY='', MFA_ENABLED='false', WEB_CONCURRENCY='1', WEB_THREADS='4',
                 PYTHONPATH=os.pathsep.join([str(folder), str(root)]), PYTHONUNBUFFERED='1')
             # Confirm the guard is loaded; the denied connect never leaves this process.
-            guard_check = subprocess.run([sys.executable, '-c',
-                "import socket; socket.socket().connect(('192.0.2.1',9))"],
-                env=env, cwd=root, capture_output=True, text=True, timeout=10)
-            self.assertNotEqual(guard_check.returncode, 0)
-            self.assertIn('Q09_NON_LOOPBACK_CONNECTION_BLOCKED', guard_check.stderr)
+            for probe in (
+                "socket.socket().connect(('192.0.2.1',9))",
+                "socket.getaddrinfo('q09.invalid',9)",
+                "socket.socket(socket.AF_INET,socket.SOCK_DGRAM).sendto(b'x',('192.0.2.1',9))",
+            ):
+                guard_check = subprocess.run([sys.executable, '-c', 'import socket; ' + probe],
+                    env=env, cwd=root, capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(guard_check.returncode, 0)
+                self.assertIn('Q09_NON_LOOPBACK_CONNECTION_BLOCKED', guard_check.stderr)
             initialized = subprocess.run([sys.executable, '-m', 'flask', '--app', 'app', 'init-db'],
                 env=env, cwd=root, capture_output=True, text=True, timeout=45)
             self.assertEqual(initialized.returncode, 0, 'New SQLite bootstrap failed; raw output withheld')
