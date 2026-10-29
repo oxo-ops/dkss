@@ -48,13 +48,21 @@ const output = process.argv[3];
             assert(responses.some(r => r.path.includes('/truck-display-') && r.status === 304)
                 || cache.transfer === 0, 'repeat revalidates/reuses the public body');
             await page.screenshot({path:output.replace('.json', '-dpr' + dpr + '.png')});
-            await page.goto(base + '/vehicle/karte/6', {waitUntil:'load'});
+            await Promise.all([page.waitForURL(base + '/vehicle/karte/6/documents', {waitUntil:'load'}),
+                page.locator('.karte-vehicle-switcher-link[href$="/6/documents"]').click()]);
             assert((await image.getAttribute('src')).endsWith('/car.png'));
             await page.goBack({waitUntil:'load'});
             assert.equal(new URL(page.url()).pathname, '/vehicle/karte/1/documents');
             assert.equal(await image.evaluate(i => i.complete && i.width === 50), true);
+            if (mobile) await page.locator('#sidebarToggle').click();
+            await Promise.all([page.waitForURL(u => u.pathname === '/login', {waitUntil:'load'}),
+                page.locator('form[action="/logout"] button').click()]);
+            await page.goBack({waitUntil:'load'});
+            assert.equal(await page.locator('.top-bar-user').count(), 0);
+            const denied = await context.request.get(base + '/vehicle/karte/1/documents/q12-pdf/source?download=1', {maxRedirects:0});
+            assert([302,401,403,404].includes(denied.status()));
             assert.deepEqual(errors, []);
-            results.push({dpr, initial, cache, nonTruckUnchanged:true, back:true, errors});
+            results.push({dpr, initial, cache, nonTruckUnchanged:true, back:true, logoutBackAndPrivateSourceDenied:true, errors});
             await context.close();
         }
         fs.writeFileSync(output, JSON.stringify(results, null, 2));
