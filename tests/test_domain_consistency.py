@@ -58,6 +58,15 @@ class DomainConsistencyTests(unittest.TestCase):
     def enqueue(self, company="TEST", count=1):
         from werkzeug.datastructures import FileStorage
 
+        # Admission now captures a real account UUID. Keep the cross-company
+        # scheduling/source assertions, with an actual synthetic foreign owner.
+        if company != "TEST" and not self.m.User.query.filter_by(company_code=company, username="admin").first():
+            if not self.m.Company.query.filter_by(company_code=company).first():
+                self.m.db.session.add(self.m.Company(company_code=company, company_name="Synthetic foreign", active=True))
+            self.m.db.session.add(self.m.User(company_code=company, username="admin", role="admin",
+                password="unused", last_name="Synthetic", password_changed_at="stamp"))
+            self.m.db.session.commit()
+
         return queue.enqueue(
             [
                 FileStorage(stream=BytesIO(pdf_bytes()), filename=f"{i}.pdf")
