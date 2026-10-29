@@ -615,6 +615,7 @@
                         class="inline-form js-vehicle-checklist-approval"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="approval_version" value="{{ ns.target_result.approval_version }}">
     <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
                         <button type="submit" class="btn-mini">
                             承認
