@@ -26,7 +26,7 @@ function screen({status='pending',autoRefresh=false,initialResponses=[]}={}){
  });
  ready();
  return {button,message,timers,calls,document,get reloads(){return reloads;},
-  respond(state,http=200){responses.push({ok:http>=200&&http<300,status:http,json:async()=>state});},
+  respond(state,http=200,redirected=false){responses.push({ok:http>=200&&http<300,status:http,redirected,json:async()=>state});},
   error(){responses.push(new Error('offline'));},submit:()=>form.requestSubmit(),
   event(type,persisted=true){for(const fn of events[type]||[])fn({persisted});},
   async tick(){const [id,fn]=timers.entries().next().value||[];assert.ok(fn,'No scheduled poll');timers.delete(id);await fn();}};
@@ -98,4 +98,14 @@ test('the server-authorized existing auto-refresh still submits once and only po
  assert.deepEqual(s.calls.map(c=>c.method),['POST']);assert.equal(s.timers.size,1);
  s.event('pagehide');s.event('pageshow');s.respond({key:'current',status:'pending'});await s.tick();
  assert.deepEqual(s.calls.map(c=>c.method),['POST','GET']);
+});
+
+test('login redirects and permission failures offer reload rather than repeating a rejected request',async()=>{
+ for(const [status,redirected] of [[200,true],[401,false],[403,false]]){
+  const s=screen({status:'new'});s.respond({},status,redirected);await s.submit();
+  assert.equal(s.button.textContent,'再表示');assert.equal(s.button.disabled,false);
+  await s.submit();assert.equal(s.reloads,1);assert.equal(s.calls.length,1);
+ }
+ const pending=screen();pending.respond({},200,true);await pending.tick();
+ assert.equal(pending.button.textContent,'再表示');assert.equal(pending.timers.size,0);
 });

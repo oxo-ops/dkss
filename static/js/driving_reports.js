@@ -178,6 +178,10 @@
    if(state.status!=='pending')throw reflectionError('表示できる対象や作成状況が変わりました。再表示してください。',true);
    return false;
   }
+  function checkReflectionAccess(response){
+   if(response.redirected||response.status===401||response.status===403)
+    throw reflectionError('ログイン状態または閲覧権限が変わりました。再表示してください。',true);
+  }
   async function pollReflection(){
    pollTimer=null;
    if(!pageActive)return;
@@ -186,6 +190,7 @@
    fetching=true;
    try{
     const response=await fetch(reflection.dataset.endpoint,{headers:{Accept:'application/json'},cache:'no-store'});
+    checkReflectionAccess(response);
     if(!response.ok)throw reflectionError('読み込みできませんでした。再試行してください。');
     const state=await response.json();
     if(reflectionFinished(state))return;
@@ -200,6 +205,7 @@
    button.disabled=true;
    try{
     const response=await fetch(reflectionForm.action,{method:'POST',body:new FormData(reflectionForm),headers:{Accept:'application/json'}});
+    checkReflectionAccess(response);
     if(!response.ok)throw reflectionError(response.status===409?'対象の記録が変わりました。再表示してください。':response.status===429?'ほかの分析を作成中です。少し待ってから再試行してください。':response.status===503?'AI分析を利用できません。管理者に接続設定を確認してください。':'作成できませんでした。再試行してください。',response.status===409);
     const state=await response.json();
     if(reflectionFinished(state))return;
