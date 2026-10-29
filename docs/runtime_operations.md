@@ -124,10 +124,15 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `flask --app app init-checklist-notify-identities` | 通知割当のUUID証跡。`checklist_notify_identity.py`。旧本人を推定しない |
 | `tools/upgrade_checklist_event_timestamps.py` | 文字列長40への対応。`checklist_event_storage.py`が型/長さを検査。UTC/JST変換ではない |
 | `tools/upgrade_import_owners.py` | Q02受付UUID証跡。専用URL必須。`import_owner.py`、Q02 #313資料 |
+| `tools/upgrade_operation_csv_owners.py` | #327の運行CSV受付UUID証跡。`Q03_CSV_OWNER_MIGRATION_DATABASE_URL`必須で`DATABASE_URL`へフォールバックしない。`operation_csv_owner.py`が既存表、nullable文字列列（36文字以上）、会社/所有者の非一意索引とPG索引のvalid/readyを検査。旧NULLは補完しない |
 | `tools/upgrade_master_generations.py` | Q04マスタ世代列・一意制約等の検査。専用URL/対象名/非本番確認が必要、`--check`は読取確認。#317の資料を参照 |
 | `flask --app app upgrade-domain-storage` | 原本保存/分析キャッシュ用の既存処理。保存先変更は今回の対象外 |
 
 これは**調査用の索引で、上から一括実行する順序ではありません**。配備SHAごとの適用順序・適用済み判定・失敗時復帰は移行主管が管理します。旧版の5処理手順へ#313や#317を独断で付け足しません。安全な再実行可否も処理ごとに異なり、UUIDの旧データ補完を推定で行いません。
+
+#327の追加条件は[CSV所有者の既存手順](quality/Q03-operation-csv-owner-20261029.md#移行主管への追加受入適用条件)を正とします。新列は`vehicle_operation_import_draft.owner_identity VARCHAR(36) NULL`、索引は`ix_operation_csv_company_owner(company_code, owner_identity)`です。既存CSV表がなければ停止し、新アプリ起動前に列を準備します。旧NULL受付は原本・作成者文字列・状態・関連記録を保持したまま、私有preview/result/confirm/APIを404で保留します。username・数値ID・氏名で所有者を補完しません。完了済みの会社共有原本は既存会社・車両境界を維持し、私有受付の継承と区別します。
+
+切戻し時も列・索引・原本・旧行を削除しません。旧版はusername認可へ戻るため、単純なアプリ巻戻しでCSV私有経路を再開してはいけません。CSV受付・preview・confirm・APIを停止した状態を維持するか、UUID照合を保持した修正版へ戻します。旧NULLの確認・回復は別の根拠付き手続きです。固定288261dの6処理・388件にはこの追加移行を含めず、主管の追加受入をQ09で再実行しません。
 
 移行主管へ渡す記録は、対象完全SHA、関連PR、対象表/列/索引、処理入口、前後のスキーマと原値比較、終了コード・成功マーカー、部分適用の有無です。失敗時はwriter再開や自動再試行を止め、途中commitの可能性を確認して主管の復帰手順に従います。Q11のバックアップ・復旧手順を別実装しません。
 
@@ -183,9 +188,11 @@ Q03全20列の欠落や、未提示の表・索引の状態を推定しません
 
 `18ae141b`に解決する解析ソースにはQ04の`master_generation`がなく、M01にもQ04依存はありません。実稼働版との最終照合後、その版を維持してM01でログインを修復する方針なら、**Q04本番入口の整備待ちは不要**です。Q04対応版を採用し、実5マスタの準備不足により適用が必要な場合だけ、その版の準備阻害条件になります。既にreadinessを満たすなら移行入口の実行は不要です。
 
-Q04設計報告の方針は、承認要件を満たす主管共通基盤があればQ04アダプタを優先し、なければ薄い専用入口を検討することです。方式は未決・未実装で、ローカル専用のrehearsal/Q11資材を本番基盤とは扱いません。主管／DBAが対象・方式・承認manifestを確定し、Q04担当が既存`upgrade_storage`／`validate_storage`へ委譲する最小差分、Q11／運用が保全・限定権限・停止復帰条件を担当します。非本番CLIのguard解除やURL／DB名偽装、一時Pythonでの直接呼出しは採りません。
+初期設計報告（2026-10-29、`1741c64`基準）の時点では、主管共通基盤のQ04アダプタか薄い専用入口かが未決でした。その後、同日の**契約案v1（契約・担当ファイル・差分受入・不足証跡の4表）が確定**し、主管所有の小さなライブラリ`tools/migration_entry.py`と、Q04の薄いアダプタ／既存本体の同一接続2フックに役割を分ける案となりました。独立CLIや全移行チェーン、新しい認証・復旧基盤は作らず、既存`upgrade_storage`／`validate_storage`を再利用する契約です。
 
-必要と決定・実装承認された場合の追加受入は、接続前後の対象／role／schema／TLS／承認拒否、同一接続での5表LOCK後・DDL前のOID／状態再照合、読取計画のtransaction解放、既存値保持、権限／lock異常時の停止、commit応答・台帳保存喪失時の成否不明判定と読取復帰に限定します。既存の移行本体・バックアップ・試験を重複実装しません。
+さらにユーザーから、担当・変更ファイルを確定して実装・新入口固有の隔離検証・commit／push／PR作成へ進む指示が出ています。**契約案確定・実装指示は、実装・受入・CI・本番適用承認の完了を意味しません。** 主管は対象照合・manifest・結果記録、Q04はアダプタと照合フック、Q11／運用は既存の保全・限定権限・停止復帰条件を担当します。本番job／保存先の実バインド、実施者・照合者、本番manifest値とP1承認は別途必要です。ローカル専用rehearsal/Q11資材の本番転用、非本番CLIのguard解除、URL／DB名偽装、一時Pythonでの直接呼出しは採りません。
+
+同契約案と実装指示に基づく追加受入範囲は、接続前後の対象／role／schema／TLS／承認拒否、同一接続での5表LOCK後・DDL前のOID／状態再照合、読取計画のtransaction解放、既存値保持、権限／lock異常時の停止、commit応答・台帳保存喪失時の成否不明判定と読取復帰に限定します。既存の移行本体・バックアップ・試験を重複実装しません。
 
 ### 完了済み証跡と現在の判定
 
@@ -196,6 +203,6 @@ Q04設計報告の方針は、承認要件を満たす主管共通基盤があ�
 
 ## 未確定事項と担当境界
 
-Q09の今回確認は新規Windows/Python環境と架空SQLite、模擬故障、CI証跡です。Linuxでの現在版Web/専用OCRの実停止時間、運用サービスの台数・管理者・再起動policy、ログ保管/通知先は運用主管の確認待ちです。Linuxでの過去のGunicorn確認はOCR資料に記載済みで、現在版の新規実測と区別します。
+Q09の初回確認は新規Windows/Python環境と架空SQLite、模擬故障でした。既存Linux CIはfactory/キュー試験が中心で、過去の実Gunicorn受入を現在版の起動証明とは扱いません。追加の`tests/test_q09_linux_runtime.py`はLinuxの既存回帰CIで、新規一時SQLite、非loopback接続を遮断した子プロセスを使い、現在のGunicorn（gthread/1/4）、組込OCR、ログインHTTP200、明示OCR CLI、通常SIGTERM終了を確認します。Windowsではこの1件は明示的skipです。結果は各headのregressionログの`Q09_LINUX_RUNTIME_OK`と試験結果で判定します。実配備の停止時間、運用サービスの台数・管理者・再起動policy、ログ保管/通知先は未確認のまま運用主管へ残します。
 
 移行主管の6処理・388件検証/実行ハーネス、Q11の復旧、Q12性能、Q02/Q03/Q08の権限修正は再実装・再実行しません。Q05は完了状態を維持します。既存移行検証DB4件や本番DB、本番S3を第三者の起動試験に利用しないことが、この手順の前提です。
