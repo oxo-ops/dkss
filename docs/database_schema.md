@@ -105,7 +105,7 @@ Tables: 68
 | actor_identity | VARCHAR(36) | True | False |  |
 | actor_name | VARCHAR(100) | True | False |  |
 | detail_json | TEXT | True | False |  |
-| created_at | VARCHAR(30) | False | False |  |
+| created_at | VARCHAR(40) | False | False |  |
 
 ## checklist_result
 
@@ -251,6 +251,9 @@ Tables: 68
 | action | VARCHAR(20) | False | False |  |
 | vehicle_id | INTEGER | True | False | vehicle.id |
 | actor_user_id | INTEGER | False | False | user.id |
+| user_identity | VARCHAR(36) | True | False |  |
+| actor_identity | VARCHAR(36) | True | False |  |
+| actor_name | VARCHAR(200) | True | False |  |
 | created_at | VARCHAR(40) | False | False |  |
 
 ## inspection_expiry_alert_delivery
