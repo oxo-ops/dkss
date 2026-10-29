@@ -138,6 +138,24 @@ class DocumentImageTests(unittest.TestCase):
         self.client.post('/logout')
         self.assertEqual(self.client.get(self.url+'?preview=384').status_code,302)
 
+    def test_reused_login_rejects_old_cookie_and_uses_a_separate_cache(self):
+        self.seed(); self.client.get(self.url+'?preview=384')
+        old=self.m.User.query.filter_by(company_code='TEST',username='admin').one()
+        identity,stamp=old.account_identity,old.password_changed_at
+        self.m.db.session.delete(old); self.m.db.session.flush()
+        new=self.m.User(company_code='TEST',username='admin',last_name='Replacement',
+                        password='unused',role='admin',password_changed_at=stamp)
+        self.m.db.session.add(new); self.m.db.session.commit()
+        self.assertNotEqual(identity,new.account_identity)
+        self.assertEqual(self.client.get(self.url+'?preview=384').status_code,302)
+        with self.client.session_transaction() as state:
+            state.update(company_code='TEST',username='admin',role='admin',
+                         account_identity=new.account_identity,password_changed_at=stamp)
+        import dkss_app.document_images as images
+        with patch.object(images,'_encode',wraps=images._encode) as encode:
+            self.assertEqual(self.client.get(self.url+'?preview=384').status_code,200)
+            self.assertGreater(encode.call_count,0)
+
     def test_download_overrides_variant_and_damaged_images_fall_back(self):
         draft=self.seed()
         self.assertEqual(self.client.get(self.url+'?preview=123').status_code,404)
