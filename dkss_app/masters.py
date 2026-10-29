@@ -72,7 +72,7 @@ def _master_row(model, index):
 def vehicle_type_master():
     return _dkss_common.render_template(
         "vehicle_type_master.html",
-        vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company()
+        vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(include_generation=True)
     )
 
 
@@ -80,7 +80,7 @@ def vehicle_type_master():
 def license_type_master():
     return _dkss_common.render_template(
         "license_type_master.html",
-        license_types=_dkss_vehicle_readers.license_types_for_current_company()
+        license_types=_dkss_vehicle_readers.license_types_for_current_company(include_generation=True)
     )
 
 
@@ -369,7 +369,7 @@ def master():
 def office_master():
     return _dkss_common.render_template(
         "office_master.html",
-        offices=_dkss_master_readers.offices_for_current_company()
+        offices=_dkss_master_readers.offices_for_current_company(include_generation=True)
     )
 
 
@@ -1070,7 +1070,7 @@ def confirm_delivery_place_import():
 def delivery_place_master():
     return _dkss_common.render_template(
         "delivery_place_master.html",
-        delivery_places=_dkss_master_readers.delivery_places_for_current_company()
+        delivery_places=_dkss_master_readers.delivery_places_for_current_company(include_generation=True)
     )
 
 
@@ -1206,7 +1206,7 @@ def delete_delivery_place(index):
 def patrol_content_type_master():
     return _dkss_common.render_template(
         "patrol_content_type_master.html",
-        content_types=_dkss_master_readers.patrol_content_types_for_current_company()
+        content_types=_dkss_master_readers.patrol_content_types_for_current_company(include_generation=True)
     )
 
 
