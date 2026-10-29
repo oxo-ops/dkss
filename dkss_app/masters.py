@@ -447,7 +447,9 @@ def edit_office(index):
                 synchronize_session=False
             )
 
-            _dkss_models.User.query.filter_by(
+            # Daily inspection saves hold Vehicle before User. Keep the same
+            # order here; Office and Driver have already been acquired.
+            _dkss_models.Vehicle.query.filter_by(
                 company_code=office.company_code,
                 office=old_name
             ).update(
@@ -455,7 +457,7 @@ def edit_office(index):
                 synchronize_session=False
             )
 
-            _dkss_models.Vehicle.query.filter_by(
+            _dkss_models.User.query.filter_by(
                 company_code=office.company_code,
                 office=old_name
             ).update(
@@ -521,7 +523,9 @@ def delete_office(index):
         synchronize_session=False
     )
 
-    _dkss_models.User.query.filter_by(
+    # Daily inspection saves hold Vehicle before User. Keep the same
+    # order here; Office and Driver have already been acquired.
+    _dkss_models.Vehicle.query.filter_by(
         company_code=office.company_code,
         office=office.name
     ).update(
@@ -529,7 +533,7 @@ def delete_office(index):
         synchronize_session=False
     )
 
-    _dkss_models.Vehicle.query.filter_by(
+    _dkss_models.User.query.filter_by(
         company_code=office.company_code,
         office=office.name
     ).update(
