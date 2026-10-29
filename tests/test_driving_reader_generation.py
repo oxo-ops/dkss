@@ -41,6 +41,7 @@ class ReaderGenerationTests(DrivingIdentityFixture, unittest.TestCase):
         form = re.search(r'<form\b[^>]*action="' + re.escape(action) + r'"[^>]*>(.*?)</form>',
                          page.get_data(as_text=True), re.S)
         self.assertIsNotNone(form)
+        self.last_form = form.group(1)
         data = {name: unescape(value) for name, value in re.findall(
             r'<input\b[^>]*name="([^"]+)"[^>]*value="([^"]*)"', form.group(1))}
         data.update(reader_username=self.a.username)
@@ -116,6 +117,26 @@ class ReaderGenerationTests(DrivingIdentityFixture, unittest.TestCase):
         action, data = self.form()
         self.assertEqual(self.client.post(action, data=data).status_code, 302)
         self.assertEqual(driving_access.DrivingReaderAccount.query.one().account_identity, self.a.account_identity)
+
+    def assert_rendered_snapshot(self, bulk):
+        original = person_selection.issue
+        replaced = []
+        def replace_before_signing():
+            if not replaced:
+                replaced.append(self.replace())
+                self.a.last_name = 'Different B at render'; self.m.db.session.commit()
+            return original()
+        with patch.object(person_selection, 'issue', side_effect=replace_before_signing):
+            action, data = self.form(bulk)
+        self.assertIn('Different B at render', self.last_form)
+        self.assertEqual(self.client.post(action, data=data).status_code, 302)
+        self.assertEqual(driving_access.DrivingReaderAccount.query.one().account_identity, self.a.account_identity)
+
+    def test_rendered_choices_are_loaded_after_the_signed_generation_snapshot(self):
+        self.assert_rendered_snapshot(False)
+
+    def test_rendered_bulk_choices_are_loaded_after_the_signed_generation_snapshot(self):
+        self.assert_rendered_snapshot(True)
 
     def test_report_version_is_checked_independently_of_person_proof(self):
         for bulk in (False, True):

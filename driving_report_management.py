@@ -333,6 +333,8 @@ def register_driving_reports(app, db, g):
 
     @app.route('/safety/driving-reports')
     def driving_reports():
+        access()
+        if readership.administrator():person_selection.issue()
         rows,previous,ops,vehicles,filters,board,facts=prepare_insights(request.args)
         panel=request.args.get('panel','analysis')
         if panel not in {'analysis','reports','comparison','data'}:abort(400)
@@ -363,6 +365,7 @@ def register_driving_reports(app, db, g):
     @app.route('/safety/driving-reports/<int:record_id>')
     def driving_report_detail(record_id):
         row=target(record_id)
+        if readership.administrator():person_selection.issue()
         return render_template('driving_report_detail.html',report=view(row),report_return_url=report_return(),assignees=g['User'].query.filter_by(company_code=row.company_code,role='admin').all() if readership.administrator() else [],
             reader=readership.reader(row) if readership.administrator() else None,
             reader_current=row.id in readership.bindings([row]) if readership.administrator() else False,
@@ -421,6 +424,7 @@ def register_driving_reports(app, db, g):
     @reader_transaction
     def driving_report_edit(record_id):
         access(write=True)
+        if request.method=='GET':person_selection.issue()
         row=target(record_id,request.method=='POST');old_json=row.details_json;draft=Draft.query.filter_by(id=row.source_draft_id,company_code=row.company_code,status='completed').first_or_404();p=payload(row)
         choices=[{'id':v.id,'number':g['vehicle_number']({f:getattr(v,f) or '' for f in ['plate_area','plate_class','plate_kana','plate_number']}),'chassis_number':v.chassis_number or '','deleted':v.deleted} for v in Vehicle.query.filter_by(company_code=row.company_code).all()]
         if request.method=='POST':
