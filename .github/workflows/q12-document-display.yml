@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'templates/vehicle_karte_documents.html'
+      - 'static/js/maintenance_invoice_pdf_viewer.mjs'
       - 'tests/test_q12_document_display.py'
       - 'tests/q12_document_display_browser.cjs'
       - 'tests/q12_document_display_server.py'
