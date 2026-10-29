@@ -18,7 +18,7 @@
 | #313・#317等の移行統合 | main反映と既存手順/対象版の一致は別。版ごとに適用範囲が異なる | 各資料とCLIの入口を追跡し、主管の順序を独断で再定義しない |
 | 配備構成と運用責任者 | 実際のWeb/専用OCR台数、プロセス管理、ログ保管/通知先はrepoだけでは確定しない | 運用主管待ち。実サービスへ接続して調査しない |
 
-既存根拠は`docs/application_architecture.md`、`docs/document_import_queue.md`、`docs/quality/Q11-operational-readiness-20261028.md`、各Q02/Q03/Q04/Q08資料とworkflow。GitHub検索ではQ09を名乗る既存PRとオープンPRは取得されなかった。検索結果だけで担当不在を断定せず、移行主管の作業記録も読取照合した。品質改善計画Word、仕様書、Q05成果、他担当worktreeは変更していない。
+既存根拠は`docs/application_architecture.md`、`docs/document_import_queue.md`、`docs/quality/Q11-operational-readiness-20261028.md`、各Q02/Q03/Q04/Q08資料とworkflow。GitHub連携の検索ではPRが取得されなかったため、その結果を担当不在の根拠にせず、通常のPR一覧画面と各PRを追加照合した。オープン#327/#326/#325はQ03/Q08の本人境界、#324はQ12、#323は運転分析、#320はWord資料、#318は旧Q05ブランチだった。各headをfetchして変更ファイルを比較し、今回8ファイルとの重複はなかった。#320は複数merge-baseの警告が出たため、単一の差分を全履歴の保証としない。移行主管の作業記録も読取照合した。品質改善計画Word、仕様書、Q05成果、他担当worktreeは変更していない。
 
 ## 修正と再現
 
@@ -57,7 +57,9 @@ Linuxで現在版のGunicorn/専用OCRを実起動した結果とは区別する
 
 ## 残工数と判断待ち
 
-今回の修正・資料整備・ローカル確認は完了。PRの最新head CIとレビューは別途確認する。
+今回の修正・資料整備・ローカル確認は完了。独立ブランチ`fix/q09-runtime-handover-20261029`をpush済み。GitHub連携APIのPR作成は403（Resource not accessible by integration）、通常のブラウザも未ログインであり、認証情報の探索・再認証は行わず停止した。PRは未作成。作成後の最新head CIとレビューは未確認。
+
+基準mainを構成する#322の最終head `30f33a3329a6b422162ba13887b2799a07c7ec6e`ではregression、CodeQL、Analyze Python、pip-audit成功をGitHubで確認した。これは今回のQ09 headの成功を意味しない。依存監査/CodeQLの既存構成は利用可能だが、Q09変更のCI合格判定はPR作成後に行う。
 
 Q09残工数は暫定2〜4人時。Linux/運用構成の台数・停止・設定元/管理責任者・ログ運用を主管証跡と照合する作業1〜2、既存移行順序/適用記録と対象SHAの照合0.5〜1、レビュー指摘・引継ぎ0.5〜1。移行主管の6処理/388件、復旧、本番作業、追加不具合の実装は含まない。
 
