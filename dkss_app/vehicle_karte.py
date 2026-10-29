@@ -1,5 +1,5 @@
 """Vehicle Karte responsibilities; routes are registered by the application factory."""
-from . import import_owner as _dkss_import_owner
+from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, analysis as _dkss_analysis, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklists as _dkss_checklists, common as _dkss_common, maintenance as _dkss_maintenance, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_costs as _dkss_vehicle_costs, vehicle_imports as _dkss_vehicle_imports, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -227,6 +227,7 @@ def vehicle_karte_operation_source(vehicle_record_id, draft_id):
         _dkss_models.VehicleOperationImportDraft.status.in_(["preview", "completed"])
     ).first_or_404()
 
+    _csv_owner.hold_private_source(draft)
     if vehicle.id not in get_vehicle_operation_imported_vehicle_ids(draft):
         raise _dkss_common.NotFound()
 
@@ -587,7 +588,8 @@ def get_vehicle_karte_documents(vehicle):
         .filter(
             _dkss_models.VehicleOperationImportDraft.company_code
             == vehicle.company_code,
-            _dkss_models.VehicleOperationImportDraft.status.in_(["preview", "completed"])
+            _dkss_models.VehicleOperationImportDraft.status.in_(["preview", "completed"]),
+            _csv_owner.shared_or_owned_clause()
         )
         .order_by(
             _dkss_models.VehicleOperationImportDraft.completed_at.desc(),

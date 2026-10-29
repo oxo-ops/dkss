@@ -1000,6 +1000,8 @@ class VehicleOperationVehicleMapping(db.Model):
 
 
 class VehicleOperationImportDraft(db.Model):
+    __table_args__ = (db.Index('ix_operation_csv_company_owner', 'company_code', 'owner_identity'),)
+    owner_identity = db.Column(db.String(36), nullable=True)
     id = db.Column(db.String(36), primary_key=True)
 
     company_code = db.Column(

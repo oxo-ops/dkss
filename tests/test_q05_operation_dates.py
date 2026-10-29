@@ -76,7 +76,9 @@ class OperationChronologyRouteTests(unittest.TestCase):
             writer.writerow([f'Q05-{index}', '2028-02-29', 'TEST-CODE', departure, arrival])
         source = stream.getvalue().encode('utf-8-sig')
         draft = self.m.VehicleOperationImportDraft(id='q05-dates', company_code='TEST',
-            created_by_username='admin', source_filename='q05.csv', source_file=source, status='preview')
+            created_by_username='admin',
+            owner_identity=self.m.User.query.filter_by(company_code='TEST',username='admin').one().account_identity,
+            source_filename='q05.csv', source_file=source, status='preview')
         self.m.db.session.add(draft)
         self.m.db.session.commit()
         return draft
