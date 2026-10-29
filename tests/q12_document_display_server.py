@@ -14,6 +14,12 @@ def seed(case,count):
     result = seed_base(case,count)
     m = case.m
     vehicle = m.Vehicle.query.order_by(m.Vehicle.id).first()
+    # Exercise the shared header and the existing assigned-vehicle switcher.
+    driver = m.Driver.query.filter_by(company_code='TEST', employee_id='admin').first()
+    if driver is None:
+        driver = m.Driver(company_code='TEST', employee_id='admin', name='架空 切替')
+        m.db.session.add(driver)
+    driver.vehicles_json = json.dumps([str(vehicle.id), '6'])
     manifest = dict(vehicle_id=vehicle.id,documents=[])
     for extension in ['jpg','pdf']:
         out = BytesIO()

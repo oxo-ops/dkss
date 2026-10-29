@@ -7258,6 +7258,11 @@ def save_vehicle_checklist_one(index):
             )
         ], status_code=403)
 
+    # Hold Vehicle/result before User, as the other inspection writers do.
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
+
     result_checklist = _dkss_checklist_common.checklist_for_date(
         checklist,
         year,
@@ -7742,6 +7747,11 @@ def save_vehicle_checklist_detail(index):
                 ""
             )
         ], status_code=403)
+
+    # Hold Vehicle/result before User, as the other inspection writers do.
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     result_checklist = _dkss_checklist_common.checklist_for_date(
         checklist,

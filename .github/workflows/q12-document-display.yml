@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'templates/vehicle_karte_documents.html'
+      - 'templates/vehicle_karte_header.html'
+      - 'static/icons/truck*.png'
+      - 'tools/build_notification_icon.py'
+      - 'tests/test_q12_notification_icon.py'
+      - 'tests/q12_vehicle_icon_browser.cjs'
       - 'static/js/maintenance_invoice_pdf_viewer.mjs'
       - 'tests/test_q12_document_display.py'
       - 'tests/q12_document_display_browser.cjs'
@@ -47,6 +52,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/q12-results"
           node tests/q12_document_display_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/documents.json"
+      - name: Check vehicle icon selection, cache and navigation
+        run: node tests/q12_vehicle_icon_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/vehicle-icons.json"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

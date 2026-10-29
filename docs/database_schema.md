@@ -967,6 +967,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| owner_identity | VARCHAR(36) | True | False |  |
 | id | VARCHAR(36) | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | created_by_username | VARCHAR(50) | False | False |  |

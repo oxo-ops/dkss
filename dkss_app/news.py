@@ -2,6 +2,7 @@
 from functools import wraps
 
 from sqlalchemy.exc import DBAPIError
+from . import person_selection as _person_forms
 from . import access as _dkss_access, audit as _dkss_audit, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage
 
 
@@ -129,6 +130,14 @@ def itc_new_news():
                 form_error_status
             )
 
+        # Keep the selected generation locked through the save, before files,
+        # news, notifications or audits can be persisted. Group targets remain
+        # dynamic; only personal targets require the original GET evidence.
+        person_error = _person_forms.validate(
+            actor_only=target_type != 'user', selected_usernames=[target_value])
+        if person_error is not None:
+            return person_error
+
         # Capture selected generations before recipients can be deleted/replaced.
         from types import SimpleNamespace
         target_users = [SimpleNamespace(username=u.username, account_identity=u.account_identity,
@@ -233,7 +242,8 @@ def itc_new_news():
         offices=_dkss_master_readers.offices_for_current_company(),
         users=users,
         news=None,
-        mode="new"
+        mode="new",
+        person_selection_token=_person_forms.issue()
     )
 
 
@@ -334,6 +344,11 @@ def itc_edit_news(index):
                 form_error_status
             )
 
+        person_error = _person_forms.validate(
+            actor_only=target_type != 'user', selected_usernames=[target_value])
+        if person_error is not None:
+            return person_error
+
         files = _dkss_serialization.safe_json_str_list(
             news.files_json
         )
@@ -425,7 +440,8 @@ def itc_edit_news(index):
         mode="edit",
         companies=companies,
         offices=_dkss_master_readers.offices_for_current_company(),
-        users=users
+        users=users,
+        person_selection_token=_person_forms.issue()
     )
 
 

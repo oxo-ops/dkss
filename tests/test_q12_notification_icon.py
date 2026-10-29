@@ -10,3 +10,10 @@ class NotificationIconTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         module.build(check=True)
+
+    def test_truck_derivatives_match_retained_source(self):
+        path = Path(__file__).resolve().parents[1] / "tools/build_notification_icon.py"
+        spec = importlib.util.spec_from_file_location("q12_vehicle_icon", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.build(check=True, asset="truck")

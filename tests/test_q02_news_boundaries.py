@@ -4,9 +4,11 @@ Real Flask/temporary SQLite/local synthetic files. External notification
 dispatch alone is mocked and recorded. No real mail, push, S3 or browser.
 """
 from identity_fixture import identity_for
+from html import unescape
 from io import BytesIO
 import json
 from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 
@@ -74,9 +76,17 @@ class Q02NewsBoundaryTests(unittest.TestCase):
         return f'/itc/news/{self.ids[company]}/delete'
 
     def form(self, kind='all', value='', title='Synthetic new news'):
-        return {'title': title, 'message': 'Synthetic text without mentions',
+        data = {'title': title, 'message': 'Synthetic text without mentions',
                 'target_type': kind, 'target_value': value, 'company_code': 'B',
                 'created_by': 'forged', 'username': 'B-only-user'}
+        if kind == 'user':
+            # Legitimate fresh forms carry the server's actual GET evidence.
+            # Stale/missing/tampered cases have their own explicit Q08 tests.
+            page = self.request('GET', '/itc/news/new').get_data(as_text=True)
+            proof = re.search(r'name="person_selection_token"\s+value="([^"]+)"', page)
+            if proof:
+                data['person_selection_token'] = unescape(proof.group(1))
+        return data
 
     def db_rows(self, company=None):
         self.db.session.expire_all()
