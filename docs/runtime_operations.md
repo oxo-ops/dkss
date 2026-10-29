@@ -96,11 +96,10 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `OCR_WORKER_STARTED` / `OCR_WORKER_HEARTBEAT` | 起動とqueued/reading/failed、RSSの推移。heartbeatは通常約60秒単位で、長い処理中の常時出力を保証しない |
 | `OCR_WORKER_ITERATION_FAILED error_type=...` | ループ段階と例外種別。次のiterationは継続。SQL・認証情報を含み得る例外本文/tracebackは出さない |
 | `OCR_JOB_HEARTBEAT_FAILED job_id=... error_type=...` | 個別jobのlease更新段階で失敗。既存のrollback・後続処理を維持。例外本文/tracebackは出さない |
-| `HTTP_UNEXPECTED_ERROR stage=request error_type=...` | マージ済み#332のHTTP共通例外。例外本文・SQL引数・チェーンを記録せず、既存のrollbackと応答を維持。[既存報告](quality/Q09-http-diagnostics-20261029.md)を参照 |
 | `OperationalError` / `ProgrammingError`等 | 承認済みスキーマ証跡・権限・接続設定の有無と照合。型だけでDB原因を確定せず、移行主管へ返す |
 | queuedが続く | 組込無効フラグ、専用worker有無、Web稼働状態、対象版・lease情報を既存手順で確認。jobを直接書き換えない |
 
-ログ保護の対象は、#329のOCRループ・lease更新の2経路と、#332のHTTP共通例外ハンドラーを分けて記録します。他の全経路や基盤側を含む全ログの対策完了を保証するものではありません。詳細診断が必要な場合も、管理された環境で許可された最小情報を収集します。
+今回のログ保護はOCRループとlease更新の例外ハンドラーに限定します。他の全経路や基盤側のログの秘密値非表示を保証するものではありません。詳細診断が必要な場合も、管理された環境で許可された最小情報を収集します。
 
 ## 依存更新とCIの追跡
 
@@ -126,7 +125,7 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `tools/upgrade_checklist_event_timestamps.py` | 文字列長40への対応。`checklist_event_storage.py`が型/長さを検査。UTC/JST変換ではない |
 | `tools/upgrade_import_owners.py` | Q02受付UUID証跡。専用URL必須。`import_owner.py`、Q02 #313資料 |
 | `tools/upgrade_operation_csv_owners.py` | #327の運行CSV受付UUID証跡。`Q03_CSV_OWNER_MIGRATION_DATABASE_URL`必須で`DATABASE_URL`へフォールバックしない。`operation_csv_owner.py`が既存表、nullable文字列列（36文字以上）、会社/所有者の非一意索引とPG索引のvalid/readyを検査。旧NULLは補完しない |
-| `tools/upgrade_master_generations.py` | Q04の世代列追加・未付与世代の初期付与と、通常表/世代の欠落・不正・重複の検証。専用URL/対象名/非本番確認が必要、`--check`は読取確認。会社内名称一意索引の定義・valid/ready診断は別責務（#295／#304、`tools/q04_master_preflight.py`）。[世代の既存報告](quality/Q04-master-generations-20261029.md)と[診断の既存報告](quality/Q04-master-preflight-20261029.md)を参照 |
+| `tools/upgrade_master_generations.py` | Q04マスタ世代列・一意制約等の検査。専用URL/対象名/非本番確認が必要、`--check`は読取確認。#317の資料を参照 |
 | `flask --app app upgrade-domain-storage` | 原本保存/分析キャッシュ用の既存処理。保存先変更は今回の対象外 |
 
 これは**調査用の索引で、上から一括実行する順序ではありません**。配備SHAごとの適用順序・適用済み判定・失敗時復帰は移行主管が管理します。旧版の5処理手順へ#313や#317を独断で付け足しません。安全な再実行可否も処理ごとに異なり、UUIDの旧データ補完を推定で行いません。
