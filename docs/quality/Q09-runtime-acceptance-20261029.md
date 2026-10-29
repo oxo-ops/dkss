@@ -57,7 +57,13 @@ Linuxで現在版のGunicorn/専用OCRを実起動した結果とは区別する
 
 ## 残工数と判断待ち
 
-今回の修正・資料整備・ローカル確認は完了。独立ブランチ`fix/q09-runtime-handover-20261029`をpush済み。GitHub連携APIのPR作成は403（Resource not accessible by integration）、通常のブラウザも未ログインであり、認証情報の探索・再認証は行わず停止した。PRは未作成。作成後の最新head CIとレビューは未確認。
+初回報告時点（head `ff6142a`）では、独立ブランチ`fix/q09-runtime-handover-20261029`をpush済みで、GitHub連携APIのPR作成は403、通常ブラウザも未ログインだったため、PR未作成・CI未確認と報告した。これはその時点の記録として保持する。認証情報の探索・再認証は行っていない。
+
+その後、利用者が作成済みの[既存PR #329](https://github.com/oxo-ops/dkss/pull/329)を確認した。head `ff6142a37fd1576dd2892911a4fdb4c800d9366a`の全8チェック（regression、CodeQL、Analyze Python、pip-audit、identity、postgres 2件、browser）が成功した。全体回帰は[当該run](https://github.com/oxo-ops/dkss/actions/runs/40815558240/job/123255652245)で成功を確認し、失敗の再実行は行っていない。
+
+今回の仕上げではmain `15a197142e3d1b30197f75cfd05f156aaf6a2c0e`を通常mergeし、既存PRを維持した。#327のCSV移行入口、旧NULL保留、旧版への切戻し時のCSV私有経路停止条件だけを運用索引へ追記した。移行や追加移行受入は実行していない。
+
+現在版Linuxの実Gunicornと明示OCR起動の証拠不足を補うため、`test_q09_linux_runtime.py`を既存回帰CIへ自動収集される1件として追加した。新規一時SQLite、非loopback接続の遮断、既定gthread/1/4、ログインHTTP200、組込/明示OCR heartbeat、通常SIGTERMの終了コード0を確認する。実配備時間や台数の測定ではなく、Q11の強制停止/復旧・lease失効試験も再実施しない。Windowsの局所確認は既存Q09 2件成功・Linux専用1件skip。追加後headのLinux実行結果と全チェックは既存#329で別途確認する。
 
 基準mainを構成する#322の最終head `30f33a3329a6b422162ba13887b2799a07c7ec6e`ではregression、CodeQL、Analyze Python、pip-audit成功をGitHubで確認した。これは今回のQ09 headの成功を意味しない。依存監査/CodeQLの既存構成は利用可能だが、Q09変更のCI合格判定はPR作成後に行う。
 
