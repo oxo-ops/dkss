@@ -181,3 +181,14 @@ class DocumentImageTests(unittest.TestCase):
                     expected=self.expected(draft.source_file,384)
                     self.assertEqual(actual.size,expected.size)
                     self.assertEqual(actual.convert('RGBA').tobytes(),expected.tobytes())
+
+    def test_non_rgb_modes_keep_original_color_and_bit_depth(self):
+        for mode,extension in [('CMYK','jpg'),('LA','png'),('I;16','png')]:
+            with self.subTest(mode=mode):
+                self.m.VehicleDocumentImportDraft.query.delete(); self.m.db.session.commit()
+                image=Image.new(mode,(800,1200)); out=BytesIO()
+                image.save(out,format='JPEG' if extension=='jpg' else 'PNG')
+                draft=self.seed(out.getvalue(),extension)
+                self.assertEqual(self.client.get(self.url+'?preview=384').data,draft.source_file)
+                preview=self.page('document:q12-doc').split('class="kd-image-preview"')[1].split('</div>')[0]
+                self.assertNotIn('srcset=',preview)

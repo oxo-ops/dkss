@@ -22,7 +22,9 @@ def preview(draft, vehicle_id):
         return None
     try:
         with Image.open(BytesIO(source)) as image:
-            if getattr(image, "is_animated", False):
+            # Do not convert CMYK/gray/16-bit originals with an incompatible ICC
+            # profile or lose bit depth. Those keep the original display path.
+            if getattr(image, "is_animated", False) or image.mode not in {"RGB", "RGBA"}:
                 return None
             width, height = image.size
             if image.getexif().get(274) in (5, 6, 7, 8):
