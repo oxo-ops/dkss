@@ -1044,6 +1044,18 @@
       ""
     ],
     [
+      "/master/vehicles/pending/<pending_id>/driving-reports/<item_id>/identity",
+      "driving_pending_identity_review",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/master/vehicles/pending/<pending_id>/sources/<draft_id>",
       "vehicle_import_pending_operation_source",
       [
@@ -2477,6 +2489,7 @@
         "redirect_form_errors",
         "add_security_headers",
         "mark_notification_read_after_target_display",
+        "recovery_response",
         "recover_import_error",
         "private_driving_response"
       ]
