@@ -5,6 +5,18 @@
 
     root.classList.add("kd-enhanced");
 
+    // Native page zoom selects srcset by density. Mobile pinch zoom does not:
+    // automatically restore the original when that existing gesture is used.
+    const image = root.querySelector('.kd-image-preview img[srcset]');
+    const zoomOriginal = () => {
+        if (image && window.visualViewport?.scale > 1) {
+            image.removeAttribute('srcset');
+            image.removeAttribute('sizes');
+        }
+    };
+    window.visualViewport?.addEventListener('resize', zoomOriginal);
+    zoomOriginal();
+
     const submit = () => form.requestSubmit();
 
     for (const select of form.querySelectorAll("select")) {

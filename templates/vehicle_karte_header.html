@@ -1,3 +1,12 @@
+{% macro vehicle_icon_sources(filename) -%}
+    {% if filename == 'truck.png' %}
+    src="{{ url_for('static', filename='icons/truck-display-96.png') }}"
+    srcset="{{ url_for('static', filename='icons/truck-display-96.png') }} 1x, {{ url_for('static', filename='icons/truck-display-192.png') }} 2x, {{ url_for('static', filename='icons/truck-display-384.png') }} 4x"
+    {% else %}
+    src="{{ url_for('static', filename='icons/' ~ filename) }}"
+    {% endif %}
+{%- endmacro %}
+
 <div class="karte-vehicle-top-controls">
     {% if karte_usage_vehicles %}
     <nav class="karte-vehicle-switcher" aria-label="使用車両の切替">
@@ -35,7 +44,7 @@
                     {% if usage_is_selected %}aria-current="true"{% endif %}
                 >
                     <img
-                        src="{{ url_for('static', filename='icons/' ~ usage_icon) }}"
+                        {{ vehicle_icon_sources(usage_icon) }}
                         alt=""
                         width="28"
                         height="28"
@@ -87,7 +96,7 @@
 
         <div class="vehicle-karte-photo-empty">
             <img
-                src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                {{ vehicle_icon_sources(vehicle_icon) }}
                 alt="{{ vehicle.type or '車両' }}の車種アイコン"
                 class="vehicle-karte-type-image"
             >

@@ -29,6 +29,7 @@
 <div class="card">
     <form method="post" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if mode == 'edit' %}<input type="hidden" name="master_token" value="{{ master_form_token('vehicle-types', vehicle_type.id, vehicle_type.master_generation, 'edit') }}">{% endif %}
 
         <label>車種名</label>
 

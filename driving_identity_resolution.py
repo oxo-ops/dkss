@@ -88,6 +88,16 @@ class Resolver:
         if key and n: self.code_names[key].add(n)
 
     def resolve(self, row):
+        """Authorize stored reports only through durable current-generation evidence."""
+        user, basis = self.candidate(row)
+        if not user:return None, basis
+        grant = self.grants.get(row.id)
+        if not grant or not self.same_account(row, grant, user):
+            return None, '本人未確定：管理者による本人確認・閲覧設定が必要です'
+        return user, basis
+
+    def candidate(self, row):
+        """Suggest an identity; a name match alone never grants stored access."""
         from dkss_app.driving_access import fingerprint
         if row.company_code != self.company: return None, '会社を確認してください'
         p = payload(row)
@@ -150,12 +160,15 @@ def resolver(fresh=False):
     return request.environ[key]
 
 
-def preview(values):
+def preview(values, registered=False):
     """Only an unresolved report gets an account selection control."""
     if session.get('role') not in {'admin', 'itc'}: return None
     row = SimpleNamespace(id=None, company_code=session['company_code'],
         operation_date=values.get('record_date'), details_json=json.dumps(values, ensure_ascii=False))
     service = resolver()
-    user, basis = service.resolve(row)
-    return {'resolved': bool(user), 'label': ((user.last_name or '') + (user.first_name or '')) if user else '',
-            'reason': basis if not user else '', 'users': [u for u in service.users.values() if usable(u)]}
+    user, basis = service.candidate(row)
+    trusted = bool(user and basis == 'code' and not registered)
+    return {'resolved': trusted, 'label': ((user.last_name or '') + (user.first_name or '')) if user else '',
+            'reason': ('氏名一致は候補です。原本の本人を確認して選択するか、表示を保留してください。'
+                       if user and not trusted else basis if not user else ''),
+            'users': [u for u in service.users.values() if usable(u)]}

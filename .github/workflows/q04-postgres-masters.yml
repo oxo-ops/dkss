@@ -6,6 +6,7 @@ on:
       - 'test/q04-master-concurrency-*'
       - 'fix/q04-master-concurrency-*'
       - 'fix/q04-master-integrity-*'
+      - 'fix/q04-master-generation-*'
       - 'fix/q04-news-office-*'
       - 'feat/q04-master-preflight-*'
       - 'test/q04-master-upgrade-*'
@@ -21,6 +22,12 @@ on:
       - 'tests/test_q04_master_preflight.py'
       - 'tests/test_q04_postgres_master_preflight.py'
       - 'tools/q04_master_preflight.py'
+      - 'tools/upgrade_master_generations.py'
+      - 'dkss_app/master_generations.py'
+      - 'tests/master_form_fixture.py'
+      - 'tests/test_q04_master_generations.py'
+      - 'tests/test_q04_master_generation_storage.py'
+      - 'tests/test_q04_postgres_master_generations.py'
       - 'tests/test_q04_postgres_related_writes.py'
       - 'tests/test_q04_postgres_master_order.py'
       - 'tests/test_q04_postgres_news_office.py'
@@ -102,6 +109,7 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "$Q04_BASELINE_REF"
           git worktree add --detach "$RUNNER_TEMP/q04-master-baseline" "$Q04_BASELINE_REF"
+          cp tests/master_form_fixture.py "$RUNNER_TEMP/q04-master-baseline/tests/"
           cp tests/test_q04_postgres_master_concurrency.py "$RUNNER_TEMP/q04-master-baseline/tests/"
           set +e
           (cd "$RUNNER_TEMP/q04-master-baseline" && python -m unittest discover -s tests -p 'test_q04_postgres_master_concurrency.py' -v) > q04-baseline-results.log 2>&1
@@ -133,6 +141,7 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "$Q04_RELATED_BASELINE_REF"
           git worktree add --detach "$RUNNER_TEMP/q04-related-baseline" "$Q04_RELATED_BASELINE_REF"
+          cp tests/master_form_fixture.py "$RUNNER_TEMP/q04-related-baseline/tests/"
           cp tests/test_q04_postgres_related_writes.py "$RUNNER_TEMP/q04-related-baseline/tests/"
           set +e
           (cd "$RUNNER_TEMP/q04-related-baseline" && python -m unittest discover -s tests -p 'test_q04_postgres_related_writes.py' -v) > q04-related-baseline-results.log 2>&1
@@ -165,6 +174,7 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "$Q04_GAPS_BASELINE_REF"
           git worktree add --detach "$RUNNER_TEMP/q04-gaps-baseline" "$Q04_GAPS_BASELINE_REF"
+          cp tests/master_form_fixture.py "$RUNNER_TEMP/q04-gaps-baseline/tests/"
           cp tests/q04_pg_helpers.py "$RUNNER_TEMP/q04-gaps-baseline/tests/"
           for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
             cp "tests/test_q04_postgres_${name}.py" "$RUNNER_TEMP/q04-gaps-baseline/tests/"
@@ -188,6 +198,8 @@ jobs:
           for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
             python -m unittest discover -s tests -p "test_q04_postgres_${name}.py" -v || exit $?
           done 2>&1 | tee q04-postgres-gaps-results.log
+      - name: Verify Q03 person locks against office and vehicle mutations
+        run: PYTHONPATH=.:tests python -m unittest test_q03_master_lock_order -v
       - name: Confirm office news checks detect the unfixed main
         shell: bash
         env:
@@ -244,6 +256,33 @@ jobs:
         run: |
           set -o pipefail
           PYTHONPATH=.:tests python -m unittest test_q04_postgres_master_preflight -v 2>&1 | tee q04-master-preflight-results.log
+      - name: Confirm old SQLite forms corrupt reused master IDs on main
+        shell: bash
+        env:
+          Q04_GENERATION_BASELINE_REF: 08327202afb1b6fa0b9960750cc289975c84e4e2
+        run: |
+          git fetch --no-tags origin "$Q04_GENERATION_BASELINE_REF"
+          git worktree add --detach "$RUNNER_TEMP/q04-generation-baseline" "$Q04_GENERATION_BASELINE_REF"
+          cp tests/test_q04_master_generations.py "$RUNNER_TEMP/q04-generation-baseline/tests/"
+          set +e
+          (cd "$RUNNER_TEMP/q04-generation-baseline" && PYTHONPATH=.:tests python - <<'PY'
+          import unittest
+          from test_q04_master_generations import SQLiteMasterGenerationTests as Cases
+          names = [name for name in dir(Cases) if name.startswith('test_stale_')]
+          result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(Cases(name) for name in names))
+          assert result.testsRun == 10 and len(result.failures) == 10 and not result.errors
+          print('GENERATION_BASELINE_CONFIRMED: 5 masters, 10 stale-form integrity failures')
+          PY
+          ) > q04-generation-baseline-results.log 2>&1
+          baseline_exit=$?
+          set -e
+          cat q04-generation-baseline-results.log
+          test "$baseline_exit" -eq 0
+      - name: Verify PostgreSQL master generations and additive migration
+        shell: bash
+        run: |
+          set -o pipefail
+          PYTHONPATH=.:tests python -m unittest test_q04_postgres_master_generations -v 2>&1 | tee q04-master-generation-results.log
       - name: Keep concurrency evidence even on failure
         if: always()
         uses: actions/upload-artifact@v7
@@ -264,5 +303,7 @@ jobs:
             q04-index-baseline-results.log
             q04-postgres-index-results.log
             q04-master-preflight-results.log
+            q04-generation-baseline-results.log
+            q04-master-generation-results.log
           if-no-files-found: warn
           retention-days: 7

@@ -615,6 +615,8 @@
                         class="inline-form js-vehicle-checklist-approval"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="approval_version" value="{{ ns.target_result.approval_version }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
                         <button type="submit" class="btn-mini">
                             承認
                         </button>
@@ -681,6 +683,7 @@
                         class="inline-check-form"
                         data-answer-required="{{ '1' if item.get('answer_required') else '0' }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
                         <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
                         {% if display_mode == "year_list" %}
                         <input type="hidden" name="year" value="{{ day_text }}">
@@ -841,6 +844,7 @@
         data-resubmission="{{ 'true' if active_result and active_result.status == '差し戻し' else 'false' }}"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
         <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
         <input type="hidden" name="active_day" value="{{ active_day }}">
 
@@ -1310,6 +1314,7 @@
                 class="register-form js-vehicle-inspection-repair"
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
                 <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
                 <input type="hidden" name="vehicle_return_year" value="{{ vehicle_return_year }}">
                 <input type="hidden" name="vehicle_return_month" value="{{ vehicle_return_month }}">
@@ -1369,6 +1374,7 @@
                 class="register-form js-vehicle-inspection-repair"
             >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
                 <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
                 <input type="hidden" name="vehicle_return_year" value="{{ vehicle_return_year }}">
                 <input type="hidden" name="vehicle_return_month" value="{{ vehicle_return_month }}">
@@ -1515,6 +1521,7 @@
             action="/vehicle/checklist-results/{{ active_result.index }}/operation-judgment"
             class="register-form js-vehicle-operation-manager">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
             <input type="hidden" name="action" value="assign_operation_manager">
             <input type="hidden" name="judgment_version" value="{{ judgment.get('version') or 0 }}">
 
@@ -1599,6 +1606,7 @@
         class="register-form js-vehicle-operation-judgment"
     >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
         <input type="hidden" name="judgment_version" value="{{ judgment.get('version', 0) }}">
         <input type="hidden" name="expected_answers" value="{{ active_result.get('answers', []) | tojson | forceescape }}">
         <input type="hidden" name="expected_snapshot" value="{{ active_result.get('checklist_snapshot', {}) | tojson | forceescape }}">
@@ -1993,6 +2001,7 @@
         <form method="post" enctype="multipart/form-data"
             action="/vehicle/checklists/{{ checklist_index }}/save-detail">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
             <input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">
             <input type="hidden" name="year" id="detailYear">
             <input type="hidden" name="month" id="detailMonth">
@@ -2129,6 +2138,7 @@
     data-active-day="{{ active_day }}"
     data-company-code="{{ checklist.company_code }}"
     data-reminder-url="/vehicle/checklists/{{ checklist_index }}/reminder-notify-users"
+    data-person-selection-token="{{ person_selection_token }}"
     data-saved-notify-users="{{ selected_notify_users | tojson | forceescape }}"
     data-saved-reminder-notify-users="{{ selected_reminder_notify_users | tojson | forceescape }}"
 ></div>
@@ -2137,7 +2147,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261015-13'
+        v='20261029-q03-person-selection'
     ) }}"
 ></script>
 

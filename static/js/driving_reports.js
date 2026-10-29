@@ -155,34 +155,72 @@
   });
   const reflection=document.querySelector('[data-reflection]');
   const reflectionForm=reflection?.querySelector('[data-reflection-form]');
-  let pollTimer=null,polls=0;
+  let pollTimer=null,polls=0,polling=false,pageActive=true,fetching=false,refreshRequired=false;
+  function schedulePoll(delay){
+   clearTimeout(pollTimer);pollTimer=null;polling=true;
+   if(pageActive)pollTimer=setTimeout(pollReflection,delay);
+  }
+  function stopPolling(){clearTimeout(pollTimer);pollTimer=null;polling=false;}
+  function reflectionError(message,reload=false){
+   refreshRequired=reload;const error=new Error(message);error.userMessage=message;return error;
+  }
+  function showReflectionError(error){
+   stopPolling();
+   const status=reflection.querySelector('[data-reflection-status]');status.hidden=false;
+   status.textContent=error.userMessage||'通信できませんでした。接続を確認して再試行してください。';
+   const button=reflectionForm?.querySelector('button');
+   if(button){button.disabled=false;button.textContent=refreshRequired?'再表示':'再試行';}
+  }
+  function reflectionFinished(state){
+   if(state.key!==reflection.dataset.key)throw reflectionError('対象の記録が更新されました。再表示してください。',true);
+   if(state.status==='completed'){stopPolling();rememberPosition(location.href,reflection);location.reload();return true;}
+   if(state.status==='failed')throw reflectionError('作成できませんでした。再試行してください。');
+   if(state.status!=='pending')throw reflectionError('表示できる対象や作成状況が変わりました。再表示してください。',true);
+   return false;
+  }
+  function checkReflectionAccess(response){
+   if(response.redirected||response.status===401||response.status===403)
+    throw reflectionError('ログイン状態または閲覧権限が変わりました。再表示してください。',true);
+  }
   async function pollReflection(){
-   if(document.hidden){pollTimer=setTimeout(pollReflection,3000);return;}
+   pollTimer=null;
+   if(!pageActive)return;
+   if(document.hidden){schedulePoll(3000);return;}
+   if(fetching)return;
+   fetching=true;
    try{
     const response=await fetch(reflection.dataset.endpoint,{headers:{Accept:'application/json'},cache:'no-store'});
-    if(!response.ok)throw new Error('読み込みできませんでした。再表示してください。');
+    checkReflectionAccess(response);
+    if(!response.ok)throw reflectionError('読み込みできませんでした。再試行してください。');
     const state=await response.json();
-    if(state.key!==reflection.dataset.key){reflection.querySelector('[data-reflection-status]').textContent='対象の記録が更新されました。再表示してください。';return;}
-    if(state.status==='completed'){rememberPosition(location.href,reflection);location.reload();return;}
-    if(state.status==='failed'||++polls>65)throw new Error('作成できませんでした。画面を再表示して再試行できます。');
-    pollTimer=setTimeout(pollReflection,2000);
-   }catch(error){reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent=error.message;const button=reflectionForm?.querySelector('button');if(button){button.disabled=false;button.textContent='再試行';}}
+    if(reflectionFinished(state))return;
+    if(++polls>65)throw reflectionError('作成状況を確認できませんでした。再試行してください。');
+    schedulePoll(2000);
+   }catch(error){showReflectionError(error);}finally{fetching=false;}
   }
   reflectionForm?.addEventListener('submit',async event=>{
-   event.preventDefault();const button=reflectionForm.querySelector('button');button.disabled=true;
+   event.preventDefault();const button=reflectionForm.querySelector('button');
+   if(button.disabled)return;
+   if(refreshRequired){rememberPosition(location.href,reflection);location.reload();return;}
+   button.disabled=true;
    try{
     const response=await fetch(reflectionForm.action,{method:'POST',body:new FormData(reflectionForm),headers:{Accept:'application/json'}});
-    if(!response.ok)throw new Error(response.status===409?'対象の記録が変わりました。再表示してください。':response.status===429?'ほかの分析を作成中です。少し待ってから再試行してください。':response.status===503?'AI分析を利用できません。管理者に接続設定を確認してください。':'作成できませんでした。再試行してください。');
+    checkReflectionAccess(response);
+    if(!response.ok)throw reflectionError(response.status===409?'対象の記録が変わりました。再表示してください。':response.status===429?'ほかの分析を作成中です。少し待ってから再試行してください。':response.status===503?'AI分析を利用できません。管理者に接続設定を確認してください。':'作成できませんでした。再試行してください。',response.status===409);
     const state=await response.json();
-    if(state.status==='completed'){rememberPosition(location.href,reflection);location.reload();return;}
-    reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent='振り返りを作成しています。このまま記録を確認できます。';button.textContent='作成中';polls=0;pollTimer=setTimeout(pollReflection,1500);
-   }catch(error){reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent=error.message;button.disabled=false;button.textContent='再試行';}
+    if(reflectionFinished(state))return;
+    reflection.querySelector('[data-reflection-status]').hidden=false;reflection.querySelector('[data-reflection-status]').textContent='振り返りを作成しています。このまま記録を確認できます。';button.textContent='作成中';polls=0;schedulePoll(1500);
+   }catch(error){showReflectionError(error);}
   });
-  if(reflection?.dataset.status==='pending')pollTimer=setTimeout(pollReflection,1500);
+  if(reflection?.dataset.status==='pending')schedulePoll(1500);
   // Refresh only a previously requested scope whose authorized data changed.
   // An ordinary page open with unchanged data never starts a paid job.
   if(reflection?.dataset.status==='new'&&reflection.dataset.autoRefresh==='true')reflectionForm?.requestSubmit();
-  window.addEventListener('pagehide',()=>clearTimeout(pollTimer));
+  window.addEventListener('pagehide',()=>{pageActive=false;clearTimeout(pollTimer);pollTimer=null;});
+  window.addEventListener('pageshow',event=>{
+   pageActive=true;
+   if(event.persisted&&polling&&!fetching)schedulePoll(1500);
+  });
   form?.querySelectorAll('input[name=start],input[name=end]').forEach(input=>input.addEventListener('change',()=>{
    const select=form.querySelector('[name=period]');if(select)select.value='custom';
   }));

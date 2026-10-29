@@ -1,4 +1,7 @@
 """Office rename/delete against safety checklist create/edit, not date semantics."""
+import html
+import re
+
 from q04_pg_helpers import PrivatePostgresCase
 
 
@@ -33,7 +36,22 @@ class ChecklistOfficeLinkTests(PrivatePostgresCase):
         if source:
             data.update(target_type=source, target_user='driver', target_vehicle_record_id=self.target_vehicle_id)
         if writer == 'new':
-            return self.action(f'/safety/checklists/{self.checklist_id}/new', data)
+            path=f'/safety/checklists/{self.checklist_id}/new'
+        else:
+            path=f'/safety/checklist-results/{self.result_id}/edit'
+        # Capture the real form before either scheduled transaction starts.
+        # Historical baseline templates have no token; keep that baseline runnable.
+        with self.client() as client:
+            response=client.get(path)
+            try:
+                self.assertEqual(response.status_code,200)
+                match=re.search(r'name="person_selection_token"\s+value="([^"]+)"',response.get_data(as_text=True))
+                if match:
+                    data['person_selection_token']=html.unescape(match[1])
+            finally:
+                response.close()
+        if writer == 'new':
+            return self.action(path,data)
         from dkss_app.checklists import checklist_result_edit_version
         with self.app.app_context():
             data['record_version'] = checklist_result_edit_version(

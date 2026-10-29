@@ -4,6 +4,9 @@ import io
 import unittest
 from unittest.mock import patch
 import test_driving_person_vehicles as vehicle_tests
+from dkss_app import driving_access
+from flask import session
+from identity_fixture import identity_for
 
 
 class PersonalHoldTests(unittest.TestCase):
@@ -11,13 +14,23 @@ class PersonalHoldTests(unittest.TestCase):
     tearDownClass=classmethod(vehicle_tests.PersonalVehicleTests.tearDownClass.__func__)
     setUp=vehicle_tests.PersonalVehicleTests.setUp
     tearDown=vehicle_tests.PersonalVehicleTests.tearDown
-    save=vehicle_tests.PersonalVehicleTests.save
     login=vehicle_tests.PersonalVehicleTests.login
     inspection=vehicle_tests.PersonalVehicleTests.inspection
     grant=vehicle_tests.PersonalVehicleTests.grant
     render=vehicle_tests.PersonalVehicleTests.render
     form=vehicle_tests.PersonalVehicleTests.form
     post=vehicle_tests.PersonalVehicleTests.post
+
+    def confirm(self,row,username='one'):
+        # These scenarios test metric holds after the report reader was confirmed.
+        with self.m.app.test_request_context():
+            session.update(company_code='TEST',username='admin',role='admin',account_identity=identity_for('TEST','admin'))
+            driving_access.assign([row],username,'admin');self.m.db.session.commit()
+
+    def save(self,*args,**kwargs):
+        row=vehicle_tests.PersonalVehicleTests.save(self,*args,**kwargs)
+        if kwargs.get('name')=='本人':self.confirm(row)
+        return row
 
     def exclude(self,action='exclude',**kw):
         inspection=self.inspection()
@@ -69,6 +82,7 @@ class PersonalHoldTests(unittest.TestCase):
         self.exclude('replace',vehicle_id=self.b.id)
         self.save(name='本人')
         other=self.save(2,name='本人',distance='40');other.vehicle_record_id=self.b.id;self.m.db.session.commit()
+        self.confirm(other)
         _,ctx=self.render();self.assertEqual(ctx['insights']['summary']['count'],1)
         self.assertEqual(ctx['insights']['summary']['distance'],40)
         self.assertEqual([v['id'] for v in ctx['driving_vehicles']['trips']],[self.b.id])
@@ -95,6 +109,6 @@ class PersonalHoldTests(unittest.TestCase):
     def test_other_account_correction_never_holds_this_person(self):
         self.exclude();row=self.save(name='別人')
         self.m.db.session.add(self.m.User(company_code='TEST',username='two',role='user',password='unused',last_name='別人',password_changed_at='stamp'))
-        self.m.db.session.commit();self.login('two')
+        self.m.db.session.commit();self.confirm(row,'two');self.login('two')
         _,ctx=self.render();self.assertEqual(ctx['insights']['summary']['distance'],100)
         self.assertEqual(ctx['insights']['personal_hold_count'],0)

@@ -58,6 +58,8 @@ class RelatedMasterWriteTests(unittest.TestCase):
         return path, data
 
     def submit(self, label, client, path, data):
+        from master_form_fixture import fresh_master_data
+        data = fresh_master_data(client, path, data)
         self.local.worker = label
         try:
             try:

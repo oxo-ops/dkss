@@ -1,4 +1,5 @@
 """Identity follows real report fields; fixtures are not evidence about manufacturers."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest
@@ -28,18 +29,24 @@ class DrivingIdentityTests(unittest.TestCase):
             last_name=last,first_name=first,office='安城',password_changed_at='stamp')
         self.m.db.session.add(u);self.m.db.session.commit();return u
 
-    def save(self,day='2026-10-23',name='塩川 万帆',code='TEST-SHIOKAWA-01',source='sample-system',company='TEST',**extra):
+    def save(self,day='2026-10-23',name='塩川 万帆',code='TEST-SHIOKAWA-01',source='sample-system',company='TEST',confirmed=False,**extra):
         data=dict(driver_name=name,driver_code=code,source_system=source,record_date=day,
                   distance='100',report_items=[],report_scope='daily',driver_office='安城',**extra)
         r=self.m.VehicleDrivingReportRecord(company_code=company,vehicle_record_id=self.vehicle.id,
             operation_date=day,content='fixture',details_json=json.dumps(data,ensure_ascii=False),
             source_draft_id='identity-fixture-'+str(self.m.VehicleDrivingReportRecord.query.count()),source_record_index=0,created_by_username='admin')
-        self.m.db.session.add(r);self.m.db.session.commit();return r
+        self.m.db.session.add(r);self.m.db.session.commit()
+        if confirmed:
+            with self.m.app.test_request_context():
+                session.update(account_identity=identity_for('TEST','admin'),company_code='TEST',username='admin',role='admin')
+                driving_access.assign([r],self.person.username,'admin');self.m.db.session.commit()
+        return r
 
     def resolve(self,r):
         with self.m.app.test_request_context():
             session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
-            return resolver().resolve(r)
+            # These cases test candidate discovery; HTTP authorization is covered separately.
+            return resolver().candidate(r)
 
     def login(self,user):
         with self.client.session_transaction() as s:
@@ -55,11 +62,11 @@ class DrivingIdentityTests(unittest.TestCase):
         return r,contexts[-1]
 
     def test_existing_report_shows_own_results_without_settings_or_get_writes(self):
-        r=self.save();before=r.details_json
+        r=self.save(confirmed=True);before=r.details_json
         self.login(self.person)
         response,ctx=self.context('/safety/driving-reports?period=all')
         self.assertEqual(ctx['total'],1);self.assertEqual(ctx['insights']['summary']['distance'],100)
-        self.assertEqual(DrivingReportReader.query.count(),0);self.assertEqual(r.details_json,before)
+        self.assertEqual(DrivingReportReader.query.count(),1);self.assertEqual(r.details_json,before)
         self.assertNotIn('乗務員を選択',response.get_data(as_text=True))
         self.assertEqual(self.client.get(f'/safety/driving-reports/{r.id}').status_code,200)
 
@@ -76,7 +83,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.assertIsNone(self.resolve(r)[0])
         with self.m.app.test_request_context():
             session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
-            driving_access.resolve_import(r,self.person.username);self.m.db.session.commit()
+            driving_access.resolve_import(r,self.person.username,expected_identity=self.person.account_identity);self.m.db.session.commit()
         self.assertEqual(self.resolve(r)[0].id,self.person.id)
         later=self.save(day='2026-10-24');self.assertEqual(self.resolve(later)[0].id,self.person.id)
         earlier=self.save(day='2026-10-22');self.assertIsNone(self.resolve(earlier)[0])
@@ -102,13 +109,13 @@ class DrivingIdentityTests(unittest.TestCase):
 
     def test_explicit_revocation_is_not_undone_by_automatic_name_resolution(self):
         r=self.save()
-        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'reader_username':''})
+        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'person_selection_token':fresh_person_proof(self.client),'reader_username':''})
         self.assertIsNone(self.resolve(r)[0])
         self.login(self.person);self.assertEqual(self.client.get(f'/safety/driving-reports/{r.id}').status_code,404)
 
     def test_changed_identity_invalidates_explicit_grant(self):
         r=self.save()
-        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'reader_username':self.person.username})
+        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'person_selection_token':fresh_person_proof(self.client),'reader_username':self.person.username})
         p=payload(r);p['driver_code']='changed';r.details_json=json.dumps(p);self.m.db.session.commit()
         self.assertIsNone(self.resolve(r)[0])
 
@@ -122,8 +129,9 @@ class DrivingIdentityTests(unittest.TestCase):
         r=self.save()
         with self.m.app.test_request_context():
             session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
-            driving_access.resolve_import(r);self.m.db.session.commit()
-        self.assertEqual(DrivingReportReader.query.one().confirmed_by,AUTO)
+            # Persist the existing automatic grant fixture explicitly; no name-only backfill.
+            driving_access.assign([r],self.person.username,AUTO);self.m.db.session.commit()
+        self.assertEqual(DrivingReportReader.query.filter_by(report_id=r.id).one().confirmed_by,AUTO)
         self.add_user('duplicate','塩川','万帆')
         self.assertIsNone(self.resolve(r)[0])
 
@@ -134,12 +142,20 @@ class DrivingIdentityTests(unittest.TestCase):
         self.upload_driving_report();draft=self.m.VehicleDocumentImportDraft.query.one()
         form=self.inspection_form(draft);key=draft.id+'_0'
         form['driver_name_'+key]='塩川 万帆'
-        if choice is not None:form['driving_account_'+key]=choice
+        if choice is not None:form.update({'driving_account_'+key:choice,'person_selection_token':fresh_person_proof(self.client)})
         response=self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm',data=form)
         return response,self.m.VehicleDrivingReportRecord.query.first(),draft
 
     def test_normal_import_automatically_persists_identity_with_no_extra_field(self):
-        response,r,draft=self.import_matching();self.assertEqual(response.status_code,302)
+        self.upload_driving_report();draft=self.m.VehicleDocumentImportDraft.query.one()
+        self.save(day='2020-01-01',name='塩川 万帆',confirmed=True)
+        # Reuse this source's existing current-generation code anchor in the real import.
+        form=self.inspection_form(draft);form['driver_name_'+draft.id+'_0']='塩川 万帆'
+        form['source_system_'+draft.id+'_0']='sample-system'
+        form['driver_code_'+draft.id+'_0']='TEST-SHIOKAWA-01'
+        response=self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm',data=form)
+        r=self.m.VehicleDrivingReportRecord.query.filter_by(source_draft_id=draft.id).one()
+        self.assertEqual(response.status_code,302)
         grant=DrivingReportReader.query.filter_by(report_id=r.id).one()
         self.assertEqual(grant.user_id,self.person.id);self.assertEqual(grant.confirmed_by,AUTO)
         self.assertIn('identity_resolution',payload(r))
@@ -165,13 +181,14 @@ class DrivingIdentityTests(unittest.TestCase):
         self.assertIsNone(self.resolve(r)[0])
         form=self.inspection_form(draft);form.update(record_version=version(r))
         form['driving_account_'+draft.id+'_0']=self.person.username
+        form['person_selection_token']=fresh_person_proof(self.client)
         response=self.client.post(f'/safety/driving-reports/{r.id}/edit',data=form)
         self.assertEqual(response.status_code,302,response.get_data(as_text=True))
         self.assertEqual(self.resolve(r)[0].id,self.person.id)
         self.assertEqual(self.m.VehicleDrivingReportRecord.query.count(),1)
 
     def test_same_account_rows_merge_and_exports_remain_personal(self):
-        self.save();self.save(day='2026-10-24',code='another-code')
+        self.save(confirmed=True);self.save(day='2026-10-24',code='another-code',confirmed=True)
         self.save(name='他人',code='other',day='2026-10-25')
         self.login(self.person)
         _,ctx=self.context('/safety/driving-reports?period=all&scope=company')
@@ -189,7 +206,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.m.db.session.add(Driver(company_code='TEST',name='塩川万帆',employee_id='78678',office='安城'))
         self.m.db.session.commit()
         for day in [f'2026-09-{d}' for d in range(26,31)]+[f'2026-10-{d}' for d in range(23,28)]:
-            self.save(day=day)
+            self.save(day=day,confirmed=True)
         self.login(self.person)
         _,all_ctx=self.context('/safety/driving-reports?scope=self&period=all')
         self.assertEqual(all_ctx['total'],10);self.assertEqual(all_ctx['insights']['summary']['distance'],1000)
@@ -197,7 +214,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.assertEqual(month['total'],5);self.assertEqual(month['insights']['summary']['distance'],500)
         _,company=self.context('/safety/driving-reports?scope=company&period=all')
         self.assertEqual(len(company['insights']['drivers']),1)
-        self.assertEqual(DrivingReportReader.query.count(),0)
+        self.assertEqual(DrivingReportReader.query.count(),10)
 
 
 if __name__=='__main__':unittest.main()
