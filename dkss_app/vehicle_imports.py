@@ -1,5 +1,5 @@
 """Vehicle Imports responsibilities; routes are registered by the application factory."""
-from . import import_owner as _dkss_import_owner
+from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_master as _dkss_vehicle_master, vehicle_operations as _dkss_vehicle_operations, vehicle_pending as _dkss_vehicle_pending, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -1243,6 +1243,7 @@ def vehicle_operation_import():
             (str(error), "csv_file")
         ])
 
+    identity = _csv_owner.hold_owner()
     if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
         return _dkss_common.jsonify({"ok": True})
 
@@ -1252,7 +1253,7 @@ def vehicle_operation_import():
         _dkss_models.VehicleOperationImportDraft.query
         .filter_by(
             company_code=company_code,
-            created_by_username=username,
+            owner_identity=identity,
             status="preview"
         )
         .order_by(
@@ -1272,6 +1273,7 @@ def vehicle_operation_import():
         id=str(_dkss_common.uuid4()),
         company_code=company_code,
         created_by_username=username,
+        owner_identity=identity,
         source_filename=filename,
         source_file=file_bytes,
     )
@@ -1309,8 +1311,7 @@ def vehicle_operation_import_add_vehicle(draft_id):
     draft = _dkss_models.VehicleOperationImportDraft.query.filter_by(
         id=draft_id,
         company_code=company_code,
-        created_by_username=_dkss_common.session.get("username")
-    ).first_or_404()
+    ).filter(_csv_owner.owner_clause()).with_for_update().first_or_404()
 
     if draft.status != "preview":
         return _dkss_http.return_form_errors([
@@ -1399,6 +1400,8 @@ def vehicle_operation_import_add_vehicle(draft_id):
                 ""
             ))
 
+    _csv_owner.hold_owner(draft)
+
     if errors:
         return _dkss_http.return_form_errors(errors)
 
@@ -1459,11 +1462,11 @@ def vehicle_operation_import_preview(draft_id):
         .filter_by(
             id=draft_id,
             company_code=_dkss_common.session.get("company_code"),
-            created_by_username=_dkss_common.session.get("username")
-        )
+        ).filter(_csv_owner.owner_clause())
         .first_or_404()
     )
 
+    _csv_owner.hold_owner(draft)
     if draft.status != "preview":
         _dkss_common.flash(
             "このCSVの取込確認は終了しています。",
@@ -1700,8 +1703,7 @@ def vehicle_operation_import_confirm(draft_id):
         .filter_by(
             id=draft_id,
             company_code=company_code,
-            created_by_username=username
-        )
+        ).filter(_csv_owner.owner_clause())
         .with_for_update().first_or_404()
     )
 
@@ -1794,6 +1796,8 @@ def vehicle_operation_import_confirm(draft_id):
             "acknowledge_excluded_errors"
         ))
 
+    _csv_owner.hold_owner(draft, vehicle_ids=[selection.get('vehicle_record_id') for selection in selections.values()])
+
     if errors:
         if not validation_only:
             try:
@@ -1856,7 +1860,7 @@ def vehicle_operation_import_confirm(draft_id):
             .filter_by(
                 id=draft_id,
                 company_code=company_code,
-                created_by_username=username,
+                owner_identity=draft.owner_identity,
                 status="preview"
             )
             .update(
@@ -2171,10 +2175,10 @@ def vehicle_operation_import_result(draft_id):
     draft = _dkss_models.VehicleOperationImportDraft.query.filter_by(
         id=draft_id,
         company_code=_dkss_common.session.get("company_code"),
-        created_by_username=_dkss_common.session.get("username"),
         status="completed"
-    ).first_or_404()
+    ).filter(_csv_owner.owner_clause()).first_or_404()
 
+    _csv_owner.hold_owner(draft)
     return _dkss_common.render_template(
         "vehicle_operation_import_result.html",
         draft=draft,

@@ -52,6 +52,8 @@ def create_app(config=None, *, initialize_database=False):
     from . import account_identity
     from . import import_owner
     app.after_request(import_owner.private_response)
+    from . import operation_csv_owner
+    app.after_request(operation_csv_owner.private_csv_response)
     csrf.init_app(app)
     limiter.init_app(app)
     app.extensions["dkss"] = {"s3_client": None}
