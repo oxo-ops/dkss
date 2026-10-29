@@ -67,5 +67,5 @@
 {% for note in insights.review_notes %}<div class="driving-review-note" id="driving-review-{{ note.id }}"><div><strong>{{ note.date }} ／ {{ note.name }}</strong><ul>{% for reason in note.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div><a class="btn btn-outline" href="{{ url_for('driving_report_detail',record_id=note.id,return_to=url_for('driving_reports',**dict(filter_query,panel='data',_anchor='driving-review-' ~ note.id))) }}">日報の読取内容を見る</a></div>{% else %}<p>この範囲に追加の確認事項はありません。</p>{% endfor %}</section>
 {% if insights.raw_metrics %}<section class="card driving-raw-fold" id="driving-raw-values"><h3>日報に記載された値</h3><div class="driving-raw-values">{% for entry in insights.raw_metrics %}<article><h4>{{ entry.metric.name }}</h4>{{ metric_value(entry) }}</article>{% endfor %}</div></section>{% endif %}
 </div>
-{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261028-analysis-destinations-2') }}" defer></script>
+{% endif %}</div><script src="{{ url_for('static',filename='js/driving_reports.js',v='20261029-reflection-recovery-1') }}" defer></script>
 {% endblock %}
