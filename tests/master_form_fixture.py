@@ -40,4 +40,12 @@ class FreshMasterFormsClient(FlaskClient):
         path = args[0] if args and isinstance(args[0], str) else kwargs.get('path', '')
         if kwargs.get('method', 'GET').upper() == 'POST':
             kwargs['data'] = fresh_master_data(self, path, kwargs.get('data'))
+            try:
+                from patrol_form_fixture import fresh_patrol_data
+            except ModuleNotFoundError as error:
+                # Q04 also copies this fixture alone into historical checkouts.
+                if error.name != 'patrol_form_fixture':
+                    raise
+            else:
+                kwargs['data'] = fresh_patrol_data(self, path, kwargs['data'])
         return super().open(*args, **kwargs)

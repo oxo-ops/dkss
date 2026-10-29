@@ -20,6 +20,7 @@
 <div class="card form-page-card">
     <form method="post" enctype="multipart/form-data" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
 
         <div>
             <label>発生日</label>

@@ -1,0 +1,52 @@
+name: Q03 Patrol Person Selection
+
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/safety.py'
+      - 'dkss_app/person_selection.py'
+      - 'dkss_app/notifications_delivery.py'
+      - 'templates/new_pointout.html'
+      - 'templates/edit_pointout.html'
+      - 'tests/test_q03_patrol_selection.py'
+      - '.github/workflows/q03-patrol-selection.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patrol-selection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q03_test
+          POSTGRES_USER: q03_test
+          POSTGRES_PASSWORD: q03-disposable-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U q03_test -d dkss_q03_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Q03_POSTGRES_TEST_URL: postgresql+psycopg2://q03_test:q03-disposable-ci-only@127.0.0.1:5432/dkss_q03_test
+      PYTHONPATH: tests
+      AWS_EC2_METADATA_DISABLED: 'true'
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest test_q03_patrol_selection -v

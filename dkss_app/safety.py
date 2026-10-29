@@ -270,6 +270,21 @@ def pointouts():
 
 
 
+def _dispatch_patrol_notifications(pending):
+    # Numeric IDs may be reused after commit; retain the saved notice's owner.
+    for user_id, notification_id, title, message, link in pending:
+        notice = _dkss_common.db.session.get(_dkss_models.Notification, notification_id)
+        if not notice or not notice.owner_identity:
+            continue
+        recipient = _dkss_models.User.query.filter_by(
+            id=user_id, company_code=notice.company_code,
+            account_identity=notice.owner_identity
+        ).with_for_update(read=True).first()
+        if recipient:
+            _dkss_notifications_delivery.dispatch_external_notification(
+                recipient, title, message, link, notification_id=notification_id)
+
+
 def new_pointout():
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
@@ -435,8 +450,10 @@ def new_pointout():
             return _dkss_http.return_form_errors(form_errors)
 
         # All referenced master rows are acquired before the actor (Q04 order).
-        person_error = _person_forms.validate(actor_only=True)
+        person_error = _person_forms.validate(
+            actor_only=target_type != "user", selected_usernames=[target_username])
         if person_error is not None:
+            _dkss_common.session["patrol_person_reselect:" + _dkss_common.request.path] = True
             return person_error
 
         # 添付ファイル
@@ -502,7 +519,8 @@ def new_pointout():
         )
 
         _dkss_common.db.session.add(result)
-        _dkss_common.db.session.commit()
+        _dkss_common.db.session.flush()
+        pending = []
 
         # 個人対象のときだけ通知
         if target_type == "user":
@@ -513,13 +531,17 @@ def new_pointout():
                 f"/pointouts/{result.id}",
                 company_code=company_code,
                 target_identity=target_identity,
-                target_username=result.target_username
+                target_username=result.target_username,
+                pending=pending
             )
 
         _dkss_notifications_delivery.notify_mentions(
             result.content,
-            f"/pointouts/{result.id}"
+            f"/pointouts/{result.id}",
+            pending=pending
         )
+        _dkss_common.db.session.commit()
+        _dispatch_patrol_notifications(pending)
 
         if target_type == "delivery_place":
             return _dkss_common.redirect(
@@ -550,9 +572,14 @@ def new_pointout():
         "pointout_form_data",
         {}
     )
+    if _dkss_common.session.pop("patrol_person_reselect:" + _dkss_common.request.path, False):
+        form_data.update(target_user="", target_user_search="")
 
+    # Freeze evidence before querying the displayed Driver choices.
+    person_selection_token = _person_forms.issue()
     return _dkss_common.render_template(
         "new_pointout.html",
+        person_selection_token=person_selection_token,
         form_target_type=form_target_type,
         form_data=form_data,
         drivers=_dkss_vehicle_readers.drivers_for_current_company(),
@@ -606,10 +633,11 @@ def pointout_detail(index):
 
 def edit_pointout(index):
 
-    result_record = _dkss_models.PatrolResult.query.filter_by(
+    result_query = _dkss_models.PatrolResult.query.filter_by(
         id=index,
         company_code=_dkss_common.session.get("company_code")
-    ).first()
+    )
+    result_record = result_query.first()
 
     if not result_record:
         return _dkss_common.redirect("/pointouts")
@@ -630,6 +658,8 @@ def edit_pointout(index):
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
         form_errors = []
+        expected_subject = (result_record.target_type, result_record.target_username,
+                            result_record.target_identity, result_record.created_by_identity)
 
         date = _dkss_common.request.form.get(
             "date",
@@ -796,6 +826,25 @@ def edit_pointout(index):
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_user_search")
             ])
 
+        # Master rows precede result/User locks, as in the related Q03 saves.
+        result_record = result_query.populate_existing().with_for_update().first()
+        if (not result_record or result_record.approval_status == "承認済み"
+                or expected_subject != (result_record.target_type, result_record.target_username,
+                                        result_record.target_identity, result_record.created_by_identity)
+                or not _dkss_safety_permissions.can_edit_patrol_result(
+                    _dkss_checklist_common.patrol_result_to_dict(result_record))):
+            _dkss_common.db.session.rollback()
+            return _dkss_http.return_form_errors([
+                ("安全パトロールが更新されています。再表示して対象者を確認してください。", "")
+            ], 409)
+
+        person_error = _person_forms.validate(
+            actor_only=result_record.target_type != "user",
+            selected_usernames=[validated_target_username])
+        if person_error is not None:
+            _dkss_common.session["patrol_person_reselect:" + _dkss_common.request.path] = True
+            return person_error
+
         # 既存添付
 
         files = _dkss_serialization.safe_json_str_list(
@@ -880,6 +929,9 @@ def edit_pointout(index):
             ensure_ascii=False
         )
 
+        pending = []
+        _dkss_notifications_delivery.notify_mentions(
+            result_record.content, f"/pointouts/{result_record.id}", pending=pending)
         _dkss_common.db.session.commit()
 
         for delete_file in pending_delete_files:
@@ -928,17 +980,18 @@ def edit_pointout(index):
 
         _dkss_common.db.session.commit()
 
-        _dkss_notifications_delivery.notify_mentions(
-            result_record.content,
-            f"/pointouts/{result_record.id}"
-        )
+        _dispatch_patrol_notifications(pending)
 
         return _dkss_common.redirect(
             f"/pointouts/{result_record.id}"
         )
 
+    if _dkss_common.session.pop("patrol_person_reselect:" + _dkss_common.request.path, False):
+        pointout_edit_form_data.update(target_user="", target_user_search="")
+    person_selection_token = _person_forms.issue()
     return _dkss_common.render_template(
         "edit_pointout.html",
+        person_selection_token=person_selection_token,
         result=result,
         index=result_record.id,
         drivers=_dkss_vehicle_readers.drivers_for_current_company(),
