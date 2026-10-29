@@ -89,7 +89,8 @@ class DailyFlowFailuresTests(unittest.TestCase):
         before = self.snapshot()
         with patch.object(notifications_delivery, 'dispatch_external_notification') as send:
             response = self.request('POST', f'/vehicle/checklists/{self.checklist.id}/complete',
-                                    data={**self.form, 'approval_notify_users_0': 'admin'})
+                                    data={**self.form, 'approval_notify_users_0': 'admin',
+                                          **daily.Q02DailyInspectionFlowTests.selection_proof(self)})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.snapshot(), before)
         send.assert_not_called()

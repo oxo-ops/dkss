@@ -1909,10 +1909,6 @@ def edit_checklist_result(result_index):
             or _dkss_checklist_common.checklist_to_dict(checklist_record)
         )
 
-        person_error = _person_forms.validate()
-        if person_error is not None:
-            return person_error
-
         target_type = _dkss_common.request.form.get(
             "target_type",
             ""
@@ -2055,6 +2051,12 @@ def edit_checklist_result(result_index):
             return _dkss_http.return_form_errors([
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
+
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
 
         previous_answers = [
             dict(answer)
@@ -8832,10 +8834,6 @@ def new_vehicle_checklist_result(index):
         return _dkss_common.redirect("/vehicle/checklists")
 
     if _dkss_common.request.method == "POST":
-        person_error = _person_forms.validate()
-        if person_error is not None:
-            return person_error
-
         lock_error = lock_vehicle_inspection_updates(
             _dkss_common.session.get("company_code"),
             vehicle_record_id=_dkss_common.request.form.get("vehicle_record_id", type=int),
@@ -8843,6 +8841,11 @@ def new_vehicle_checklist_result(index):
         )
         if lock_error is not None:
             return lock_error
+
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         company_code = _dkss_common.session.get("company_code")
 
         vehicle_record_id = _dkss_common.request.form.get(
@@ -9427,10 +9430,6 @@ def new_safety_checklist_result(index):
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
 
     if _dkss_common.request.method == "POST":
-        person_error = _person_forms.validate()
-        if person_error is not None:
-            return person_error
-
         company_code = _dkss_common.session.get("company_code")
         operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
         answers = []
@@ -9576,6 +9575,12 @@ def new_safety_checklist_result(index):
             return _dkss_http.return_form_errors([
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
+
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
 
         pending_answer_files = []
 
