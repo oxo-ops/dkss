@@ -18,6 +18,23 @@ class ImportOwnerGenerationTests(unittest.TestCase):
     send=jobs.DocumentImportQueueTests.send
     worker=jobs.DocumentImportQueueTests.worker
 
+    def test_admission_rejects_missing_or_unprivileged_company_owner(self):
+        from io import BytesIO
+        from werkzeug.datastructures import FileStorage
+        def denied():
+            with self.assertRaises(queue.ImportQueueError) as result:
+                queue.enqueue([FileStorage(stream=BytesIO(jobs.pdf_bytes()),filename='fake.pdf')],
+                    'inspection','OTHER','admin')
+            self.assertEqual(result.exception.status,403)
+            self.assertEqual(self.m.VehicleDocumentImportDraft.query.count(),0)
+        denied()
+        self.m.db.session.add(self.m.Company(company_code='OTHER',company_name='Synthetic',active=True))
+        user=self.m.User(company_code='OTHER',username='admin',role='user',password='unused',last_name='Synthetic')
+        self.m.db.session.add(user);self.m.db.session.commit()
+        denied()
+        user.role='admin';user.login_locked=True;self.m.db.session.commit()
+        denied()
+
     def replace_person(self):
         with self.m.app.app_context():
             old=self.m.User.query.filter_by(company_code='TEST',username='admin').one()
