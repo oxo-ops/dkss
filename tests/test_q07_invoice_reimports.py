@@ -198,7 +198,16 @@ class InvoiceReimportTests(unittest.TestCase):
         row, original, source = self.imported()
         added, _ = self.additional(row)
         self.assertEqual(self.review(added).status_code, 302)
-        self.assertEqual(self.edit(row, total_cost='140').status_code, 302)
+        self.assertEqual(self.edit(row, total_cost='140').status_code, 409)
+        self.assert_cost(row, 130)
+        # Existing deployments can already contain the old, unscoped 140 edit.
+        # Keep the protective refusal test against that historical state.
+        row.total_cost = Decimal('140')
+        self.m.db.session.add(self.m.VehicleMaintenanceRecordEvent(
+            company_code='TEST', vehicle_record_id=self.vehicle.id, maintenance_record_id=row.id,
+            action='updated', changes_json=json.dumps([{'field': 'total_cost', 'before': '130.00', 'after': '140'}]),
+            created_by_username='admin', created_at='2026-10-28T12:00:00+09:00'))
+        self.m.db.session.commit()
         fixed, _ = self.additional(row, '20')
         response = self.review(fixed, 'correction', added)
         self.assertEqual(response.status_code, 400)

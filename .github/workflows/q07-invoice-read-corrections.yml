@@ -1,0 +1,84 @@
+name: Q07 Invoice Read Corrections
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/invoice_cost_reads.py'
+      - 'dkss_app/vehicle_karte.py'
+      - 'dkss_app/vehicle_documents.py'
+      - 'templates/vehicle_karte_maintenance_form.html'
+      - 'templates/vehicle_master.html'
+      - 'static/js/invoice_cost_read_form.js'
+      - 'tests/*q07*'
+      - 'tests/m07_*'
+      - '.github/workflows/q07-invoice-read-corrections.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q10_ci
+          POSTGRES_USER: m07
+          POSTGRES_PASSWORD: m07-disposable-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U m07 -d dkss_q10_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PYTHONPATH: .:tests
+      Q10_POSTGRES_TEST_URL: postgresql+psycopg2://m07:m07-disposable-only@127.0.0.1:5432/dkss_q10_ci
+      Q10_REQUIRE_POSTGRES: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Mark the disposable service only
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ['Q10_POSTGRES_TEST_URL']).begin() as c:
+              c.execute(text("COMMENT ON DATABASE dkss_q10_ci IS 'Q10_SYNTHETIC_ONLY'"))
+          PY
+      - name: Source correction and existing protective regressions on SQLite
+        run: python -m unittest -v test_q07_invoice_read_corrections.InvoiceReadCorrectionTests test_q07_invoice_reimports.InvoiceReimportTests test_q07_invoice_lifecycle.InvoiceLifecycleTests
+      - name: PostgreSQL source revisions and real lock schedules
+        run: python -m unittest -v test_q07_postgres_invoice_read_corrections.PostgresInvoiceReadCorrectionTests
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: npm install --no-save --prefix "$RUNNER_TEMP/m07-node" playwright@1.62.1
+      - run: node "$RUNNER_TEMP/m07-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - run: echo "NODE_PATH=$RUNNER_TEMP/m07-node/node_modules" >> "$GITHUB_ENV"
+      - name: PC/mobile and legacy-evidence acceptance on synthetic loopback only
+        run: python tests/m07_browser_run.py m07-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: m07-browser-evidence
+          path: m07-results/

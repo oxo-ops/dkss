@@ -127,100 +127,8 @@ def vehicle_maintenance_document_correction(document_id):
 
 
 def calculate_vehicle_invoice_correction(target, replacement_id, incoming_amounts):
-    fields = ("labor_cost", "parts_cost", "other_cost", "tax_amount", "total_cost")
-
-    def parse_costs(values):
-        if not isinstance(values, dict) or any(field not in values for field in fields):
-            raise ValueError("請求額の確認履歴が不足しています。")
-        costs = {}
-        for field in fields:
-            raw = values[field]
-            value = None if raw is None else _dkss_common.Decimal(str(raw))
-            if value is not None and (
-                not value.is_finite() or abs(value) > _dkss_common.Decimal("999999999999.99")
-                or value != value.quantize(_dkss_common.Decimal("0.01"))
-            ):
-                raise ValueError("請求額の確認履歴が不正です。")
-            costs[field] = value
-        return costs
-
-    ledger = []
-    for old in _dkss_models.VehicleMaintenanceDocument.query.filter(
-        _dkss_models.VehicleMaintenanceDocument.company_code == target.company_code,
-        _dkss_models.VehicleMaintenanceDocument.vehicle_record_id == target.vehicle_record_id,
-        _dkss_models.VehicleMaintenanceDocument.maintenance_record_id == target.id,
-        _dkss_models.VehicleMaintenanceDocument.financial_status.in_(("confirmed", "superseded"))
-    ).with_for_update().populate_existing().all():
-        decision = _dkss_common.json.loads(old.decision_json or "{}")
-        if not isinstance(decision, dict) or decision.get("costs_applied") is not True:
-            raise ValueError("費用の反映履歴を確認できません。")
-        costs = parse_costs(decision.get("confirmed_costs"))
-        history = decision.get("review_history")
-        if not isinstance(history, list) or not all(isinstance(item, dict) for item in history):
-            raise ValueError("費用の確認履歴が不正です。")
-        actions = [item for item in history if item.get("action") in {
-            "initial_cost", "additional_cost", "correction"
-        }]
-        if len(actions) != 1 or costs["total_cost"] is None:
-            raise ValueError("費用の確認履歴が不足しています。")
-        when = _dkss_common.datetime.fromisoformat(actions[0]["reviewed_at"])
-        if when.tzinfo is None:
-            raise ValueError("費用の確認日時が不正です。")
-        ledger.append((when, old, decision, costs, actions[0]["action"]))
-    if not ledger:
-        raise ValueError("差し替え可能な確定済み請求書がありません。")
-    ledger.sort(key=lambda item: (item[0], item[1].id))
-    first = ledger[0]
-    if first[4] == "initial_cost":
-        baseline = {field: _dkss_common.Decimal("0") for field in fields}
-    elif first[4] == "additional_cost":
-        baseline = parse_costs(first[2].get("costs_before"))
-        if baseline["total_cost"] is None:
-            raise ValueError("請求書の反映前の費用を確認できません。")
-    else:
-        raise ValueError("最初の費用の反映履歴を確認できません。")
-    active = [item for item in ledger if item[1].financial_status == "confirmed"]
-    selected = next((item for item in active if item[1].id == replacement_id), None)
-    if selected is None:
-        raise ValueError("訂正前の請求書は確認状態が変わっています。選び直してください。")
-    if any(item[4] == "initial_cost" for item in ledger[1:]):
-        raise ValueError("初回費用の履歴が重複しています。")
-
-    def aggregate(invoices):
-        result = {}
-        for field in fields:
-            values = [baseline[field]] + [costs[field] for costs in invoices]
-            result[field] = None if any(value is None for value in values) else sum(values, _dkss_common.Decimal("0"))
-            if result[field] is not None and abs(result[field]) > _dkss_common.Decimal("999999999999.99"):
-                raise ValueError("訂正後の費用が登録可能な金額を超えます。")
-        return result
-
-    current = aggregate([item[3] for item in active])
-    if any(current[field] != getattr(target, field) for field in fields):
-        raise ValueError("登録済み費用と請求書の履歴が一致しません。費用を再確認してください。")
-    old = selected[1]
-    draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
-        id=old.source_draft_id, company_code=target.company_code,
-        document_type="maintenance", status="completed"
-    ).first()
-    if draft is None or _dkss_common.hashlib.sha256(draft.source_file).hexdigest() != draft.source_sha256:
-        raise ValueError("訂正前の原本を確認できません。")
-    payload = _dkss_common.json.loads(old.payload_json)
-    records = _dkss_serialization.safe_json_dict(draft.preview_json).get("records")
-    index = old.source_record_index
-    if (not isinstance(payload, dict) or not isinstance(records, list)
-            or type(index) is not int or not 0 <= index < len(records)
-            or records[index] != payload):
-        raise ValueError("訂正前の明細を確認できません。")
-    source_costs = parse_costs({
-        field: None if payload.get(field) in (None, "") else payload[field]
-        for field in fields
-    })
-    if source_costs != selected[3]:
-        raise ValueError("訂正前の請求額と反映履歴が一致しません。")
-    return aggregate([
-        item[3] for item in active if item[1].id != replacement_id
-    ] + [incoming_amounts]), old
+    from .invoice_cost_reads import replace_costs
+    return replace_costs(target, replacement_id, incoming_amounts)
 
 
 
@@ -611,6 +519,19 @@ def vehicle_maintenance_document_reviews():
         if target is None:
             continue
 
+        invoice_read_error = None
+        effective_costs = {}
+        if is_maintenance:
+            from .invoice_cost_reads import projection
+            try:
+                current_projection = projection(target)
+                if current_projection is not None:
+                    if current_projection['unresolved']:
+                        invoice_read_error = '過去の合計訂正は対象原本が未確認です。登録済みの読取値を原本ごとに確認してください。'
+                    effective_costs = {s['doc'].id: s['effective']['total_cost']
+                        for s in current_projection['sources'] if s['doc'] is not None}
+            except ValueError as error:
+                invoice_read_error = str(error)
         replacement_parts = _dkss_models.VehiclePartReplacement.query.filter_by(
             company_code=company_code, vehicle_record_id=vehicle.id,
             maintenance_record_id=target.id
@@ -633,6 +554,8 @@ def vehicle_maintenance_document_reviews():
             "record_index": document.source_record_index,
             "payload": _dkss_serialization.safe_json_dict(document.payload_json),
             "target_kind": "整備記録" if is_maintenance else "点検記録",
+            "target_record_id": target.id,
+            "invoice_read_error": invoice_read_error,
             "target_date": (
                 target.entry_date if is_maintenance
                 else target.inspection_date
@@ -644,14 +567,15 @@ def vehicle_maintenance_document_reviews():
             "correction_candidates": [{
                 "id": previous.id,
                 "invoice_number": _dkss_serialization.safe_json_dict(previous.payload_json).get("invoice_number") or "番号なし",
-                "total_cost": _dkss_serialization.safe_json_dict(previous.payload_json).get("total_cost"),
+                "total_cost": effective_costs.get(previous.id, _dkss_serialization.safe_json_dict(previous.payload_json).get("total_cost")),
+                "read_total": _dkss_serialization.safe_json_dict(previous.payload_json).get("total_cost"),
                 "draft_id": previous.source_draft_id,
             } for previous in _dkss_models.VehicleMaintenanceDocument.query.filter_by(
                 company_code=company_code, vehicle_record_id=vehicle.id,
                 maintenance_record_id=target.id, financial_status="confirmed"
             ).order_by(_dkss_models.VehicleMaintenanceDocument.created_at, _dkss_models.VehicleMaintenanceDocument.id).all()
               if _dkss_serialization.safe_json_dict(previous.decision_json).get("costs_applied") is True]
-                if is_maintenance and document.financial_status == "pending" and target.total_cost is not None else [],
+                if is_maintenance and not invoice_read_error and document.financial_status == "pending" and target.total_cost is not None else [],
             "can_additional_cost": is_maintenance and document.financial_status == "pending"
                 and target.total_cost is not None
                 and _dkss_serialization.safe_json_dict(document.payload_json).get("total_cost") not in (None, ""),

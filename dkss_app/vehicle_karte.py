@@ -1310,6 +1310,14 @@ def get_vehicle_maintenance_record_events(record):
         changes = []
         for change in _dkss_serialization.safe_json_dict_list(event.changes_json):
             field = change.get("field")
+            if field == "invoice_read_correction":
+                source = change.get("source") or {}
+                changes.append({
+                    "label": ("請求書の読取訂正：" + source["filename"]) if source else "手入力の整備費用の訂正",
+                    "before": (change.get("before") or {}).get("total_cost") or "—",
+                    "after": (change.get("after") or {}).get("total_cost") or "—",
+                })
+                continue
             if field not in labels:
                 continue
             if change.get("before") == change.get("after"):
@@ -2300,6 +2308,13 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         company_code=_dkss_common.session.get("company_code"),
     ).first_or_404()
 
+    if _dkss_common.request.method == "POST" and record_id is not None:
+        # Financial review already locks company -> document -> record. Take
+        # the same outer lock before the record/source-read locks below.
+        company = _dkss_models.Company.query.filter_by(company_code=vehicle.company_code).populate_existing().with_for_update().first()
+        if company is None or company.active is not True:
+            raise _dkss_common.NotFound()
+
     if _dkss_common.request.method == "POST" and _dkss_runtime.app.extensions["dkss"]['periodic_followups'].for_maintenance(vehicle.company_code, record_id):
         _dkss_runtime.app.extensions["dkss"]['periodic_followups'].lock(vehicle.company_code)
 
@@ -2346,6 +2361,17 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
     record_version = (
         vehicle_maintenance_record_version(record) if record else ""
     )
+    from . import invoice_cost_reads
+    invoice_view = None
+    invoice_context = None
+    invoice_context_error = None
+    if record is not None:
+        try:
+            invoice_view = invoice_cost_reads.projection(record)
+            invoice_context = invoice_cost_reads.form_context(invoice_view)
+        except ValueError as error:
+            invoice_context_error = str(error)
+    invoice_change = None
     try:
         inspection_choices = get_maintenance_inspection_choices(vehicle, record)
     except ValueError:
@@ -2415,6 +2441,30 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 response_status = 409
             record_version = submitted_version
 
+        if record is not None and not errors:
+            cost_fields = invoice_cost_reads.FIELDS
+            changed_cost = any(values[f] != getattr(record, f) for f in cost_fields)
+            selected_source = _dkss_common.request.form.get('invoice_source', '')
+            if invoice_context_error and changed_cost:
+                errors.append((invoice_context_error, 'invoice_source'))
+                response_status = 409
+            elif invoice_view is not None and (changed_cost or selected_source):
+                try:
+                    invoice_view = invoice_cost_reads.projection(record, lock=True)
+                    version = _dkss_common.request.form.get('invoice_read_version', '')
+                    # Old single-source clients still identify one real original;
+                    # a mixed aggregate must never be assigned to a guessed source.
+                    if not selected_source and len(invoice_view['sources']) == 1 and not invoice_view['unresolved']:
+                        selected_source = invoice_view['sources'][0]['key']
+                        version = invoice_view['version']
+                    recalculated, invoice_change = invoice_cost_reads.apply_read(
+                        record, invoice_view, selected_source, version,
+                        {f: values[f] for f in cost_fields},
+                        confirm_evidence=_dkss_common.request.form.get('invoice_evidence_confirmed') == '1')
+                    values.update(recalculated)
+                except ValueError as error:
+                    errors.append((str(error), 'invoice_source'))
+                    response_status = 409
         if errors:
             _dkss_common.db.session.rollback()
             if response_status == 200:
@@ -2437,7 +2487,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                 for field in changed_fields
             ]
 
-            if not changed_fields and intent != "complete" and all(c["linked"] for c in selected_inspections):
+            if not changed_fields and invoice_change is None and intent != "complete" and all(c["linked"] for c in selected_inspections):
                 _dkss_common.flash("変更はありませんでした。", "success")
                 return _dkss_common.redirect(_dkss_common.url_for(
                     "vehicle_karte_maintenance",
@@ -2571,6 +2621,8 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
                         raise ValueError("操作ユーザーを確認できません。")
                     _dkss_runtime.app.extensions["dkss"]['periodic_followups'].sync_maintenance(record, intent, periodic_user)
 
+                if invoice_change is not None:
+                    changes.append(invoice_change)
                 _dkss_maintenance.add_vehicle_maintenance_record_event(
                     record,
                     action=(
@@ -2636,12 +2688,19 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         "plate_number": vehicle.plate_number or "",
     })
 
-    return _dkss_common.render_template(
+    if invoice_context is not None:
+        invoice_context['selection'] = _dkss_common.request.form.get('invoice_source', '') if _dkss_common.request.method == 'POST' else _dkss_common.request.args.get('invoice_source', '')
+        if _dkss_common.request.method == 'POST':
+            invoice_context['submitted'] = {f: form_values[f] for f in invoice_cost_reads.FIELDS}
+            invoice_context['evidence_confirmed'] = _dkss_common.request.form.get('invoice_evidence_confirmed') == '1'
+    rendered = _dkss_common.render_template(
         "vehicle_karte_maintenance_form.html",
         vehicle=vehicle,
         vehicle_number=number,
         maintenance_record=record if record_id is not None else None,
         invoice_actual=bool(record is not None and record.is_invoice_actual),
+        invoice_cost_context=invoice_context,
+        invoice_cost_context_error=invoice_context_error,
         form_values=form_values,
         form_errors=errors,
         record_version=record_version,
@@ -2649,7 +2708,14 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         periodic_issues=periodic_issues,
         selected_inspection_tokens=selected_inspection_tokens,
         entry_date_required=entry_date_required,
-    ), response_status
+    )
+    response = _dkss_runtime.app.make_response((rendered, response_status))
+    if errors and (invoice_context is not None or invoice_context_error):
+        # This response already contains the submitted values and recovery UI.
+        # Reuse the established recovery marker instead of redirecting it away.
+        response.headers['X-DKSS-Import-Recovery'] = '1'
+        response.headers['Cache-Control'] = 'private, no-store'
+    return response
 
 
 
