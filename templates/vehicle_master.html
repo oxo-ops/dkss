@@ -80,6 +80,10 @@
                    target="_blank" rel="noopener">原本を開く</a>
                 <a class="btn btn-outline"
                    href="{{ url_for('vehicle_karte', vehicle_record_id=item.vehicle_id) }}">車両カルテを開く</a>
+                {% if item.target_kind == '整備記録' %}
+                <a class="btn btn-outline"
+                   href="{{ url_for('vehicle_karte_maintenance_form', vehicle_record_id=item.vehicle_id, record_id=item.target_record_id) }}">登録済み請求の読取値を訂正する</a>
+                {% endif %}
             </div>
             {% if item.correction_candidates %}
                 <details>
@@ -87,7 +91,7 @@
                     <p class="help-text">訂正前の請求額だけを置き換えます。ほかの請求額と原本は残ります。</p>
                     <ul>
                         {% for previous in item.correction_candidates %}
-                            <li><a href="{{ url_for('vehicle_karte_document_source', vehicle_record_id=item.vehicle_id, draft_id=previous.draft_id) }}" target="_blank" rel="noopener">訂正前の原本（候補{{ loop.index }}）：{{ previous.invoice_number }} ／ {{ previous.total_cost }} 円</a></li>
+                            <li><a href="{{ url_for('vehicle_karte_document_source', vehicle_record_id=item.vehicle_id, draft_id=previous.draft_id) }}" target="_blank" rel="noopener">訂正前の原本（候補{{ loop.index }}）：{{ previous.invoice_number }} ／ 有効額 {{ previous.total_cost }} 円（保存済み読取値 {{ previous.read_total }} 円）</a></li>
                         {% endfor %}
                     </ul>
                     <form method="post" action="{{ url_for('vehicle_maintenance_document_correction', document_id=item.id) }}">
@@ -109,6 +113,7 @@
                     </form>
                 </details>
             {% endif %}
+            {% if item.invoice_read_error %}<p role="alert">{{ item.invoice_read_error }}</p>{% endif %}
             {% if item.can_additional_cost %}
                 <details>
                     <summary>重複しない追加請求を反映する</summary>

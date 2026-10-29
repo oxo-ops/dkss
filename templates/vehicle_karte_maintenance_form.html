@@ -188,6 +188,43 @@
 
         <section class="km-form-section">
             <h3>費用</h3>
+            {% if invoice_cost_context_error %}
+            <p role="alert">{{ invoice_cost_context_error }} 原本と履歴を確認するまで請求金額の訂正は保留してください。</p>
+            {% endif %}
+            {% if invoice_cost_context %}
+            <div id="invoice-cost-read" style="min-width:0;overflow-wrap:anywhere" data-context='{{ invoice_cost_context|tojson }}'>
+                <p class="help-text">請求書の選択は金額の訂正対象です。整備内容・営業所・請求書情報は、この整備記録の情報として保持します。</p>
+                <p>整備合計：{{ invoice_cost_context.actual.total_cost or '不明' }} 円（有効な請求額から自動計算）</p>
+                <ul>
+                {% for source in invoice_cost_context.sources %}
+                    <li>{{ source.label }}：
+                        {% if source.reference %}
+                        <a href="{{ url_for('vehicle_karte_document_source', vehicle_record_id=vehicle.id, draft_id=source.reference.draft_id) }}" target="_blank" rel="noopener">{{ source.reference.filename }}（明細{{ source.reference.record_index + 1 }}）</a>
+                        {% endif %}
+                        {{ '保存済み読取値' if source.reference else '元の手入力額' }} {{ source.read_values.total_cost or '不明' }} 円 ／ 当初の確認額 {{ source.confirmed_values.total_cost or '不明' }} 円 ／ 現在の有効額 {{ source['values'].total_cost or '不明' }} 円
+                    </li>
+                {% endfor %}
+                </ul>
+                {% if invoice_cost_context.unresolved %}
+                <p role="alert">過去の合計訂正 {{ invoice_cost_context.actual.total_cost }} 円は対象原本が未確認です。差額を配賦せず保持しています。</p>
+                <label><input type="checkbox" name="invoice_evidence_confirmed" value="1" id="invoice-evidence">
+                    選択した対象原本と訂正額の根拠を確認しました。過去の差額は自動配賦しません</label>
+                {% endif %}
+                <input type="hidden" name="invoice_read_version" value="{{ invoice_cost_context.version }}">
+                <label for="invoice_source">訂正対象の請求書・手入力費用
+                    <select id="invoice_source" name="invoice_source" style="width:100%;max-width:100%">
+                        <option value="">金額は変更しない（請求書を選択すると訂正できます）</option>
+                        {% for source in invoice_cost_context.sources %}
+                        <option value="{{ source.key }}">{{ source.label }}{% if source.reference %}：{{ source.reference.filename }} ／ 明細{{ source.reference.record_index + 1 }}{% endif %} ／ {{ source['values'].total_cost or '不明' }} 円</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <p id="invoice-read-before" aria-live="polite"></p>
+                <p><a id="invoice-read-original" target="_blank" rel="noopener" hidden>対象の原本を開く</a></p>
+                <p id="invoice-read-after" aria-live="polite"></p>
+            </div>
+            <script src="{{ url_for('static', filename='js/invoice_cost_read_form.js') }}" defer></script>
+            {% endif %}
             <div class="km-form-grid">
                 {{ field('parts_cost', '部品代（円）', decimal=true, limit=100) }}
                 {{ field('labor_cost', '工賃（円）', decimal=true, limit=100) }}
