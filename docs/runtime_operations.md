@@ -126,7 +126,7 @@ GunicornはLinuxで使用します。Windowsにパッケージを導入できて
 | `tools/upgrade_checklist_event_timestamps.py` | 文字列長40への対応。`checklist_event_storage.py`が型/長さを検査。UTC/JST変換ではない |
 | `tools/upgrade_import_owners.py` | Q02受付UUID証跡。専用URL必須。`import_owner.py`、Q02 #313資料 |
 | `tools/upgrade_operation_csv_owners.py` | #327の運行CSV受付UUID証跡。`Q03_CSV_OWNER_MIGRATION_DATABASE_URL`必須で`DATABASE_URL`へフォールバックしない。`operation_csv_owner.py`が既存表、nullable文字列列（36文字以上）、会社/所有者の非一意索引とPG索引のvalid/readyを検査。旧NULLは補完しない |
-| `tools/upgrade_master_generations.py` | Q04マスタ世代列・一意制約等の検査。専用URL/対象名/非本番確認が必要、`--check`は読取確認。#317の資料を参照 |
+| `tools/upgrade_master_generations.py` | Q04の世代列追加・未付与世代の初期付与と、通常表/世代の欠落・不正・重複の検証。専用URL/対象名/非本番確認が必要、`--check`は読取確認。会社内名称一意索引の定義・valid/ready診断は別責務（#295／#304、`tools/q04_master_preflight.py`）。[世代の既存報告](quality/Q04-master-generations-20261029.md)と[診断の既存報告](quality/Q04-master-preflight-20261029.md)を参照 |
 | `flask --app app upgrade-domain-storage` | 原本保存/分析キャッシュ用の既存処理。保存先変更は今回の対象外 |
 
 これは**調査用の索引で、上から一括実行する順序ではありません**。配備SHAごとの適用順序・適用済み判定・失敗時復帰は移行主管が管理します。旧版の5処理手順へ#313や#317を独断で付け足しません。安全な再実行可否も処理ごとに異なり、UUIDの旧データ補完を推定で行いません。
