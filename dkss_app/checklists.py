@@ -3591,7 +3591,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         company_code=company_code,
         id=vehicle_record_id,
         deleted=False
-    ).first()
+    ).with_for_update().first()
 
     if not vehicle:
         return _dkss_http.return_form_errors([

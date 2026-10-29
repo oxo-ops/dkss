@@ -52,4 +52,4 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - run: python -m unittest test_q03_postgres_person_identity.Q03PostgresPersonIdentityTests test_q03_account_generations.CombinedPostgresIdentityTests test_q03_vehicle_identity.Q03PostgresVehicleIdentityTests test_q03_form_generation.PostgresFormGenerationTests test_q03_actor_generation.PostgresActorGenerationTests -v
+      - run: python -m unittest test_q03_postgres_person_identity.Q03PostgresPersonIdentityTests test_q03_account_generations.CombinedPostgresIdentityTests test_q03_vehicle_identity.Q03PostgresVehicleIdentityTests test_q03_form_generation.PostgresFormGenerationTests test_q03_actor_generation.PostgresActorGenerationTests test_q03_notify_setting_concurrency.PostgresNotifySettingConcurrencyTests -v
