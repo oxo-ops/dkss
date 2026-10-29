@@ -61,9 +61,11 @@ Linuxで現在版のGunicorn/専用OCRを実起動した結果とは区別する
 
 その後、利用者が作成済みの[既存PR #329](https://github.com/oxo-ops/dkss/pull/329)を確認した。head `ff6142a37fd1576dd2892911a4fdb4c800d9366a`の全8チェック（regression、CodeQL、Analyze Python、pip-audit、identity、postgres 2件、browser）が成功した。全体回帰は[当該run](https://github.com/oxo-ops/dkss/actions/runs/40815558240/job/123255652245)で成功を確認し、失敗の再実行は行っていない。
 
-今回の仕上げではmain `15a197142e3d1b30197f75cfd05f156aaf6a2c0e`を通常mergeし、既存PRを維持した。#327のCSV移行入口、旧NULL保留、旧版への切戻し時のCSV私有経路停止条件だけを運用索引へ追記した。移行や追加移行受入は実行していない。
+仕上げ作業ではmain `15a197142e3d1b30197f75cfd05f156aaf6a2c0e`を旧ブランチへ通常mergeしたが、その間に#329が旧head `ff6142a`でmainへマージされた（merge commit `1741c64426f75f682a331f99b9249a45caf7a612`）。追加コミット`eb0a99017b2f1c44afde26328246a759daae93f7`は#329のマージ内容に含まれない。旧ブランチ・同コミット・証跡を保持している。
 
-現在版Linuxの実Gunicornと明示OCR起動の証拠不足を補うため、`test_q09_linux_runtime.py`を既存回帰CIへ自動収集される1件として追加した。新規一時SQLite、非loopback接続の遮断、既定gthread/1/4、ログインHTTP200、組込/明示OCR heartbeat、通常SIGTERMの終了コード0を確認する。実配備時間や台数の測定ではなく、Q11の強制停止/復旧・lease失効試験も再実施しない。Windowsの局所確認は既存Q09 2件成功・Linux専用1件skip。追加後headのLinux実行結果と全チェックは既存#329で別途確認する。
+利用者の指示で、最新main `1741c64426f75f682a331f99b9249a45caf7a612`から後続ブランチ`test/q09-linux-runtime-followup-20261029`を作成し、未反映の本資料・運用索引・Linux試験の3ファイルだけを取り込んだ。README・OCR製品修正・既存Q09診断試験は差分に含めず、#329を再オープンしない。#327のCSV移行入口、旧NULL保留、旧版への切戻し時のCSV私有経路停止条件を運用索引へ追記した。移行や追加移行受入は実行していない。
+
+現在版Linuxの実Gunicornと明示OCR起動の証拠不足を補うため、`test_q09_linux_runtime.py`を既存回帰CIへ自動収集される1件として追加した。新規一時SQLite、非loopback接続の遮断、既定gthread/1/4、ログインHTTP200、組込/明示OCR heartbeat、通常SIGTERMの終了コード0を確認する。実配備時間や台数の測定ではなく、Q11の強制停止/復旧・lease失効試験も再実施しない。Windowsの局所確認は既存Q09 2件成功・Linux専用1件skip。追加後headのLinux実行結果と必要チェックは後続PRの新しいheadで判定し、旧#329の成功を転用しない。後続PRの最終番号・head・CI証跡は引継ぎ報告へ記録する。
 
 基準mainを構成する#322の最終head `30f33a3329a6b422162ba13887b2799a07c7ec6e`ではregression、CodeQL、Analyze Python、pip-audit成功をGitHubで確認した。これは今回のQ09 headの成功を意味しない。依存監査/CodeQLの既存構成は利用可能だが、Q09変更のCI合格判定はPR作成後に行う。
 
