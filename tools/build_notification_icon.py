@@ -6,12 +6,16 @@ from PIL import Image, PngImagePlugin
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = (76, 152, 304)
 
-def build(check=False):
-    source = ROOT / "static/icons/notification.png"
+def build(check=False, asset="notification"):
+    """Reuse the public PNG pipeline; never rewrite the source asset."""
+    if asset not in {"notification", "truck"}:
+        raise ValueError("Unsupported public display asset")
+    sizes = SIZES if asset == "notification" else (96, 192, 384)
+    source = ROOT / f"static/icons/{asset}.png"
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     with Image.open(source) as original:
-        for size in SIZES:
-            target = source.with_name(f"notification-display-{size}.png")
+        for size in sizes:
+            target = source.with_name(f"{asset}-display-{size}.png")
             if check:
                 with Image.open(target) as derived:
                     assert derived.size == (size, size), target
@@ -28,4 +32,6 @@ def build(check=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
-    build(parser.parse_args().check)
+    parser.add_argument("--asset", choices=("notification", "truck"), default="notification")
+    args = parser.parse_args()
+    build(args.check, args.asset)
