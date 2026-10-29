@@ -11,7 +11,7 @@ from PIL import Image, UnidentifiedImageError
 
 from .profile_images import cache, _encode
 
-WIDTHS = (384, 768)
+WIDTHS = (480, 960)
 
 
 def preview(draft, vehicle_id):

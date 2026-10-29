@@ -277,7 +277,10 @@
                         width="{{ display.width }}" height="{{ display.height }}"
                         {% if display.variants %}
                         srcset="{% for size in display.variants %}{{ selected_document.source_url }}?preview={{ size }} {{ size }}w, {% endfor %}{{ selected_document.source_url }} {{ display.width }}w"
-                        sizes="auto, 100vw" loading="lazy"
+                        {# 2.2fr:1fr column <=31.25vw, minus preview margins.
+                           Below 1440px, allow the shared shell to choose one column.
+                           Eager discovery avoids delaying high-DPR originals. #}
+                        sizes="(min-width: 1440px) calc(31.25vw - 20px), 100vw"
                         {% endif %}
                         {% endif %}
                         alt="{{ selected_document.filename }}">
