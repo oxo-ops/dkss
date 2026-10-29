@@ -6,6 +6,8 @@ Does not validate PostgreSQL locking, browser CSRF or live deployment.
 """
 from identity_fixture import identity_for, PersonSelectionClient
 import io
+import html
+import re
 import json
 import os
 from pathlib import Path
@@ -84,8 +86,13 @@ class Q02ChecklistBoundaryTests(unittest.TestCase):
         self.db.session.commit()
         self.login('checker', company)
         before = {r.id for r in m.ChecklistResult.query.all()}
+        page = self.request('GET', f'/safety/checklists/{checklist.id}/new')
+        self.assertEqual(page.status_code, 200)
+        proof = re.search(r'name="person_selection_token"\s+value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(proof, 'The real GET must issue person-generation evidence')
         response = self.request('POST', f'/safety/checklists/{checklist.id}/new',
-            data={'answer_0': company + '-ANSWER-SECRET', **(candidates or {})})
+            data={'answer_0': company + '-ANSWER-SECRET', **(candidates or {}),
+                  'person_selection_token': html.unescape(proof[1])})
         self.assertEqual(response.status_code, 302)
         rows = [r for r in m.ChecklistResult.query.all() if r.id not in before]
         self.assertEqual(len(rows), 1)
