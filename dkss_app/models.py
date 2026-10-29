@@ -4,6 +4,7 @@ from uuid import uuid4
 from sqlalchemy.orm import synonym
 from zoneinfo import ZoneInfo
 from .extensions import db
+from .master_generations import new_generation
 
 class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -279,6 +280,9 @@ class VehicleType(db.Model):
     __table_args__ = (
         db.Index("uq_vehicle_type_company_name", "company_code", "name", unique=True),
     )
+    master_generation = db.Column(db.String(36), nullable=False, default=new_generation)
+    __mapper_args__ = {"version_id_col": master_generation, "version_id_generator": False}
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -308,6 +312,9 @@ class LicenseType(db.Model):
     __table_args__ = (
         db.Index("uq_license_type_company_name", "company_code", "name", unique=True),
     )
+    master_generation = db.Column(db.String(36), nullable=False, default=new_generation)
+    __mapper_args__ = {"version_id_col": master_generation, "version_id_generator": False}
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -479,6 +486,9 @@ class Office(db.Model):
     __table_args__ = (
         db.Index("uq_office_company_name", "company_code", "name", unique=True),
     )
+    master_generation = db.Column(db.String(36), nullable=False, default=new_generation)
+    __mapper_args__ = {"version_id_col": master_generation, "version_id_generator": False}
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -489,6 +499,9 @@ class DeliveryPlace(db.Model):
     __table_args__ = (
         db.Index("uq_delivery_place_company_name", "company_code", "name", unique=True),
     )
+    master_generation = db.Column(db.String(36), nullable=False, default=new_generation)
+    __mapper_args__ = {"version_id_col": master_generation, "version_id_generator": False}
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)
@@ -510,6 +523,9 @@ class PatrolContentType(db.Model):
     __table_args__ = (
         db.Index("uq_patrol_content_type_company_name", "company_code", "name", unique=True),
     )
+    master_generation = db.Column(db.String(36), nullable=False, default=new_generation)
+    __mapper_args__ = {"version_id_col": master_generation, "version_id_generator": False}
+
     id = db.Column(db.Integer, primary_key=True)
 
     company_code = db.Column(db.String(50), nullable=False)

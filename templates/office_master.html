@@ -42,6 +42,7 @@
                     data-confirm-message="この営業所を削除しますか？"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="master_token" value="{{ master_form_token('offices', office.id, office.master_generation, 'delete') }}">
                     <button
                         type="submit"
                         class="btn-small btn-delete"

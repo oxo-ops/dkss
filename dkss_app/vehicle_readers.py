@@ -172,12 +172,13 @@ def vehicle_icon(vehicle_type="", body_type=""):
 
 
 
-def vehicle_types_for_current_company():
+def vehicle_types_for_current_company(include_generation=False):
     query = _dkss_master_readers.ordered_master_query(_dkss_models.VehicleType, _dkss_common.session.get("company_code"))
 
     return [
         {
             "id": vehicle_type.id,
+            **({"master_generation": vehicle_type.master_generation} if include_generation else {}),
             "index": vehicle_type.id,
             "company_code": vehicle_type.company_code,
             "name": vehicle_type.name
@@ -187,12 +188,13 @@ def vehicle_types_for_current_company():
 
 
 
-def license_types_for_current_company():
+def license_types_for_current_company(include_generation=False):
     query = _dkss_master_readers.ordered_master_query(_dkss_models.LicenseType, _dkss_common.session.get("company_code"))
 
     return [
         {
             "id": license_type.id,
+            **({"master_generation": license_type.master_generation} if include_generation else {}),
             "index": license_type.id,
             "company_code": license_type.company_code,
             "name": license_type.name

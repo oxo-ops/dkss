@@ -95,10 +95,13 @@ class MasterOrderConcurrencyTests(unittest.TestCase):
         return {'path': '/master/' + kind + '/order', 'json': {'ids': wanted, 'previous_ids': previous}}
 
     def send(self, label, client, spec):
+        from master_form_fixture import fresh_master_data
+        arguments = ({'json': spec['json']} if 'json' in spec else
+                     {'data': fresh_master_data(client, spec['path'], {})})
         self.local.worker = label
         try:
             try:
-                response = client.post(spec['path'], **({'json': spec['json']} if 'json' in spec else {'data': {}}))
+                response = client.post(spec['path'], **arguments)
                 try:
                     return {'status': response.status_code, 'location': response.location,
                             'json': response.get_json(silent=True)}
