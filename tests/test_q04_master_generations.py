@@ -149,6 +149,8 @@ class GenerationCases:
             with self.subTest(kind=kind):
                 client = self.plain_client()
                 ident = self.create(client, kind, 'Current-Probe')
+                with self.app.app_context():
+                    initial_generation = self.model(kind).query.filter_by(id=ident).one().master_generation
                 data = self.form(client, kind, ident, 'edit')
                 self.assertTrue(data.get('master_token'), 'Use a real rendered signed form')
                 data['name'] = 'Current-Renamed'
@@ -156,6 +158,7 @@ class GenerationCases:
                 data = self.form(client, kind, ident, 'delete')
                 with self.app.app_context():
                     generation = self.model(kind).query.filter_by(id=ident).one().master_generation
+                    self.assertEqual(generation, initial_generation, 'Rename must preserve record generation')
                 self.assertEqual(self.post(client, kind, ident, 'delete', data).status_code, 302)
                 with self.app.app_context():
                     action = self.model(kind).__tablename__ + '_deleted'
@@ -163,7 +166,10 @@ class GenerationCases:
                         target_id=str(ident)).order_by(self.models.AuditLog.id.desc()).first()
                     self.assertIsNotNone(audit)
                     self.assertIn('master_generation=' + generation, audit.detail)
-                self.create(client, kind, 'Current-Renamed')
+                replacement = self.create(client, kind, 'Current-Renamed')
+                with self.app.app_context():
+                    self.assertNotEqual(self.model(kind).query.filter_by(id=replacement).one().master_generation,
+                                        initial_generation, 'Reregister must create a different record generation')
 
     def test_unsigned_and_tampered_forms_never_write(self):
         client = self.plain_client()
@@ -262,6 +268,36 @@ class GenerationCases:
             self.app.secret_key = old_key
 
 
+    def test_unmigrated_and_unassigned_legacy_rows_fail_closed_until_explicit_upgrade(self):
+        from sqlalchemy import inspect, text
+        from dkss_app.master_generations import upgrade_storage
+        client = self.plain_client()
+        ident = self.create(client, 'offices', 'Legacy-Probe')
+        data = self.form(client, 'offices', ident, 'edit')
+        data['name'] = 'Unsafe-Legacy-Edit'
+        with self.app.app_context():
+            engine = self.db.engine
+            # Test-owned schema only: reproduce a pre-release master table.
+            self.db.session.execute(text('ALTER TABLE office DROP COLUMN master_generation'))
+            self.db.session.commit()
+        self.assertEqual(self.post(client, 'offices', ident, 'edit', data).status_code, 409)
+        self.assertNotIn('master_generation', [c['name'] for c in inspect(engine).get_columns('office')])
+        with engine.connect() as c:
+            self.assertEqual(c.scalar(text('SELECT name FROM office WHERE id=:id'), {'id': ident}), 'Legacy-Probe')
+        upgrade_storage(engine)
+        fresh = self.form(client, 'offices', ident, 'edit')
+        fresh['name'] = 'Unsafe-Unknown-Edit'
+        with engine.begin() as c:
+            c.execute(text('UPDATE office SET master_generation=NULL WHERE id=:id'), {'id': ident})
+        self.assertEqual(self.post(client, 'offices', ident, 'edit', fresh).status_code, 409)
+        with engine.connect() as c:
+            self.assertIsNone(c.scalar(text('SELECT master_generation FROM office WHERE id=:id'), {'id': ident}))
+            self.assertEqual(c.scalar(text('SELECT name FROM office WHERE id=:id'), {'id': ident}), 'Legacy-Probe')
+        upgrade_storage(engine)
+        current = self.form(client, 'offices', ident, 'edit')
+        current['name'] = 'Explicitly-Migrated'
+        self.assertEqual(self.post(client, 'offices', ident, 'edit', current).status_code, 302)
+
 def stale_case(kind, operation):
     def run(self): self.stale_case(kind, operation)
     return run
@@ -317,33 +353,3 @@ class SQLiteMasterGenerationTests(GenerationCases, unittest.TestCase):
                 release.set()
             self.assertEqual(pending.result(timeout=15).status_code, 409)
         self.assertEqual(self.snapshot_all(), before)
-
-    def test_unmigrated_and_unassigned_legacy_rows_fail_closed_until_explicit_upgrade(self):
-        from sqlalchemy import inspect, text
-        from dkss_app.master_generations import upgrade_storage
-        client = self.plain_client()
-        ident = self.create(client, 'offices', 'Legacy-Probe')
-        data = self.form(client, 'offices', ident, 'edit')
-        data['name'] = 'Unsafe-Legacy-Edit'
-        with self.app.app_context():
-            engine = self.db.engine
-            # Test-owned schema only: reproduce a pre-release SQLite table.
-            self.db.session.execute(text('ALTER TABLE office DROP COLUMN master_generation'))
-            self.db.session.commit()
-        self.assertEqual(self.post(client, 'offices', ident, 'edit', data).status_code, 409)
-        self.assertNotIn('master_generation', [c['name'] for c in inspect(engine).get_columns('office')])
-        with engine.connect() as c:
-            self.assertEqual(c.scalar(text('SELECT name FROM office WHERE id=:id'), {'id': ident}), 'Legacy-Probe')
-        upgrade_storage(engine)
-        fresh = self.form(client, 'offices', ident, 'edit')
-        fresh['name'] = 'Unsafe-Unknown-Edit'
-        with engine.begin() as c:
-            c.execute(text('UPDATE office SET master_generation=NULL WHERE id=:id'), {'id': ident})
-        self.assertEqual(self.post(client, 'offices', ident, 'edit', fresh).status_code, 409)
-        with engine.connect() as c:
-            self.assertIsNone(c.scalar(text('SELECT master_generation FROM office WHERE id=:id'), {'id': ident}))
-            self.assertEqual(c.scalar(text('SELECT name FROM office WHERE id=:id'), {'id': ident}), 'Legacy-Probe')
-        upgrade_storage(engine)
-        current = self.form(client, 'offices', ident, 'edit')
-        current['name'] = 'Explicitly-Migrated'
-        self.assertEqual(self.post(client, 'offices', ident, 'edit', current).status_code, 302)
