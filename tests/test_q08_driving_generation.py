@@ -112,7 +112,7 @@ class DrivingGenerationTests(unittest.TestCase):
             session.update(company_code='OTHER', username=original.username, role='user')
             self.assertIsNone(resolver().resolve(row)[0])
 
-    def test_automatic_import_assignment_also_records_generation(self):
+    def test_explicit_import_selection_also_records_generation(self):
         row = self.save(name='自動照合用')
         user = self.m.User(company_code='TEST', username='automatic', role='user',
             password='unused', last_name='自動照合用', password_changed_at='stamp')
@@ -122,7 +122,7 @@ class DrivingGenerationTests(unittest.TestCase):
             from flask import session
             admin = self.m.User.query.filter_by(company_code='TEST', username='admin').one()
             session.update(company_code='TEST', username='admin', role='admin', account_identity=admin.account_identity)
-            driving_access.resolve_import(row)
+            driving_access.resolve_import(row, user.username)
             self.m.db.session.commit()
         evidence = driving_access.DrivingReaderAccount.query.one()
         self.assertEqual(evidence.account_identity, user.account_identity)

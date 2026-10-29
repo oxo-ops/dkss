@@ -1,5 +1,5 @@
-.dashboard-page .dashboard-reference-safety .summary-card > .safe-start-scheduled {
-    grid-column: 2 / 4;
+.dashboard-page.dashboard-design-v2 .dashboard-reference-safety .summary-card > .summary-value.safe-start-scheduled {
+    grid-column: 3 / 5;
     min-width: 0;
     font-size: 14px;
     line-height: 1.4;

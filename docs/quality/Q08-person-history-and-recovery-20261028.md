@@ -40,7 +40,7 @@ Q03が編集する`checklists.py`、承認候補、点検対象者、モデル�
 | 08 | 運転日報の確定権限・詳細・一覧・CSV/PDF `models.py:317`、`driving_identity_resolution.py:88` | 今回修正、P1、Q08 |
 | 09 | 閲覧設定の確認操作者 `models.py:325` | 今回UUID・氏名証跡を追加、P2、Q08。旧確認者は未確認のまま |
 | 10 | 未紐付け旧日報の氏名照合 `driving_identity_resolution.py:125`付近、既存上記テスト | 未対応・架空データで200再現、P1、運転分析担当と仕様調整 |
-| 11 | 点検起点・車両候補訂正の数値User.id `driving_vehicle_links.py:65,113,218` | 未対応・静的確認、P1候補。点検履歴を使うためQ03/運転分析へ連携。PostgreSQLの訂正FKは物理削除を拒否し得る。SQLite等でID再利用時の実HTTP再現は未実施 |
+| 11 | 点検起点・車両候補訂正の数値User.id `driving_vehicle_links.py` | 両DBで旧候補GET・訂正POSTの継承を再現したP1。UUID照合・追記移行を独立修正。訂正済み対象/操作者の物理削除FKは維持。旧データ・添付の留保と受入試験は[No.11記録](Q08-No11-inspection-origin-generation-20261029.md)参照 |
 | 12 | AI振り返りキャッシュの数値IDキー `driving_report_reflection.py:237-254` | UUIDなし、P2要検証。現行認可を再評価するため単独の漏えいは未再現、運転分析 |
 | 13 | 日報review/auditのby・assignee、CSV/PDF表示 `driving_report_management.py:363,382,462,550` | usernameスナップショットのみ、P2。現在Userの氏名へ引き直さないが同一人物の断定不可、運転分析 |
 | 14 | 安全点検対象者 `models.py:1458`, `checklists.py:1979` | Q03 #283実装済み・main未反映、P1、対象外 |
