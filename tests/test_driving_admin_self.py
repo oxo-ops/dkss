@@ -1,5 +1,5 @@
-from driving_selection_fixture import fresh_person_proof
 """Managers retain authority while requesting a strictly personal report scope."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest

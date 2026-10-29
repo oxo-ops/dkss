@@ -100,7 +100,9 @@ def assign(rows, username, actor, expected_identity=None):
     if not ready():
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
     query=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES))
-    if expected_identity is not None:query=query.populate_existing().with_for_update()
+    # Reading the account needs a shared lock, not a shared-to-exclusive upgrade.
+    # Both lock modes block deletion/replacement until this grant commits.
+    if expected_identity is not None:query=query.populate_existing().with_for_update(read=True)
     user=query.first() if username else None
     if expected_identity is not None and (not user or user.account_identity != expected_identity):
         db.session.rollback()

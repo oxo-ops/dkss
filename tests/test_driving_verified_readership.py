@@ -1,5 +1,5 @@
-from driving_selection_fixture import fresh_person_proof
 """No.10 acceptance: candidates never authorize a stored report without UUID evidence."""
+from driving_selection_fixture import fresh_person_proof
 import csv
 import io
 import json

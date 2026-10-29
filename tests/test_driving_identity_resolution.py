@@ -1,5 +1,5 @@
-from driving_selection_fixture import fresh_person_proof
 """Identity follows real report fields; fixtures are not evidence about manufacturers."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest

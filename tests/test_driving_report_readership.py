@@ -1,5 +1,5 @@
-from driving_selection_fixture import fresh_person_proof
 """Viewer isolation and manager-confirmed identity against real Flask/SQLite."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest

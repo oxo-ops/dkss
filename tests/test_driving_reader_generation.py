@@ -291,4 +291,26 @@ class ReaderGenerationTests(DrivingIdentityFixture, unittest.TestCase):
 
 
 class PostgresReaderGenerationTests(DisposablePostgres, ReaderGenerationTests):
-    pass
+    def test_parallel_distinct_reports_for_same_person_do_not_upgrade_shared_locks(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        first = self.form()
+        self.row = self.save(2)
+        second = self.form()
+        with self.client.session_transaction() as state:
+            claims = dict(state)
+        self.m.db.session.commit()
+        barrier = Barrier(2)
+        original = driving_access.assign
+        def simultaneous(*args, **kwargs):
+            barrier.wait(timeout=10)
+            return original(*args, **kwargs)
+        def save(form):
+            client = self.m.app.test_client()
+            with client.session_transaction() as state:state.update(claims)
+            return client.post(form[0], data=form[1]).status_code
+        with patch.object(driving_access, 'assign', side_effect=simultaneous):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                responses = list(pool.map(save, [first, second]))
+        self.assertEqual(responses, [302, 302])
+        self.assertEqual(driving_access.DrivingReportReader.query.count(), 2)
