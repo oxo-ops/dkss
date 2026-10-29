@@ -1,61 +1,72 @@
-# 品質改善Wordのmain照合改訂報告 2026年10月29日
+# 品質改善Wordの進展反映と報告集約 2026年10月29日
 
-照合基準：2026-10-29 07:49 JST、main `037ab518305430a794571f89ba3aacc8bf0dbab6`。2026年10月28日21:31 JSTのWordを保全し、別ファイルで確認用改訂を作成した。正式版番号・承認日は未設定。今回の書記作業ではアプリ試験を再実行していない。
+照合基準：2026-10-29 08:23 JST、main `40ac8acc2a00f27256b69c1444b253ce22502c95`。実装・PRマージ・対象head CI・本番受入を別々に判定する。アプリ試験は書記作業で再実行していない。正式版番号・承認日は更新していない。
 
-更新Word：`輸送版DX_品質改善と検証計画_main照合改訂_確認用_20261029.docx`
+## 最新Wordと保全
 
-保存先：`C:\Users\takah\Documents\Codex\2026-10-28\dx-oxo-ops-dkss-q02-q03\outputs\輸送版DX_品質改善と検証計画_main照合改訂_確認用_20261029.docx`
+ファイル：`輸送版DX_品質改善と検証計画_進展反映_確認用_20261029.docx`
 
-SHA-256：`39aa281ca65bf96ad3a57dc0ac8846a3d120b71ec2a7990e826ba36aa1db24b7`
+保存先：`C:\Users\takah\Documents\Codex\2026-10-28\dx-oxo-ops-dkss-q02-q03\outputs\輸送版DX_品質改善と検証計画_進展反映_確認用_20261029.docx`
 
-保全した旧Word：`輸送版DX_品質改善と検証計画_重要検証結果反映_確認用_20261028.docx`、SHA-256 `1eff1989735ef0b08a8e9b204b991bfc066e83ebbbcf849e89bceebffbb75fe7`。
+SHA-256：`a93aa3e2fefa94b07af5bb5490ea2fd47f4597b2dc703ea47c96d9023985ddec`
 
-## 章別更新と判定
+前回07:49 JSTのWord：`輸送版DX_品質改善と検証計画_main照合改訂_確認用_20261029.docx`、SHA-256 `39aa281ca65bf96ad3a57dc0ac8846a3d120b71ec2a7990e826ba36aa1db24b7`。元ファイルを変更せず保全。10月28日21:31 JSTのWord（SHA-256 `1eff1989735ef0b08a8e9b204b991bfc066e83ebbbcf849e89bceebffbb75fe7`）も不変。
 
-| 更新先 | 採用した結果と残る条件 |
-|---|---|
-| 冒頭・1章 | 基準mainと日時を更新。「#285等の未マージ調査」を修正。旧結果・SHA・表は各時点の履歴として保持。 |
-| 3章 Q03・20章 | #283 head2236a578の最終追加受入34件・全CI成功、draft解除を一次報告とGitHubで確認。以前の受入不合格は旧結果として保持。未マージでありmain反映済みにはしない。合成復元と本番移行・実規模停止時間を分離。 |
-| 3章 Q04 | #273のお知らせ営業所ロック・通知一括保存と、#295の不正索引検出をマージ済みへ更新。#295担当報告はPG211件、全体1387件実行・20skip。自動索引修復はなく実DB棚卸し・承認済み修復手順が必要。 |
-| 3・17章 Q05 | #298 head990050a9の全CI成功・未マージと、#292ドラフト・日付PG／回帰失敗を区別。#298反映後の#292再受入は未実施。旧日時の根拠不明を補完しない。 |
-| 4章 Q08・Q09 | #297の確定済み日報・点検通知の世代証跡をマージ済みとして反映。旧権限の再承認・明示初期化・停止と切戻し条件を追補。本人復元は仕様案で未実装。未紐付け旧日報の氏名照合・非同期取込所有者・旧フォームの世代競合は残る。 |
-| 4章 Q10 | #294 head0732c71e、main037ab51に対するPG29件中17成功・12失敗、ブラウザ6件・Q08 PG世代境界19件成功を担当資料で確認。全体回帰1392成功・別途29クラスskipでも受入不合格。日時32文字とVARCHAR(30)不整合、同名別UUIDへの旧受付／未登録原本継承の2問題を維持。 |
-| 4章 Q12 | 番号を変えず「Q12〔リリース・引継ぎ〕」「Q12〔表示性能改善〕」を併記する参照区分を明示。旧工程・工数・表はリリース・引継ぎに属し、性能改善へ移さない。新しい正式IDは未決。 |
-| 4章 Q12 表示性能 | #290・#293の限定計測と#300の結合確認を反映。原画像派生とCSS読込位置の改善を分離。#300マージ前後のmain tree差分0をgitで確認し、新たな製品変更・性能効果を加算しない。 |
-| 8・21・25章 | 出典、旧Word保全、残存リスク、横断受入条件を更新。M06／M07未解決、Q11待機・12〜21人時を維持。品質改善全体・本番受入を完了としない。 |
+## 報告の重複整理
 
-## Q12測定の範囲
+既存#306へ更新する方針で作業したが、08:44 JSTの確認で#306が08:35に旧head644857aのまま外部マージ済みと判明した。今回コミット94bb3dcはそのマージに含まれず、閉じたPRの差分更新はできないため、最新mainから後継ブランチを作り同じ報告ファイル1件だけを更新する。新規PRはこの未反映差分のために限る。#296は旧時点の履歴を保全してクローズし、#306は07:49記録として保持する。旧Word・Git履歴は削除せず、重複ファイルや重複実装を追加しない。
 
-main内の `docs/q12-performance-20261028.md` と `docs/q12-inspection-first-paint-20261028.md` を根拠とする。架空200台、原画像2,627,384B、Chrome PC／mobile模擬、低速150ms・下り1.6Mbps・CPU4倍、各条件1回の比較。#290は設定再表示loadがPC14,211→776ms、mobile約14,214→782ms。#293はPC点検計画再表示CLS0.2293→0.0005、低速mobile初回0.1940→0.0601。SLA・統計的な保証、SQL改善・全体load改善を示す値ではない。
+## 章別変更・根拠・残条件
 
-mobile非同期描画CLS約0.058、多数予定、実機Safari／Android、実S3、実PG／同時負荷、配信層の検証は残る。#290／#293の本文に残る古いheadの失敗・ドラフト記述と、下記の最終head CI成功・マージを分離した。
+| 反映先 | 確認した進展 | 未完了と受入の境界 |
+|---|---|---|
+| 冒頭・1章・8章 | 基準mainと時刻を更新し、過去追補・PR本文の旧状態を区分。既存報告の時点を分け、#306外部マージ後の後継差分に整理 | 正式版番号・承認日・正本認定は未設定 |
+| 3章 Q02 | #307 head82be1aa3は日常点検500を対象とするドラフト・未マージ。32文字日時を保持してVARCHAR(40)へ拡幅する候補と明示移行手順 | 担当候補単独25成功・OCR4失敗はmain受入ではない。08:23時点の全体回帰は実行中。既存PG移行・旧値・SQLite互換・Q10再受入が必要 |
+| 3章 Q03・20章 | #283がmerge939dd06でmain反映済みへ更新。head2236a578の両DB受入・CI成功を引継ぐ | 実配信・本番移行・実規模停止時間は未受入。非同期取込所有者等の別課題は解決済みにしない |
+| 3章 Q04 | #304読取専用診断がmain反映済み。追加16件（SQLite11・PG5）の担当報告、最終head CI成功を確認 | SQLiteの最大営業所ID削除・同名同ID再登録後、旧削除POSTで新営業所／新車両割当が消失する問題は未修正。診断0終了やPG成功で代替しない。他4マスタ・世代保護・履歴・他社境界の再受入が必要 |
+| 3・17章 Q05 | #298・#292マージ、各最終headの専用／全体CI成功。未来日を開始予定表示、開始前ランキング対象外、当日0日へ更新 | #292の旧headの失敗記録と区別。ブラウザ時刻帯・PC／mobileの再受入は担当が実施中で最終証拠未確定。旧日時の作成根拠照合は未完了 |
+| 4章 Q10 | #294の確定受入不合格を保持し、#307候補との関係を追補。#299 U40計画回収もmainへ反映済み | #294はmain037ab51／head0732c71eの29件中12失敗。現在mainで全件再受入した記録ではない。OCR中の別UUIDへの旧受付・未登録原本継承を維持。実帳票・実AI・最低記録量は未決 |
+| 4章 Q12〔表示性能改善〕 | #302の指摘一覧派生画像、#303のmobile配置をmain反映済みへ更新。最終head CI成功と限定計測を採用 | 原本／認可保持、実S3・実機・多数予定・エラー・文字拡大等を残条件として保持。旧Q12〔リリース・引継ぎ〕の番号・工数・役割は変えない |
+| 4章 Q12・最新main追加 | #305公開CSS／JS2ファイルgzipがマージ済み、対象head CI成功。展開後の元バイト一致 | PR本文の暫定load値を確定効果に採用せず、実配信エッジ・本番効果は未確認 |
+| 21・25章 | 横断状態と残存リスクを更新 | Q04 SQLite・Q10 OCR等を未解決。Q11待機・12〜21人時、M06／M07未解決を維持。全体完了／本番受入は宣言しない |
 
-## PRとCIの直接確認
+## Q12の測定条件と結果
 
-以下は各PR headのcheckであり、今回のmain全体再実行・本番受入ではない。CodeQLには同一workflow由来の別check名があるため、check数を試験件数として扱わない。
+#302：main037ab51とheade13ac70、架空200台・合成画像12枚1600×1000・一覧10件、PC／mobile、低速150ms・下り200,000B/s・CPU4倍、各3回。再表示load中央値はPC36,662→1,214ms、mobile36,533→1,069ms。HTML SQLは10→10、再表示CLS全条件0。単一画像のローカル原本21SQL→派生7SQLは別測定であり、直接配信するS3経路へ一般化しない。原本SHA維持、詳細・スクロール後画像・戻る操作、Fake S3、変換上限の担当確認を採用。実S3・本番SLAではない。
 
-| PR | 最終確認head | 状態 | CIの状態 |
+#303：架空200台・営業所未設定・予定0件の同じ低速条件、各3回。mobile再表示CLS中央値約0.0581→約0.00038、load777.7→775.3ms、HTML SQL14→14。通信短縮を主張しない。機能試験は実API応答を保持するinterceptionあり、性能計測はinterceptionなし。期限切れCookie由来のログイン画面測定を除外し、認証チェック後の取り直した値だけを採用。多数予定・大きな件数表示・エラー・文字拡大・実機Safariは未受入。
+
+#305：公開CSS834,485→118,923B、JS103,926→21,144B、展開後は元と完全一致する担当証拠。確定比較値のない暫定load短縮は採用しない。
+
+## PRと対象head checkの直接照合
+
+| PR | head | 状態 | CI |
 |---|---|---|---|
-| [#273](https://github.com/oxo-ops/dkss/pull/273) | `bb8ff6a16022d823323e6641a7cdf02fb5de08ca` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40695194426/job/122839987531) |
-| [#283](https://github.com/oxo-ops/dkss/pull/283) | `2236a5786a15af902df65f0b7c715da12cb25b37` | レビュー可能・未マージ | 対象checkすべて成功 [postgres-identity](https://github.com/oxo-ops/dkss/actions/runs/40779948986/job/123138787978) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40779948626/job/123138787675) |
-| [#290](https://github.com/oxo-ops/dkss/pull/290) | `ba173cc47b527cc69850fbbad401fee9ca4a59ca` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40777300237/job/123129789402) |
-| [#292](https://github.com/oxo-ops/dkss/pull/292) | `92ca66e239689916a99cbc1a32be13d3a44cbd7c` | ドラフト・未マージ | 未合格：postgres-dates,regression [postgres-dates](https://github.com/oxo-ops/dkss/actions/runs/40690079262/job/122822348642) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40690079100/job/122822347856) |
-| [#293](https://github.com/oxo-ops/dkss/pull/293) | `e7f12b0c082ba5ca16a0a626014daa2f999c8434` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40778455206/job/123133727721) |
-| [#294](https://github.com/oxo-ops/dkss/pull/294) | `0732c71eb54cf0d0ec4ca968001abf59e5b4006f` | ドラフト・未マージ | 未合格：postgres [postgres](https://github.com/oxo-ops/dkss/actions/runs/40780574642/job/123140936395) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40780574632/job/123140935972) |
-| [#295](https://github.com/oxo-ops/dkss/pull/295) | `54b4e1fd72e14637d67090e0fc5a19b0d41884b6` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40778357842/job/123133396620) |
-| [#297](https://github.com/oxo-ops/dkss/pull/297) | `87c6a92e29c7ccb2a0620a280d5766fbf900fad3` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40776585676/job/123127356503) |
-| [#298](https://github.com/oxo-ops/dkss/pull/298) | `990050a99dad527299fa860df6235531e9727ade` | レビュー可能・未マージ | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40779669732/job/123137838168) / [usage-summary](https://github.com/oxo-ops/dkss/actions/runs/40779669783/job/123137837853) |
-| [#300](https://github.com/oxo-ops/dkss/pull/300) | `d80b78315c70fbc38e17de81353ee8abd02eaab2` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40778461430/job/123133749648) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40778454883/job/123133732365) |
-| [#301](https://github.com/oxo-ops/dkss/pull/301) | `bc67e4bcd4af1e7a22dc1cbbfc0fb0bb0271210a` | マージ済み | 対象checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40777268294/job/123129682287) |
+| [#283](https://github.com/oxo-ops/dkss/pull/283) | `2236a5786a15af902df65f0b7c715da12cb25b37` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40779948626/job/123138787675) |
+| [#298](https://github.com/oxo-ops/dkss/pull/298) | `990050a99dad527299fa860df6235531e9727ade` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40779669732/job/123137838168) |
+| [#292](https://github.com/oxo-ops/dkss/pull/292) | `92b5f05b3befe69b950dd55f96305eb60757eee1` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40785175971/job/123156440849) / [postgres-dates](https://github.com/oxo-ops/dkss/actions/runs/40785175925/job/123156440426) |
+| [#304](https://github.com/oxo-ops/dkss/pull/304) | `c0bb90507391b8b752a52862b34ffe99c7f5061e` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40783732990/job/123151585281) |
+| [#302](https://github.com/oxo-ops/dkss/pull/302) | `e13ac70e3ed119c7221e9276c6413df05e6728ba` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40781054125/job/123142540333) |
+| [#303](https://github.com/oxo-ops/dkss/pull/303) | `f4caa12bdf6df0f477b7c307a5955aeb19124763` | マージ済み | 対象head checkすべて成功 [planner-layout](https://github.com/oxo-ops/dkss/actions/runs/40783692349/job/123151448753) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40783692300/job/123151448276) |
+| [#305](https://github.com/oxo-ops/dkss/pull/305) | `3a5455b45b8f98490abc6ee7ab9f87a3061e73c0` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40785708832/job/123158237399) |
+| [#307](https://github.com/oxo-ops/dkss/pull/307) | `82be1aa3f4f3640d3bddfba1bc70124fde4e93cd` | ドラフト・未マージ | regression:in_progress [postgres](https://github.com/oxo-ops/dkss/actions/runs/40786409811/job/123160593906) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40786409697/job/123160593348) |
+| [#294](https://github.com/oxo-ops/dkss/pull/294) | `0732c71eb54cf0d0ec4ca968001abf59e5b4006f` | ドラフト・未マージ | postgres:failure [postgres](https://github.com/oxo-ops/dkss/actions/runs/40780574642/job/123140936395) / [regression](https://github.com/oxo-ops/dkss/actions/runs/40780574632/job/123140935972) |
+| [#299](https://github.com/oxo-ops/dkss/pull/299) | `6222cfff5d7d4fe1cae668ea9553564b0171ac0b` | マージ済み | 対象head checkすべて成功 [regression](https://github.com/oxo-ops/dkss/actions/runs/40782274242/job/123146659721) |
 
-## 一次資料と保全確認
+PR本文には過去の「ドラフト」「未マージ」「CI失敗」が残るものがある。上表はGitHubの現在メタデータとそのhead checkで確認し、本文の過去状態とは区別した。CIは対象headの証拠で、実環境受入・今回main全体の再試験ではない。
 
-main内：Q04-PR273-integration-20261028.md、Q08-person-history-and-recovery-20261028.md、Q12の上記2資料、実装差分と移行手順。Q03は担当outputsのQ03-final-integration-report-ja.mdとQ03-final-validation-state.json（2236a578）。Q05は共通集計競合修正報告と担当の990050a9再受入24件成功連絡、最新head check。Q10はQ10-acceptance-20261029-report.txt／results.json（0732c71e、基準main037ab51）。異なる対象版の試験件数を重複加算していない。
+## 照合後の状態変化
 
-既存25章のHeading1、24表、改訂履歴表、変更対象外本文を保持。24箇所の局所更新で、既存段落変更20。全24表はXML一致、document.xml以外の18部品はバイト一致、元本文の非対象要素は同一内容・順序。旧Wordハッシュ不変。システム仕様書・Excel・製品コード・DB定義・テストは編集していない。
+#306は2026-10-29 08:35:12 JSTに旧head644857aでマージ（260386d）。#307は08:35:26 JSTに同head82be1aa3でマージ（81141a3）。08:23基準の表では#307をドラフトとして保持し、この事実変化を追記した。マージ後のQ10再受入成功を確認した意味ではなく、OCR所有者・Q10不合格は維持する。08:44時点のmain cc4b8d7には#309・#310も含まれるが、この改訂の個別受入照合には含めず次回対象として明示した。
 
-表示確認：Word 16で読取専用PDF出力し、同梱ラスタ化処理で全ページ画像を作成して確認した。ページ数・ページ外文字・空白ページの最終結果は下記に記録する。
+## 一次資料・保全・表示確認
 
-全27ページを表示確認済み。ページ外文字0、空白ページ0。章・表の欠落や文字重なりは確認されなかった。
+main内：Q03-approval-person-identity、Q04-master-preflight-20261029、Q05-scheduled-safe-start／usage-summary-race、q12-attachment-thumbnails／mobile-planner-stability／public-assetsの各技術資料。#307は同PRの本文・差分とhead状態、#294は確定本文と前回担当report/results（main037ab51）。Q05は最新担当チャットのブラウザ再受入中連絡を最終合格と扱わず、未確定として記録した。
 
-残作業：Q03のレビュー／マージと実環境受入、Q05依存PR反映後の再受入、Q10重大2問題の担当修正後再受入、Q04実DB索引・復旧手順、Q08旧記録・再承認・本人復元方針、Q11再開条件、Q12残存表示・実機／負荷の合意条件。正式承認・正本認定は行っていない。
+各PRの受入件数・集計対象・版は重複があるため加算しない。担当範囲の製品修正・DB操作・アプリ試験は今回実施していない。
+
+既存25章・24表・改訂履歴・書式を保持。20箇所を局所更新し、既存段落変更は14。全24表はXML一致、document.xml以外の18部品はバイト一致、変更対象外本文は同一内容・同一順序を検査。旧Word2点のハッシュ不変。
+
+Word 16の読取専用PDF出力と同梱ラスタ化処理で全28ページを表示確認済み。ページ外文字0・空白ページ0。既存章・表の欠落や文字重なりは確認されなかった。システム仕様書・Excel・製品コード・DB・テストは変更していない。
+
+本改訂は上記時点の確認用記録であり、以後のPR更新は次回照合対象。品質改善全体・本番受入・正式承認の完了を示さない。
