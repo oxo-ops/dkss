@@ -42,8 +42,19 @@ DB列・制約・移行・既存値の書換えはない。過去の本人不明
 
 `test_q03_patrol_selection.py`は新規の36条件をSQLite／PostgreSQLで各実行する。新規／編集の古い選択、二度の古いPOST、missing／forged、対象の削除・会社変更・ロック・role変更、操作者の認証後入替、別会社同名、正当な通常保存、同UUID改姓、Bの選び直し、納入先対象、CSRF、HTML再選択、通知INSERT異常rollback、保存後人物入替、検証直後の実SQLロックを含む。新しい専用CIを追加した。
 
-既存Q04用fixtureの直接POSTには、新しい署名契約に必要な実GET取得だけを追加した。明示署名は上書きせず、既存assertを維持。歴史的checkoutへfixtureだけをコピーする既存手順では、追加helperがない場合に従来動作を維持する。Q04製品・共通person_selection・共通通知配送は無変更。
+既存Q04用fixtureの直接POSTには、既存person_selection.issueによる新しい署名の付与だけを追加した。候補取得GETを追加せず、Q04が計測するPOSTの実SQL同期点を維持する。明示署名は上書きせず、既存assertを維持。歴史的checkoutへfixtureだけをコピーする既存手順では、追加helperがない場合に従来動作を維持する。Q04製品・共通person_selection・共通通知配送は無変更。
 
 Q04との限定互換確認4件は3件成功、営業所編集のhistory-first 1件でschedulerのbackend PID数assert（期待2、実際1）が失敗した。最新mainのsafety.pyを使った同一条件でも同じassertで失敗を確認した。PIDの記録やQ04の期待値を緩和せず、担当留保として引き継ぐ。今回の新規72件の合否とは別記録である。
 
 Q03残件は今回PRのレビューとCI確認、および既存の判断待ち2件。今回の人物保存修正が完了しても、冪等性や同世代リスト統合の仕様決定済みとはしない。監査・製品実装の独立した重要未検証経路は今回の対象2経路で閉じ、既知の判断待ちを同じ試験で再調査しない。
+
+
+## 2026年10月30日 再開時のCI切り分け
+
+中断head `ed1d91ce7e0504ee9f70bcd2637c532fde5ea942`はローカルとリモートが一致。mainは引き続き`2cfe149`。13チェック中12成功、Q04 postgres-mastersだけ失敗した。追加72件、Q03承認・通知・CSV、Q08、全体回帰、CodeQL・依存監査は成功記録を保持し、ローカルでは再実行していない。
+
+CI失敗4条件は、営業所edit/deleteとパトロールnew/editのhistory-firstにおけるHTTP期待400に対する302であり、既報のbackend PID数assertとは異なる。今回追加したfixtureの実GETがQ04のDriver SELECT同期点へ入り、保存POSTではなく候補表示GETの時点で相手処理を進めていた。これは今回の試験adapter由来。製品・Q04 scheduler・期待値は変更せず、既存identity_fixtureと同じissue／session契約で新しい証跡を付与する形へ修正した。
+
+追加のfixture専用4件は成功。GETを呼ばないこと、元の入力不変、会社・操作者の維持、明示された旧／空／改変署名を更新しないこと、対象外経路不変を確認。新設のloopback専用クラスタ56534／架空データでCI失敗のQ04四条件だけを確認し、全件成功（各々400／302、異なる2 backend PID）。合格済み72件・旧移行・既存Q03受入のローカル再実行はしていない。
+
+前回のmain同条件でも発生したPID数assertは別証跡として保持し、今回CI失敗の原因とは扱わない。Q04担当への留保事項であり、期待値・SQL計測の緩和は行っていない。製品差分は中断headから不変。DB構造・共通認証・person_selection.py・Q04製品・通知配送の追加変更なし。新headのCI結果はPR #345で別途確認する。

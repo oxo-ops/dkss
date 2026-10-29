@@ -1,5 +1,4 @@
 """Fresh patrol forms for existing callers; explicit stale proofs stay intact."""
-import html
 import re
 
 
@@ -10,11 +9,14 @@ def fresh_patrol_data(client, path, data):
         return data
     if not data.get('target_user') or (path == '/pointouts/new' and data.get('target_type') != 'user'):
         return data
-    response = client.get(path)
-    try:
-        if response.status_code != 200:
-            return data
-        match = re.search(r'name="person_selection_token"\s+value="([^"]+)"', response.get_data(as_text=True))
-        return dict(data, person_selection_token=html.unescape(match[1])) if match else data
-    finally:
-        response.close()
+    # These old fixtures mean a fresh selection. An extra GET would execute a
+    # Driver SELECT inside Q04's POST SQL gate and move the measured race.
+    # Match identity_fixture.PersonSelectionClient without altering the gate.
+    from flask import session
+    from dkss_app.person_selection import issue
+    with client.session_transaction() as browser_session:
+        claims = dict(browser_session)
+    with client.application.test_request_context():
+        session.update(claims)
+        proof = issue()
+    return dict(data, person_selection_token=proof)
