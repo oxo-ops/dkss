@@ -23,6 +23,7 @@
 </div>
 <form method="post" action="{{ save_action if save_action is defined else url_for('vehicle_document_import_confirm', batch_id=batch_id) }}" class="responsive-form vehicle-document-import-preview" novalidate>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="person_selection_token" value="{{ driving_person_selection() }}">
 {% if record_version is defined %}<input type="hidden" name="record_version" value="{{ record_version }}">{% endif %}
 {% if kind_corrections %}
 <section class="card" role="status">
