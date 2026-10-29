@@ -53,6 +53,11 @@ records; they cannot guarantee that an external API is billed only once.
 
 ## Deployment
 
+See [runtime operations](runtime_operations.md) for the Windows/Linux distinction,
+required and optional settings, embedded versus explicit worker startup, stopping,
+and safe diagnostics. The explicit worker CLI runs even when embedded automatic
+startup is disabled by `DOCUMENT_IMPORT_WORKER_ENABLED=0`.
+
 The intended Render Start Command is:
 
 ```

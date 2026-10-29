@@ -453,7 +453,7 @@ export class InvoicePdfViewer {
 
         if (
             Math.abs(this.scale - scale) < 0.001
-            && this.pages[0].element.style.width
+            && this.pages.every(entry => entry.element.style.width && entry.element.style.height)
         ) {
             this.visible();
             return;

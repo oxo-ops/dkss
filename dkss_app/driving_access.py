@@ -1,15 +1,28 @@
-"""Company-scoped report access through explicit or unambiguous identities."""
+"""Company-scoped report access through durable account-generation evidence."""
 import hashlib
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import abort, current_app, session
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
+from sqlalchemy.orm import Session
 from .extensions import db
 from .models import User, VehicleDrivingReportRecord, DrivingReportReader, DrivingReportReflection
 from driving_report_data import payload
 
 READER_ROLES = {'user', 'admin', 'itc'}
+
+
+@event.listens_for(Session, 'before_flush')
+def track_new_driving_records(session, context, instances):
+    """Only this transaction's inserts can automatically save a new UUID grant."""
+    records = [row for row in session.new if isinstance(row, VehicleDrivingReportRecord)]
+    if records:session.info.setdefault('dkss.driving.inserts', set()).update(records)
+
+
+@event.listens_for(Session, 'after_transaction_end')
+def forget_new_driving_records(session, transaction):
+    if transaction.parent is None:session.info.pop('dkss.driving.inserts', None)
 
 
 class DrivingReaderAccount(db.Model):
@@ -46,7 +59,7 @@ def ready():
 
 
 def initialize_driving_access(app):
-    from .driving_vehicle_links import DrivingVehicleCorrection
+    from .driving_vehicle_links import DrivingVehicleCorrection, upgrade_correction_identities
     with app.app_context():
         with db.engine.begin() as connection:
             if connection.dialect.name == 'postgresql':
@@ -55,6 +68,7 @@ def initialize_driving_access(app):
             DrivingReaderAccount.__table__.create(connection, checkfirst=True)
             DrivingReportReflection.__table__.create(connection, checkfirst=True)
             DrivingVehicleCorrection.__table__.create(connection, checkfirst=True)
+            upgrade_correction_identities(connection)
         app.extensions['dkss']['driving_readers_ready'] = True
 
 
@@ -80,12 +94,19 @@ def reader(row):
     return DrivingReportReader.query.filter_by(company_code=row.company_code, report_id=row.id).first() if ready() else None
 
 
-def assign(rows, username, actor):
+def assign(rows, username, actor, expected_identity=None):
     if not administrator():
         abort(403)
     if not ready():
         abort(503, '閲覧設定の準備中です。管理者へお問い合わせください。')
-    user=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES)).first() if username else None
+    query=User.query.filter(User.company_code==session['company_code'],User.username==username,User.role.in_(READER_ROLES))
+    # Reading the account needs a shared lock, not a shared-to-exclusive upgrade.
+    # Both lock modes block deletion/replacement until this grant commits.
+    if expected_identity is not None:query=query.populate_existing().with_for_update(read=True)
+    user=query.first() if username else None
+    if expected_identity is not None and (not user or user.account_identity != expected_identity):
+        db.session.rollback()
+        abort(409, '本人候補のアカウントが変更されました。再確認してください。')
     if username and (not user or user.login_locked):abort(400)
     if user and not user.account_identity:abort(400)
     # The actor is the authenticated account, including when resolution is automatic.
@@ -119,7 +140,15 @@ def bindings(rows):
     return resolver().bindings(rows)
 
 
-def resolve_import(row, username=None, reidentify=False):
+def selection_identity(username):
+    """Read only after person_selection.validate holds this form's accounts."""
+    if not username or username == '__hold__':return None
+    user=User.query.filter_by(company_code=session['company_code'],username=username).populate_existing().one_or_none()
+    if not user or not user.account_identity:abort(409)
+    return user.account_identity
+
+
+def resolve_import(row, username=None, reidentify=False, expected_identity=None):
     """Runs in the existing registration transaction, including pending vehicles."""
     from driving_identity_resolution import resolver, AUTO, usable
     if not administrator() or not ready():return
@@ -132,13 +161,24 @@ def resolve_import(row, username=None, reidentify=False):
         row.details_json=json.dumps(p,ensure_ascii=False)
         return
     if username:
+        if not expected_identity:
+            db.session.rollback()
+            abort(409, '選択した本人を再確認してください。')
         user=next((u for u in service.users.values() if u.username==username and usable(u)),None)
-        if not user:abort(400, '同じ会社のアカウントを選択してください。')
+        if not user:
+            db.session.rollback()
+            abort(409, '選択した本人を再確認してください。')
         basis='manual'
     else:
-        user,basis=service.resolve(row)
+        if reidentify or row not in db.session().info.get('dkss.driving.inserts', set()):return
+        user,basis=service.candidate(row)
+        # A unique current name is a candidate, not proof about a past person.
+        # Reuse only a company/system/code/date anchor with current UUID evidence.
+        if basis != 'code':return
     if not user:return
-    assign([row],user.username,session['username'] if basis=='manual' else AUTO)
+    expected_identity=user.account_identity if basis != 'manual' else expected_identity
+    assign([row],user.username,session['username'] if basis=='manual' else AUTO,
+           expected_identity=expected_identity)
     # Keep the original fields; only record the resolution and its evidence.
     p=payload(row)
     p['identity_resolution']={'user_id':user.id,'basis':basis,'identity_hash':fingerprint(row),

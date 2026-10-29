@@ -30,6 +30,7 @@
 
     <form method="post" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if mode == 'edit' %}<input type="hidden" name="master_token" value="{{ master_form_token('license-types', license_type.id, license_type.master_generation, 'edit') }}">{% endif %}
 
         <label>免許種別</label>
 

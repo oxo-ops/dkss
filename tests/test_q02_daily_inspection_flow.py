@@ -6,6 +6,8 @@ Disposable SQLite; external delivery disabled. No browser or PostgreSQL proof.
 """
 from identity_fixture import identity_for
 import io
+import html
+import re
 import json
 import os
 from pathlib import Path
@@ -98,9 +100,18 @@ class Q02DailyInspectionFlowTests(unittest.TestCase):
             data={**self.form,'item_no':str(no),'value':value})
         self.assertEqual(response.status_code,302)
 
+    def selection_proof(self):
+        response=self.request('GET',f'/vehicle/checklists/{self.checklist.id}',
+            query_string={**self.form, 'active_day':self.form['day']})
+        self.assertEqual(response.status_code,200)
+        match=re.search(r'name="person_selection_token"\s+value="([^"]+)"',response.get_data(as_text=True))
+        self.assertIsNotNone(match, 'The real GET must issue person-generation evidence')
+        return {'person_selection_token':html.unescape(match[1])}
+
     def complete(self):
+        proof=Q02DailyInspectionFlowTests.selection_proof(self)
         response=self.request('POST',f'/vehicle/checklists/{self.checklist.id}/complete',
-            data={**self.form,'approval_notify_users_0':'admin'})
+            data={**self.form,'approval_notify_users_0':'admin',**proof})
         self.assertEqual(response.status_code,302)
 
     def state(self):

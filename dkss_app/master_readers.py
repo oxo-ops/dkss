@@ -101,12 +101,13 @@ def inject_master_office_order():
 
 
 
-def offices_for_current_company():
+def offices_for_current_company(include_generation=False):
     query = ordered_master_query(_dkss_models.Office, _dkss_common.session.get("company_code"))
 
     return [
         {
             "id": office.id,
+            **({"master_generation": office.master_generation} if include_generation else {}),
             "index": office.id,
             "company_code": office.company_code,
             "name": office.name
@@ -116,12 +117,13 @@ def offices_for_current_company():
 
 
 
-def delivery_places_for_current_company():
+def delivery_places_for_current_company(include_generation=False):
     query = ordered_master_query(_dkss_models.DeliveryPlace, _dkss_common.session.get("company_code"))
 
     return [
         {
             "id": place.id,
+            **({"master_generation": place.master_generation} if include_generation else {}),
             "index": place.id,
             "company_code": place.company_code,
             "name": place.name
@@ -131,12 +133,13 @@ def delivery_places_for_current_company():
 
 
 
-def patrol_content_types_for_current_company():
+def patrol_content_types_for_current_company(include_generation=False):
     query = ordered_master_query(_dkss_models.PatrolContentType, _dkss_common.session.get("company_code"))
 
     return [
         {
             "id": item.id,
+            **({"master_generation": item.master_generation} if include_generation else {}),
             "index": item.id,
             "company_code": item.company_code,
             "name": item.name

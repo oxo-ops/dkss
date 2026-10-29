@@ -38,11 +38,12 @@ def run_worker(app, stopped, wake=None):
                     *memory_mb(),
                 )
                 heartbeat_at = time.monotonic() + 60
-        except Exception:
+        except Exception as error:
             with app.app_context():
                 db.session.rollback()
                 db.session.remove()
-            app.logger.exception("Document import queue iteration failed")
+            # Exception messages/tracebacks may contain SQL parameters or credentials.
+            app.logger.error("OCR_WORKER_ITERATION_FAILED error_type=%s", type(error).__name__)
             worked = False
         if not worked and not stopped.is_set():
             wake.wait(2)

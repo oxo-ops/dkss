@@ -8,6 +8,12 @@ from dkss_app.compat import owner_module, resolve
 
 class ApplicationFixture:
     def __init__(self, app):
+        from master_form_fixture import FreshMasterFormsClient
+        from identity_fixture import PersonSelectionClient
+        class SignedFormClient(FreshMasterFormsClient, PersonSelectionClient):
+            """Compose existing test adapters; preserve explicitly supplied proofs."""
+            pass
+        app.test_client_class = SignedFormClient
         object.__setattr__(self, "app", app)
 
     def __getattr__(self, name):

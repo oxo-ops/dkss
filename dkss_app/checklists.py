@@ -1,4 +1,5 @@
 """Checklists responsibilities; routes are registered by the application factory."""
+from . import person_selection as _person_forms
 from .report_layout import spreadsheet_text_width
 from . import safety_identity as _person_identity
 from . import access as _dkss_access, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklist_notifications as _dkss_checklist_notifications, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
@@ -864,6 +865,7 @@ def checklist_result_detail(result_index):
         "checklist_result_detail.html",
         result=result,
         result_index=result_record.id,
+        approval_version=checklist_result_edit_version(result_record),
         summary=summary,
         total_score=total_score,
         max_score=max_score,
@@ -1822,19 +1824,33 @@ def export_checklist_result_excel(result_index):
 
 
 
-def checklist_result_edit_version(record):
+def checklist_result_edit_version(record, result_type="safety"):
     snapshot = {
         column.key: getattr(record, column.key)
         for column in _dkss_common.inspect(record).mapper.column_attrs
     }
     latest_event = _dkss_models.ChecklistEvent.query.filter_by(
-        company_code=record.company_code, result_type="safety", result_id=record.id
+        company_code=record.company_code, result_type=result_type, result_id=record.id
     ).order_by(_dkss_models.ChecklistEvent.id.desc()).first()
     # Identical resubmissions within the same minute must still invalidate a form.
     snapshot["latest_event_id"] = latest_event.id if latest_event else None
     return _dkss_common.hashlib.sha256(_dkss_common.json.dumps(
         snapshot, sort_keys=True, ensure_ascii=False, default=str,
     ).encode("utf-8")).hexdigest()
+
+
+
+def validate_approval_version(record, result_type):
+    # The result row is already locked, before User (Q04/Q03 lock order).
+    if not _dkss_common.secrets.compare_digest(
+        _dkss_common.request.form.get("approval_version", "").encode("utf-8"),
+        checklist_result_edit_version(record, result_type).encode("ascii"),
+    ):
+        _dkss_common.db.session.rollback()
+        return _dkss_http.return_form_errors([
+            ("点検記録が更新されています。最新の回答と履歴を確認してから承認してください。", "")
+        ], status_code=409)
+    return None
 
 
 
@@ -2050,6 +2066,12 @@ def edit_checklist_result(result_index):
             return _dkss_http.return_form_errors([
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
+
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
 
         previous_answers = [
             dict(answer)
@@ -2735,6 +2757,7 @@ def edit_checklist_result(result_index):
             }
     return _dkss_common.render_template(
         "checklist_result_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         index=checklist_record.id,
         result=result,
@@ -3128,6 +3151,9 @@ def vehicle_checklist_results(index):
             if str(result.get("month")).zfill(2) != str(month).zfill(2):
                 continue
 
+        if result_record.status == "承認待ち":
+            result["approval_version"] = checklist_result_edit_version(result_record, "vehicle")
+
         results.append(result)
 
     if display_mode == "day_list":
@@ -3474,6 +3500,7 @@ def vehicle_checklist_results(index):
 
     return _dkss_common.render_template(
         "vehicle_checklist_results.html",
+        person_selection_token=_person_forms.issue(),
         checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
         vehicle_judgment_names=vehicle_judgment_names,
@@ -3582,7 +3609,7 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
         company_code=company_code,
         id=vehicle_record_id,
         deleted=False
-    ).first()
+    ).with_for_update().first()
 
     if not vehicle:
         return _dkss_http.return_form_errors([
@@ -3615,6 +3642,10 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     notify_usernames = list(
         dict.fromkeys(notify_usernames)
     )
+
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
 
     # 設定保存
 
@@ -4079,6 +4110,10 @@ def save_vehicle_operation_judgment(result_index):
         if not manager:
             return _dkss_http.return_form_errors([("整備管理者・補助者を選択してください。", "manager_username")], 400)
 
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
             return _dkss_common.jsonify({"success": True})
 
@@ -4321,6 +4356,10 @@ def save_vehicle_operation_judgment(result_index):
                     )
                 ], 400)
 
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
+
     if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
         return _dkss_common.jsonify({"success": True})
 
@@ -4543,6 +4582,13 @@ def approve_vehicle_checklist_result(result_index, approval_index):
     if not result_record:
         return _dkss_common.redirect("/vehicle/checklists")
 
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
+
+    # Reload after all waits, including SQLite writer reservation.
+    _dkss_common.db.session.refresh(result_record)
+
     if result_record.status != "承認待ち":
         return _dkss_common.redirect("/vehicle/checklists")
 
@@ -4676,6 +4722,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
         )
     ):
         return _dkss_common.redirect("/vehicle/checklists")
+
+    version_error = validate_approval_version(result_record, "vehicle")
+    if version_error is not None:
+        return version_error
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")
@@ -4887,6 +4937,10 @@ def reject_vehicle_checklist_result(result_index):
 
     if not result_record:
         return _dkss_common.redirect("/vehicle/checklists")
+
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     if result_record.status not in {"承認待ち", "承認済み"}:
         return _dkss_http.return_form_errors([
@@ -7229,6 +7283,11 @@ def save_vehicle_checklist_one(index):
             )
         ], status_code=403)
 
+    # Hold Vehicle/result before User, as the other inspection writers do.
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
+
     result_checklist = _dkss_checklist_common.checklist_for_date(
         checklist,
         year,
@@ -7713,6 +7772,11 @@ def save_vehicle_checklist_detail(index):
                 ""
             )
         ], status_code=403)
+
+    # Hold Vehicle/result before User, as the other inspection writers do.
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     result_checklist = _dkss_checklist_common.checklist_for_date(
         checklist,
@@ -8221,6 +8285,10 @@ def complete_vehicle_checklist(index):
     )
     if lock_error is not None:
         return lock_error
+
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
 
     # 結果取得
 
@@ -8808,6 +8876,11 @@ def new_vehicle_checklist_result(index):
         )
         if lock_error is not None:
             return lock_error
+
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         company_code = _dkss_common.session.get("company_code")
 
         vehicle_record_id = _dkss_common.request.form.get(
@@ -9368,6 +9441,7 @@ def new_vehicle_checklist_result(index):
 
     return _dkss_common.render_template(
         "vehicle_checklist_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         checklist_index=checklist_record.id,
         mode="new",
@@ -9536,6 +9610,12 @@ def new_safety_checklist_result(index):
             return _dkss_http.return_form_errors([
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
+
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
 
         pending_answer_files = []
 
@@ -9997,6 +10077,7 @@ def new_safety_checklist_result(index):
 
     return _dkss_common.render_template(
         "checklist_result_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         index=checklist_record.id,
         criteria_list=criteria_list,
@@ -11004,6 +11085,13 @@ def approve_checklist_result(result_index, approval_index):
     if not result_record:
         return _dkss_common.redirect("/safety/checklists")
 
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
+
+    # Reload after all waits, including SQLite writer reservation.
+    _dkss_common.db.session.refresh(result_record)
+
     if result_record.status != "承認待ち":
         return _dkss_common.redirect(
             _dkss_common.url_for("checklist_result_detail", result_index=result_index)
@@ -11125,6 +11213,10 @@ def approve_checklist_result(result_index, approval_index):
 
     if not _dkss_safety_permissions.can_approve_checklist_result(result, approval):
         return _dkss_common.redirect(_dkss_common.url_for("checklist_result_detail", result_index=result_index))
+
+    version_error = validate_approval_version(result_record, "safety")
+    if version_error is not None:
+        return version_error
 
     approval["approved_by"] = _dkss_common.session.get("name")
     approval["approved_by_username"] = _dkss_common.session.get("username")
@@ -11281,6 +11373,10 @@ def reject_checklist_result(result_index):
 
     if not result_record:
         return _dkss_common.redirect("/safety/checklists")
+
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     if result_record.status != "承認待ち":
         return _dkss_common.redirect(

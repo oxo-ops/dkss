@@ -1,0 +1,69 @@
+name: Q12 Document Display
+on:
+  pull_request:
+    paths:
+      - 'templates/vehicle_karte_documents.html'
+      - 'templates/vehicle_karte_header.html'
+      - 'dkss_app/document_images.py'
+      - 'dkss_app/profile_images.py'
+      - 'dkss_app/vehicle_karte.py'
+      - 'static/js/vehicle_karte_documents.js'
+      - 'tests/test_q12_document_images.py'
+      - 'tests/q12_document_preview_sizes.cjs'
+      - 'static/icons/truck*.png'
+      - 'tools/build_notification_icon.py'
+      - 'tests/test_q12_notification_icon.py'
+      - 'tests/q12_vehicle_icon_browser.cjs'
+      - 'static/js/maintenance_invoice_pdf_viewer.mjs'
+      - 'tests/test_q12_document_display.py'
+      - 'tests/q12_document_display_browser.cjs'
+      - 'tests/q12_document_display_server.py'
+      - '.github/workflows/q12-document-display.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  document-display:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: echo "NODE_PATH=$RUNNER_TEMP/q12-node/node_modules" >> "$GITHUB_ENV"
+      - run: python -m pip install -r requirements.txt
+      - run: npm install --no-save --prefix "$RUNNER_TEMP/q12-node" playwright@1.62.1
+      - run: node "$RUNNER_TEMP/q12-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Start synthetic loopback fixture
+        run: |
+          python -u tests/q12_document_display_server.py --port 51420 --work-dir "$RUNNER_TEMP/q12-fixture" > "$RUNNER_TEMP/q12-server.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:51420/login; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Check dependencies, original downloads and PDF controls
+        run: |
+          mkdir -p "$RUNNER_TEMP/q12-results"
+          node tests/q12_document_display_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/documents.json"
+      - name: Check vehicle icon selection, cache and navigation
+        run: node tests/q12_vehicle_icon_browser.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/vehicle-icons.json"
+      - name: Check preview detail across viewports and densities
+        run: node tests/q12_document_preview_sizes.cjs "$RUNNER_TEMP/q12-fixture/fixture.json" "$RUNNER_TEMP/q12-results/preview-sizes.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q12-document-display
+          path: ${{ runner.temp }}/q12-results/

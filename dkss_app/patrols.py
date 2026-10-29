@@ -421,7 +421,8 @@ def edit_vehicle_patrol(index):
 
         category = _dkss_common.request.form.get("category", "").strip()
         priority = _dkss_common.request.form.get("priority", "").strip()
-        status = _dkss_common.request.form.get("status", "未対応").strip()
+        status_submitted = "status" in _dkss_common.request.form
+        status = _dkss_common.request.form.get("status", "").strip()
 
         if category not in {
             "故障",
@@ -439,7 +440,7 @@ def edit_vehicle_patrol(index):
         }:
             return "重要度が不正です。", 400
 
-        if status not in {
+        if status_submitted and status not in {
             "未対応",
             "対応中",
             "修理完了"
@@ -576,7 +577,9 @@ def edit_vehicle_patrol(index):
         patrol.repair_time = repair_time
         patrol.parts = parts
         patrol.cost = cost
-        patrol.status = status
+        # An omitted field does not request a state transition.
+        if status_submitted:
+            patrol.status = status
 
         _dkss_common.db.session.commit()
 

@@ -1,5 +1,6 @@
 """Shared recovery and company-scoped duplicate guidance for vehicle imports."""
 import hashlib
+from . import import_owner as _dkss_import_owner
 from flask import request, session, url_for, jsonify, render_template, redirect, flash, abort
 from sqlalchemy.orm import defer
 from .extensions import db
@@ -132,8 +133,7 @@ def cancel_import_flow():
         if not delete_receipt(key, session.get('company_code'), session.get('username')):
             abort(404)
     elif key and kind == 'registration':
-        row = DocumentDraft.query.filter_by(batch_id=key, document_type='vehicle_excel',
-            company_code=session.get('company_code'), created_by_username=session.get('username')).with_for_update().first_or_404()
+        row = DocumentDraft.query.filter_by(batch_id=key, document_type='vehicle_excel', company_code=session.get('company_code')).filter(_dkss_import_owner.owner_clause(DocumentDraft)).with_for_update().first_or_404()
         if row.status == 'preview':
             row.status = 'deleted'
             row.source_file = b''
@@ -169,8 +169,7 @@ def store_excel_review(upload, company_code, username):
 def vehicle_excel_import_preview(draft_id):
     if not access.require_master_admin():
         abort(403)
-    row = DocumentDraft.query.filter_by(id=draft_id, document_type='vehicle_excel',
-        company_code=session.get('company_code'), created_by_username=session.get('username')).first_or_404()
+    row = DocumentDraft.query.filter_by(id=draft_id, document_type='vehicle_excel', company_code=session.get('company_code')).filter(_dkss_import_owner.owner_clause(DocumentDraft)).first_or_404()
     if row.status != 'preview':
         flash('このExcelの確認は終了しています。登録結果を確認してください。', 'info')
         return redirect(url_for('vehicle_registration_method'))

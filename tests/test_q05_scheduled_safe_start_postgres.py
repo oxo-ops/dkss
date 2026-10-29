@@ -121,6 +121,7 @@ class PostgresScheduledSafeStartTests(fixtures.ScheduledSafeStartTests):
                 self.m.CompanyUsageSummary(company_code='OTHER'),
             ])
             self.m.db.session.commit()
+        self.assertEqual(self.m.CompanyUsageSummary.query.count(), 2 if initialize_usage else 0)
         identities = {(company, name): identity_for(company, name, self.m.app)
                       for company, name, _ in actors}
         def snapshot():
@@ -128,11 +129,12 @@ class PostgresScheduledSafeStartTests(fixtures.ScheduledSafeStartTests):
         before = snapshot()
         pids, pid_lock = set(), threading.Lock()
         first_reads, first_read_barrier = set(), threading.Barrier(8)
+        synchronize_first_wave = True
         def observe(conn, cursor, statement, parameters, context, many):
             with pid_lock:
                 pids.add(cursor.connection.get_backend_pid())
         def synchronize_initial_summary_read(conn, cursor, statement, parameters, context, many):
-            if initialize_usage or 'from company_usage_summary' not in statement.lower():
+            if initialize_usage or not synchronize_first_wave or 'from company_usage_summary' not in statement.lower():
                 return
             thread_id = threading.get_ident()
             with pid_lock:
@@ -147,6 +149,10 @@ class PostgresScheduledSafeStartTests(fixtures.ScheduledSafeStartTests):
         try:
             for instant, begun in [('2026-12-31T14:59:59+00:00', False),
                                     ('2026-12-31T15:00:00+00:00', True)]:
+                # Only the cold wave may wait after SELECT. On the second wave,
+                # FOR UPDATE intentionally serializes existing rows; waiting at
+                # a SQL barrier while holding that lock would deadlock the test.
+                synchronize_first_wave = not begun
                 barrier = threading.Barrier(8)
                 def read(actor):
                     company, username, role = actor
@@ -186,4 +192,9 @@ class PostgresScheduledSafeStartTests(fixtures.ScheduledSafeStartTests):
         self.assertGreaterEqual(len(pids), 2, 'Parallel requests must use real independent DB connections')
         self.m.db.session.expire_all()
         self.assertEqual(snapshot(), before)
+        self.assertEqual(self.m.CompanyUsageSummary.query.count(), 2)
+        for company, users, vehicles in [('TEST', 3, 1), ('OTHER', 1, 0)]:
+            row = self.m.CompanyUsageSummary.query.filter_by(company_code=company).one()
+            self.assertEqual((row.user_count, row.vehicle_count, row.login_count,
+                              row.checklist_result_count), (users, vehicles, 0, 0))
         print('Q05_PARALLEL_REQUESTS: 16; PostgreSQL backends:', len(pids))

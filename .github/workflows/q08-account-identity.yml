@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'dkss_app/**'
+      - 'templates/itc_news_form.html'
       - 'tests/test_q08_*.py'
       - 'tests/identity_fixture.py'
       - 'tests/test_workflow_regressions.py'
@@ -62,6 +63,10 @@ jobs:
             test_q08_postgres_driving_generation.PostgresDrivingGenerationTests \
             test_q08_reminder_generation.ReminderGenerationTests \
             test_q08_postgres_reminder_generation.PostgresReminderGenerationTests \
+            test_q08_vehicle_origin_generation.VehicleOriginGenerationTests \
+            test_q08_postgres_vehicle_origin_generation.PostgresVehicleOriginGenerationTests \
+            test_q08_news_generation.NewsGenerationTests \
+            test_q08_postgres_news_generation.PostgresNewsGenerationTests \
             2>&1 | tee q08-identity-results.log
       - uses: actions/upload-artifact@v7
         if: always()

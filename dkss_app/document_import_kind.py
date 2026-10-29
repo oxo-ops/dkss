@@ -9,11 +9,13 @@ from .extensions import db
 from .models import VehicleDocumentImportDraft as Draft, Vehicle
 from .access import require_master_admin
 from . import document_import_queue as queue
+from . import import_owner
 from document_type_detection import KINDS
 
 
 def revision(row):
     return {'id':row.id, 'company':row.company_code, 'user':session.get('username'),
+            'actor_identity':import_owner.current_identity(),
             'kind':row.document_type, 'registered':row.status=='completed',
             'generation':queue.metadata(row.result_json).get('generation',0), 'sha':row.source_sha256}
 
@@ -36,7 +38,7 @@ def document_import_kind(draft_id):
     query=Draft.query.options(defer(Draft.source_file)).filter_by(id=draft_id,
         company_code=session.get('company_code'))
     row=(query.with_for_update() if request.method=='POST' else query).first_or_404()
-    if row.created_by_username!=session.get('username') and row.status!='completed':
+    if row.status!='completed' and not import_owner.owns(row):
         abort(404)
     if row.document_type not in KINDS or row.status not in {'queued','reading','type_review','preview','read_error','completed'}:
         abort(409,description='この資料は確認済み、または取り消されています。取込状況を確認してください。')
@@ -49,6 +51,9 @@ def document_import_kind(draft_id):
                     if vehicle else url_for('vehicle_document_import_source',draft_id=row.id))
         return render_template('document_import_kind.html',draft=row,kinds=KINDS,kind_token=token,
             job=queue.metadata(row.result_json),impact=impact,back_url=back,source_url=source_url)
+    actor_identity=import_owner.identity_for_actor(session.get('company_code'),session.get('username'),lock=True)
+    if not actor_identity:
+        abort(403)
     if request.form.get('action')=='cancel':
         if row.status!='completed':
             job=queue.metadata(row.result_json)
@@ -87,12 +92,12 @@ def document_import_kind(draft_id):
         vehicle,impact=correction_impact(row,lock=True)
         if impact['problems']:
             abort(409,description='関連記録を保護するため自動訂正を停止しました。元の記録から登録内容を確認してください。')
-        key=str(uuid5(UUID(row.id),request_key))
+        key=str(uuid5(UUID(row.id),actor_identity+':'+request_key))
         existing=db.session.get(Draft,key)
         if existing:
             return redirect(url_for('document_import_job',batch_id=existing.batch_id,open=1),code=303)
         correction={'source_id':row.id,'digest':impact['correction_digest'],'vehicle_id':vehicle.id,'counts':impact['counts']}
-        new=Draft(id=key,batch_id=str(uuid4()),company_code=row.company_code,created_by_username=session['username'],
+        new=Draft(id=key,batch_id=str(uuid4()),company_code=row.company_code,created_by_username=session['username'],owner_identity=actor_identity,
             document_type=kind,source_filename=row.source_filename,source_sha256=row.source_sha256,source_file=queue.store_source(row.company_code,row.source_sha256,row.source_file),
             status='queued',preview_json='{}',result_json=queue.result({'correction':correction}))
         db.session.add(new);row=new

@@ -3526,6 +3526,7 @@ async function loadSavedReminderNotifyUsers() {
             "csrf_token",
             csrfToken
         );
+        formData.append("person_selection_token", config.dataset.personSelectionToken || "");
 
         formData.append(
             "vehicle_record_id",
