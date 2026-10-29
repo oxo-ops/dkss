@@ -6,7 +6,7 @@ from datetime import datetime
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT/'tools'),str(ROOT/'tests')]
 import benchmark_read_paths
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfWriter
 seed_base = benchmark_read_paths.seed
 
@@ -27,7 +27,16 @@ def seed(case,count):
             writer = PdfWriter()
             for _ in range(2): writer.add_blank_page(width=595,height=842)
             writer.write(out)
-        else: Image.new('RGB',(1600,1000),'#5d86c1').save(out,format='JPEG')
+        else:
+            image = Image.new('RGB', (1600,1000), 'white')
+            draw = ImageDraw.Draw(image)
+            draw.text((30,20),'Q12 SYNTHETIC INVOICE - NOT REAL',fill='black',font=ImageFont.load_default(size=24))
+            for row in range(18):
+                y = 80 + row * 45
+                draw.rectangle((25,y,1570,y+40),outline='black')
+                draw.text((40,y+8),f'TEST-{row:03}  quantity 12.34  amount 5678.90',fill='black',font=ImageFont.load_default(size=12))
+                draw.text((900,y+10),'fine print 0123456789 ABCDEFG',fill='black',font=ImageFont.load_default(size=8))
+            image.save(out,format='JPEG')
         source=out.getvalue(); ident='q12-'+extension
         m.db.session.add(m.VehicleDocumentImportDraft(id=ident,batch_id='q12-batch',company_code='TEST',
             created_by_username='admin',document_type='maintenance',source_filename='q12-document.'+extension,

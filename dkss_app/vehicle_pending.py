@@ -1246,7 +1246,8 @@ def _apply_vehicle_pending_document_records(items, vehicle_id, company_code, use
             _dkss_common.db.session.flush()
             if item.source_kind == 'driving_report':
                 from .driving_access import resolve_import
-                resolve_import(record, values.get('_driving_account_choice') or None)
+                resolve_import(record, values.get('_driving_account_choice') or None,
+                               expected_identity=values.get('_driving_account_identity'))
             if item.source_kind == 'maintenance':
                 _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
                 _dkss_vehicle_karte.save_vehicle_maintenance_replacement_parts(record)

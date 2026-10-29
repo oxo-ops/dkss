@@ -758,8 +758,8 @@ def handle_unexpected_error(error):
     if isinstance(error, _dkss_common.HTTPException):
         return handle_http_error(error)
 
-    _dkss_runtime.app.logger.exception(
-        "予期しないエラーが発生しました。"
+    _dkss_runtime.app.logger.error(
+        "HTTP_UNEXPECTED_ERROR stage=request error_type=%s", type(error).__name__
     )
 
     from .import_flow import form_error_response

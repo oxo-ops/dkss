@@ -1,4 +1,5 @@
 """Identity follows real report fields; fixtures are not evidence about manufacturers."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest
@@ -82,7 +83,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.assertIsNone(self.resolve(r)[0])
         with self.m.app.test_request_context():
             session.update(account_identity=identity_for('TEST', 'admin'), company_code='TEST',username='admin',role='admin')
-            driving_access.resolve_import(r,self.person.username);self.m.db.session.commit()
+            driving_access.resolve_import(r,self.person.username,expected_identity=self.person.account_identity);self.m.db.session.commit()
         self.assertEqual(self.resolve(r)[0].id,self.person.id)
         later=self.save(day='2026-10-24');self.assertEqual(self.resolve(later)[0].id,self.person.id)
         earlier=self.save(day='2026-10-22');self.assertIsNone(self.resolve(earlier)[0])
@@ -108,13 +109,13 @@ class DrivingIdentityTests(unittest.TestCase):
 
     def test_explicit_revocation_is_not_undone_by_automatic_name_resolution(self):
         r=self.save()
-        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'reader_username':''})
+        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'person_selection_token':fresh_person_proof(self.client),'reader_username':''})
         self.assertIsNone(self.resolve(r)[0])
         self.login(self.person);self.assertEqual(self.client.get(f'/safety/driving-reports/{r.id}').status_code,404)
 
     def test_changed_identity_invalidates_explicit_grant(self):
         r=self.save()
-        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'reader_username':self.person.username})
+        self.client.post(f'/safety/driving-reports/{r.id}/reader',data={'version':version(r),'person_selection_token':fresh_person_proof(self.client),'reader_username':self.person.username})
         p=payload(r);p['driver_code']='changed';r.details_json=json.dumps(p);self.m.db.session.commit()
         self.assertIsNone(self.resolve(r)[0])
 
@@ -141,7 +142,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.upload_driving_report();draft=self.m.VehicleDocumentImportDraft.query.one()
         form=self.inspection_form(draft);key=draft.id+'_0'
         form['driver_name_'+key]='塩川 万帆'
-        if choice is not None:form['driving_account_'+key]=choice
+        if choice is not None:form.update({'driving_account_'+key:choice,'person_selection_token':fresh_person_proof(self.client)})
         response=self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm',data=form)
         return response,self.m.VehicleDrivingReportRecord.query.first(),draft
 
@@ -180,6 +181,7 @@ class DrivingIdentityTests(unittest.TestCase):
         self.assertIsNone(self.resolve(r)[0])
         form=self.inspection_form(draft);form.update(record_version=version(r))
         form['driving_account_'+draft.id+'_0']=self.person.username
+        form['person_selection_token']=fresh_person_proof(self.client)
         response=self.client.post(f'/safety/driving-reports/{r.id}/edit',data=form)
         self.assertEqual(response.status_code,302,response.get_data(as_text=True))
         self.assertEqual(self.resolve(r)[0].id,self.person.id)

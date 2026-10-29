@@ -1,4 +1,5 @@
 """Viewer isolation and manager-confirmed identity against real Flask/SQLite."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest
@@ -30,7 +31,7 @@ class DrivingReadershipTests(unittest.TestCase):
             state.update(account_identity=identity_for('TEST', username, app=(self.client).application), company_code='TEST',username=username,role=role,password_changed_at='stamp' if role=='user' else self.m.User.query.filter_by(username='admin').one().password_changed_at)
 
     def grant(self,record,username='one'):
-        return self.client.post(f'/safety/driving-reports/{record.id}/reader',data={'version':version(record),'reader_username':username})
+        return self.client.post(f'/safety/driving-reports/{record.id}/reader',data={'version':version(record),'person_selection_token':fresh_person_proof(self.client),'reader_username':username})
 
     def test_no_name_code_or_uploader_fallback_and_sidebar_visible(self):
         self.save(name='同姓同名',code='one')
@@ -65,7 +66,7 @@ class DrivingReadershipTests(unittest.TestCase):
     def test_user_is_read_only_and_original_files_are_not_exposed(self):
         own=self.save();self.grant(own);self.login()
         for endpoint in ['review','reconcile','reader','edit']:
-            self.assertEqual(self.client.post(f'/safety/driving-reports/{own.id}/{endpoint}',data={'version':version(own),'state':'completed','reader_username':'one'}).status_code,403)
+            self.assertEqual(self.client.post(f'/safety/driving-reports/{own.id}/{endpoint}',data={'version':version(own),'state':'completed','person_selection_token':fresh_person_proof(self.client),'reader_username':'one'}).status_code,403)
         self.assertEqual(self.client.get(f'/safety/driving-reports/{own.id}/edit').status_code,403)
         with self.m.app.test_request_context():
             from flask import url_for
@@ -80,7 +81,7 @@ class DrivingReadershipTests(unittest.TestCase):
         own=self.save();old_version=version(own)
         self.assertEqual(self.grant(own,'outsider').status_code,400)
         self.assertEqual(self.grant(own).status_code,302)
-        self.assertEqual(self.client.post(f'/safety/driving-reports/{own.id}/reader',data={'version':old_version,'reader_username':'two'}).status_code,409)
+        self.assertEqual(self.client.post(f'/safety/driving-reports/{own.id}/reader',data={'version':old_version,'person_selection_token':fresh_person_proof(self.client),'reader_username':'two'}).status_code,409)
         self.assertEqual(DrivingReportReader.query.one().username,'one')
         secret=self.save(3);secret.company_code='OTHER';self.m.db.session.commit()
         self.assertEqual(self.grant(secret).status_code,404)
@@ -105,7 +106,7 @@ class DrivingReadershipTests(unittest.TestCase):
         try:self.client.get('/safety/driving-reports?'+urlencode({'scope':'company','period':'all','focus':focus}))
         finally:template_rendered.disconnect(capture,self.m.app)
         token=contexts[-1]['insights']['reader_version']
-        data={'scope':'company','period':'all','focus':focus,'reader_version':token,'reader_username':'one','return_to':'/safety/driving-reports?scope=company&period=all#driver-trend'}
+        data={'scope':'company','period':'all','focus':focus,'reader_version':token,'person_selection_token':fresh_person_proof(self.client),'reader_username':'one','return_to':'/safety/driving-reports?scope=company&period=all#driver-trend'}
         self.assertEqual(self.client.post('/safety/driving-reports/readers',data=dict(data,reader_version='stale')).status_code,409)
         self.assertEqual(DrivingReportReader.query.count(),0)
         response=self.client.post('/safety/driving-reports/readers',data=data)
