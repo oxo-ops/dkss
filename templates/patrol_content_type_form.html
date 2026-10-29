@@ -29,6 +29,7 @@
 <div class="card form-card">
     <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if mode == 'edit' %}<input type="hidden" name="master_token" value="{{ master_form_token('patrol-content-types', item.id, item.master_generation, 'edit') }}">{% endif %}
 
         <div class="form-group">
             <label>内容区分名</label>

@@ -107,6 +107,7 @@ def offices_for_current_company():
     return [
         {
             "id": office.id,
+            "master_generation": office.master_generation,
             "index": office.id,
             "company_code": office.company_code,
             "name": office.name
@@ -122,6 +123,7 @@ def delivery_places_for_current_company():
     return [
         {
             "id": place.id,
+            "master_generation": place.master_generation,
             "index": place.id,
             "company_code": place.company_code,
             "name": place.name
@@ -137,6 +139,7 @@ def patrol_content_types_for_current_company():
     return [
         {
             "id": item.id,
+            "master_generation": item.master_generation,
             "index": item.id,
             "company_code": item.company_code,
             "name": item.name

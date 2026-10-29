@@ -1,7 +1,9 @@
 """Masters responsibilities; routes are registered by the application factory."""
 from functools import wraps
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy import inspect
+from .master_generations import MasterFormConflict, MESSAGE, verify_token
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_readers as _dkss_vehicle_readers
@@ -13,6 +15,16 @@ def _master_write_conflicts(view):
     def wrapped(*args, **kwargs):
         try:
             return view(*args, **kwargs)
+        except MasterFormConflict:
+            _dkss_common.db.session.rollback()
+            return MESSAGE, 409
+        except OperationalError as error:
+            code = getattr(error.orig, "sqlite_errorcode", 0) or 0
+            state = getattr(error.orig, "pgcode", None)
+            if (code & 255) not in {5, 6} and state not in {"55P03", "40P01", "40001"}:
+                raise
+            _dkss_common.db.session.rollback()
+            return MESSAGE, 409
         except IntegrityError as error:
             constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
             known_name_conflict = constraint in {
@@ -39,6 +51,9 @@ def _master_write_conflicts(view):
 
 
 def _master_row(model, index):
+    if _dkss_common.request.method == "POST" and 'master_generation' not in {
+            column['name'] for column in inspect(_dkss_common.db.session.connection()).get_columns(model.__tablename__)}:
+        raise MasterFormConflict(MESSAGE)
     query = model.query.filter_by(
         id=index, company_code=_dkss_common.session.get("company_code")
     )
@@ -46,7 +61,11 @@ def _master_row(model, index):
         # Hold the row until commit/teardown. A waiting writer must use the
         # committed name, not an instance previously loaded into this session.
         query = query.populate_existing().with_for_update()
-    return query.first()
+    row = query.first()
+    if row is not None and _dkss_common.request.method == "POST":
+        verify_token(row, _dkss_common.request.path.rsplit("/", 1)[-1],
+                     _dkss_common.request.form.get("master_token"))
+    return row
 
 
 def vehicle_type_master():
@@ -161,6 +180,7 @@ def edit_license_type(index):
         "license_type_form.html",
         license_type={
             "id": license_type.id,
+            "master_generation": license_type.master_generation,
             "name": license_type.name
         },
         mode="edit"
@@ -197,7 +217,7 @@ def delete_license_type(index):
         action="license_type_deleted",
         target_type="license_type",
         target_id=license_type.id,
-        detail=f"免許種別削除: {license_type.name}",
+        detail=f"免許種別削除: {license_type.name} [master_generation={license_type.master_generation}]",
         company_code=license_type.company_code,
     )
 
@@ -296,6 +316,7 @@ def edit_vehicle_type(index):
         "vehicle_type_form.html",
         vehicle_type={
             "id": vehicle_type.id,
+            "master_generation": vehicle_type.master_generation,
             "name": vehicle_type.name
         },
         mode="edit"
@@ -327,7 +348,7 @@ def delete_vehicle_type(index):
         action="vehicle_type_deleted",
         target_type="vehicle_type",
         target_id=vehicle_type.id,
-        detail=f"車種削除: {vehicle_type.name}",
+        detail=f"車種削除: {vehicle_type.name} [master_generation={vehicle_type.master_generation}]",
         company_code=vehicle_type.company_code,
     )
 
@@ -469,6 +490,7 @@ def edit_office(index):
 
     office_dict = {
         "id": office.id,
+        "master_generation": office.master_generation,
         "index": office.id,
         "company_code": office.company_code,
         "name": office.name
@@ -540,7 +562,7 @@ def delete_office(index):
         action="office_deleted",
         target_type="office",
         target_id=office.id,
-        detail=f"営業所削除: {office.name}",
+        detail=f"営業所削除: {office.name} [master_generation={office.master_generation}]",
         company_code=office.company_code,
     )
 
@@ -1135,6 +1157,7 @@ def edit_delivery_place(index):
         "delivery_place_form.html",
         place={
             "id": place.id,
+            "master_generation": place.master_generation,
             "index": place.id,
             "company_code": place.company_code,
             "name": place.name
@@ -1167,7 +1190,7 @@ def delete_delivery_place(index):
         action="delivery_place_deleted",
         target_type="delivery_place",
         target_id=place.id,
-        detail=f"納入先削除: {place.name}",
+        detail=f"納入先削除: {place.name} [master_generation={place.master_generation}]",
         company_code=place.company_code,
     )
 
@@ -1295,7 +1318,7 @@ def delete_patrol_content_type(index):
         action="patrol_content_type_deleted",
         target_type="patrol_content_type",
         target_id=item.id,
-        detail=f"安全パトロール内容区分削除: {item.name}",
+        detail=f"安全パトロール内容区分削除: {item.name} [master_generation={item.master_generation}]",
         company_code=item.company_code,
     )
 

@@ -178,6 +178,7 @@ def vehicle_types_for_current_company():
     return [
         {
             "id": vehicle_type.id,
+            "master_generation": vehicle_type.master_generation,
             "index": vehicle_type.id,
             "company_code": vehicle_type.company_code,
             "name": vehicle_type.name
@@ -193,6 +194,7 @@ def license_types_for_current_company():
     return [
         {
             "id": license_type.id,
+            "master_generation": license_type.master_generation,
             "index": license_type.id,
             "company_code": license_type.company_code,
             "name": license_type.name

@@ -40,6 +40,7 @@
                     class="js-patrol-content-type-delete-form"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="master_token" value="{{ master_form_token('patrol-content-types', content_type.id, content_type.master_generation, 'delete') }}">
                     <button type="submit" class="btn-small btn-delete">
                         削除
                     </button>

@@ -166,6 +166,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| master_generation | VARCHAR(36) | False | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | name | VARCHAR(100) | False | False |  |
@@ -298,6 +299,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| master_generation | VARCHAR(36) | False | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | name | VARCHAR(100) | False | False |  |
@@ -386,6 +388,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| master_generation | VARCHAR(36) | False | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | name | VARCHAR(100) | False | False |  |
@@ -394,6 +397,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| master_generation | VARCHAR(36) | False | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | name | VARCHAR(100) | False | False |  |
@@ -1080,6 +1084,7 @@ Tables: 68
 
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
+| master_generation | VARCHAR(36) | False | False |  |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
 | name | VARCHAR(100) | False | False |  |

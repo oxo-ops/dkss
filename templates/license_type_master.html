@@ -41,6 +41,7 @@
                     data-confirm-message="削除しますか？"
                 >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="master_token" value="{{ master_form_token('license-types', item.id, item.master_generation, 'delete') }}">
                     <button
                         type="submit"
                         class="btn-small btn-delete"

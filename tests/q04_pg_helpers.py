@@ -29,9 +29,12 @@ class PrivatePostgresCase(unittest.TestCase):
 
     def post(self, label, action):
         path, data, company = action
+        from master_form_fixture import fresh_master_data
+        client = self.client(company)
+        data = fresh_master_data(client, path, data)
         self.local.worker = label
         try:
-            with self.client(company) as client:
+            with client:
                 response = client.post(path, data=data,
                     headers={'X-DKSS-Final-Submit': '1'})
                 try:

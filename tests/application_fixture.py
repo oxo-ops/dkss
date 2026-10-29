@@ -8,6 +8,8 @@ from dkss_app.compat import owner_module, resolve
 
 class ApplicationFixture:
     def __init__(self, app):
+        from master_form_fixture import FreshMasterFormsClient
+        app.test_client_class = FreshMasterFormsClient
         object.__setattr__(self, "app", app)
 
     def __getattr__(self, name):
