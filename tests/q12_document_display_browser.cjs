@@ -24,7 +24,16 @@ const p=await c.newPage(),errors=[],requests=[];p.on('pageerror',e=>errors.push(
 activePage=p;
 const route='/vehicle/karte/'+manifest.vehicle_id+'/documents';
 for(const selection of ['closed','document:q12-jpg']){requests.length=0;await p.goto(base+route+'?document='+selection,{waitUntil:'load'});assert.equal(await p.locator('.top-bar-user').count(),1);assert.equal(await p.locator('script[src*="maintenance_invoice_pdf_viewer"]').count(),0);assert(!requests.some(x=>x.includes('/vendor/pdfjs/')||x.includes('maintenance_invoice_pdf_viewer')));
-if(selection!=='closed'){const image=p.locator('.kd-image-preview img');assert(await image.evaluate(e=>e.complete&&e.naturalWidth===1600));assert(!(await image.getAttribute('src')).includes('thumb='));}await p.locator('[data-document-check-all]').check();assert.equal(await p.locator('[data-document-check]:checked').count(),2);}
+if(selection!=='closed'){const image=p.locator('.kd-image-preview img');await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());
+assert.equal(await image.getAttribute('width'),'1600');assert.equal(await image.getAttribute('height'),'1000');
+assert.equal(await image.getAttribute('sizes'),'auto, 100vw');
+assert((await image.evaluate(e=>e.currentSrc)).includes('preview='+(mobile?'768':'384')));
+assert(!(await image.getAttribute('src')).includes('thumb='));
+const zoomCdp=await c.newCDPSession(p);await zoomCdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:2});
+await p.waitForFunction(()=>{const i=document.querySelector('.kd-image-preview img');return !i.hasAttribute('srcset')&&i.complete&&!i.currentSrc.includes('preview=');});
+const zoomPixels=await image.evaluate(async i=>{const b=await createImageBitmap(await(await fetch(i.currentSrc)).blob());const size={width:b.width,height:b.height};b.close();return size;});
+assert.deepEqual(zoomPixels,{width:1600,height:1000});
+await zoomCdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:1});await zoomCdp.detach();}await p.locator('[data-document-check-all]').check();assert.equal(await p.locator('[data-document-check]:checked').count(),2);}
 const integrity=[];let pdfDimensions=[];
 for(const doc of manifest.documents){if(doc.extension==='pdf'){requests.length=0;await p.goto(base+route+'?document=document:'+doc.id,{waitUntil:'load'});await p.waitForFunction(()=>document.querySelector('[data-pdf-count]')?.textContent==='2');await p.waitForFunction(()=>document.querySelector('.invoice-pdf-page canvas')?.width>0);// Total PDF page count is published before asynchronous getPage completes.
 await p.waitForFunction(() => document.querySelectorAll('.invoice-pdf-page').length === 2

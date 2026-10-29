@@ -4,6 +4,11 @@ on:
     paths:
       - 'templates/vehicle_karte_documents.html'
       - 'templates/vehicle_karte_header.html'
+      - 'dkss_app/document_images.py'
+      - 'dkss_app/profile_images.py'
+      - 'dkss_app/vehicle_karte.py'
+      - 'static/js/vehicle_karte_documents.js'
+      - 'tests/test_q12_document_images.py'
       - 'static/icons/truck*.png'
       - 'tools/build_notification_icon.py'
       - 'tests/test_q12_notification_icon.py'

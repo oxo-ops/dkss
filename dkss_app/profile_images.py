@@ -121,21 +121,23 @@ def display_thumbnail(filename):
     return _display(filename, size, True)
 
 
-def _encode(read, size, crop):
+def _encode(read, size, crop, *, lossless=False, width_only=False):
     with Image.open(BytesIO(read())) as image:
         if getattr(image, "is_animated", False):
             return None  # Animation keeps the original response path.
         icc = image.info.get("icc_profile")
-        image.draft("RGB", (size * 2, size * 2))
+        if not lossless:
+            image.draft("RGB", (size * 2, size * 2))
         image = ImageOps.exif_transpose(image)
         if crop:
             image = ImageOps.fit(image, (size, size * 3 // 4), Image.Resampling.LANCZOS)
         else:
-            image.thumbnail((size, size), Image.Resampling.LANCZOS)
+            image.thumbnail((size, image.height if width_only else size), Image.Resampling.LANCZOS)
         if image.mode not in {"RGB", "RGBA"}:
             image = image.convert("RGBA" if "transparency" in image.info else "RGB")
         output = BytesIO()
-        image.save(output, format="WEBP", quality=85, method=4, icc_profile=icc or b"")
+        image.save(output, format="WEBP", quality=85, method=4,
+                   lossless=lossless, exact=lossless, icc_profile=icc or b"")
         return output.getvalue()
 
 
