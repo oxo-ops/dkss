@@ -1,0 +1,53 @@
+name: Q03 Operation CSV Owner
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/**'
+      - 'tools/upgrade_operation_csv_owners.py'
+      - 'tests/test_q03_csv_owner*.py'
+      - '.github/workflows/q03-operation-csv-owner.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-csv-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q03_csv_ci
+          POSTGRES_USER: q03_csv
+          POSTGRES_PASSWORD: q03-csv-disposable-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U q03_csv -d dkss_q03_csv_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      Q03_CSV_POSTGRES_TEST_URL: postgresql+psycopg2://q03_csv:q03-csv-disposable-only@127.0.0.1:5432/dkss_q03_csv_ci
+      PYTHONPATH: .:tests
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: CSV ownership, actual concurrency and additive migration
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest test_q03_csv_owner test_q03_csv_owner_storage -v 2>&1 | tee q03-csv-owner-results.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q03-csv-owner-results
+          path: q03-csv-owner-results.log

@@ -7,6 +7,7 @@ observed from a new app context; the test never rolls their transaction back.
 import json
 import os
 import unittest
+from uuid import uuid4
 from unittest.mock import patch
 
 from sqlalchemy import inspect, text
@@ -94,8 +95,8 @@ class MasterPostgresUpgradeTests(unittest.TestCase):
                 with self.assertRaises(IntegrityError) as raised:
                     with self.engine.begin() as connection:
                         connection.execute(text('INSERT INTO ' + table
-                            + ' (company_code, name) VALUES (:company, :name)'),
-                            {'company': self.company, 'name': name})
+                            + ' (company_code, name, master_generation) VALUES (:company, :name, :generation)'),
+                            {'company': self.company, 'name': name, 'generation': str(uuid4())})
                 self.assertEqual(raised.exception.orig.diag.constraint_name,
                                  'uq_' + table + '_company_name')
         self.assertEqual(self.both_snapshots(), before)

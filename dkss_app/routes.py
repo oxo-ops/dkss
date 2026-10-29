@@ -5,6 +5,8 @@ from .extensions import limiter
 
 
 def register_core_routes(app):
+    from .master_generations import template_context
+    app.context_processor(template_context)
     view = http.file_too_large
     view = app.errorhandler(413)(view)
     view = http.handle_csrf_error

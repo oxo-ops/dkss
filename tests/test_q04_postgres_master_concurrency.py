@@ -64,6 +64,8 @@ class MasterConcurrencyTests(unittest.TestCase):
                 with cls.engine.connect() as connection:
                     assert connection.scalar(text('SELECT current_schema()')) == cls.schema
                     cls.isolation = connection.scalar(text('SHOW transaction_isolation'))
+        from master_form_fixture import FreshMasterFormsClient
+        cls.app.test_client_class = FreshMasterFormsClient
         limiter.enabled = False
         cls.local = threading.local()
         cls.pid_lock = threading.Lock()
@@ -125,10 +127,12 @@ class MasterConcurrencyTests(unittest.TestCase):
         return client
 
     def submit(self, label, client, path, name=None):
+        from master_form_fixture import fresh_master_data
+        data = fresh_master_data(client, path, {} if name is None else {'name': name})
         self.local.worker = label
         try:
             try:
-                response = client.post(path, data={} if name is None else {'name': name})
+                response = client.post(path, data=data)
                 try:
                     return {'status': response.status_code, 'location': response.location}
                 finally:

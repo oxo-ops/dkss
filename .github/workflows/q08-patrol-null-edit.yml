@@ -1,0 +1,69 @@
+name: Q08 Patrol NULL Edit
+
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/patrols.py'
+      - 'templates/vehicle_patrol_form.html'
+      - 'tests/test_q08_patrol_null_edit.py'
+      - 'tests/q08_patrol_form_browser.cjs'
+      - '.github/workflows/q08-patrol-null-edit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patrol-null-edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q08_patrol_ci
+          POSTGRES_USER: q08
+          POSTGRES_PASSWORD: q08-disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U q08 -d dkss_q08_patrol_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: .:tests
+      Q08_POSTGRES_TEST_URL: postgresql+psycopg2://q08:q08-disposable-ci-only@127.0.0.1:5432/dkss_q08_patrol_ci
+      Q08_PATROL_BROWSER: '1'
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - name: Install pinned Chromium test runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/q08-node" playwright@1.62.1
+          "$RUNNER_TEMP/q08-node/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify only patrol edit state and native form submission
+        shell: bash
+        run: |
+          set -o pipefail
+          NODE_PATH="$RUNNER_TEMP/q08-node/node_modules" python -m unittest -v test_q08_patrol_null_edit 2>&1 | tee q08-patrol-null-edit.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q08-patrol-null-edit-results
+          path: q08-patrol-null-edit.log
+          retention-days: 7

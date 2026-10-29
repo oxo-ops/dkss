@@ -49,6 +49,7 @@
 
 <form method="post" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
     {% if mode == "edit" %}
     <input type="hidden" name="record_version" value="{{ record_version }}">
     {% endif %}

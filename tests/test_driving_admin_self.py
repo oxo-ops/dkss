@@ -1,4 +1,5 @@
 """Managers retain authority while requesting a strictly personal report scope."""
+from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
 import unittest
@@ -70,7 +71,7 @@ class AdminSelfTests(unittest.TestCase):
     def test_readership_setting_accepts_admin_and_itc_without_role_change(self):
         from driving_report_data import version
         response=self.client.post(f'/safety/driving-reports/{self.own.id}/reader',data={
-            'version':version(self.own),'reader_username':'admin'})
+            'version':version(self.own),'person_selection_token':fresh_person_proof(self.client),'reader_username':'admin'})
         self.assertEqual(response.status_code,302)
         self.assertEqual(DrivingReportReader.query.filter_by(report_id=self.own.id).one().user_id,self.admin.id)
         html=self.client.get(f'/safety/driving-reports/{self.own.id}').get_data(as_text=True)

@@ -26,6 +26,7 @@
 
 <form method="post" enctype="multipart/form-data" class="card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
 
     <label>投稿先</label>
     <select name="target_type" id="target_type" required>
