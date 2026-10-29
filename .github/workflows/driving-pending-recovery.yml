@@ -1,0 +1,93 @@
+name: Driving Pending Identity Recovery
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/driving_pending_identity.py'
+      - 'dkss_app/vehicle_pending.py'
+      - 'dkss_app/routes.py'
+      - 'templates/driving*.html'
+      - 'templates/vehicle_master.html'
+      - 'templates/vehicle_document_import_preview.html'
+      - 'tests/*driving_pending*'
+      - '.github/workflows/driving-pending-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recovery-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q08_recovery_ci
+          POSTGRES_USER: recovery
+          POSTGRES_PASSWORD: recovery-disposable-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recovery -d dkss_q08_recovery_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PYTHONPATH: .:tests
+      Q08_POSTGRES_TEST_URL: postgresql+psycopg2://recovery:recovery-disposable-only@127.0.0.1:5432/dkss_q08_recovery_ci
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: echo "NODE_PATH=$RUNNER_TEMP/recovery-node/node_modules" >> "$GITHUB_ENV"
+      - run: python -m pip install -r requirements.txt
+      - run: npm install --no-save --prefix "$RUNNER_TEMP/recovery-node" playwright@1.62.1
+      - run: node "$RUNNER_TEMP/recovery-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Start new isolated fixtures
+        run: |
+          python -u tests/driving_pending_recovery_browser_server.py --kind sqlite --port 51579 --out "$RUNNER_TEMP/recovery-sqlite.json" > "$RUNNER_TEMP/recovery-sqlite.log" 2>&1 &
+          python -u tests/driving_pending_recovery_browser_server.py --kind postgres --port 51580 --out "$RUNNER_TEMP/recovery-postgres.json" > "$RUNNER_TEMP/recovery-postgres.log" 2>&1 &
+          for port in 51579 51580; do
+            ready=0
+            for i in $(seq 1 90); do
+              if curl -fsS -o /dev/null "http://127.0.0.1:$port/login"; then ready=1; break; fi
+              sleep 1
+            done
+            test "$ready" = 1
+          done
+      - name: Additional R01-R14 browser acceptance with CSRF
+        run: |
+          node tests/driving_pending_recovery_browser.cjs "$RUNNER_TEMP/recovery-sqlite.json" "$RUNNER_TEMP/recovery-results"
+          node tests/driving_pending_recovery_browser.cjs "$RUNNER_TEMP/recovery-postgres.json" "$RUNNER_TEMP/recovery-results"
+      - name: Stop owned fixtures
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+          for kind in ['sqlite','postgres']:
+              path=Path(os.environ['RUNNER_TEMP'])/('recovery-'+kind+'.json')
+              if path.exists():
+                  fixture=json.loads(path.read_text())
+                  try:
+                      urllib.request.urlopen(urllib.request.Request(fixture['base']+'/_recovery_fixture/stop',headers={'X-Recovery-Fixture':fixture['key']}),timeout=10).read()
+                  except OSError:
+                      pass
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: driving-pending-recovery
+          path: |
+            ${{ runner.temp }}/recovery-results/
+            ${{ runner.temp }}/recovery-sqlite.log
+            ${{ runner.temp }}/recovery-postgres.log

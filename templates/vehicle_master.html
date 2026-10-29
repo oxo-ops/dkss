@@ -379,6 +379,7 @@
             {% elif pending_detail is defined %}
                 <section class="pw-detail-card pending-review-panel">
                     <h3>登録待ち車両の確認</h3>
+                    {% if pending_identity_reviews %}<section class="card" aria-label="日報の本人確認"><h4>保存済み日報の本人確認</h4><p>原本と本人の関係を確認できるまで、日報の登録・本人公開を保留します。</p>{% for item in pending_identity_reviews %}<p id="pending-person-{{ item.id }}"><a href="{{ item.url }}">{{ item.filename }}・{{ item.date or '日付不明' }}・明細{{ item.index }}：原本と本人を確認</a>（{{ item.label }}）</p>{% endfor %}</section>{% endif %}
                     <p class="help-text">資料は保存済みです。登録先を確認すると、この車両のカルテへ紐付けます。</p>
 
                     <div class="pw-stats">

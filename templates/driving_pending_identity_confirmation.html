@@ -1,0 +1,17 @@
+<section class="card" id="identity-confirmation" aria-label="新しい本人確認">
+    <h3>原本と本人の関係を確認</h3>
+    <p>旧選択：{{ recovery.legacy_username or '保存なし' }} ／ 旧UUID：{{ recovery.legacy_uuid or '証跡なし・本人未確定' }}。現在のアカウントから旧本人を推定しません。</p>
+    {% if recovery.editable %}
+    <label>今回確認した本人アカウント<select name="reader_username" id="recovery-person"><option value="">選択してください</option>{% for user in recovery.users %}<option value="{{ user.username }}">{{ user.last_name or '' }}{{ user.first_name or '' }}（{{ user.username }}）</option>{% endfor %}</select></label>
+    <label>確認方法<select name="evidence_basis" id="recovery-basis"><option value="">確認方法を選択</option>{% for key,label in recovery.basis.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+    <label><input type="checkbox" name="checked" value="yes">会社の本人確認手順に従い、この日報と選択した本人の関係を確認しました</label>
+    <label>資料の管理番号・確認内容など（任意）<textarea name="evidence_reference" maxlength="1000" rows="2"></textarea></label>
+    <p>確認の記録だけでは日報の登録・本人公開は行いません。自由記入を毎回入力する必要はありません。</p>
+    <button type="submit" name="decision" value="confirmed" class="btn">本人確認を記録</button>
+    <button type="submit" name="decision" value="hold" class="btn btn-outline" formnovalidate>根拠不足のため保留を続ける</button>
+    {% else %}<p>この画面から確認を保存することはできません。最新状態を確認するか、登録待ちへ戻ってください。</p>{% endif %}
+</section>
+<section class="card" aria-label="本人確認の履歴"><h3>本人確認の履歴</h3>
+{% for event in recovery.history %}<details><summary>{{ event.at }} ／ {{ '本人を確認' if event.decision=='confirmed' else '保留' }} ／ {{ event.actor_name }}</summary><dl><dt>確認時の本人</dt><dd>{{ event.person_name or '未確定' }}（{{ event.username or '未選択' }}）</dd><dt>本人UUID</dt><dd>{{ event.account_identity or '未確定' }}</dd><dt>確認者UUID</dt><dd>{{ event.actor_identity }}</dd><dt>確認方法</dt><dd>{{ recovery.basis.get(event.evidence_basis,'保留') }}</dd><dt>補足</dt><dd>{{ event.evidence_reference or '記入なし' }}</dd><dt>確認記録ID</dt><dd>{{ event.id }}</dd></dl></details>{% else %}<p>新しい本人確認はまだ記録されていません。旧選択は保存したままです。</p>{% endfor %}
+</section>
+{% if recovery.navigation %}<nav class="card" aria-label="同じ登録待ちの日報明細"><h3>保存済みの日報明細</h3>{% for item in recovery.navigation %}<p><a href="{{ item.url }}" {% if item.id==recovery.item_id %}aria-current="page"{% endif %}>{{ item.filename }}・{{ item.date or '日付不明' }}・明細{{ item.index }}（{{ item.label }}）</a></p>{% endfor %}</nav>{% endif %}

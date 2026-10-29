@@ -1,6 +1,7 @@
 """Vehicle Pending responsibilities; routes are registered by the application factory."""
 from .vehicle_capacity import reserved_vehicle_count
 from . import operation_csv_owner as _csv_owner
+from . import driving_pending_identity as _driving_recovery
 from . import access as _dkss_access, checklists as _dkss_checklists, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_imports as _dkss_vehicle_imports, vehicle_karte as _dkss_vehicle_karte, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -366,6 +367,12 @@ def vehicle_import_pending_review(pending_id):
                 _dkss_common.db.session.rollback()
                 return _dkss_common.jsonify({"ok": True})
             _dkss_common.db.session.commit()
+        except _driving_recovery.RecoveryConflict as error:
+            _dkss_common.db.session.rollback()
+            return _driving_recovery.render_review(pending_id, error.item_id, error.description, 409)
+        except _dkss_common.HTTPException:
+            _dkss_common.db.session.rollback()
+            raise
         except (_dkss_common.UploadValidationError, ValueError, _dkss_common.InvalidOperation) as error:
             _dkss_common.db.session.rollback()
             return _dkss_http.return_form_errors([(str(error), "")])
@@ -575,6 +582,7 @@ def vehicle_import_pending_review(pending_id):
         pending_record_counts=pending_record_counts,
         pending_sources=pending_sources,
         pending_workspace=get_vehicle_pending_workspace(company_code, pending.id),
+        pending_identity_reviews=_driving_recovery.navigation(pending.id),
         pending_documents=[{
             "draft_id": draft.id,
             "filename": draft.source_filename,
@@ -1228,6 +1236,9 @@ def _apply_vehicle_pending_document_records(items, vehicle_id, company_code, use
         if item.source_kind in {'inspection', 'driving_report'} and (draft.source_sha256, index) in _dkss_vehicle_imports.registered_inspection_import_keys(company_code, exclude_pending_record_id=item.id, source_kind=item.source_kind):
             raise _dkss_common.UploadValidationError('同じ原本の記録がすでに登録されています。')
         values = {**payload, 'vehicle_record_id': vehicle_id}
+        recovered = _driving_recovery.effective_selection(item, draft) if item.source_kind == 'driving_report' else None
+        if recovered:
+            values['identity_recovery'] = recovered[2]
         record = _dkss_vehicle_imports.build_vehicle_document_record(draft, index, values)
         document = None
         if item.source_kind == 'maintenance':
@@ -1246,8 +1257,12 @@ def _apply_vehicle_pending_document_records(items, vehicle_id, company_code, use
             _dkss_common.db.session.flush()
             if item.source_kind == 'driving_report':
                 from .driving_access import resolve_import
-                resolve_import(record, values.get('_driving_account_choice') or None,
-                               expected_identity=values.get('_driving_account_identity'))
+                try:
+                    resolve_import(record, recovered[0] if recovered else values.get('_driving_account_choice') or None,
+                                   expected_identity=recovered[1] if recovered else values.get('_driving_account_identity'))
+                except _dkss_common.HTTPException as error:
+                    if error.code == 409:raise _driving_recovery.RecoveryConflict(item.id) from None
+                    raise
             if item.source_kind == 'maintenance':
                 _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
                 _dkss_vehicle_karte.save_vehicle_maintenance_replacement_parts(record)
@@ -1267,7 +1282,8 @@ def _apply_vehicle_pending_document_records(items, vehicle_id, company_code, use
         item.status = 'applied'
         item.vehicle_record_id = vehicle_id
         item.applied_at = now
-        item.result_json = _dkss_common.json.dumps(applied_result, ensure_ascii=False)
+        previous_result = _driving_recovery.object_value(item.result_json, item.id) if item.source_kind == 'driving_report' else {}
+        item.result_json = _dkss_common.json.dumps({**previous_result, **applied_result}, ensure_ascii=False)
     _dkss_common.db.session.flush()
     review_pending_count = _dkss_models.VehicleMaintenanceDocument.query.filter(_dkss_models.VehicleMaintenanceDocument.company_code == company_code, _dkss_models.VehicleMaintenanceDocument.pending_record_id.in_([item.id for item in items]), _dkss_models.VehicleMaintenanceDocument.financial_status == 'pending').count()
     return {'added_count': added_count, 'linked_count': len(items), 'review_pending_count': review_pending_count}

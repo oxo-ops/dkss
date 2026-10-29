@@ -19,11 +19,17 @@
     <span aria-current="page">取込確認</span>
 </nav>
 <div class="invoice-page-heading">
-    <h2>資料の取込確認</h2>
+    <h2>{{ '保存済み日報の本人再確認' if recovery is defined else '資料の取込確認' }}</h2>
 </div>
 <form method="post" action="{{ save_action if save_action is defined else url_for('vehicle_document_import_confirm', batch_id=batch_id) }}" class="responsive-form vehicle-document-import-preview" novalidate>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<input type="hidden" name="person_selection_token" value="{{ driving_person_selection() }}">
+{% if recovery is defined %}
+<input type="hidden" name="person_selection_token" value="{{ recovery.proof }}">
+<input type="hidden" name="target_token" value="{{ recovery.token }}">
+<p>原本と保存済み値を確認してください。この画面では読取値を変更せず、新しい本人確認だけを記録します。</p>
+<a class="btn btn-outline" href="{{ recovery.back_url }}">登録待ちの元の明細へ戻る</a>
+{% if recovery.error %}<p class="alert alert-danger" role="alert">{{ recovery.error }}</p><a class="btn btn-outline" href="{{ recovery.reload_url }}">最新の状態で本人を確認し直す</a>{% endif %}
+{% else %}<input type="hidden" name="person_selection_token" value="{{ driving_person_selection() }}">{% endif %}
 {% if record_version is defined %}<input type="hidden" name="record_version" value="{{ record_version }}">{% endif %}
 {% if kind_corrections %}
 <section class="card" role="status">
@@ -123,7 +129,9 @@
                 {% if document.document_type == 'inspection' %}
                 {% include 'inspection_document_fields.html' %}
                 {% elif document.document_type == 'driving_report' %}
+                {% if recovery is defined %}<fieldset disabled aria-label="保存済み読取値（変更できません）">{% endif %}
                 {% include 'driving_report_fields.html' %}
+                {% if recovery is defined %}</fieldset>{% endif %}
                 {% else %}
                 {% include 'maintenance_invoice_fields.html' %}
                 {% endif %}
@@ -190,10 +198,14 @@
 {% endif %}
 {% endfor %}
 
+{% if recovery is defined %}
+{% include 'driving_pending_identity_confirmation.html' %}
+{% else %}
 <div class="form-actions vehicle-filter-actions invoice-submit-actions">
     <button type="submit" class="btn invoice-primary-action" {% if import_all_duplicates|default(false) %}disabled{% endif %}>{{ '訂正して登録' if kind_corrections else '訂正を保存' if edit_record is defined else '選択した記録を登録' }}</button>
     <span data-invoice-selection-count role="status">チェックした記録をまとめて登録します</span>
 </div>
+{% endif %}
 </form>
 </div>
 <script src="{{ url_for('static', filename='js/maintenance_invoice_preview.js', v='20261028-review-space-1') }}" defer></script>
