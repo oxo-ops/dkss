@@ -173,8 +173,18 @@ def vehicle_karte_document_source(vehicle_record_id, draft_id):
     if not mimetype:
         raise _dkss_common.NotFound()
 
+    data = draft.source_file
+    if _dkss_common.request.args.get("download") != "1" and "preview" in _dkss_common.request.args:
+        from .document_images import WIDTHS, preview
+        size = _dkss_common.request.args.get("preview", type=int)
+        if size not in WIDTHS:
+            raise _dkss_common.NotFound()
+        display = preview(draft, vehicle.id) if extension in {".jpg", ".jpeg", ".png"} else None
+        if display and size in display["variants"]:
+            data, mimetype = display["variants"][size], "image/webp"
+
     response = _dkss_common.send_file(
-        _dkss_common.BytesIO(draft.source_file),
+        _dkss_common.BytesIO(data),
         mimetype=mimetype,
         download_name=draft.source_filename,
         as_attachment=_dkss_common.request.args.get("download") == "1",
@@ -640,13 +650,26 @@ def vehicle_karte_documents(vehicle_record_id):
     documents = get_vehicle_karte_documents(vehicle)
     open_defects = _dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id)
 
+    context = build_vehicle_karte_documents_context(vehicle, documents)
+    selected = context["selected_document"]
+    if selected and selected["key"].startswith("document:") and selected["extension"] in {"jpg", "jpeg", "png"}:
+        from .document_images import preview
+        draft = _dkss_models.VehicleDocumentImportDraft.query.filter_by(
+            id=selected["draft_id"], company_code=vehicle.company_code, status="completed"
+        ).first()
+        if draft is not None and any(
+            isinstance(row, dict) and str(row.get("vehicle_record_id", "")) == str(vehicle.id)
+            for row in _dkss_serialization.safe_json_dict(draft.result_json).get("records", [])
+        ):
+            selected["display_image"] = preview(draft, vehicle.id)
+
     return _dkss_common.render_template(
         "vehicle_karte_documents.html",
         vehicle=vehicle,
         vehicle_number=number,
         open_defects=open_defects,
         documents=documents,
-        **build_vehicle_karte_documents_context(vehicle, documents)
+        **context
     )
 
 
