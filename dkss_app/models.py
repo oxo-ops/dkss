@@ -744,6 +744,7 @@ class AnalysisInputReadCache(db.Model):
 
 class VehicleDocumentImportDraft(db.Model):
     id = db.Column(db.String(36), primary_key=True)
+    owner_identity = db.Column(db.String(36), nullable=True, index=True)
 
     batch_id = db.Column(
         db.String(36),

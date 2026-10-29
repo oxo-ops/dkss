@@ -61,6 +61,8 @@ SQLiteはBEGIN IMMEDIATE、PGは5表へのACCESS EXCLUSIVEロックで移行を1
 
 Q03 #283・Q08 #285/#297は基点mainに反映済み。人物UUID、Q11復旧コード、#304診断は再実装・変更しない。生成されたDB定義資料と契約fixtureだけは、5列とcontext processorの追加に合わせて更新する。
 
+最終統合ではQ03 #314を含むmain `a7a79ff` を取り込み、営業所変更時のVehicle→Userのロック順と人物選択の署名処理をそのまま保持した。共有HTTP試験fixtureではQ03とQ04の既存adapterを合成し、両方の明示された旧/欠落/改変署名を上書きしない。Q03の旧人物フォーム拒否と、営業所変更・車両点検保存のロック順も結合検証する。
+
 ## 検証と5マスタの受入
 
 | マスタ | SQLite | PostgreSQL |

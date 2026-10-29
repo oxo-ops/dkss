@@ -198,6 +198,8 @@ jobs:
           for name in delivery_integrity history_master_links checklist_office_links named_master_gaps driver_license_links master_reuse_and_reverse vehicle_batch_master_links; do
             python -m unittest discover -s tests -p "test_q04_postgres_${name}.py" -v || exit $?
           done 2>&1 | tee q04-postgres-gaps-results.log
+      - name: Verify Q03 person locks against office and vehicle mutations
+        run: PYTHONPATH=.:tests python -m unittest test_q03_master_lock_order -v
       - name: Confirm office news checks detect the unfixed main
         shell: bash
         env:

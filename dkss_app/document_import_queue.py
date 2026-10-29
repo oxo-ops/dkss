@@ -16,6 +16,7 @@ from .extensions import db
 from .models import VehicleDocumentImportDraft as Draft, Company, User
 from document_type_detection import detect_document_types, validate_detection
 from .document_sources import store_source
+from . import import_owner
 
 MB = 1024 * 1024
 MAX_FILE_BYTES = 20 * MB
@@ -57,8 +58,8 @@ def receipt_hidden(value):
 
 def delete_receipt(batch_id, company_code, username):
     """Cancel unfinished intake; retain originals used by registered records."""
-    rows = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-        created_by_username=username).order_by(Draft.id).with_for_update().all()
+    rows = lightweight_query().filter_by(batch_id=batch_id).filter(
+        import_owner.owner_clause(Draft,company_code,username)).order_by(Draft.id).with_for_update().all()
     if not rows or all(receipt_hidden(row.result_json) for row in rows):
         db.session.rollback()
         return False
@@ -81,7 +82,7 @@ def delete_receipt(batch_id, company_code, username):
 
 def lightweight_query():
     return Draft.query.options(load_only(Draft.id, Draft.batch_id, Draft.company_code,
-        Draft.created_by_username, Draft.document_type, Draft.source_filename,
+        Draft.created_by_username, Draft.owner_identity, Draft.document_type, Draft.source_filename,
         Draft.source_sha256, Draft.status, Draft.result_json, Draft.created_at))
 
 
@@ -94,20 +95,23 @@ class ImportQueueError(ValueError):
 def enqueue(files, document_type, company_code, username, upload_key=None):
     """Store each source without retaining the whole batch in Python memory."""
     from .storage import is_valid_uploaded_file
+    identity=import_owner.identity_for_actor(company_code,username)
+    if not identity:
+        raise ImportQueueError('受付する利用者の権限を確認してください。',403)
     if document_type not in {'maintenance', 'inspection', 'driving_report'}:
         raise ImportQueueError('請求書・点検記録・安全運転日報を選択してください。')
     try:
         batch_id = str(UUID(upload_key)) if upload_key else str(uuid4())
     except (ValueError, TypeError, AttributeError):
         raise ImportQueueError('受付番号を確認してください。') from None
-    existing = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-                                             created_by_username=username).first()
+    scope=import_owner.owner_clause(Draft,company_code,username)
+    existing = lightweight_query().filter_by(batch_id=batch_id).filter(scope).first()
     if existing:
         return batch_id
     files = [file for file in files if file and file.filename]
     if not 1 <= len(files) <= MAX_BATCH_FILES:
         raise ImportQueueError('資料を1～50ファイル選択してください。')
-    pending = Draft.query.filter_by(company_code=company_code, created_by_username=username).filter(Draft.status.in_(ACTIVE)).count()
+    pending = Draft.query.filter(scope,Draft.status.in_(ACTIVE)).count()
     if pending + len(files) > 100:
         raise ImportQueueError('受付済みの資料を処理中です。完了後に追加してください。', 409)
     total = 0
@@ -135,8 +139,8 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
                 del source
                 continue
             accepted += 1
-            row = Draft(id=str(uuid5(UUID(batch_id), company_code + ':' + username + ':' + str(position))), batch_id=batch_id, company_code=company_code,
-                created_by_username=username, document_type=document_type, source_filename=filename,
+            row = Draft(id=str(uuid5(UUID(batch_id), company_code + ':' + identity + ':' + str(position))), batch_id=batch_id, company_code=company_code,
+                created_by_username=username, owner_identity=identity, document_type=document_type, source_filename=filename,
                 source_file=store_source(company_code,digest,source), source_sha256=digest, status='queued',
                 preview_json='{}', result_json=result({'phase':'queued', 'attempts':0,
                 'position':position, 'requested_type':document_type, 'generation':0,
@@ -148,16 +152,14 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
         if not accepted:
             raise ImportQueueError('選択した資料は、同じ会社ですでに登録済みです。他の利用者による登録も含みます。同じ資料の再登録は不要です。', 409)
         if ignored:
-            first = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-                created_by_username=username).first()
+            first = lightweight_query().filter_by(batch_id=batch_id).filter(scope).first()
             data = metadata(first.result_json)
             data['ignored_files'] = ignored
             first.result_json = result(data)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        if lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-                                          created_by_username=username).first():
+        if lightweight_query().filter_by(batch_id=batch_id).filter(scope).first():
             return batch_id
         raise
     except Exception:
@@ -242,15 +244,7 @@ def owner_available(row):
     """Read current authority at each external-processing result boundary."""
     # Select columns so a cached User/Company ORM instance cannot authorize
     # results after another request has revoked the owner's access.
-    return db.session.query(User.id).join(
-        Company, Company.company_code == User.company_code,
-    ).filter(
-        User.company_code == row.company_code,
-        User.username == row.created_by_username,
-        User.login_locked.is_(False),
-        User.role.in_({'admin', 'itc'}),
-        Company.active.is_(True),
-    ).first() is not None
+    return import_owner.active_owner_username(row) is not None
 
 
 def finish(draft_id, token, extraction=None, error=None):
@@ -266,13 +260,15 @@ def finish(draft_id, token, extraction=None, error=None):
         try:
             row.status = 'preview'
             preview = build_vehicle_document_preview(row, extraction,
-                company_code=row.company_code, username=row.created_by_username)
+                company_code=row.company_code, username=import_owner.active_owner_username(row))
             if not preview.get('records'):
                 raise ValueError('OCR_NO_RECORDS')
             preview['routing_notice'] = job.get('routing_notice', '')
             row.preview_json = encode(preview)
         except Exception as exc:
             error = exc
+    if error is None and import_owner.active_owner_username(row,lock=True) is None:
+        error=ValueError('OWNER_UNAVAILABLE')
     if error is not None:
         row.status = 'read_error'
         row.preview_json = '{}'
@@ -296,7 +292,7 @@ def route_detection(draft_id, token, detection):
     if not row or metadata(row.result_json).get('token') != token:
         db.session.rollback()
         return None
-    if not owner_available(row):
+    if import_owner.active_owner_username(row,lock=True) is None:
         finish(draft_id, token, error=ValueError('OWNER_UNAVAILABLE'))
         return None
     job = metadata(row.result_json)
@@ -320,7 +316,7 @@ def route_detection(draft_id, token, detection):
                 'requested_type':requested, 'forced_type':True,
                 'routing_notice':'混在する資料から、' + KINDS[kind] + 'を読み取りました。'}
             db.session.add(Draft(id=child_id, batch_id=row.batch_id, company_code=row.company_code,
-                created_by_username=row.created_by_username, document_type=kind,
+                created_by_username=row.created_by_username, owner_identity=row.owner_identity, document_type=kind,
                 source_filename=row.source_filename, source_file=store_source(row.company_code,row.source_sha256,row.source_file), source_sha256=row.source_sha256,
                 status='queued', preview_json='{}', result_json=result(child_job)))
     kind = kinds[0]
@@ -444,8 +440,8 @@ def process_one(app):
 
 
 def batch_status(batch_id, company_code, username):
-    rows = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-                                          created_by_username=username).all()
+    rows = lightweight_query().filter_by(batch_id=batch_id).filter(
+        import_owner.owner_clause(Draft,company_code,username)).all()
     rows = [row for row in rows if not receipt_hidden(row.result_json)]
     if not rows:
         return None
@@ -467,8 +463,8 @@ def batch_status(batch_id, company_code, username):
 
 
 def retry_failed(batch_id, company_code, username):
-    rows = lightweight_query().filter_by(batch_id=batch_id, company_code=company_code,
-        created_by_username=username, status='read_error').all()
+    rows = lightweight_query().filter_by(batch_id=batch_id,status='read_error').filter(
+        import_owner.owner_clause(Draft,company_code,username)).all()
     count = 0
     for row in rows:
         old = row.result_json

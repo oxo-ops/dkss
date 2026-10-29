@@ -16,6 +16,7 @@
 
 <form method="post" enctype="multipart/form-data" class="responsive-form" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="person_selection_token" value="{{ person_selection_token }}">
 
     <div class="card form-card">
         <h3>実施情報</h3>

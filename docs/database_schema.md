@@ -680,6 +680,7 @@ Tables: 68
 | Column | Type | Nullable | Primary key | Foreign key |
 | --- | --- | --- | --- | --- |
 | id | VARCHAR(36) | False | True |  |
+| owner_identity | VARCHAR(36) | True | False |  |
 | batch_id | VARCHAR(36) | False | False |  |
 | company_code | VARCHAR(50) | False | False |  |
 | created_by_username | VARCHAR(50) | False | False |  |

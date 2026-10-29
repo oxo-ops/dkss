@@ -67,7 +67,7 @@ class PrivatePostgresCase(unittest.TestCase):
         self.assertEqual(self.snapshot(self.other), foreign)
         self.assertEqual(self.post('A', action).get('status'), 302, 'Retry after rollback must succeed')
 
-    def schedule(self, first, second, table, parallel_prefix=None, first_table=None):
+    def schedule(self, first, second, table, parallel_prefix=None, first_table=None, first_prefix=None):
         """Hold A after SELECT; observe B finishing or waiting on A's real lock.
 
         For insert/disjoint-update races, pause both before the matching SQL.
@@ -85,6 +85,8 @@ class PrivatePostgresCase(unittest.TestCase):
 
         def first_matches(statement):
             sql = ' '.join(statement.lower().split())
+            if first_prefix:
+                return sql.startswith(first_prefix)
             return (sql.startswith('select ') and (' from ' + first_table + ' ') in sql
                     if first_table else matches(statement))
 
@@ -93,7 +95,15 @@ class PrivatePostgresCase(unittest.TestCase):
             if label:
                 # Master mutations may UPDATE a source table without SELECTing it.
                 # Track that request's connection as well as the paused reader.
-                pids.setdefault(label, cursor.connection.get_backend_pid())
+                if first_prefix:
+                    # client() may open a short fixture connection before the
+                    # request, and delivery may use another after commit. Keep
+                    # the connection performing the actual row mutation.
+                    sql = ' '.join(statement.lower().split())
+                    if sql.startswith(('update vehicle ', 'update "user" ')):
+                        pids.setdefault(label, cursor.connection.get_backend_pid())
+                else:
+                    pids.setdefault(label, cursor.connection.get_backend_pid())
             if label and (matches(statement) or label == 'A' and first_matches(statement)):
                 pids[label] = cursor.connection.get_backend_pid()
                 if parallel_prefix and label not in reached:
