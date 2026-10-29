@@ -8,7 +8,7 @@ VehicleChecklistNotifySettingは(company_code,checklist_id,vehicle_record_id)に
 
 既存の車両検証SELECTにFOR UPDATEだけを追加し、Vehicle→User→設定の順で保持してから未作成を照合する。先行処理のcommit後に後続が同じ親行を更新し、各保存の本人世代証跡は従来通り履歴へ残す。Company共有ロックを追加せず、全設定のテーブルロック/新規列/一意索引/自動移行は導入しない。
 
-SQLite/PG各4件の専用試験を追加。初回並行・既存並行、他社拒否、別UUID再登録候補の409を実GET/HTTPで確認する。PGは2backend PID、実SELECT結果の同期、親1行と保存2回分の証跡を厳密に確認。旧コードでは専用の両DB2件中PG1件が親2行で失敗した。Q03専用PG CIへ追加。
+SQLite/PG各4件の専用試験を追加。初回並行・既存並行、他社拒否、別UUID再登録候補の409を実GET/HTTPで確認する。PGは2backend PID、実SELECT結果の同期、親1行と保存2回分の証跡を厳密に確認。旧コードでは専用の両DB2件中PG1件が親2行で失敗した。独立Q03通知設定PG CIを追加し、#330の共通workflow差分と競合させない。
 
 ## 本修正の範囲外・判断点
 
