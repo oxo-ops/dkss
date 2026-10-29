@@ -1,4 +1,5 @@
 """Checklists responsibilities; routes are registered by the application factory."""
+from . import person_selection as _person_forms
 from .report_layout import spreadsheet_text_width
 from . import safety_identity as _person_identity
 from . import access as _dkss_access, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklist_notifications as _dkss_checklist_notifications, common as _dkss_common, http as _dkss_http, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_readers as _dkss_vehicle_readers
@@ -2051,6 +2052,12 @@ def edit_checklist_result(result_index):
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
 
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         previous_answers = [
             dict(answer)
             for answer in result.get("answers", [])
@@ -2735,6 +2742,7 @@ def edit_checklist_result(result_index):
             }
     return _dkss_common.render_template(
         "checklist_result_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         index=checklist_record.id,
         result=result,
@@ -3474,6 +3482,7 @@ def vehicle_checklist_results(index):
 
     return _dkss_common.render_template(
         "vehicle_checklist_results.html",
+        person_selection_token=_person_forms.issue(),
         checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
         vehicle_judgment_names=vehicle_judgment_names,
@@ -3615,6 +3624,10 @@ def save_vehicle_checklist_reminder_notify_users(checklist_index):
     notify_usernames = list(
         dict.fromkeys(notify_usernames)
     )
+
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
 
     # 設定保存
 
@@ -4079,6 +4092,10 @@ def save_vehicle_operation_judgment(result_index):
         if not manager:
             return _dkss_http.return_form_errors([("整備管理者・補助者を選択してください。", "manager_username")], 400)
 
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
             return _dkss_common.jsonify({"success": True})
 
@@ -4321,6 +4338,10 @@ def save_vehicle_operation_judgment(result_index):
                     )
                 ], 400)
 
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
+
     if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
         return _dkss_common.jsonify({"success": True})
 
@@ -4542,6 +4563,10 @@ def approve_vehicle_checklist_result(result_index, approval_index):
 
     if not result_record:
         return _dkss_common.redirect("/vehicle/checklists")
+
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     if result_record.status != "承認待ち":
         return _dkss_common.redirect("/vehicle/checklists")
@@ -4887,6 +4912,10 @@ def reject_vehicle_checklist_result(result_index):
 
     if not result_record:
         return _dkss_common.redirect("/vehicle/checklists")
+
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     if result_record.status not in {"承認待ち", "承認済み"}:
         return _dkss_http.return_form_errors([
@@ -8222,6 +8251,10 @@ def complete_vehicle_checklist(index):
     if lock_error is not None:
         return lock_error
 
+    person_error = _person_forms.validate()
+    if person_error is not None:
+        return person_error
+
     # 結果取得
 
     result_record = (
@@ -8808,6 +8841,11 @@ def new_vehicle_checklist_result(index):
         )
         if lock_error is not None:
             return lock_error
+
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
+
         company_code = _dkss_common.session.get("company_code")
 
         vehicle_record_id = _dkss_common.request.form.get(
@@ -9368,6 +9406,7 @@ def new_vehicle_checklist_result(index):
 
     return _dkss_common.render_template(
         "vehicle_checklist_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         checklist_index=checklist_record.id,
         mode="new",
@@ -9536,6 +9575,12 @@ def new_safety_checklist_result(index):
             return _dkss_http.return_form_errors([
                 ("営業所が更新されています。画面を再読み込みしてください。", "target_office")
             ])
+
+        # Q04 master writers hold Office before updating User. Acquire the
+        # same Office -> User order, after validating copied office references.
+        person_error = _person_forms.validate()
+        if person_error is not None:
+            return person_error
 
         pending_answer_files = []
 
@@ -9997,6 +10042,7 @@ def new_safety_checklist_result(index):
 
     return _dkss_common.render_template(
         "checklist_result_form.html",
+        person_selection_token=_person_forms.issue(),
         checklist=checklist,
         index=checklist_record.id,
         criteria_list=criteria_list,
@@ -11004,6 +11050,10 @@ def approve_checklist_result(result_index, approval_index):
     if not result_record:
         return _dkss_common.redirect("/safety/checklists")
 
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
+
     if result_record.status != "承認待ち":
         return _dkss_common.redirect(
             _dkss_common.url_for("checklist_result_detail", result_index=result_index)
@@ -11281,6 +11331,10 @@ def reject_checklist_result(result_index):
 
     if not result_record:
         return _dkss_common.redirect("/safety/checklists")
+
+    person_error = _person_forms.validate(actor_only=True)
+    if person_error is not None:
+        return person_error
 
     if result_record.status != "承認待ち":
         return _dkss_common.redirect(

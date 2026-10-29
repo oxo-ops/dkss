@@ -4,7 +4,7 @@ Disposable SQLite only. Ordinary inspections are completed through the route;
 fixed-template state is seeded to isolate manager/repair authorization.
 Does not validate PostgreSQL concurrency, browser CSRF or production.
 """
-from identity_fixture import identity_for
+from identity_fixture import identity_for, PersonSelectionClient
 import io
 import json
 import os
@@ -28,6 +28,7 @@ class Q02VehicleWorkflowBoundaryTests(unittest.TestCase):
                'AWS_EC2_METADATA_DISABLED': 'true'}
         with patch.dict(os.environ, env):
             cls.app = create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False})
+        cls.app.test_client_class = PersonSelectionClient
         limiter.enabled = False
 
     @classmethod

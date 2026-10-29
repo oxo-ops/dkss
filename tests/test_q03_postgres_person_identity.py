@@ -29,6 +29,8 @@ class Q03PostgresPersonIdentityTests(identity.Q03PersonIdentityTests):
             'VAPID_PUBLIC_KEY': '', 'AWS_EC2_METADATA_DISABLED': 'true'}
         with patch.dict(os.environ, env):
             cls.app = create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False})
+        from identity_fixture import PersonSelectionClient
+        cls.app.test_client_class = PersonSelectionClient
         limiter.enabled = False
 
     @classmethod
