@@ -609,7 +609,7 @@
                         確認・運行判断
                     </a>
                     {% else %}
-                    <form
+                    <form id="vehicle-approval-result-{{ ns.target_result.index }}"
                         method="post"
                         action="/vehicle/checklist-results/{{ ns.target_result.index }}/approve/{{ approval_ns.index }}"
                         class="inline-form js-vehicle-checklist-approval"

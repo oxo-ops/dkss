@@ -1,0 +1,13 @@
+# Q03 承認競合のブラウザ復帰
+
+基準main5a86c74。修正前の証跡はoutputs/Q03-browser-acceptance/とQ03-browser-acceptance-report-20261029.txtを保持する。安全HTMLは版拒否409が共通処理で302へ変換、通常車両fetchは空body409で汎用文言のみだった。#330/#333の保存保護を再実装しない。
+
+対象版不一致だけにサーバー生成のX-DKSS-Approval-Conflictを付け、承認endpoint＋409＋応答marker一致だけ共通redirectを除外する。他のHTMLエラー、要求headerによる偽装、#332の秘密値非出力/rollback/HTTPException処理は維持する。
+
+安全は既存詳細画面を409で描画し、既存共通エラーへ具体的文言を表示する。利用者がGETの再表示リンクを押して、最新の回答と履歴を再確認する。通常車両fetchは同じ具体文言をtext/plainで受け、既存エラーUIへ表示する。会社内の保存済み車両・日付・結果から生成した同一originの再表示リンクを出し、利用者のクリックでGETを再読込する。fragmentだけの変更で古いDOMを残さない。自動再承認/自動再送はない。既存JSONフォームエラー契約は維持する。base.jsのcache keyを更新する。
+
+12件の限定HTTP/秘密値非出力/rollback/HTTPException/再試行回帰をローカルの新規SQLiteで確認する。ブラウザはQ10のmarker付き使い捨てPostgreSQL基盤を再利用し、PC/phone幅の承認4条件だけを明示選択する。409と具体案内の期待値は変更せず、CSRF欠落400、保存snapshot不変、利用者の再表示、一般承認、履歴/通知1件を検証する。新CIもこの4条件だけ実行する。合格済み通知設定2条件・125件・主管388件はローカル再実行しない。通常PR CIは既存のチェックを無効化せず確認する。
+
+共有済み言語assert案は別コミットで反映。OperationalError/実DELETE/200ms/rollbackを保持し、LockNotAvailable型＋55P03の厳密判定。主管の独英語試験は再実行しない。
+
+DBスキーマ/移行なし。本番・保護DB・Render・移行資材・他担当worktreeは無変更。同世代設定の後勝ち/新規受付冪等性は判断待ちのままで、このPRへ混在させない。

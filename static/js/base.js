@@ -2029,6 +2029,32 @@ document.addEventListener("submit", async function (event) {
             }
 
             showCommonError(message);
+            const reload = response.headers.get("X-DKSS-Approval-Reload");
+            if (response.status === 409
+                && response.headers.get("X-DKSS-Approval-Conflict") === "1"
+                && reload) {
+                const destination = new URL(reload, window.location.href);
+                if (destination.origin === window.location.origin
+                    && destination.pathname === window.location.pathname) {
+                    document.querySelectorAll("[data-approval-conflict-reload]").forEach(
+                        link => link.remove()
+                    );
+                    const link = document.createElement("a");
+                    link.href = destination.href;
+                    link.textContent = "最新の回答と履歴を再表示";
+                    link.className = "btn btn-outline";
+                    link.dataset.approvalConflictReload = "1";
+                    link.addEventListener("click", function (event) {
+                        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        // This screen was loaded by GET; a user click must fetch
+                        // the current record even when only its fragment differs.
+                        window.history.replaceState(null, "", destination.href);
+                        window.location.reload();
+                    });
+                    document.getElementById("error-summary")?.appendChild(link);
+                }
+            }
             return;
         }
 
