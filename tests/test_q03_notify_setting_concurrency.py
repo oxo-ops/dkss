@@ -117,3 +117,33 @@ class NotifySettingConcurrencyTests(unittest.TestCase):
 class PostgresNotifySettingConcurrencyTests(NotifySettingConcurrencyTests):
     setUpClass = classmethod(forms.PostgresFormGenerationTests.setUpClass.__func__)
     tearDownClass = classmethod(forms.PostgresFormGenerationTests.tearDownClass.__func__)
+
+
+# Reuse Q04's real SQL scheduler; each request here saves reminder settings,
+# rather than repeating the existing daily-completion acceptance.
+import test_q03_master_lock_order as master_locks
+
+
+class ReminderMasterLockTests(master_locks.VehiclePersonMasterLockTests):
+    def race(self, operation, master_first):
+        master = self.action(f'/master/offices/{self.ids["offices"]}/{operation}',
+                             {'name': 'Renamed'} if operation == 'edit' else {})
+        data = {'vehicle_record_id': self.data['vehicle_record_id'],
+                'reminder_notify_users': 'admin',
+                'person_selection_token': self.data['person_selection_token']}
+        save = self.action(self.path + '/reminder-notify-users', data)
+        actions = (master, save) if master_first else (save, master)
+        results, waited = self.schedule(*actions, 'vehicle', first_prefix=(
+            'update "user" set office=' if master_first else None), first_table='vehicle')
+        mutated, saved = results if master_first else reversed(results)
+        self.assertEqual(mutated.get('status'), 302, repr(results))
+        self.assertEqual(saved.get('status'), 200, repr(results))
+        self.assertTrue(waited)
+        with self.app.app_context():
+            setting = self.m.VehicleChecklistNotifySetting.query.filter_by(
+                company_code=self.company, vehicle_record_id=data['vehicle_record_id']).one()
+            self.assertEqual(json.loads(setting.notify_users_json), ['admin'])
+            row = self.db.session.get(self.m.VehicleChecklistResult, self.row_id)
+            self.assertEqual(row.status, '入力中')
+            self.assertEqual(json.loads(row.answers_json)[0]['value'], 'ok')
+        self.assertEqual(self.snapshot(self.other), self.foreign_before)
