@@ -52,7 +52,9 @@ class Q03PostgresPersonIdentityTests(identity.Q03PersonIdentityTests):
                 with connection.begin():
                     connection.execute(text("SET LOCAL lock_timeout = '200ms'"))
                     connection.execute(text('DELETE FROM "user" WHERE id = :id'), {'id': a.id})
-            self.assertIn('lock timeout', str(caught.exception).lower())
+            from psycopg2.errors import LockNotAvailable
+            self.assertIsInstance(caught.exception.orig, LockNotAvailable)
+            self.assertEqual(caught.exception.orig.pgcode, '55P03')
         self.db.session.rollback()
 
 
