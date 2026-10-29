@@ -165,7 +165,9 @@ def resolve_import(row, username=None, reidentify=False, expected_identity=None)
             db.session.rollback()
             abort(409, '選択した本人を再確認してください。')
         user=next((u for u in service.users.values() if u.username==username and usable(u)),None)
-        if not user:abort(400, '同じ会社のアカウントを選択してください。')
+        if not user:
+            db.session.rollback()
+            abort(409, '選択した本人を再確認してください。')
         basis='manual'
     else:
         if reidentify or row not in db.session().info.get('dkss.driving.inserts', set()):return

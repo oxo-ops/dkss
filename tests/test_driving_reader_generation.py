@@ -238,6 +238,16 @@ class ReaderGenerationTests(DrivingIdentityFixture, unittest.TestCase):
         row = self.m.VehicleDrivingReportRecord.query.filter_by(source_draft_id=draft.id).one()
         self.assertEqual(driving_access.reader(row).user_id, self.a.id)
 
+    def test_pending_selected_person_disappearance_rolls_back_before_record_is_saved(self):
+        draft, data = self.import_form(vehicle=False)
+        self.assertEqual(self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=data).status_code, 302)
+        item = self.m.VehicleImportPendingRecord.query.one()
+        self.m.db.session.delete(self.a); self.m.db.session.commit()
+        page = self.client.get(f'/master/vehicles/pending/{item.pending_id}').get_data(as_text=True)
+        csrf = re.search(r'name="csrf_token"\s+value="([^"]*)"', page).group(1)
+        self.reject(f'/master/vehicles/pending/{item.pending_id}',
+                    dict(vehicle_record_id=str(self.vehicle.id), csrf_token=unescape(csrf)), check_person=False)
+
     def test_missing_uuid_in_legacy_manual_pending_is_not_inferred(self):
         draft, data = self.import_form(vehicle=False)
         self.assertEqual(self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm', data=data).status_code, 302)
