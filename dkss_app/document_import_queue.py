@@ -366,9 +366,10 @@ def process_one(app):
                         if not renew(draft_id, token):
                             lost.set()
                             return
-                except Exception:
+                except Exception as error:
                     db.session.rollback()
-                    app.logger.exception('OCR job heartbeat failed: %s', draft_id)
+                    app.logger.error('OCR_JOB_HEARTBEAT_FAILED job_id=%s error_type=%s',
+                                     draft_id, type(error).__name__)
                 finally:
                     db.session.remove()
 
