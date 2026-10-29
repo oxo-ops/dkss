@@ -57,13 +57,16 @@ def selected_names():
     return names
 
 
-def validate(*, actor_only=False):
+def validate(*, actor_only=False, selected_usernames=None):
     """Hold selected accounts until save; a stale/absent proof never binds B.
 
     The existing view still checks resource ownership, roles, record versions
     and general approval. This evidence grants no permission by itself.
     """
-    names = set() if actor_only else selected_names()
+    # Explicit names adapt forms whose field names differ, without changing
+    # the existing Q03 field discovery or the actor-only calling contract.
+    names = set() if actor_only else (selected_names() if selected_usernames is None
+        else {name.strip() for name in selected_usernames if name.strip()})
     def conflict(status=409):
         from .http import return_form_errors
         db.session.rollback()
