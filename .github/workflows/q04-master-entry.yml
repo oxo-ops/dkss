@@ -1,0 +1,52 @@
+name: Q04 Master Entry Boundaries
+
+on:
+  pull_request:
+    paths:
+      - 'tools/migration_entry.py'
+      - 'tools/migration_adapters/q04_master_generations.py'
+      - 'dkss_app/master_generations.py'
+      - 'tests/q04_entry_fixture.py'
+      - 'tests/test_migration_entry.py'
+      - 'tests/test_q04_master_generation_entry.py'
+      - 'docs/quality/Q04-master-entry.md'
+      - '.github/workflows/q04-master-entry.yml'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  entry-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: q04_entry_ci
+          POSTGRES_USER: q04_entry_ci
+          POSTGRES_PASSWORD: q04-entry-disposable-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U q04_entry_ci -d q04_entry_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Q04_ENTRY_POSTGRES_URL: postgresql+psycopg2://q04_entry_ci:q04-entry-disposable-only@127.0.0.1:5432/q04_entry_ci
+      Q04_ENTRY_REQUIRE_POSTGRES: '1'
+      PYTHONUNBUFFERED: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Offline contract boundaries
+        run: python -m unittest discover -s tests -p test_migration_entry.py -v
+      - name: New entry and same-connection guard boundaries only
+        run: python -m unittest discover -s tests -p test_q04_master_generation_entry.py -v
