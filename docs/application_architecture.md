@@ -1,5 +1,11 @@
 # Application structure and operations
 
+Current startup/settings/stop and CI investigation instructions are collected in
+[the runtime operations guide](runtime_operations.md). The no-DB-write claims
+below describe factory/import behavior. The current Gunicorn `post_worker_init`
+also initializes driving readership and coupling storage before starting OCR;
+it is not a read-only schema check or a replacement for all explicit migrations.
+
 This change replaces the application-wide monolith with an application factory,
 unbound extensions, separate model definitions, explicit route registration,
 and business responsibility modules. It includes the previous, unmerged
