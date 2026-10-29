@@ -122,7 +122,7 @@ class DrivingGenerationTests(unittest.TestCase):
             from flask import session
             admin = self.m.User.query.filter_by(company_code='TEST', username='admin').one()
             session.update(company_code='TEST', username='admin', role='admin', account_identity=admin.account_identity)
-            driving_access.resolve_import(row, user.username)
+            driving_access.resolve_import(row, user.username, expected_identity=user.account_identity)
             self.m.db.session.commit()
         evidence = driving_access.DrivingReaderAccount.query.one()
         self.assertEqual(evidence.account_identity, user.account_identity)

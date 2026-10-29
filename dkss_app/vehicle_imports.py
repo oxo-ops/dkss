@@ -848,6 +848,19 @@ def vehicle_document_import_confirm(batch_id):
     drafts = [draft for draft in drafts if draft.status == 'preview']
     if not drafts:
         return _dkss_http.return_form_errors([('この資料の取り込み確認は終了しています。', '')], status_code=409)
+    def validate_driving_choices():
+        from . import driving_access, person_selection
+        choices = [values for draft, _, values in submissions if draft.document_type == 'driving_report'
+                   and values.get('_driving_account_choice') not in {None, '', '__hold__'}]
+        if not choices:return None
+        # Match Q02's actor lock order before taking shared selected-person locks.
+        if not _dkss_import_owner.identity_for_actor(_dkss_common.session.get('company_code'),_dkss_common.session.get('username'),lock=True):
+            raise _dkss_common.NotFound()
+        error = person_selection.validate(selected_usernames=[v['_driving_account_choice'] for v in choices])
+        if error is not None:return error
+        for values in choices:
+            values['_driving_account_identity'] = driving_access.selection_identity(values['_driving_account_choice'])
+        return None
     registered_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code')) if any((draft.document_type == 'maintenance' for draft in drafts)) else set()
     selected_source_keys = set()
     inspection_keys = {kind: registered_inspection_import_keys(_dkss_common.session.get('company_code'), source_kind=kind) for kind in ('inspection', 'driving_report')}
@@ -918,6 +931,8 @@ def vehicle_document_import_confirm(batch_id):
             corrections = validate_corrections(drafts, submissions)
         except ValueError as error:
             errors.append((str(error), ''))
+    choice_error = validate_driving_choices()
+    if choice_error is not None:return choice_error
     if errors:
         if not validation_only:
             try:
@@ -957,6 +972,10 @@ def vehicle_document_import_confirm(batch_id):
             company = _dkss_models.Company.query.filter_by(company_code=_dkss_common.session.get('company_code')).populate_existing().with_for_update().first()
             if company is None or company.active is not True:
                 raise _dkss_common.NotFound()
+        # The preview commit released the first set of locks. Revalidate the
+        # original browser proof after Q02's owner/company locks, before writes.
+        choice_error = validate_driving_choices()
+        if choice_error is not None:return choice_error
         if any((draft.document_type == 'maintenance' for draft in drafts)):
             latest_source_keys = registered_maintenance_import_keys(_dkss_common.session.get('company_code'))
             for draft, record_index, values in submissions:
@@ -1000,7 +1019,8 @@ def vehicle_document_import_confirm(batch_id):
             _dkss_common.db.session.flush()
             if draft.document_type == 'driving_report':
                 from .driving_access import resolve_import
-                resolve_import(record, values.get('_driving_account_choice') or None)
+                resolve_import(record, values.get('_driving_account_choice') or None,
+                               expected_identity=values.get('_driving_account_identity'))
             if draft.document_type == 'maintenance':
                 _dkss_maintenance.add_vehicle_maintenance_record_event(record, action='imported')
             if draft.document_type == 'maintenance':
