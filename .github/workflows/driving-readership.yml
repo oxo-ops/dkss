@@ -59,6 +59,7 @@ jobs:
           python -m unittest -v \
             test_driving_verified_readership \
             test_driving_reader_generation \
+            test_driving_pending_identity_recovery \
             test_q08_driving_generation.DrivingGenerationTests \
             test_q08_postgres_driving_generation.PostgresDrivingGenerationTests \
             test_driving_identity_resolution.DrivingIdentityTests.test_normal_import_automatically_persists_identity_with_no_extra_field \

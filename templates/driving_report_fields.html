@@ -3,7 +3,7 @@
 {% set record_index = row_key.rsplit('_', 1)[1]|int %}
 {% set originals = document.preview.get('original_records') or [] %}
 {% set original = originals[record_index] if record_index < originals|length else record %}
-{% set needs_input = not record.get('vehicle_record_id') or not record.get('record_date') %}
+{% set needs_input = recovery is not defined and (not record.get('vehicle_record_id') or not record.get('record_date')) %}
 <div class="invoice-overview">
     <div class="invoice-record-heading" data-invoice-original="{{ original|tojson|forceescape }}">
         <div>
@@ -24,7 +24,7 @@
 </div>
 
 {% set identity = driving_identity_preview(record, registered=edit_record|default(false)) %}
-{% if identity %}
+{% if identity and recovery is not defined %}
 <div class="invoice-metadata driving-import-identity">
     {% if identity.resolved %}
     <p>乗務員：<strong>{{ identity.label }}</strong></p>

@@ -423,6 +423,10 @@ def register_core_routes(app):
     view = app.route("/master/vehicles/pending/<pending_id>/sources/<draft_id>")(view)
     view = vehicle_pending.vehicle_import_pending_document_source
     view = app.route("/master/vehicles/pending/<pending_id>/document-sources/<draft_id>")(view)
+    from .driving_pending_identity import driving_pending_identity_review, recovery_response
+    app.after_request(recovery_response)
+    view = limiter.limit("10 per minute", methods=["POST"])(driving_pending_identity_review)
+    view = app.route("/master/vehicles/pending/<pending_id>/driving-reports/<item_id>/identity", methods=["GET", "POST"])(view)
     view = vehicle_pending.register_vehicle_import_master
     view = limiter.limit("10 per minute", methods=["POST"])(view)
     view = app.route("/master/vehicles/import/master", methods=["POST"])(view)
