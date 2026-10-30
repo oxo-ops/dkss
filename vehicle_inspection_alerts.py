@@ -1,4 +1,10 @@
 """Operational plan reminders. In-app only; no inferred legal deadlines."""
+from itertools import chain
+from contextvars import ContextVar
+from sqlalchemy import event
+from sqlalchemy.orm import Session
+from inspection_alert_plan_reads import PlanReadHints
+
 import hashlib
 import json
 import time
@@ -128,6 +134,37 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
     Delivery, Run = InspectionPlanAlertDelivery, InspectionPlanAlertRun
     ExpiryDelivery = InspectionExpiryAlertDelivery
 
+    plan_read_hints = ContextVar('inspection_alert_plan_hints', default=None)
+    fact_models = (Plan, PlanEvent, Record, Execution, Draft)
+
+    def invalidate_hints(session, *args):
+        hints = plan_read_hints.get()
+        if hints is not None and hints.session is session:
+            hints.valid = False
+
+    def before_fact_flush(session, *args):
+        if any(isinstance(row, fact_models)
+               for row in (*session.new, *session.dirty, *session.deleted)):
+            invalidate_hints(session)
+
+    def on_statement(state):
+        if not state.is_select:
+            invalidate_hints(state.session)
+
+    event.listen(Session, 'before_flush', before_fact_flush)
+    event.listen(Session, 'do_orm_execute', on_statement)
+    event.listen(Session, 'after_commit', invalidate_hints)
+    event.listen(Session, 'after_rollback', invalidate_hints)
+
+    def hinted_plan_flags(vehicle, expiry):
+        hints = plan_read_hints.get()
+        if hints is None or hints.session is not db.session():
+            return None
+        if any(isinstance(row, fact_models)
+               for row in (*hints.session.new, *hints.session.dirty, *hints.session.deleted)):
+            hints.valid = False
+        return hints.get(vehicle.company_code, vehicle.id, expiry[:7])
+
     def json_dict(raw):
         try:
             value = json.loads(raw or '{}')
@@ -179,11 +216,16 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
 
     def legacy_expiry_dependency(vehicle, expiry, today):
         mon = expiry[:7]
-        plans = Plan.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
-            kind='12month').filter(Plan.status.in_(['planned', 'completed']),
-                db.or_(Plan.period_key == mon, Plan.planned_month == mon)).all()
-        if any(identities.plan_kind(p) == UNCONFIRMED for p in plans):
-            return True
+        flags = hinted_plan_flags(vehicle, expiry)
+        if flags is not None:
+            if flags[1]:
+                return True
+        else:
+            plans = Plan.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+                kind='12month').filter(Plan.status.in_(['planned', 'completed']),
+                    db.or_(Plan.period_key == mon, Plan.planned_month == mon)).all()
+            if any(identities.plan_kind(p) == UNCONFIRMED for p in plans):
+                return True
         records = Record.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
             inspection_type='12month').all()
         if any(iso_date(r.inspection_date) and r.inspection_date <= today.isoformat() and r.inspection_date[:7] == mon and identities.record_kind(r) == UNCONFIRMED for r in records):
@@ -214,6 +256,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         return 'pending'
 
     def expiry_is_planned(vehicle, expiry):
+        flags = hinted_plan_flags(vehicle, expiry)
+        if flags is not None:
+            return flags[0]
         candidates = Plan.query.filter(Plan.company_code == vehicle.company_code,
             Plan.vehicle_record_id == vehicle.id, Plan.kind.in_(kind_values('vehicle_inspection')),
             Plan.status.in_(['planned', 'completed']),
@@ -282,6 +327,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 'workflow_label': '点検実施済み' if completed else '予定・対象変更により終了', 'requires_action': False}
 
     def process_company(code, today, force=False):
+        hint_token = None
         now = datetime.now(ZoneInfo('UTC'))
         report = {'notifications': 0, 'plans': 0, 'no_recipient': 0, 'invalid': 0, 'expiry_candidates': 0, 'skipped': False}
         try:
@@ -319,6 +365,15 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                                 for d in prior_receipts if d.ended_status}
             receipt_plans = {p.id: p for p in Plan.query.filter(Plan.company_code == code,
                 Plan.id.in_({d.plan_id for d in prior_receipts})).all()} if prior_receipts else {}
+            # Only requested vehicle/month pairs, inside the existing company lock.
+            pairs = chain(
+                ((v.id, v.inspection_expiry[:7]) for v in vehicles.values()
+                 if iso_date(v.inspection_expiry)),
+                ((vehicle_id, expiry[:7]) for vehicle_id, expiry in
+                 db.session.query(ExpiryDelivery.vehicle_record_id, ExpiryDelivery.expiry_date)
+                 .filter_by(company_code=code).distinct().yield_per(100)
+                 if vehicle_id in vehicles and iso_date(expiry)))
+            hint_token = plan_read_hints.set(PlanReadHints(db, Plan, identities, code, pairs))
             preserve_read = set()
             for delivery in prior_receipts:
                 key = (delivery.plan_id, delivery.target_username, delivery.revision)
@@ -474,6 +529,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         except Exception:
             db.session.rollback()
             raise
+        finally:
+            if hint_token is not None:
+                plan_read_hints.reset(hint_token)
 
     def run(code=None, today=None, force=False):
         today = today or local_today()
