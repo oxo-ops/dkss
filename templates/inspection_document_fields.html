@@ -47,9 +47,9 @@
         <div class="invoice-input-grid">
 
             <label>点検日<input type="date" id="date_{{ row_key }}" name="date_{{ row_key }}" value="{{ record.get('record_date') or '' }}"></label>
-            <label>点検区分<select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
+            <label>点検区分<input type="hidden" name="inspection_kind_contract_{{ row_key }}" value="independent-v1"><select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
                 <option value="">選択してください</option>
-                {% for value, label in [('3month','3か月点検'),('12month','12か月点検'),('other','その他の点検')] %}
+                {% for value, label in [('3month','3か月点検'),('12month','12か月点検'),('vehicle_inspection','車検'),('other','その他の点検')] %}
                 <option value="{{ value }}" {% if record.get('inspection_type') == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select></label>

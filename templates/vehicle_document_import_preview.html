@@ -177,10 +177,11 @@
     {% if document.document_type == "inspection" %}
     <div class="form-group">
         <label for="inspection_type_{{ row_key }}">点検区分</label>
-        <select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
+        <input type="hidden" name="inspection_kind_contract_{{ row_key }}" value="independent-v1"><select id="inspection_type_{{ row_key }}" name="inspection_type_{{ row_key }}">
             <option value="">選択してください</option>
             <option value="3month" {% if record.get("inspection_type") == "3month" %}selected{% endif %}>3か月点検</option>
             <option value="12month" {% if record.get("inspection_type") == "12month" %}selected{% endif %}>12か月点検</option>
+            <option value="vehicle_inspection" {% if record.get("inspection_type") == "vehicle_inspection" %}selected{% endif %}>車検</option>
             <option value="other" {% if record.get("inspection_type") == "other" %}selected{% endif %}>その他の点検</option>
         </select>
     </div>

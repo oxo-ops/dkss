@@ -7,6 +7,7 @@
         <section class="ip-actual" aria-label="点検の実施状況">
             <h4>実施状況</h4><p data-plan-current-status></p><p data-plan-last></p><p data-plan-evidence></p>
             <a data-plan-record-link hidden target="_blank" rel="noopener">点検記録の原本を開く ↗</a>
+            <a data-plan-maintenance-link hidden>同じ原本の整備案件を開く</a>
             <button type="button" class="btn btn-outline" data-execution-toggle hidden>実施済みを登録</button>
             <form id="inspection-execution-form" hidden>
                 <p class="help-text">請求書・点検簿が未受領でも、実際に点検した日を先に登録できます。</p>
@@ -15,7 +16,7 @@
                 <label>実施先（任意）<input name="factory" maxlength="200"></label>
                 <div data-periodic-next><label>次回予定月（任意）<input type="month" name="next_month"></label>
                 <small>空欄なら実施月から周期に応じた予定月を算出します。予約日は設定しません。</small></div>
-                <div data-certificate-evidence hidden><label>更新後満了日（判明している場合）<input type="date" name="new_expiry"></label><label>根拠の車検証<select name="document_id"><option value="">未受領・後日追加</option></select></label><label>実施確認の根拠<textarea name="confirmation" maxlength="1000" placeholder="例：整備工場に実施日を確認"></textarea></label><label><input type="checkbox" name="confirmed">12か月点検の実施日を確認した</label><small>実施日・更新後の期限を確認できた場合に入力してください。</small></div>
+                <div data-certificate-evidence hidden><label>更新後満了日（判明している場合）<input type="date" name="new_expiry"></label><label>根拠の原本<select name="document_id"><option value="">未受領・後日追加</option></select></label><label>実施確認の根拠<textarea name="confirmation" maxlength="1000" placeholder="例：整備工場に実施日を確認"></textarea></label><label><input type="checkbox" name="confirmed">表示された種別と実施日を根拠により確認した</label><small>区分未確認の旧記録と重なる場合は、新規分の種別・実施日を確認した根拠が必要です。旧記録は変更しません。</small></div>
                 <label>メモ（任意）<textarea name="note" rows="2" maxlength="1000"></textarea></label>
                 <p class="ip-error" data-execution-error role="alert" hidden></p>
                 <div class="ip-footer"><button type="button" class="btn btn-outline" data-execution-back>戻る</button><button type="submit" class="btn btn-outline">実施内容を確認</button></div>
@@ -23,7 +24,7 @@
         </section>
         <form id="inspection-plan-form">
             <label><span data-plan-month-label>次回予定月</span><input name="planned_month" type="month" required></label>
-            <small data-plan-source></small>
+            <small data-plan-source></small><label>種別確認の根拠（区分未確認の旧予定と重なる場合）<textarea name="kind_confirmation" maxlength="1000"></textarea></label>
             <label>予約日（任意）<input name="reservation_date" type="date"></label>
             <label>実施先（任意）<input name="factory" maxlength="200" autocomplete="off"></label>
             <label>メモ（任意）<textarea name="note" rows="3" maxlength="1000"></textarea></label>
@@ -40,4 +41,4 @@
     <p class="ip-error" data-review-error role="alert" hidden></p>
     <div class="ip-footer"><button type="button" class="btn btn-outline" data-review-close>戻る</button><button type="button" class="btn btn-outline" data-review-save>保存</button></div>
 </dialog>
-<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261028-invoice-chip-2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_inspection_plans.js', v='20261030-independent-kinds') }}" defer></script>

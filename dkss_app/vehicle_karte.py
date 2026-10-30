@@ -326,19 +326,19 @@ def build_vehicle_karte_documents_context(vehicle, documents):
         )
 
         inspection_records = periodic.get(document["draft_id"], [])
-        inspection_types = {row.inspection_type for row in inspection_records}
+        inspection_types = {_dkss_runtime.app.extensions["dkss"]["inspection_plans"].record_kind(row) for row in inspection_records}
         if is_operation:
             kind = "operation_csv"
         elif document["document_type"] == "driving_report":
             kind = "driving_report"
         elif document["document_type"] == "inspection":
-            kind = ({"3month": "inspection_3", "12month": "inspection_12", "vehicle_inspection": "inspection_12", "ad_hoc": "inspection_ad_hoc"}
+            kind = ({"3month": "inspection_3", "12month": "inspection_12", "vehicle_inspection": "inspection_vehicle", "ad_hoc": "inspection_ad_hoc"}
                     .get(next(iter(inspection_types)), "inspection")
                     if len(inspection_types) == 1 else "inspection")
         elif document["document_type"] == "maintenance":
             kind = "invoice"
         elif "車検" in filename:
-            kind = "inspection_12"
+            kind = "inspection_vehicle"
         elif any(term in normalized for term in (
             "12か月", "12ヶ月", "12ヵ月", "12カ月",
         )):
@@ -687,11 +687,12 @@ def vehicle_karte_inspections(vehicle_record_id):
         "plate_number": vehicle.plate_number or ""
     })
 
-    from vehicle_inspection_plans import normalize_kind, kind_values
+    from vehicle_inspection_plans import normalize_kind, kind_values, READ_KINDS
+    identities = _dkss_runtime.app.extensions["dkss"]["inspection_plans"]
     inspection_view = _dkss_common.request.args.get("inspection_view", "all")
     if inspection_view == 'certificate':
-        inspection_view = '12month'
-    if inspection_view not in {"all", "daily", "periodic", "3month", "12month", "ad_hoc"}:
+        inspection_view = 'vehicle_inspection'
+    if inspection_view not in {"all", "daily", "periodic", *READ_KINDS}:
         inspection_view = "all"
 
     def valid_date_arg(name):
@@ -710,7 +711,7 @@ def vehicle_karte_inspections(vehicle_record_id):
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id)
     periodic_query = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id)
-    if inspection_view in {"3month", "12month", "ad_hoc"}:
+    if inspection_view in READ_KINDS:
         periodic_query = periodic_query.filter(_dkss_models.VehiclePeriodicInspectionRecord.inspection_type.in_(kind_values(inspection_view)))
     for boundary, value in (("start", inspection_start), ("end", inspection_end)):
         if value:
@@ -764,6 +765,9 @@ def vehicle_karte_inspections(vehicle_record_id):
         _dkss_common.request.args.get("periodic_page", 1, type=int)
     )
 
+    if inspection_view in READ_KINDS:
+        matching_ids = [r.id for r in periodic_query.all() if identities.record_kind(r) == inspection_view]
+        periodic_query = periodic_query.filter(_dkss_models.VehiclePeriodicInspectionRecord.id.in_(matching_ids))
     periodic_inspection_page = (
         periodic_query
         .order_by(
@@ -803,9 +807,10 @@ def vehicle_karte_inspections(vehicle_record_id):
         inspection_links=inspection_links,
         periodic_inspection_page=periodic_inspection_page,
         periodic_invoices=periodic_invoices,
+        inspection_kind_labels=READ_KINDS, inspection_identities=identities,
         periodic_followup_summary=_dkss_runtime.app.extensions["dkss"]['periodic_followups'].summary(vehicle.company_code, vehicle.id),
         manual_inspection_executions=[row for row in _dkss_runtime.app.extensions["dkss"]['inspection_plans'].manual_records(vehicle.company_code, vehicle.id)
-            if (inspection_view not in {"3month", "12month", "ad_hoc"} or normalize_kind(row.kind) == inspection_view)
+            if (inspection_view not in READ_KINDS or identities.execution_kind(row) == inspection_view)
             and (not inspection_start or row.performed_date >= inspection_start)
             and (not inspection_end or row.performed_date <= inspection_end)],
         periodic_details={record.id: _dkss_serialization.safe_json_dict(record.details_json)
@@ -988,13 +993,14 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
 
     entries.extend(_dkss_runtime.app.extensions["dkss"]['periodic_followups'].history(company_code, vehicle_record_id))
 
+    from vehicle_inspection_plans import READ_KINDS
     periodic_records = records_for(_dkss_models.VehiclePeriodicInspectionRecord)
     for record in periodic_records:
         entries.append({
             "key": f"periodic:{record.id}",
             "date": normalize_date(record.inspection_date),
-            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(
-                record.inspection_type, "定期点検"
+            "kind": READ_KINDS.get(
+                _dkss_runtime.app.extensions["dkss"]["inspection_plans"].record_kind(record), "定期点検"
             ),
             "content": record.content or "定期点検記録",
             "files": [],
@@ -1017,7 +1023,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
     for change, plan in plan_events:
         snapshot = _dkss_serialization.safe_json_dict(change.detail_json)
         after = snapshot.get("after") or {}
-        kind_label = {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(plan.kind, "点検")
+        kind_label = READ_KINDS.get(_dkss_runtime.app.extensions["dkss"]["inspection_plans"].plan_kind(plan), "点検")
         action_label = {"cancelled": "取消", "completed": "実施記録と連動", "completed_manual": "実施先行登録", "document_attached": "点検簿を関連付け", "created_from_document": "点検簿から作成"}.get(change.action, "登録・変更")
         entries.append({
             "key": f"inspection-plan:{change.id}",
@@ -1033,7 +1039,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
     for execution in _dkss_runtime.app.extensions["dkss"]['inspection_plans'].manual_records(company_code, vehicle_record_id):
         entries.append({
             "key": f"inspection-execution:{execution.id}", "date": execution.performed_date,
-            "kind": {"3month": "3か月点検", "12month": "12か月点検", "vehicle_inspection": "12か月点検", "ad_hoc": "突発修理"}.get(execution.kind, "点検"),
+            "kind": READ_KINDS.get(_dkss_runtime.app.extensions["dkss"]["inspection_plans"].execution_kind(execution), "点検"),
             "content": "点検実施（書類未受領） / " + (execution.factory or "実施先未登録") + (" / " + execution.note if execution.note else ""),
             "files": [], "mileage": None, "cost": None, "status": "実施済み・書類未受領",
             "actor": execution.created_by,

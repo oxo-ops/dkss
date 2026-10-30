@@ -405,7 +405,7 @@ class WorkflowRegressionTests(unittest.TestCase):
     def inspection_form(self, draft, vehicle=True):
         row = json.loads(draft.preview_json)["records"][0]
         key = draft.id + "_0"
-        return {"include": key, "vehicle_" + key: str(self.vehicle.id) if vehicle else "",
+        return {"inspection_kind_contract_" + key: "independent-v1", "include": key, "vehicle_" + key: str(self.vehicle.id) if vehicle else "",
                 "date_" + key: row.get("record_date") or "", "inspection_type_" + key: row.get("inspection_type") or "",
                 "mileage_" + key: row.get("mileage") or "", "content_" + key: row.get("content") or ""}
 

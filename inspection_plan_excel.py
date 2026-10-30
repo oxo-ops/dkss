@@ -10,7 +10,7 @@ from openpyxl.worksheet.filters import FilterColumn
 
 STATES = {'candidate':'予定未登録', 'unreserved':'未予約', 'reserved':'予約済み',
           'awaiting':'実施確認待ち', 'completed':'実施済み'}
-KINDS = {'3month':'3か月点検', '12month':'12か月点検', 'ad_hoc':'突発修理'}
+KINDS = {'3month':'3か月点検', '12month':'12か月点検', 'vehicle_inspection':'車検', 'annual_unconfirmed':'車検／12か月点検・区分未確認', 'ad_hoc':'突発修理'}
 COLORS = {'candidate':'FFF3DF', 'unreserved':'F3F6FA', 'reserved':'E7F0FF',
           'awaiting':'FFF0DE', 'completed':'E5F4EB'}
 
