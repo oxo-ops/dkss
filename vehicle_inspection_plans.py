@@ -2,6 +2,7 @@
 import calendar
 import hashlib
 import json
+from functools import wraps
 from datetime import date, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -59,6 +60,36 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     Execution = VehicleInspectionExecution
     queue_key = 'inspection_plan_sync_' + str(id(Record))
     import_key = 'inspection_plan_imports_' + str(id(Record))
+    cache_key = 'inspection_kind_reads_' + str(id(Record))
+    evidence_models = (Plan, Event, Execution, Record, Draft)
+
+    def clear_kind_reads():
+        if has_request_context():
+            request.environ.pop(cache_key, None)
+
+    def request_kind_read(fn):
+        @wraps(fn)
+        def read(row):
+            if not has_request_context():
+                return fn(row)
+            s = db.session()
+            # Unflushed edits must be visible even with autoflush disabled.
+            changed = any(isinstance(obj, evidence_models)
+                          for obj in (*s.new, *s.dirty, *s.deleted))
+            if changed:
+                clear_kind_reads()
+                return fn(row)
+            cache = request.environ.setdefault(cache_key, {})
+            # Keep the scoped ORM object alive; never key solely by a numeric ID.
+            key = (fn.__name__, row, row.company_code, row.vehicle_record_id)
+            if key not in cache:
+                value = fn(row)
+                # Autoflush during the read may have invalidated this dictionary.
+                if request.environ.get(cache_key) is cache:
+                    cache[key] = value
+                return value
+            return cache[key]
+        return read
 
     def today():
         return datetime.now(ZoneInfo('Asia/Tokyo')).date()
@@ -73,6 +104,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         except (TypeError, ValueError):
             return {}
 
+    @request_kind_read
     def record_kind(record):
         if record.inspection_type != '12month':
             return normalize_kind(record.inspection_type)
@@ -82,6 +114,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                                           vehicle_id=record.vehicle_record_id)
         return identity.kind or UNCONFIRMED
 
+    @request_kind_read
     def plan_kind(plan):
         if plan.kind != '12month':
             return normalize_kind(plan.kind)
@@ -90,7 +123,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 return None
             record = Record.query.filter_by(id=ident, company_code=plan.company_code,
                 vehicle_record_id=plan.vehicle_record_id).first()
-            if not record or record_kind(record) not in {'12month', 'vehicle_inspection'}:
+            resolved = record_kind(record) if record else None
+            if resolved not in {'12month', 'vehicle_inspection'}:
                 return None
             if completed:
                 if not iso_date(record.inspection_date):
@@ -103,7 +137,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                     performed_date=record.inspection_date).first()
                 if not direct and not linked:
                     return None
-            return record_kind(record)
+            return resolved
         kind = from_record(plan.source_record_id)
         if kind:
             return kind
@@ -138,6 +172,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def serialize_dates(plan):
         return {'reservation_date': plan.reservation_date, 'planned_month': plan.planned_month}
 
+    @request_kind_read
     def execution_kind(execution):
         if execution.kind != '12month':
             return normalize_kind(execution.kind)
@@ -157,8 +192,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         day = iso_date(record.next_inspection_date)
         return day.isoformat()[:7] if day else month(details(record).get('next_inspection_month'))
 
-    def serialize(row):
-        return {key: plan_kind(row) if key == 'kind' else getattr(row, key) for key in ('id', 'vehicle_record_id', 'kind', 'period_key', 'planned_month', 'reservation_date', 'document_date', 'factory', 'note', 'source', 'source_record_id', 'completed_record_id', 'status', 'version', 'updated_by', 'updated_at')}
+    def serialize(row, *, resolved_kind=None):
+        return {key: (resolved_kind if resolved_kind is not None else plan_kind(row)) if key == 'kind' else getattr(row, key) for key in ('id', 'vehicle_record_id', 'kind', 'period_key', 'planned_month', 'reservation_date', 'document_date', 'factory', 'note', 'source', 'source_record_id', 'completed_record_id', 'status', 'version', 'updated_by', 'updated_at')}
 
     def record_event(row, action, before=None, kind_confirmation=None, duplicate_candidates=None):
         row.updated_at = datetime.now(ZoneInfo('UTC')).isoformat()
@@ -335,9 +370,10 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def summary(code, vehicle_id):
         result = {}
         saved = Plan.query.filter_by(company_code=code, vehicle_record_id=vehicle_id).order_by(Plan.planned_month, Plan.id).all()
+        kinds = {row.id: plan_kind(row) for row in saved}
         for row in saved:
             if row.status == 'planned':
-                result.setdefault(plan_kind(row), serialize(row))
+                result.setdefault(kinds[row.id], serialize(row, resolved_kind=kinds[row.id]))
         seen = set()
         for record in reversed(facts_for(code, [vehicle_id])):
             performed = iso_date(record.inspection_date)
@@ -346,7 +382,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             if record.inspection_type in seen:
                 continue
             seen.add(record.inspection_type)
-            blocked = any(plan_kind(p) == record.inspection_type and p.period_key == record_next(record) for p in saved)
+            blocked = any(kinds[p.id] == record.inspection_type and p.period_key == record_next(record) for p in saved)
             if not blocked and record.inspection_type not in result and record_next(record) and record_next(record) > performed.isoformat()[:7]:
                 result[record.inspection_type] = {'id': None, 'version': 0, 'vehicle_record_id': vehicle_id,
                     'kind': record.inspection_type, 'period_key': record_next(record), 'planned_month': record_next(record),
@@ -355,7 +391,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         if 'vehicle_inspection' not in result:
             vehicle = Vehicle.query.filter_by(company_code=code, id=vehicle_id, deleted=False).first()
             expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
-            if expiry and not any(plan_kind(p) == 'vehicle_inspection' and p.status == 'completed'
+            if expiry and not any(kinds[p.id] == 'vehicle_inspection' and p.status == 'completed'
                     and expiry.isoformat()[:7] in (p.period_key, p.planned_month) for p in saved):
                 mon = expiry.isoformat()[:7]
                 result['vehicle_inspection'] = {'id': None, 'version': 0, 'vehicle_record_id': vehicle_id,
@@ -449,6 +485,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         def remember_records(s, context, instances):
             if not owns_session(s):
                 return
+            if any(isinstance(obj, evidence_models) for obj in (*s.new, *s.dirty, *s.deleted)):
+                clear_kind_reads()
             new = [r for r in s.new if isinstance(r, Record)]
             if new:
                 s.info.setdefault(import_key, []).extend(new)
@@ -472,8 +510,22 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
 
         @event.listens_for(Session, 'after_rollback')
         def forget_rolled_back_records(s):
+            if owns_session(s):
+                clear_kind_reads()
             s.info.pop(queue_key, None)
             s.info.pop(import_key, None)
+
+        @event.listens_for(Session, 'after_commit')
+        def forget_committed_kind_reads(s):
+            if owns_session(s):
+                clear_kind_reads()
+
+        @event.listens_for(Session, 'do_orm_execute')
+        def forget_bulk_kind_reads(state):
+            # Bulk/Core writes through Session bypass before_flush. Conservatively
+            # invalidate for every DML statement, including unknown target tables.
+            if owns_session(state.session) and not state.is_select:
+                clear_kind_reads()
 
     def scope_context(code, args):
         scope = args.get('scope') or 'office'
@@ -514,13 +566,18 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         saved = Plan.query.filter(Plan.company_code == code, Plan.vehicle_record_id.in_(ids)).all() if ids else []
         records = facts_for(code, ids)
         manual_by_plan = {e.plan_id: e for e in Execution.query.filter(Execution.company_code == code, Execution.vehicle_record_id.in_(ids)).all()} if ids else {}
+        # Resolve once within this read operation; never retain evidence across
+        # requests, transactions, or later modifications of originals/audits.
+        saved_by_kind = {}
+        for plan in saved:
+            saved_by_kind.setdefault((plan.vehicle_record_id, plan_kind(plan)), []).append(plan)
         rows, missing = [], []
         for v in vehicles:
             for kind in READ_KINDS:
-                own = [p for p in saved if p.vehicle_record_id == v.id and plan_kind(p) == kind]
+                own = saved_by_kind.get((v.id, kind), [])
                 visible = []
                 for p in own:
-                    item = serialize(p)
+                    item = serialize(p, resolved_kind=kind)
                     actual = next((r for r in records if p.completed_record_id and r.id == p.completed_record_id), None)
                     execution = manual_by_plan.get(p.id)
                     if p.status == 'completed' and (actual or execution):
