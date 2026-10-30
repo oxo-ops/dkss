@@ -455,7 +455,7 @@
 {% if inspection_view in ['all', '12month'] %}
 <section class="card vehicle-karte-inspections-panel vi-section">
     <div class="card-title-row"><h3>期限・証明書</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">車検証・書類を開く</a></div>
-    <dl class="vi-certificate"><dt>12か月点検期限</dt><dd>{{ vehicle.inspection_expiry or '未登録' }}</dd></dl>
+    <dl class="vi-certificate"><dt>車検証満了日</dt><dd>{{ vehicle.inspection_expiry or '未登録' }}</dd></dl>
 </section>
 {% endif %}
     </div>

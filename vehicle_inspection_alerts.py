@@ -47,19 +47,19 @@ def reminder_phase(plan, today):
 
 def expiry_phase(expiry, today):
     if today > expiry:
-        return 'expiry_elapsed', expiry + timedelta(days=1), '12か月点検期限経過・実施確認'
+        return 'expiry_elapsed', expiry + timedelta(days=1), '車検証満了日経過・実施確認'
     if today == expiry:
-        return 'expiry_today', expiry, '本日が12か月点検期限'
+        return 'expiry_today', expiry, '本日が車検証満了日'
     if today >= expiry - timedelta(days=1):
-        return 'expiry_1day', expiry - timedelta(days=1), '12か月点検期限の前日'
+        return 'expiry_1day', expiry - timedelta(days=1), '車検証満了日の前日'
     if today >= expiry - timedelta(days=7):
-        return 'expiry_7days', expiry - timedelta(days=7), '12か月点検期限まで7日以内'
+        return 'expiry_7days', expiry - timedelta(days=7), '車検証満了日まで7日以内'
     start = expiry.replace(day=1)
     if today >= start:
-        return 'expiry_month', start, '今月が12か月点検期限'
+        return 'expiry_month', start, '今月が車検証満了日'
     previous = add_months(start, -1)
     if today >= previous:
-        return 'expiry_prior', previous, '翌月が12か月点検期限'
+        return 'expiry_prior', previous, '翌月が車検証満了日'
     return None
 
 
@@ -307,14 +307,14 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
             for (office, username, mon), items in expiry_groups.items():
                 for offset in range(0, len(items), 25):
                     batch = items[offset:offset + 25]
-                    lines = [office + 'の12か月点検期限と予定未登録の車両を確認してください。']
+                    lines = [office + 'の車検証満了日と予定未登録の車両を確認してください。']
                     for v, _, expiry, _, _, label in batch:
                         plate = ' '.join(str(x) for x in (v.plate_area, v.plate_class, v.plate_kana, v.plate_number) if x) or v.chassis_number or f'車両#{v.id}'
-                        lines.append(f'・{plate} / 12か月点検期限 {expiry} / {label} / 予定未登録')
+                        lines.append(f'・{plate} / 車検証満了日 {expiry} / {label} / 予定未登録')
                     lines.append('予約済みなら点検計画に日程を登録してください。期限の経過だけで未実施とは断定していません。')
                     user = batch[0][1]
                     notification = Notification(company_code=code, target_username=username,
-                        target_user=((user.last_name or '') + (user.first_name or ''))[:100], title=f'点検予定の確認：12か月点検期限・予定未登録 {len(batch)}件',
+                        target_user=((user.last_name or '') + (user.first_name or ''))[:100], title=f'点検予定の確認：車検証満了日・予定未登録 {len(batch)}件',
                         message='\n'.join(lines), link=plan_link(office, [mon]), read=False,
                         workflow_context_json=json.dumps({'action': 'inspection_plan_alert'}, ensure_ascii=False),
                         created_at=now.strftime('%Y-%m-%dT%H:%M:%SZ'))
