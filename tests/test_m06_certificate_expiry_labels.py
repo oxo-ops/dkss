@@ -51,6 +51,10 @@ class CertificateExpiryLabelTests(unittest.TestCase):
         response = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections')
         self.assertEqual(response.status_code, 200)
         self.assertIn('<dt>車検証満了日</dt><dd>2026-10-22</dd>', response.get_data(as_text=True))
+        planner = self.client.get('/vehicle/inspection-plans?scope=company')
+        self.assertEqual(planner.status_code, 200)
+        self.assertIn('車検証満了日の注意', planner.get_data(as_text=True))
+        self.assertNotIn('予定未登録の12か月点検', planner.get_data(as_text=True))
         self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
         self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
 
