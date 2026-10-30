@@ -24,7 +24,9 @@ class RecoveryProfileTests(unittest.TestCase):
                 patch('dkss_app.vehicle_couplings.initialize_coupling_schema') as coupling, \
                 patch('dkss_app.document_import_worker.start_worker') as start:
             config = runpy.run_path(str(Path(__file__).resolve().parents[1]/'gunicorn.conf.py'))
+            os.environ['DOCUMENT_IMPORT_WORKER_ENABLED'] = '1'  # Gunicorn cfg.env reapplied
             config['post_worker_init'](SimpleNamespace(wsgi=app))
+            self.assertEqual(os.environ['DOCUMENT_IMPORT_WORKER_ENABLED'], '0')
             driving.assert_called_once_with(app)
             coupling.assert_called_once_with(app)
             start.assert_not_called()

@@ -15,6 +15,9 @@ graceful_timeout = 30
 
 
 def post_worker_init(worker):
+    # Gunicorn reapplies cfg.env after loading this file (including --env and
+    # GUNICORN_CMD_ARGS). Reassert in each initialized worker before requests.
+    os.environ['DOCUMENT_IMPORT_WORKER_ENABLED'] = '0'
     from dkss_app.driving_access import initialize_driving_access
     initialize_driving_access(worker.wsgi)
     from dkss_app.vehicle_couplings import initialize_coupling_schema

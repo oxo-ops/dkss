@@ -1,6 +1,9 @@
 """Cross-process new -> recovery -> new compatibility on one synthetic SQLite file."""
 import hashlib
 import json
+import re
+from io import BytesIO
+from openpyxl import load_workbook
 import os
 from pathlib import Path
 import runpy
@@ -120,14 +123,42 @@ with patch.object(socket.socket,'connect',no_external), patch('vehicle_inspectio
         d.assertEqual(snapshot(m),expected,'Switch/startup altered stored facts')
         d.assertEqual(m.inspection_plans.plan_kind(m.db.session.get(m.VehicleInspectionPlan,info['legacy_plan'])),'12month')
         d.assertEqual(m.inspection_plans.plan_kind(m.db.session.get(m.VehicleInspectionPlan,info['held_plan'])),'annual_unconfirmed')
+        labels = {'12month': '12か月点検', 'vehicle_inspection': '車検',
+                  'annual_unconfirmed': '車検／12か月点検・区分未確認'}
         for kind in ('12month','vehicle_inspection','annual_unconfirmed'):
             page=d.client.get('/api/vehicle/inspection-plans?scope=company&year=2026')
             d.assertEqual(page.status_code,200)
             d.assertTrue(any(row['kind']==kind for row in page.json['plans']))
+            facts = [r for r in page.json['plans'] if r['status'] != 'cancelled']
+            d.assertEqual(next(r for r in facts if r['id']==info['legacy_plan'])['kind'], '12month')
+            d.assertEqual(next(r for r in facts if r['id']==info['held_plan'])['kind'], 'annual_unconfirmed')
+            d.assertEqual(sum(r['kind']=='annual_unconfirmed' for r in facts), 1)
             export=d.client.get('/vehicle/inspection-plans/export.xlsx',query_string={'scope':'company','year':2026,'kind':kind})
             d.assertEqual(export.status_code,200)
+            workbook=load_workbook(BytesIO(export.data))
+            details=list(workbook.worksheets[1].iter_rows(min_row=2,values_only=True))
+            selected=[r for r in facts if r['kind']==kind]
+            d.assertEqual(len(details),len(selected))
+            d.assertEqual({r[2] for r in details},{labels[kind]})
+            d.assertIn(labels[kind],workbook.worksheets[0]['A2'].value)
+            d.assertEqual(sorted(r[6].date().isoformat() for r in details if r[6]),
+                          sorted(r['performed_date'] for r in selected if r.get('performed_date')))
             karte=d.client.get(f'/vehicle/karte/{d.vehicle.id}/inspections?inspection_view={kind}')
             d.assertEqual(karte.status_code,200)
+            html=karte.get_data(as_text=True)
+            displayed=dict(re.findall(r'<tr id="manual-execution-(\d+)">(.*?)</tr>',html,re.S))
+            expected_executions=[e for e in m.inspection_plans.Execution.query.all()
+                if e.source_record_id is None and
+                {'periodic_12month':'12month','vehicle_inspection':'vehicle_inspection'}.get(e.kind)==kind]
+            d.assertEqual(set(displayed),{str(e.id) for e in expected_executions})
+            for e in expected_executions:
+                d.assertIn(labels[kind],displayed[str(e.id)])
+                d.assertIn(str(e.performed_date),displayed[str(e.id)])
+            record_rows=dict(re.findall(r'<tr id="periodic-record-(\d+)">(.*?)</tr>',html,re.S))
+            d.assertEqual(set(record_rows),{str(info['legacy_record'])} if kind=='12month' else set())
+            if kind=='12month':
+                d.assertIn(labels[kind],record_rows[str(info['legacy_record'])])
+                d.assertIn('2026-09-12',record_rows[str(info['legacy_record'])])
         for execution in m.inspection_plans.Execution.query.all():
             original=d.client.get(f'/vehicle/inspection-plans/executions/{execution.id}/source')
             d.assertEqual(original.status_code,200)

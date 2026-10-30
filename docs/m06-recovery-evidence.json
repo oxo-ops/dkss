@@ -13,7 +13,7 @@
     },
     {
       "sha256": "CB5800180B5814102BC6B3246A6D8A9F91306EB9840EE0896C48C41F112EE076",
-      "modified_utc": "2026-10-30T05:28:01.2640750Z",
+      "modified_utc": "2026-10-30T05:28:01.264075Z",
       "file": "M06-switch-candidate-result.json"
     },
     {
@@ -46,5 +46,66 @@
     "cross_version_stages": 3,
     "profile_and_queue_tests": 5,
     "passed": true
+  },
+  "revision2": {
+    "strengthened_switch_stages": 3,
+    "evidence": [
+      {
+        "sha256": "2A69394259D1FD939A105FA239B60742F340621FE93A817DF8A4F5117A39A634",
+        "modified_utc": "2026-10-30T05:54:46.5236841Z",
+        "file": "M06-linux-override-before.log"
+      },
+      {
+        "sha256": "748678FCD9E341D520D30D97A2F86B3DFBA347F2F01766A54D076745F91F5FA0",
+        "modified_utc": "2026-10-30T05:56:56.9376240Z",
+        "file": "M06-linux-override-after.log"
+      },
+      {
+        "sha256": "6CB4F05BD2EA1147043FCE46E876F5C18E39C3B3D2811FDF4471901695CB7906",
+        "modified_utc": "2026-10-30T05:52:00.4470432Z",
+        "file": "M06-recovery-profile-v2.log"
+      },
+      {
+        "sha256": "299AEF66EFFDC0E896C9434D5E406D2203089F02606A029402EC8CDA6E14DB85",
+        "modified_utc": "2026-10-30T05:52:07.6693775Z",
+        "file": "M06-switch-v2-seed.log"
+      },
+      {
+        "sha256": "E7DD1C355DC2188CD50F8A549A41BDB1D9FE389D7F797D7DEC89FAF1F3D610E3",
+        "modified_utc": "2026-10-30T05:52:33.3569970Z",
+        "file": "M06-switch-v2-candidate.log"
+      },
+      {
+        "sha256": "0F9FDC20CCC922D0996B23CD6C92FD16A0D8B81CB1A166F7A848BE04CFBDEC0F",
+        "modified_utc": "2026-10-30T05:52:55.7693667Z",
+        "file": "M06-switch-v2-return.log"
+      }
+    ],
+    "same_runtime_test_sha256": "8074AEC6FC63C837C7EC5E599771BC13CD662DF8188A556EBD75F464BEFDC9C6",
+    "switch_checks": "API old identity separation; Excel count/name/date; karte exact IDs/name/date; source/history/duplicate preservation",
+    "runtime_before": {
+      "errors": 0,
+      "observed": "enabled=1, alive=true",
+      "head": "d7f1625477bcdb537622adf118e1419f2e064ab3",
+      "seconds": 45.668,
+      "failures": 1
+    },
+    "runtime_after": {
+      "python": "3.12.16",
+      "environment": "WSL Ubuntu, fresh SQLite, real loopback HTTP, non-loopback denied",
+      "explicit_cli": true,
+      "seconds": 100.923,
+      "passed": 1,
+      "sigterm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "gunicorn": "26.2.0",
+      "override_modes": 4
+    },
+    "profile_and_coupling_tests": 16
   }
 }
