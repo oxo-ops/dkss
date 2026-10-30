@@ -140,6 +140,18 @@ factory/`app.py`のimportはDB初期化を行いません。一方、`gunicorn.c
 
 ## Renderログイン障害の復旧確認（2026-10-29）
 
+### 2026-10-30：管理者PCの診断TLS修正（本番再接続は別承認）
+
+以下の`18ae141b`／Auto-Deploy Offは旧報告時点の履歴です。その後の管理者報告と読取APIで、Live `2cfe149bb867c7d5f8aaf634e331436ba1f2ba5f`、Auto-Deploy有効を確認しました。アプリの`ProgrammingError`と、管理者PCの先行READ ONLY診断がCA検証で止まった問題を区別します。CA修正をログイン復旧完了とは扱わず、P1保留を維持します。
+
+Windows版libpqの`sslrootcert=system`はOpenSSLの既定CA参照であり、WindowsのRootストアと同一とは限りません。今回の管理者PCでは既定CA参照が存在せず、専用psql子プロセスへ[診断TLS部品](../tools/diagnostics/m01_client_tls.ps1)から明示CAを設定します。`verify-full`、固定した接続先、READ ONLY、timeout、ROLLBACK、段階B承認ガードは維持します。親PowerShell、OSの信頼ストア、Render設定は変更しません。`SSL_CERT_FILE`／`SSL_CERT_DIR`は子だけで除外し、`OPENSSL_CONF`／`OPENSSL_MODULES`の独自設定があれば無断で解除せず停止します。
+
+CAは[certifi 2026.10.23の出典記録](../tools/diagnostics/ca/provenance.json)で公式PyPI配布wheelのSHA-256と照合済みです。既存候補PEMもそのwheelとバイト一致し、118件すべてCA、秘密鍵なしで、変更せず再配布します。公開日時は2026-10-23 11:36:14 UTC、PEM SHA-256は`2ef52ad56b4803e264045c915e55c236cbfa045b84b81efefc218a19eb44bd2b`です。MPL-2.0全文と元の配布noticeを同梱し、更新は出典・構成・hashを再確認するレビューで行います。上流由来の古い自己署名表現は出典記録に残し、独自CA追加・削除や実行時ダウンロードはしません。
+
+既存のローカル管理者ランチャーは、機密接続値を含まない[最小適用差分](../tools/diagnostics/m01_client_tls_launcher.patch)でこの部品を利用します。主管は`tools/diagnostics`のhelperと`ca/`をランチャー隣の`m01_tls/`へ配置し、差分内のhelper hashを含めた`-PrepareOnly`確認を行います。完全ランチャー・既存診断SQL・本番接続値・結果・dumpはこのPRへ転載しません。公開差分は移行処理を追加せず、アプリ起動やGunicornを診断に使いません。
+
+オフライン受入はCAの固定hash／PEM構成、子環境への設定、競合と独自OpenSSL設定の拒否、親環境・認証値・READ ONLY維持、失敗時の秘密非露出を対象にします。専用CIはWindows PowerShell 5.1とLinux PowerShellを使い、オフラインテスト本体はDBやネットワーク接続を作りません。既存388件・6処理の移行リハーサルは再実行しません。実Renderの証明書chain／SAN／期限と段階Aの成功は、新しい1回限りの接続承認後にだけ確認します。段階B、M01、本番書込み、停止、backup／restore、deploy、mergeは承認に含めません。
+
 移行主管のローカル復旧資料の更新分を、この既存報告へ集約します。第一候補は**利用者報告の現在版`18ae141b`を維持するログイン復旧**です。最新mainへの更新、Q04・CSVを含む全移行を前提にしません。復旧対象の完全SHAと実対象の最終照合は未完了で、**P1（移行開始承認）は保留**です。以下は確認範囲の記録であり、本番接続・Render操作・停止・移行・デプロイの開始指示ではありません。
 
 ### 利用者報告で確認済みの事実と、不足証拠
