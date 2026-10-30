@@ -46,11 +46,34 @@ sys.addaudithook(guard)
                 env=env, cwd=root, capture_output=True, text=True, timeout=45)
             self.assertEqual(initialized.returncode, 0, 'New SQLite bootstrap failed; raw output withheld')
             self.assertIn('DATABASE_INITIALIZED', initialized.stdout)
+            # Test-only wrapper exercises the real pending-status wakeup path.
+            # Only batch authorization/data lookup is replaced with synthetic data.
+            (folder / 'm06_runtime_probe.py').write_text('''
+import os
+from unittest.mock import patch
+from flask import jsonify
+from app import app
+from dkss_app import document_import_routes as routes
+def probe():
+    with patch.object(routes, 'own_batch', return_value={'finished': False}):
+        routes.document_import_status('synthetic-runtime-probe')
+    state = app.extensions.get('document_import_worker', {})
+    return jsonify(enabled=os.environ.get('DOCUMENT_IMPORT_WORKER_ENABLED'),
+                   alive=bool(state and state['thread'].is_alive()))
+original_wsgi = app.wsgi_app
+def test_wsgi(environ, start_response):
+    if environ.get('PATH_INFO') == '/_m06_recovery_probe':
+        with app.request_context(environ):
+            response = probe()
+        return response(environ, start_response)
+    return original_wsgi(environ, start_response)
+app.wsgi_app = test_wsgi
+''', encoding='utf-8')
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1', 0))
                 port = listener.getsockname()[1]
 
-            def launch_and_stop(command, logname, expected_markers, ready):
+            def launch_and_stop(command, logname, expected_markers, ready, forbidden=()):
                 log = folder / logname
                 with log.open('w', encoding='utf-8') as output:
                     process = subprocess.Popen(command, env=env, cwd=root,
@@ -76,23 +99,44 @@ sys.addaudithook(guard)
                 self.assertNotIn('Traceback (most recent call last)', contents)
                 self.assertNotIn(env['SECRET_KEY'], contents)
                 self.assertNotIn(env['ITC_INITIAL_PASSWORD'], contents)
+                for marker in forbidden:
+                    self.assertNotIn(marker, contents)
 
             def web_ready():
                 try:
                     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
                     with opener.open(f'http://127.0.0.1:{port}/login', timeout=1) as response:
-                        return response.status == 200 and b'<form' in response.read()
+                        login = response.status == 200 and b'<form' in response.read()
+                    with opener.open(f'http://127.0.0.1:{port}/_m06_recovery_probe', timeout=1) as response:
+                        probe = json.load(response)
+                    self.assertEqual(probe, {'enabled': '0', 'alive': False},
+                                     'Web status GET must not start embedded OCR after Gunicorn env overrides')
+                    return login
                 except OSError:
                     return False
 
-            launch_and_stop([sys.executable, '-m', 'gunicorn', '-c', 'gunicorn.conf.py',
-                '--bind', f'127.0.0.1:{port}', 'app:app'], 'web.log',
-                ['Using worker: gthread', 'OCR_WORKER_STARTED', 'OCR_WORKER_HEARTBEAT'], web_ready)
+            command = [sys.executable, '-m', 'gunicorn', '-c', 'gunicorn.conf.py',
+                       '--bind', f'127.0.0.1:{port}']
+            for mode in ('environment', 'command-line', 'gunicorn-cmd-args', 'preload-command-line'):
+                env['DOCUMENT_IMPORT_WORKER_ENABLED'] = '1'
+                env.pop('GUNICORN_CMD_ARGS', None)
+                extra = []
+                if mode in ('command-line', 'preload-command-line'):
+                    extra = ['--env', 'DOCUMENT_IMPORT_WORKER_ENABLED=1']
+                    if mode == 'preload-command-line':
+                        extra.append('--preload')
+                elif mode == 'gunicorn-cmd-args':
+                    env['GUNICORN_CMD_ARGS'] = '--env DOCUMENT_IMPORT_WORKER_ENABLED=1'
+                launch_and_stop(command + extra + ['m06_runtime_probe:app'], mode + '.log',
+                    ['Using worker: gthread'], web_ready,
+                    forbidden=('OCR_WORKER_STARTED', 'OCR_WORKER_HEARTBEAT'))
             # Explicit CLI intentionally runs even when embedded startup is disabled.
             env['DOCUMENT_IMPORT_WORKER_ENABLED'] = '0'
+            env.pop('GUNICORN_CMD_ARGS', None)
             launch_and_stop([sys.executable, '-m', 'flask', '--app', 'app', 'document-import-worker'],
                 'ocr.log', ['OCR_WORKER_STARTED', 'OCR_WORKER_HEARTBEAT'], lambda: True)
             print('Q09_LINUX_RUNTIME_OK ' + json.dumps(dict(
-                gunicorn='gthread/1/4', login_http=200, embedded_ocr=True,
-                explicit_ocr=True, sigterm_exit_codes=[0, 0], non_loopback_blocked=True,
+                gunicorn='gthread/1/4', login_http=200, embedded_ocr=False,
+                override_modes=4, pending_status_wakeup_blocked=True,
+                explicit_ocr=True, sigterm_exit_codes=[0, 0, 0, 0, 0], non_loopback_blocked=True,
                 fresh_sqlite_only=True)))

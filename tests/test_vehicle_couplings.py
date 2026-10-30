@@ -208,7 +208,7 @@ class CouplingTests(unittest.TestCase):
         hook = runpy.run_path("gunicorn.conf.py")["post_worker_init"]
         with patch("dkss_app.document_import_worker.start_worker") as start_worker:
             hook(SimpleNamespace(wsgi=self.app))
-            start_worker.assert_called_once_with(self.app)
+            start_worker.assert_not_called()
         after = self.client.get(f"/vehicle/karte/{self.tractor.id}").get_data(as_text=True)
         self.assertIn('data-coupling-open', after)
         self.assertEqual(self.add().status_code, 302)
