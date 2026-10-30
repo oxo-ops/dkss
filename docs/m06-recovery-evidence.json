@@ -1,0 +1,50 @@
+{
+  "base": "cf202c12e3ce7ea135ed18052dc5aaf1ab120dee",
+  "evidence": [
+    {
+      "sha256": "BD5CFB48924B099188723499ACFEB175B016EA879B532A717E4145C6E26564E6",
+      "modified_utc": "2026-10-30T05:27:31.0288514Z",
+      "file": "M06-switch-acceptance.py"
+    },
+    {
+      "sha256": "9CF612122F3E5CE193839EA1C5DDE1F66288605E5E310655424C645AF8888927",
+      "modified_utc": "2026-10-30T05:27:37.8661764Z",
+      "file": "M06-switch-seed-result.json"
+    },
+    {
+      "sha256": "CB5800180B5814102BC6B3246A6D8A9F91306EB9840EE0896C48C41F112EE076",
+      "modified_utc": "2026-10-30T05:28:01.2640750Z",
+      "file": "M06-switch-candidate-result.json"
+    },
+    {
+      "sha256": "8698698FE9D8C810F5424F7481E75680D100D54BA177E3AD1F0C18FADB415F7A",
+      "modified_utc": "2026-10-30T05:28:36.5099838Z",
+      "file": "M06-switch-return-result.json"
+    },
+    {
+      "sha256": "299AEF66EFFDC0E896C9434D5E406D2203089F02606A029402EC8CDA6E14DB85",
+      "modified_utc": "2026-10-30T05:27:37.8721723Z",
+      "file": "M06-switch-seed.log"
+    },
+    {
+      "sha256": "E7DD1C355DC2188CD50F8A549A41BDB1D9FE389D7F797D7DEC89FAF1F3D610E3",
+      "modified_utc": "2026-10-30T05:28:01.2700765Z",
+      "file": "M06-switch-candidate.log"
+    },
+    {
+      "sha256": "0F9FDC20CCC922D0996B23CD6C92FD16A0D8B81CB1A166F7A848BE04CFBDEC0F",
+      "modified_utc": "2026-10-30T05:28:36.5159839Z",
+      "file": "M06-switch-return.log"
+    },
+    {
+      "sha256": "23071A053060112E0927FFACD71BB011DB802FC100383386FE45E63B8ECA0AB1",
+      "modified_utc": "2026-10-30T05:31:44.1637257Z",
+      "file": "M06-recovery-profile-final.log"
+    }
+  ],
+  "results": {
+    "cross_version_stages": 3,
+    "profile_and_queue_tests": 5,
+    "passed": true
+  }
+}
