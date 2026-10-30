@@ -76,7 +76,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
                 setattr(obj, field, value)
                 self.assertFalse(confirmed_twelve_month_source(plan, record, draft))
                 setattr(obj, field, original)
-        for raw in ('車検', '12か月点検・車検', '不明', None):
+        for raw in ('車検', '12か月点検・車検', '不明', None, [], {}):
             with self.subTest(raw=raw):
                 details = json.loads(record.details_json)
                 details['inspection_type_raw'] = raw

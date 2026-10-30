@@ -98,9 +98,10 @@ def confirmed_twelve_month_source(plan, record, draft):
         return False
     # Exact unambiguous labels, not substring/OCR guessing or a date cutoff.
     labels = {'12か月点検', '12か月定期点検', '12ヶ月点検', '12ヶ月定期点検'}
-    if (details.get('inspection_type') != '12month'
+    raw_label = details.get('inspection_type_raw')
+    if (not isinstance(raw_label, str) or details.get('inspection_type') != '12month'
             or details.get('vehicle_record_id') != plan.vehicle_record_id
-            or details.get('inspection_type_raw') not in labels
+            or raw_label not in labels
             or original.get('inspection_type_raw') != details.get('inspection_type_raw')
             or original.get('inspection_type') != '12month'):
         return False
