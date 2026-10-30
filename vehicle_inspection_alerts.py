@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import click
 from flask import request, session
 from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm import load_only
 
 from vehicle_inspection_plans import KINDS, normalize_kind, kind_values, add_months, iso_date, month
 
@@ -63,7 +64,60 @@ def expiry_phase(expiry, today):
     return None
 
 
-def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehicle, Company, User, Notification):
+def confirmed_twelve_month_source(plan, record, draft):
+    """Recognize an explicitly confirmed document source; never reclassify rows.
+
+    The legacy stored kind alone is not proof. Require the registered source,
+    its confirmed values and its preserved original label to agree. Other or
+    ambiguous evidence returns False, not a new classification/holding rule.
+    """
+    if not record or not draft or plan.kind != '12month' or plan.source != 'document':
+        return False
+    if (plan.source_record_id != record.id or record.inspection_type != '12month'
+            or record.company_code != plan.company_code or draft.company_code != plan.company_code
+            or record.vehicle_record_id != plan.vehicle_record_id
+            or record.source_draft_id != draft.id or draft.document_type != 'inspection'
+            or draft.status != 'completed'):
+        return False
+    index = record.source_record_index
+    if type(index) is not int or index < 0:
+        return False
+    try:
+        details = json.loads(record.details_json or '{}')
+        preview = json.loads(draft.preview_json or '{}')
+        result = json.loads(draft.result_json or '{}')
+    except (TypeError, ValueError):
+        return False
+    if not all(isinstance(value, dict) for value in (details, preview, result)):
+        return False
+    originals, registered = preview.get('original_records'), result.get('records')
+    if not isinstance(originals, list) or index >= len(originals) or not isinstance(registered, list):
+        return False
+    original = originals[index]
+    if not isinstance(original, dict):
+        return False
+    # Exact unambiguous labels, not substring/OCR guessing or a date cutoff.
+    labels = {'12か月点検', '12か月定期点検', '12ヶ月点検', '12ヶ月定期点検'}
+    if (details.get('inspection_type') != '12month'
+            or details.get('vehicle_record_id') != plan.vehicle_record_id
+            or details.get('inspection_type_raw') not in labels
+            or original.get('inspection_type_raw') != details.get('inspection_type_raw')
+            or original.get('inspection_type') != '12month'):
+        return False
+    next_month = month(details.get('next_inspection_month'))
+    next_day = iso_date(record.next_inspection_date)
+    if next_month and next_day and next_month != next_day.isoformat()[:7]:
+        return False
+    if (next_month or (next_day.isoformat()[:7] if next_day else None)) != plan.period_key:
+        return False
+    matches = [row for row in registered if isinstance(row, dict)
+               and row.get('record_id') == record.id and row.get('record_index') == index
+               and row.get('vehicle_record_id') == plan.vehicle_record_id
+               and row.get('document_type') == 'inspection']
+    return len(matches) == 1
+
+
+def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehicle, Company, User, Notification, *, Draft):
     from dkss_app.vehicle_inspection_alerts_models import get_models
     InspectionPlanAlertDelivery, InspectionPlanAlertRun, InspectionExpiryAlertDelivery, = get_models(db)
 
@@ -106,7 +160,21 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
 
     def certificate_updated(plan, vehicle):
         expiry = iso_date(vehicle.inspection_expiry)
-        return bool(normalize_kind(plan.kind) == '12month' and expiry and month(plan.period_key) and expiry.isoformat()[:7] > plan.period_key)
+        renewed = bool(normalize_kind(plan.kind) == '12month' and expiry and month(plan.period_key)
+                       and expiry.isoformat()[:7] > plan.period_key)
+        if not renewed or plan.kind != '12month' or plan.source != 'document' or not plan.source_record_id:
+            return renewed
+        # Only a source-confirmed twelve-month plan is exempt here. Preserve
+        # legacy/ambiguous notification policy until its separate decision.
+        pair = db.session.query(Record, Draft).join(Draft, Draft.id == Record.source_draft_id).filter(
+            Record.id == plan.source_record_id, Record.company_code == plan.company_code,
+            Record.vehicle_record_id == plan.vehicle_record_id, Draft.company_code == plan.company_code,
+        ).options(
+            load_only(Record.id, Record.company_code, Record.vehicle_record_id, Record.inspection_type,
+                      Record.source_draft_id, Record.source_record_index, Record.details_json, Record.next_inspection_date),
+            load_only(Draft.id, Draft.company_code, Draft.document_type, Draft.status, Draft.preview_json, Draft.result_json),
+        ).first()
+        return renewed and not (pair and confirmed_twelve_month_source(plan, pair[0], pair[1]))
 
     def current_delivery(delivery, today):
         if delivery.ended_status:
