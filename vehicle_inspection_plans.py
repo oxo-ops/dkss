@@ -93,6 +93,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             if not record or record_kind(record) not in {'12month', 'vehicle_inspection'}:
                 return None
             if completed:
+                if not iso_date(record.inspection_date):
+                    return None
                 snapshot = snapshot or serialize_dates(plan)
                 direct = (record.inspection_date == snapshot.get('reservation_date') or
                     (not snapshot.get('reservation_date') and record.inspection_date[:7] == snapshot.get('planned_month')))
@@ -121,7 +123,9 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             for key in ('before', 'after'):
                 snapshot = detail.get(key)
                 if (not isinstance(snapshot, dict) or type(snapshot.get('id')) is not int
-                        or snapshot.get('id') != plan.id or snapshot.get('vehicle_record_id') != plan.vehicle_record_id
+                        or snapshot.get('id') != plan.id or type(snapshot.get('vehicle_record_id')) is not int
+                        or snapshot.get('vehicle_record_id') != plan.vehicle_record_id
+                        or not isinstance(snapshot.get('kind'), str)
                         or snapshot.get('kind') not in {'12month', PERIODIC_STORAGE_KIND, 'vehicle_inspection'}):
                     continue
                 kind = from_record(snapshot.get('source_record_id'))
@@ -845,12 +849,13 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 continue
             case_id = None
             if draft.document_type == 'certificate':
-                valid = draft.status == 'certificate_linked' and binding.get('vehicle_record_id') == v.id
+                valid = draft.status == 'certificate_linked' and type(binding.get('vehicle_record_id')) is int and binding.get('vehicle_record_id') == v.id
             else:
                 registered = binding.get('records')
                 if draft.status != 'completed' or not isinstance(registered, list):
                     continue
-                matches = [r for r in registered if isinstance(r, dict) and r.get('vehicle_record_id') == v.id]
+                matches = [r for r in registered if isinstance(r, dict) and type(r.get('record_id')) is int
+                           and type(r.get('vehicle_record_id')) is int and r.get('vehicle_record_id') == v.id]
                 matches = [r for r in matches if type(r.get('record_index')) is int and
                     sum(1 for entry in registered if isinstance(entry, dict) and
                         entry.get('record_index') == r['record_index']) == 1]
@@ -888,7 +893,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                                 continue
                             source = info.get('source') if isinstance(info, dict) else None
                             if (isinstance(source, dict) and source.get('draft_id') == draft.id
-                                    and source.get('record_index') == entry['record_index']
+                                    and type(source.get('record_index')) is int and source.get('record_index') == entry['record_index']
                                     and source.get('sha256') == draft.source_sha256):
                                 cases.append(case.id)
                         if len(set(cases)) == 1:

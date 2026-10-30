@@ -89,10 +89,11 @@ an inconclusive result here is not authorization to invalidate its history.
                     and original.get('inspection_type') == details.get('inspection_type') == 'vehicle_inspection')
     if (not isinstance(original, dict) or not isinstance(raw, str)
             or not (periodic or explicit_car) or original.get('inspection_type_raw') != raw
-            or details.get('vehicle_record_id') != vehicle_id):
+            or type(details.get('vehicle_record_id')) is not int or details.get('vehicle_record_id') != vehicle_id):
         return KindIdentity(None, 'source_kind_not_established')
     matches = [row for row in registered if isinstance(row, dict) and row.get('record_index') == index]
     if (len(matches) != 1 or type(matches[0].get('record_index')) is not int
+            or type(matches[0].get('record_id')) is not int or type(matches[0].get('vehicle_record_id')) is not int
             or matches[0].get('record_id') != record.id
             or matches[0].get('vehicle_record_id') != vehicle_id
             or matches[0].get('document_type') != 'inspection'):

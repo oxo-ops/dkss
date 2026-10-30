@@ -42,7 +42,8 @@ class ReviewBoundaryTests(unittest.TestCase):
         self.m.db.session.commit()
         self.assertEqual(self.m.inspection_plans.plan_kind(plan), '12month')
         for changes in ({'id': plan.id + 99}, {'vehicle_record_id': self.vehicle.id + 99},
-                        {'source_record_id': None}, {'source_record_id': True}, {'kind': 'ad_hoc'}):
+                        {'id': True}, {'vehicle_record_id': True}, {'source_record_id': None},
+                        {'source_record_id': True}, {'kind': 'ad_hoc'}, {'kind': []}, {'kind': {}}):
             audit.detail_json = json.dumps({'before': {**snapshot, **changes}})
             self.assertEqual(self.m.inspection_plans.plan_kind(plan), 'annual_unconfirmed')
         audit.detail_json = json.dumps({'before': snapshot})

@@ -214,10 +214,11 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         return 'pending'
 
     def expiry_is_planned(vehicle, expiry):
-        return Plan.query.filter(Plan.company_code == vehicle.company_code,
+        candidates = Plan.query.filter(Plan.company_code == vehicle.company_code,
             Plan.vehicle_record_id == vehicle.id, Plan.kind.in_(kind_values('vehicle_inspection')),
             Plan.status.in_(['planned', 'completed']),
-            db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).first() is not None
+            db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).all()
+        return any(identities.plan_kind(plan) == 'vehicle_inspection' for plan in candidates)
 
     def expiry_has_actual(vehicle, expiry, today):
         return has_actual(SimpleNamespace(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
