@@ -36,3 +36,47 @@ Limits: notification processing still has per-vehicle queries; this is not a
 general batching rewrite or production performance acceptance. SQLite timing
 does not predict PostgreSQL/network latency. Login and real OCR recovery are
 not tested or claimed. No production operation or deployment performed.
+
+## Follow-up: request-local repeated classification
+
+At intermediate head 5c0d90a, the 32,177 notification statements break down as:
+original reads from record_kind 10,000; source-record reads from plan_kind
+8,000; has_actual record/execution reads 2,000 each; expiry planned/dependency
+plan reads 1,000 each; dependency record/execution reads 1,000 each; receipt
+SELECT/DML and remaining bookkeeping 6,177. Audit reads total two, not dominant.
+Call-site profiling counts SQL operations, including autoflush writes; it does
+not label every receipt statement as a redundant SELECT.
+
+Only the repeated classification was changed. Results are held in the current
+request's environ, keyed by function, scoped ORM object, company and vehicle.
+Unflushed evidence edits bypass/clear the cache. Evidence flush, commit,
+rollback and Session bulk/text writes invalidate it. No cross-request cache,
+unbounded cross-company fetch, or change to authorization/notification rules.
+
+| Rows | Route | Final SQL | Final seconds |
+|---|---|---:|---:|
+|100|Annual API|217|0.149|
+|100|Unread-count GET|1633|0.417|
+|100|Excel|217|0.507|
+|1000|Annual API|2017|2.114|
+|1000|Unread-count GET|16177|3.896|
+|1000|Excel|2017|6.977|
+
+The same script, fixture, endpoints and Windows environment as the initial
+table were used. Each endpoint is sampled once per fresh fixture, in order
+annual / unread-count / Excel; there is no dedicated warm-up and no median,
+variance or percentile claim. OS/library caches and concurrent local test load
+can affect timing. First notification polling includes normal creation writes.
+These limitations apply to all before/intermediate/final timings.
+
+Additional tests: 11 passed, including the existing eight notice contracts with
+request caching enabled; same-request unflushed/flush/rollback/ORM bulk/text SQL/
+commit changes; company/vehicle/original separation. An additional focused 16
+tests passed. Final full CI must be read at the final head, not 5c0d90a.
+
+Remaining per-vehicle actual/expiry queries and receipt processing are a separate
+follow-up, not an open-ended rewrite in this PR. Batch fetching could reduce
+those reads, but changing receipt processing is outside the measured repeated
+classification fix. No observed correctness failure blocks this bounded change;
+production capacity, dense per-vehicle history and warm-load distributions remain
+unmeasured rather than being declared release blockers.

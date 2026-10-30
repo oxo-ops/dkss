@@ -2,6 +2,7 @@
 import calendar
 import hashlib
 import json
+from functools import wraps
 from datetime import date, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -59,6 +60,36 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     Execution = VehicleInspectionExecution
     queue_key = 'inspection_plan_sync_' + str(id(Record))
     import_key = 'inspection_plan_imports_' + str(id(Record))
+    cache_key = 'inspection_kind_reads_' + str(id(Record))
+    evidence_models = (Plan, Event, Execution, Record, Draft)
+
+    def clear_kind_reads():
+        if has_request_context():
+            request.environ.pop(cache_key, None)
+
+    def request_kind_read(fn):
+        @wraps(fn)
+        def read(row):
+            if not has_request_context():
+                return fn(row)
+            s = db.session()
+            # Unflushed edits must be visible even with autoflush disabled.
+            changed = any(isinstance(obj, evidence_models)
+                          for obj in (*s.new, *s.dirty, *s.deleted))
+            if changed:
+                clear_kind_reads()
+                return fn(row)
+            cache = request.environ.setdefault(cache_key, {})
+            # Keep the scoped ORM object alive; never key solely by a numeric ID.
+            key = (fn.__name__, row, row.company_code, row.vehicle_record_id)
+            if key not in cache:
+                value = fn(row)
+                # Autoflush during the read may have invalidated this dictionary.
+                if request.environ.get(cache_key) is cache:
+                    cache[key] = value
+                return value
+            return cache[key]
+        return read
 
     def today():
         return datetime.now(ZoneInfo('Asia/Tokyo')).date()
@@ -73,6 +104,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         except (TypeError, ValueError):
             return {}
 
+    @request_kind_read
     def record_kind(record):
         if record.inspection_type != '12month':
             return normalize_kind(record.inspection_type)
@@ -82,6 +114,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                                           vehicle_id=record.vehicle_record_id)
         return identity.kind or UNCONFIRMED
 
+    @request_kind_read
     def plan_kind(plan):
         if plan.kind != '12month':
             return normalize_kind(plan.kind)
@@ -139,6 +172,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def serialize_dates(plan):
         return {'reservation_date': plan.reservation_date, 'planned_month': plan.planned_month}
 
+    @request_kind_read
     def execution_kind(execution):
         if execution.kind != '12month':
             return normalize_kind(execution.kind)
@@ -451,6 +485,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         def remember_records(s, context, instances):
             if not owns_session(s):
                 return
+            if any(isinstance(obj, evidence_models) for obj in (*s.new, *s.dirty, *s.deleted)):
+                clear_kind_reads()
             new = [r for r in s.new if isinstance(r, Record)]
             if new:
                 s.info.setdefault(import_key, []).extend(new)
@@ -474,8 +510,22 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
 
         @event.listens_for(Session, 'after_rollback')
         def forget_rolled_back_records(s):
+            if owns_session(s):
+                clear_kind_reads()
             s.info.pop(queue_key, None)
             s.info.pop(import_key, None)
+
+        @event.listens_for(Session, 'after_commit')
+        def forget_committed_kind_reads(s):
+            if owns_session(s):
+                clear_kind_reads()
+
+        @event.listens_for(Session, 'do_orm_execute')
+        def forget_bulk_kind_reads(state):
+            # Bulk/Core writes through Session bypass before_flush. Conservatively
+            # invalidate for every DML statement, including unknown target tables.
+            if owns_session(state.session) and not state.is_select:
+                clear_kind_reads()
 
     def scope_context(code, args):
         scope = args.get('scope') or 'office'
