@@ -293,6 +293,9 @@ def get_vehicle_maintenance_cost_summary(maintenance_records):
 
 def get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id):
     """Last performed inspection and explicitly recorded next date, per type."""
+    from flask import current_app
+    from vehicle_inspection_plans import READ_KINDS
+    identities = current_app.extensions['inspection_plan_sync']
     def parsed(value):
         try:
             return _dkss_common.datetime.strptime(str(value or ""), "%Y-%m-%d").date()
@@ -305,11 +308,12 @@ def get_vehicle_periodic_inspection_summary(company_code, vehicle_record_id):
         company_code=company_code, vehicle_record_id=vehicle_record_id
     ).all():
         performed = parsed(record.inspection_date)
-        if record.inspection_type not in {"3month", "12month"} or performed is None or performed > today:
+        kind = identities.record_kind(record)
+        if kind not in READ_KINDS or kind == 'ad_hoc' or performed is None or performed > today:
             continue
-        previous = latest.get(record.inspection_type)
+        previous = latest.get(kind)
         if previous is None or (performed, record.id) > previous[:2]:
-            latest[record.inspection_type] = (performed, record.id, record)
+            latest[kind] = (performed, record.id, record)
     result = {}
     for kind, (performed, _, record) in latest.items():
         due = parsed(record.next_inspection_date)

@@ -272,7 +272,9 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
         issues = PeriodicInspectionIssue.query.filter_by(company_code=vehicle.company_code, inspection_record_id=record.id, vehicle_record_id=vehicle.id).order_by(PeriodicInspectionIssue.id).all()
         events = PeriodicInspectionIssueEvent.query.filter(PeriodicInspectionIssueEvent.company_code == vehicle.company_code, PeriodicInspectionIssueEvent.issue_id.in_([i.id for i in issues])).order_by(PeriodicInspectionIssueEvent.id).all() if issues else []
         number = ' '.join(str(getattr(vehicle, field) or '') for field in ['plate_area', 'plate_class', 'plate_kana', 'plate_number']).strip()
+        from vehicle_inspection_plans import READ_KINDS
         return render_template('vehicle_periodic_followup.html', vehicle=vehicle, vehicle_number=number,
+            inspection_kind_label=READ_KINDS.get(app.extensions['inspection_plan_sync'].record_kind(record), 'その他の点検'),
             record=record, issues=issues, events=events, evidence={i.id: json_dict(i.evidence_json) for i in issues},
             can_generate=session.get('role') in {'admin', 'itc'})
 

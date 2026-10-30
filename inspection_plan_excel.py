@@ -10,7 +10,7 @@ from openpyxl.worksheet.filters import FilterColumn
 
 STATES = {'candidate':'予定未登録', 'unreserved':'未予約', 'reserved':'予約済み',
           'awaiting':'実施確認待ち', 'completed':'実施済み'}
-KINDS = {'3month':'3か月点検', '12month':'12か月点検', 'ad_hoc':'突発修理'}
+KINDS = {'3month':'3か月点検', '12month':'12か月点検', 'vehicle_inspection':'車検', 'annual_unconfirmed':'車検／12か月点検・区分未確認', 'ad_hoc':'突発修理'}
 COLORS = {'candidate':'FFF3DF', 'unreserved':'F3F6FA', 'reserved':'E7F0FF',
           'awaiting':'FFF0DE', 'completed':'E5F4EB'}
 
@@ -103,7 +103,8 @@ def build_annual_workbook(data, args):
     for row_index, p in enumerate(rows, 2):
         v=by_id[p['vehicle_record_id']]
         values=[v['number'],v['office'],KINDS[p['kind']],STATES[p['display_state']],p['planned_month'],
-                p.get('reservation_date'),p.get('performed_date'),p.get('expiry_date'),p.get('factory'),p.get('note')]
+                p.get('reservation_date'),p.get('performed_date'),p.get('expiry_date'),p.get('factory'),
+                ' / '.join(value for value in (p.get('note'), p.get('duplicate_note')) if value)]
         for col,value in enumerate(values,1):
             cell=details.cell(row_index,col)
             if col in (5,6,7,8) and value:

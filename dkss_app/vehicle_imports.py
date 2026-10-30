@@ -1,4 +1,5 @@
 """Vehicle Imports responsibilities; routes are registered by the application factory."""
+from inspection_kind_identity import new_storage_kind
 from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_master as _dkss_vehicle_master, vehicle_operations as _dkss_vehicle_operations, vehicle_pending as _dkss_vehicle_pending, vehicle_readers as _dkss_vehicle_readers
 
@@ -156,7 +157,7 @@ def vehicle_invoice_import_candidates(batch_id, draft_id, record_index):
 def build_vehicle_document_record(draft, record_index, values):
     mileage = _dkss_common.Decimal(values['mileage']) if values.get('mileage') is not None else None
     if draft.document_type == 'inspection':
-        return _dkss_models.VehiclePeriodicInspectionRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], inspection_type=values['inspection_type'], inspection_date=values['record_date'], completion_date=values.get('completion_date') or None, next_inspection_date=values.get('next_inspection_date') or None, inspection_company=values.get('inspection_company') or None, inspector_name=values.get('inspector_name') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
+        return _dkss_models.VehiclePeriodicInspectionRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], inspection_type=(new_storage_kind(values['inspection_type']) if values.get('inspection_kind_contract') == 'independent-v1' and values['inspection_type'] != 'other' else values['inspection_type']), inspection_date=values['record_date'], completion_date=values.get('completion_date') or None, next_inspection_date=values.get('next_inspection_date') or None, inspection_company=values.get('inspection_company') or None, inspector_name=values.get('inspector_name') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
     if draft.document_type == 'driving_report':
         return _dkss_models.VehicleDrivingReportRecord(company_code=draft.company_code, vehicle_record_id=values['vehicle_record_id'], operation_date=values['record_date'], report_number=values.get('report_number') or None, mileage=mileage, content=values['content'], details_json=_dkss_common.json.dumps(values, ensure_ascii=False), source_draft_id=draft.id, source_record_index=record_index, created_by_username=_dkss_common.session.get('username'))
     if draft.document_type == 'maintenance':
@@ -457,7 +458,12 @@ def validate_vehicle_document_record(draft, record_index, original_record, form,
     if draft.document_type == 'inspection':
         inspection_type = form.get(f'inspection_type_{row_key}', '').strip()
         values['inspection_type'] = inspection_type
-        if inspection_type not in {'3month', '12month', 'ad_hoc', 'other'}:
+        values.pop('inspection_kind_contract', None)
+        if inspection_type in {'12month', 'vehicle_inspection'} and form.get(f'inspection_kind_contract_{row_key}') != 'independent-v1':
+            errors.append(('点検種別が更新されました。画面を再読み込みして確認してください。', f'inspection_type_{row_key}'))
+        if form.get(f'inspection_kind_contract_{row_key}') == 'independent-v1':
+            values['inspection_kind_contract'] = 'independent-v1'
+        if inspection_type not in {'3month', '12month', 'vehicle_inspection', 'ad_hoc', 'other'}:
             errors.append(('点検区分を選択してください。', f'inspection_type_{row_key}'))
     if draft.document_type == 'inspection':
         for field, (label, limit) in {'inspection_company': ('実施工場', 200), 'inspector_name': ('点検者', 100), 'notes': ('特記事項', 5000), 'symbol_legend': ('記号凡例', 5000)}.items():

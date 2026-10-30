@@ -12,7 +12,7 @@ from flask import request, session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import load_only
 
-from vehicle_inspection_plans import KINDS, normalize_kind, kind_values, add_months, iso_date, month
+from vehicle_inspection_plans import KINDS, UNCONFIRMED, normalize_kind, kind_values, add_months, iso_date, month
 
 
 def local_today():
@@ -124,6 +124,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
 
 
 
+    identities = app.extensions['inspection_plan_sync']
     Delivery, Run = InspectionPlanAlertDelivery, InspectionPlanAlertRun
     ExpiryDelivery = InspectionExpiryAlertDelivery
 
@@ -147,35 +148,48 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         return hashlib.sha256(json.dumps([plan.planned_month, plan.reservation_date, last_change, office]).encode()).hexdigest()
 
     def has_actual(plan, today):
+        kind = identities.plan_kind(plan) if hasattr(plan, 'source_record_id') else normalize_kind(plan.kind)
+        if kind == UNCONFIRMED:
+            return False
         def match(day):
             return bool(iso_date(day) and day <= today.isoformat() and
                         (day == plan.reservation_date if plan.reservation_date else day[:7] == plan.planned_month))
-        if normalize_kind(plan.kind) == 'ad_hoc':
-            # Several one-off inspections may share a month; only an explicit link completes one.
+        if kind == 'ad_hoc':
             return Execution.query.filter_by(company_code=plan.company_code,
                 vehicle_record_id=plan.vehicle_record_id, plan_id=plan.id).first() is not None
-        actuals = Record.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Record.inspection_type.in_(kind_values(plan.kind))).all()
-        if any(match(r.inspection_date) for r in actuals):
+        actuals = Record.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Record.inspection_type.in_(kind_values(kind))).all()
+        if any(identities.record_kind(r) == kind and match(r.inspection_date) for r in actuals):
             return True
-        return any(match(e.performed_date) for e in Execution.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Execution.kind.in_(kind_values(plan.kind))).all())
+        return any(identities.execution_kind(e) == kind and match(e.performed_date)
+                   for e in Execution.query.filter_by(company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id).filter(Execution.kind.in_(kind_values(kind))).all())
 
     def certificate_updated(plan, vehicle):
         expiry = iso_date(vehicle.inspection_expiry)
-        renewed = bool(normalize_kind(plan.kind) == '12month' and expiry and month(plan.period_key)
-                       and expiry.isoformat()[:7] > plan.period_key)
-        if not renewed or plan.kind != '12month' or plan.source != 'document' or not plan.source_record_id:
-            return renewed
-        # Only a source-confirmed twelve-month plan is exempt here. Preserve
-        # legacy/ambiguous notification policy until its separate decision.
-        pair = db.session.query(Record, Draft).join(Draft, Draft.id == Record.source_draft_id).filter(
-            Record.id == plan.source_record_id, Record.company_code == plan.company_code,
-            Record.vehicle_record_id == plan.vehicle_record_id, Draft.company_code == plan.company_code,
-        ).options(
-            load_only(Record.id, Record.company_code, Record.vehicle_record_id, Record.inspection_type,
-                      Record.source_draft_id, Record.source_record_index, Record.details_json, Record.next_inspection_date),
-            load_only(Draft.id, Draft.company_code, Draft.document_type, Draft.status, Draft.preview_json, Draft.result_json),
-        ).first()
-        return renewed and not (pair and confirmed_twelve_month_source(plan, pair[0], pair[1]))
+        return bool(identities.plan_kind(plan) == 'vehicle_inspection' and expiry and month(plan.period_key)
+                    and expiry.isoformat()[:7] > plan.period_key)
+
+    def confirmed_completion(plan, kind):
+        if plan.completed_record_id:
+            record = Record.query.filter_by(id=plan.completed_record_id, company_code=plan.company_code,
+                vehicle_record_id=plan.vehicle_record_id).first()
+            if record and identities.record_kind(record) == kind:
+                return True
+        return any(identities.execution_kind(e) == kind for e in Execution.query.filter_by(
+            company_code=plan.company_code, vehicle_record_id=plan.vehicle_record_id, plan_id=plan.id).all())
+
+    def legacy_expiry_dependency(vehicle, expiry, today):
+        mon = expiry[:7]
+        plans = Plan.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+            kind='12month').filter(Plan.status.in_(['planned', 'completed']),
+                db.or_(Plan.period_key == mon, Plan.planned_month == mon)).all()
+        if any(identities.plan_kind(p) == UNCONFIRMED for p in plans):
+            return True
+        records = Record.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+            inspection_type='12month').all()
+        if any(iso_date(r.inspection_date) and r.inspection_date <= today.isoformat() and r.inspection_date[:7] == mon and identities.record_kind(r) == UNCONFIRMED for r in records):
+            return True
+        return any(iso_date(e.performed_date) and e.performed_date <= today.isoformat() and e.performed_date[:7] == mon and identities.execution_kind(e) == UNCONFIRMED
+            for e in Execution.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id, kind='12month').all())
 
     def current_delivery(delivery, today):
         if delivery.ended_status:
@@ -186,6 +200,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         recipient = User.query.filter_by(company_code=delivery.company_code, username=delivery.target_username, role='admin', login_locked=False).first()
         if not company or not vehicle or not recipient or not vehicle.office or recipient.office != vehicle.office or delivery.office != vehicle.office:
             return 'closed'
+        kind = identities.plan_kind(plan)
+        if kind == UNCONFIRMED or (kind in {'12month', 'vehicle_inspection'} and plan.status == 'completed' and not confirmed_completion(plan, kind)):
+            return 'pending_unconfirmed'
         if certificate_updated(plan, vehicle):
             return 'closed'
         if plan.status == 'completed' or has_actual(plan, today):
@@ -197,10 +214,11 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         return 'pending'
 
     def expiry_is_planned(vehicle, expiry):
-        return Plan.query.filter(Plan.company_code == vehicle.company_code,
-            Plan.vehicle_record_id == vehicle.id, Plan.kind.in_(kind_values('12month')),
+        candidates = Plan.query.filter(Plan.company_code == vehicle.company_code,
+            Plan.vehicle_record_id == vehicle.id, Plan.kind.in_(kind_values('vehicle_inspection')),
             Plan.status.in_(['planned', 'completed']),
-            db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).first() is not None
+            db.or_(Plan.period_key == expiry[:7], Plan.planned_month == expiry[:7])).all()
+        return any(identities.plan_kind(plan) == 'vehicle_inspection' for plan in candidates)
 
     def expiry_has_actual(vehicle, expiry, today):
         return has_actual(SimpleNamespace(company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
@@ -214,6 +232,8 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         company = Company.query.filter_by(company_code=delivery.company_code, active=True).first()
         if not vehicle or not company or not recipient or not vehicle.office or vehicle.office != recipient.office or vehicle.office != delivery.office:
             return 'closed'
+        if legacy_expiry_dependency(vehicle, delivery.expiry_date, today):
+            return 'pending_unconfirmed'
         if vehicle.inspection_expiry != delivery.expiry_date:
             return 'closed'
         if expiry_has_actual(vehicle, delivery.expiry_date, today):
@@ -251,7 +271,10 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         statuses = [current_delivery(d, today) for d in deliveries]
         expiry_deliveries = ExpiryDelivery.query.filter_by(company_code=notification.company_code, notification_id=notification.id, target_username=notification.target_username).all()
         statuses.extend(current_expiry_delivery(d, today) for d in expiry_deliveries)
-        remaining = statuses.count('pending')
+        held = statuses.count('pending_unconfirmed')
+        remaining = statuses.count('pending') + held
+        if held:
+            return {'workflow_status': 'pending', 'workflow_label': f'車検／12か月点検・区分未確認 {held}件', 'requires_action': True}
         if remaining:
             return {'workflow_status': 'pending', 'workflow_label': f'点検予定の確認待ち {remaining}件', 'requires_action': True}
         completed = bool(statuses) and all(s == 'completed' for s in statuses)
@@ -302,19 +325,28 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 plan = receipt_plans.get(delivery.plan_id)
                 vehicle = vehicles.get(plan.vehicle_record_id) if plan else None
                 expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
+                if delivery.ended_status and plan:
+                    kind = identities.plan_kind(plan)
+                    if kind == UNCONFIRMED or (kind in {'12month', 'vehicle_inspection'}
+                            and plan.status == 'completed' and not confirmed_completion(plan, kind)):
+                        preserve_read.add(delivery.notification_id)
                 if (delivery.ended_status and key not in previously_open and plan and expiry
-                        and normalize_kind(plan.kind) == '12month' and month(plan.period_key)
+                        and identities.plan_kind(plan) == '12month' and month(plan.period_key)
                         and expiry.isoformat()[:7] > plan.period_key and not certificate_updated(plan, vehicle)):
                     preserve_read.add(delivery.notification_id)
             old_ids = list({row[0] for model in (Delivery, ExpiryDelivery) for row in db.session.query(model.notification_id).filter_by(company_code=code).distinct().all()})
             if old_ids:
                 for delivery in ExpiryDelivery.query.filter_by(company_code=code).all():
+                    vehicle = vehicles.get(delivery.vehicle_record_id)
+                    expiry = iso_date(delivery.expiry_date)
+                    if delivery.ended_status and vehicle and expiry and legacy_expiry_dependency(vehicle, delivery.expiry_date, today):
+                        preserve_read.add(delivery.notification_id)
                     state = current_expiry_delivery(delivery, today)
-                    if state != 'pending':
+                    if state not in {'pending', 'pending_unconfirmed'}:
                         delivery.ended_status = state
                 for delivery in prior_receipts:
                     state = current_delivery(delivery, today)
-                    if state != 'pending':
+                    if state not in {'pending', 'pending_unconfirmed'}:
                         delivery.ended_status = state
                 for notification in Notification.query.filter(Notification.company_code == code, Notification.id.in_(old_ids)).all():
                     if notification.id not in preserve_read and not workflow(notification, today)['requires_action']:
@@ -323,9 +355,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
             notified_plan_ids = set()
             for plan in plans:
                 vehicle = vehicles.get(plan.vehicle_record_id)
-                if not vehicle or certificate_updated(plan, vehicle) or has_actual(plan, today):
+                if not vehicle or identities.plan_kind(plan) == UNCONFIRMED or certificate_updated(plan, vehicle) or has_actual(plan, today):
                     continue
-                if normalize_kind(plan.kind) not in KINDS or not month(plan.planned_month) or (plan.reservation_date and (not iso_date(plan.reservation_date) or plan.reservation_date[:7] != plan.planned_month)):
+                if identities.plan_kind(plan) not in KINDS or not month(plan.planned_month) or (plan.reservation_date and (not iso_date(plan.reservation_date) or plan.reservation_date[:7] != plan.planned_month)):
                     report['invalid'] += 1
                     continue
                 year = int(plan.planned_month[:4]) - (1 if int(plan.planned_month[5:]) < 4 else 0)
@@ -345,7 +377,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 for user in users:
                     key = (plan.id, user.username, rev)
                     expiry = iso_date(vehicle.inspection_expiry)
-                    certificate_exempt = (normalize_kind(plan.kind) == '12month'
+                    certificate_exempt = (identities.plan_kind(plan) == '12month'
                         and expiry and month(plan.period_key) and expiry.isoformat()[:7] > plan.period_key)
                     if certificate_exempt and key in previously_ended and key not in previously_open:
                         continue
@@ -360,7 +392,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     lines = [office + 'の点検予定を確認してください。']
                     for p, v, _, _, _, _, label in batch:
                         plate = ' '.join(str(x) for x in (v.plate_area, v.plate_class, v.plate_kana, v.plate_number) if x) or v.chassis_number or f'車両#{v.id}'
-                        lines.append(f'・{plate} / {KINDS[normalize_kind(p.kind)]} / {label} / 予定月 {p.planned_month}' + (f' / 予約日 {p.reservation_date}' if p.reservation_date else ' / 予約日未定'))
+                        lines.append(f'・{plate} / {KINDS[identities.plan_kind(p)]} / {label} / 予定月 {p.planned_month}' + (f' / 予約日 {p.reservation_date}' if p.reservation_date else ' / 予約日未定'))
                     lines.append('実施済みの場合は点検計画から実施日を登録してください。書類未受領でも登録できます。')
                     link = plan_link(office, [planned_month])
                     user = batch[0][2]
@@ -385,7 +417,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 if not expiry or not 2000 <= expiry.year - (expiry.month < 4) <= 2098:
                     continue
                 phase = expiry_phase(expiry, today)
-                if not phase or expiry_is_planned(vehicle, expiry.isoformat()) or expiry_has_actual(vehicle, expiry.isoformat(), today):
+                if not phase or expiry_is_planned(vehicle, expiry.isoformat()) or legacy_expiry_dependency(vehicle, expiry.isoformat(), today) or expiry_has_actual(vehicle, expiry.isoformat(), today):
                     continue
                 users = [u for u in recipients if vehicle.office and u.office == vehicle.office]
                 if not users:
@@ -416,7 +448,8 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     db.session.add(notification);db.session.flush([notification])
                     for v, _, expiry, phase_key, bucket, _ in batch:
                         for old in ExpiryDelivery.query.filter_by(company_code=code, vehicle_record_id=v.id, target_username=username, ended_status=None).all():
-                            old.ended_status = 'closed'
+                            if current_expiry_delivery(old, today) != 'pending_unconfirmed':
+                                old.ended_status = 'closed'
                         db.session.add(ExpiryDelivery(company_code=code, vehicle_record_id=v.id, expiry_date=expiry,
                             notification_id=notification.id, target_username=username, office=office,
                             phase=phase_key, bucket=bucket, sent_day=today.isoformat()))

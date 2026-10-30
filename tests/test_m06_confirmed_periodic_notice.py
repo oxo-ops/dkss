@@ -15,6 +15,11 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
     inspection_form = _Plans.inspection_form
     run_alerts = _Alerts.run_alerts
     state = _Alerts.state
+    certificate_document = _Plans.certificate_document
+
+    def periodic_notice(self):
+        receipt = self.m.inspection_alerts.Delivery.query.one()
+        return self.m.db.session.get(self.m.Notification, receipt.notification_id)
 
     def confirmed_plan(self):
         from test_inspection_document_ai import extraction, pdf_bytes
@@ -28,6 +33,9 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         record = self.m.VehiclePeriodicInspectionRecord.query.one()
         plan = self.m.VehicleInspectionPlan.query.one()
+        plan.kind = '12month'
+        record.inspection_type = '12month'
+        self.m.db.session.commit()
         self.assertEqual((plan.kind, plan.source, plan.source_record_id), ('12month', 'document', record.id))
         self.vehicle.inspection_expiry = '2026-10-30'
         self.m.db.session.commit()
@@ -36,7 +44,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
     def test_certificate_update_does_not_end_confirmed_twelve_month_notice(self):
         plan, record, draft = self.confirmed_plan()
         self.run_alerts()
-        notice = self.m.Notification.query.one()
+        notice = self.periodic_notice()
         receipt = self.m.inspection_alerts.Delivery.query.one()
         before = (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day)
         self.assertTrue(self.state(notice)['requires_action'])
@@ -50,7 +58,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.assertFalse(notice.read)
         self.assertEqual(before, (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day))
         self.assertEqual(self.m.inspection_alerts.Delivery.query.count(), 1)
-        self.assertEqual(self.m.Notification.query.count(), 1)
+        self.assertEqual(self.m.inspection_alerts.Delivery.query.count(), 1)
         self.assertEqual(plan.status, 'planned')
         self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
 
@@ -88,7 +96,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
     def test_closed_receipt_is_not_reopened_or_reissued(self):
         self.confirmed_plan()
         self.run_alerts()
-        notice = self.m.Notification.query.one()
+        notice = self.periodic_notice()
         receipt = self.m.inspection_alerts.Delivery.query.one()
         receipt.ended_status = 'closed'
         notice.read = True
@@ -100,12 +108,12 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.assertEqual(receipt.ended_status, 'closed')
         self.assertTrue(notice.read)
         self.assertFalse(self.state(notice)['requires_action'])
-        self.assertEqual(self.m.Notification.query.count(), 1)
+        self.assertEqual(self.m.inspection_alerts.Delivery.query.count(), 1)
         before = (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day, notice.message)
         for day in ('2026-10-29', '2026-11-01', '2026-11-08'):
             with self.subTest(day=day):
                 self.assertEqual(self.run_alerts(day)['notifications'], 0)
-                self.assertEqual(self.m.Notification.query.count(), 1)
+                self.assertEqual(self.m.inspection_alerts.Delivery.query.count(), 1)
                 self.assertEqual(receipt.ended_status, 'closed')
                 self.assertTrue(notice.read)
                 self.assertEqual(before, (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day, notice.message))
@@ -114,7 +122,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.confirmed_plan()
         self.run_alerts()
         receipt = self.m.inspection_alerts.Delivery.query.one()
-        notice = self.m.Notification.query.one()
+        notice = self.periodic_notice()
         receipt.ended_status = 'closed'
         notice.read = False
         self.vehicle.inspection_expiry = '2027-10-30'
@@ -138,7 +146,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.run_alerts()
         receipt = self.m.inspection_alerts.Delivery.query.one()
         receipt.ended_status = 'closed'
-        self.m.Notification.query.one().read = True
+        self.periodic_notice().read = True
         self.vehicle.inspection_expiry = '2027-10-30'
         plan.reservation_date = '2026-10-30'
         plan.version += 1
@@ -151,7 +159,7 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         from test_inspection_document_ai import extraction, pdf_bytes
         plan, _, _ = self.confirmed_plan()
         self.run_alerts()
-        notice = self.m.Notification.query.one()
+        notice = self.periodic_notice()
         self.vehicle.inspection_expiry = '2027-10-30'
         self.m.db.session.commit()
         source = pdf_bytes(2)
@@ -167,6 +175,31 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.assertEqual(plan.status, 'completed')
         self.assertFalse(self.state(notice)['requires_action'])
         self.assertEqual(self.m.inspection_alerts.Delivery.query.one().ended_status, 'completed')
+
+    def test_later_attachment_does_not_apply_a_residual_legacy_expiry_to_periodic_fact(self):
+        plan, _, _ = self.confirmed_plan()
+        plan.status = 'completed'
+        execution = self.m.inspection_plans.Execution(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            kind='12month', performed_date='2026-10-20', plan_id=plan.id, next_month='2027-10',
+            created_by='admin', created_at='2026-10-20T00:00:00+00:00')
+        self.m.db.session.add(execution)
+        self.m.db.session.flush()
+        evidence = self.m.inspection_plans.Evidence(execution_id=execution.id, company_code='TEST',
+            confirmation='旧確認', previous_expiry='2026-10-30', new_expiry='2028-10-30')
+        self.m.db.session.add(evidence)
+        self.m.db.session.commit()
+        document = self.certificate_document()
+        payload = dict(vehicle_record_id=self.vehicle.id, kind='12month', kind_contract='independent-v1',
+            performed_date='2026-10-20', document_id=document.id, confirmed=True, confirmation='実施根拠を追記')
+        preview = self.client.post('/api/vehicle/inspection-plans/execution/preview', json=payload)
+        self.assertEqual(preview.status_code, 200, preview.get_data(as_text=True))
+        payload['token'] = preview.json['token']
+        response = self.client.post('/api/vehicle/inspection-plans/execution/save', json=payload)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.m.db.session.refresh(self.vehicle)
+        self.assertEqual(self.vehicle.inspection_expiry, '2026-10-30')
+        self.assertEqual(execution.next_month, '2027-10')
+        self.assertEqual(evidence.new_expiry, '2028-10-30')
 
 
 

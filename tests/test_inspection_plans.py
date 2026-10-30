@@ -19,9 +19,9 @@ class InspectionPlanTests(unittest.TestCase):
                     reservation_date=None, factory='', note='', status='planned', **extra)
 
     def save(self, changes, expected=200):
-        preview = self.client.post('/api/vehicle/inspection-plans/preview', json={'changes': changes})
+        preview = self.client.post('/api/vehicle/inspection-plans/preview', json={'changes': changes, 'kind_contract': 'independent-v1'})
         self.assertEqual(preview.status_code, 200, preview.get_data(as_text=True))
-        payload = dict(changes=changes, token=preview.json['token'])
+        payload = dict(changes=changes, token=preview.json['token'], kind_contract='independent-v1')
         result = self.client.post('/api/vehicle/inspection-plans/save', json=payload)
         self.assertEqual(result.status_code, expected, result.get_data(as_text=True))
         return payload
@@ -314,7 +314,7 @@ class InspectionPlanTests(unittest.TestCase):
     def test_expiry_is_unsaved_candidate_with_exact_expiry(self):
         self.vehicle.inspection_expiry='2026-10-25';self.m.db.session.commit()
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        row=next(p for p in data['plans'] if p['kind']=='12month')
+        row=next(p for p in data['plans'] if p['kind']=='vehicle_inspection')
         self.assertEqual(row['display_state'],'candidate');self.assertEqual(row['expiry_date'],'2026-10-25')
         self.assertEqual(self.m.VehicleInspectionPlan.query.count(),0)
 
@@ -327,7 +327,7 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertEqual({p['display_state'] for p in future['plans'] if p['id']},{'unreserved','reserved'})
 
     def certificate_payload(self, **extra):
-        return dict(vehicle_record_id=self.vehicle.id,kind='vehicle_inspection',performed_date='2026-09-12',confirmed=True,confirmation='工場に実施日を確認',new_expiry='2027-09-11',**extra)
+        return dict(kind_contract='independent-v1',vehicle_record_id=self.vehicle.id,kind='vehicle_inspection',performed_date='2026-09-12',confirmed=True,confirmation='工場に実施日を確認',new_expiry='2027-09-11',**extra)
 
     def certificate_save(self,payload):
         preview=self.client.post('/api/vehicle/inspection-plans/execution/preview',json=payload)
@@ -341,15 +341,15 @@ class InspectionPlanTests(unittest.TestCase):
         d=self.m.VehicleDocumentImportDraft(id=str(uuid4()),batch_id=str(uuid4()),company_code='TEST',created_by_username='admin',document_type='certificate',source_filename='certificate.pdf',source_file=b'%PDF-test',source_sha256=hashlib.sha256(b'%PDF-test').hexdigest(),status='certificate_linked',result_json=json.dumps({'vehicle_record_id':(vehicle or self.vehicle).id}),preview_json='{}')
         self.m.db.session.add(d);self.m.db.session.commit();return d
 
-    def test_annual_execution_completes_unified_plan_and_keeps_evidence(self):
+    def test_car_execution_completes_only_car_plan_and_keeps_evidence(self):
         self.vehicle.inspection_expiry='2026-09-22';self.m.db.session.commit()
         self.save([self.change(mon='2026-09',kind='vehicle_inspection')])
-        plan=self.m.VehicleInspectionPlan.query.filter_by(kind='12month').one()
+        plan=self.m.VehicleInspectionPlan.query.filter_by(kind='vehicle_inspection').one()
         self.certificate_save(self.certificate_payload(plan_id=plan.id,version=plan.version))
         self.m.db.session.refresh(plan);self.assertEqual(plan.status,'completed')
-        self.assertEqual(self.m.VehicleInspectionPlan.query.filter_by(kind='12month',status='completed').count(),1)
+        self.assertEqual(self.m.VehicleInspectionPlan.query.filter_by(kind='vehicle_inspection',status='completed').count(),1)
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        actual=next(p for p in data['plans'] if p['kind']=='12month' and p['status']=='completed')
+        actual=next(p for p in data['plans'] if p['kind']=='vehicle_inspection' and p['status']=='completed')
         self.assertEqual(actual['expiry_date'],'2026-09-22');self.assertEqual(actual['document_status'],'未受領');self.assertEqual(actual['evidence_note'],'工場に実施日を確認')
         self.assertEqual(self.vehicle.inspection_expiry,'2027-09-11')
         self.assertEqual(self.m.VehiclePeriodicInspectionRecord.query.count(),0)
@@ -371,7 +371,7 @@ class InspectionPlanTests(unittest.TestCase):
         self.assertEqual(self.m.inspection_plans.Execution.query.count(),1)
         ev=self.m.inspection_plans.Evidence.query.one();self.assertEqual(ev.document_id,doc.id)
         data=self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json
-        actual=next(p for p in data['plans'] if p['kind']=='12month' and p['status']=='completed')
+        actual=next(p for p in data['plans'] if p['kind']=='vehicle_inspection' and p['status']=='completed')
         self.assertEqual(actual['document_status'],'登録済み');self.assertEqual(self.client.get(actual['record_url']).status_code,200)
         other=self.m.Vehicle(company_code='TEST',chassis_number='OTHER');self.m.db.session.add(other);self.m.db.session.commit()
         wrong=self.certificate_payload(document_id=doc.id);wrong['vehicle_record_id']=other.id
@@ -392,29 +392,31 @@ class InspectionPlanTests(unittest.TestCase):
             rows=[p for p in data['plans'] if p['id']==plan.id]
             self.assertEqual(len(rows),1);self.assertEqual(rows[0]['planned_month'],'2025-03');self.assertEqual(rows[0]['performed_date'],'2025-04-02')
 
-    def test_annual_alias_prevents_duplicate_plans(self):
+    def test_independent_kinds_coexist_and_same_kind_duplicates_are_rejected(self):
         self.save([self.change(kind='vehicle_inspection')])
-        self.assertEqual(self.m.VehicleInspectionPlan.query.one().kind, '12month')
+        self.save([self.change(kind='12month')])
+        self.assertEqual({p.kind for p in self.m.VehicleInspectionPlan.query.all()},
+                         {'vehicle_inspection', 'periodic_12month'})
         response = self.client.post('/api/vehicle/inspection-plans/preview',
-            json={'changes': [self.change(kind='12month')]})
+            json={'changes': [self.change(kind='12month')], 'kind_contract': 'independent-v1'})
         self.assertEqual(response.status_code, 409)
 
-    def test_legacy_annual_plan_remains_editable_and_completes_from_annual_record(self):
+    def test_literal_car_plan_remains_editable_but_periodic_does_not_complete_it(self):
         plan = self.m.VehicleInspectionPlan(company_code='TEST', vehicle_record_id=self.vehicle.id,
             kind='vehicle_inspection', period_key='2026-09', planned_month='2026-09',
             status='planned', version=1, source='manual', factory='', note='')
         self.m.db.session.add(plan); self.m.db.session.commit()
-        change = self.change(mon='2026-09', kind='12month')
+        change = self.change(mon='2026-09', kind='vehicle_inspection')
         change.update(id=plan.id, version=plan.version, reservation_date='2026-09-12')
         self.save([change])
         record = self.m.VehiclePeriodicInspectionRecord(company_code='TEST',
-            vehicle_record_id=self.vehicle.id, inspection_type='12month', inspection_date='2026-09-12',
+            vehicle_record_id=self.vehicle.id, inspection_type='periodic_12month', inspection_date='2026-09-12',
             details_json='{}', source_draft_id=self.certificate_document().id, source_record_index=0, created_by_username='admin')
         self.m.db.session.add(record); self.m.db.session.commit()
         self.assertEqual(plan.kind, 'vehicle_inspection')
-        self.assertEqual(plan.status, 'completed')
+        self.assertEqual(plan.status, 'planned')
         rows = self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026').json['plans']
-        self.assertEqual([r['kind'] for r in rows if r['id'] == plan.id], ['12month'])
+        self.assertEqual([r['kind'] for r in rows if r['id'] == plan.id], ['vehicle_inspection'])
 
     def test_ad_hoc_multiple_bookings_in_same_month_and_completion_without_recurrence(self):
         first = dict(self.change(mon='2026-09', kind='ad_hoc'), reservation_date='2026-09-12')
@@ -457,39 +459,39 @@ class InspectionPlanTests(unittest.TestCase):
         self.vehicle.inspection_expiry = '2027-07-10'
         self.m.db.session.commit()
         summary = self.m.inspection_plans.summary('TEST', self.vehicle.id)
-        annual = summary['12month']
+        annual = summary['vehicle_inspection']
         self.assertEqual(annual['expiry_date'], '2027-07-10')
         self.assertEqual(annual['status'], 'candidate')
         self.assertIsNone(annual['reservation_date'])
         self.assertEqual(self.m.VehicleInspectionPlan.query.count(), 0)
         detail = self.client.get(f'/api/vehicle/inspection-plans?detail=1&vehicle_id={self.vehicle.id}').json
-        self.assertEqual(detail['plans']['12month'], annual)
-        self.assertNotIn('12month', detail['latest'])
+        self.assertEqual(detail['plans']['vehicle_inspection'], annual)
+        self.assertNotIn('vehicle_inspection', detail['latest'])
         html = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections').get_data(as_text=True)
-        card = html.split('data-periodic-summary="12month"', 1)[1].split('</button>', 1)[0]
+        card = html.split('data-periodic-summary="vehicle_inspection"', 1)[1].split('</button>', 1)[0]
         self.assertIn('期限 27/07/10', card)
         self.assertIn('予約未登録', card)
         self.assertNotIn('次回未設定', card)
         header = html.split('class="vehicle-karte-deadlines"', 1)[1].split('vehicle-karte-defect-count', 1)[0]
         self.assertNotIn('車検満了日', header)
-        for kind in ('3month', '12month', 'ad_hoc'):
+        for kind in ('3month', 'vehicle_inspection', 'ad_hoc'):
             self.assertEqual(header.count('data-periodic-summary="' + kind + '"'), 1)
         self.assertIn('予定・実施を登録', header)
-        self.assertNotIn('12month', self.m.inspection_plans.summary('FOREIGN', self.vehicle.id))
+        self.assertNotIn('vehicle_inspection', self.m.inspection_plans.summary('FOREIGN', self.vehicle.id))
 
     def test_saved_annual_reservation_takes_precedence_over_expiry_candidate(self):
         self.vehicle.inspection_expiry = '2027-07-10'
         self.m.db.session.commit()
-        change = dict(self.change(kind='12month', mon='2027-06'), reservation_date='2027-06-25')
+        change = dict(self.change(kind='vehicle_inspection', mon='2027-06'), reservation_date='2027-06-25')
         self.save([change])
-        annual = self.m.inspection_plans.summary('TEST', self.vehicle.id)['12month']
+        annual = self.m.inspection_plans.summary('TEST', self.vehicle.id)['vehicle_inspection']
         self.assertEqual(annual['reservation_date'], '2027-06-25')
         self.assertEqual(annual['status'], 'planned')
 
-    def test_planner_exposes_only_quarterly_annual_and_ad_hoc_categories(self):
+    def test_planner_exposes_independent_kinds_and_unknown_read_filter(self):
         html = self.client.get('/vehicle/inspection-plans?scope=company').get_data(as_text=True)
-        self.assertNotIn('data-kind="vehicle_inspection"', html)
-        self.assertNotIn('<option value="vehicle_inspection">', html)
+        self.assertIn('data-kind="vehicle_inspection"', html)
+        self.assertIn('<option value="vehicle_inspection">', html)
         for kind in ('3month', '12month', 'ad_hoc'):
             self.assertIn('data-kind="' + kind + '"', html)
             self.assertIn('<option value="' + kind + '">', html)
