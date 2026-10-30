@@ -447,7 +447,8 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     db.session.add(notification);db.session.flush([notification])
                     for v, _, expiry, phase_key, bucket, _ in batch:
                         for old in ExpiryDelivery.query.filter_by(company_code=code, vehicle_record_id=v.id, target_username=username, ended_status=None).all():
-                            old.ended_status = 'closed'
+                            if current_expiry_delivery(old, today) != 'pending_unconfirmed':
+                                old.ended_status = 'closed'
                         db.session.add(ExpiryDelivery(company_code=code, vehicle_record_id=v.id, expiry_date=expiry,
                             notification_id=notification.id, target_username=username, office=office,
                             phase=phase_key, bucket=bucket, sent_day=today.isoformat()))

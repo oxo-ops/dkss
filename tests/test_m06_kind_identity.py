@@ -34,6 +34,15 @@ class KindIdentityTests(unittest.TestCase):
         self.assertEqual((result.kind, result.basis), ('12month', 'confirmed_document'))
         self.assertEqual(before, (vars(self.record), vars(self.draft)))
 
+    def test_legacy_storage_with_explicit_confirmed_car_values_is_read_without_reclassification(self):
+        details = json.loads(self.record.details_json)
+        details.update(inspection_type='vehicle_inspection', inspection_type_raw='車検')
+        self.record.details_json = json.dumps(details)
+        self.draft.preview_json = json.dumps({'original_records': [
+            {'inspection_type': 'vehicle_inspection', 'inspection_type_raw': '車検'}]})
+        self.assertEqual(self.identity().kind, 'vehicle_inspection')
+        self.assertEqual(self.record.inspection_type, '12month')
+
     def test_conflicting_original_does_not_get_inferred_as_a_car_inspection(self):
         for label in ('車検', '車検／12か月点検', '区分不明', None, [], {}):
             with self.subTest(label=label):

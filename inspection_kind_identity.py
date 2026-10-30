@@ -83,10 +83,12 @@ an inconclusive result here is not authorization to invalidate its history.
         return KindIdentity(None, 'source_index')
     original = originals[index]
     raw = details.get('inspection_type_raw')
+    periodic = (isinstance(raw, str) and raw in PERIODIC_LABELS and isinstance(original, dict)
+                and original.get('inspection_type') == details.get('inspection_type') == '12month')
+    explicit_car = (raw == '車検' and isinstance(original, dict)
+                    and original.get('inspection_type') == details.get('inspection_type') == 'vehicle_inspection')
     if (not isinstance(original, dict) or not isinstance(raw, str)
-            or raw not in PERIODIC_LABELS or original.get('inspection_type_raw') != raw
-            or original.get('inspection_type') != '12month'
-            or details.get('inspection_type') != '12month'
+            or not (periodic or explicit_car) or original.get('inspection_type_raw') != raw
             or details.get('vehicle_record_id') != vehicle_id):
         return KindIdentity(None, 'source_kind_not_established')
     matches = [row for row in registered if isinstance(row, dict) and row.get('record_index') == index]
@@ -95,4 +97,4 @@ an inconclusive result here is not authorization to invalidate its history.
             or matches[0].get('vehicle_record_id') != vehicle_id
             or matches[0].get('document_type') != 'inspection'):
         return KindIdentity(None, 'registration_boundary')
-    return KindIdentity('12month', 'confirmed_document')
+    return KindIdentity('vehicle_inspection' if explicit_car else '12month', 'confirmed_document')

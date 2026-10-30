@@ -265,6 +265,8 @@ def build_vehicle_karte_documents_context(vehicle, documents):
         ("maintenance", "整備記録"),
         ("inspection_3", "3か月点検"),
         ("inspection_12", "12か月点検"),
+        ("inspection_vehicle", "車検"),
+        ("inspection_unconfirmed", "車検／12か月点検・区分未確認"),
         ("inspection", "点検記録"),
         ("driving_report", "安全運転日報"),
         ("inspection_ad_hoc", "突発修理"),
@@ -332,7 +334,7 @@ def build_vehicle_karte_documents_context(vehicle, documents):
         elif document["document_type"] == "driving_report":
             kind = "driving_report"
         elif document["document_type"] == "inspection":
-            kind = ({"3month": "inspection_3", "12month": "inspection_12", "vehicle_inspection": "inspection_vehicle", "ad_hoc": "inspection_ad_hoc"}
+            kind = ({"3month": "inspection_3", "12month": "inspection_12", "vehicle_inspection": "inspection_vehicle", "annual_unconfirmed": "inspection_unconfirmed", "ad_hoc": "inspection_ad_hoc"}
                     .get(next(iter(inspection_types)), "inspection")
                     if len(inspection_types) == 1 else "inspection")
         elif document["document_type"] == "maintenance":

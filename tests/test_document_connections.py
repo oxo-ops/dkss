@@ -123,9 +123,19 @@ class DocumentConnectionTests(unittest.TestCase):
         self.assertIn("3か月点検（1）", page)
         inspection.inspection_type = "12month"
         self.m.db.session.commit()
+        page = self.client.get(f"/vehicle/karte/{self.vehicle.id}/documents?kind=inspection_unconfirmed").get_data(as_text=True)
+        self.assertIn("車検／12か月点検・区分未確認（1）", page)
+        self.assertIn("unrelated_invoice_photo.jpg", page)
+        inspection.inspection_type = "periodic_12month"
+        self.m.db.session.commit()
         page = self.client.get(f"/vehicle/karte/{self.vehicle.id}/documents?kind=inspection_12").get_data(as_text=True)
         self.assertIn("12か月点検（1）", page)
         self.assertIn("unrelated_invoice_photo.jpg", page)
+        inspection.inspection_type = "vehicle_inspection"
+        self.m.db.session.commit()
+        response = self.client.get(f"/vehicle/karte/{self.vehicle.id}/documents?kind=inspection_vehicle")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("車検（1）", response.get_data(as_text=True))
 
     def test_driving_report_gets_own_category(self):
         from dkss_app.vehicle_karte import build_vehicle_karte_documents_context

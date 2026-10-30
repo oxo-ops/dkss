@@ -89,6 +89,18 @@ class NewKindTests(unittest.TestCase):
         execution = self.m.inspection_plans.Execution.query.one()
         self.assertIsNone(execution.plan_id)
         self.assertEqual(execution.kind, 'periodic_12month')
+        response = self.client.get('/api/vehicle/inspection-plans?scope=company&year=2026')
+        old_row = next(row for row in response.json['plans'] if row['id'] == old.id)
+        self.assertEqual(old_row['kind'], 'annual_unconfirmed')
+        self.assertTrue(old_row['duplicate_candidates'])
+        self.assertIn('重複候補', old_row['duplicate_note'])
+        from io import BytesIO
+        from openpyxl import load_workbook
+        export = self.client.get('/vehicle/inspection-plans/export.xlsx?scope=company&year=2026')
+        self.assertEqual(export.status_code, 200)
+        workbook = load_workbook(BytesIO(export.data))
+        self.assertTrue(any('重複候補' in str(cell.value) for sheet in workbook
+                            for cells in sheet.iter_rows() for cell in cells))
 
     def test_plan_overlap_basis_and_candidates_are_audited(self):
         old = self.legacy_plan()

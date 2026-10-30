@@ -103,7 +103,8 @@ def build_annual_workbook(data, args):
     for row_index, p in enumerate(rows, 2):
         v=by_id[p['vehicle_record_id']]
         values=[v['number'],v['office'],KINDS[p['kind']],STATES[p['display_state']],p['planned_month'],
-                p.get('reservation_date'),p.get('performed_date'),p.get('expiry_date'),p.get('factory'),p.get('note')]
+                p.get('reservation_date'),p.get('performed_date'),p.get('expiry_date'),p.get('factory'),
+                ' / '.join(value for value in (p.get('note'), p.get('duplicate_note')) if value)]
         for col,value in enumerate(values,1):
             cell=details.cell(row_index,col)
             if col in (5,6,7,8) and value:

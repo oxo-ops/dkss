@@ -66,6 +66,7 @@
             form.elements[key].value = row[key] || ''; form.elements[key].disabled = !editable;
         });
         panel.querySelector('[data-plan-source]').textContent = row.kind==='vehicle_inspection'&&row.status==='candidate'&&row.expiry_date ? '車検証満了日：'+row.expiry_date+' ／ 予定未登録（予約はまだ登録されていません）' : (sourceLabels[row.source] || '') + (row.document_date ? ' ／ 原本記載日 ' + row.document_date : '');
+        if (row.duplicate_note) panel.querySelector('[data-plan-source]').textContent += ' ／ ' + row.duplicate_note;
         panel.querySelector('[data-plan-save]').hidden = !editable || row.status === 'completed';
         panel.querySelector('[data-plan-cancel-record]').hidden = !editable || !row.id || ['cancelled','completed'].includes(row.status);
         const link = panel.querySelector('[data-plan-annual]');
