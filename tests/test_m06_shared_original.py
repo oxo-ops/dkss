@@ -56,5 +56,31 @@ class SharedOriginalTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/vehicle/inspection-plans/execution/preview', json=payload).status_code, 400)
         self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
 
+    def test_confirmed_legacy_invoice_source_json_can_link_without_new_document_row(self):
+        case, draft = self.imported()
+        self.assertEqual(self.m.VehicleMaintenanceDocument.query.count(), 0)
+        self.complete('12month', document_id=draft.id, confirmed=True, confirmation='既存原本の種別を確認')
+        latest = self.m.inspection_plans.latest('TEST', self.vehicle.id)
+        self.assertEqual(latest['12month']['maintenance_record_id'], case.id)
+        self.assertEqual(self.m.VehicleMaintenanceDocument.query.count(), 0)
+
+    def test_ambiguous_case_reference_is_not_guessed(self):
+        _, draft, _ = self.original()
+        case = self.m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            category='整備', status='完了', entry_date='2026-09-12', completion_date='2026-09-12',
+            content='別案件', created_by_username='admin')
+        self.m.db.session.add(case)
+        self.m.db.session.flush()
+        document = self.m.VehicleMaintenanceDocument(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            maintenance_record_id=case.id, source_draft_id=draft.id, source_record_index=1,
+            created_by_username='admin', financial_status='confirmed', parts_status='not_applicable')
+        self.m.db.session.add(document)
+        self.m.db.session.commit()
+        response = self.client.post('/api/vehicle/inspection-plans/execution/preview', json=dict(
+            vehicle_record_id=self.vehicle.id, kind='12month', kind_contract='independent-v1',
+            performed_date='2026-09-12', document_id=draft.id, confirmed=True, confirmation='原本確認'))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.m.inspection_plans.Execution.query.count(), 0)
+
 
 del _Invoice, _Kinds

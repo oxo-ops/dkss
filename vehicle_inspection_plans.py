@@ -856,6 +856,8 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         if expiry and (not iso_date(expiry) or expiry <= performed.isoformat()):
             abort(400, '更新後満了日を確認してください。実施日より後の日付を入力してください。')
         document_id = payload.get('document_id') or None
+        if document_id is not None and not isinstance(document_id, str):
+            abort(400, '原本の識別子を確認してください。')
         if document_id and document_id not in {d['id'] for d in certificate_documents(v, document_id)}:
             abort(400, '会社・車両・登録明細を確認できる原本を選択してください。')
         return {'new_expiry': expiry, 'document_id': document_id, 'confirmation': confirmation}

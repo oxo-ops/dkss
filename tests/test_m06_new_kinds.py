@@ -165,6 +165,8 @@ class NewKindTests(unittest.TestCase):
             self.assertEqual(response.status_code, 302, response.get_data(as_text=True))
         records = self.m.VehiclePeriodicInspectionRecord.query.all()
         self.assertEqual({r.inspection_type for r in records}, {'periodic_12month', 'vehicle_inspection'})
+        summary = self.m.get_vehicle_periodic_inspection_summary('TEST', self.vehicle.id)
+        self.assertEqual(set(summary), {'12month', 'vehicle_inspection'})
         for kind in ('12month', 'vehicle_inspection'):
             page = self.client.get(f'/vehicle/karte/{self.vehicle.id}/inspections?inspection_view={kind}')
             self.assertEqual(page.status_code, 200)

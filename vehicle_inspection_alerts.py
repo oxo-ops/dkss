@@ -324,8 +324,11 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 plan = receipt_plans.get(delivery.plan_id)
                 vehicle = vehicles.get(plan.vehicle_record_id) if plan else None
                 expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
-                if delivery.ended_status and plan and identities.plan_kind(plan) == UNCONFIRMED:
-                    preserve_read.add(delivery.notification_id)
+                if delivery.ended_status and plan:
+                    kind = identities.plan_kind(plan)
+                    if kind == UNCONFIRMED or (kind in {'12month', 'vehicle_inspection'}
+                            and plan.status == 'completed' and not confirmed_completion(plan, kind)):
+                        preserve_read.add(delivery.notification_id)
                 if (delivery.ended_status and key not in previously_open and plan and expiry
                         and identities.plan_kind(plan) == '12month' and month(plan.period_key)
                         and expiry.isoformat()[:7] > plan.period_key and not certificate_updated(plan, vehicle)):
