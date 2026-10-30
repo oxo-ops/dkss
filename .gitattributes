@@ -1,0 +1,4 @@
+# Preserve upstream trust-material bytes and the reviewed helper hash on Windows.
+/tools/diagnostics/ca/*.pem -text
+/tools/diagnostics/m01_client_tls.ps1 text eol=lf
+/tools/diagnostics/m01_client_tls_launcher.patch text eol=lf

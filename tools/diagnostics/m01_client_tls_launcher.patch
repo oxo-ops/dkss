@@ -1,0 +1,45 @@
+--- a/m01_readonly_diagnosis_admin.ps1
++++ b/m01_readonly_diagnosis_admin.ps1
+@@ -18,4 +18,15 @@
+ }
++$tlsPolicyRoot = Join-Path $PSScriptRoot 'm01_tls'
++$tlsHelper = Join-Path $tlsPolicyRoot 'm01_client_tls.ps1'
++$expectedTlsHelperHash = '152c4e03538db5e2e7a036c51ab068cf57b12ee72d6c25dd06305274de07e784'
++if (!(Test-Path -LiteralPath $tlsHelper) -or
++    (Get-FileHash -LiteralPath $tlsHelper -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedTlsHelperHash) {
++    throw 'STOP: diagnostic TLS helper missing or hash differs.'
++}
++. $tlsHelper
++$tlsProbe = New-Object Diagnostics.ProcessStartInfo
++$tlsPreflight = Set-M01ClientTlsEnvironment -StartInfo $tlsProbe -PolicyRoot $tlsPolicyRoot
++$tlsProbe = $null
+ if ($PrepareOnly) {
+-    Write-Output 'PREPARED_ONLY: SQL hash/path and psql path verified. No connection or credential input.'
++    Write-Output 'PREPARED_ONLY: SQL/helper/CA hashes and psql18 verified. No connection or credential input.'
+     return
+@@ -199,3 +210,3 @@
+ $stage = 'LOCAL_PREPARATION'; $exitCode = $null; $safeState = 'UNAVAILABLE'
+-$errTask = $null; $failureInfo = $null
++$errTask = $null; $failureInfo = $null; $tlsEvidence = $null
+ $connectReady = $false; $transactionReady = $false; $identityDone = $false
+@@ -222,4 +233,3 @@
+     $psi.EnvironmentVariables['PGPASSWORD'] = $password
+-    $psi.EnvironmentVariables['PGSSLMODE'] = 'verify-full'
+-    $psi.EnvironmentVariables['PGSSLROOTCERT'] = 'system'
++    $tlsEvidence = Set-M01ClientTlsEnvironment -StartInfo $psi -PolicyRoot $tlsPolicyRoot
+     $psi.EnvironmentVariables['PGCONNECT_TIMEOUT'] = '10'
+@@ -336,3 +346,3 @@
+     if ($identityOnlyDone) {
+-        $result = [ordered]@{mode='IDENTITY_READ_ONLY';identity=$identitySummary;diagnosis_status='IDENTITY_COMPLETED_METADATA_NOT_RUN';P1='HOLD';production_changes=0;observed_at_utc=[DateTime]::UtcNow.ToString('o')}
++        $result = [ordered]@{mode='IDENTITY_READ_ONLY';tls_policy=$tlsEvidence;identity=$identitySummary;diagnosis_status='IDENTITY_COMPLETED_METADATA_NOT_RUN';P1='HOLD';production_changes=0;observed_at_utc=[DateTime]::UtcNow.ToString('o')}
+         $result | ConvertTo-Json -Depth 7
+@@ -378,3 +388,3 @@
+     $result = [ordered]@{
+-        mode='READ_ONLY'; preflight='IDENTITY_THEN_ADMIN_WEB_BINDING_CONFIRMATION'; identity=$identitySummary
++        mode='READ_ONLY'; preflight='IDENTITY_THEN_ADMIN_WEB_BINDING_CONFIRMATION'; tls_policy=$tlsEvidence; identity=$identitySummary
+         sql_sha256=$sqlHash; psql_exit_code=0; M01=$rows; other_six_table_baseline_findings=$baselineRisks
+@@ -410,3 +420,3 @@
+     if (!$resultSaved) {
+-        try { Save-SafeResult ([ordered]@{mode='READ_ONLY';diagnosis_status='FAILED';stage=$stage;identity=$identitySummary;psql_exit_code=$exitCode;SQLSTATE=$safeState;safe_failure=$failureInfo;progress=@{client_started=$started;connect_ready=$connectReady;readonly_transaction_ready=$transactionReady;identity_done=$identityDone};P1='HOLD';production_changes=0;observed_at_utc=[DateTime]::UtcNow.ToString('o')}) }
++        try { Save-SafeResult ([ordered]@{mode='READ_ONLY';diagnosis_status='FAILED';stage=$stage;tls_policy=$tlsEvidence;identity=$identitySummary;psql_exit_code=$exitCode;SQLSTATE=$safeState;safe_failure=$failureInfo;progress=@{client_started=$started;connect_ready=$connectReady;readonly_transaction_ready=$transactionReady;identity_done=$identityDone};P1='HOLD';production_changes=0;observed_at_utc=[DateTime]::UtcNow.ToString('o')}) }
+         catch { Write-Output 'SAFE_RESULT_NOT_SAVED: local storage error; raw details suppressed.' }

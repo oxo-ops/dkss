@@ -1,0 +1,32 @@
+name: M01 Diagnostic Client TLS
+on:
+  pull_request:
+    paths:
+      - 'tools/diagnostics/**'
+      - 'tests/m01_client_tls_offline.ps1'
+      - 'tests/test_m01_client_ca.py'
+      - 'docs/runtime_operations.md'
+      - '.github/workflows/m01-client-tls.yml'
+permissions:
+  contents: read
+jobs:
+  offline-policy:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            shell: powershell
+          - os: ubuntu-latest
+            shell: pwsh
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Audit pinned public CA material without network or DB
+        run: python -m unittest discover -s tests -p test_m01_client_ca.py -v
+      - name: Test child-only TLS policy and fail-closed cases
+        shell: ${{ matrix.shell }}
+        run: ./tests/m01_client_tls_offline.ps1

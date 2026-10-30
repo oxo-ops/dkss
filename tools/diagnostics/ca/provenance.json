@@ -1,0 +1,32 @@
+{
+  "package": "certifi",
+  "version": "2026.10.23",
+  "source_project": "https://github.com/certifi/python-certifi",
+  "release_metadata": "https://pypi.org/pypi/certifi/2026.10.23/json",
+  "wheel_url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl",
+  "wheel_sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+  "published_at_utc": "2026-10-23T11:36:14.763067Z",
+  "yanked": false,
+  "bundle_file": "certifi-2026.10.23.pem",
+  "bundle_sha256": "2ef52ad56b4803e264045c915e55c236cbfa045b84b81efefc218a19eb44bd2b",
+  "certificate_count": 118,
+  "unique_der_count": 118,
+  "ca_basic_constraints_true": 118,
+  "self_issued_count": 118,
+  "private_key_included": false,
+  "unchanged_from_official_wheel": true,
+  "license": "MPL-2.0",
+  "license_files": [
+    "CERTIFI-LICENSE.txt",
+    "MPL-2.0.txt"
+  ],
+  "source_offer": "The unmodified covered PEM source is distributed beside this manifest; upstream release and source project are linked above.",
+  "renewal_policy": "Manual verified version/hash update through review; no runtime download or trust-on-first-use.",
+  "composition_notes": [
+    "3 upstream self-issued trust anchors use SHA1 self-signatures; not a change to TLS peer verification.",
+    "6 upstream self-issued CA certificates have legacy nonpositive serial numbers and emit cryptography deprecation warnings. The PEM is retained byte-for-byte; runtime pin validation does not depend on that parser."
+  ],
+  "diagnosis_scope": "Local diagnostic psql child only; not an app dependency or a production deployment approval.",
+  "legacy_nonpositive_serial_count": 6,
+  "expired_at_review_date_20261030": 0
+}
