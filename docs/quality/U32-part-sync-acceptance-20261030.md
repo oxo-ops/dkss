@@ -24,6 +24,7 @@ SQLite database and disables external services.
 It supplies an authenticated administrator session and disables CSRF in the U32
 fixture. The separately run Q02 auth/CSRF suite covers login/MFA; its success is
 not direct CSRF acceptance evidence for the maintenance-correction POST route.
+The separate CSRF follow-up below now establishes that route's token contract.
 
 Covered contracts:
 
@@ -63,6 +64,48 @@ the final U32 class was rerun: **12 passed** in 19.140s. Deliberately injected
 commit exceptions are expected rollback-test output. Existing tempfile resource
 warnings did not fail the related suite. CI provides the repository's Python
 3.12 check on the PR head.
+
+## Maintenance-edit CSRF follow-up (2026-10-30)
+
+Baseline: `0857396a9d96aa3d8a588cdaef879255716a21c1` (main after #346).
+`tests/test_u32_edit_csrf.py` covers the actual GET and POST route
+`/vehicle/karte/<vehicle_id>/maintenance/<record_id>/edit` with Flask-WTF
+`WTF_CSRF_ENABLED=True`. Every measured request gets a fresh application
+context, preventing Flask-WTF's request-local validation/token cache from
+leaking between requests. No CSRF middleware or validation function is mocked.
+
+The existing synthetic invoice fixture arranges the parent and generated part
+with CSRF disabled; CSRF is then enabled before any edit-form GET or edit POST.
+This is acceptance of the edit route, not new CSRF coverage of invoice upload
+or confirmation. Sessions represent the fixture's authenticated administrator;
+this suite does not repeat credential/MFA authentication. A second independently
+tokenized authenticated session represents the same administrator.
+
+- The token parsed from the real rendered edit form permits correction of both
+  parent and generated part and appends one maintenance history event.
+- Missing, tampered and other-session tokens each return HTTP 400. Full persisted
+  columns and row counts for maintenance records, parts, source links, maintenance
+  history and import drafts remain identical after each rejected POST.
+- Only a disposable SQLite database and synthetic documents are used; external
+  AI, SMTP and S3 are disabled. Tokens/cookies are not logged or written to files.
+
+No product security defect reproduced. No application code, shared fixture,
+business policy or schema was changed. Open PR search found only #318. The local
+Q02/Q07 worktree inventory and related test/route status showed no overlapping
+edit-route CSRF work; an untracked Q02 inspection-plan boundary test was left
+untouched. Existing Q02 login/MFA and vehicle company/role/vehicle boundaries are
+complementary, not replaced by these four administrator-session cases.
+
+Local validation (Windows, Python 3.14): 4 new cases passed in 6.420s; the related
+suite below passed **26 tests in 42.206s**, including those same 4 cases (not 30
+distinct tests). The prior 12 U32 cases/105-case campaign were not rerun locally.
+
+```text
+python -m unittest test_u32_edit_csrf test_q02_auth_csrf test_q02_vehicle_boundaries -v
+```
+
+CI discovers this new file through the existing regression workflow. Final CI
+head, actual checkout commit and results are reported in the PR handoff.
 
 ## Remaining acceptance limits
 
