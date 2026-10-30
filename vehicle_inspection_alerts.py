@@ -286,18 +286,38 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 except (ValueError, TypeError):
                     pass
             events = PlanEvent.query.filter(PlanEvent.company_code == code, PlanEvent.plan_id.in_([p.id for p in plans])).all() if plans else []
+            # Snapshot before this tick closes superseded phases. Live phase
+            # transitions may continue, but the new certificate exemption must
+            # not resurrect an already-ended revision in a different bucket.
+            prior_receipts = Delivery.query.filter_by(company_code=code).all()
+            previously_open = {(d.plan_id, d.target_username, d.revision)
+                               for d in prior_receipts if not d.ended_status}
+            previously_ended = {(d.plan_id, d.target_username, d.revision)
+                                for d in prior_receipts if d.ended_status}
+            receipt_plans = {p.id: p for p in Plan.query.filter(Plan.company_code == code,
+                Plan.id.in_({d.plan_id for d in prior_receipts})).all()} if prior_receipts else {}
+            preserve_read = set()
+            for delivery in prior_receipts:
+                key = (delivery.plan_id, delivery.target_username, delivery.revision)
+                plan = receipt_plans.get(delivery.plan_id)
+                vehicle = vehicles.get(plan.vehicle_record_id) if plan else None
+                expiry = iso_date(vehicle.inspection_expiry) if vehicle else None
+                if (delivery.ended_status and key not in previously_open and plan and expiry
+                        and normalize_kind(plan.kind) == '12month' and month(plan.period_key)
+                        and expiry.isoformat()[:7] > plan.period_key and not certificate_updated(plan, vehicle)):
+                    preserve_read.add(delivery.notification_id)
             old_ids = list({row[0] for model in (Delivery, ExpiryDelivery) for row in db.session.query(model.notification_id).filter_by(company_code=code).distinct().all()})
             if old_ids:
                 for delivery in ExpiryDelivery.query.filter_by(company_code=code).all():
                     state = current_expiry_delivery(delivery, today)
                     if state != 'pending':
                         delivery.ended_status = state
-                for delivery in Delivery.query.filter_by(company_code=code).all():
+                for delivery in prior_receipts:
                     state = current_delivery(delivery, today)
                     if state != 'pending':
                         delivery.ended_status = state
                 for notification in Notification.query.filter(Notification.company_code == code, Notification.id.in_(old_ids)).all():
-                    if not workflow(notification, today)['requires_action']:
+                    if notification.id not in preserve_read and not workflow(notification, today)['requires_action']:
                         notification.read = True
             groups = {}
             notified_plan_ids = set()
@@ -323,6 +343,12 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 rev = revision(plan, events, vehicle.office)
                 bucket = max(0, (today - began).days // 7)
                 for user in users:
+                    key = (plan.id, user.username, rev)
+                    expiry = iso_date(vehicle.inspection_expiry)
+                    certificate_exempt = (normalize_kind(plan.kind) == '12month'
+                        and expiry and month(plan.period_key) and expiry.isoformat()[:7] > plan.period_key)
+                    if certificate_exempt and key in previously_ended and key not in previously_open:
+                        continue
                     sent = Delivery.query.filter_by(company_code=code, plan_id=plan.id, revision=rev, phase=phase_key, target_username=user.username).all()
                     if any(d.bucket == bucket or (iso_date(d.sent_day) and (today - iso_date(d.sent_day)).days < 7) for d in sent):
                         continue
@@ -398,7 +424,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                     report['expiry_candidates'] += len(batch)
             if old_ids:
                 for notification in Notification.query.filter(Notification.company_code == code, Notification.id.in_(old_ids)).all():
-                    if not workflow(notification, today)['requires_action']:
+                    if notification.id not in preserve_read and not workflow(notification, today)['requires_action']:
                         notification.read = True
             if previous is None:
                 previous = Run(company_code=code)

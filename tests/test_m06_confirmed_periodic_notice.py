@@ -101,6 +101,51 @@ class ConfirmedPeriodicNoticeTests(unittest.TestCase):
         self.assertTrue(notice.read)
         self.assertFalse(self.state(notice)['requires_action'])
         self.assertEqual(self.m.Notification.query.count(), 1)
+        before = (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day, notice.message)
+        for day in ('2026-10-29', '2026-11-01', '2026-11-08'):
+            with self.subTest(day=day):
+                self.assertEqual(self.run_alerts(day)['notifications'], 0)
+                self.assertEqual(self.m.Notification.query.count(), 1)
+                self.assertEqual(receipt.ended_status, 'closed')
+                self.assertTrue(notice.read)
+                self.assertEqual(before, (receipt.id, receipt.revision, receipt.phase, receipt.bucket, receipt.sent_day, notice.message))
+
+    def test_ended_receipt_preserves_manual_unread_state(self):
+        self.confirmed_plan()
+        self.run_alerts()
+        receipt = self.m.inspection_alerts.Delivery.query.one()
+        notice = self.m.Notification.query.one()
+        receipt.ended_status = 'closed'
+        notice.read = False
+        self.vehicle.inspection_expiry = '2027-10-30'
+        self.m.db.session.commit()
+        self.assertEqual(self.run_alerts('2026-10-29')['notifications'], 0)
+        self.m.db.session.refresh(notice)
+        self.assertFalse(notice.read)
+
+    def test_live_weekly_and_phase_transitions_still_notify(self):
+        self.confirmed_plan()
+        self.run_alerts()
+        self.vehicle.inspection_expiry = '2027-10-30'
+        self.m.db.session.commit()
+        self.assertEqual(self.run_alerts('2026-10-29')['notifications'], 1)
+        self.assertEqual(self.run_alerts('2026-11-01')['notifications'], 1)
+        latest = self.m.Notification.query.order_by(self.m.Notification.id.desc()).first()
+        self.assertTrue(self.state(latest, '2026-11-01')['requires_action'])
+
+    def test_genuine_reservation_change_can_notify_after_ended_revision(self):
+        plan, _, _ = self.confirmed_plan()
+        self.run_alerts()
+        receipt = self.m.inspection_alerts.Delivery.query.one()
+        receipt.ended_status = 'closed'
+        self.m.Notification.query.one().read = True
+        self.vehicle.inspection_expiry = '2027-10-30'
+        plan.reservation_date = '2026-10-30'
+        plan.version += 1
+        self.m.db.session.commit()
+        self.assertEqual(self.run_alerts('2026-10-29')['notifications'], 1)
+        self.assertEqual(receipt.ended_status, 'closed')
+        self.assertEqual(self.m.inspection_alerts.Delivery.query.count(), 2)
 
     def test_real_twelve_month_actual_still_completes_its_notice(self):
         from test_inspection_document_ai import extraction, pdf_bytes
