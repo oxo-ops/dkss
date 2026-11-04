@@ -1,0 +1,11 @@
+{
+  "scope": "Exact generic components only; the bespoke launcher is deliberately not included",
+  "upstream_addon_sha256": "be490b49b5852a7dbf5f9e3f4627309edc457a873b38171e25a3eb1917f9433c",
+  "component_sha256": {
+    "utc": "eaf581fceee82ef95cedac7d0369ead3de59532e834ccec7e141b018164760c0",
+    "safe_settings": "50cb2d58acacc284a8d1a3fc5a38d8a161bb71132c2bb36e35c185f2dfe002b2",
+    "driver_versions": "3ce5134144ec4a2c00fa58619e23b6ea29dc9ad14d0bb99ac9feeb784bf60298",
+    "StatementTrace": "c49be0a4e997f0fa1d92cc499799a8fe0047f6950be6367e854b4ce4b15d7e0b"
+  },
+  "export_sha256": "11dfd8562780a4455ac81c40190cfc691963737f9bedbbaa559df61668e51be6"
+}

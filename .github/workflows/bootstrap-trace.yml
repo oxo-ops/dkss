@@ -1,0 +1,114 @@
+name: Synthetic Bootstrap Trace
+
+on:
+  push:
+    branches: ['verify/bootstrap-trace-20261104']
+  pull_request:
+    paths:
+      - 'tests/*bootstrap_trace*'
+      - 'tests/requirements-bootstrap-trace.txt'
+      - '.github/workflows/bootstrap-trace.yml'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  AWS_EC2_METADATA_DISABLED: 'true'
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Preserve pinned source line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/requirements-bootstrap-trace.txt
+      - name: Install synthetic test runtime
+        run: python -m pip install -r tests/requirements-bootstrap-trace.txt
+      - name: Verify exact source and observer with all DB sockets blocked
+        run: python -I -B tests/run_bootstrap_trace_checks.py offline
+
+  postgres-tls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_trace_ci
+          POSTGRES_USER: trace_ci
+          POSTGRES_PASSWORD: trace-admin-disposable-only
+          POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256'
+        ports: ['5432/tcp']
+        options: >-
+          --health-cmd "pg_isready -U trace_ci -d dkss_trace_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/requirements-bootstrap-trace.txt
+      - name: Install synthetic test runtime
+        run: python -m pip install -r tests/requirements-bootstrap-trace.txt
+      - name: Enable verified TLS only in this owned disposable service
+        shell: bash
+        env:
+          CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test -n "$CONTAINER"
+          certdir="$RUNNER_TEMP/dkss-trace-tls"
+          mkdir -p "$certdir"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Trace synthetic CA' -keyout "$certdir/ca.key" -out "$certdir/ca.crt" >/dev/null 2>&1
+          openssl req -new -newkey rsa:2048 -nodes -subj '/CN=localhost' -keyout "$certdir/server.key" -out "$certdir/server.csr" >/dev/null 2>&1
+          printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n' > "$certdir/extensions"
+          openssl x509 -req -in "$certdir/server.csr" -CA "$certdir/ca.crt" -CAkey "$certdir/ca.key" -CAcreateserial -days 1 -extfile "$certdir/extensions" -out "$certdir/server.crt" >/dev/null 2>&1
+          docker cp "$certdir/server.key" "$CONTAINER:/tmp/trace-server.key"
+          docker cp "$certdir/server.crt" "$CONTAINER:/tmp/trace-server.crt"
+          docker cp "$certdir/ca.crt" "$CONTAINER:/tmp/trace-ca.crt"
+          docker exec -u root "$CONTAINER" sh -ec 'chown postgres:postgres /tmp/trace-server.key /tmp/trace-server.crt /tmp/trace-ca.crt; chmod 600 /tmp/trace-server.key'
+          docker exec "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file = '/tmp/trace-server.crt'"
+          docker exec "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_key_file = '/tmp/trace-server.key'"
+          docker exec "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()'
+          # Read-only readiness checks, never initialization retries.
+          ready=0
+          for i in 1 2 3 4 5; do
+            if docker exec -e PGHOST=127.0.0.1 -e PGSSLMODE=verify-full -e PGSSLROOTCERT=/tmp/trace-ca.crt -e PGPASSWORD=trace-admin-disposable-only "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -Atc 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()' | grep -qx t; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker exec "$CONTAINER" psql -U trace_ci -d dkss_trace_ci -v ON_ERROR_STOP=1 -c "COMMENT ON DATABASE dkss_trace_ci IS 'DKSS_TRACE_SYNTHETIC_ONLY'"
+          mkdir -p bootstrap-trace-evidence
+          docker inspect --format '{{.Image}}' "$CONTAINER" > bootstrap-trace-evidence/postgres-image-id.txt
+          echo "DKSS_TRACE_CA=$certdir/ca.crt" >> "$GITHUB_ENV"
+      - name: Verify TLS guard and official in-process initialization
+        shell: bash
+        env:
+          DKSS_TRACE_POSTGRES_URL: postgresql+psycopg2://trace_ci:trace-admin-disposable-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/dkss_trace_ci
+        run: |
+          set -euo pipefail
+          python -I -B tests/run_bootstrap_trace_checks.py postgres 2>&1 | tee bootstrap-trace-evidence/tests.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: synthetic-bootstrap-trace-${{ github.sha }}
+          path: bootstrap-trace-evidence/
+          if-no-files-found: warn
+          retention-days: 14

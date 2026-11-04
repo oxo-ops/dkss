@@ -1,0 +1,401 @@
+{
+  "source_sha": "008ed6e41352a852828f10193972e6e415f9a20e",
+  "indexes": [
+    {
+      "name": "uq_user_account_identity",
+      "table": "user"
+    },
+    {
+      "name": "uq_vehicle_type_company_name",
+      "table": "vehicle_type"
+    },
+    {
+      "name": "uq_license_type_company_name",
+      "table": "license_type"
+    },
+    {
+      "name": "ix_driving_report_reflection_company_code",
+      "table": "driving_report_reflection"
+    },
+    {
+      "name": "ix_notification_owner_identity",
+      "table": "notification"
+    },
+    {
+      "name": "ix_push_owner_identity",
+      "table": "push_subscription"
+    },
+    {
+      "name": "uq_office_company_name",
+      "table": "office"
+    },
+    {
+      "name": "uq_delivery_place_company_name",
+      "table": "delivery_place"
+    },
+    {
+      "name": "uq_patrol_content_type_company_name",
+      "table": "patrol_content_type"
+    },
+    {
+      "name": "ix_vehicle_document_import_draft_source_sha256",
+      "table": "vehicle_document_import_draft"
+    },
+    {
+      "name": "ix_vehicle_document_import_draft_owner_identity",
+      "table": "vehicle_document_import_draft"
+    },
+    {
+      "name": "ix_vehicle_document_import_draft_batch_id",
+      "table": "vehicle_document_import_draft"
+    },
+    {
+      "name": "ix_vehicle_document_import_draft_created_by_username",
+      "table": "vehicle_document_import_draft"
+    },
+    {
+      "name": "ix_vehicle_document_import_draft_company_code",
+      "table": "vehicle_document_import_draft"
+    },
+    {
+      "name": "ix_vehicle_operation_import_draft_company_code",
+      "table": "vehicle_operation_import_draft"
+    },
+    {
+      "name": "ix_operation_csv_company_owner",
+      "table": "vehicle_operation_import_draft"
+    },
+    {
+      "name": "ix_vehicle_operation_import_draft_created_by_username",
+      "table": "vehicle_operation_import_draft"
+    },
+    {
+      "name": "ix_vehicle_maintenance_knowledge_company_code",
+      "table": "vehicle_maintenance_knowledge"
+    },
+    {
+      "name": "ix_checklist_notify_account_setting",
+      "table": "vehicle_checklist_notify_account"
+    },
+    {
+      "name": "ix_driving_reader_account_report",
+      "table": "driving_reader_account"
+    },
+    {
+      "name": "ix_maintenance_knowledge_document_company_code",
+      "table": "maintenance_knowledge_document"
+    },
+    {
+      "name": "ix_public_knowledge_file_company_code",
+      "table": "public_knowledge_file"
+    },
+    {
+      "name": "ix_vehicle_coupling_towing",
+      "table": "vehicle_coupling"
+    },
+    {
+      "name": "ix_vehicle_coupling_trailer",
+      "table": "vehicle_coupling"
+    },
+    {
+      "name": "ix_vehicle_periodic_inspection_record_inspection_date",
+      "table": "vehicle_periodic_inspection_record"
+    },
+    {
+      "name": "ix_vehicle_periodic_inspection_record_company_code",
+      "table": "vehicle_periodic_inspection_record"
+    },
+    {
+      "name": "ix_vehicle_periodic_inspection_record_vehicle_record_id",
+      "table": "vehicle_periodic_inspection_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_resolved_vehicle_id",
+      "table": "vehicle_import_pending"
+    },
+    {
+      "name": "ix_vehicle_import_pending_company_code",
+      "table": "vehicle_import_pending"
+    },
+    {
+      "name": "ix_vehicle_import_pending_status",
+      "table": "vehicle_import_pending"
+    },
+    {
+      "name": "ix_vehicle_operation_vehicle_mapping_company_code",
+      "table": "vehicle_operation_vehicle_mapping"
+    },
+    {
+      "name": "ix_vehicle_operation_vehicle_mapping_vehicle_record_id",
+      "table": "vehicle_operation_vehicle_mapping"
+    },
+    {
+      "name": "ix_vehicle_operation_record_vehicle_record_id",
+      "table": "vehicle_operation_record"
+    },
+    {
+      "name": "ix_vehicle_operation_record_operation_date",
+      "table": "vehicle_operation_record"
+    },
+    {
+      "name": "ix_vehicle_operation_record_company_code",
+      "table": "vehicle_operation_record"
+    },
+    {
+      "name": "ix_vehicle_maintenance_record_vehicle_record_id",
+      "table": "vehicle_maintenance_record"
+    },
+    {
+      "name": "ix_vehicle_maintenance_record_company_code",
+      "table": "vehicle_maintenance_record"
+    },
+    {
+      "name": "ix_vehicle_analysis_feedback_proposal_key",
+      "table": "vehicle_analysis_feedback"
+    },
+    {
+      "name": "ix_vehicle_analysis_feedback_vehicle_record_id",
+      "table": "vehicle_analysis_feedback"
+    },
+    {
+      "name": "ix_vehicle_analysis_feedback_company_code",
+      "table": "vehicle_analysis_feedback"
+    },
+    {
+      "name": "ix_vehicle_analysis_evaluation_vehicle_record_id",
+      "table": "vehicle_analysis_evaluation"
+    },
+    {
+      "name": "ix_vehicle_analysis_evaluation_company_code",
+      "table": "vehicle_analysis_evaluation"
+    },
+    {
+      "name": "ix_vehicle_karte_analysis_vehicle_record_id",
+      "table": "vehicle_karte_analysis"
+    },
+    {
+      "name": "ix_vehicle_karte_analysis_company_code",
+      "table": "vehicle_karte_analysis"
+    },
+    {
+      "name": "ix_vehicle_karte_analysis_next_analysis_at",
+      "table": "vehicle_karte_analysis"
+    },
+    {
+      "name": "ix_driving_vehicle_correction_company_code",
+      "table": "driving_vehicle_correction"
+    },
+    {
+      "name": "ix_maintenance_knowledge_rule_extraction_company_code",
+      "table": "maintenance_knowledge_rule_extraction"
+    },
+    {
+      "name": "ix_maintenance_knowledge_rule_extraction_document_id",
+      "table": "maintenance_knowledge_rule_extraction"
+    },
+    {
+      "name": "ix_inspection_expiry_alert_delivery_company_code",
+      "table": "inspection_expiry_alert_delivery"
+    },
+    {
+      "name": "ix_inspection_expiry_alert_delivery_vehicle_record_id",
+      "table": "inspection_expiry_alert_delivery"
+    },
+    {
+      "name": "ix_inspection_expiry_alert_delivery_notification_id",
+      "table": "inspection_expiry_alert_delivery"
+    },
+    {
+      "name": "ix_vehicle_driving_report_record_operation_record_id",
+      "table": "vehicle_driving_report_record"
+    },
+    {
+      "name": "ix_vehicle_driving_report_record_operation_date",
+      "table": "vehicle_driving_report_record"
+    },
+    {
+      "name": "ix_vehicle_driving_report_record_company_code",
+      "table": "vehicle_driving_report_record"
+    },
+    {
+      "name": "ix_vehicle_driving_report_record_vehicle_record_id",
+      "table": "vehicle_driving_report_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_record_date",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_document_draft_id",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_pending_id",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_company_code",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_status",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_operation_draft_id",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_import_pending_record_vehicle_record_id",
+      "table": "vehicle_import_pending_record"
+    },
+    {
+      "name": "ix_vehicle_maintenance_record_event_company_code",
+      "table": "vehicle_maintenance_record_event"
+    },
+    {
+      "name": "ix_vehicle_maintenance_record_event_vehicle_record_id",
+      "table": "vehicle_maintenance_record_event"
+    },
+    {
+      "name": "ix_vehicle_maintenance_record_event_maintenance_record_id",
+      "table": "vehicle_maintenance_record_event"
+    },
+    {
+      "name": "ix_vehicle_part_replacement_company_code",
+      "table": "vehicle_part_replacement"
+    },
+    {
+      "name": "ix_vehicle_part_replacement_maintenance_record_id",
+      "table": "vehicle_part_replacement"
+    },
+    {
+      "name": "ix_vehicle_part_replacement_vehicle_record_id",
+      "table": "vehicle_part_replacement"
+    },
+    {
+      "name": "ix_vehicle_maintenance_inspection_link_company_code",
+      "table": "vehicle_maintenance_inspection_link"
+    },
+    {
+      "name": "ix_vehicle_maintenance_inspection_link_inspection_result_id",
+      "table": "vehicle_maintenance_inspection_link"
+    },
+    {
+      "name": "ix_vehicle_maintenance_inspection_link_vehicle_record_id",
+      "table": "vehicle_maintenance_inspection_link"
+    },
+    {
+      "name": "ix_vehicle_maintenance_inspection_link_maintenance_record_id",
+      "table": "vehicle_maintenance_inspection_link"
+    },
+    {
+      "name": "ix_vehicle_inspection_plan_company_code",
+      "table": "vehicle_inspection_plan"
+    },
+    {
+      "name": "ix_vehicle_inspection_plan_vehicle_record_id",
+      "table": "vehicle_inspection_plan"
+    },
+    {
+      "name": "ix_periodic_inspection_proposal_company_code",
+      "table": "periodic_inspection_proposal"
+    },
+    {
+      "name": "ix_periodic_inspection_issue_vehicle_record_id",
+      "table": "periodic_inspection_issue"
+    },
+    {
+      "name": "ix_periodic_inspection_issue_inspection_record_id",
+      "table": "periodic_inspection_issue"
+    },
+    {
+      "name": "ix_periodic_inspection_issue_company_code",
+      "table": "periodic_inspection_issue"
+    },
+    {
+      "name": "ix_driving_reader_company_user",
+      "table": "driving_report_reader"
+    },
+    {
+      "name": "ix_driving_report_reader_company_code",
+      "table": "driving_report_reader"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_vehicle_record_id",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_company_code",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_maintenance_record_id",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_source_draft_id",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_financial_status",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_parts_status",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_related_document_id",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_maintenance_document_inspection_record_id",
+      "table": "vehicle_maintenance_document"
+    },
+    {
+      "name": "ix_vehicle_part_replacement_source_maintenance_record_id",
+      "table": "vehicle_part_replacement_source"
+    },
+    {
+      "name": "ix_vehicle_part_replacement_source_company_code",
+      "table": "vehicle_part_replacement_source"
+    },
+    {
+      "name": "ix_vehicle_inspection_plan_event_company_code",
+      "table": "vehicle_inspection_plan_event"
+    },
+    {
+      "name": "ix_vehicle_inspection_execution_vehicle_record_id",
+      "table": "vehicle_inspection_execution"
+    },
+    {
+      "name": "ix_vehicle_inspection_execution_company_code",
+      "table": "vehicle_inspection_execution"
+    },
+    {
+      "name": "ix_inspection_plan_alert_delivery_notification_id",
+      "table": "inspection_plan_alert_delivery"
+    },
+    {
+      "name": "ix_inspection_plan_alert_delivery_company_code",
+      "table": "inspection_plan_alert_delivery"
+    },
+    {
+      "name": "ix_inspection_plan_alert_delivery_plan_id",
+      "table": "inspection_plan_alert_delivery"
+    },
+    {
+      "name": "ix_periodic_inspection_issue_event_issue_id",
+      "table": "periodic_inspection_issue_event"
+    },
+    {
+      "name": "ix_periodic_inspection_issue_event_company_code",
+      "table": "periodic_inspection_issue_event"
+    },
+    {
+      "name": "ix_vehicle_inspection_execution_evidence_company_code",
+      "table": "vehicle_inspection_execution_evidence"
+    }
+  ]
+}
