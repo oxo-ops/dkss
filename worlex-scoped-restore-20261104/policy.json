@@ -1,0 +1,4564 @@
+{
+  "analysis_input_tables": [
+    "vehicle",
+    "vehicle_maintenance_record",
+    "vehicle_operation_record",
+    "vehicle_part_replacement",
+    "vehicle_part_replacement_source",
+    "vehicle_patrol",
+    "vehicle_periodic_inspection_record",
+    "vehicle_driving_report_record",
+    "vehicle_checklist_result",
+    "vehicle_maintenance_inspection_link",
+    "vehicle_document_import_draft",
+    "vehicle_document_source",
+    "vehicle_maintenance_knowledge",
+    "maintenance_knowledge_document",
+    "maintenance_knowledge_rule_extraction",
+    "public_knowledge_file",
+    "vehicle_analysis_feedback",
+    "vehicle_analysis_evaluation"
+  ],
+  "source_manifest_sha256": "eec49dd1e9a605b32bfd2eda777061be6e6c68fe4cd0193a8051f475bbd864e0",
+  "tables": {
+    "analysis_input_epoch": {
+      "columns": {
+        "bucket": {
+          "length": 80,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "revision": {
+          "length": null,
+          "nullable": false,
+          "type": "BIGINT"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "company_code",
+        "bucket"
+      ]
+    },
+    "analysis_input_read_cache": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "computed_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "context_hash": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "expires_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "input_revision": {
+          "length": null,
+          "nullable": false,
+          "type": "BIGINT"
+        },
+        "projection_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "company_code",
+        "vehicle_record_id"
+      ]
+    },
+    "audit_log": {
+      "columns": {
+        "action": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "detail": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "ip_address": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_id": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_type": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "checklist": {
+      "columns": {
+        "active": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "display_type": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "frequency_unit": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "frequency_value": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "items_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "name": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "notify_users_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "print_half_month": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "print_portrait": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "reminder_enabled": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "reminder_time": {
+          "length": 5,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "target": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "version_history_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "checklist_event": {
+      "columns": {
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "actor_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "detail_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "event_type": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "result_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "result_type": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "checklist_result": {
+      "columns": {
+        "answers_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "approvals_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "approved_by": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "approved_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_date": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "checked_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_date": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checklist_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "checklist_snapshot_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "notification_identities_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "notify_users_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "reject_reason": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_office": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_type": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_user": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "target_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_vehicle_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "target_vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "company": {
+      "columns": {
+        "active": {
+          "length": null,
+          "nullable": true,
+          "type": "BOOLEAN"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_limit": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "company_usage_summary": {
+      "columns": {
+        "checklist_result_count": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "last_used_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "login_count": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "updated_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "user_count": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_count": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "delivery_place": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "master_generation": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "document_queue_schedule": {
+      "columns": {
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "last_company": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "domain_schema_revision": {
+      "columns": {
+        "applied_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "revision": {
+          "length": 80,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "revision"
+      ]
+    },
+    "driver": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "employee_id": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "licenses_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "office": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "role": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "safe_start_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicles_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "driving_reader_account": {
+      "columns": {
+        "account_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "confirmed_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "identity_hash": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "report_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "driving_report_reader": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "confirmed_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "confirmed_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "identity_hash": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "report_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "user_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "report_id",
+          "vehicle_driving_report_record",
+          "id"
+        ],
+        [
+          "user_id",
+          "user",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "driving_report_reflection": {
+      "columns": {
+        "cache_key": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "updated_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "driving_vehicle_correction": {
+      "columns": {
+        "action": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_user_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "evidence_key": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "inspection_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "revision": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "user_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "user_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "actor_user_id",
+          "user",
+          "id"
+        ],
+        [
+          "user_id",
+          "user",
+          "id"
+        ],
+        [
+          "vehicle_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "inspection_expiry_alert_delivery": {
+      "columns": {
+        "bucket": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "ended_status": {
+          "length": 16,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "expiry_date": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "notification_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "office": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "phase": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "sent_day": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "target_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "notification_id",
+          "notification",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "inspection_plan_alert_delivery": {
+      "columns": {
+        "bucket": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "ended_status": {
+          "length": 16,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "notification_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "office": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "phase": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "plan_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "revision": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "sent_day": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "target_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "notification_id",
+          "notification",
+          "id"
+        ],
+        [
+          "plan_id",
+          "vehicle_inspection_plan",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "inspection_plan_alert_run": {
+      "columns": {
+        "checked_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "input_signature": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "local_day": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "report_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "company_code"
+      ]
+    },
+    "license_type": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "master_generation": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "maintenance_knowledge_document": {
+      "columns": {
+        "checksum": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "extraction_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "filename": {
+          "length": 255,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "knowledge_ids_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "mimetype": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "original_data": {
+          "length": null,
+          "nullable": false,
+          "type": "BLOB"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "maintenance_knowledge_rule_extraction": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_checksum": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "extraction_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "extraction_version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "knowledge_ids_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        }
+      },
+      "fk": [
+        [
+          "document_id",
+          "maintenance_knowledge_document",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "manual": {
+      "columns": {
+        "category": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "filename": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "title": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "master_display_order": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "kind": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "ordered_ids_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "news": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "files_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "message": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "owner_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_type": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_value": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "title": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "notification": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "deleted_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "files_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "link": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "message": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "owner_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "read": {
+          "length": null,
+          "nullable": true,
+          "type": "BOOLEAN"
+        },
+        "target_user": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "target_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "title": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "workflow_context_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "office": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "master_generation": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "patrol_content_type": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "master_generation": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "patrol_result": {
+      "columns": {
+        "approval_status": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "category": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "content_type": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "countermeasure": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "countermeasure_by": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "countermeasure_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "countermeasure_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "countermeasure_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "countermeasure_due_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "countermeasure_files_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "created_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_by_name": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "created_by_username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "delivery_place": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "files_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "office": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "reject_reason": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "target_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_type": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_user": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "target_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "target_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "periodic_inspection_issue": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "description": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "evidence_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "inspection_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "item_key": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "status": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "inspection_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ],
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "periodic_inspection_issue_event": {
+      "columns": {
+        "action": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "actor": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "issue_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "note": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "notification_ids_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "performed_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "issue_id",
+          "periodic_inspection_issue",
+          "id"
+        ],
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "periodic_inspection_proposal": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "error": {
+          "length": 40,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "input_hash": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "inspection_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "run_token": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "updated_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "inspection_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "public_knowledge_catalog": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "last_checked": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "last_error": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "lease_token": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "lease_until": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "next_check": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "requested_scope_hash": {
+          "length": 64,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "public_knowledge_file": {
+      "columns": {
+        "available": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "checksum": {
+          "length": 64,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "last_checked": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "last_error": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "last_import_month": {
+          "length": 7,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "next_check": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "priority": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "status": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "title": {
+          "length": 240,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "url": {
+          "length": 500,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "push_subscription": {
+      "columns": {
+        "auth": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "endpoint": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "owner_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "p256dh": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "user": {
+      "columns": {
+        "account_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "dashboard_settings_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "email_address": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "email_change_code_expires_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "email_change_code_hash": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "email_notify_enabled": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "failed_login_count": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "first_name": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "last_login_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "last_name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "login_locked": {
+          "length": null,
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        "mfa_code_expires_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "mfa_code_hash": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "mfa_code_sent_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "office": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "password": {
+          "length": 255,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "password_changed_at": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "password_history_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "pending_email_address": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "profile_image": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "role": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "timezone": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle": {
+      "columns": {
+        "body_type": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "chassis_number": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "deleted": {
+          "length": null,
+          "nullable": true,
+          "type": "BOOLEAN"
+        },
+        "engine_code": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "first_registration_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "gross_vehicle_weight": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "inspection_expiry": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "manufacturer": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "max_payload": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "model_code": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "office": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "plate_area": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "plate_class": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "plate_kana": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "plate_number": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "type": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_analysis_evaluation": {
+      "columns": {
+        "comment": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "proposal_key": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "proposal_revision": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "snapshot_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "verdict": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_analysis_feedback": {
+      "columns": {
+        "comment": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "proposal_key": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "proposal_revision": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "snapshot_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_checklist_notify_account": {
+      "columns": {
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "identities_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "setting_hash": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "setting_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_checklist_notify_setting": {
+      "columns": {
+        "checklist_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "notify_users_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_checklist_result": {
+      "columns": {
+        "answers_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "approvals_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "approved_by": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "approved_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "approved_date": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_by_user_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "checked_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checked_date": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "checklist_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "checklist_snapshot_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "day": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "month": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "notification_identities_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "notify_users_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "operation_judgment_json": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "reject_reason": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "year": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_coupling": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "kind": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "towing_vehicle_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "trailer_vehicle_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "towing_vehicle_id",
+          "vehicle",
+          "id"
+        ],
+        [
+          "trailer_vehicle_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_document_import_draft": {
+      "columns": {
+        "batch_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "completed_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_type": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "owner_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "preview_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "source_file": {
+          "length": null,
+          "nullable": false,
+          "type": "BLOB"
+        },
+        "source_filename": {
+          "length": 255,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_sha256": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_document_source": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": false,
+          "type": "BLOB"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "sha256": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "company_code",
+        "sha256"
+      ]
+    },
+    "vehicle_driving_report_record": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "details_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "mileage": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "operation_date": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "operation_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "report_number": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source_draft_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_record_index": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "operation_record_id",
+          "vehicle_operation_record",
+          "id"
+        ],
+        [
+          "source_draft_id",
+          "vehicle_document_import_draft",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_import_pending": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "identity_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "match_key": {
+          "length": 255,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "resolution_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "resolved_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "resolved_vehicle_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "resolved_vehicle_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_import_pending_record": {
+      "columns": {
+        "applied_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_draft_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "operation_draft_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "payload_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "pending_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "record_date": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "record_key": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "source_kind": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_record_index": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "document_draft_id",
+          "vehicle_document_import_draft",
+          "id"
+        ],
+        [
+          "operation_draft_id",
+          "vehicle_operation_import_draft",
+          "id"
+        ],
+        [
+          "pending_id",
+          "vehicle_import_pending",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_inspection_execution": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "factory": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "kind": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "next_month": {
+          "length": 7,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "note": {
+          "length": 1000,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "performed_date": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "plan_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "source_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "plan_id",
+          "vehicle_inspection_plan",
+          "id"
+        ],
+        [
+          "source_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_inspection_execution_evidence": {
+      "columns": {
+        "attached_at": {
+          "length": 40,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "attached_by": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "attachment_confirmation": {
+          "length": 1000,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "confirmation": {
+          "length": 1000,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "document_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "execution_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "new_expiry": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "previous_expiry": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "document_id",
+          "vehicle_document_import_draft",
+          "id"
+        ],
+        [
+          "execution_id",
+          "vehicle_inspection_execution",
+          "id"
+        ]
+      ],
+      "pk": [
+        "execution_id"
+      ]
+    },
+    "vehicle_inspection_plan": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "completed_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "document_date": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "factory": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "kind": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "note": {
+          "length": 1000,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "period_key": {
+          "length": 7,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "planned_month": {
+          "length": 7,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "reservation_date": {
+          "length": 10,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "updated_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "updated_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "completed_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ],
+        [
+          "source_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_inspection_plan_event": {
+      "columns": {
+        "action": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 40,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "detail_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "plan_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "plan_id",
+          "vehicle_inspection_plan",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_karte_analysis": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "input_hash": {
+          "length": 64,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "last_analyzed_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "last_error": {
+          "length": 500,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "lease_expires_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "lease_token": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "next_analysis_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "request_reason": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_karte_note": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "updated_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "updated_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "version": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_maintenance_document": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "decision_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "financial_status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "inspection_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        "parts_status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "payload_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "pending_record_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "related_document_id": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "reviewed_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "reviewed_by_username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source_draft_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_record_index": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "inspection_record_id",
+          "vehicle_periodic_inspection_record",
+          "id"
+        ],
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "pending_record_id",
+          "vehicle_import_pending_record",
+          "id"
+        ],
+        [
+          "related_document_id",
+          "vehicle_maintenance_document",
+          "id"
+        ],
+        [
+          "source_draft_id",
+          "vehicle_document_import_draft",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_maintenance_inspection_link": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "defect_no": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "inspection_result_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "inspection_result_id",
+          "vehicle_checklist_result",
+          "id"
+        ],
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_maintenance_knowledge": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "conditions": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "confirmed_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "confirmed_by": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "guidance": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "manufacturer": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "model_code": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "part_name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "provider": {
+          "length": 150,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "retired_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "retired_by": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "retirement_reason": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "source_kind": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_reference": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "title": {
+          "length": 150,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "valid_from": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "valid_until": {
+          "length": 10,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_maintenance_record": {
+      "columns": {
+        "category": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "cause": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "completion_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "entry_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "files_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "invoice_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "invoice_details_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "invoice_number": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "labor_cost": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "line_items_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "maintenance_company": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "maintenance_person": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "mileage": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "notes": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "other_cost": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "parts_cost": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "repair_content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "repair_hours": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "status": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "symptom": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "tax_amount": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "temporary_action": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "total_cost": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "updated_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "updated_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_maintenance_record_event": {
+      "columns": {
+        "action": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "actor_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "actor_name": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "changes_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by_username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "status_after": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "status_before": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_operation_import_draft": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "completed_at": {
+          "length": null,
+          "nullable": true,
+          "type": "DATETIME"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "owner_identity": {
+          "length": 36,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "result_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "selection_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "source_file": {
+          "length": null,
+          "nullable": false,
+          "type": "BLOB"
+        },
+        "source_filename": {
+          "length": 255,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "status": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_operation_record": {
+      "columns": {
+        "arrival_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "arrival_meter": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "departure_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "departure_meter": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "distance": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "imported_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "imported_by_username": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "operation_date": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "report_number": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_filename": {
+          "length": 255,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source_row_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "source_vehicle_code": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source_vehicle_number": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_operation_vehicle_mapping": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "confirmed_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "confirmed_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "source_vehicle_code": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_vehicle_number": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_part_replacement": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "cost": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "created_at": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "created_by_username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "mileage": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "notes": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "part_name": {
+          "length": 200,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "part_number": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "quantity": {
+          "length": null,
+          "nullable": false,
+          "type": "NUMERIC"
+        },
+        "replacement_date": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "updated_at": {
+          "length": 30,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "updated_by_username": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_part_replacement_source": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "maintenance_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "replacement_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "source_line_index": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "source_line_version": {
+          "length": 64,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [
+        [
+          "maintenance_record_id",
+          "vehicle_maintenance_record",
+          "id"
+        ],
+        [
+          "replacement_id",
+          "vehicle_part_replacement",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_patrol": {
+      "columns": {
+        "category": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "cause": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "cost": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "occurred_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "parts": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "priority": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "repair_content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "repair_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "repair_person": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "repair_time": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "status": {
+          "length": 50,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "temporary_action": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_periodic_inspection_record": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "completion_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "content": {
+          "length": null,
+          "nullable": true,
+          "type": "TEXT"
+        },
+        "created_at": {
+          "length": null,
+          "nullable": false,
+          "type": "DATETIME"
+        },
+        "created_by_username": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "details_json": {
+          "length": null,
+          "nullable": false,
+          "type": "TEXT"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "inspection_company": {
+          "length": 200,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "inspection_date": {
+          "length": 20,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "inspection_type": {
+          "length": 30,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "inspector_name": {
+          "length": 100,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "mileage": {
+          "length": null,
+          "nullable": true,
+          "type": "NUMERIC"
+        },
+        "next_inspection_date": {
+          "length": 20,
+          "nullable": true,
+          "type": "VARCHAR"
+        },
+        "source_draft_id": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "source_record_index": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_record_id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      },
+      "fk": [
+        [
+          "source_draft_id",
+          "vehicle_document_import_draft",
+          "id"
+        ],
+        [
+          "vehicle_record_id",
+          "vehicle",
+          "id"
+        ]
+      ],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_type": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "master_generation": {
+          "length": 36,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    },
+    "vehicle_type_import_mapping": {
+      "columns": {
+        "company_code": {
+          "length": 50,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "excel_value": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        },
+        "id": {
+          "length": null,
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        "vehicle_type_name": {
+          "length": 100,
+          "nullable": false,
+          "type": "VARCHAR"
+        }
+      },
+      "fk": [],
+      "pk": [
+        "id"
+      ]
+    }
+  },
+  "trigger_functions": {
+    "dkss_analysis_input_changed": "\n        DECLARE new_bucket text; old_bucket text;\n        BEGIN\n          IF TG_OP <> 'DELETE' THEN\n            IF TG_ARGV[0]='id' THEN new_bucket:='vehicle:'||NEW.id::text;\n            ELSIF TG_ARGV[0]='vehicle_record_id' THEN new_bucket:=COALESCE('vehicle:'||NEW.vehicle_record_id::text,'shared');\n            ELSE new_bucket:='shared'; END IF;\n        INSERT INTO analysis_input_epoch (company_code,bucket,revision)\n        SELECT NEW.company_code,new_bucket,1 WHERE NEW.company_code IS NOT NULL AND NEW.company_code<>''\n        ON CONFLICT (company_code,bucket) DO UPDATE SET revision=analysis_input_epoch.revision+1;\n          END IF;\n          IF TG_OP='DELETE' OR (TG_OP='UPDATE' AND OLD.company_code IS DISTINCT FROM NEW.company_code) THEN\n            IF TG_ARGV[0]='id' THEN old_bucket:='vehicle:'||OLD.id::text;\n            ELSIF TG_ARGV[0]='vehicle_record_id' THEN old_bucket:=COALESCE('vehicle:'||OLD.vehicle_record_id::text,'shared');\n            ELSE old_bucket:='shared'; END IF;\n        INSERT INTO analysis_input_epoch (company_code,bucket,revision)\n        SELECT OLD.company_code,old_bucket,1 WHERE OLD.company_code IS NOT NULL AND OLD.company_code<>''\n        ON CONFLICT (company_code,bucket) DO UPDATE SET revision=analysis_input_epoch.revision+1;\n          END IF;\n          RETURN NULL;\n        END; ",
+    "dkss_analysis_input_truncated": "\n            BEGIN UPDATE analysis_input_epoch SET revision=revision+1; RETURN NULL; END; "
+  }
+}

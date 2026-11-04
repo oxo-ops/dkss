@@ -1,0 +1,15 @@
+{
+  ".github/workflows/worlex-restore-postgres.yml": "a07292382db0cecdc8e03f7cd40d4b3a3b891c4d2f9b33f70f3dd7bdbec9a8d2",
+  "worlex-scoped-restore-20261104/README_JA.md": "395ba238f01d7299f324927d80a1ac163aaf6548c1ecb52944beaca12efa7ec4",
+  "worlex-scoped-restore-20261104/build_policy.py": "679dcc3066b252076cbe00af8a4399f2eb7d1b454ec5b6059701f7e04481ef31",
+  "worlex-scoped-restore-20261104/policy.json": "ce75f9a57fd324fa5580d753bcb237f436720db9f07823f773c78c77d55de74a",
+  "worlex-scoped-restore-20261104/requirements-runner.txt": "29970c3985cd0991fdaa21f789477670460cb379766175805c6ca8d85c3b3dfb",
+  "worlex-scoped-restore-20261104/source-counts.json": "dee9682036836ba09e7d689ffdb202a6f33498b11640a61674af12e7c2490b37",
+  "worlex-scoped-restore-20261104/source-manifest.json": "eec49dd1e9a605b32bfd2eda777061be6e6c68fe4cd0193a8051f475bbd864e0",
+  "worlex-scoped-restore-20261104/tests/offline_app_smoke.py": "a00c22e55830b5050fc4b0e92b4ee87f00b9e63755949a68e8b0ace9487e7bec",
+  "worlex-scoped-restore-20261104/tests/run_acceptance.py": "acb74d06cd44b70b7ae06601ab296745f0689d36d2d24f123d2bcac68e541c0f",
+  "worlex-scoped-restore-20261104/tests/synthetic_fixture.py": "fa6360fbc3406da214f5690ccefe9dbf2957459585ed7c8722a91f3a5bc0c625",
+  "worlex-scoped-restore-20261104/tests/test_restore_postgres.py": "2c82769c0e04c63395c51cfd757b90ccb3c2ae0d6420b98ed570108e5de4c051",
+  "worlex-scoped-restore-20261104/tests/test_restore_unit.py": "68910e336a49a293b4f7f50cdc96fd887e19b8a99b5a007c8831fdbecb4f57e8",
+  "worlex-scoped-restore-20261104/worlex_restore.py": "5b09871233af743c487ba535eb444e768bad813ba1d2e6a759efd4f9ef16d7a4"
+}
