@@ -91,7 +91,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12.14'
+          python-version: '3.12.10'
       - run: python -m pip install -r worlex-scoped-restore-20261104/requirements-runner.txt
       - uses: actions/download-artifact@v7
         with:
