@@ -5,9 +5,11 @@ from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, 
 def init_db():
     with _dkss_runtime.app.app_context():
         from .master_generations import validate_storage
-        validate_storage(_dkss_common.db.session.connection(), allow_empty=True)
+        with _dkss_common.db.engine.connect() as connection:
+            validate_storage(connection, allow_empty=True)
         _dkss_common.db.create_all()
-        validate_storage(_dkss_common.db.session.connection())
+        with _dkss_common.db.engine.connect() as connection:
+            validate_storage(connection)
         from .account_identity import upgrade_account_identity
         upgrade_account_identity()
 
