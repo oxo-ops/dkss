@@ -26,7 +26,7 @@ policy.pop('postgres_acceptance_passed',None)
 policy.pop('windows_render_acceptance_passed',None)
 policy['acceptance_summary']=summary
 files=[root/'.gitattributes',root/'worlex_restore.py',root/'policy.json',root/'source-manifest.json',root/'source-counts.json',root/'client_runtime_guard.py',root/'client_bootstrap.py',root/'tests/windows-ci/client-build-inputs.json',*sorted((root/'tests').rglob('*.py')),*sorted((root/'tests').rglob('*.sh'))]
-code={str(f.relative_to(root)):hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
+code={f.relative_to(root).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
 policy['tested_artifacts']=code
 policy['workflow_sha256']=hashlib.sha256(pathlib.Path('.github/workflows/worlex-restore-postgres.yml').read_bytes()).hexdigest()
 (evidence/'provisional-policy.json').write_text(json.dumps(policy,indent=2,sort_keys=True))

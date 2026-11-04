@@ -226,6 +226,55 @@ def dependencies(raw_wheel, repaired_wheel, output):
                         'coherent_import_edges_verified': True})
 
 
+def server_dependencies(work, runtime_dir, output):
+    """Resolve native server imports only against the approved bundle/OS/CRT."""
+    import pefile
+    pg_bin = work / 'postgresql/pgsql/bin'
+    system = Path(os.environ['SYSTEMROOT']) / 'System32'
+    # System directories precede PATH in normal Windows executable DLL search.
+    directories = [pg_bin, system, Path(os.environ['SYSTEMROOT']), runtime_dir, Path(sys.base_prefix)]
+    pending = [pg_bin / name for name in ('initdb.exe', 'postgres.exe', 'pg_ctl.exe')]
+    nodes, missing = {}, []
+    while pending:
+        path = pending.pop().resolve(strict=True)
+        key = str(path)
+        if key in nodes:
+            continue
+        pe = pefile.PE(str(path))
+        try:
+            require(pe.FILE_HEADER.Machine == 0x8664, 'SERVER_DEPENDENCY_MUST_BE_X64')
+            imports = sorted({entry.dll.decode('ascii').lower() for entry in
+                              getattr(pe, 'DIRECTORY_ENTRY_IMPORT', [])})
+        finally:
+            pe.close()
+        node = {'sha256': sha(path), 'file_version': file_version(path), 'imports': {}}
+        nodes[key] = node
+        for name in imports:
+            require(Path(name).name == name, 'INVALID_PE_DEPENDENCY_NAME')
+            if name.startswith(('api-ms-win-', 'ext-ms-win-')):
+                node['imports'][name] = {'kind': 'windows_api_set'}
+                continue
+            resolved = next((directory / name for directory in directories if (directory / name).is_file()), None)
+            if resolved is None:
+                missing.append({'importer': key, 'name': name})
+                node['imports'][name] = {'kind': 'unresolved'}
+            else:
+                resolved = resolved.resolve(strict=True)
+                node['imports'][name] = {'kind': 'file', 'path': str(resolved)}
+                pending.append(resolved)
+    result = {'scope': 'eager_loader_import_closure',
+              'search_directories': list(map(str, directories)), 'nodes': nodes,
+              'unresolved_imports': missing, 'selected_crt_files': {
+                  str(path): {'sha256': sha(path), 'file_version': file_version(path)}
+                  for path in sorted(runtime_dir.glob('*.dll'))}}
+    existing = json.loads(output.read_text(encoding='utf-8'))
+    existing['server_dependency_closure'] = result
+    write_json(output, existing)
+    write_json(output.with_name('build-proof.json'), {'status': 'SERVER_DEPENDENCY_PREFLIGHT',
+                                                    'dependency_proof': existing})
+    require(not missing, 'SERVER_DEPENDENCY_CLOSURE_UNRESOLVED')
+
+
 def connection_options(work, port, database='postgres'):
     require(1024 <= int(port) <= 65535, 'INVALID_PORT')
     return {'host': '127.0.0.1', 'hostaddr': '127.0.0.1', 'port': int(port),
@@ -336,6 +385,8 @@ if __name__ == '__main__':
         certificates(work)
     elif mode == 'dependencies':
         dependencies(*map(Path, sys.argv[3:6]))
+    elif mode == 'server-dependencies':
+        server_dependencies(work, *map(Path, sys.argv[3:5]))
     elif mode == 'sidecar':
         sidecar_guard(work, *map(Path, sys.argv[3:6]))
     elif mode in ('probe', 'stability'):

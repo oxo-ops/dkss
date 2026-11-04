@@ -102,6 +102,69 @@ def vc_environment(base):
             result[key.upper()] = value
     result['DISTUTILS_USE_SDK'] = '1'
     result['MSSdk'] = '1'
+    result['WORLEX_MSVC_INSTALLATION'] = installation
+    return result
+
+
+def msvc_runtime_directory(compiler):
+    """Use the x64 CRT supplied by the already selected official VS install."""
+    installation = Path(compiler['WORLEX_MSVC_INSTALLATION']).resolve(strict=True)
+    redist_parent = (installation / 'VC/Redist/MSVC').resolve(strict=True)
+    declared = compiler.get('VCTOOLSREDISTDIR')
+    if declared:
+        redist = Path(declared).resolve(strict=True)
+        require(redist.is_relative_to(redist_parent), 'MSVC_REDIST_OUTSIDE_SELECTED_INSTALLATION')
+        versions = [redist]
+    else:
+        # Same verified Visual Studio installation only, never an inherited PATH
+        # or arbitrary system search. Sort numeric toolset versions explicitly.
+        versions = [path for path in redist_parent.iterdir()
+                    if path.is_dir() and re.fullmatch(r'\d+(?:\.\d+)+', path.name)]
+        versions.sort(key=lambda path: tuple(map(int, path.name.split('.'))), reverse=True)
+    required = ('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
+    for version in versions:
+        matches = [path for path in (version / 'x64').glob('Microsoft.VC*.CRT')
+                   if path.is_dir() and all((path / name).is_file() for name in required)]
+        require(len(matches) <= 1, 'AMBIGUOUS_MSVC_X64_CRT_DIRECTORY')
+        if matches:
+            result = matches[0].resolve(strict=True)
+            require(result.is_relative_to(redist_parent), 'MSVC_CRT_OUTSIDE_SELECTED_INSTALLATION')
+            return result
+    raise RuntimeError('SELECTED_MSVC_X64_CRT_MISSING')
+
+
+def native_loader_preflight(pg_bin, baseline, corrected, runtime_dir, evidence):
+    """Measure executable loading without starting or touching a database."""
+    result = {'postgres_archive_sha256': 'e2246ba91d22345bc3d017586c09ede52d9df180b1eeb480f050445f1cad84e2',
+              'runtime_directory': str(runtime_dir), 'process_path_only': True,
+              'dlls_copied': False, 'tools': {}, 'baseline_runtime_candidates': {}}
+    runtime_names = ('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
+    for name in runtime_names:
+        result['baseline_runtime_candidates'][name] = [
+            {'path': str(path), 'sha256': sha(path)}
+            for directory in (pg_bin, Path(baseline['SYSTEMROOT']) / 'System32', Path(sys.executable).parent)
+            if (path := directory / name).is_file()]
+    result['selected_runtime_files'] = {path.name: sha(path) for path in sorted(runtime_dir.glob('*.dll'))}
+    for name in ('initdb.exe', 'postgres.exe', 'pg_ctl.exe'):
+        binary = pg_bin / name
+        observations = {'binary_sha256': sha(binary)}
+        for label, environment in (('baseline', baseline), ('corrected', corrected)):
+            process = subprocess.run([str(binary), '--version'], env=environment,
+                                     cwd=REPO, timeout=30, capture_output=True, text=True)
+            observations[label] = {'returncode': process.returncode,
+                                   'ntstatus_hex': hex(process.returncode & 0xffffffff),
+                                   'stdout': process.stdout.strip(), 'stderr': process.stderr.strip()}
+        result['tools'][name] = observations
+    existing = json.loads(evidence.read_text(encoding='utf-8'))
+    existing['server_loader_preflight'] = result
+    json_write(evidence, existing)
+    json_write(evidence.with_name('build-proof.json'), {'status': 'SERVER_LOADER_PREFLIGHT',
+                                                       'dependency_proof': existing})
+    for name, observations in result['tools'].items():
+        corrected_result = observations['corrected']
+        require(corrected_result['returncode'] == 0 and
+                corrected_result['stdout'] == f'{Path(name).stem} (PostgreSQL) 18.6',
+                'OFFICIAL_SERVER_TOOL_LOADER_PREFLIGHT_FAILED:' + name)
     return result
 
 
@@ -198,6 +261,8 @@ def main():
     require(any((pg / relative).is_file() for relative in ('lib/libpq.lib', 'lib/ms/libpq.lib')),
             'OFFICIAL_POSTGRES_IMPORT_LIBRARY_REQUIRED')
     pg_env = dict(base, PATH=str(pg_bin) + os.pathsep + base['PATH'])
+    official_binaries_before = {path.name: sha(path) for path in sorted(pg_bin.iterdir())
+                               if path.is_file() and path.suffix.lower() in ('.exe', '.dll')}
     pg_version = run([pg_config, '--version'], env=pg_env, capture=True).stdout.strip()
     require(pg_version == 'PostgreSQL 18.6', 'OFFICIAL_PG_CONFIG_VERSION_MISMATCH')
     inputs = {}
@@ -249,6 +314,13 @@ def main():
                   'source_unmodified': True, 'pure_python': True,
                   'wheel_filename': http_wheel.name, 'wheel_sha256': sha(http_wheel), 'files': http_files}
     compiler = vc_environment(base)
+    runtime_dir = msvc_runtime_directory(compiler)
+    # ICU in initdb/postgres needs the Microsoft C++ CRT, which the official PG
+    # archive does not ship. Keep its complete installed x64 CRT directory on the
+    # fixture server's child PATH only. Never copy/graft DLLs into PostgreSQL or
+    # the client wheel, and never expand the application client's isolated PATH.
+    original_pg_env = dict(pg_env)
+    pg_env['PATH'] = os.pathsep.join([str(pg_bin), str(runtime_dir), base['PATH']])
     compiler['PATH'] = str(pg_bin) + os.pathsep + compiler['PATH']
     source = work / 'source'
     source.mkdir()
@@ -296,6 +368,13 @@ def main():
         require(unmangled.lower() in {n.lower() for n in donor_files}, 'NON_EDB_VENDORED_DEPENDENCY:' + name)
     run([build_python, HERE / 'windows_client_probe.py', 'dependencies', work,
          raw_wheels[0], wheel, EVIDENCE / 'dependency-proof.json'], env=base)
+    require(official_binaries_before == {path.name: sha(path) for path in sorted(pg_bin.iterdir())
+                                        if path.is_file() and path.suffix.lower() in ('.exe', '.dll')},
+            'OFFICIAL_POSTGRES_DONOR_BINARIES_CHANGED')
+    run([build_python, HERE / 'windows_client_probe.py', 'server-dependencies', work,
+         runtime_dir, EVIDENCE / 'dependency-proof.json'], env=base)
+    native_loader_preflight(pg_bin, original_pg_env, pg_env, runtime_dir,
+                            EVIDENCE / 'dependency-proof.json')
     requirements = work / 'requirements-application.txt'
     requirements.write_text(filtered_requirements(REPO / 'requirements.txt'), encoding='utf-8')
     run([app_python, '-m', 'pip', 'install', '--only-binary=:all:', '--find-links', app_wheels,
