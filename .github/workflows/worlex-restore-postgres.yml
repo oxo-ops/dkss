@@ -1,7 +1,7 @@
 name: Synthetic WORLEX Scoped Restore
 on:
   push:
-    branches: ['verify/worlex-restore-20261104']
+    branches: ['verify/worlex-restore-20261104', 'verify/worlex-full-fixture-20261104']
   workflow_dispatch:
 permissions:
   contents: read
@@ -75,6 +75,9 @@ jobs:
             restore-evidence/commit.txt
             restore-evidence/tests.log
             restore-evidence/summary.json
+            restore-evidence/full-fixture-coverage.json
+            restore-evidence/disconnect-before-commit.json
+            restore-evidence/disconnect-after-commit.json
             restore-evidence/provisional-policy.json
             restore-evidence/tested-code-sha256.json
           if-no-files-found: warn
@@ -125,8 +128,50 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  windows-client:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Preserve exact application source bytes on the disposable runner
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+      - name: Build pinned source client and run full synthetic Windows TLS acceptance
+        shell: pwsh
+        run: python worlex-scoped-restore-20261104/tests/windows-ci/build_windows_client.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-client-worlex-${{ github.sha }}
+          path: |
+            windows-client-evidence/commit.txt
+            windows-client-evidence/summary.json
+            windows-client-evidence/provisional-policy.json
+            windows-client-evidence/tested-code-sha256.json
+            windows-client-evidence/full-fixture-coverage.json
+            windows-client-evidence/disconnect-before-commit.json
+            windows-client-evidence/disconnect-after-commit.json
+            windows-client-evidence/application-wheels/
+            windows-client-evidence/sidecar-proof.json
+            windows-client-evidence/runtime-proof.json
+            windows-client-evidence/stability-proof.json
+            windows-client-evidence/dependency-proof.json
+            windows-client-evidence/build-proof.json
+            windows-client-evidence/client-proof.json
+            windows-client-evidence/psycopg2-2.9.12-cp312-cp312-win_amd64.whl
+          if-no-files-found: warn
+          retention-days: 14
+
   combined-seal:
-    needs: [restore, windows-render]
+    needs: [restore, windows-render, windows-client]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -144,7 +189,11 @@ jobs:
         with:
           name: windows-worlex-${{ github.sha }}
           path: windows-evidence
-      - name: Seal only after both mandatory acceptance jobs pass for identical code
+      - uses: actions/download-artifact@v7
+        with:
+          name: windows-client-worlex-${{ github.sha }}
+          path: windows-client-evidence
+      - name: Seal only after all three mandatory acceptance jobs pass for identical code
         run: python worlex-scoped-restore-20261104/tests/windows-ci/seal_combined.py
       - uses: actions/upload-artifact@v7
         with:

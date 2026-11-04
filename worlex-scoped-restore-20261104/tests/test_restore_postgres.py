@@ -37,6 +37,9 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   cls.admin=create_engine(cls.service,poolclass=NullPool,isolation_level='AUTOCOMMIT',hide_parameters=True,connect_args={'hostaddr':'127.0.0.1','connect_timeout':5})
   cls.addClassCleanup(cls.admin.dispose)
   with cls.admin.connect() as c:
+   if os.name=='nt':
+    raw=c.connection.driver_connection
+    if not raw.info.ssl_in_use or raw.get_dsn_parameters().get('sslmode')!='verify-full':raise Stop('WINDOWS_ADMIN_TLS_NOT_VERIFIED')
    if c.scalar(text("SELECT shobj_description(oid,'pg_database') FROM pg_database WHERE datname=current_database()"))!=MARKER:raise Stop('UNMARKED_CI_DATABASE')
    if c.scalar(text("SELECT count(*) FROM pg_tables WHERE schemaname='public'"))!=0:raise Stop('CI_MARKER_DATABASE_MUST_REMAIN_EMPTY')
    version=c.scalar(text('SHOW server_version_num'))
@@ -53,12 +56,25 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    c.exec_driver_sql("COMMENT ON DATABASE \""+self.name+"\" IS 'WORLEX_RESTORE_SYNTHETIC_ONLY'")
   self.temp=tempfile.TemporaryDirectory(prefix='worlex-synthetic-');self.addCleanup(self.temp.cleanup)
   env={'PATH':os.defpath,'HOME':self.temp.name,'LANG':'C.UTF-8','TZ':'UTC','PYTHONPATH':str(APP),'PYTHONDONTWRITEBYTECODE':'1','FLASK_SKIP_DOTENV':'1','DATABASE_URL':self.url.render_as_string(hide_password=False),'SECRET_KEY':secrets.token_urlsafe(40),'ITC_INITIAL_PASSWORD':'Synthetic-ITC-Only!','RENDER':'','AWS_EC2_METADATA_DISABLED':'true','AWS_CONFIG_FILE':os.devnull,'AWS_SHARED_CREDENTIALS_FILE':os.devnull,'S3_BUCKET_NAME':'','OPENAI_API_KEY':'','SMTP_HOST':'','VAPID_PRIVATE_KEY':'','VAPID_PUBLIC_KEY':'','DOCUMENT_IMPORT_WORKER_ENABLED':'0','ANALYSIS_READ_CACHE_ENABLED':'0','RATELIMIT_STORAGE_URI':'memory://'}
+  # Windows loader requirements and the CI-owned TLS trust are the only
+  # inherited values allowed into the otherwise isolated application child.
+  for key in ('SYSTEMROOT','WINDIR','TEMP','TMP','PGSSLMODE','PGSSLROOTCERT'):
+   if key in os.environ:env[key]=os.environ[key]
+  if os.name=='nt':
+   if env.get('PGSSLMODE')!='verify-full' or not pathlib.Path(env.get('PGSSLROOTCERT','')).is_file():raise Stop('WINDOWS_CI_TLS_REQUIRED')
+   env['PATH']=str(pathlib.Path(sys.executable).parent)+os.pathsep+str(pathlib.Path(env['SYSTEMROOT'])/'System32')
   self.env=env
-  setup="""from dkss_app import create_app
+  setup="""import os
+from dkss_app import create_app
+from dkss_app.extensions import db
 from dkss_app.driving_access import initialize_driving_access
 from dkss_app.vehicle_couplings import initialize_coupling_schema
 app=create_app(initialize_database=False)
 with app.app_context():
+ if os.name=='nt':
+  with db.engine.connect() as connection:
+   raw=connection.connection.driver_connection
+   if not raw.info.ssl_in_use or raw.get_dsn_parameters().get('sslmode')!='verify-full':raise RuntimeError('WINDOWS_APP_TLS_NOT_VERIFIED')
  result=app.test_cli_runner().invoke(args=['init-db'])
  if result.exit_code: raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
  initialize_driving_access(app)
@@ -92,6 +108,9 @@ with app.app_context():
    self.assertEqual(sequence_states(c,tables),self.seq_before)
    for t in tables.values():
     if 'company_code' in t.c:self.assertEqual(c.scalar(select(func.count()).select_from(t).where(t.c.company_code=='WORLEX')),0)
+ def test_full_count_fixture_all_tables_constraints_and_preservation(self):
+  from test_restore_full_fixture import assert_full_postgres_coverage
+  assert_full_postgres_coverage(self)
  def test_commit_preserves_rows_blobs_ownership_and_sequence_next_insert(self):
   result=self.restore();self.assertEqual(result['status'],'TRANSACTION_VERIFIED')
   with self.engine.begin() as c:
@@ -223,6 +242,81 @@ with app.app_context():
  def test_verified_restore_detects_additional_unplanned_audit(self):
   self.preserved_audit();self.approve_current();self.restore();self.preserved_audit(identifier=990001)
   with self.assertRaisesRegex(Stop,'VERIFY_PRESERVED_ROWS_CHANGED'):self.verify_current()
+
+ def test_disconnect_before_commit_rolls_back_all_37_tables_and_sequences(self):
+  # The connection belongs to this newly created CI-only database. Closing it
+  # before COMMIT must leave no imported data or transactional sequence changes.
+  from sqlalchemy.exc import OperationalError
+  import psycopg2
+  self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
+  with self.engine.connect() as c:
+   before=snapshot(c,self.tables);sequences=sequence_states(c,self.tables)
+  guards=[0];reached=[False]
+  with self.assertRaises(OperationalError):
+   with self.engine.begin() as c:
+    scalar=c.scalar
+    def lose_connection(statement,*args,**kwargs):
+     if 'pg_stat_activity' in str(statement):
+      guards[0]+=1
+      if guards[0]==3:
+       reached[0]=True
+       c.connection.driver_connection.close()
+       c.invalidate()
+       raise OperationalError(None,None,psycopg2.OperationalError('synthetic client connection lost before commit'),connection_invalidated=True)
+     return scalar(statement,*args,**kwargs)
+    with patch.object(c,'scalar',side_effect=lose_connection):
+     execute_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
+  self.assertTrue(reached[0]);self.assertEqual(guards[0],3)
+  with self.engine.begin() as c:
+   c.exec_driver_sql('SET TRANSACTION READ ONLY')
+   tables,_=validate_schema(c,self.policy)
+   self.assertEqual(list(tables['vehicle'].c.keys()),list(self.tables['vehicle'].c.keys()))
+   self.assertEqual(snapshot(c,tables),before)
+   self.assertEqual(sequence_states(c,tables),sequences)
+   for name,table in tables.items():
+    if 'company_code' in table.c:
+     expected=1 if name=='audit_log' else 0
+     self.assertEqual(c.scalar(select(func.count()).select_from(table).where(table.c.company_code=='WORLEX')),expected,name)
+   with self.assertRaisesRegex(Stop,'VERIFY_SOURCE_COUNT_MISMATCH'):
+    verify_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
+  evidence=pathlib.Path(os.environ.get('WORLEX_EVIDENCE_DIR',self.temp.name));evidence.mkdir(exist_ok=True)
+  (evidence/'disconnect-before-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'populated_tables':37,'actual_connection_closed_before_commit':True,'all_imports_absent':True,'preserved_rows_match':True,'sequences_unchanged':True,'fresh_readonly_verification_rejects_absent_restore':True,'restore_retried':False},indent=2))
+
+ def test_disconnect_after_commit_reconciles_without_reinserting(self):
+  # Model a client losing the outcome AFTER a real PostgreSQL commit. This is
+  # not a claim to inject or reproduce network-level packet/acknowledgement loss.
+  from sqlalchemy.exc import OperationalError
+  import psycopg2
+  self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
+  real_commit=self.engine.dialect.do_commit;commits=[0]
+  def commit_then_lose_outcome(dbapi_connection):
+   real_commit(dbapi_connection);commits[0]+=1
+   getattr(dbapi_connection,'driver_connection',dbapi_connection).close()
+   raise psycopg2.OperationalError('server closed the connection unexpectedly: synthetic post-commit outcome loss')
+  with patch.object(self.engine.dialect,'do_commit',side_effect=commit_then_lose_outcome):
+   with self.assertRaises(OperationalError):self.restore()
+  self.assertEqual(commits[0],1)
+  verified=self.verify_current()
+  self.assertEqual(verified['source_rows'],4100)
+  self.assertTrue(verified['all_source_values_and_blobs_match'])
+  self.assertTrue(verified['non_worlex_and_global_rows_unchanged'])
+  with self.engine.connect() as c:
+   tables,_=validate_schema(c,self.policy)
+   before=snapshot(c,tables);sequences=sequence_states(c,tables)
+  # Negative control only inside the disposable CI DB: the guard must refuse
+  # replay before any INSERT; the operational launcher never retries a write.
+  with self.assertRaisesRegex(Stop,'EXISTING_WORLEX_AUDIT_NOT_APPROVED'):self.restore()
+  # snapshot intentionally omits imported non-audit WORLEX rows, so repeat the
+  # exact-value/row/blob reconciliation as well as checking preserved rows.
+  replay_verified=self.verify_current()
+  self.assertEqual(replay_verified['source_rows'],4100)
+  self.assertTrue(replay_verified['all_source_values_and_blobs_match'])
+  self.assertTrue(replay_verified['non_worlex_and_global_rows_unchanged'])
+  with self.engine.connect() as c:
+   self.assertEqual(snapshot(c,tables),before)
+   self.assertEqual(sequence_states(c,tables),sequences)
+  evidence=pathlib.Path(os.environ.get('WORLEX_EVIDENCE_DIR',self.temp.name));evidence.mkdir(exist_ok=True)
+  (evidence/'disconnect-after-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'populated_tables':37,'real_commit_then_client_error':True,'network_packet_loss_reproduced':False,'fresh_readonly_verification_matches':True,'preserved_rows_match':True,'replay_guard_rejected_before_insert':True,'sequences_unchanged_by_replay':True},indent=2))
 
  def test_real_synthetic_login_and_primary_pages(self):
   self.restore()

@@ -494,6 +494,19 @@ def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
    require(state['next']>maximum,'VERIFY_SEQUENCE_NOT_AHEAD')
  return {'status':'RESTORE_PRESENT_MATCHES_PLAN','preserved_worlex_audit_rows':approved['preserved_worlex_audit_rows'],'push_subscription_ids_remapped':len(approved['push_subscription_id_remap']),'source_rows':sum(counts.values()),'all_source_values_and_blobs_match':True,'non_worlex_and_global_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
 
+def enforce_windows_client(root,policy):
+ # The operational CLI must use the separately staged Windows client whose
+ # actual loaded DLLs passed the same full PostgreSQL acceptance matrix.
+ require(policy.get('windows_client_acceptance_passed') is True,'WINDOWS_CLIENT_CI_SEAL_REQUIRED')
+ guard_path=root/'client_runtime_guard.py'
+ expected=policy.get('tested_artifacts',{}).get('client_runtime_guard.py')
+ require(guard_path.is_file() and not guard_path.is_symlink() and expected and expected==sha(guard_path.read_bytes()),'CLIENT_GUARD_DIFFERS_FROM_TESTED_REVISION')
+ import importlib.util
+ spec=importlib.util.spec_from_file_location('scoped_restore_client_guard',guard_path)
+ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+ try:module.enforce(root,policy)
+ except module.ClientStop as error:raise Stop(str(error)) from None
+
 def cli():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['inspect','execute','verify']);p.add_argument('--archive',required=True);p.add_argument('--pg-restore',required=True);p.add_argument('--plan',required=True);p.add_argument('--report',required=True);p.add_argument('--writers-stopped',action='store_true')
  a=p.parse_args();require(not Path(a.report).exists(),'REPORT_ALREADY_EXISTS')
@@ -506,6 +519,7 @@ def cli():
  require(policy.get('windows_render_acceptance_passed') is True,'WINDOWS_CI_SEAL_REQUIRED')
  require(policy.get('source_manifest_sha256')==SOURCE_MANIFEST_SHA256,'UNREVIEWED_APPLICATION_SOURCE')
  require(policy.get('tested_runner_sha256')==sha(Path(__file__).read_bytes()),'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION')
+ enforce_windows_client(root,policy)
  if a.action in ('execute','verify'):
   if a.action=='execute':require(a.writers_stopped,'STOPPED_WRITERS_ACK_REQUIRED')
   approved=json.loads(Path(a.plan).read_text())

@@ -34,5 +34,5 @@ def fixture(policy,table_names):
  data['notification']=[dict(id='7',company_code='WORLEX',target_user='Synthetic Fixture',target_username='fixture-0',title='Synthetic notification',message='Synthetic historical record',read='f',created_at='2026-10-01 00:00',files_json='[]')]
  blob=b'%PDF-1.4\nSynthetic fixture, not a real document.\n%%EOF\n'
  data['vehicle_document_import_draft']=[dict(id='synthetic-document',batch_id='synthetic-batch',company_code='WORLEX',created_by_username='fixture-0',source_filename='synthetic.pdf',source_sha256=hashlib.sha256(blob).hexdigest(),document_type='driving_report',source_file='\\x'+blob.hex(),status='completed',preview_json='{}',result_json='{}',created_at='2026-10-01 00:00:00+00',completed_at='2026-10-01 00:00:00+00')]
- cols={n:list(rows[0]) if rows else [] for n,rows in data.items()}
- return data,cols,{n:len(rows) for n,rows in data.items()}
+ from full_table_fixture import expand
+ return expand(policy,table_names,data,NEW_FIELDS)
