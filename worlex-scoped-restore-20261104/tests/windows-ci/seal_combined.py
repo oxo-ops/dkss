@@ -15,7 +15,7 @@ require(summary['candidate']['runner_sha256']==sha==policy['tested_artifacts']['
 commit=subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip()
 require(summary['candidate_commit']==commit==(linux/'commit.txt').read_text().strip(), 'Acceptance commit mismatch')
 acceptance=policy['acceptance_summary']
-require(acceptance['postgres_required'] and acceptance['expected']>=21, 'Mandatory PostgreSQL suite absent')
+require(acceptance['postgres_required'] and acceptance['expected']>=34, 'Mandatory PostgreSQL suite absent')
 require(acceptance['run']==acceptance['expected'] and not any(acceptance[k] for k in ('failures','errors','skipped')), 'Linux tests incomplete')
 for relative, expected in policy['tested_artifacts'].items():
     require(hashlib.sha256((root/relative).read_bytes()).hexdigest()==expected, 'Artifact mismatch: '+relative)

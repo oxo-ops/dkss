@@ -148,6 +148,82 @@ with app.app_context():
    previous=self.policy.pop(key)
    with self.subTest(key=key),self.assertRaisesRegex(Stop,'CI_SEAL_REQUIRED'):self.restore()
    self.policy[key]=previous
+ def preserved_audit(self,*,company='WORLEX',identifier=1,created='2026-11-04 07:55:08'):
+  row={'id':identifier,'company_code':company,'username':'synthetic-current-user','action':'login_failed','target_type':'user','detail':'synthetic existing immutable log','created_at':created}
+  with self.engine.begin() as c:c.execute(self.tables['audit_log'].insert(),row)
+  return row
+ def approve_current(self):
+  with self.engine.connect() as c:
+   self.approved=plan(c,self.data,self.columns,self.policy,self.counts,self.source_hash)
+ def verify_current(self):
+  with self.engine.begin() as c:
+   c.exec_driver_sql('SET TRANSACTION READ ONLY')
+   return verify_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
+ def test_existing_one_audit_and_all_423_source_audits_survive(self):
+  self.preserved_audit();self.approve_current()
+  self.assertEqual(self.approved['push_subscription_id_remap'],{})
+  with self.engine.connect() as c:before=dict(c.execute(select(self.tables['audit_log']).where(self.tables['audit_log'].c.id==1)).mappings().one())
+  result=self.restore();self.assertEqual(result['preserved_worlex_audit_rows'],1)
+  self.assertEqual(result['push_subscription_ids_remapped'],0)
+  self.assertEqual(self.verify_current()['status'],'RESTORE_PRESENT_MATCHES_PLAN')
+  with self.engine.connect() as c:
+   audit=self.tables['audit_log']
+   self.assertEqual(c.scalar(select(func.count()).select_from(audit).where(audit.c.company_code=='WORLEX')),424)
+   self.assertEqual(dict(c.execute(select(audit).where(audit.c.id==1)).mappings().one()),before)
+   self.assertEqual(c.scalar(select(audit.c.action).where(audit.c.id==1001)),'synthetic_imported_event')
+ def test_audit_ids_are_never_rewritten_to_hide_a_collision(self):
+  self.preserved_audit(company='SYNTHETIC_OTHER',identifier=1001)
+  with self.assertRaisesRegex(Stop,'PRIMARY_KEY_COLLISION:audit_log'):self.approve_current()
+ def existing_push(self,*,endpoint='https://synthetic-current.invalid/push'):
+  with self.engine.begin() as c:
+   owner=c.scalar(text("SELECT account_identity FROM public.\"user\" WHERE company_code='ITC' AND username='itc'"))
+   row={'id':1,'company_code':'ITC','username':'itc','owner_identity':owner,'endpoint':endpoint,'p256dh':'synthetic-existing-key','auth':'synthetic-existing-auth','created_at':'2026-11-04 00:00:00'}
+   c.execute(self.tables['push_subscription'].insert(),row)
+   return dict(c.execute(select(self.tables['push_subscription']).where(self.tables['push_subscription'].c.id==1)).mappings().one())
+ def test_push_pk_collision_keeps_current_subscription_and_old_owner_unbound(self):
+  self.preserved_audit();before=self.existing_push();self.approve_current()
+  self.assertEqual(self.approved['push_subscription_id_remap'],{'1':2})
+  result=self.restore();self.assertEqual(result['push_subscription_ids_remapped'],1)
+  self.verify_current()
+  with self.engine.connect() as c:
+   table=self.tables['push_subscription']
+   self.assertEqual(dict(c.execute(select(table).where(table.c.id==1)).mappings().one()),before)
+   restored=c.execute(select(table).where(table.c.id==2)).mappings().one()
+   self.assertEqual(restored['company_code'],'WORLEX');self.assertIsNone(restored['owner_identity'])
+   self.assertEqual(restored['endpoint'],'https://synthetic-backup.invalid/push')
+ def test_push_endpoint_collision_is_rejected_instead_of_rebinding(self):
+  self.existing_push(endpoint='https://synthetic-backup.invalid/push')
+  with self.assertRaisesRegex(Stop,'TARGET_UNIQUE_KEY_COLLISION:push_subscription'):self.approve_current()
+
+ def test_audit_baseline_change_between_inspection_and_execution_stops(self):
+  self.preserved_audit();self.approve_current()
+  with self.engine.begin() as c:c.exec_driver_sql("UPDATE public.audit_log SET detail='synthetic changed' WHERE id=1")
+  with self.assertRaisesRegex(Stop,'PREFLIGHT_PLAN_CHANGED'):self.restore()
+  with self.engine.connect() as c:self.assertEqual(c.scalar(text("SELECT count(*) FROM public.vehicle WHERE company_code='WORLEX'")),0)
+ def test_rollback_keeps_existing_audit_and_original_sequence(self):
+  self.preserved_audit();self.existing_push();self.approve_current()
+  with self.engine.connect() as c:before=snapshot(c,self.tables);seq=sequence_states(c,self.tables)
+  with self.assertRaisesRegex(Stop,'INJECTED_ROLLBACK_PROBE'):self.restore(inject_failure='after_sequences')
+  with self.engine.connect() as c:
+   self.assertEqual(snapshot(c,self.tables),before);self.assertEqual(sequence_states(c,self.tables),seq)
+   self.assertEqual(c.scalar(text("SELECT count(*) FROM public.audit_log WHERE company_code='WORLEX'")),1)
+   self.assertEqual(c.scalar(text("SELECT count(*) FROM public.vehicle WHERE company_code='WORLEX'")),0)
+ def test_unapproved_existing_audit_is_not_allowed(self):
+  for identifier,created,company in [(2,'2026-11-04 07:55:08','WORLEX'),(1,'2026-11-04 07:55:09','WORLEX'),(1,'2026-11-04 07:55:08','worlex')]:
+   self.preserved_audit(company=company,identifier=identifier,created=created)
+   with self.subTest(identifier=identifier,created=created,company=company),self.assertRaisesRegex(Stop,'EXISTING_WORLEX_AUDIT_NOT_APPROVED'):self.approve_current()
+   with self.engine.begin() as c:c.exec_driver_sql('DELETE FROM public.audit_log')
+ def test_more_than_one_existing_worlex_audit_is_rejected(self):
+  self.preserved_audit();self.preserved_audit(identifier=2)
+  with self.assertRaisesRegex(Stop,'EXISTING_WORLEX_AUDIT_NOT_APPROVED'):self.approve_current()
+ def test_verified_restore_detects_changes_to_preserved_audit(self):
+  self.preserved_audit();self.approve_current();self.restore()
+  with self.engine.begin() as c:c.exec_driver_sql("UPDATE public.audit_log SET detail='synthetic changed' WHERE id=1")
+  with self.assertRaisesRegex(Stop,'VERIFY_PRESERVED_ROWS_CHANGED'):self.verify_current()
+ def test_verified_restore_detects_additional_unplanned_audit(self):
+  self.preserved_audit();self.approve_current();self.restore();self.preserved_audit(identifier=990001)
+  with self.assertRaisesRegex(Stop,'VERIFY_PRESERVED_ROWS_CHANGED'):self.verify_current()
+
  def test_real_synthetic_login_and_primary_pages(self):
   self.restore()
   sys.path.insert(0,str(APP))

@@ -1,7 +1,7 @@
 """No network or database service needed. Uses synthetic values only."""
 import copy, json, pathlib, tempfile, unittest, decimal
 from sqlalchemy import MetaData, Table, Column, Integer, String, Boolean, Text, BigInteger, SmallInteger, Float, Numeric, DateTime, Date, LargeBinary, ForeignKeyConstraint
-from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q, render_environment, classify_render_failure
+from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q, render_environment, classify_render_failure, collision_id_map, apply_push_map
 
 
 def synthetic_tables():
@@ -33,6 +33,21 @@ def policy_metadata(policy):
  return m.tables
 
 class RestoreGuards(unittest.TestCase):
+ def test_push_map_moves_only_collisions_above_all_reserved_ids(self):
+  self.assertEqual(collision_id_map([1,2,423],[1,2,900000]),{'1':900001,'2':900002})
+  self.assertEqual(collision_id_map([1,2,423],[]),{})
+  self.assertEqual(collision_id_map([1,2],[3]),{})
+ def test_push_map_rejects_duplicate_or_invalid_ids_and_exhaustion(self):
+  for source,existing in [([1,1],[]),([0],[]),(['1'],[]),([1],[0]),([1],[1,2147483647])]:
+   with self.subTest(source=source,existing=existing),self.assertRaises(Stop):collision_id_map(source,existing)
+ def test_only_imported_push_id_changes_and_source_fields_stay_intact(self):
+  typed={'push_subscription':[{'id':1,'detail':'synthetic historical detail','actor_identity':None},{'id':2,'detail':'synthetic second detail'}],'vehicle':[{'id':1}]}
+  before=copy.deepcopy(typed);apply_push_map(typed,{'1':424})
+  self.assertEqual(typed['push_subscription'][0],dict(before['push_subscription'][0],id=424))
+  self.assertEqual(typed['push_subscription'][1],before['push_subscription'][1]);self.assertEqual(typed['vehicle'],before['vehicle'])
+  for mapping in [{'01':424},{'3':424},{'1':2},{'1':424,'2':424},{'1':2147483648}]:
+   with self.subTest(mapping=mapping),self.assertRaises(Stop):apply_push_map(copy.deepcopy(before),mapping)
+
  def test_render_environment_preserves_only_windows_runtime_paths(self):
   value=render_environment('private-directory',{'SystemRoot':r'C:\Windows','windir':r'C:\Windows','PGHOST':'do-not-inherit','PGPASSWORD':'synthetic-secret','WORLEX_NEW_DATABASE_URL':'synthetic-secret','DATABASE_URL':'synthetic-secret','PATH':'untrusted'})
   self.assertEqual(value['SYSTEMROOT'],r'C:\Windows');self.assertEqual(value['WINDIR'],r'C:\Windows')

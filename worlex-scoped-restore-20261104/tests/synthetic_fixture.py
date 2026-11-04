@@ -28,6 +28,8 @@ def fixture(policy,table_names):
    if name=='vehicle':row.update(plate_number='SYNTH-'+row['id'],office='Synthetic Office',type='Synthetic Type')
    if name=='vehicle_operation_record':row.update(operation_date='2026-10-01',report_number='SYNTH-'+row['id'],source_row_json='{}')
    data[name].append(row)
+ data['audit_log']=[dict(id=str(i),company_code='WORLEX',username='synthetic-old-account',action='synthetic_imported_event',target_type='synthetic',target_id=str(i),detail='synthetic immutable history',ip_address=None,created_at='2026-10-01 00:00:00') for i in range(1001,1424)]
+ data['push_subscription']=[dict(id='1',company_code='WORLEX',username='fixture-0',endpoint='https://synthetic-backup.invalid/push',p256dh='synthetic-p256dh',auth='synthetic-auth',created_at='2026-10-01 00:00:00')]
  data['office']=[dict(id='3',company_code='WORLEX',name='Synthetic Office')]
  data['notification']=[dict(id='7',company_code='WORLEX',target_user='Synthetic Fixture',target_username='fixture-0',title='Synthetic notification',message='Synthetic historical record',read='f',created_at='2026-10-01 00:00',files_json='[]')]
  blob=b'%PDF-1.4\nSynthetic fixture, not a real document.\n%%EOF\n'

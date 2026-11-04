@@ -278,11 +278,46 @@ def typed_payload(data,columns,tables,expected_counts,generated=None):
   require(ready,'CYCLIC_POPULATED_TABLE_DEPENDENCY');order+=ready;remaining-=set(ready)
  return typed,order
 
-def snapshot(connection,tables,exclude_vehicle_compat=False):
+def collision_id_map(source_ids,existing_ids):
+ """Only explicitly selected imported PKs may move; existing rows never change."""
+ source=list(source_ids);existing=set(existing_ids)
+ require(all(type(i) is int and i>0 for i in source+list(existing)),'PUSH_ID_INVALID')
+ require(len(source)==len(set(source)),'SOURCE_PUSH_ID_DUPLICATE')
+ highest=max(source+list(existing)+[0]);mapping={}
+ for original in sorted(set(source)&existing):
+  highest+=1;require(highest<=2147483647,'PUSH_ID_SPACE_EXHAUSTED')
+  mapping[str(original)]=highest
+ return mapping
+
+def apply_push_map(typed,mapping):
+ rows=typed.get('push_subscription',[]);ids={r['id'] for r in rows}
+ require(all(r.get('owner_identity') is None for r in rows),'HISTORICAL_PUSH_OWNER_MUST_REMAIN_UNBOUND')
+ require(isinstance(mapping,dict) and all(isinstance(k,str) and k.isdigit() and str(int(k))==k and int(k) in ids and type(v) is int and 0<v<=2147483647 for k,v in mapping.items()),'PUSH_MAP_INVALID')
+ require(all(v>max(ids or {0}) for v in mapping.values()),'PUSH_MAP_INVALID')
+ for row in rows:row['id']=mapping.get(str(row['id']),row['id'])
+ require(len({r['id'] for r in rows})==len(rows),'PUSH_MAP_COLLISION')
+
+def prepare_push_map(connection,tables,typed):
+ audit=tables['audit_log']
+ existing=list(connection.execute(select(audit).where(func.lower(audit.c.company_code)==TENANT.lower())).mappings())
+ # Only the observed failed-login audit may coexist with imported history.
+ # Its full row, plus every other existing audit, is bound to the plan snapshot.
+ require(len(existing)<=1 and all(r['company_code']==TENANT and r['id']==1 and r['created_at']=='2026-11-04 07:55:08' and r['action']=='login_failed' and r['target_type']=='user' and r['actor_identity'] is None and r['actor_name'] is None for r in existing),'EXISTING_WORLEX_AUDIT_NOT_APPROVED')
+ table=tables['push_subscription']
+ require(not any(f.column.table.name=='push_subscription' for t in tables.values() for f in t.foreign_keys),'PUSH_ID_REFERENCE_REQUIRES_REVIEW')
+ rows=typed.get('push_subscription',[])
+ require(len(rows)<=1,'SOURCE_PUSH_CARDINALITY_CHANGED')
+ mapping=collision_id_map([r['id'] for r in rows],list(connection.scalars(select(table.c.id))))
+ apply_push_map(typed,mapping)
+ return mapping,len(existing)
+
+def snapshot(connection,tables,exclude_vehicle_compat=False,audit_import_ids=()):
  result={}
  for name,t in sorted(tables.items()):
   stmt=select(*[c for c in t.c if not (exclude_vehicle_compat and name=='vehicle' and c.name=='vehicle_id')])
-  if 'company_code' in t.c:stmt=stmt.where((t.c.company_code!=TENANT)|(t.c.company_code.is_(None)))
+  if name=='audit_log':
+   if audit_import_ids:stmt=stmt.where(t.c.id.not_in(audit_import_ids))
+  elif 'company_code' in t.c:stmt=stmt.where((t.c.company_code!=TENANT)|(t.c.company_code.is_(None)))
   # Sorting by row digests works for tables without a primary key and binary columns.
   rows=sorted(digest(dict(r)) for r in connection.execute(stmt).mappings())
   result[name]={'count':len(rows),'sha256':digest(rows)}
@@ -294,7 +329,7 @@ def identity(connection):
 
 def check_empty_and_itc(connection,tables,typed):
  for name,t in tables.items():
-  if 'company_code' in t.c:
+  if 'company_code' in t.c and name!='audit_log':
    require(connection.scalar(select(func.count()).select_from(t).where(func.lower(t.c.company_code)==TENANT.lower()))==0,'TARGET_WORLEX_OR_CASE_ALIAS_EXISTS:'+name)
  for name,rows in typed.items():
   table=tables[name]
@@ -349,11 +384,12 @@ def sequence_states(connection,tables,lock=False):
 def plan(connection,data,columns,policy,counts,source_sha,generated=None):
  tables,schema_hash=validate_schema(connection,policy)
  typed,order=typed_payload(data,columns,tables,counts,generated)
+ push_map,preserved_audits=prepare_push_map(connection,tables,typed)
  check_empty_and_itc(connection,tables,typed)
  baseline=snapshot(connection,tables)
  seq=sequence_states(connection,tables)
  generated={name:{str(r['id']):{field:r[field] for field in ('account_identity','master_generation') if field in r} for r in rows} for name,rows in typed.items() if rows and any(field in rows[0] for field in ('account_identity','master_generation'))}
- return {'generated_identifiers':generated,'version':1,'tenant':TENANT,'source_sha256':source_sha,'archive_sha256':ARCHIVE_SHA256,'runner_sha256':sha(Path(__file__).read_bytes()),'policy_sha256':digest(policy),'target_sha256':identity(connection),'schema_sha256':schema_hash,'preserved_rows_sha256':digest(baseline),'sequence_baseline':{'.'.join(k):v for k,v in seq.items()},'sequences_sha256':digest(sorted((list(k),v) for k,v in seq.items())),'source_counts':counts,'blank_chassis_to_null':11,'account_owner_policy':'new account UUID; historical owner/actor identity NULL; no username rebinding','legacy_vehicle_id_addition': 'vehicle_id' not in tables['vehicle'].c}
+ return {'push_subscription_id_remap':push_map,'preserved_worlex_audit_rows':preserved_audits,'generated_identifiers':generated,'version':2,'tenant':TENANT,'source_sha256':source_sha,'archive_sha256':ARCHIVE_SHA256,'runner_sha256':sha(Path(__file__).read_bytes()),'policy_sha256':digest(policy),'target_sha256':identity(connection),'schema_sha256':schema_hash,'preserved_rows_sha256':digest(baseline),'sequence_baseline':{'.'.join(k):v for k,v in seq.items()},'sequences_sha256':digest(sorted((list(k),v) for k,v in seq.items())),'source_counts':counts,'blank_chassis_to_null':11,'account_owner_policy':'new account UUID; historical owner/actor identity NULL; no username rebinding','legacy_vehicle_id_addition': 'vehicle_id' not in tables['vehicle'].c}
 
 def execute_restore(connection,data,columns,policy,counts,source_sha,approved_plan,*,inject_failure=False):
  """Caller owns ONE transaction. All exceptions must roll it back, never retry."""
@@ -378,6 +414,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  tables,_=validate_schema(connection,policy)
  baseline=snapshot(connection,tables)
  typed,order=typed_payload(data,columns,tables,counts,approved_plan['generated_identifiers'])
+ apply_push_map(typed,approved_plan['push_subscription_id_remap'])
  seq=sequence_states(connection,tables,lock=True)
  require(digest(sorted((list(k),v) for k,v in seq.items()))==current['sequences_sha256'],'SEQUENCE_CHANGED_DURING_LOCK')
  if current['legacy_vehicle_id_addition']:
@@ -389,7 +426,9 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  if inject_failure=='after_insert':raise Stop('INJECTED_ROLLBACK_PROBE')
  for name,rows in typed.items():
   table=tables[name]
-  fetched=list(connection.execute(select(table).where(table.c.company_code==TENANT)).mappings())
+  query=select(table).where(table.c.company_code==TENANT)
+  if name=='audit_log':query=query.where(table.c.id.in_([r['id'] for r in rows]))
+  fetched=list(connection.execute(query).mappings())
   require(len(fetched)==len(rows),'RESTORED_COUNT_MISMATCH:'+name)
   keys=[c.name for c in table.primary_key]
   keyed={tuple(r[k] for k in keys):r for r in fetched}
@@ -400,7 +439,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  if current['legacy_vehicle_id_addition']:
   vehicle=tables['vehicle']
   require(connection.scalar(select(func.count()).select_from(vehicle).where((vehicle.c.company_code!=TENANT)|(vehicle.c.company_code.is_(None)),vehicle.c.vehicle_id.is_not(None)))==0,'COMPATIBILITY_COLUMN_CHANGED_OTHER_TENANT')
- require(snapshot(connection,tables,exclude_vehicle_compat=current['legacy_vehicle_id_addition'])==baseline,'OTHER_TENANT_OR_GLOBAL_ROWS_CHANGED')
+ require(snapshot(connection,tables,exclude_vehicle_compat=current['legacy_vehicle_id_addition'],audit_import_ids=[r['id'] for r in typed.get('audit_log',[])])==baseline,'OTHER_TENANT_OR_GLOBAL_ROWS_CHANGED')
  # Derived cache epochs are allowed for WORLEX only; other extra data is refused.
  derived={}
  for name,table in tables.items():
@@ -419,7 +458,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
    sequence_changes+=1
  if inject_failure in (True,'after_sequences'):raise Stop('INJECTED_ROLLBACK_PROBE')
  no_sessions()
- return {'status':'TRANSACTION_VERIFIED','source_rows':sum(counts.values()),'source_tables':sum(bool(n) for n in counts.values()),'users':15,'vehicles':565,'active_vehicles':289,'deleted_vehicles':276,'operation_records':2571,'blank_chassis_normalized':11,'derived_rows':derived,'sequences_advanced':sequence_changes,'non_worlex_and_global_rows_unchanged':True,'owner_bindings_quarantined':True,'live_login_tested':False,'live_pages_tested':False}
+ return {'status':'TRANSACTION_VERIFIED','preserved_worlex_audit_rows':current['preserved_worlex_audit_rows'],'push_subscription_ids_remapped':len(current['push_subscription_id_remap']),'source_rows':sum(counts.values()),'source_tables':sum(bool(n) for n in counts.values()),'users':15,'vehicles':565,'active_vehicles':289,'deleted_vehicles':276,'operation_records':2571,'blank_chassis_normalized':11,'derived_rows':derived,'sequences_advanced':sequence_changes,'non_worlex_and_global_rows_unchanged':True,'owner_bindings_quarantined':True,'live_login_tested':False,'live_pages_tested':False}
 
 def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
  """Read-only reconciliation, including commit-disconnect outcomes. Never retry."""
@@ -427,15 +466,18 @@ def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
  require(approved['target_sha256']==identity(connection) and approved['source_sha256']==source_sha and approved['policy_sha256']==digest(policy),'VERIFY_PLAN_INPUT_MISMATCH')
  tables,_=validate_schema(connection,policy)
  typed,_=typed_payload(data,columns,tables,counts,approved['generated_identifiers'])
+ apply_push_map(typed,approved['push_subscription_id_remap'])
  for name,rows in typed.items():
   table=tables[name]
-  fetched=list(connection.execute(select(table).where(table.c.company_code==TENANT)).mappings())
+  query=select(table).where(table.c.company_code==TENANT)
+  if name=='audit_log':query=query.where(table.c.id.in_([r['id'] for r in rows]))
+  fetched=list(connection.execute(query).mappings())
   require(len(rows)==len(fetched),'VERIFY_SOURCE_COUNT_MISMATCH:'+name)
   keys=[c.name for c in table.primary_key];keyed={tuple(r[k] for k in keys):r for r in fetched}
   for row in rows:
    actual=keyed.get(tuple(row[k] for k in keys))
    require(actual is not None and digest({k:actual[k] for k in row})==digest(row),'VERIFY_SOURCE_VALUE_MISMATCH:'+name)
- require(digest(snapshot(connection,tables,exclude_vehicle_compat=approved['legacy_vehicle_id_addition']))==approved['preserved_rows_sha256'],'VERIFY_PRESERVED_ROWS_CHANGED')
+ require(digest(snapshot(connection,tables,exclude_vehicle_compat=approved['legacy_vehicle_id_addition'],audit_import_ids=[r['id'] for r in typed.get('audit_log',[])]))==approved['preserved_rows_sha256'],'VERIFY_PRESERVED_ROWS_CHANGED')
  if approved['legacy_vehicle_id_addition']:
   vehicle=tables['vehicle']
   require(connection.scalar(select(func.count()).select_from(vehicle).where((vehicle.c.company_code!=TENANT)|(vehicle.c.company_code.is_(None)),vehicle.c.vehicle_id.is_not(None)))==0,'VERIFY_COMPATIBILITY_COLUMN_CHANGED_OTHER_TENANT')
@@ -450,7 +492,7 @@ def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
   if typed.get(key[0]):
    maximum=connection.scalar(select(func.max(tables[key[0]].c[key[1]])))
    require(state['next']>maximum,'VERIFY_SEQUENCE_NOT_AHEAD')
- return {'status':'RESTORE_PRESENT_MATCHES_PLAN','source_rows':sum(counts.values()),'all_source_values_and_blobs_match':True,'non_worlex_and_global_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
+ return {'status':'RESTORE_PRESENT_MATCHES_PLAN','preserved_worlex_audit_rows':approved['preserved_worlex_audit_rows'],'push_subscription_ids_remapped':len(approved['push_subscription_id_remap']),'source_rows':sum(counts.values()),'all_source_values_and_blobs_match':True,'non_worlex_and_global_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
 
 def cli():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['inspect','execute','verify']);p.add_argument('--archive',required=True);p.add_argument('--pg-restore',required=True);p.add_argument('--plan',required=True);p.add_argument('--report',required=True);p.add_argument('--writers-stopped',action='store_true')
