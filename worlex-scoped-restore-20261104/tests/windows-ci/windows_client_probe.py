@@ -275,6 +275,107 @@ def server_dependencies(work, runtime_dir, output):
     require(not missing, 'SERVER_DEPENDENCY_CLOSURE_UNRESOLVED')
 
 
+def acl_snapshot(work, control, runtime_dir, output):
+    """Read token identities and owner/DACLs; never change permissions or tokens."""
+    from ctypes import wintypes
+    control = require_owned(control)
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    security = ctypes.WinDLL('advapi32', use_last_error=True)
+    pointer = ctypes.c_void_p
+    pp = ctypes.POINTER(pointer)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [pointer]
+    kernel.LocalFree.restype = pointer
+    security.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    security.OpenProcessToken.restype = wintypes.BOOL
+    security.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, pointer,
+                                              wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    security.GetTokenInformation.restype = wintypes.BOOL
+    security.ConvertSidToStringSidW.argtypes = [pointer, pp]
+    security.ConvertSidToStringSidW.restype = wintypes.BOOL
+    security.GetNamedSecurityInfoW.argtypes = [wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD,
+                                               pp, pp, pp, pp, pp]
+    security.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [
+        pointer, wintypes.DWORD, wintypes.DWORD, pp, ctypes.POINTER(wintypes.DWORD)]
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
+    security.GetSecurityDescriptorControl.argtypes = [pointer, ctypes.POINTER(wintypes.USHORT),
+                                                       ctypes.POINTER(wintypes.DWORD)]
+    security.GetSecurityDescriptorControl.restype = wintypes.BOOL
+
+    def sid_string(sid):
+        text = pointer()
+        require(security.ConvertSidToStringSidW(sid, ctypes.byref(text)), 'SID_CONVERSION_FAILED')
+        try:
+            return ctypes.wstring_at(text)
+        finally:
+            kernel.LocalFree(text)
+
+    token = wintypes.HANDLE()
+    require(security.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)),
+            'TOKEN_QUERY_OPEN_FAILED')
+    identities = {}
+    try:
+        for name, info_class in (('token_user', 1), ('token_owner', 4)):
+            size = wintypes.DWORD()
+            ok = security.GetTokenInformation(token, info_class, None, 0, ctypes.byref(size))
+            require(not ok and ctypes.get_last_error() == 122 and size.value > 0, 'TOKEN_SIZE_QUERY_FAILED')
+            data = ctypes.create_string_buffer(size.value)
+            require(security.GetTokenInformation(token, info_class, data, size, ctypes.byref(size)),
+                    'TOKEN_IDENTITY_QUERY_FAILED')
+            identities[name] = sid_string(pointer.from_buffer(data))
+    finally:
+        kernel.CloseHandle(token)
+
+    existing = json.loads(output.read_text(encoding='utf-8'))
+    paths = {work, control, runtime_dir, Path.cwd().resolve(strict=True)}
+    paths.add(Path(os.environ.get('COMSPEC', str(Path(os.environ['SYSTEMROOT']) / 'System32/cmd.exe'))))
+    for raw in existing['server_dependency_closure']['nodes']:
+        path = Path(raw)
+        paths.add(path)
+        if path.is_relative_to(work):
+            paths.add(control / path.relative_to(work))
+    paths.update(runtime_dir.glob('*.dll'))
+    for path in list(paths):
+        paths.update(path.parents)
+    records = []
+    for path in sorted(paths):
+        owner, group, dacl, descriptor = (pointer() for _ in range(4))
+        # SE_FILE_OBJECT=1, OWNER|GROUP|DACL_SECURITY_INFORMATION=7. Read only.
+        error = security.GetNamedSecurityInfoW(str(path), 1, 7, ctypes.byref(owner),
+                    ctypes.byref(group), ctypes.byref(dacl), None, ctypes.byref(descriptor))
+        if error:
+            records.append({'path': str(path), 'read_error_win32': error})
+            continue
+        text = pointer()
+        try:
+            length = wintypes.DWORD()
+            require(security.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor, 1, 7, ctypes.byref(text), ctypes.byref(length)), 'DACL_SDDL_READ_FAILED')
+            flags, revision = wintypes.USHORT(), wintypes.DWORD()
+            require(security.GetSecurityDescriptorControl(descriptor, ctypes.byref(flags),
+                                                          ctypes.byref(revision)), 'DACL_CONTROL_READ_FAILED')
+            records.append({'path': str(path), 'owner_sid': sid_string(owner),
+                            'group_sid': sid_string(group),
+                            'sddl_owner_group_dacl': ctypes.wstring_at(text),
+                            'dacl_protected': bool(flags.value & 0x1000),
+                            'security_descriptor_control': flags.value})
+        finally:
+            if text:
+                kernel.LocalFree(text)
+            kernel.LocalFree(descriptor)
+    result = {'scope': 'current_process_token_and_file_security_read_only',
+              'observes_restricted_child_token': False, 'token': identities, 'paths': records}
+    existing['server_acl_snapshot'] = result
+    write_json(output, existing)
+    write_json(output.with_name('build-proof.json'), {'status': 'SERVER_ACL_OBSERVED',
+                                                     'dependency_proof': existing})
+    by_path = {entry['path']: entry for entry in records}
+    require(all('owner_sid' in by_path[str(path)] for path in (work, control)), 'WORK_ROOT_ACL_UNAVAILABLE')
+
+
 def connection_options(work, port, database='postgres'):
     require(1024 <= int(port) <= 65535, 'INVALID_PORT')
     return {'host': '127.0.0.1', 'hostaddr': '127.0.0.1', 'port': int(port),
@@ -387,6 +488,8 @@ if __name__ == '__main__':
         dependencies(*map(Path, sys.argv[3:6]))
     elif mode == 'server-dependencies':
         server_dependencies(work, *map(Path, sys.argv[3:5]))
+    elif mode == 'acl-snapshot':
+        acl_snapshot(work, *map(Path, sys.argv[3:6]))
     elif mode == 'sidecar':
         sidecar_guard(work, *map(Path, sys.argv[3:6]))
     elif mode in ('probe', 'stability'):

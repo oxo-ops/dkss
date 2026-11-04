@@ -17,6 +17,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import uuid
 import zipfile
 
 HERE = Path(__file__).resolve().parent
@@ -168,6 +169,79 @@ def native_loader_preflight(pg_bin, baseline, corrected, runtime_dir, evidence):
     return result
 
 
+def restricted_initdb_preflight(build_python, work, pg_archive, pg_bin, pg_env, runtime_dir):
+    """Exercise PostgreSQL's own restricted-token path without creating a DB."""
+    control = Path(tempfile.mkdtemp(prefix='worlex-private-acl-control-',
+                                    dir=os.environ['RUNNER_TEMP'])).resolve(strict=True)
+    require(control.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve()), 'CONTROL_OUTSIDE_RUNNER_TEMP')
+    (control / 'OWNER').write_text('WORLEX_WINDOWS_CLIENT_SYNTHETIC_ONLY')
+    extract_zip(pg_archive, control / 'postgresql')
+    control_bin = control / 'postgresql/pgsql/bin'
+    # Both arms use byte-identical complete official distributions, no DLL graft.
+    original = {path.relative_to(pg_bin.parent).as_posix(): sha(path)
+                for path in pg_bin.parent.rglob('*') if path.is_file()}
+    copied = {path.relative_to(control_bin.parent).as_posix(): sha(path)
+              for path in control_bin.parent.rglob('*') if path.is_file()}
+    require(original == copied, 'RESTRICTED_CONTROL_OFFICIAL_BUNDLE_MISMATCH')
+    output = EVIDENCE / 'dependency-proof.json'
+    run([build_python, HERE / 'windows_client_probe.py', 'acl-snapshot', work,
+         control, runtime_dir, output], env=pg_env)
+    password_file = work / 'show-probe-password.txt'
+    password_file.write_text(PASSWORD, encoding='ascii')
+    result = {'scope': 'native_initdb_restricted_self_reexec_show_only',
+              'official_bundle_bytes_identical': True, 'existing_acls_changed': False,
+              'restricted_token_bypassed': False,
+              'environment_without_path_sha256': hashlib.sha256(json.dumps(
+                  {key: value for key, value in pg_env.items() if key != 'PATH'},
+                  sort_keys=True).encode()).hexdigest(), 'arms': {}}
+    try:
+        for label, directory, binary_dir in (('private_0700_control', control, control_bin),
+                                             ('inherited_acl_candidate', work, pg_bin)):
+            data = directory / 'show-only-absent-data'
+            require(not data.exists(), 'SHOW_PROBE_DATA_ALREADY_EXISTS')
+            environment = dict(pg_env)
+            require(sum(Path(part) == pg_bin for part in pg_env['PATH'].split(os.pathsep)) == 1,
+                    'EXACTLY_ONE_SERVER_BIN_IN_PATH_REQUIRED')
+            environment['PATH'] = os.pathsep.join(
+                str(binary_dir) if Path(part) == pg_bin else part
+                for part in pg_env['PATH'].split(os.pathsep))
+            require('PG_RESTRICT_EXEC' not in environment, 'RESTRICTED_TOKEN_BYPASS_BLOCKED')
+            args = [str(binary_dir / 'initdb.exe'), '--debug', '--show', '-D', str(data), '-U', 'restore_ci',
+                    '--encoding=UTF8', '--locale=C', '--auth-local=scram-sha-256',
+                    '--auth-host=scram-sha-256', '--pwfile', str(password_file)]
+            observation = {'argv': args, 'path': environment['PATH'], 'cwd': str(REPO)}
+            try:
+                process = subprocess.run(args, env=environment, cwd=REPO, timeout=60,
+                                         capture_output=True, text=True)
+                observation.update(returncode=process.returncode,
+                                   ntstatus_hex=hex(process.returncode & 0xffffffff),
+                                   stdout=process.stdout.strip(), stderr=process.stderr.strip())
+            except (OSError, subprocess.TimeoutExpired) as error:
+                observation.update(returncode=None, ntstatus_hex=None, stdout='', stderr='',
+                                   invocation_error_type=type(error).__name__, invocation_error=str(error))
+            absent = not data.exists()
+            observation['data_directory_remains_absent'] = absent
+            result['arms'][label] = observation
+            existing = json.loads(output.read_text(encoding='utf-8'))
+            existing['restricted_initdb_preflight'] = result
+            json_write(output, existing)
+            json_write(EVIDENCE / 'build-proof.json', {'status': 'RESTRICTED_INITDB_PREFLIGHT',
+                                                       'dependency_proof': existing})
+            require(absent, 'SHOW_PROBE_UNEXPECTED_DATA_CREATION')
+        candidate = result['arms']['inherited_acl_candidate']
+        require(candidate['returncode'] == 0 and 'VERSION=18.6' in candidate['stderr'],
+                'RESTRICTED_INITDB_SHOW_PREFLIGHT_FAILED')
+        result['same_run_private_vs_inherited_failure_reproduced'] = (
+            result['arms']['private_0700_control']['ntstatus_hex'] == '0xc0000135')
+        existing = json.loads(output.read_text(encoding='utf-8'))
+        existing['restricted_initdb_preflight'] = result
+        json_write(output, existing)
+        json_write(EVIDENCE / 'build-proof.json', {'status': 'RESTRICTED_INITDB_PREFLIGHT_PASSED',
+                                                   'dependency_proof': existing})
+    finally:
+        password_file.unlink(missing_ok=True)
+
+
 def wheel_files(wheel):
     with zipfile.ZipFile(wheel) as source:
         names = [n for n in source.namelist() if not n.endswith('/')]
@@ -244,8 +318,15 @@ def main():
     lock = json.loads((HERE / 'client-build-inputs.json').read_text())
     require(not EVIDENCE.exists(), 'NEW_EVIDENCE_DIRECTORY_REQUIRED')
     EVIDENCE.mkdir()
-    work = Path(tempfile.mkdtemp(prefix='worlex-source-client-', dir=os.environ['RUNNER_TEMP'])).resolve()
-    require(work.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve()), 'RUNNER_TEMP_ONLY')
+    # Python's Windows mkdir(0700), used by tempfile.mkdtemp, installs a
+    # protected Owner/Admin DACL. PostgreSQL deliberately re-executes initdb
+    # with Administrators disabled. Use a new ordinary inherited-ACL directory
+    # in this disposable CI runner, without changing any existing permissions.
+    runner_temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
+    work = runner_temp / ('worlex-source-client-' + uuid.uuid4().hex)
+    work.mkdir()  # Atomic create; never reuse or relax an existing directory.
+    work = work.resolve(strict=True)
+    require(work.is_relative_to(runner_temp), 'RUNNER_TEMP_ONLY')
     (work / 'OWNER').write_text('WORLEX_WINDOWS_CLIENT_SYNTHETIC_ONLY')
     base = clean_environment()
     base['HOME'] = str(work)
@@ -375,6 +456,7 @@ def main():
          runtime_dir, EVIDENCE / 'dependency-proof.json'], env=base)
     native_loader_preflight(pg_bin, original_pg_env, pg_env, runtime_dir,
                             EVIDENCE / 'dependency-proof.json')
+    restricted_initdb_preflight(build_python, work, pg_archive, pg_bin, pg_env, runtime_dir)
     requirements = work / 'requirements-application.txt'
     requirements.write_text(filtered_requirements(REPO / 'requirements.txt'), encoding='utf-8')
     run([app_python, '-m', 'pip', 'install', '--only-binary=:all:', '--find-links', app_wheels,
