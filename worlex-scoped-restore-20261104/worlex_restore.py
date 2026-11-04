@@ -84,6 +84,31 @@ def copy_digest(path):
  require(not inside,'COPY_NOT_TERMINATED')
  return state.hexdigest()
 
+def render_environment(directory,environ=None):
+ # Keep libpq credentials/service overrides out, while preserving only the
+ # Windows OS paths required by side-by-side assemblies and crypto providers.
+ source=os.environ if environ is None else environ
+ env={'PATH':os.defpath,'HOME':str(directory),'LANG':'C.UTF-8','TZ':'UTC'}
+ for key in ('SYSTEMROOT','WINDIR'):
+  value=next((v for k,v in source.items() if k.upper()==key),None)
+  if value:env[key]=value
+ if os.name=='nt':require(bool(env.get('SYSTEMROOT')),'WINDOWS_SYSTEMROOT_MISSING')
+ return env
+
+def classify_render_failure(stderr):
+ message=(stderr.decode('utf-8',errors='replace') if isinstance(stderr,bytes) else str(stderr or '')).lower()
+ for fragment,code in (
+  ('wsastartup() failed','WINDOWS_SOCKET_PROVIDER_INITIALIZATION_FAILED'),
+  ('could not generate restrict key','RESTRICT_KEY_GENERATION_FAILED'),
+  ('could not open output file','OUTPUT_FILE_ACCESS_FAILED'),
+  ('could not open input file','INPUT_FILE_ACCESS_FAILED'),
+  ('unsupported version','ARCHIVE_VERSION_UNSUPPORTED'),
+  ('could not read from input file','INPUT_FILE_READ_FAILED'),
+  ('could not decompress','ARCHIVE_DECOMPRESSION_FAILED'),
+  ('permission denied','FILE_PERMISSION_DENIED')):
+  if fragment in message:return code
+ return 'UNCLASSIFIED_PROCESS_FAILURE'
+
 def render_archive(archive,pg_restore,directory):
  archive=Path(archive);require(sha(archive.read_bytes())==ARCHIVE_SHA256,'ARCHIVE_HASH_MISMATCH')
  root=Path(directory);dump=root/'dump';dump.mkdir(mode=0o700)
@@ -108,10 +133,11 @@ def render_archive(archive,pg_restore,directory):
    with source, (dump/name).open('xb') as target:target.write(source.read())
  toc=list(dump.rglob('toc.dat'));require(len(toc)==1,'ARCHIVE_TOC_COUNT')
  output=root/'rendered.sql'
- env={'PATH':os.defpath,'HOME':str(root),'LANG':'C.UTF-8','TZ':'UTC'}
+ env=render_environment(root)
  # Explicit binary, no destination argument and no inherited libpq/service settings.
  result=subprocess.run([str(Path(pg_restore).resolve(strict=True)),'--file',str(output),str(toc[0].parent)],env=env,capture_output=True,timeout=90)
- require(result.returncode==0 and output.is_file(),'OFFLINE_RENDER_FAILED')
+ require(result.returncode==0,'OFFLINE_RENDER_FAILED:'+classify_render_failure(result.stderr))
+ require(output.is_file(),'OFFLINE_RENDER_OUTPUT_MISSING')
  return output
 
 def type_family(t):
@@ -177,6 +203,7 @@ def validate_schema(connection,policy,*,building_ci_seal=False):
  signature=digest(structure)
  if not building_ci_seal:
   require(policy.get('postgres_structure_sha256') and policy.get('postgres_acceptance_passed') is True,'POSTGRES_CI_SEAL_REQUIRED')
+  require(policy.get('windows_render_acceptance_passed') is True,'WINDOWS_CI_SEAL_REQUIRED')
   require(policy.get('tested_runner_sha256')==sha(Path(__file__).read_bytes()),'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION')
   require(signature==policy['postgres_structure_sha256'],'POSTGRES_CATALOG_DIFFERS_FROM_TESTED_SCHEMA')
  return tables,signature
@@ -434,6 +461,7 @@ def cli():
  require(url.host==EXPECTED_HOST and url.database==EXPECTED_DATABASE and url.username==EXPECTED_USER and url.port in (None,5432),'NOT_AUTHORIZED_NEW_DATABASE')
  require(set(url.query)<= {'sslmode'} and url.query.get('sslmode','verify-full')=='verify-full','TLS_OR_URL_OVERRIDE_BLOCKED')
  require(policy.get('postgres_structure_sha256') and policy.get('postgres_acceptance_passed') is True,'POSTGRES_CI_SEAL_REQUIRED')
+ require(policy.get('windows_render_acceptance_passed') is True,'WINDOWS_CI_SEAL_REQUIRED')
  require(policy.get('source_manifest_sha256')==SOURCE_MANIFEST_SHA256,'UNREVIEWED_APPLICATION_SOURCE')
  require(policy.get('tested_runner_sha256')==sha(Path(__file__).read_bytes()),'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION')
  if a.action in ('execute','verify'):

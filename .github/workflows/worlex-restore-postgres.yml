@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.12.14'
           cache: pip
       - run: python -m pip install -r requirements.txt
       - name: Mark only the newly owned service container
@@ -55,15 +55,100 @@ jobs:
           mkdir -p restore-evidence
           git rev-parse HEAD > restore-evidence/commit.txt
           python worlex-scoped-restore-20261104/tests/run_acceptance.py 2>&1 | tee restore-evidence/tests.log
+      - name: Create only synthetic Windows directory archive
+        env:
+          POSTGRES_SERVICE_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash worlex-scoped-restore-20261104/tests/windows-ci/make_windows_fixture.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-render-fixture-${{ github.sha }}
+          path: |
+            windows-fixture/synthetic.tar.gz
+            windows-fixture/fixture-manifest.json
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: synthetic-worlex-restore-${{ github.sha }}
+          name: provisional-linux-worlex-${{ github.sha }}
           path: |
             restore-evidence/commit.txt
             restore-evidence/tests.log
             restore-evidence/summary.json
-            restore-evidence/sealed-policy.json
+            restore-evidence/provisional-policy.json
             restore-evidence/tested-code-sha256.json
           if-no-files-found: warn
+          retention-days: 14
+
+  windows-render:
+    needs: restore
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.14'
+      - run: python -m pip install -r worlex-scoped-restore-20261104/requirements-runner.txt
+      - uses: actions/download-artifact@v7
+        with:
+          name: windows-render-fixture-${{ github.sha }}
+          path: windows-fixture
+      - name: Fetch and hash-verify official PostgreSQL 18.6 portable binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://get.enterprisedb.com/postgresql/postgresql-18.6-5-windows-x64-binaries.zip'
+          $expected = 'e2246ba91d22345bc3d017586c09ede52d9df180b1eeb480f050445f1cad84e2'
+          $zip = Join-Path $env:RUNNER_TEMP 'postgresql-18.6-binaries.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $actual = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Official EDB archive SHA256 mismatch' }
+          $dest = Join-Path $env:RUNNER_TEMP 'postgresql-18.6-portable'
+          Expand-Archive -Path $zip -DestinationPath $dest
+          $binary = Join-Path $dest 'pgsql\bin\pg_restore.exe'
+          if (-not (Test-Path $binary)) { throw 'pg_restore.exe absent from official archive' }
+          "WORLEX_PG_RESTORE=$binary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Provenance: official EDB contributor checksum response in issue #746.
+          # No PostgreSQL service is installed and no installer is executed.
+      - name: Reproduce original Windows failure then validate candidate on identical synthetic archive
+        shell: pwsh
+        run: python worlex-scoped-restore-20261104/tests/windows-ci/test_windows_render.py "$env:WORLEX_PG_RESTORE"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-worlex-${{ github.sha }}
+          path: windows-evidence/summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  combined-seal:
+    needs: [restore, windows-render]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.14'
+      - uses: actions/download-artifact@v7
+        with:
+          name: provisional-linux-worlex-${{ github.sha }}
+          path: linux-evidence
+      - uses: actions/download-artifact@v7
+        with:
+          name: windows-worlex-${{ github.sha }}
+          path: windows-evidence
+      - name: Seal only after both mandatory acceptance jobs pass for identical code
+        run: python worlex-scoped-restore-20261104/tests/windows-ci/seal_combined.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: synthetic-worlex-restore-${{ github.sha }}
+          path: combined-evidence/
+          if-no-files-found: error
           retention-days: 14

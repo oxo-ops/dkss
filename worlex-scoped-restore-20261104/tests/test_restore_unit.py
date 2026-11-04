@@ -1,7 +1,7 @@
 """No network or database service needed. Uses synthetic values only."""
 import copy, json, pathlib, tempfile, unittest, decimal
 from sqlalchemy import MetaData, Table, Column, Integer, String, Boolean, Text, BigInteger, SmallInteger, Float, Numeric, DateTime, Date, LargeBinary, ForeignKeyConstraint
-from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q
+from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q, render_environment, classify_render_failure
 
 
 def synthetic_tables():
@@ -33,6 +33,17 @@ def policy_metadata(policy):
  return m.tables
 
 class RestoreGuards(unittest.TestCase):
+ def test_render_environment_preserves_only_windows_runtime_paths(self):
+  value=render_environment('private-directory',{'SystemRoot':r'C:\Windows','windir':r'C:\Windows','PGHOST':'do-not-inherit','PGPASSWORD':'synthetic-secret','WORLEX_NEW_DATABASE_URL':'synthetic-secret','DATABASE_URL':'synthetic-secret','PATH':'untrusted'})
+  self.assertEqual(value['SYSTEMROOT'],r'C:\Windows');self.assertEqual(value['WINDIR'],r'C:\Windows')
+  self.assertEqual(set(value),{'SYSTEMROOT','WINDIR','PATH','HOME','LANG','TZ'})
+  self.assertNotIn('synthetic-secret',str(value))
+ def test_render_failure_classification_never_exposes_raw_details(self):
+  self.assertEqual(classify_render_failure(b'pg_restore: error: could not generate restrict key'), 'RESTRICT_KEY_GENERATION_FAILED')
+  self.assertEqual(classify_render_failure(b'pg_restore: error: WSAStartup() failed: error code 10106'),'WINDOWS_SOCKET_PROVIDER_INITIALIZATION_FAILED')
+  self.assertEqual(classify_render_failure(b'unknown synthetic-sensitive-value'), 'UNCLASSIFIED_PROCESS_FAILURE')
+  self.assertEqual(classify_render_failure(b'could not open output file C:/synthetic-private-name'),'OUTPUT_FILE_ACCESS_FAILED')
+
  def test_full_synthetic_fixture_matches_pinned_schema(self):
   from synthetic_fixture import fixture
   root=pathlib.Path(__file__).resolve().parents[1]

@@ -71,6 +71,7 @@ with app.app_context():
    tables,signature=validate_schema(c,self.policy,building_ci_seal=True)
    self.policy['postgres_structure_sha256']=signature
    self.policy['postgres_acceptance_passed']=True
+   self.policy['windows_render_acceptance_passed']=True
    self.policy['tested_runner_sha256']=hashlib.sha256((PACKAGE/'worlex_restore.py').read_bytes()).hexdigest()
    # Distinct unrelated tenant and very high sequence state prove no rewind.
    c.execute(tables['company'].insert(),{'id':900000,'company_code':'SYNTHETIC_OTHER','company_name':'Synthetic Other','active':True,'vehicle_limit':5})
@@ -109,7 +110,7 @@ with app.app_context():
    new_id=c.scalar(text("INSERT INTO public.vehicle(company_code,chassis_number,deleted) VALUES ('SYNTHETIC_OTHER','SYNTHETIC-NEXT',false) RETURNING id"))
    self.assertGreater(new_id,900000)
   evidence=pathlib.Path(os.environ.get('WORLEX_EVIDENCE_DIR',self.temp.name));evidence.mkdir(exist_ok=True)
-  candidate=copy.deepcopy(self.policy);candidate.pop('postgres_acceptance_passed',None)
+  candidate=copy.deepcopy(self.policy);candidate.pop('postgres_acceptance_passed',None);candidate.pop('windows_render_acceptance_passed',None)
   (evidence/'candidate-policy.json').write_text(json.dumps(candidate,indent=2,sort_keys=True))
  def test_read_only_reconciliation_and_modified_payload_rejected(self):
   self.restore()
@@ -143,8 +144,10 @@ with app.app_context():
   with self.engine.begin() as c:c.exec_driver_sql('DROP INDEX public.uq_office_company_name')
   with self.assertRaisesRegex(Stop,'CATALOG_DIFFERS'):self.restore()
  def test_unsealed_policy_is_rejected(self):
-  del self.policy['postgres_structure_sha256']
-  with self.assertRaisesRegex(Stop,'POSTGRES_CI_SEAL_REQUIRED'):self.restore()
+  for key in ('postgres_structure_sha256','windows_render_acceptance_passed'):
+   previous=self.policy.pop(key)
+   with self.subTest(key=key),self.assertRaisesRegex(Stop,'CI_SEAL_REQUIRED'):self.restore()
+   self.policy[key]=previous
  def test_real_synthetic_login_and_primary_pages(self):
   self.restore()
   sys.path.insert(0,str(APP))
