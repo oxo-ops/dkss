@@ -133,7 +133,7 @@ class ClientRuntimeTests(unittest.TestCase):
              patch.object(guard.sys,'base_prefix',str(base)),patch.object(guard.ssl._ssl,'__file__',str(base/'_ssl.pyd'),create=True), \
              patch.object(guard,'windows_loaded_modules',return_value=modules), \
              patch.object(guard,'ssl_provider_shape',return_value={'kind':'extension'}), \
-             patch.object(guard,'windows_system_directory',return_value=self.root/'system32'), \
+             patch.object(guard,'windows_system_directory',return_value=(self.root/'system32').resolve()), \
              patch.object(guard,'loaded_file_version',return_value='synthetic'):
             return guard.runtime_tls_evidence()
     def test_actual_runtime_module_observation_contract(self):

@@ -267,8 +267,6 @@ def configure(environment):
         run(['cp', str(source), container + ':' + target])
         run(['exec', '--user', '0', container, 'chown', 'postgres:postgres', target])
         run(['exec', '--user', '0', container, 'chmod', '600', target])
-    require(psql(container, 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL') == '0',
-            'SYNTHETIC_TLS_HBA_INVALID')
     for setting, value in (('ssl_cert_file', destination + '/server.crt'),
                            ('ssl_key_file', destination + '/server.key'),
                            ('ssl_min_protocol_version', 'TLSv1.2'), ('ssl', 'on')):
@@ -285,6 +283,10 @@ def configure(environment):
             break
         require(time.monotonic() < deadline, 'SERVICE_TLS_RELOAD_NOT_APPLIED')
         time.sleep(0.2)
+    # hostssl rules are reported as errors while SSL is disabled. Keep this
+    # guard after the reload is confirmed, before any client proof or marker.
+    require(psql(container, 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL') == '0',
+            'SYNTHETIC_TLS_HBA_INVALID')
     prove_tls(port, ca_file)
     # Recheck emptiness immediately before writing the only database marker.
     validate_database(json.loads(psql(container, DATABASE_FACTS_SQL)))

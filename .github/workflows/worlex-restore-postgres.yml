@@ -73,6 +73,7 @@ jobs:
             restore-evidence/commit.txt
             restore-evidence/tests.log
             restore-evidence/summary.json
+            restore-evidence/schema-init-failure-*.json
             restore-evidence/full-fixture-coverage.json
             restore-evidence/disconnect-before-commit.json
             restore-evidence/disconnect-after-commit.json
@@ -152,6 +153,7 @@ jobs:
           path: |
             windows-client-evidence/commit.txt
             windows-client-evidence/summary.json
+            windows-client-evidence/schema-init-failure-*.json
             windows-client-evidence/provisional-policy.json
             windows-client-evidence/tested-code-sha256.json
             windows-client-evidence/full-fixture-coverage.json

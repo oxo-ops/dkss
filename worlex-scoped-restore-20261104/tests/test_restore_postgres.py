@@ -1,7 +1,7 @@
 """Synthetic PG18 acceptance, restricted to the workflow-owned service container.
 Never reads an archive and never accepts a production connection.
 """
-import copy, hashlib, json, os, pathlib, re, secrets, ssl, subprocess, sys, tempfile, unittest, uuid
+import copy, hashlib, json, math, os, pathlib, re, secrets, ssl, subprocess, sys, tempfile, time, unittest, uuid
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from sqlalchemy import create_engine, text, select, func
@@ -51,6 +51,111 @@ def assert_pg8000_tls(connection):
      or not sock.context.check_hostname or sock.server_hostname!='127.0.0.1'
      or not sock.getpeercert() or sock.version() not in ('TLSv1.2','TLSv1.3')):
   raise Stop('CI_PG8000_TLS_NOT_VERIFIED')
+
+# CI-only diagnostics: fixed labels and numeric facts, never exception messages,
+# SQL text/parameters, environment values, stdout/stderr or absolute paths.
+SCHEMA_DIAGNOSTIC_PREFIX='WORLEX_CI_SCHEMA_INIT_V1='
+SCHEMA_PHASES=('bootstrap_import','imports','create_app','tls_precheck','init_db','driving_access','coupling_schema','complete')
+SCHEMA_FRAME_FILES=frozenset(('__init__.py','core.py','base.py','default.py','session.py','schema.py','connection.py','socket.py','ssl.py','subprocess.py','test_restore_postgres.py','client_connection.py','legacy.py','extensions.py','driving_access.py','vehicle_couplings.py','cli.py','commands.py'))
+SCHEMA_FRAME_FUNCTIONS=frozenset(('create_app','initialize_database','init_db','init_db_command','initialize_driving_access','initialize_coupling_schema','invoke','main','connect','_connect','execute','_execute','_execute_context','_exec_single_context','_handle_dbapi_exception','cursor','commit','rollback','_read','_read_int','_flush','handle_messages','handle_ERROR_RESPONSE','recv','recv_into','read','do_handshake','wrap_socket','assert_pg8000_tls','verify_tls_connection','run_ci_schema_initialization','emit','other'))
+SCHEMA_ERROR_TYPES=frozenset(('OtherException','Exception','SystemExit','AssertionError','ImportError','ModuleNotFoundError','FileNotFoundError','PermissionError','UnicodeEncodeError','UnicodeDecodeError','TimeoutError','OSError','MemoryError','RuntimeError','ValueError','TypeError','KeyError','NotImplementedError','OperationalError','InterfaceError','ProgrammingError','IntegrityError','InternalError','DatabaseError','DataError','InvalidRequestError','StatementError','DisconnectionError','PendingRollbackError','SSLError','SSLCertVerificationError','ConnectionResetError','ConnectionAbortedError','BrokenPipeError','Stop'))
+
+def schema_exception_chain(error):
+ from client_connection import sqlstate
+ result=[];seen=set()
+ while error is not None and id(error) not in seen and len(result)<6:
+  seen.add(id(error));name=type(error).__name__;frames=[];tb=error.__traceback__
+  while tb is not None:
+   code=tb.tb_frame.f_code;filename=code.co_filename.replace('\\','/').rsplit('/',1)[-1]
+   filename=filename if filename in SCHEMA_FRAME_FILES else 'other'
+   function=code.co_name if code.co_name in SCHEMA_FRAME_FUNCTIONS else 'other'
+   frames.append({'file':filename,'function':function,'line':tb.tb_lineno});tb=tb.tb_next
+  item={'type':name if name in SCHEMA_ERROR_TYPES else 'OtherException','sqlstate':sqlstate(error),'frames':frames[-8:]}
+  for key in ('errno','winerror'):
+   value=getattr(error,key,None);item[key]=value if type(value) is int and -(2**31)<=value<2**32 else None
+  result.append(item)
+  original=getattr(error,'orig',None)
+  error=original if isinstance(original,BaseException) and original is not error else error.__cause__ or error.__context__
+ return result
+
+def run_ci_schema_initialization():
+ start=time.monotonic();cpu_start=time.process_time();phase='imports'
+ def emit(status,error=None):
+  value={'version':1,'phase':phase,'status':status,'elapsed_seconds':round(time.monotonic()-start,6),'cpu_seconds':round(time.process_time()-cpu_start,6),'exception_chain':schema_exception_chain(error) if error is not None else []}
+  print(SCHEMA_DIAGNOSTIC_PREFIX+json.dumps(value,sort_keys=True,allow_nan=False),flush=True)
+ try:
+  emit('started')
+  from dkss_app import create_app
+  from dkss_app.extensions import db
+  from dkss_app.driving_access import initialize_driving_access
+  from dkss_app.vehicle_couplings import initialize_coupling_schema
+  phase='create_app';emit('started')
+  app=create_app(ci_app_config(os.environ['DATABASE_URL'],os.environ['WORLEX_TEST_CA_FILE']),initialize_database=False)
+  with app.app_context():
+   phase='tls_precheck';emit('started')
+   with db.engine.connect() as connection:assert_pg8000_tls(connection)
+   phase='init_db';emit('started')
+   result=app.test_cli_runner().invoke(args=['init-db'])
+   if result.exit_code:raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
+   phase='driving_access';emit('started');initialize_driving_access(app)
+   phase='coupling_schema';emit('started');initialize_coupling_schema(app)
+  phase='complete';emit('passed')
+ except BaseException as error:
+  emit('failed',error)
+  raise SystemExit(1) from None
+
+def parse_schema_diagnostic(output):
+ if isinstance(output,bytes):output=output.decode('utf-8',errors='replace')
+ if not isinstance(output,str):return None
+ def unique(pairs):
+  result={}
+  for key,value in pairs:
+   if key in result:raise ValueError('DUPLICATE_DIAGNOSTIC_KEY')
+   result[key]=value
+  return result
+ def invalid_constant(_):raise ValueError('NONFINITE_DIAGNOSTIC_VALUE')
+ for line in reversed(output[-65536:].splitlines()):
+  if not line.startswith(SCHEMA_DIAGNOSTIC_PREFIX) or len(line)>16384:continue
+  try:
+   value=json.loads(line[len(SCHEMA_DIAGNOSTIC_PREFIX):],object_pairs_hook=unique,parse_constant=invalid_constant)
+   if not isinstance(value,dict) or set(value)!={'version','phase','status','elapsed_seconds','cpu_seconds','exception_chain'}:continue
+   if type(value['version']) is not int or value['version']!=1 or value['phase'] not in SCHEMA_PHASES or value['status'] not in ('started','failed','passed'):continue
+   if any(type(value[k]) not in (int,float) or not math.isfinite(value[k]) or not 0<=value[k]<=600 for k in ('elapsed_seconds','cpu_seconds')):continue
+   chain=value['exception_chain']
+   if not isinstance(chain,list) or len(chain)>6 or (value['status']=='failed' and not chain):continue
+   valid=True
+   for item in chain:
+    if not isinstance(item,dict) or set(item)!={'type','sqlstate','errno','winerror','frames'} or item['type'] not in SCHEMA_ERROR_TYPES:valid=False;break
+    if item['sqlstate'] is not None and (not isinstance(item['sqlstate'],str) or not re.fullmatch('[0-9A-Z]{5}',item['sqlstate'])):valid=False;break
+    if any(item[k] is not None and (type(item[k]) is not int or not -(2**31)<=item[k]<2**32) for k in ('errno','winerror')):valid=False;break
+    frames=item['frames']
+    if not isinstance(frames,list) or len(frames)>8:valid=False;break
+    for frame in frames:
+     if not isinstance(frame,dict) or set(frame)!={'file','function','line'}:valid=False;break
+     if (frame['file'] not in SCHEMA_FRAME_FILES|{'other'} or frame['function'] not in SCHEMA_FRAME_FUNCTIONS or type(frame['line']) is not int or not 1<=frame['line']<=1000000):valid=False;break
+   if valid:return value
+  except (TypeError,ValueError,KeyError,AttributeError):continue
+ return None
+
+def schema_failure_evidence(result,elapsed,error=None):
+ output=getattr(result,'stdout',None) if result is not None else getattr(error,'stdout',None)
+ status='timed_out' if isinstance(error,subprocess.TimeoutExpired) else 'output_decode_failed' if isinstance(error,UnicodeError) else 'launch_failed' if error is not None else 'child_failed'
+ code=getattr(result,'returncode',None)
+ return {'synthetic_only':True,'status':status,'returncode':code if type(code) is int else None,'elapsed_seconds':round(elapsed,6),'child':parse_schema_diagnostic(output),'launch_exception_chain':schema_exception_chain(error) if error is not None else [],'raw_output_included':False,'retried':False}
+
+def report_schema_failure(value,test_name):
+ if not re.fullmatch('test_[a-z0-9_]{1,120}',test_name):raise Stop('INVALID_SYNTHETIC_TEST_NAME')
+ report=dict(value,evidence_saved=False)
+ destination=os.environ.get('WORLEX_EVIDENCE_DIR')
+ if destination:
+  path=pathlib.Path(destination)/('schema-init-failure-'+test_name+'.json')
+  saved=dict(value,evidence_saved=True)
+  try:
+   with path.open('x',encoding='utf-8') as handle:json.dump(saved,handle,indent=2,sort_keys=True,allow_nan=False)
+  except OSError:pass  # Preserve the original safe failure; never expose write errors.
+  else:report=saved
+ return 'Synthetic schema initialization failed: '+json.dumps(report,sort_keys=True,allow_nan=False)
+
 
 class ServiceGuardTests(unittest.TestCase):
  def test_dedicated_service_and_rejections(self):
@@ -143,22 +248,17 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   if os.name=='nt':
    env['PATH']=str(pathlib.Path(sys.executable).parent)+os.pathsep+str(pathlib.Path(env['SYSTEMROOT'])/'System32')
   self.env=env
-  setup="""import os
-from test_restore_postgres import ci_app_config, assert_pg8000_tls
-from dkss_app import create_app
-from dkss_app.extensions import db
-from dkss_app.driving_access import initialize_driving_access
-from dkss_app.vehicle_couplings import initialize_coupling_schema
-app=create_app(ci_app_config(os.environ['DATABASE_URL'],os.environ['WORLEX_TEST_CA_FILE']),initialize_database=False)
-with app.app_context():
- with db.engine.connect() as connection:assert_pg8000_tls(connection)
- result=app.test_cli_runner().invoke(args=['init-db'])
- if result.exit_code: raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
- initialize_driving_access(app)
- initialize_coupling_schema(app)
-"""
-  result=subprocess.run([sys.executable,'-c',setup],cwd=APP,env=env,capture_output=True,text=True,timeout=180)
-  self.assertEqual(result.returncode,0,'Synthetic schema initialization failed; output intentionally not logged')
+  bootstrap_event={'version':1,'phase':'bootstrap_import','status':'started','elapsed_seconds':0,'cpu_seconds':0,'exception_chain':[]}
+  setup=("import json\nprint("+repr(SCHEMA_DIAGNOSTIC_PREFIX)+"+json.dumps("+repr(bootstrap_event)+"),flush=True)\nfrom test_restore_postgres import run_ci_schema_initialization; run_ci_schema_initialization()")
+  started=time.monotonic()
+  try:
+   result=subprocess.run([sys.executable,'-c',setup],cwd=APP,env=env,capture_output=True,text=True,timeout=180)
+  except (OSError,subprocess.TimeoutExpired,UnicodeError) as error:
+   evidence=schema_failure_evidence(None,time.monotonic()-started,error)
+   self.fail(report_schema_failure(evidence,self._testMethodName))
+  if result.returncode:
+   evidence=schema_failure_evidence(result,time.monotonic()-started)
+   self.fail(report_schema_failure(evidence,self._testMethodName))
   self.policy=copy.deepcopy(self.base_policy)
   with self.engine.begin() as c:
    tables,signature=validate_schema(c,self.policy,building_ci_seal=True)
