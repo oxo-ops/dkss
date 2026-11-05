@@ -5,7 +5,7 @@ import shutil
 import subprocess
 
 from verify_client_evidence import (artifact_path, safe_relative, sha, validate_client,
-                                    validate_imported_modules, validate_ssl_runtime)
+                                    validate_imported_modules, validate_ssl_runtime, validate_restore_scope)
 
 
 def require(value, message):
@@ -48,13 +48,14 @@ def main():
             'Acceptance commit mismatch')
     acceptance = policy['acceptance_summary']
     require(acceptance.get('postgres_required') is True and type(acceptance.get('expected')) is int and
-            acceptance['expected'] >= 93, 'Mandatory PostgreSQL suite absent')
+            acceptance['expected'] >= 103, 'Mandatory PostgreSQL suite absent')
     require(acceptance.get('run') == acceptance['expected'] and all(type(acceptance.get(key)) is int and
             acceptance[key] == 0 for key in ('failures', 'errors', 'skipped')), 'Linux tests incomplete')
     require(read_json(linux / 'summary.json') == acceptance, 'Standalone Linux summary differs')
     require(read_json(linux / 'tested-code-sha256.json') == policy['tested_artifacts'],
             'Standalone Linux code map differs')
     coverage = read_json(linux / 'full-fixture-coverage.json')
+    validate_restore_scope(coverage, read_json(root / 'source-counts.json'))
     require(coverage == policy.get('full_table_acceptance'), 'Full-table evidence differs from Linux policy')
     require(coverage.get('synthetic_only') is True and coverage.get('source_rows') == 4100 and
             coverage.get('populated_tables') == 37, 'Full 37-table synthetic fixture missing')
@@ -67,6 +68,7 @@ def main():
     require(policy.get('disconnect_acceptance') == {'before_commit': before, 'after_commit': after},
             'Disconnect evidence differs from Linux policy')
     for item in (before, after):
+        validate_restore_scope(item, read_json(root / 'source-counts.json'))
         require(item.get('synthetic_only') is True and item.get('source_rows') == 4100 and
                 item.get('populated_tables') == 37, 'Full-table disconnect evidence missing')
     require(all(before.get(key) is True for key in ('actual_connection_closed_before_commit',

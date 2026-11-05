@@ -19,7 +19,7 @@ from sqlalchemy import Column, String, create_engine, func, inspect, select, tex
 import test_restore_postgres as postgres
 from synthetic_fixture import fixture
 from test_restore_unit import policy_metadata
-from worlex_restore import LOGICAL_REFS, RETIRED, Stop, apply_push_map, canonical, read_copy, typed_payload
+from worlex_restore import LOGICAL_REFS, RETIRED, Stop, defer_push_subscription, DEFERRED_SOURCE_ROWS, canonical, read_copy, typed_payload
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SOURCE_TABLES = 62
@@ -273,7 +273,15 @@ class FullSyntheticFixtureCoverage(unittest.TestCase):
                     for row in rows:
                         stream.write('\t'.join(encode(row[col]) for col in cols) + '\n')
                     stream.write('\\.\n')
+            before_bytes = path.read_bytes()
             data, columns = read_copy(path)
+            imported, _ = typed_payload(data, columns, self.tables, self.expected)
+            defer_push_subscription(imported, DEFERRED_SOURCE_ROWS)
+            self.assertEqual(sum(map(len, imported.values())), 4099)
+            self.assertEqual(path.read_bytes(), before_bytes)
+            retained, _ = read_copy(path)
+            self.assertEqual(sum(map(len, retained.values())), 4100)
+            self.assertEqual(retained['push_subscription'], self.data['push_subscription'])
         self.assertEqual(data, self.data)
         typed, order = typed_payload(data, columns, self.tables, self.expected)
         self.assertEqual(order, self.order)
@@ -286,19 +294,23 @@ class FullSyntheticFixtureCoverage(unittest.TestCase):
         metadata = tables['vehicle'].metadata
         engine = create_engine('sqlite+pysqlite:///:memory:')
         self.addCleanup(engine.dispose)
+        imported = copy.deepcopy(self.typed)
+        defer_push_subscription(imported, DEFERRED_SOURCE_ROWS)
+        import_counts = dict(self.expected, push_subscription=0)
         with engine.begin() as connection:
             connection.exec_driver_sql('PRAGMA foreign_keys=ON')
             self.assertEqual(connection.exec_driver_sql('PRAGMA foreign_keys').scalar_one(), 1)
             metadata.create_all(connection)
             for name in self.order:
-                connection.execute(tables[name].insert(), self.typed[name])
+                if imported[name]:
+                    connection.execute(tables[name].insert(), imported[name])
             self.assertEqual(connection.exec_driver_sql('PRAGMA foreign_key_check').all(), [])
             for name in self.expected:
                 with self.subTest(table=name):
-                    self.assertEqual(connection.scalar(select(func.count()).select_from(tables[name])), self.expected[name])
+                    self.assertEqual(connection.scalar(select(func.count()).select_from(tables[name])), import_counts[name])
                     pk = self.policy['tables'][name]['pk']
                     actual = connection.execute(select(tables[name]).order_by(*[tables[name].c[col] for col in pk])).mappings().all()
-                    expected = sorted(self.typed[name], key=lambda row: tuple(row[col] for col in pk))
+                    expected = sorted(imported[name], key=lambda row: tuple(row[col] for col in pk))
                     self.assertEqual(canonical([dict(row) for row in actual]), canonical(expected))
 
 
@@ -314,23 +326,35 @@ def assert_full_postgres_coverage(case):
     case.approve_current()
     with case.engine.connect() as connection:
         case.assertEqual(connection.scalar(select(func.count()).select_from(case.tables['audit_log'])), 2)
-    case.assertEqual(case.approved['push_subscription_id_remap'], {'1': 2})
+    case.assertEqual(case.approved['deferred_source_rows'], DEFERRED_SOURCE_ROWS)
+    source_before = copy.deepcopy(case.data)
+    with case.engine.connect() as connection:
+        push_sequence_before = postgres.sequence_states(connection, case.tables)[('push_subscription', 'id')]
     result = case.restore()
     case.assertEqual(result['status'], 'TRANSACTION_VERIFIED')
     verified = case.verify_current()
-    case.assertTrue(verified['all_source_values_and_blobs_match'])
+    case.assertTrue(verified['imported_values_and_blobs_match'])
     case.assertTrue(verified['non_worlex_and_global_rows_unchanged'])
     coverage = {
         'synthetic_only': True,
         'source_rows': EXPECTED_ROWS,
         'populated_tables': EXPECTED_POPULATED_TABLES,
+        'populated_tables_meaning': 'source',
         'source_counts': expected,
         'imported_values_and_blobs_match': True,
         'preserved_rows_match': True,
         'owner_bindings_quarantined': True,
         'existing_audit_rows_preserved': 2,
         'preserved_worlex_audit_rows': verified['preserved_worlex_audit_rows'],
-        'push_subscription_ids_remapped': verified['push_subscription_ids_remapped'],
+        'source_tables': 37,
+        'imported_rows': 4099,
+        'imported_tables': 36,
+        'deferred_rows': 1,
+        'deferred_source_rows': {'push_subscription': [1]},
+        'import_counts': dict(expected, push_subscription=0),
+        'deferred_source_fixture_retained': True,
+        'push_subscription_rows_unchanged': verified['push_subscription_rows_unchanged'],
+        'push_subscription_sequence_unchanged': verified['push_subscription_sequence_unchanged'],
         'primary_key_tables_checked': 0,
         'foreign_key_constraints_checked': 0,
         'foreign_key_nonnull_values_checked': 0,
@@ -345,9 +369,11 @@ def assert_full_postgres_coverage(case):
         tables, _ = postgres.validate_schema(connection, case.policy)
         typed, _ = typed_payload(case.data, case.columns, tables, expected,
                                  generated=case.approved['generated_identifiers'])
-        apply_push_map(typed, case.approved['push_subscription_id_remap'])
+        defer_push_subscription(typed, case.approved['deferred_source_rows'])
+        case.assertEqual(postgres.sequence_states(connection, tables)[('push_subscription', 'id')], push_sequence_before)
+        case.assertEqual(case.data, source_before)
         inspector = inspect(connection)
-        for name, count in expected.items():
+        for name, count in coverage['import_counts'].items():
             with case.subTest(table=name):
                 table = tables[name]
                 rows = connection.execute(select(table).where(table.c.company_code == 'WORLEX')).mappings().all()
@@ -396,10 +422,11 @@ def assert_full_postgres_coverage(case):
                     coverage['foreign_key_nonnull_values_checked'] += sum(all(value is not None for value in key) for key in keys)
         push = tables['push_subscription']
         case.assertEqual(dict(connection.execute(select(push).where(push.c.id == 1)).mappings().one()), preserved_push)
-    case.assertEqual(coverage['primary_key_tables_checked'], EXPECTED_POPULATED_TABLES)
+    case.assertEqual(coverage['primary_key_tables_checked'], 36)
     case.assertEqual(coverage['blob_rows_checked'], 24)
     case.assertEqual(coverage['preserved_worlex_audit_rows'], 1)
-    case.assertEqual(coverage['push_subscription_ids_remapped'], 1)
+    case.assertTrue(coverage['push_subscription_rows_unchanged'])
+    case.assertTrue(coverage['push_subscription_sequence_unchanged'])
     case.assertGreater(coverage['unique_constraints_and_indexes_checked'], 0)
     case.assertGreater(coverage['foreign_key_constraints_checked'], 0)
     case.assertGreater(coverage['owner_fields_checked'], 0)

@@ -1,7 +1,7 @@
 """No network or database service needed. Uses synthetic values only."""
 import copy, json, pathlib, tempfile, unittest, decimal
 from sqlalchemy import MetaData, Table, Column, Integer, String, Boolean, Text, BigInteger, SmallInteger, Float, Numeric, DateTime, Date, LargeBinary, ForeignKeyConstraint
-from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q, render_environment, classify_render_failure, collision_id_map, apply_push_map
+from worlex_restore import Stop, decode_copy, read_copy, typed_payload, digest, q, render_environment, classify_render_failure, defer_push_subscription, DEFERRED_SOURCE_ROWS, require_push_sequence_unchanged
 
 
 def synthetic_tables():
@@ -33,20 +33,44 @@ def policy_metadata(policy):
  return m.tables
 
 class RestoreGuards(unittest.TestCase):
- def test_push_map_moves_only_collisions_above_all_reserved_ids(self):
-  self.assertEqual(collision_id_map([1,2,423],[1,2,900000]),{'1':900001,'2':900002})
-  self.assertEqual(collision_id_map([1,2,423],[]),{})
-  self.assertEqual(collision_id_map([1,2],[3]),{})
- def test_push_map_rejects_duplicate_or_invalid_ids_and_exhaustion(self):
-  for source,existing in [([1,1],[]),([0],[]),(['1'],[]),([1],[0]),([1],[1,2147483647])]:
-   with self.subTest(source=source,existing=existing),self.assertRaises(Stop):collision_id_map(source,existing)
- def test_only_imported_push_id_changes_and_source_fields_stay_intact(self):
-  typed={'push_subscription':[{'id':1,'detail':'synthetic historical detail','actor_identity':None},{'id':2,'detail':'synthetic second detail'}],'vehicle':[{'id':1}]}
-  before=copy.deepcopy(typed);apply_push_map(typed,{'1':424})
-  self.assertEqual(typed['push_subscription'][0],dict(before['push_subscription'][0],id=424))
-  self.assertEqual(typed['push_subscription'][1],before['push_subscription'][1]);self.assertEqual(typed['vehicle'],before['vehicle'])
-  for mapping in [{'01':424},{'3':424},{'1':2},{'1':424,'2':424},{'1':2147483648}]:
-   with self.subTest(mapping=mapping),self.assertRaises(Stop):apply_push_map(copy.deepcopy(before),mapping)
+ def test_exactly_one_push_row_is_deferred_without_mutating_source(self):
+  from synthetic_fixture import fixture
+  root=pathlib.Path(__file__).resolve().parents[1]
+  policy=json.loads((root/'policy.json').read_text());counts=json.loads((root/'source-counts.json').read_text())
+  data,cols,_=fixture(policy,counts);source=copy.deepcopy(data)
+  typed,_=typed_payload(data,cols,policy_metadata(policy),counts)
+  before=copy.deepcopy(typed)
+  self.assertEqual(DEFERRED_SOURCE_ROWS,{'push_subscription':[1]})
+  defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
+  self.assertEqual(typed['push_subscription'],[])
+  self.assertEqual({k:v for k,v in typed.items() if k!='push_subscription'},{k:v for k,v in before.items() if k!='push_subscription'})
+  self.assertEqual(data,source);self.assertEqual(sum(map(len,data.values())),4100)
+  self.assertEqual(sum(map(len,typed.values())),4099)
+  self.assertEqual(sum(bool(v) for v in typed.values()),36)
+ def test_deferred_mapping_rejects_other_tables_ids_counts_and_types(self):
+  row={'id':1,'company_code':'WORLEX','owner_identity':None,'endpoint':'https://synthetic-backup.invalid/push'}
+  for mapping in [{},{'audit_log':[1]},{'push_subscription':[]},{'push_subscription':[2]},{'push_subscription':[1,2]},{'push_subscription':['1']},{'push_subscription':[True]},{'push_subscription':[1],'audit_log':[1]}]:
+   typed={'push_subscription':[copy.deepcopy(row)]};before=copy.deepcopy(typed)
+   with self.subTest(mapping=mapping),self.assertRaises(Stop):defer_push_subscription(typed,mapping)
+   self.assertEqual(typed,before)
+ def test_deferred_source_requires_one_id_one_tenant_and_unbound_owner(self):
+  row={'id':1,'company_code':'WORLEX','owner_identity':None}
+  for rows in [[],[row,row],[dict(row,id=2)],[dict(row,id=True)],[dict(row,company_code='ITC')],[dict(row,owner_identity='synthetic-owner')]]:
+   typed={'push_subscription':copy.deepcopy(rows)};before=copy.deepcopy(typed)
+   with self.subTest(rows=rows),self.assertRaises(Stop):defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
+   self.assertEqual(typed,before)
+  sequence={'qualified':'"public"."push_subscription_id_seq"','last':1,'called':False,'next':1,'max':2147483647,'log_cnt':0,
+            'catalog':{'schema':'public','name':'push_subscription_id_seq','oid':1234,'owner':10,'acl':None,'type_oid':23,'start':1,'increment':1,'min':1,'max':2147483647,'cache':1,'cycle':False,'ownership':[[2345,1,'a']],'persistence':'p','options':None,'tablespace':0,'filenode':1234}}
+  baseline={'push_subscription.id':copy.deepcopy(sequence)}
+  require_push_sequence_unchanged({('push_subscription','id'):copy.deepcopy(sequence)},baseline,'SYNTHETIC_PUSH_SEQUENCE_CHANGED')
+  for path in [(key,) for key in sequence if key!='catalog']+ [('catalog',key) for key in sequence['catalog']]:
+   changed=copy.deepcopy(sequence);target=changed
+   for key in path[:-1]:target=target[key]
+   value=target[path[-1]]
+   target[path[-1]]=not value if isinstance(value,bool) else value+1 if isinstance(value,int) else value+'-changed' if isinstance(value,str) else [[2345,2,'a']] if path[-1]=='ownership' else ['synthetic-changed']
+   with self.subTest(sequence_field='.'.join(path)),self.assertRaisesRegex(Stop,'SYNTHETIC_PUSH_SEQUENCE_CHANGED'):
+    require_push_sequence_unchanged({('push_subscription','id'):changed},baseline,'SYNTHETIC_PUSH_SEQUENCE_CHANGED')
+  self.assertEqual(baseline['push_subscription.id'],sequence)
 
  def test_render_environment_preserves_only_windows_runtime_paths(self):
   value=render_environment('private-directory',{'SystemRoot':r'C:\Windows','windir':r'C:\Windows','PGHOST':'do-not-inherit','PGPASSWORD':'synthetic-secret','WORLEX_NEW_DATABASE_URL':'synthetic-secret','DATABASE_URL':'synthetic-secret','PATH':'untrusted'})

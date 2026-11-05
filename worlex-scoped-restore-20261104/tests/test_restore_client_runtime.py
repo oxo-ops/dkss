@@ -37,7 +37,16 @@ class ClientRuntimeTests(unittest.TestCase):
         self.runtime = {'python_version':'3.12.14','python_executable':'synthetic', 'base_prefix':'synthetic',
                         'openssl_version':{'text':'synthetic','number':1},
                         'loaded_modules':[{'name':'synthetic'}], 'no_psycopg_or_libpq_loaded':True,'ssl_provider':{'kind':'extension'},'openssl_linkage':'dynamic'}
+    def scope(self):
+        counts = json.loads((ROOT/'source-counts.json').read_text())
+        return dict(source_rows=4100, source_tables=37, imported_rows=4099, imported_tables=36,
+                    deferred_rows=1, deferred_source_rows={'push_subscription':[1]},
+                    source_counts=counts, import_counts=dict(counts,push_subscription=0),
+                    populated_tables=37, populated_tables_meaning='source', synthetic_only=True,
+                    deferred_source_fixture_retained=True, push_subscription_rows_unchanged=True,
+                    push_subscription_sequence_unchanged=True)
     def policy(self):
+        (self.root/'source-counts.json').write_bytes((ROOT/'source-counts.json').read_bytes())
         for name in ('worlex_restore.py','client_runtime_guard.py','client_bootstrap.py','client_connection.py'):
             (self.root/name).write_bytes(('fixture '+name).encode())
         before = {k:True for k in ('actual_connection_closed_before_commit','all_imports_absent',
@@ -46,18 +55,57 @@ class ClientRuntimeTests(unittest.TestCase):
         after = {k:True for k in ('real_commit_then_client_error','fresh_readonly_verification_matches',
             'preserved_rows_match','replay_guard_rejected_before_insert','sequences_unchanged_by_replay')}
         after.update(synthetic_only=True,source_rows=4100,populated_tables=37,network_packet_loss_reproduced=False)
+        before.update(self.scope()); after.update(self.scope())
         self.profile.update(actual_windows=True,candidate_commit='a'*40,
             runner_sha256=guard.sha(self.root/'worlex_restore.py'),
             guard_sha256=guard.sha(self.root/'client_runtime_guard.py'),
             bootstrap_sha256=guard.sha(self.root/'client_bootstrap.py'),
             connection_helper_sha256=guard.sha(self.root/'client_connection.py'),
-            acceptance_summary={'postgres_required':True,'run':93,'expected':93,'errors':0,'failures':0,'skipped':0},
+            acceptance_summary={'postgres_required':True,'run':103,'expected':103,'errors':0,'failures':0,'skipped':0},
             tls_acceptance={k:True for k in ('verify_full_used','wrong_root_rejected','wrong_hostname_rejected','plaintext_server_rejected','tls_read_timeout_rejected')},
-            full_table_acceptance={'source_rows':4100,'populated_tables':37,'synthetic_only':True,
+            full_table_acceptance={**self.scope(),
                                   'imported_values_and_blobs_match':True,'preserved_rows_match':True,'owner_bindings_quarantined':True},
             disconnect_acceptance={'before_commit':before,'after_commit':after},ssl_runtime=self.runtime)
         self.profile['tls_acceptance']['read_timeout_control']={'socket_timeout_seconds':5,'connect_attempts':1,'startup_received':True,'password_message_sent':False,'authentication_response_sent':False,'actual_exception_type':'TimeoutError','elapsed_seconds':5.1}
         return {'windows_client_acceptance_passed':True,'tested_commit':'a'*40,'windows_client_acceptance':self.profile}
+    def test_deferred_scope_rejects_old_import_and_wrong_deferred_identity(self):
+        for change in ({'imported_rows':4100}, {'deferred_rows':0}, {'imported_tables':37},
+                       {'deferred_source_rows':{'push_subscription':[2]}},
+                       {'deferred_source_rows':{'audit_log':[1]}}, {'deferred_source_rows':{'push_subscription':[True]}},
+                       {'populated_tables_meaning':'imported'}):
+            policy=self.policy(); self.profile['full_table_acceptance'].update(change)
+            with self.subTest(change=change),self.assertRaises(guard.ClientStop):
+                guard.policy_profile(self.root,policy)
+    def test_push_preservation_required_in_every_runtime_proof(self):
+        for target in ('full_table_acceptance','before_commit','after_commit'):
+            for key in ('deferred_source_fixture_retained','push_subscription_rows_unchanged','push_subscription_sequence_unchanged'):
+                policy=self.policy()
+                item=self.profile[target] if target=='full_table_acceptance' else self.profile['disconnect_acceptance'][target]
+                del item[key]
+                with self.subTest(target=target,key=key),self.assertRaises(guard.ClientStop):
+                    guard.policy_profile(self.root,policy)
+    def test_deferred_counts_and_legacy_fields_rejected(self):
+        for key,value in (('import_counts',json.loads((ROOT/'source-counts.json').read_text())),
+                          ('push_subscription_ids_remapped',1),('all_source_values_and_blobs_match',True)):
+            policy=self.policy();self.profile['full_table_acceptance'][key]=value
+            with self.subTest(key=key),self.assertRaises(guard.ClientStop):guard.policy_profile(self.root,policy)
+    def test_deferred_ci_scope_matches_runtime_contract(self):
+        spec=importlib.util.spec_from_file_location('deferred_ci_evidence',ROOT/'tests/windows-ci/verify_client_evidence.py')
+        verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+        counts=json.loads((ROOT/'source-counts.json').read_text());scope=self.scope()
+        verifier.validate_restore_scope(scope,counts)
+        for key in tuple(scope):
+            item=copy.deepcopy(scope);del item[key]
+            with self.subTest(key=key),self.assertRaises(ValueError):verifier.validate_restore_scope(item,counts)
+        for change in ({'imported_rows':4100},{'deferred_source_rows':{'push_subscription':[2]}},
+                       {'deferred_source_rows':{'audit_log':[1]}},{'deferred_rows':2},
+                       {'import_counts':counts},{'push_subscription_rows_unchanged':False},
+                       {'push_subscription_sequence_unchanged':False},{'push_subscription_ids_remapped':1}):
+            with self.subTest(change=change),self.assertRaises(ValueError):
+                verifier.validate_restore_scope(dict(scope,**change),counts)
+    def test_candidate_commit_mismatch_rejected(self):
+        policy=self.policy();policy['tested_commit']='b'*40
+        with self.assertRaisesRegex(guard.ClientStop,'COMMIT_PROOF_MISMATCH'):guard.policy_profile(self.root,policy)
     def loaded(self, modules=None, distributions=None):
         modules = modules or self.modules
         distributions = distributions or [types.SimpleNamespace(metadata={'Name':n},version=v) for n,v in guard.APPROVED_DISTRIBUTIONS.items()]

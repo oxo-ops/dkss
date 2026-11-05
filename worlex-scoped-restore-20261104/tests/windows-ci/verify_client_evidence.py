@@ -203,6 +203,34 @@ def validate_ssl_runtime(ssl_runtime):
     return ssl_runtime
 
 
+def validate_restore_scope(item, counts):
+    """Require complete source provenance and the exact one-row deferred import."""
+    expected = {'source_rows': 4100, 'source_tables': 37, 'imported_rows': 4099,
+                'imported_tables': 36, 'deferred_rows': 1, 'populated_tables': 37}
+    require(all(type(item.get(k)) is int and item[k] == v for k, v in expected.items()),
+            'Exact deferred restore cardinalities required')
+    require(item.get('synthetic_only') is True and item.get('populated_tables_meaning') == 'source',
+            'Synthetic source table coverage required')
+    require(item.get('deferred_source_rows') == {'push_subscription': [1]} and
+            type(item['deferred_source_rows']['push_subscription'][0]) is int,
+            'Only source push_subscription ID 1 may be deferred')
+    require(isinstance(counts, dict) and len(counts) == 62 and
+            all(type(v) is int and v >= 0 for v in counts.values()) and
+            sum(v > 0 for v in counts.values()) == 37 and sum(counts.values()) == 4100 and
+            counts.get('push_subscription') == 1 and item.get('source_counts') == counts,
+            'Full source cardinalities required')
+    imports = dict(counts, push_subscription=0)
+    require(item.get('import_counts') == imports and
+            all(type(v) is int for v in item['import_counts'].values()),
+            'Exact deferred import counts required')
+    require(all(item.get(k) is True for k in ('deferred_source_fixture_retained',
+                'push_subscription_rows_unchanged', 'push_subscription_sequence_unchanged')),
+            'Deferred source and existing push preservation proof required')
+    require(not any(k in item for k in ('push_subscription_ids_remapped',
+                                       'all_source_values_and_blobs_match')),
+            'Legacy remap/all-source import proof forbidden')
+
+
 def validate_client(client, linux_policy, root, directory, commit):
     lock = json.loads((root / 'tests/windows-ci/client-build-inputs.json').read_text())
     require(client.get('schema_version') == 2 and client.get('passed') is True and
@@ -225,12 +253,14 @@ def validate_client(client, linux_policy, root, directory, commit):
     summary = client['acceptance_summary']
     require(summary == linux_policy['acceptance_summary'], 'Linux/Windows test coverage differs')
     require(summary.get('postgres_required') is True and type(summary.get('expected')) is int and
-            summary['expected'] >= 93 and summary.get('run') == summary['expected'] and
+            summary['expected'] >= 103 and summary.get('run') == summary['expected'] and
             all(type(summary.get(k)) is int and summary[k] == 0 for k in ('failures', 'errors', 'skipped')),
             'Windows acceptance incomplete')
     for key in ('full_table_acceptance', 'disconnect_acceptance'):
         require(client.get(key) == linux_policy.get(key), 'Linux/Windows acceptance evidence differs: ' + key)
     full = client['full_table_acceptance']
+    counts = json.loads((root / 'source-counts.json').read_text())
+    validate_restore_scope(full, counts)
     require(full.get('synthetic_only') is True and full.get('source_rows') == 4100 and
             full.get('populated_tables') == 37 and
             full.get('source_counts') == json.loads((root / 'source-counts.json').read_text()) and
@@ -240,6 +270,7 @@ def validate_client(client, linux_policy, root, directory, commit):
     disconnect = client['disconnect_acceptance']
     for key in ('before_commit', 'after_commit'):
         item = disconnect[key]
+        validate_restore_scope(item, counts)
         require(item.get('synthetic_only') is True and item.get('source_rows') == 4100 and
                 item.get('populated_tables') == 37, 'Full-table disconnect scope required')
     before, after = disconnect['before_commit'], disconnect['after_commit']

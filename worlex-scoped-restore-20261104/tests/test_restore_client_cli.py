@@ -23,10 +23,10 @@ class ClientCLITests(unittest.TestCase):
         policy={'postgres_structure_sha256':'a'*64,'postgres_acceptance_passed':True,
                 'windows_render_acceptance_passed':True,'source_manifest_sha256':self.core.SOURCE_MANIFEST_SHA256,
                 'tested_runner_sha256':hashlib.sha256(self.source.read_bytes()).hexdigest()}
-        (self.root/'policy.json').write_text(json.dumps(policy));(self.root/'source-counts.json').write_text('{}')
+        (self.root/'policy.json').write_text(json.dumps(policy));(self.root/'source-counts.json').write_bytes((ROOT/'source-counts.json').read_bytes())
         self.private=self.root/'private-plan.json';self.report=self.root/'report.json'
         self.runtime={'ssl_runtime':{'hash':'synthetic-current-runtime'},'pure_python_client':True}
-        self.plan={'target_sha256':'f'*64,'generated_identifiers':{},'synthetic_exact_database_plan':True}
+        self.plan={**self.core.import_scope(json.loads((ROOT/'source-counts.json').read_text()),self.core.DEFERRED_SOURCE_ROWS),'target_sha256':'f'*64,'generated_identifiers':{},'synthetic_exact_database_plan':True}
         self.engine=MagicMock();self.connection=MagicMock()
         self.engine.connect.return_value.__enter__.return_value=self.connection
         self.url=f'postgresql+pg8000://{self.core.EXPECTED_USER}:synthetic-not-real@{self.core.EXPECTED_HOST}:5432/{self.core.EXPECTED_DATABASE}?sslmode=verify-full'
@@ -59,6 +59,10 @@ class ClientCLITests(unittest.TestCase):
         self.assertEqual(engine.call_args.args[0].query,{})
         self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['default_transaction_read_only'],'on')
         execute.assert_not_called();verify.assert_not_called()
+        report=json.loads(self.report.read_text())
+        self.assertEqual((report['source_rows'],report['imported_rows'],report['deferred_rows']),(4100,4099,1))
+        self.assertEqual((report['source_tables'],report['imported_tables']),(37,36))
+        self.assertEqual(report['deferred_source_rows'],{'push_subscription':[1]})
     def test_execute_uses_exact_database_plan_after_runtime_check(self):
         self.approved();engine,execute,verify=self.invoke('execute')
         self.assertEqual(execute.call_args.args[-1],self.plan)

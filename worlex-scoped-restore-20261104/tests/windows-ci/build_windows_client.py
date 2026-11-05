@@ -269,7 +269,7 @@ def filtered_requirements(source):
 
 
 def acceptance_valid(summary):
-    return (summary.get('postgres_required') is True and summary.get('expected', 0) >= 93 and
+    return (summary.get('postgres_required') is True and summary.get('expected', 0) >= 103 and
             summary.get('run') == summary['expected'] and
             all(summary.get(key) == 0 for key in ('errors', 'failures', 'skipped')))
 
@@ -457,7 +457,7 @@ def main():
         profile = validate_client(proof, policy, PACKAGE, EVIDENCE, commit)
         operational = work / 'operational-smoke'
         operational.mkdir()
-        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py', 'client_connection.py'):
+        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py', 'client_connection.py', 'source-counts.json'):
             shutil.copyfile(PACKAGE / name, operational / name)
         # Synthetic-only guard fixture, never published as a usable policy.
         smoke_policy = dict(policy, windows_client_acceptance_passed=True,

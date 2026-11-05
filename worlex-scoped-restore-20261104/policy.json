@@ -19,6 +19,18 @@
     "vehicle_analysis_feedback",
     "vehicle_analysis_evaluation"
   ],
+  "restore_scope": {
+    "deferred_rows": 1,
+    "deferred_source_rows": {
+      "push_subscription": [
+        1
+      ]
+    },
+    "imported_rows": 4099,
+    "imported_tables": 36,
+    "source_rows": 4100,
+    "source_tables": 37
+  },
   "source_manifest_sha256": "eec49dd1e9a605b32bfd2eda777061be6e6c68fe4cd0193a8051f475bbd864e0",
   "tables": {
     "analysis_input_epoch": {

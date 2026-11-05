@@ -229,6 +229,31 @@ def validate_loaded_client(root, profile):
             'pure_python_client': True, 'imported_modules': imported,
             'ssl_runtime': runtime, 'tls_context_verified': True}
 
+def require_deferred_restore_scope(item, counts):
+    # Evidence-only contract; runtime, driver and TLS enforcement is unchanged.
+    expected = {'source_rows':4100, 'source_tables':37, 'imported_rows':4099,
+                'imported_tables':36, 'deferred_rows':1, 'populated_tables':37}
+    require(all(type(item.get(k)) is int and item[k] == v for k,v in expected.items()) and
+            item.get('populated_tables_meaning') == 'source' and
+            item.get('deferred_source_rows') == {'push_subscription':[1]} and
+            type(item['deferred_source_rows']['push_subscription'][0]) is int,
+            'WINDOWS_CLIENT_DEFERRED_SCOPE_REQUIRED')
+    require(isinstance(counts, dict) and len(counts) == 62 and
+            all(type(v) is int and v >= 0 for v in counts.values()) and
+            sum(v > 0 for v in counts.values()) == 37 and
+            all(type(v) is int for v in counts.values()) and sum(counts.values()) == 4100 and
+            counts.get('push_subscription') == 1 and item.get('source_counts') == counts and
+            item.get('import_counts') == dict(counts, push_subscription=0) and
+            all(type(v) is int for v in item['import_counts'].values()),
+            'WINDOWS_CLIENT_DEFERRED_COUNTS_REQUIRED')
+    require(all(item.get(k) is True for k in ('deferred_source_fixture_retained',
+                'push_subscription_rows_unchanged','push_subscription_sequence_unchanged')),
+            'WINDOWS_CLIENT_PUSH_PRESERVATION_REQUIRED')
+    require(not any(k in item for k in ('push_subscription_ids_remapped',
+                                       'all_source_values_and_blobs_match')),
+            'WINDOWS_CLIENT_LEGACY_IMPORT_PROOF_FORBIDDEN')
+
+
 def policy_profile(root, policy):
     require(policy.get('windows_client_acceptance_passed') is True, 'WINDOWS_CLIENT_CI_SEAL_REQUIRED')
     profile = policy.get('windows_client_acceptance')
@@ -244,7 +269,7 @@ def policy_profile(root, policy):
                           ('connection_helper_sha256','client_connection.py')):
         require(profile.get(key) == sha(root / filename), 'CLIENT_PROOF_CODE_MISMATCH')
     summary = profile.get('acceptance_summary', {})
-    require(summary.get('postgres_required') is True and summary.get('run', 0) >= 93 and
+    require(summary.get('postgres_required') is True and summary.get('run', 0) >= 103 and
             summary.get('run') == summary.get('expected') and
             summary.get('errors') == summary.get('failures') == summary.get('skipped') == 0,
             'FULL_WINDOWS_POSTGRES_ACCEPTANCE_REQUIRED')
@@ -260,6 +285,8 @@ def policy_profile(root, policy):
             isinstance(timeout_control.get('elapsed_seconds'), (int,float)) and
             4.5 <= timeout_control['elapsed_seconds'] <= 15, 'WINDOWS_CLIENT_READ_TIMEOUT_PROOF_REQUIRED')
     full = profile.get('full_table_acceptance', {})
+    counts = json.loads((root / 'source-counts.json').read_text())
+    require_deferred_restore_scope(full, counts)
     require(full.get('source_rows') == 4100 and full.get('populated_tables') == 37 and
             full.get('synthetic_only') is True, 'WINDOWS_CLIENT_FULL_TABLE_PROOF_REQUIRED')
     require(all(full.get(k) is True for k in
@@ -268,6 +295,7 @@ def policy_profile(root, policy):
     disconnect = profile.get('disconnect_acceptance', {})
     before, after = disconnect.get('before_commit', {}), disconnect.get('after_commit', {})
     for item in (before, after):
+        require_deferred_restore_scope(item, counts)
         require(item.get('synthetic_only') is True and item.get('source_rows') == 4100 and
                 item.get('populated_tables') == 37, 'WINDOWS_CLIENT_DISCONNECT_SCOPE_REQUIRED')
     require(all(before.get(k) is True for k in ('actual_connection_closed_before_commit',

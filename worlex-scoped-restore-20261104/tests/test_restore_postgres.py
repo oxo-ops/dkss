@@ -4,7 +4,7 @@ Never reads an archive and never accepts a production connection.
 import copy, hashlib, json, math, os, pathlib, re, secrets, ssl, subprocess, sys, tempfile, time, unittest, uuid
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from sqlalchemy import create_engine, text, select, func
+from sqlalchemy import create_engine, text, select, func, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 from client_connection import connection_args, verify_tls_connection
@@ -357,10 +357,10 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    return verify_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
  def test_existing_one_audit_and_all_423_source_audits_survive(self):
   self.preserved_audit();self.approve_current()
-  self.assertEqual(self.approved['push_subscription_id_remap'],{})
+  self.assertEqual(self.approved['deferred_source_rows'],{'push_subscription':[1]})
   with self.engine.connect() as c:before=dict(c.execute(select(self.tables['audit_log']).where(self.tables['audit_log'].c.id==1)).mappings().one())
   result=self.restore();self.assertEqual(result['preserved_worlex_audit_rows'],1)
-  self.assertEqual(result['push_subscription_ids_remapped'],0)
+  self.assertTrue(result['push_subscription_rows_unchanged'])
   self.assertEqual(self.verify_current()['status'],'RESTORE_PRESENT_MATCHES_PLAN')
   with self.engine.connect() as c:
    audit=self.tables['audit_log']
@@ -370,26 +370,74 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
  def test_audit_ids_are_never_rewritten_to_hide_a_collision(self):
   self.preserved_audit(company='SYNTHETIC_OTHER',identifier=1001)
   with self.assertRaisesRegex(Stop,'PRIMARY_KEY_COLLISION:audit_log'):self.approve_current()
- def existing_push(self,*,endpoint='https://synthetic-current.invalid/push'):
+ def existing_push(self,*,endpoint='https://synthetic-backup.invalid/push'):
   with self.engine.begin() as c:
    owner=c.scalar(text("SELECT account_identity FROM public.\"user\" WHERE company_code='ITC' AND username='itc'"))
    row={'id':1,'company_code':'ITC','username':'itc','owner_identity':owner,'endpoint':endpoint,'p256dh':'synthetic-existing-key','auth':'synthetic-existing-auth','created_at':'2026-11-04 00:00:00'}
    c.execute(self.tables['push_subscription'].insert(),row)
    return dict(c.execute(select(self.tables['push_subscription']).where(self.tables['push_subscription'].c.id==1)).mappings().one())
- def test_push_pk_collision_keeps_current_subscription_and_old_owner_unbound(self):
+ def test_push_endpoint_and_id_collision_defers_source_and_preserves_all_values(self):
   self.preserved_audit();before=self.existing_push();self.approve_current()
-  self.assertEqual(self.approved['push_subscription_id_remap'],{'1':2})
-  result=self.restore();self.assertEqual(result['push_subscription_ids_remapped'],1)
-  self.verify_current()
+  source=copy.deepcopy(self.data)
+  self.assertEqual(self.approved['deferred_source_rows'],{'push_subscription':[1]})
+  self.assertNotIn('push_subscription_id_remap',self.approved)
+  self.assertEqual(self.approved['version'],3)
+  self.assertEqual(self.approved['import_counts'],dict(self.counts,push_subscription=0))
+  with self.engine.connect() as c:sequence_before=sequence_states(c,self.tables)[('push_subscription','id')]
+  self.assertEqual(set(sequence_before),{'qualified','last','called','next','max','log_cnt','catalog'})
+  self.assertEqual(set(sequence_before['catalog']),{'schema','name','oid','owner','acl','type_oid','start','increment','min','max','cache','cycle','ownership','persistence','options','tablespace','filenode'})
+  self.assertEqual(sequence_before['next'],sequence_before['last']+1 if sequence_before['called'] else sequence_before['last'])
+  statements=[]
+  def record_sql(connection,cursor,statement,parameters,context,executemany):statements.append(statement)
+  event.listen(self.engine,'before_cursor_execute',record_sql)
+  try:
+   result=self.restore();verified=self.verify_current()
+  finally:event.remove(self.engine,'before_cursor_execute',record_sql)
+  forbidden=re.compile(r'\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|ALTER\s+SEQUENCE)\s+(?:"?public"?\.)?"?push_subscription(?:_id_seq)?"?\b|\b(?:nextval|setval)\s*\([^)]*push_subscription',re.IGNORECASE)
+  self.assertFalse([statement for statement in statements if forbidden.search(statement)])
+  for report in (result,verified):
+   for key,value in {'source_rows':4100,'source_tables':37,'imported_rows':4099,'imported_tables':36,'deferred_rows':1,'deferred_source_rows':{'push_subscription':[1]}}.items():self.assertEqual(report[key],value)
+   self.assertTrue(report['imported_values_and_blobs_match'])
+   self.assertTrue(report['push_subscription_rows_unchanged']);self.assertTrue(report['push_subscription_sequence_unchanged'])
+   self.assertNotIn('push_subscription_ids_remapped',report)
+   self.assertNotIn('all_source_values_and_blobs_match',report)
+  self.assertEqual(self.data,source);self.assertEqual(sum(map(len,self.data.values())),4100)
   with self.engine.connect() as c:
    table=self.tables['push_subscription']
-   self.assertEqual(dict(c.execute(select(table).where(table.c.id==1)).mappings().one()),before)
-   restored=c.execute(select(table).where(table.c.id==2)).mappings().one()
-   self.assertEqual(restored['company_code'],'WORLEX');self.assertIsNone(restored['owner_identity'])
-   self.assertEqual(restored['endpoint'],'https://synthetic-backup.invalid/push')
- def test_push_endpoint_collision_is_rejected_instead_of_rebinding(self):
-  self.existing_push(endpoint='https://synthetic-backup.invalid/push')
-  with self.assertRaisesRegex(Stop,'TARGET_UNIQUE_KEY_COLLISION:push_subscription'):self.approve_current()
+   self.assertEqual([dict(row) for row in c.execute(select(table)).mappings()], [before])
+   self.assertEqual(sequence_states(c,self.tables)[('push_subscription','id')],sequence_before)
+ def test_raw_deferred_source_mutation_is_rejected_with_unchanged_source_hash(self):
+  self.existing_push();self.approve_current()
+  original=copy.deepcopy(self.data['push_subscription'])
+  self.data['push_subscription'][0]['endpoint']='https://synthetic-mutated.invalid/push'
+  with self.assertRaises(Stop):self.restore()
+  self.data['push_subscription']=original
+  self.restore()
+  self.data['push_subscription'][0]['auth']='synthetic-mutated'
+  with self.assertRaises(Stop):self.verify_current()
+
+ def test_push_without_collision_is_still_deferred_without_owner_rebinding(self):
+  before=self.existing_push(endpoint='https://synthetic-current.invalid/push');self.approve_current();self.restore()
+  self.assertTrue(self.verify_current()['push_subscription_rows_unchanged'])
+  with self.engine.connect() as c:self.assertEqual([dict(row) for row in c.execute(select(self.tables['push_subscription'])).mappings()],[before])
+ def test_verified_restore_detects_preserved_push_value_mutation(self):
+  self.existing_push();self.approve_current();self.restore()
+  with self.engine.begin() as c:c.exec_driver_sql("UPDATE public.push_subscription SET auth='synthetic-mutated' WHERE id=1")
+  with self.assertRaises(Stop):self.verify_current()
+ def test_verified_restore_detects_push_sequence_last_value_mutation(self):
+  self.existing_push();self.approve_current();self.restore()
+  with self.engine.begin() as c:c.exec_driver_sql("SELECT setval('public.push_subscription_id_seq', 99, false)")
+  with self.assertRaises(Stop):self.verify_current()
+ def test_verified_restore_detects_push_sequence_called_mutation(self):
+  self.existing_push();self.approve_current();self.restore()
+  with self.engine.begin() as c:
+   last,called=c.exec_driver_sql('SELECT last_value,is_called FROM public.push_subscription_id_seq').one()
+   c.execute(text("SELECT setval('public.push_subscription_id_seq', :last, :called)"),{'last':last,'called':not called})
+  with self.assertRaises(Stop):self.verify_current()
+ def test_verified_restore_detects_push_sequence_catalog_mutation(self):
+  self.existing_push();self.approve_current();self.restore()
+  with self.engine.begin() as c:c.exec_driver_sql('ALTER SEQUENCE public.push_subscription_id_seq START WITH 17')
+  with self.assertRaises(Stop):self.verify_current()
 
  def test_audit_baseline_change_between_inspection_and_execution_stops(self):
   self.preserved_audit();self.approve_current()
@@ -420,7 +468,7 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   self.preserved_audit();self.approve_current();self.restore();self.preserved_audit(identifier=990001)
   with self.assertRaisesRegex(Stop,'VERIFY_PRESERVED_ROWS_CHANGED'):self.verify_current()
 
- def test_disconnect_before_commit_rolls_back_all_37_tables_and_sequences(self):
+ def test_disconnect_before_commit_rolls_back_all_imported_tables_and_sequences(self):
   # The connection belongs to this newly created CI-only database. Closing it
   # before COMMIT must leave no imported data or transactional sequence changes.
   from sqlalchemy.exc import InterfaceError
@@ -428,6 +476,7 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
   with self.engine.connect() as c:
    before=snapshot(c,self.tables);sequences=sequence_states(c,self.tables)
+  source_before=copy.deepcopy(self.data)
   guards=[0];reached=[False]
   with self.assertRaises(InterfaceError):
    with self.engine.begin() as c:
@@ -457,7 +506,7 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    with self.assertRaisesRegex(Stop,'VERIFY_SOURCE_COUNT_MISMATCH'):
     verify_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
   evidence=pathlib.Path(os.environ.get('WORLEX_EVIDENCE_DIR',self.temp.name));evidence.mkdir(exist_ok=True)
-  (evidence/'disconnect-before-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'populated_tables':37,'actual_connection_closed_before_commit':True,'all_imports_absent':True,'preserved_rows_match':True,'sequences_unchanged':True,'fresh_readonly_verification_rejects_absent_restore':True,'restore_retried':False},indent=2))
+  (evidence/'disconnect-before-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'source_tables':37,'populated_tables':37,'populated_tables_meaning':'source','source_counts':self.counts,'imported_rows':4099,'imported_tables':36,'deferred_rows':1,'deferred_source_rows':{'push_subscription':[1]},'import_counts':dict(self.counts,push_subscription=0),'deferred_source_fixture_retained':self.data==source_before,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'imported_values_and_blobs_match':False,'actual_connection_closed_before_commit':True,'all_imports_absent':True,'preserved_rows_match':True,'sequences_unchanged':True,'fresh_readonly_verification_rejects_absent_restore':True,'restore_retried':False},indent=2))
 
  def test_disconnect_after_commit_reconciles_without_reinserting(self):
   # Model a client losing the outcome AFTER a real PostgreSQL commit. This is
@@ -465,6 +514,7 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   from sqlalchemy.exc import InterfaceError
   import pg8000
   self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
+  source_before=copy.deepcopy(self.data)
   real_commit=self.engine.dialect.do_commit;commits=[0]
   def commit_then_lose_outcome(dbapi_connection):
    real_commit(dbapi_connection);commits[0]+=1
@@ -475,7 +525,7 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   self.assertEqual(commits[0],1)
   verified=self.verify_current()
   self.assertEqual(verified['source_rows'],4100)
-  self.assertTrue(verified['all_source_values_and_blobs_match'])
+  self.assertTrue(verified['imported_values_and_blobs_match'])
   self.assertTrue(verified['non_worlex_and_global_rows_unchanged'])
   with self.engine.connect() as c:
    tables,_=validate_schema(c,self.policy)
@@ -487,13 +537,13 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   # exact-value/row/blob reconciliation as well as checking preserved rows.
   replay_verified=self.verify_current()
   self.assertEqual(replay_verified['source_rows'],4100)
-  self.assertTrue(replay_verified['all_source_values_and_blobs_match'])
+  self.assertTrue(replay_verified['imported_values_and_blobs_match'])
   self.assertTrue(replay_verified['non_worlex_and_global_rows_unchanged'])
   with self.engine.connect() as c:
    self.assertEqual(snapshot(c,tables),before)
    self.assertEqual(sequence_states(c,tables),sequences)
   evidence=pathlib.Path(os.environ.get('WORLEX_EVIDENCE_DIR',self.temp.name));evidence.mkdir(exist_ok=True)
-  (evidence/'disconnect-after-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'populated_tables':37,'real_commit_then_client_error':True,'network_packet_loss_reproduced':False,'fresh_readonly_verification_matches':True,'preserved_rows_match':True,'replay_guard_rejected_before_insert':True,'sequences_unchanged_by_replay':True},indent=2))
+  (evidence/'disconnect-after-commit.json').write_text(json.dumps({'synthetic_only':True,'source_rows':4100,'source_tables':37,'populated_tables':37,'populated_tables_meaning':'source','source_counts':self.counts,'imported_rows':4099,'imported_tables':36,'deferred_rows':1,'deferred_source_rows':{'push_subscription':[1]},'import_counts':dict(self.counts,push_subscription=0),'deferred_source_fixture_retained':self.data==source_before,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'imported_values_and_blobs_match':verified['imported_values_and_blobs_match'],'real_commit_then_client_error':True,'network_packet_loss_reproduced':False,'fresh_readonly_verification_matches':True,'preserved_rows_match':True,'replay_guard_rejected_before_insert':True,'sequences_unchanged_by_replay':True},indent=2))
 
  def test_real_synthetic_login_and_primary_pages(self):
   self.restore()
