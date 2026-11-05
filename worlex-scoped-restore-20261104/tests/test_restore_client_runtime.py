@@ -24,15 +24,23 @@ class ClientRuntimeTests(unittest.TestCase):
   package.extensions=types.SimpleNamespace(libpq_version=lambda:180006,get_wait_callback=lambda:None)
   package._psycopg=types.SimpleNamespace(__file__=str(self.sidecar/self.profile['extension_relative_path']))
   return package
- def loaded(self,package=None):
+ def loaded(self,package=None,wrong_loaded_path=None):
   package=package or self.fake_client()
   def openssl_num():return self.profile['openssl_version']['number']
   def openssl_text(n):return self.profile['openssl_version']['text'].encode('ascii')
   crypto=types.SimpleNamespace(OpenSSL_version_num=openssl_num,OpenSSL_version=openssl_text)
-  with patch.object(guard.sys,'platform','win32'),patch.object(guard.sys,'version_info',(3,12,14)),patch.dict(sys.modules,{'psycopg2':package}),patch.object(guard,'loaded_module_path',side_effect=lambda name:self.sidecar/self.profile['loaded_dlls'][name]['relative_path']),patch.object(guard,'loaded_file_version',return_value='18.6.0.0'),patch.object(guard.ctypes,'CDLL',return_value=crypto):
+  with patch.object(guard.sys,'platform','win32'),patch.object(guard.sys,'version_info',(3,12,14)),patch.dict(sys.modules,{'psycopg2':package}),patch.object(guard,'loaded_module_path',side_effect=lambda name:wrong_loaded_path or (self.sidecar/self.profile['loaded_dlls'][name]['relative_path']).resolve()),patch.object(guard,'loaded_file_version',return_value='18.6.0.0'),patch.object(guard.ctypes,'CDLL',return_value=crypto):
    return guard.validate_loaded_client(self.sidecar,self.profile)
  def test_valid_manifest_and_loaded_client(self):
   guard.validate_manifest(self.sidecar,self.profile);result=self.loaded();self.assertEqual(len(result['loaded_dlls']),3);self.assertTrue(all(Path(x['absolute_path']).is_absolute() for x in result['loaded_dlls']))
+  # Model a noncanonical Windows temporary path without requiring 8.3 support.
+  # The production lookup resolves mapped paths; its mock must do the same.
+  self.sidecar=self.sidecar/'..'/'client-sidecar'
+  result=self.loaded();self.assertEqual(len(result['loaded_dlls']),3)
+  self.assertTrue(all(Path(x['absolute_path'])==Path(x['absolute_path']).resolve() for x in result['loaded_dlls']))
+  # Canonicalization must not excuse a different loaded module, even with matching bytes.
+  outside=self.root/'outside-libpq.dll';outside.write_bytes(b'not real pq')
+  with self.assertRaisesRegex(guard.ClientStop,'LOADED_CLIENT_DLL_MISMATCH'):self.loaded(wrong_loaded_path=outside.resolve())
  def test_extra_file_and_modified_dll_block(self):
   extra=self.sidecar/'unexpected.txt';extra.write_text('synthetic')
   with self.assertRaisesRegex(guard.ClientStop,'CLIENT_FILE_SET_CHANGED'):guard.validate_manifest(self.sidecar,self.profile)
