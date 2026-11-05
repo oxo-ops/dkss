@@ -495,8 +495,8 @@ def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
  return {'status':'RESTORE_PRESENT_MATCHES_PLAN','preserved_worlex_audit_rows':approved['preserved_worlex_audit_rows'],'push_subscription_ids_remapped':len(approved['push_subscription_id_remap']),'source_rows':sum(counts.values()),'all_source_values_and_blobs_match':True,'non_worlex_and_global_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
 
 def enforce_windows_client(root,policy):
- # The operational CLI must use the separately staged Windows client whose
- # actual loaded DLLs passed the same full PostgreSQL acceptance matrix.
+ # The operational CLI requires the exact CI-tested pure client and verified
+ # TLS settings, while observing the existing CPython native TLS runtime.
  require(policy.get('windows_client_acceptance_passed') is True,'WINDOWS_CLIENT_CI_SEAL_REQUIRED')
  guard_path=root/'client_runtime_guard.py'
  expected=policy.get('tested_artifacts',{}).get('client_runtime_guard.py')
@@ -504,7 +504,7 @@ def enforce_windows_client(root,policy):
  import importlib.util
  spec=importlib.util.spec_from_file_location('scoped_restore_client_guard',guard_path)
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
- try:module.enforce(root,policy)
+ try:return module.enforce(root,policy)
  except module.ClientStop as error:raise Stop(str(error)) from None
 
 def cli():
@@ -512,17 +512,20 @@ def cli():
  a=p.parse_args();require(not Path(a.report).exists(),'REPORT_ALREADY_EXISTS')
  root=Path(__file__).resolve().parent;policy=json.loads((root/'policy.json').read_text());counts=json.loads((root/'source-counts.json').read_text())
  value=os.environ.get('WORLEX_NEW_DATABASE_URL','');require(value,'EXPLICIT_NEW_DATABASE_URL_REQUIRED')
- url=make_url(value);require(url.drivername=='postgresql+psycopg2' and url.host and url.database and url.username,'EXPLICIT_POSTGRES_TARGET_REQUIRED')
+ url=make_url(value);require(url.drivername=='postgresql+pg8000' and url.host and url.database and url.username,'EXPLICIT_POSTGRES_TARGET_REQUIRED')
  require(url.host==EXPECTED_HOST and url.database==EXPECTED_DATABASE and url.username==EXPECTED_USER and url.port in (None,5432),'NOT_AUTHORIZED_NEW_DATABASE')
  require(set(url.query)<= {'sslmode'} and url.query.get('sslmode','verify-full')=='verify-full','TLS_OR_URL_OVERRIDE_BLOCKED')
  require(policy.get('postgres_structure_sha256') and policy.get('postgres_acceptance_passed') is True,'POSTGRES_CI_SEAL_REQUIRED')
  require(policy.get('windows_render_acceptance_passed') is True,'WINDOWS_CI_SEAL_REQUIRED')
  require(policy.get('source_manifest_sha256')==SOURCE_MANIFEST_SHA256,'UNREVIEWED_APPLICATION_SOURCE')
  require(policy.get('tested_runner_sha256')==sha(Path(__file__).read_bytes()),'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION')
- enforce_windows_client(root,policy)
+ client_runtime=enforce_windows_client(root,policy)
  if a.action in ('execute','verify'):
   if a.action=='execute':require(a.writers_stopped,'STOPPED_WRITERS_ACK_REQUIRED')
   approved=json.loads(Path(a.plan).read_text())
+  require(approved.get('client_runtime_sha256')==digest(client_runtime),'CLIENT_RUNTIME_CHANGED_SINCE_INSPECT')
+  # Runtime binding belongs to the CLI envelope, not the exact database plan.
+  approved.pop('client_runtime_sha256')
   if a.action=='execute':
    attempt=Path(str(a.plan)+'.execution.json')
    fd=os.open(attempt,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
@@ -532,19 +535,23 @@ def cli():
  # Never inherit service files, options or PG environment overrides.
  for key in list(os.environ):
   if key.startswith('PG'):os.environ.pop(key,None)
- import certifi
- engine=create_engine(url,poolclass=NullPool,hide_parameters=True,connect_args={'sslmode':'verify-full','sslrootcert':certifi.where(),'connect_timeout':10,'application_name':'worlex_scoped_restore','options':'-csearch_path=pg_catalog,public -cstatement_timeout=120000 -clock_timeout=10000'})
+ from client_connection import connection_args,verify_tls_connection
+ # sslmode is a validated user-facing declaration, not a pg8000 keyword.
+ engine=create_engine(url.set(query={}),poolclass=NullPool,hide_parameters=True,connect_args=connection_args(read_only=a.action in ('inspect','verify')))
  try:
   with tempfile.TemporaryDirectory(prefix='worlex-private-render-') as tmp:
    sql=render_archive(a.archive,a.pg_restore,tmp);require(copy_digest(sql)==SOURCE_COPY_SHA256,'SOURCE_COPY_HASH_MISMATCH');data,columns=read_copy(sql)
    source_sha=digest({'columns':columns,'data':data})
    with engine.connect() as connection:
+    try:verify_tls_connection(connection,EXPECTED_HOST)
+    except ValueError as error:raise Stop(str(error)) from None
     with connection.begin():
      if a.action in ('inspect','verify'):
       connection.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
       result=plan(connection,data,columns,policy,counts,source_sha) if a.action=='inspect' else verify_restore(connection,data,columns,policy,counts,source_sha,approved)
      else:result=execute_restore(connection,data,columns,policy,counts,source_sha,approved)
    if a.action=='inspect':
+    result['client_runtime_sha256']=digest(client_runtime)
     Path(a.plan).write_text(json.dumps(result,indent=2));os.chmod(a.plan,0o600)
     output={'status':'READ_ONLY_PREFLIGHT_PASSED','target_sha256':result['target_sha256'],'source_rows':sum(counts.values()),'live_changes':False}
    elif a.action=='execute':

@@ -1,4 +1,4 @@
-"""Build and exercise one source-client candidate in a fresh Windows CI directory.
+"""Build and exercise one pure-Python client candidate in a fresh Windows CI directory.
 
 No service install, existing database, real backup, user venv, or fallback client.
 The only database server this script can launch lives below RUNNER_TEMP/OWNER.
@@ -249,42 +249,6 @@ def wheel_files(wheel):
         return {name: hashlib.sha256(source.read(name)).hexdigest() for name in sorted(names)}
 
 
-def add_official_notices(build_python, raw_wheel, pg, work, env):
-    """Preserve the official distribution's complete docs, including legal notices.
-
-    wheel handles RECORD updates. No PE/DLL is copied or renamed by this step.
-    """
-    notices = [path for path in pg.rglob('*') if path.is_file() and
-               ('doc' in path.relative_to(pg).parts or
-                any(term in path.name.lower() for term in ('license', 'copying', 'copyright', 'notice')))]
-    require(notices, 'OFFICIAL_DISTRIBUTION_NOTICES_REQUIRED')
-    require(any(any(term in path.name.lower() for term in ('copyright', 'license', 'legalnotice'))
-                for path in notices), 'OFFICIAL_LICENSE_DOCUMENT_REQUIRED')
-    unpack = work / 'wheel-unpack'
-    run([build_python, '-m', 'wheel', 'unpack', raw_wheel, '--dest', unpack], env=env)
-    roots = list(unpack.iterdir())
-    require(len(roots) == 1, 'ONE_UNPACKED_WHEEL_REQUIRED')
-    dist_infos = list(roots[0].glob('*.dist-info'))
-    require(len(dist_infos) == 1, 'ONE_WHEEL_DIST_INFO_REQUIRED')
-    licenses = dist_infos[0] / 'licenses'
-    licenses.mkdir(exist_ok=True)
-    manifest = {}
-    with zipfile.ZipFile(licenses / 'official-postgresql-18.6-docs.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(notices):
-            relative = path.relative_to(pg).as_posix()
-            manifest[relative] = sha(path)
-            info = zipfile.ZipInfo(relative, date_time=(2026, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(info, path.read_bytes())
-    json_write(licenses / 'official-postgresql-18.6-docs-manifest.json', manifest)
-    destination = work / 'raw-wheel-with-notices'
-    destination.mkdir()
-    run([build_python, '-m', 'wheel', 'pack', roots[0], '--dest-dir', destination], env=env)
-    result = destination / raw_wheel.name
-    require(result.is_file(), 'WHEEL_WITH_NOTICES_REQUIRED')
-    return result, manifest
-
-
 def filtered_requirements(source):
     """No alternate psycopg distribution can enter the fresh application venv."""
     output = []
@@ -305,7 +269,7 @@ def filtered_requirements(source):
 
 
 def acceptance_valid(summary):
-    return (summary.get('postgres_required') is True and summary.get('expected', 0) >= 71 and
+    return (summary.get('postgres_required') is True and summary.get('expected', 0) >= 93 and
             summary.get('run') == summary['expected'] and
             all(summary.get(key) == 0 for key in ('errors', 'failures', 'skipped')))
 
@@ -323,7 +287,7 @@ def main():
     # with Administrators disabled. Use a new ordinary inherited-ACL directory
     # in this disposable CI runner, without changing any existing permissions.
     runner_temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
-    work = runner_temp / ('worlex-source-client-' + uuid.uuid4().hex)
+    work = runner_temp / ('worlex-pure-client-' + uuid.uuid4().hex)
     work.mkdir()  # Atomic create; never reuse or relax an existing directory.
     work = work.resolve(strict=True)
     require(work.is_relative_to(runner_temp), 'RUNNER_TEMP_ONLY')
@@ -347,7 +311,7 @@ def main():
     pg_version = run([pg_config, '--version'], env=pg_env, capture=True).stdout.strip()
     require(pg_version == 'PostgreSQL 18.6', 'OFFICIAL_PG_CONFIG_VERSION_MISMATCH')
     inputs = {}
-    for entry in [*lock['build_tools'], lock['psycopg2_sdist'], *lock['application_source_wheels']]:
+    for entry in [*lock['build_tools'], *lock['pure_client']['packages'], *lock['application_source_wheels']]:
         destination = downloads / entry['filename']
         fetch(entry, destination)
         inputs[entry['filename']] = sha(destination)
@@ -361,7 +325,7 @@ def main():
          *[downloads / entry['filename'] for entry in lock['build_tools']]], env=base)
     run([build_python, '-m', 'pip', 'check'], env=base)
     # pywebpush's sole sdist-only dependency is handled explicitly. No broad
-    # source fallback is enabled for either the app or psycopg2.
+    # source fallback is enabled for either the app or client.
     require(len(lock['application_source_wheels']) == 1 and
             lock['application_source_wheels'][0]['name'] == 'http-ece' and
             lock['application_source_wheels'][0]['version'] == '1.2.1',
@@ -402,56 +366,16 @@ def main():
     # the client wheel, and never expand the application client's isolated PATH.
     original_pg_env = dict(pg_env)
     pg_env['PATH'] = os.pathsep.join([str(pg_bin), str(runtime_dir), base['PATH']])
-    compiler['PATH'] = str(pg_bin) + os.pathsep + compiler['PATH']
-    source = work / 'source'
-    source.mkdir()
-    with tarfile.open(downloads / lock['psycopg2_sdist']['filename']) as archive:
-        archive.extractall(source, filter='data')
-    source = source / 'psycopg2-2.9.12'
-    require(source.is_dir(), 'EXPECTED_UNMODIFIED_SDIST_DIRECTORY_MISSING')
-    source_before = {p.relative_to(source).as_posix(): sha(p) for p in source.rglob('*')
-                     if p.is_file() and p.suffix in {'.py', '.c', '.h', '.cfg', '.toml'}}
-    raw = work / 'raw-wheel'
-    raw.mkdir()
-    # No-build-isolation prevents pip fetching different build dependencies.
-    # No-index and an exact local sdist prevent a binary-wheel fallback.
-    run([build_python, '-m', 'pip', 'wheel', '--no-index', '--no-build-isolation',
-         '--no-deps', '--wheel-dir', raw, source], env=compiler)
-    for relative, expected in source_before.items():
-        require(sha(source / relative) == expected, 'SDIST_SOURCE_WAS_MODIFIED:' + relative)
-    raw_wheels = list(raw.glob('psycopg2-2.9.12-cp312-cp312-win_amd64.whl'))
-    require(len(raw_wheels) == 1, 'EXACT_CP312_WINDOWS_SOURCE_WHEEL_REQUIRED')
-    raw_for_repair, notice_manifest = add_official_notices(build_python, raw_wheels[0], pg, work, base)
-    repair_env = dict(base, PATH=str(pg_bin) + os.pathsep + base['PATH'])
-    repair = work / 'repaired-wheel'
-    replay = work / 'repair-replay'
-    extract_zip(pg_archive, work / 'postgresql-replay')
-    replay_bin = work / 'postgresql-replay/pgsql/bin'
-    for destination, donors in ((repair, pg_bin), (replay, replay_bin)):
-        repair_env['PATH'] = str(donors) + os.pathsep + base['PATH']
-        run([build_python, '-m', 'delvewheel', 'repair', '--add-path', donors,
-             '--wheel-dir', destination, raw_for_repair], env=repair_env)
-    wheel = repair / raw_wheels[0].name
-    require(wheel.is_file(), 'REPAIRED_WHEEL_MISSING')
-    files = wheel_files(wheel)
-    replayed = wheel_files(replay / wheel.name)
-    binaries = {name: value for name, value in files.items() if name.lower().endswith(('.dll', '.pyd'))}
-    require(binaries == {name: value for name, value in replayed.items() if name.lower().endswith(('.dll', '.pyd'))},
-            'DELVEWHEEL_BINARY_REPAIR_NOT_REPRODUCIBLE')
-    dll_files = [name for name in files if name.lower().endswith('.dll')]
-    for prefix in ('libpq', 'libssl', 'libcrypto'):
-        require(sum(Path(name).name.lower().startswith(prefix) for name in dll_files) == 1,
-                'COHERENT_VENDORED_DLL_REQUIRED:' + prefix)
-    donor_files = {p.name: sha(p) for p in sorted(pg_bin.glob('*.dll'))}
-    for name in dll_files:
-        # delvewheel appends a content-derived identifier to original basenames.
-        unmangled = re.sub(r'-[0-9a-f]{32}(?=\.dll$)', '', Path(name).name, flags=re.I)
-        require(unmangled.lower() in {n.lower() for n in donor_files}, 'NON_EDB_VENDORED_DEPENDENCY:' + name)
-    run([build_python, HERE / 'windows_client_probe.py', 'dependencies', work,
-         raw_wheels[0], wheel, EVIDENCE / 'dependency-proof.json'], env=base)
+    pure_wheels = work / 'pure-wheels'
+    pure_wheels.mkdir()
+    for entry in lock['pure_client']['packages']:
+        shutil.copyfile(downloads / entry['filename'], pure_wheels / entry['filename'])
+    from verify_client_evidence import validate_pure_wheels
+    validate_pure_wheels(lock['pure_client']['packages'], pure_wheels)
+    json_write(EVIDENCE / 'dependency-proof.json', {'pure_python_client': True})
     require(official_binaries_before == {path.name: sha(path) for path in sorted(pg_bin.iterdir())
                                         if path.is_file() and path.suffix.lower() in ('.exe', '.dll')},
-            'OFFICIAL_POSTGRES_DONOR_BINARIES_CHANGED')
+            'OFFICIAL_POSTGRES_SERVER_BINARIES_CHANGED')
     run([build_python, HERE / 'windows_client_probe.py', 'server-dependencies', work,
          runtime_dir, EVIDENCE / 'dependency-proof.json'], env=base)
     native_loader_preflight(pg_bin, original_pg_env, pg_env, runtime_dir,
@@ -461,13 +385,12 @@ def main():
     requirements.write_text(filtered_requirements(REPO / 'requirements.txt'), encoding='utf-8')
     run([app_python, '-m', 'pip', 'install', '--only-binary=:all:', '--find-links', app_wheels,
          '-r', requirements, 'http-ece==1.2.1'], env=base)
-    run([app_python, '-m', 'pip', 'install', '--no-index', '--no-deps', wheel], env=base)
+    run([app_python, '-m', 'pip', 'install', '--no-index', '--no-deps', *sorted(pure_wheels.glob('*.whl'))], env=base)
     run([app_python, '-m', 'pip', 'check'], env=base)
     test_env = dict(base)
     test_env['PATH'] = str(app_python.parent) + os.pathsep + str(Path(base['SYSTEMROOT']) / 'System32')
     test_env['PYTHONPATH'] = os.pathsep.join([str(PACKAGE), str(PACKAGE / 'tests')])
-    test_env['PGSSLMODE'] = 'verify-full'
-    test_env['PGSSLROOTCERT'] = str(work / 'server.crt')
+    test_env['WORLEX_TEST_CA_FILE'] = str(work / 'server.crt')
     test_env['WORLEX_REQUIRE_POSTGRES'] = '1'
     test_env['WORLEX_EVIDENCE_DIR'] = str(EVIDENCE)
     run([app_python, HERE / 'windows_client_probe.py', 'certificates', work], env=test_env)
@@ -493,11 +416,11 @@ def main():
     try:
         attempted_start = True
         run([pg_bin / 'pg_ctl.exe', '-D', data, '-l', work / 'server.log', '-w', '-t', '60', 'start'], env=pg_env)
-        run([app_python, HERE / 'windows_client_probe.py', 'probe', work, str(port), wheel, EVIDENCE], env=test_env)
+        run([app_python, HERE / 'windows_client_probe.py', 'probe', work, str(port), pure_wheels, EVIDENCE], env=test_env)
         test_env['WORLEX_TEST_POSTGRES_URL'] = (
-            f'postgresql+psycopg2://restore_ci:{PASSWORD}@127.0.0.1:{port}/dkss_restore_ci')
+            f'postgresql+pg8000://restore_ci:{PASSWORD}@127.0.0.1:{port}/dkss_restore_ci')
         run([app_python, PACKAGE / 'tests/run_acceptance.py'], env=test_env, timeout=1800)
-        run([app_python, HERE / 'windows_client_probe.py', 'stability', work, str(port), wheel, EVIDENCE], env=test_env, timeout=360)
+        run([app_python, HERE / 'windows_client_probe.py', 'stability', work, str(port), pure_wheels, EVIDENCE], env=test_env, timeout=360)
         runtime = json.loads((EVIDENCE / 'runtime-proof.json').read_text())
         policy = json.loads((EVIDENCE / 'provisional-policy.json').read_text())
         require(acceptance_valid(policy['acceptance_summary']), 'FULL_WINDOWS_ACCEPTANCE_REQUIRED')
@@ -505,27 +428,20 @@ def main():
         require(commit == os.environ['GITHUB_SHA'], 'CHECKOUT_COMMIT_MISMATCH')
         (EVIDENCE / 'commit.txt').write_text(commit + '\n', encoding='ascii')
         build_proof = {'source_inputs_sha256': inputs,
-                       'postgres_archive_sha256': sha(pg_archive), 'pg_config_version': pg_version,
-                       'pg_config_sha256': sha(pg_config), 'official_donor_dlls': donor_files,
-                       'unmodified_source_verified': True, 'no_binary_fallback': True,
-                       'delvewheel_repair_reproduced': True, 'pip_check_passed': True,
-                       'raw_wheel_sha256': sha(raw_wheels[0]), 'built_wheel_tags': 'cp312-cp312-win_amd64',
-                       'official_notice_files': notice_manifest,
+                       'postgres_archive_sha256': sha(pg_archive),
+                       'pg_config_version': pg_version,
+                       'pure_client_verified': True, 'no_native_client_payload': True,
+                       'pip_check_passed': True,
                        'application_source_wheels': [http_proof],
-                       'dependency_proof': json.loads((EVIDENCE / 'dependency-proof.json').read_text()),
-                       'build_tools': [{'name': x['name'], 'version': x['version'], 'sha256': x['sha256']} for x in lock['build_tools']]}
+                       'dependency_proof': json.loads((EVIDENCE / 'dependency-proof.json').read_text())}
         json_write(EVIDENCE / 'build-proof.json', build_proof)
-        source_client = {'name': 'psycopg2', 'version': '2.9.12',
-                         'sdist_sha256': lock['psycopg2_sdist']['sha256'],
-                         'pg_archive_sha256': lock['postgresql']['sha256'],
-                         'libpq_compile_version': runtime['libpq_compile_version'],
-                         'libpq_runtime_version': runtime['libpq_runtime_version']}
-        proof = {'schema_version': 1, 'passed': True, 'actual_windows': True,
+        proof = {'schema_version': 2, 'passed': True, 'actual_windows': True,
                  'synthetic_only': True, 'candidate_commit': commit,
                  'runner_sha256': sha(PACKAGE / 'worlex_restore.py'),
-                 'source_client': source_client, 'wheel': runtime['wheel'],
-                 'loaded_modules': runtime['loaded_modules'], 'tls': runtime['tls'],
-                 'openssl_version': runtime['openssl_version'], 'custom_wait_callback': False,
+                 'client_profile': 'pg8000-pure-python', 'package_version': '1.31.6',
+                 'wheels': runtime['wheels'], 'wheel_files': runtime['wheel_files'],
+                 'imported_modules': runtime['imported_modules'],
+                 'ssl_runtime': runtime['ssl_runtime'], 'tls': runtime['tls'],
                  'build_proof': build_proof,
                  'acceptance_summary': policy['acceptance_summary'],
                  'full_table_acceptance': policy['full_table_acceptance'],
@@ -533,7 +449,7 @@ def main():
                  'tested_artifacts': policy['tested_artifacts'],
                  'workflow_sha256': policy['workflow_sha256'],
                  'stability': json.loads((EVIDENCE / 'stability-proof.json').read_text())}
-        shutil.copyfile(wheel, EVIDENCE / wheel.name)
+        shutil.copytree(pure_wheels, EVIDENCE / 'pure-wheels')
         app_artifacts = EVIDENCE / 'application-wheels'
         app_artifacts.mkdir()
         shutil.copyfile(http_wheel, app_artifacts / http_wheel.name)
@@ -541,13 +457,14 @@ def main():
         profile = validate_client(proof, policy, PACKAGE, EVIDENCE, commit)
         operational = work / 'operational-smoke'
         operational.mkdir()
-        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py'):
+        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py', 'client_connection.py'):
             shutil.copyfile(PACKAGE / name, operational / name)
         # Synthetic-only guard fixture, never published as a usable policy.
         smoke_policy = dict(policy, windows_client_acceptance_passed=True,
                             windows_client_acceptance=profile, tested_commit=commit)
         json_write(operational / 'policy.json', smoke_policy)
-        extract_zip(wheel, operational / 'client-sidecar')
+        for wheel in sorted(pure_wheels.glob('*.whl')):
+            extract_zip(wheel, operational / 'client-sidecar')
         run([app_python, '-I', '-B', HERE / 'windows_client_probe.py', 'sidecar', work,
              operational, operational / 'policy.json', EVIDENCE / 'sidecar-proof.json'], env=test_env)
         bootstrap = run([app_python, '-I', '-B', operational / 'client_bootstrap.py',

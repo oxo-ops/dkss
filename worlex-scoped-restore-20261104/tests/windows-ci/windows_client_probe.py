@@ -119,111 +119,38 @@ def wheel_manifest(wheel):
         return {n: hashlib.sha256(archive.read(n)).hexdigest() for n in sorted(names)}
 
 
-def runtime(wheel):
-    import psycopg2
-    from psycopg2 import extensions
-    require(importlib.metadata.version('psycopg2') == '2.9.12', 'WRONG_PSYCOPG_VERSION')
-    try:
-        importlib.metadata.version('psycopg2-binary')
-    except importlib.metadata.PackageNotFoundError:
-        pass
-    else:
-        raise RuntimeError('BINARY_DISTRIBUTION_PRESENT')
-    require(psycopg2.__libpq_version__ == extensions.libpq_version() == 180006,
-            'LIBPQ_MUST_COMPILE_AND_RUN_18_6')
-    require(extensions.get_wait_callback() is None, 'UNEXPECTED_PSYCOPG_WAIT_CALLBACK')
-    site = Path(psycopg2.__file__).resolve().parent.parent
+def pure_wheels(directory):
+    from verify_client_evidence import validate_pure_wheels
+    lock = json.loads((Path(__file__).with_name('client-build-inputs.json')).read_text())
+    return validate_pure_wheels(lock['pure_client']['packages'], Path(directory))
+
+
+def runtime(directory):
+    import importlib
+    import ssl
+    import _ssl
+    wheels, files = pure_wheels(directory)
+    imports = {}
+    site = Path(importlib.import_module('pg8000').__file__).resolve().parent.parent
     require(site.is_relative_to(Path(sys.prefix).resolve()), 'CLIENT_OUTSIDE_FRESH_VENV')
-    files = wheel_manifest(wheel)
-    # pip rewrites RECORD and creates new metadata/pyc files; original installed
-    # payload files, especially all DLLs and the extension, must be byte-identical.
+    for name in ('pg8000', 'scramp', 'asn1crypto', 'dateutil', 'six', 'certifi'):
+        module = importlib.import_module(name)
+        path = Path(module.__file__).resolve(strict=True)
+        relative = path.relative_to(site).as_posix()
+        require(relative in files and sha(path) == files[relative], 'IMPORTED_PURE_FILE_MISMATCH')
+        imports[name] = {'path': str(path), 'sha256': sha(path)}
+    for item in wheels.values():
+        require(importlib.metadata.version(item['name']) == item['version'], 'PINNED_CLIENT_VERSION_REQUIRED')
     for relative, expected in files.items():
         if relative.endswith('.dist-info/RECORD'):
-            continue
-        target = site / relative
-        require(target.is_file() and sha(target) == expected, 'INSTALLED_WHEEL_FILE_MISMATCH:' + relative)
-    relevant = []
-    matched = set()
-    for path in loaded_paths():
-        name = path.name.lower()
-        if name.startswith(('libpq', 'libssl', 'libcrypto', '_psycopg')):
-            if not path.is_relative_to(site):
-                require(not name.startswith(('libpq', '_psycopg')), 'CLIENT_MODULE_OUTSIDE_TESTED_WHEEL:' + name)
-                # CPython may load its own OpenSSL for hashlib/ssl. Delvewheel's
-                # distinct mangled DLLs below are the only proven client DLLs.
-                continue
-            relative = path.relative_to(site).as_posix()
-            require(relative in files and sha(path) == files[relative], 'CLIENT_DLL_HASH_MISMATCH:' + name)
-            matched.add(relative)
-            relevant.append({'name': path.name, 'path_relative_to_site_packages': relative,
-                             'loaded_path': str(path), 'file_version': file_version(path), 'sha256': sha(path)})
-    for prefix in ('libpq', 'libssl', 'libcrypto', '_psycopg'):
-        require(sum(x['name'].lower().startswith(prefix) for x in relevant) == 1,
-                'EXPECTED_EXACTLY_ONE_LOADED_MODULE:' + prefix)
-    # Include every other loaded vendored dependency as well.
-    for path in loaded_paths():
-        if path.is_relative_to(site):
-            relative = path.relative_to(site).as_posix()
-            if relative in files and relative not in matched and path.suffix.lower() in ('.dll', '.pyd'):
-                require(sha(path) == files[relative], 'VENDORED_MODULE_HASH_MISMATCH')
-                relevant.append({'name': path.name, 'path_relative_to_site_packages': relative,
-                                 'loaded_path': str(path), 'file_version': file_version(path), 'sha256': sha(path)})
-    crypto = next(item for item in relevant if item['name'].lower().startswith('libcrypto'))
-    openssl = ctypes.WinDLL(crypto['loaded_path'])
-    openssl.OpenSSL_version_num.argtypes = []
-    openssl.OpenSSL_version_num.restype = ctypes.c_ulong
-    openssl.OpenSSL_version.argtypes = [ctypes.c_int]
-    openssl.OpenSSL_version.restype = ctypes.c_char_p
-    openssl_version = {'number': int(openssl.OpenSSL_version_num()),
-                       'text': openssl.OpenSSL_version(0).decode('ascii')}
-    return {'libpq_compile_version': psycopg2.__libpq_version__,
-            'libpq_runtime_version': extensions.libpq_version(),
-            'psycopg2_version': importlib.metadata.version('psycopg2'),
-            'python_version': sys.version, 'python_executable': str(Path(sys.executable)),
-            'openssl_version': openssl_version, 'custom_wait_callback': False,
-            'loaded_modules': sorted(relevant, key=lambda x: x['name']),
-            'wheel': {'filename': Path(wheel).name, 'sha256': sha(wheel), 'files': files}}
-
-
-def dependencies(raw_wheel, repaired_wheel, output):
-    """Verify the actual PE import edges; no DLL-version inference by filename."""
-    import pefile
-    def graph(path):
-        result = {}
-        with zipfile.ZipFile(path) as archive:
-            for name in archive.namelist():
-                if name.lower().endswith(('.pyd', '.dll')):
-                    pe = pefile.PE(data=archive.read(name))
-                    try:
-                        require(pe.FILE_HEADER.Machine == 0x8664, 'X64_PE_REQUIRED')
-                        imports = [x.dll.decode('ascii').lower() for x in
-                                   getattr(pe, 'DIRECTORY_ENTRY_IMPORT', [])]
-                        imports += [x.dll.decode('ascii').lower() for x in
-                                    getattr(pe, 'DIRECTORY_ENTRY_DELAY_IMPORT', [])]
-                        result[name] = sorted(set(imports))
-                    finally:
-                        pe.close()
-        return result
-    raw = graph(raw_wheel)
-    repaired = graph(repaired_wheel)
-    extensions = [name for name in repaired if Path(name).name.startswith('_psycopg') and name.endswith('.pyd')]
-    require(len(extensions) == 1, 'ONE_PSYCOPG_EXTENSION_REQUIRED')
-    extension = extensions[0]
-    require('libpq.dll' in raw[extension], 'DYNAMIC_OFFICIAL_LIBPQ_LINK_REQUIRED')
-    found = {}
-    for prefix in ('libpq', 'libssl', 'libcrypto'):
-        matches = [name for name in repaired if Path(name).name.lower().startswith(prefix)]
-        require(len(matches) == 1, 'ONE_VENDORED_DEPENDENCY_REQUIRED:' + prefix)
-        found[prefix] = matches[0]
-    require(Path(found['libpq']).name.lower() in repaired[extension], 'EXTENSION_NOT_LINKED_TO_VENDORED_LIBPQ')
-    for prefix in ('libssl', 'libcrypto'):
-        require(Path(found[prefix]).name.lower() in repaired[found['libpq']],
-                'LIBPQ_NOT_LINKED_TO_VENDORED_OPENSSL:' + prefix)
-    require(Path(found['libcrypto']).name.lower() in repaired[found['libssl']],
-            'LIBSSL_NOT_LINKED_TO_VENDORED_LIBCRYPTO')
-    write_json(output, {'raw_import_graph': raw, 'repaired_import_graph': repaired,
-                        'extension_relative_path': extension, 'bundled_client_modules': found,
-                        'coherent_import_edges_verified': True})
+            continue  # pip rewrites only installation metadata; sidecar checks every file.
+        require((site / relative).is_file() and sha(site / relative) == expected, 'INSTALLED_WHEEL_FILE_MISMATCH')
+    require(not any(name == 'psycopg2' or name.startswith('psycopg2.') or
+                    name == 'psycopg' or name.startswith('psycopg.') for name in sys.modules),
+            'UNEXPECTED_PSYCOPG_IMPORT')
+    from client_runtime_guard import runtime_tls_evidence
+    return {'wheels': wheels, 'wheel_files': files, 'imported_modules': imports,
+            'ssl_runtime': runtime_tls_evidence()}
 
 
 def server_dependencies(work, runtime_dir, output):
@@ -377,48 +304,207 @@ def acl_snapshot(work, control, runtime_dir, output):
 
 
 def connection_options(work, port, database='postgres'):
+    from client_connection import connection_args
     require(1024 <= int(port) <= 65535, 'INVALID_PORT')
-    return {'host': '127.0.0.1', 'hostaddr': '127.0.0.1', 'port': int(port),
-            'dbname': database, 'user': 'restore_ci',
-            'password': 'restore-disposable-synthetic-only', 'sslmode': 'verify-full',
-            'sslrootcert': str(work / 'server.crt'), 'connect_timeout': 5}
+    return {'host': '127.0.0.1', 'port': int(port), 'database': database,
+            'user': 'restore_ci', 'password': 'restore-disposable-synthetic-only',
+            **connection_args(cafile=work / 'server.crt')}
 
 
-def tls_and_marker(work, port, wheel, evidence):
-    import psycopg2
-    options = connection_options(work, port)
-    with psycopg2.connect(**options) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute('SHOW data_directory')
-            require(Path(cursor.fetchone()[0]).resolve() == (work / 'data').resolve(), 'WRONG_SERVER_DATA_DIRECTORY')
-            cursor.execute('SHOW server_version_num')
-            require(cursor.fetchone()[0] == '180006', 'POSTGRES_18_6_REQUIRED')
-        require(connection.info.ssl_in_use, 'TLS_NOT_IN_USE')
-        tls = {'sslmode': 'verify-full', 'in_use': True,
-               'protocol': connection.info.ssl_attribute('protocol'),
-               'cipher': connection.info.ssl_attribute('cipher')}
-    # Connecting to the correct address while naming a different host isolates
-    # hostname verification; an independent root isolates chain verification.
-    for label, changes, expected_fragment in (
-        ('wrong_hostname_rejected', {'host': 'wrong-host.invalid'}, 'does not match host name'),
-        ('wrong_root_rejected', {'sslrootcert': str(work / 'wrong-root.crt')}, 'certificate verify failed')):
+def socket_tls(connection):
+    import ssl
+    from types import SimpleNamespace
+    from client_connection import verify_tls_connection
+    # The probe uses DBAPI directly. Adapt only the SQLAlchemy envelope; the
+    # production function checks this real pg8000 connection and TLS socket.
+    envelope = SimpleNamespace(dialect=SimpleNamespace(driver='pg8000'),
+                               connection=SimpleNamespace(driver_connection=connection))
+    verify_tls_connection(envelope, '127.0.0.1')
+    sock = connection._usock  # Exact pinned pg8000 implementation, observed in CI.
+    require(isinstance(sock, ssl.SSLSocket) and bool(sock.getpeercert()), 'VERIFIED_TLS_SOCKET_REQUIRED')
+    require(sock.context.check_hostname is True and sock.context.verify_mode == ssl.CERT_REQUIRED,
+            'VERIFY_FULL_CONTEXT_REQUIRED')
+    require(sock.version() in ('TLSv1.2', 'TLSv1.3'), 'MODERN_TLS_REQUIRED')
+    return {'sslmode': 'verify-full', 'in_use': True, 'protocol': sock.version(),
+            'cipher': sock.cipher()[0], 'check_hostname': True, 'verify_mode': 'CERT_REQUIRED'}
+
+
+def refusal_control(options):
+    """A CI-owned loopback SSL-refusal peer, never a database or remote address."""
+    import socket
+    import threading
+    import pg8000
+    received = []
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0)); listener.listen(1); listener.settimeout(10)
+        def peer():
+            try:
+                sock, _ = listener.accept()
+                with sock:
+                    sock.settimeout(5)
+                    data = b''
+                    while len(data) < 8:
+                        part = sock.recv(8-len(data))
+                        if not part: break
+                        data += part
+                    received.append(data)
+                    sock.sendall(b'N')
+                    received.append(sock.recv(1))
+            except Exception:
+                received.append('PEER_ERROR')
+        thread = threading.Thread(target=peer, daemon=True); thread.start()
         try:
-            connection = psycopg2.connect(**(options | changes))
-        except psycopg2.OperationalError as error:
-            require(expected_fragment in str(error).lower(), 'NEGATIVE_TLS_CONTROL_FAILED_FOR_OTHER_REASON:' + label)
+            connection = pg8000.connect(**(options | {'port': listener.getsockname()[1], 'timeout': 5}))
+        except pg8000.InterfaceError as error:
+            require(error.args == ('Server refuses SSL',), 'REFUSAL_FAILED_FOR_OTHER_REASON')
+        else:
+            connection.close(); raise RuntimeError('PLAINTEXT_FALLBACK_OCCURRED')
+        thread.join(10)
+    require(not thread.is_alive() and received == [bytes.fromhex('0000000804d2162f'), b''],
+            'SSL_REFUSAL_SENT_STARTUP_OR_OTHER_DATA')
+    return True
+
+
+def read_timeout_control(work, options):
+    """Real TLS/read-timeout boundary against an owned non-database peer."""
+    import socket
+    import ssl
+    import struct
+    import threading
+    import pg8000
+    from unittest.mock import patch
+    server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server.minimum_version = ssl.TLSVersion.TLSv1_2
+    server.load_cert_chain(work / 'server.crt', work / 'server.key')
+    completed = threading.Event()
+    observation = {'startup_received': False, 'password_message_sent': False,
+                   'authentication_response_sent': False, 'termination_message_sent': False, 'connect_attempts': 0,
+                   'socket_timeout_seconds': 5}
+    errors = []
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0)); listener.listen(1); listener.settimeout(10)
+        port = listener.getsockname()[1]
+        def receive_exact(sock, size):
+            output = b''
+            while len(output) < size:
+                part = sock.recv(size - len(output))
+                require(bool(part), 'SYNTHETIC_TLS_PEER_EARLY_EOF')
+                output += part
+            return output
+        def peer():
+            try:
+                raw, _ = listener.accept()
+                with raw:
+                    raw.settimeout(5)
+                    require(receive_exact(raw, 8) == bytes.fromhex('0000000804d2162f'), 'EXPECTED_SSL_REQUEST')
+                    raw.sendall(b'S')
+                    with server.wrap_socket(raw, server_side=True) as secured:
+                        length = struct.unpack('!I', receive_exact(secured, 4))[0]
+                        require(8 < length <= 4096, 'BOUNDED_STARTUP_REQUIRED')
+                        startup = receive_exact(secured, length - 4)
+                        require(startup[:4] == bytes.fromhex('00030000') and startup.endswith(b'\0\0'),
+                                'POSTGRES_PROTOCOL_STARTUP_REQUIRED')
+                        fields = startup[4:-1].split(b'\0')[:-1]
+                        require(len(fields) % 2 == 0, 'STARTUP_KEY_VALUES_REQUIRED')
+                        pairs = dict(zip(fields[::2], fields[1::2]))
+                        require(pairs.get(b'user') == b'restore_ci' and pairs.get(b'database') == b'postgres'
+                                and b'password' not in pairs, 'FIXED_SYNTHETIC_STARTUP_REQUIRED')
+                        observation['startup_received'] = True
+                        secured.settimeout(0.2)
+                        # No authentication response is sent. Observe only that
+                        # no password or other payload follows while client waits.
+                        while True:
+                            try:
+                                extra = secured.recv(1)
+                            except socket.timeout:
+                                if completed.is_set(): break
+                                continue
+                            if not extra: break
+                            if extra == b'X':
+                                require(receive_exact(secured, 4) == bytes.fromhex('00000004'),
+                                        'MALFORMED_TERMINATE_MESSAGE')
+                                observation['termination_message_sent'] = True
+                                continue  # Observe EOF after the valid Terminate frame.
+                            observation['password_message_sent'] = extra == b'p'
+                            raise RuntimeError('UNEXPECTED_PAYLOAD_WITHOUT_AUTHENTICATION_REQUEST')
+            except Exception as error:
+                errors.append(str(error) if isinstance(error, RuntimeError) else type(error).__name__)
+        thread = threading.Thread(target=peer, daemon=True); thread.start()
+        original_create = socket.create_connection
+        def counted(address, *args, **kwargs):
+            require(address == ('127.0.0.1', port), 'ONLY_OWNED_TIMEOUT_PEER_ALLOWED')
+            observation['connect_attempts'] += 1
+            return original_create(address, *args, **kwargs)
+        start = time.monotonic()
+        try:
+            with patch('socket.create_connection', side_effect=counted):
+                connection = pg8000.connect(**(options | {'port': port, 'timeout': 5}))
+        except Exception as error:
+            cause = error.__cause__
+            require(isinstance(error, TimeoutError) or
+                    (isinstance(error, pg8000.InterfaceError) and isinstance(cause, TimeoutError)),
+                    'EXPECTED_ACTUAL_READ_TIMEOUT')
+            observation['actual_exception_type'] = type(error).__name__
+            observation['elapsed_seconds'] = time.monotonic() - start
+        else:
+            connection.close(); raise RuntimeError('AUTHENTICATION_SILENCE_CONNECTED')
+        finally:
+            completed.set(); thread.join(5)
+    require(not thread.is_alive() and not errors, 'TIMEOUT_PEER_FAILED:' + ','.join(errors))
+    require(observation['startup_received'] and observation['connect_attempts'] == 1
+            and not observation['password_message_sent']
+            and 4.5 <= observation['elapsed_seconds'] <= 15, 'READ_TIMEOUT_CONTROL_NOT_PROVEN')
+    return observation
+
+
+def tls_and_marker(work, port, directory, evidence):
+    import pg8000
+    import ssl
+    import socket
+    from unittest.mock import patch
+    from client_connection import tls_context
+    options = connection_options(work, port)
+    connection = pg8000.connect(**options)
+    try:
+        tls = socket_tls(connection)
+        cursor = connection.cursor()
+        cursor.execute('SHOW data_directory')
+        require(Path(cursor.fetchone()[0]).resolve() == (work / 'data').resolve(), 'WRONG_SERVER_DATA_DIRECTORY')
+        cursor.execute('SHOW server_version_num')
+        require(cursor.fetchone()[0] == '180006', 'POSTGRES_18_6_REQUIRED')
+    finally:
+        connection.close()
+    original_getaddrinfo = socket.getaddrinfo
+    def local_wrong_name(host, *args, **kwargs):
+        require(host == 'wrong-host.invalid', 'NEGATIVE_TLS_HOST_NOT_FIXED')
+        return original_getaddrinfo('127.0.0.1', *args, **kwargs)
+    for label, changes in (
+        ('wrong_hostname_rejected', {'host': 'wrong-host.invalid'}),
+        ('wrong_root_rejected', {'ssl_context': tls_context(work / 'wrong-root.crt')})):
+        try:
+            if label == 'wrong_hostname_rejected':
+                with patch('socket.getaddrinfo', side_effect=local_wrong_name):
+                    connection = pg8000.connect(**(options | changes))
+            else:
+                connection = pg8000.connect(**(options | changes))
+        except ssl.SSLCertVerificationError as error:
+            require(error.verify_code in (62, 64) if label == 'wrong_hostname_rejected'
+                    else error.verify_code not in (0, 62, 64), 'WRONG_CERTIFICATE_FAILURE_REASON')
             tls[label] = True
         else:
-            connection.close()
-            raise RuntimeError('NEGATIVE_TLS_CONTROL_CONNECTED:' + label)
-    proof = runtime(wheel)
-    # Deliberately create a new database. Never DROP/TRUNCATE or reuse an existing
-    # database. The owned data-directory check above precedes this first mutation.
-    connection = psycopg2.connect(**options)
+            connection.close(); raise RuntimeError('NEGATIVE_TLS_CONTROL_CONNECTED:' + label)
+    tls['plaintext_server_rejected'] = refusal_control(options)
+    tls['read_timeout_control'] = read_timeout_control(work, options)
+    tls['tls_read_timeout_rejected'] = True
+    proof = runtime(directory)
+    # The owned data-directory assertion precedes the first synthetic mutation.
+    connection = pg8000.connect(**options)
     try:
+        socket_tls(connection)
         connection.autocommit = True
-        with connection.cursor() as cursor:
-            cursor.execute('CREATE DATABASE dkss_restore_ci TEMPLATE template0')
-            cursor.execute("COMMENT ON DATABASE dkss_restore_ci IS 'WORLEX_RESTORE_SYNTHETIC_ONLY'")
+        cursor = connection.cursor()
+        cursor.execute('CREATE DATABASE dkss_restore_ci TEMPLATE template0')
+        cursor.execute("COMMENT ON DATABASE dkss_restore_ci IS 'WORLEX_RESTORE_SYNTHETIC_ONLY'")
     finally:
         connection.close()
     proof['tls'] = tls
@@ -426,75 +512,67 @@ def tls_and_marker(work, port, wheel, evidence):
     write_json(evidence / 'runtime-proof.json', proof)
 
 
-def stability(work, port, wheel, evidence):
-    """Separate synthetic TLS result-buffer stress and the previous 185s window."""
-    import psycopg2
+def stability(work, port, directory, evidence):
+    import pg8000
     count = 0
-    with psycopg2.connect(**connection_options(work, port, 'dkss_restore_ci')) as connection:
-        connection.set_session(readonly=True, autocommit=False)
-        with connection.cursor() as cursor:
-            # Synthetic text exceeds one TLS record, exercising repeated drains.
-            for _ in range(64):
-                cursor.execute("SELECT repeat('synthetic-buffer-only-',4096), n FROM generate_series(1,8) n")
-                rows = cursor.fetchall()
-                require(rows == [('synthetic-buffer-only-' * 4096, n) for n in range(1, 9)], 'BUFFER_READ_MISMATCH')
-                count += 1
-            start = time.monotonic()
-            for _ in range(185):
-                cursor.execute('SELECT 1 FROM pg_sleep(1)')
-                require(cursor.fetchone() == (1,), 'STABILITY_PING_FAILED')
-                count += 1
-            elapsed = time.monotonic() - start
-            require(elapsed >= 185, 'STABILITY_WINDOW_TOO_SHORT')
-    proof = runtime(wheel)
+    connection = pg8000.connect(**connection_options(work, port, 'dkss_restore_ci'))
+    try:
+        socket_tls(connection)
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION READ ONLY')
+        cursor.execute('SHOW transaction_read_only'); require(cursor.fetchone()[0] == 'on', 'READ_ONLY_REQUIRED')
+        for _ in range(64):
+            cursor.execute("SELECT repeat('synthetic-buffer-only-',4096), n FROM generate_series(1,8) n")
+            rows = [tuple(row) for row in cursor.fetchall()]
+            require(rows == [('synthetic-buffer-only-' * 4096, n) for n in range(1, 9)], 'BUFFER_READ_MISMATCH')
+            count += 1
+        start = time.monotonic()
+        for _ in range(185):
+            cursor.execute('SELECT 1 FROM pg_sleep(1)')
+            require(tuple(cursor.fetchone()) == (1,), 'STABILITY_PING_FAILED'); count += 1
+        elapsed = time.monotonic() - start
+        require(elapsed >= 185, 'STABILITY_WINDOW_TOO_SHORT')
+        connection.rollback()
+    finally:
+        connection.close()
+    runtime(directory)
     write_json(evidence / 'stability-proof.json', {
         'synthetic_only': True, 'query_count': count, 'buffer_queries': 64,
         'window_queries': 185, 'window_seconds': elapsed,
-        'read_only': True, 'libpq_runtime_version': proof['libpq_runtime_version'],
-        'exact_external_38_queries_replayed': False,
-        'external_disconnect_cause_proven': False})
+        'read_only': True, 'client_profile': 'pg8000-pure-python',
+        'exact_external_38_queries_replayed': False, 'external_disconnect_cause_proven': False})
 
 
 def sidecar_guard(work, package, policy_file, output):
-    """Run the production guard in a fresh child with the exact extracted wheel."""
     require(package.resolve().is_relative_to(work), 'SMOKE_PACKAGE_MUST_BE_CI_OWNED')
     sidecar = package / 'client-sidecar'
     require(sidecar.is_dir() and not sidecar.is_symlink(), 'SIDECAR_SMOKE_DIRECTORY_REQUIRED')
     sys.dont_write_bytecode = True
-    sys.path.insert(0, str(sidecar))
+    sys.path.insert(0, str(sidecar)); sys.path.insert(1, str(package))
     spec = importlib.util.spec_from_file_location('tested_client_guard', package / 'client_runtime_guard.py')
-    guard = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(guard)
-    policy = json.loads(policy_file.read_text())
-    profile = policy['windows_client_acceptance']
+    guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(guard)
+    policy = json.loads(policy_file.read_text()); profile = policy['windows_client_acceptance']
     result = guard.validate_loaded_client(sidecar, profile)
-    require(result['loaded_extension_and_dll_hashes_match'] is True, 'ACTUAL_SIDECAR_GUARD_FAILED')
+    require(result['pure_python_client'] is True and result['tls_context_verified'] is True,
+            'ACTUAL_SIDECAR_GUARD_FAILED')
     spec = importlib.util.spec_from_file_location('tested_core', package / 'worlex_restore.py')
-    core = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(core)
+    core = importlib.util.module_from_spec(spec); spec.loader.exec_module(core)
     core.enforce_windows_client(package, policy)
     write_json(output, {'actual_windows': True, 'production_guard_passed': True,
                         'core_preconnection_guard_passed': True,
-                        'sidecar_wheel_sha256': profile['wheel_sha256'],
+                        'sidecar_wheels_sha256': {name: value['sha256'] for name, value in profile['wheels'].items()},
                         'result': result})
 
 
 if __name__ == '__main__':
     mode, location = sys.argv[1:3]
     work = require_owned(location)
-    if mode == 'certificates':
-        certificates(work)
-    elif mode == 'dependencies':
-        dependencies(*map(Path, sys.argv[3:6]))
-    elif mode == 'server-dependencies':
-        server_dependencies(work, *map(Path, sys.argv[3:5]))
-    elif mode == 'acl-snapshot':
-        acl_snapshot(work, *map(Path, sys.argv[3:6]))
-    elif mode == 'sidecar':
-        sidecar_guard(work, *map(Path, sys.argv[3:6]))
+    if mode == 'certificates': certificates(work)
+    elif mode == 'server-dependencies': server_dependencies(work, *map(Path, sys.argv[3:5]))
+    elif mode == 'acl-snapshot': acl_snapshot(work, *map(Path, sys.argv[3:6]))
+    elif mode == 'sidecar': sidecar_guard(work, *map(Path, sys.argv[3:6]))
     elif mode in ('probe', 'stability'):
-        port, wheel, evidence = sys.argv[3:6]
+        port, directory, evidence = sys.argv[3:6]
         function = tls_and_marker if mode == 'probe' else stability
-        function(work, int(port), Path(wheel).resolve(strict=True), Path(evidence).resolve(strict=True))
-    else:
-        raise SystemExit('UNKNOWN_PROBE_MODE')
+        function(work, int(port), Path(directory).resolve(strict=True), Path(evidence).resolve(strict=True))
+    else: raise SystemExit('UNKNOWN_PROBE_MODE')

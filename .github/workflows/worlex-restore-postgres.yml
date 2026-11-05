@@ -39,17 +39,15 @@ jobs:
         with:
           python-version: '3.12.14'
           cache: pip
-      - run: python -m pip install -r requirements.txt
-      - name: Mark only the newly owned service container
+      - run: python worlex-scoped-restore-20261104/tests/install_pure_client.py application
+      - name: Enable verified TLS only on the newly owned service container
         env:
           POSTGRES_SERVICE_CONTAINER: ${{ job.services.postgres.id }}
-        run: |
-          set -euo pipefail
-          test -n "$POSTGRES_SERVICE_CONTAINER"
-          docker exec "$POSTGRES_SERVICE_CONTAINER" psql -U restore_ci -d dkss_restore_ci -v ON_ERROR_STOP=1 -c "COMMENT ON DATABASE dkss_restore_ci IS 'WORLEX_RESTORE_SYNTHETIC_ONLY'"
+          WORLEX_TEST_POSTGRES_URL: postgresql+pg8000://restore_ci:restore-disposable-synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/dkss_restore_ci
+        run: python worlex-scoped-restore-20261104/tests/configure_linux_tls.py
       - name: Run guards and synthetic PostgreSQL restore acceptance
         env:
-          WORLEX_TEST_POSTGRES_URL: postgresql+psycopg2://restore_ci:restore-disposable-synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/dkss_restore_ci
+          WORLEX_TEST_POSTGRES_URL: postgresql+pg8000://restore_ci:restore-disposable-synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/dkss_restore_ci
         run: |
           set -euo pipefail
           mkdir -p restore-evidence
@@ -95,7 +93,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12.10'
-      - run: python -m pip install -r worlex-scoped-restore-20261104/requirements-runner.txt
+      - run: python worlex-scoped-restore-20261104/tests/install_pure_client.py runner
       - uses: actions/download-artifact@v7
         with:
           name: windows-render-fixture-${{ github.sha }}
@@ -144,7 +142,7 @@ jobs:
         with:
           python-version: '3.12.10'
           architecture: x64
-      - name: Build pinned source client and run full synthetic Windows TLS acceptance
+      - name: Install pinned pure client and run full synthetic Windows TLS acceptance
         shell: pwsh
         run: python worlex-scoped-restore-20261104/tests/windows-ci/build_windows_client.py
       - uses: actions/upload-artifact@v7
@@ -166,7 +164,7 @@ jobs:
             windows-client-evidence/dependency-proof.json
             windows-client-evidence/build-proof.json
             windows-client-evidence/client-proof.json
-            windows-client-evidence/psycopg2-2.9.12-cp312-cp312-win_amd64.whl
+            windows-client-evidence/pure-wheels/
           if-no-files-found: warn
           retention-days: 14
 

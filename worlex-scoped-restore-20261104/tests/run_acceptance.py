@@ -4,7 +4,7 @@ root=pathlib.Path(__file__).resolve().parents[1];evidence=pathlib.Path(os.enviro
 if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise SystemExit('Explicit PostgreSQL acceptance required')
 suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_restore_*.py')
 expected=suite.countTestCases()
-if expected<71:raise SystemExit('Full 71-case acceptance suite required')
+if expected<93:raise SystemExit('Full 93-case acceptance suite required')
 result=unittest.TextTestRunner(verbosity=2).run(suite)
 summary={'expected':expected,'run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'postgres_required':True}
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))
@@ -25,7 +25,7 @@ policy['full_table_acceptance']=coverage
 policy.pop('postgres_acceptance_passed',None)
 policy.pop('windows_render_acceptance_passed',None)
 policy['acceptance_summary']=summary
-files=[root/'.gitattributes',root/'worlex_restore.py',root/'policy.json',root/'source-manifest.json',root/'source-counts.json',root/'client_runtime_guard.py',root/'client_bootstrap.py',root/'tests/windows-ci/client-build-inputs.json',*sorted((root/'tests').rglob('*.py')),*sorted((root/'tests').rglob('*.sh'))]
+files=[root/'.gitattributes',root/'worlex_restore.py',root/'policy.json',root/'source-manifest.json',root/'source-counts.json',root/'client_runtime_guard.py',root/'client_bootstrap.py',root/'client_connection.py',root/'tests/windows-ci/client-build-inputs.json',*sorted((root/'tests').rglob('*.py')),*sorted((root/'tests').rglob('*.sh'))]
 code={f.relative_to(root).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
 policy['tested_artifacts']=code
 policy['workflow_sha256']=hashlib.sha256(pathlib.Path('.github/workflows/worlex-restore-postgres.yml').read_bytes()).hexdigest()

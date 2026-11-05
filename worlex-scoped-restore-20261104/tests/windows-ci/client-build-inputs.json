@@ -81,17 +81,6 @@
       "version": "0.48.0"
     },
     {
-      "filename": "delvewheel-1.13.2-py3-none-any.whl",
-      "metadata_url": "https://pypi.org/pypi/delvewheel/1.13.2/json",
-      "name": "delvewheel",
-      "requires_dist": [
-        "pefile>=2024.8.26"
-      ],
-      "sha256": "acdb03e1d7040982db65e525065f08163e9dedad54eeb8c7038be61f76c08816",
-      "url": "https://files.pythonhosted.org/packages/e4/05/ed05a24fb628232b68c4a0c701865bf0c2b3eb79cfbd14b1cde11c55edea/delvewheel-1.13.2-py3-none-any.whl",
-      "version": "1.13.2"
-    },
-    {
       "filename": "pefile-2024.8.26-py3-none-any.whl",
       "metadata_url": "https://pypi.org/pypi/pefile/2024.8.26/json",
       "name": "pefile",
@@ -115,12 +104,51 @@
     "url": "https://get.enterprisedb.com/postgresql/postgresql-18.6-5-windows-x64-binaries.zip",
     "version": "18.6"
   },
-  "psycopg2_sdist": {
-    "filename": "psycopg2-2.9.12.tar.gz",
-    "name": "psycopg2",
-    "sha256": "1dedb1c7a1d8552c4a6044c6b1c41a52e6a8e2d144af83eccac758076b1b7c15",
-    "url": "https://files.pythonhosted.org/packages/c7/bc/f66df707ed1aec949fbf24e4460e4f4277a7ba23cdadb3965bb1f634ddb9/psycopg2-2.9.12.tar.gz",
-    "version": "2.9.12"
+  "pure_client": {
+    "packages": [
+      {
+        "filename": "pg8000-1.31.6-py3-none-any.whl",
+        "name": "pg8000",
+        "sha256": "1ffe27af94fa5b37ce6885b98d591dc75562ff076859bf50ca7729af59345a80",
+        "url": "https://files.pythonhosted.org/packages/a4/f6/28aa670fead0076daf55a59cbcfa1bb0ace9568427eb2c463f2598e8bb23/pg8000-1.31.6-py3-none-any.whl",
+        "version": "1.31.6"
+      },
+      {
+        "filename": "scramp-1.5.0-py3-none-any.whl",
+        "name": "scramp",
+        "sha256": "8280608f568e81da9e9c9d69cac1331b836622d9b48bf5c5e400e16129c6d1fa",
+        "url": "https://files.pythonhosted.org/packages/ff/62/231ee179d8995d28981414432bf79492f0b909f5820452b77f422fdce259/scramp-1.5.0-py3-none-any.whl",
+        "version": "1.5.0"
+      },
+      {
+        "filename": "asn1crypto-1.5.1-py2.py3-none-any.whl",
+        "name": "asn1crypto",
+        "sha256": "db4e40728b728508912cbb3d44f19ce188f218e9eba635821bb4b68564f8fd67",
+        "url": "https://files.pythonhosted.org/packages/c9/7f/09065fd9e27da0eda08b4d6897f1c13535066174cc023af248fc2a8d5e5a/asn1crypto-1.5.1-py2.py3-none-any.whl",
+        "version": "1.5.1"
+      },
+      {
+        "filename": "python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+        "name": "python-dateutil",
+        "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+        "url": "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+        "version": "2.9.0.post0"
+      },
+      {
+        "filename": "six-1.17.0-py2.py3-none-any.whl",
+        "name": "six",
+        "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+        "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+        "version": "1.17.0"
+      },
+      {
+        "filename": "certifi-2026.10.23-py3-none-any.whl",
+        "name": "certifi",
+        "sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+        "url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl",
+        "version": "2026.10.23"
+      }
+    ]
   },
   "schema_version": 1
 }

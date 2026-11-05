@@ -1,11 +1,13 @@
 """Synthetic PG18 acceptance, restricted to the workflow-owned service container.
 Never reads an archive and never accepts a production connection.
 """
-import copy, hashlib, json, os, pathlib, secrets, subprocess, sys, tempfile, unittest, uuid
-from unittest.mock import patch
+import copy, hashlib, json, os, pathlib, re, secrets, ssl, subprocess, sys, tempfile, unittest, uuid
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from sqlalchemy import create_engine, text, select, func
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
+from client_connection import connection_args, verify_tls_connection
 from worlex_restore import Stop, validate_schema, typed_payload, snapshot, plan, execute_restore, verify_restore, digest, sequence_states
 from synthetic_fixture import fixture, PASSWORD
 PACKAGE=pathlib.Path(__file__).resolve().parents[1]
@@ -15,31 +17,108 @@ MARKER='WORLEX_RESTORE_SYNTHETIC_ONLY'
 def validate_service_url(value,environment):
  if environment.get('GITHUB_ACTIONS')!='true' or environment.get('GITHUB_REPOSITORY')!='oxo-ops/dkss':raise Stop('DEDICATED_CI_ONLY')
  u=make_url(value)
- if (u.drivername!='postgresql+psycopg2' or u.host!='127.0.0.1' or u.database!='dkss_restore_ci' or u.username!='restore_ci' or u.password!='restore-disposable-synthetic-only' or u.port is None or u.query):raise Stop('REFUSING_NONTEST_CONNECTION')
+ if (u.drivername!='postgresql+pg8000' or u.host!='127.0.0.1' or u.database!='dkss_restore_ci' or u.username!='restore_ci' or u.password!='restore-disposable-synthetic-only' or u.port is None or u.query):raise Stop('REFUSING_NONTEST_CONNECTION')
  return u
+
+def ci_ca_file(environment):
+ value=environment.get('WORLEX_TEST_CA_FILE','')
+ if not value or not pathlib.Path(value).is_file():raise Stop('EXPLICIT_CI_CA_FILE_REQUIRED')
+ return str(pathlib.Path(value).resolve())
+
+def ci_app_config(value,cafile):
+ # Only this harness's disposable per-test databases may initialize the app.
+ u=make_url(value)
+ if not re.fullmatch(r'restore_owned_[0-9a-f]{32}',u.database or ''):raise Stop('CI_OWNED_DATABASE_REQUIRED')
+ validate_service_url(u.set(database='dkss_restore_ci'),os.environ)
+ args=connection_args(cafile=cafile,application_name='worlex_synthetic_app')
+ # App schema initialization creates unqualified tables. Keep their target
+ # public; PostgreSQL still searches pg_catalog implicitly before this path.
+ args['startup_params']={**args['startup_params'],'search_path':'public'}
+ return {'SQLALCHEMY_DATABASE_URI':u.render_as_string(hide_password=False),
+         'SQLALCHEMY_ENGINE_OPTIONS':{'poolclass':NullPool,'hide_parameters':True,
+                                     'connect_args':args}}
+
+def assert_pg8000_tls(connection):
+ # pg8000 1.31.6's documented SQLAlchemy import path uses legacy.Connection;
+ # Exercise the exact production post-connect gate before the CI checks/SQL.
+ if any(n=='psycopg' or n.startswith('psycopg.') or n=='psycopg2' or n.startswith('psycopg2.') for n in sys.modules):raise Stop('LEGACY_POSTGRES_DRIVER_LOADED')
+ try:verify_tls_connection(connection,'127.0.0.1')
+ except ValueError:raise Stop('CI_PG8000_TLS_NOT_VERIFIED') from None
+ raw=connection.connection.driver_connection
+ sock=getattr(raw,'_usock',None)
+ if (connection.dialect.driver!='pg8000' or type(raw).__module__!='pg8000.legacy'
+     or not isinstance(sock,ssl.SSLSocket) or sock.context.verify_mode!=ssl.CERT_REQUIRED
+     or not sock.context.check_hostname or sock.server_hostname!='127.0.0.1'
+     or not sock.getpeercert() or sock.version() not in ('TLSv1.2','TLSv1.3')):
+  raise Stop('CI_PG8000_TLS_NOT_VERIFIED')
 
 class ServiceGuardTests(unittest.TestCase):
  def test_dedicated_service_and_rejections(self):
   env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'oxo-ops/dkss'}
-  value='postgresql+psycopg2://restore_ci:restore-disposable-synthetic-only@127.0.0.1:5432/dkss_restore_ci'
+  value='postgresql+pg8000://restore_ci:restore-disposable-synthetic-only@127.0.0.1:5432/dkss_restore_ci'
   self.assertEqual(validate_service_url(value,env).database,'dkss_restore_ci')
-  for invalid in [value.replace('127.0.0.1','external.invalid'),value.replace('dkss_restore_ci','production'),value+'?host=other',value.replace('restore_ci:','real_user:')]:
+  for invalid in [value.replace('127.0.0.1','external.invalid'),value.replace('dkss_restore_ci','production'),value+'?host=other',value.replace('restore_ci:','real_user:'),value.replace('+pg8000','+psycopg2')]:
    with self.assertRaises(Stop):validate_service_url(invalid,env)
   with self.assertRaises(Stop):validate_service_url(value,{})
+ def test_missing_explicit_ca_fails_closed(self):
+  with self.assertRaisesRegex(Stop,'EXPLICIT_CI_CA_FILE_REQUIRED'):ci_ca_file({})
+  with self.assertRaisesRegex(Stop,'EXPLICIT_CI_CA_FILE_REQUIRED'):ci_ca_file({'WORLEX_TEST_CA_FILE':str(PACKAGE/'nonexistent-ca.pem')})
+ def test_app_config_uses_explicit_context_without_libpq_environment(self):
+  env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'oxo-ops/dkss','PGSSLMODE':'disable','PGSSLROOTCERT':'not-used'}
+  value='postgresql+pg8000://restore_ci:restore-disposable-synthetic-only@127.0.0.1:5432/restore_owned_'+('a'*32)
+  context=object();args={'ssl_context':context,'timeout':130,'startup_params':{'search_path':'pg_catalog,public','statement_timeout':'120000'}}
+  with patch.dict(os.environ,env,clear=True),patch(__name__+'.connection_args',return_value=args) as factory:
+   config=ci_app_config(value,'explicit-ci-ca.pem')
+  factory.assert_called_once_with(cafile='explicit-ci-ca.pem',application_name='worlex_synthetic_app')
+  self.assertEqual(config['SQLALCHEMY_DATABASE_URI'],value)
+  options=config['SQLALCHEMY_ENGINE_OPTIONS']
+  self.assertIs(options['poolclass'],NullPool);self.assertTrue(options['hide_parameters'])
+  self.assertIs(options['connect_args']['ssl_context'],context)
+  self.assertEqual(options['connect_args']['startup_params'],{'search_path':'public','statement_timeout':'120000'})
+ def test_app_config_rejects_non_ci_destinations_before_context_creation(self):
+  env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'oxo-ops/dkss'}
+  value='postgresql+pg8000://restore_ci:restore-disposable-synthetic-only@127.0.0.1:5432/restore_owned_'+('a'*32)
+  with patch.dict(os.environ,env,clear=True),patch(__name__+'.connection_args') as factory:
+   for invalid in [value.replace('127.0.0.1','external.invalid'),value+'?host=other',value.replace('restore_owned_'+('a'*32),'production'),value.replace('+pg8000','+psycopg2')]:
+    with self.subTest(value=invalid),self.assertRaises(Stop):ci_app_config(invalid,'explicit-ci-ca.pem')
+   factory.assert_not_called()
+ def test_tls_check_requires_verified_pg8000_socket(self):
+  def connection():
+   sock=Mock(spec=ssl.SSLSocket)
+   sock.context=SimpleNamespace(verify_mode=ssl.CERT_REQUIRED,check_hostname=True)
+   sock.server_hostname='127.0.0.1';sock.getpeercert.return_value={'subjectAltName':(('IP Address','127.0.0.1'),)};sock.version.return_value='TLSv1.3'
+   raw=type('Connection',(),{'__module__':'pg8000.legacy'})();raw._usock=sock
+   return SimpleNamespace(dialect=SimpleNamespace(driver='pg8000'),connection=SimpleNamespace(driver_connection=raw))
+  valid=connection()
+  with patch(__name__+'.verify_tls_connection',wraps=verify_tls_connection) as production_gate:
+   assert_pg8000_tls(valid)
+   production_gate.assert_called_once_with(valid,'127.0.0.1')
+  with patch(__name__+'.verify_tls_connection',side_effect=ValueError('CLIENT_ACTUAL_TLS_NOT_VERIFIED')),self.assertRaisesRegex(Stop,'CI_PG8000_TLS_NOT_VERIFIED'):
+   assert_pg8000_tls(connection())
+  for change in ('non_tls','wrong_driver','no_ca_check','no_hostname_check','wrong_hostname','no_certificate','old_tls'):
+   c=connection();sock=c.connection.driver_connection._usock
+   if change=='non_tls':c.connection.driver_connection._usock=object()
+   elif change=='wrong_driver':c.dialect.driver='other'
+   elif change=='no_ca_check':sock.context.verify_mode=ssl.CERT_NONE
+   elif change=='no_hostname_check':sock.context.check_hostname=False
+   elif change=='wrong_hostname':sock.server_hostname='external.invalid'
+   elif change=='no_certificate':sock.getpeercert.return_value={}
+   else:sock.version.return_value='TLSv1.1'
+   with self.subTest(change=change),self.assertRaisesRegex(Stop,'CI_PG8000_TLS_NOT_VERIFIED'):assert_pg8000_tls(c)
+  with patch.dict(sys.modules,{'psycopg2':object()}),self.assertRaisesRegex(Stop,'LEGACY_POSTGRES_DRIVER_LOADED'):assert_pg8000_tls(connection())
 
 class PostgreSQLRestoreAcceptance(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise unittest.SkipTest('Explicit isolated PostgreSQL service required; no local/live fallback')
   cls.service=validate_service_url(os.environ.get('WORLEX_TEST_POSTGRES_URL',''),os.environ)
+  cls.cafile=ci_ca_file(os.environ)
   manifest=json.loads((PACKAGE/'source-manifest.json').read_text())
   if not all((APP/n).is_file() and hashlib.sha256((APP/n).read_bytes()).hexdigest()==v for n,v in manifest['files'].items()):raise Stop('PINNED_APPLICATION_SOURCE_MISMATCH')
-  cls.admin=create_engine(cls.service,poolclass=NullPool,isolation_level='AUTOCOMMIT',hide_parameters=True,connect_args={'hostaddr':'127.0.0.1','connect_timeout':5})
+  cls.admin=create_engine(cls.service,poolclass=NullPool,isolation_level='AUTOCOMMIT',hide_parameters=True,connect_args=connection_args(cafile=cls.cafile,application_name='worlex_synthetic_admin'))
   cls.addClassCleanup(cls.admin.dispose)
   with cls.admin.connect() as c:
-   if os.name=='nt':
-    raw=c.connection.driver_connection
-    if not raw.info.ssl_in_use or raw.get_dsn_parameters().get('sslmode')!='verify-full':raise Stop('WINDOWS_ADMIN_TLS_NOT_VERIFIED')
+   assert_pg8000_tls(c)
    if c.scalar(text("SELECT shobj_description(oid,'pg_database') FROM pg_database WHERE datname=current_database()"))!=MARKER:raise Stop('UNMARKED_CI_DATABASE')
    if c.scalar(text("SELECT count(*) FROM pg_tables WHERE schemaname='public'"))!=0:raise Stop('CI_MARKER_DATABASE_MUST_REMAIN_EMPTY')
    version=c.scalar(text('SHOW server_version_num'))
@@ -49,32 +128,30 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   self.name='restore_owned_'+uuid.uuid4().hex
   with self.admin.connect() as c:c.exec_driver_sql('CREATE DATABASE "'+self.name+'" TEMPLATE template0')
   self.url=self.service.set(database=self.name)
-  self.engine=create_engine(self.url,poolclass=NullPool,hide_parameters=True,connect_args={'hostaddr':'127.0.0.1','connect_timeout':5})
+  self.engine=create_engine(self.url,poolclass=NullPool,hide_parameters=True,connect_args=connection_args(cafile=self.cafile,application_name='worlex_synthetic_restore'))
   self.addCleanup(self.engine.dispose)
   with self.engine.begin() as c:
+   assert_pg8000_tls(c)
    self.assertEqual(c.scalar(text("SELECT count(*) FROM pg_tables WHERE schemaname='public'")),0)
    c.exec_driver_sql("COMMENT ON DATABASE \""+self.name+"\" IS 'WORLEX_RESTORE_SYNTHETIC_ONLY'")
   self.temp=tempfile.TemporaryDirectory(prefix='worlex-synthetic-');self.addCleanup(self.temp.cleanup)
-  env={'PATH':os.defpath,'HOME':self.temp.name,'LANG':'C.UTF-8','TZ':'UTC','PYTHONPATH':str(APP),'PYTHONDONTWRITEBYTECODE':'1','FLASK_SKIP_DOTENV':'1','DATABASE_URL':self.url.render_as_string(hide_password=False),'SECRET_KEY':secrets.token_urlsafe(40),'ITC_INITIAL_PASSWORD':'Synthetic-ITC-Only!','RENDER':'','AWS_EC2_METADATA_DISABLED':'true','AWS_CONFIG_FILE':os.devnull,'AWS_SHARED_CREDENTIALS_FILE':os.devnull,'S3_BUCKET_NAME':'','OPENAI_API_KEY':'','SMTP_HOST':'','VAPID_PRIVATE_KEY':'','VAPID_PUBLIC_KEY':'','DOCUMENT_IMPORT_WORKER_ENABLED':'0','ANALYSIS_READ_CACHE_ENABLED':'0','RATELIMIT_STORAGE_URI':'memory://'}
-  # Windows loader requirements and the CI-owned TLS trust are the only
-  # inherited values allowed into the otherwise isolated application child.
-  for key in ('SYSTEMROOT','WINDIR','TEMP','TMP','PGSSLMODE','PGSSLROOTCERT'):
+  env={'PATH':os.defpath,'HOME':self.temp.name,'LANG':'C.UTF-8','TZ':'UTC','PYTHONPATH':os.pathsep.join(map(str,(PACKAGE/'tests',PACKAGE,APP))),'PYTHONDONTWRITEBYTECODE':'1','FLASK_SKIP_DOTENV':'1','DATABASE_URL':self.url.render_as_string(hide_password=False),'SECRET_KEY':secrets.token_urlsafe(40),'ITC_INITIAL_PASSWORD':'Synthetic-ITC-Only!','RENDER':'','AWS_EC2_METADATA_DISABLED':'true','AWS_CONFIG_FILE':os.devnull,'AWS_SHARED_CREDENTIALS_FILE':os.devnull,'S3_BUCKET_NAME':'','OPENAI_API_KEY':'','SMTP_HOST':'','VAPID_PRIVATE_KEY':'','VAPID_PUBLIC_KEY':'','DOCUMENT_IMPORT_WORKER_ENABLED':'0','ANALYSIS_READ_CACHE_ENABLED':'0','RATELIMIT_STORAGE_URI':'memory://','WORLEX_TEST_CA_FILE':self.cafile,'WORLEX_TEST_APP_SOURCE':str(APP),'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'oxo-ops/dkss'}
+  # Inherit only Windows loader requirements. The CA is explicit and checked;
+  # libpq PGSSL environment variables have no authority in this candidate.
+  for key in ('SYSTEMROOT','WINDIR','TEMP','TMP'):
    if key in os.environ:env[key]=os.environ[key]
   if os.name=='nt':
-   if env.get('PGSSLMODE')!='verify-full' or not pathlib.Path(env.get('PGSSLROOTCERT','')).is_file():raise Stop('WINDOWS_CI_TLS_REQUIRED')
    env['PATH']=str(pathlib.Path(sys.executable).parent)+os.pathsep+str(pathlib.Path(env['SYSTEMROOT'])/'System32')
   self.env=env
   setup="""import os
+from test_restore_postgres import ci_app_config, assert_pg8000_tls
 from dkss_app import create_app
 from dkss_app.extensions import db
 from dkss_app.driving_access import initialize_driving_access
 from dkss_app.vehicle_couplings import initialize_coupling_schema
-app=create_app(initialize_database=False)
+app=create_app(ci_app_config(os.environ['DATABASE_URL'],os.environ['WORLEX_TEST_CA_FILE']),initialize_database=False)
 with app.app_context():
- if os.name=='nt':
-  with db.engine.connect() as connection:
-   raw=connection.connection.driver_connection
-   if not raw.info.ssl_in_use or raw.get_dsn_parameters().get('sslmode')!='verify-full':raise RuntimeError('WINDOWS_APP_TLS_NOT_VERIFIED')
+ with db.engine.connect() as connection:assert_pg8000_tls(connection)
  result=app.test_cli_runner().invoke(args=['init-db'])
  if result.exit_code: raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
  initialize_driving_access(app)
@@ -246,13 +323,13 @@ with app.app_context():
  def test_disconnect_before_commit_rolls_back_all_37_tables_and_sequences(self):
   # The connection belongs to this newly created CI-only database. Closing it
   # before COMMIT must leave no imported data or transactional sequence changes.
-  from sqlalchemy.exc import OperationalError
-  import psycopg2
+  from sqlalchemy.exc import InterfaceError
+  import pg8000
   self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
   with self.engine.connect() as c:
    before=snapshot(c,self.tables);sequences=sequence_states(c,self.tables)
   guards=[0];reached=[False]
-  with self.assertRaises(OperationalError):
+  with self.assertRaises(InterfaceError):
    with self.engine.begin() as c:
     scalar=c.scalar
     def lose_connection(statement,*args,**kwargs):
@@ -262,7 +339,7 @@ with app.app_context():
        reached[0]=True
        c.connection.driver_connection.close()
        c.invalidate()
-       raise OperationalError(None,None,psycopg2.OperationalError('synthetic client connection lost before commit'),connection_invalidated=True)
+       raise InterfaceError(None,None,pg8000.InterfaceError('network error: synthetic client connection lost before commit'),connection_invalidated=True)
      return scalar(statement,*args,**kwargs)
     with patch.object(c,'scalar',side_effect=lose_connection):
      execute_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
@@ -285,16 +362,16 @@ with app.app_context():
  def test_disconnect_after_commit_reconciles_without_reinserting(self):
   # Model a client losing the outcome AFTER a real PostgreSQL commit. This is
   # not a claim to inject or reproduce network-level packet/acknowledgement loss.
-  from sqlalchemy.exc import OperationalError
-  import psycopg2
+  from sqlalchemy.exc import InterfaceError
+  import pg8000
   self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push();self.approve_current()
   real_commit=self.engine.dialect.do_commit;commits=[0]
   def commit_then_lose_outcome(dbapi_connection):
    real_commit(dbapi_connection);commits[0]+=1
    getattr(dbapi_connection,'driver_connection',dbapi_connection).close()
-   raise psycopg2.OperationalError('server closed the connection unexpectedly: synthetic post-commit outcome loss')
+   raise pg8000.InterfaceError('network error: synthetic post-commit outcome loss')
   with patch.object(self.engine.dialect,'do_commit',side_effect=commit_then_lose_outcome):
-   with self.assertRaises(OperationalError):self.restore()
+   with self.assertRaises(InterfaceError):self.restore()
   self.assertEqual(commits[0],1)
   verified=self.verify_current()
   self.assertEqual(verified['source_rows'],4100)
@@ -324,8 +401,9 @@ with app.app_context():
   with patch.dict(os.environ,self.env,clear=True):
    from dkss_app import create_app
    from dkss_app.extensions import db
-   app=create_app({'SQLALCHEMY_DATABASE_URI':self.url.render_as_string(hide_password=False),'SECRET_KEY':'synthetic-ui-only','TESTING':True,'MFA_ENABLED':False,'WTF_CSRF_ENABLED':False,'RATELIMIT_ENABLED':False},initialize_database=False)
+   app=create_app({**ci_app_config(self.url,self.cafile),'SECRET_KEY':'synthetic-ui-only','TESTING':True,'MFA_ENABLED':False,'WTF_CSRF_ENABLED':False,'RATELIMIT_ENABLED':False},initialize_database=False)
    with app.app_context():
+    with db.engine.connect() as connection:assert_pg8000_tls(connection)
     with app.test_client() as client:
      response=client.post('/login',data={'company_code':'WORLEX','username':'fixture-0','password':PASSWORD},follow_redirects=False)
      self.assertIn(response.status_code,(302,303))
