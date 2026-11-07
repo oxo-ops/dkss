@@ -13,6 +13,8 @@ from synthetic_fixture import fixture, PASSWORD
 PACKAGE=pathlib.Path(__file__).resolve().parents[1]
 APP=pathlib.Path(os.environ.get('WORLEX_TEST_APP_SOURCE',PACKAGE.parent)).resolve()
 MARKER='WORLEX_RESTORE_SYNTHETIC_ONLY'
+# Filled only after the two real, isolated PostgreSQL catalog tests pass.
+CATALOG_BATCHING_EVIDENCE={}
 
 def validate_service_url(value,environment):
  if environment.get('GITHUB_ACTIONS')!='true' or environment.get('GITHUB_REPOSITORY')!='oxo-ops/dkss':raise Stop('DEDICATED_CI_ONLY')
@@ -285,6 +287,66 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    self.assertEqual(sequence_states(c,tables),self.seq_before)
    for t in tables.values():
     if 'company_code' in t.c:self.assertEqual(c.scalar(select(func.count()).select_from(t).where(t.c.company_code=='WORLEX')),0)
+ def test_catalog_maps_match_original_full_fixture(self):
+  from sqlalchemy import inspect
+  from sqlalchemy.engine.reflection import ObjectKind, ObjectScope
+  from worlex_restore import defer_push_subscription, DEFERRED_SOURCE_ROWS
+  typed,_=typed_payload(self.data,self.columns,self.tables,self.counts,self.approved['generated_identifiers'])
+  defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
+  names=[name for name,rows in typed.items() if rows]
+  self.assertEqual(sum(self.counts.values()),4100)
+  self.assertEqual(sum(map(len,typed.values())),4099)
+  self.assertEqual(len(names),36)
+  with self.engine.begin() as c:
+   c.exec_driver_sql('SET TRANSACTION READ ONLY')
+   single,bulk=inspect(c),inspect(c)
+   uniques=bulk.get_multi_unique_constraints(schema='public',filter_names=names,kind=ObjectKind.ANY,scope=ObjectScope.ANY)
+   indexes=bulk.get_multi_indexes(schema='public',filter_names=names,kind=ObjectKind.ANY,scope=ObjectScope.ANY)
+   expected={('public',name) for name in names}
+   self.assertEqual(set(uniques),expected);self.assertEqual(set(indexes),expected)
+   for name in names:
+    with self.subTest(table=name):
+     original_unique=single.get_unique_constraints(name,schema='public')
+     original_indexes=single.get_indexes(name,schema='public')
+     self.assertEqual(original_unique,uniques[('public',name)])
+     self.assertEqual(original_indexes,indexes[('public',name)])
+     self.assertEqual(original_unique+[i for i in original_indexes if i.get('unique')],
+                      uniques[('public',name)]+[i for i in indexes[('public',name)] if i.get('unique')])
+  self.unchanged()
+  CATALOG_BATCHING_EVIDENCE['maps']={'populated_import_tables':len(names),'exact_public_keys':True,
+    'unique_maps_equal':True,'index_maps_equal':True,'ordered_combination_equal':True,'preserved_state_unchanged':True}
+ def test_catalog_preflight_reduces_real_full_fixture_queries(self):
+  import catalog_baseline
+  from worlex_restore import check_empty_and_itc, defer_push_subscription, DEFERRED_SOURCE_ROWS
+  typed,_=typed_payload(self.data,self.columns,self.tables,self.counts,self.approved['generated_identifiers'])
+  defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
+  self.assertEqual(sum(self.counts.values()),4100)
+  self.assertEqual(sum(map(len,typed.values())),4099)
+  self.assertEqual(sum(bool(rows) for rows in typed.values()),36)
+  captured=[]
+  def record(connection,cursor,statement,parameters,context,executemany):
+   # Kept in memory only for equality. Evidence contains counts, never SQL/binds.
+   captured.append(('catalog' if 'pg_catalog.' in statement else 'application',statement,copy.deepcopy(parameters),executemany))
+  traces=[]
+  with self.engine.begin() as c:
+   c.exec_driver_sql('SET TRANSACTION READ ONLY')
+   for preflight in (catalog_baseline.check_empty_and_itc,check_empty_and_itc):
+    captured.clear();event.listen(c,'before_cursor_execute',record)
+    try:preflight(c,self.tables,typed)
+    finally:event.remove(c,'before_cursor_execute',record)
+    traces.append(list(captured))
+  old_catalog=[row for row in traces[0] if row[0]=='catalog']
+  new_catalog=[row for row in traces[1] if row[0]=='catalog']
+  old_application=[row for row in traces[0] if row[0]=='application']
+  new_application=[row for row in traces[1] if row[0]=='application']
+  self.assertEqual(len(old_catalog),108);self.assertEqual(len(new_catalog),3)
+  self.assertTrue(old_application);self.assertEqual(old_application,new_application)
+  self.unchanged()
+  CATALOG_BATCHING_EVIDENCE['preflight']={'source_rows':4100,'import_rows':4099,'populated_import_tables':36,
+    'old_catalog_execute_calls':len(old_catalog),'new_catalog_execute_calls':len(new_catalog),
+    'old_application_execute_calls':len(old_application),'new_application_execute_calls':len(new_application),
+    'application_queries_and_binds_equal':True,'preserved_state_unchanged':True,
+    'synthetic_only':True,'network_disconnect_fix_proven':False}
  def test_full_count_fixture_all_tables_constraints_and_preservation(self):
   from test_restore_full_fixture import assert_full_postgres_coverage
   assert_full_postgres_coverage(self)

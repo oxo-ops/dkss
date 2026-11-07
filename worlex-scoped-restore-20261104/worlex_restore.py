@@ -359,11 +359,20 @@ def check_empty_and_itc(connection,tables,typed):
    existing=list(connection.scalars(select(table.c[field])))
    require(all(valid_uuid(v) for v in existing) and len(existing)==len(set(existing)),'INVALID_EXISTING_GENERATION:'+name)
    require(not set(existing).intersection(r[field] for r in typed.get(name,[]) if field in r),'GENERATED_IDENTIFIER_COLLISION:'+name)
+ from sqlalchemy.engine.reflection import ObjectKind,ObjectScope
  inspector=inspect(connection)
+ populated_names=[name for name,rows in typed.items() if rows]
+ unique_constraints={};table_indexes={}
+ if populated_names:
+  expected_keys={('public',name) for name in populated_names}
+  unique_constraints=inspector.get_multi_unique_constraints(schema='public',filter_names=populated_names,kind=ObjectKind.ANY,scope=ObjectScope.ANY)
+  require(set(unique_constraints)==expected_keys,'UNIQUE_CATALOG_SCOPE_MISMATCH')
+  table_indexes=inspector.get_multi_indexes(schema='public',filter_names=populated_names,kind=ObjectKind.ANY,scope=ObjectScope.ANY)
+  require(set(table_indexes)==expected_keys,'INDEX_CATALOG_SCOPE_MISMATCH')
  for name,rows in typed.items():
   if not rows:continue
   table=tables[name]
-  indexes=inspector.get_unique_constraints(name,schema='public')+ [i for i in inspector.get_indexes(name,schema='public') if i.get('unique')]
+  indexes=unique_constraints[('public',name)]+ [i for i in table_indexes[('public',name)] if i.get('unique')]
   for index in indexes:
    cols=index.get('column_names') or []
    require(cols and all(c in table.c for c in cols),'EXPRESSION_UNIQUE_INDEX_BLOCKED:'+name)
