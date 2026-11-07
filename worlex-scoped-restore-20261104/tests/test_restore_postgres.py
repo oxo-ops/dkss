@@ -278,6 +278,39 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    self.approved=plan(c,self.data,self.columns,self.policy,self.counts,self.source_hash)
    self.tables,_=validate_schema(c,self.policy)
    self.before=snapshot(c,self.tables);self.seq_before=sequence_states(c,self.tables)
+ def test_sequence_batch_matches_original_and_reduces_queries(self):
+  from sequence_baseline import sequence_states as original
+  counts=[]; traces=[]
+  with self.engine.connect() as c:
+   for implementation in (original,sequence_states):
+    trace=[]
+    def record(conn,cursor,statement,parameters,context,executemany):trace.append(statement)
+    event.listen(c,'before_cursor_execute',record)
+    try:counts.append(implementation(c,self.tables))
+    finally:event.remove(c,'before_cursor_execute',record)
+    traces.append(trace)
+   self.assertEqual(counts[0],counts[1])
+   self.assertGreater(len(counts[0]),30)
+   self.assertEqual(len(traces[1]),len(counts[1])+2)
+   self.assertGreater(len(traces[0]),len(traces[1])*2)
+   self.assertFalse(any(s.startswith('ALTER') for trace in traces for s in trace))
+   self.assertEqual([s for s in traces[0] if s.startswith('SELECT last_value')],[s for s in traces[1] if s.startswith('SELECT last_value')])
+  self.unchanged()
+ def test_sequence_batch_lock_preserves_push_and_value_order(self):
+  from sequence_baseline import sequence_states as original
+  states=[]; traces=[]
+  with self.engine.begin() as c:
+   for implementation in (original,sequence_states):
+    trace=[]
+    def record(conn,cursor,statement,parameters,context,executemany):trace.append(statement)
+    event.listen(c,'before_cursor_execute',record)
+    try:states.append(implementation(c,self.tables,True))
+    finally:event.remove(c,'before_cursor_execute',record)
+    traces.append(trace)
+   self.assertEqual(states[0],states[1])
+   self.assertEqual([s for s in traces[0] if s.startswith(('ALTER','SELECT last_value'))],[s for s in traces[1] if s.startswith(('ALTER','SELECT last_value'))])
+   self.assertFalse(any(s.startswith('ALTER') and 'push_subscription' in s for trace in traces for s in trace))
+  self.unchanged()
  def restore(self,**kw):
   with self.engine.begin() as c:return execute_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved,**kw)
  def unchanged(self):

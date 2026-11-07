@@ -7,13 +7,16 @@ from verify_client_evidence import validate_restore_scope
 if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise SystemExit('Explicit PostgreSQL acceptance required')
 suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_restore_*.py')
 expected=suite.countTestCases()
-if expected<136:raise SystemExit('Full 136-case catalog-batching acceptance suite required')
+if expected<139:raise SystemExit('Full 139-case catalog and sequence batching acceptance suite required')
 def test_ids(items):
  for item in items:
   if isinstance(item,unittest.TestSuite):yield from test_ids(item)
   else:yield item.id()
 ids=list(test_ids(suite))
 required_catalog_tests=frozenset("""
+test_restore_sequence_batch.SequenceBatchDifferential.test_all_differential_guards
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_sequence_batch_matches_original_and_reduces_queries
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_sequence_batch_lock_preserves_push_and_value_order
 test_restore_batched_catalog.EquivalenceTests.test_bulk_query_failure_propagates_without_retry_or_fallback
 test_restore_batched_catalog.EquivalenceTests.test_compilation_across_postgres_dialect_versions
 test_restore_batched_catalog.EquivalenceTests.test_composite_key_noncollision

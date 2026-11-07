@@ -34,6 +34,15 @@ def source_function_and_remainder(path):
     # UTF-8 and line endings are explicit so Linux and Windows compare the
     # same Git source bytes, independently of Python AST version details.
     source = path.read_bytes().decode('utf-8')
+    if path.name == 'worlex_restore.py':
+        # Restore the independently pinned old sequence function before the original scope check.
+        import sequence_baseline
+        baseline = (HERE / 'sequence_baseline.py').read_text()
+        bn = next(n for n in ast.parse(baseline).body if isinstance(n, ast.FunctionDef) and n.name == 'sequence_states')
+        bf = ''.join(baseline.splitlines(keepends=True)[bn.lineno-1:bn.end_lineno])
+        sn = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == 'sequence_states')
+        sl = source.splitlines(keepends=True)
+        source = ''.join(sl[:sn.lineno-1]) + bf + ''.join(sl[sn.end_lineno:])
     tree = ast.parse(source)
     node = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
                 and n.name == 'check_empty_and_itc')

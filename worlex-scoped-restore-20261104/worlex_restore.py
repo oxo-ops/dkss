@@ -391,27 +391,45 @@ def check_empty_and_itc(connection,tables,typed):
  require(connection.scalar(select(func.count()).select_from(user).where(user.c.company_code=='ITC',user.c.username=='itc',user.c.role=='itc'))>=1,'ITC_ADMIN_MISSING')
 
 def sequence_states(connection,tables,lock=False):
+ # Batch metadata only. Actual sequence-value reads and ALTER order stay serial.
+ requested=[(name,col) for name,t in sorted(tables.items()) for col in t.primary_key]
+ if not requested:return {}
+ params={}; values=[]
+ for i,(name,col) in enumerate(requested):
+  values.append('(CAST(:i%d AS integer),CAST(:t%d AS text),CAST(:c%d AS text))'%(i,i,i))
+  params.update({'i%d'%i:i,'t%d'%i:'public.'+q(name),'c%d'%i:col.name})
+ metadata=connection.execute(text("WITH requested(ord,table_name,column_name) AS (VALUES "+','.join(values)+"), resolved AS (SELECT ord,pg_get_serial_sequence(table_name,column_name) AS seq FROM requested) SELECT r.ord,r.seq,n.nspname,c.relname,c.oid,c.relowner,c.relacl::text,c.relpersistence,c.reloptions,c.reltablespace,c.relfilenode,s.seqtypid,s.seqstart,s.seqincrement,s.seqmin,s.seqmax,s.seqcache,s.seqcycle FROM resolved r LEFT JOIN pg_class c ON c.oid=CAST(r.seq AS regclass) LEFT JOIN pg_sequence s ON s.seqrelid=c.oid LEFT JOIN pg_namespace n ON n.oid=c.relnamespace ORDER BY r.ord"),params).all()
+ require(len(metadata)==len(requested) and [r[0] for r in metadata]==list(range(len(requested))),'SEQUENCE_METADATA_SHAPE_CHANGED')
+ meta_by={}; ownership_by={}; owned=[]; params={}
+ for row in metadata:
+  i,seq,*meta=row
+  name,col=requested[i]
+  if not seq:
+   require(not (col.name=='id' and isinstance(col.type,Integer)),'OWNED_ID_SEQUENCE_MISSING:'+name)
+   continue
+  require(len(meta)==16 and meta[0] is not None and meta[9] is not None,'SEQUENCE_METADATA_MISSING:'+name)
+  meta_by[i]=(seq,meta);ownership_by[i]=[]
+  owned.append('(CAST(:i%d AS integer),CAST(:s%d AS regclass))'%(i,i));params.update({'i%d'%i:i,'s%d'%i:seq})
+ if owned:
+  rows=connection.execute(text("WITH requested(ord,seq) AS (VALUES "+','.join(owned)+") SELECT r.ord,d.refobjid,d.refobjsubid,d.deptype FROM requested r JOIN pg_depend d ON d.objid=r.seq WHERE d.classid='pg_class'::regclass AND d.refclassid='pg_class'::regclass AND d.deptype IN ('a','i') ORDER BY r.ord,d.refobjid,d.refobjsubid,d.deptype"),params).all()
+  for i,*dependency in rows:
+   require(i in ownership_by and len(dependency)==3,'SEQUENCE_OWNERSHIP_SHAPE_CHANGED')
+   ownership_by[i].append(dependency)
  states={}
- for name,t in sorted(tables.items()):
-  for col in t.primary_key:
-   seq=connection.scalar(text('SELECT pg_get_serial_sequence(:table,:column)'),{'table':'public.'+q(name),'column':col.name})
-   if not seq:
-    require(not (col.name=='id' and isinstance(col.type,Integer)),'OWNED_ID_SEQUENCE_MISSING:'+name)
-    continue
-   meta=connection.execute(text("SELECT n.nspname,c.relname,c.oid,c.relowner,c.relacl::text,c.relpersistence,c.reloptions,c.reltablespace,c.relfilenode,s.seqtypid,s.seqstart,s.seqincrement,s.seqmin,s.seqmax,s.seqcache,s.seqcycle FROM pg_sequence s JOIN pg_class c ON c.oid=s.seqrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=CAST(:seq AS regclass)"),{'seq':seq}).one()
-   schema,sn,oid,owner,acl,persistence,options,tablespace,filenode,type_oid,start,inc,mn,mx,cache,cycle=meta
-   ownership=[list(r) for r in connection.execute(text("SELECT d.refobjid,d.refobjsubid,d.deptype FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=CAST(:seq AS regclass) AND d.refclassid='pg_class'::regclass AND d.deptype IN ('a','i') ORDER BY 1,2,3"),{'seq':seq}).tuples()]
-   require(schema=='public' and inc==1 and mn==1 and cache==1 and not cycle and len(ownership)==1,'UNSUPPORTED_SEQUENCE:'+name)
-   qualified=q(schema)+'.'+q(sn)
-   # Even a no-op ALTER touches sequence state/catalog. Never issue one for
-   # the preserved push sequence. All writer sessions and tables are locked.
-   if lock and name!='push_subscription':connection.exec_driver_sql('ALTER SEQUENCE '+qualified+' CACHE 1')
-   last,called,log_cnt=connection.exec_driver_sql('SELECT last_value,is_called,log_cnt FROM '+qualified).one()
-   states[(name,col.name)]={'qualified':qualified,'last':last,'called':called,'next':last+1 if called else last,'max':mx,
-    'catalog':{'schema':schema,'name':sn,'oid':oid,'owner':owner,'acl':acl,'type_oid':type_oid,'start':start,'increment':inc,'min':mn,'max':mx,'cache':cache,'cycle':cycle,'ownership':ownership}}
-   if name=='push_subscription':
-    states[(name,col.name)]['log_cnt']=log_cnt
-    states[(name,col.name)]['catalog'].update(persistence=persistence,options=options,tablespace=tablespace,filenode=filenode)
+ for i,(name,col) in enumerate(requested):
+  if i not in meta_by:continue
+  seq,meta=meta_by[i]
+  schema,sn,oid,owner,acl,persistence,options,tablespace,filenode,type_oid,start,inc,mn,mx,cache,cycle=meta
+  ownership=ownership_by[i]
+  require(schema=='public' and inc==1 and mn==1 and cache==1 and not cycle and len(ownership)==1,'UNSUPPORTED_SEQUENCE:'+name)
+  qualified=q(schema)+'.'+q(sn)
+  if lock and name!='push_subscription':connection.exec_driver_sql('ALTER SEQUENCE '+qualified+' CACHE 1')
+  last,called,log_cnt=connection.exec_driver_sql('SELECT last_value,is_called,log_cnt FROM '+qualified).one()
+  states[(name,col.name)]={'qualified':qualified,'last':last,'called':called,'next':last+1 if called else last,'max':mx,
+   'catalog':{'schema':schema,'name':sn,'oid':oid,'owner':owner,'acl':acl,'type_oid':type_oid,'start':start,'increment':inc,'min':mn,'max':mx,'cache':cache,'cycle':cycle,'ownership':ownership}}
+  if name=='push_subscription':
+   states[(name,col.name)]['log_cnt']=log_cnt
+   states[(name,col.name)]['catalog'].update(persistence=persistence,options=options,tablespace=tablespace,filenode=filenode)
  return states
 
 def require_push_sequence_unchanged(states,baseline,code):

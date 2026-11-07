@@ -1,7 +1,7 @@
 name: Synthetic WORLEX Scoped Restore
 on:
   push:
-    branches: ['verify/worlex-restore-20261104', 'verify/worlex-full-fixture-20261104']
+    branches: ['verify/worlex-sequence-batch-20261107', 'verify/worlex-restore-20261104', 'verify/worlex-full-fixture-20261104']
   workflow_dispatch:
 permissions:
   contents: read
