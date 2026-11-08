@@ -334,7 +334,8 @@ def assert_full_postgres_coverage(case):
     case.assertEqual(result['status'], 'TRANSACTION_VERIFIED')
     verified = case.verify_current()
     case.assertTrue(verified['imported_values_and_blobs_match'])
-    case.assertTrue(verified['non_worlex_and_global_rows_unchanged'])
+    case.assertIs(verified['required_settings_and_preserved_rows_unchanged'], True)
+    case.assertNotIn('non_worlex_and_global_rows_unchanged', verified)
     coverage = {
         'synthetic_only': True,
         'source_rows': EXPECTED_ROWS,

@@ -10,6 +10,7 @@ from sqlalchemy.pool import NullPool
 from client_connection import connection_args, verify_tls_connection
 from worlex_restore import Stop, validate_schema, typed_payload, snapshot, plan, execute_restore, verify_restore, digest, sequence_states
 from synthetic_fixture import fixture, PASSWORD
+from preservation_scope import PRESERVATION_CONTRACT
 PACKAGE=pathlib.Path(__file__).resolve().parents[1]
 APP=pathlib.Path(os.environ.get('WORLEX_TEST_APP_SOURCE',PACKAGE.parent)).resolve()
 MARKER='WORLEX_RESTORE_SYNTHETIC_ONLY'
@@ -482,7 +483,9 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
    c.exec_driver_sql('SET TRANSACTION READ ONLY')
    verified=verify_restore(c,self.data,self.columns,self.policy,self.counts,self.source_hash,self.approved)
    self.assertEqual(verified['status'],'RESTORE_PRESENT_MATCHES_PLAN')
-  self.assertTrue(result['non_worlex_and_global_rows_unchanged']);self.assertGreater(result['derived_rows']['analysis_input_epoch'],0)
+  self.assertIs(result['required_settings_and_preserved_rows_unchanged'],True)
+  self.assertNotIn('non_worlex_and_global_rows_unchanged',result)
+  self.assertGreater(result['derived_rows']['analysis_input_epoch'],0)
   with self.engine.begin() as c:
    self.assertEqual(c.scalar(text("SELECT count(*) FROM public.\"user\" WHERE company_code='WORLEX'")),15)
    self.assertEqual(c.scalar(text("SELECT count(*) FROM public.vehicle WHERE company_code='WORLEX' AND NOT deleted")),289)
@@ -569,7 +572,8 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   source=copy.deepcopy(self.data)
   self.assertEqual(self.approved['deferred_source_rows'],{'push_subscription':[1]})
   self.assertNotIn('push_subscription_id_remap',self.approved)
-  self.assertEqual(self.approved['version'],3)
+  self.assertEqual(self.approved['version'],4)
+  self.assertEqual(self.approved['preservation_contract'],PRESERVATION_CONTRACT)
   self.assertEqual(self.approved['import_counts'],dict(self.counts,push_subscription=0))
   with self.engine.connect() as c:sequence_before=sequence_states(c,self.tables)[('push_subscription','id')]
   self.assertEqual(set(sequence_before),{'qualified','last','called','next','max','log_cnt','catalog'})
@@ -714,7 +718,8 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   verified=self.verify_current()
   self.assertEqual(verified['source_rows'],4100)
   self.assertTrue(verified['imported_values_and_blobs_match'])
-  self.assertTrue(verified['non_worlex_and_global_rows_unchanged'])
+  self.assertIs(verified['required_settings_and_preserved_rows_unchanged'],True)
+  self.assertNotIn('non_worlex_and_global_rows_unchanged',verified)
   with self.engine.connect() as c:
    tables,_=validate_schema(c,self.policy)
    before=snapshot(c,tables);sequences=sequence_states(c,tables)
@@ -726,7 +731,8 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   replay_verified=self.verify_current()
   self.assertEqual(replay_verified['source_rows'],4100)
   self.assertTrue(replay_verified['imported_values_and_blobs_match'])
-  self.assertTrue(replay_verified['non_worlex_and_global_rows_unchanged'])
+  self.assertIs(replay_verified['required_settings_and_preserved_rows_unchanged'],True)
+  self.assertNotIn('non_worlex_and_global_rows_unchanged',replay_verified)
   with self.engine.connect() as c:
    self.assertEqual(snapshot(c,tables),before)
    self.assertEqual(sequence_states(c,tables),sequences)

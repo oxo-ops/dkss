@@ -14,6 +14,121 @@ import worlex_restore as core
 from launcher_adapter import persist_stage
 import test_restore_postgres as baseline
 
+def deterministic_catalog_order(dialect):
+    """Test-only identical catalog input, not a normalized trace comparator.
+
+    PostgreSQL makes no ordering promise for SQLAlchemy's _get_table_oids query.
+    Its result order becomes the expanding OID binds for constraint/index reads.
+    Sort only those returned (OID, table-name) rows on this engine instance, for
+    both compared runs. Execute the original method once, with unchanged inputs;
+    retain every original row object. Never alter SQL, binds, or other results.
+    """
+    original = dialect._get_table_oids
+    calls = []
+    def ordered(*args, **kwargs):
+        rows = list(original(*args, **kwargs))
+        if any(len(row) != 2 or type(row[0]) is not int or row[0] <= 0
+               or type(row[1]) is not str or not row[1] for row in rows):
+            raise AssertionError('INVALID_TEST_CATALOG_IDENTITY')
+        if len({row[0] for row in rows}) != len(rows) or len({row[1] for row in rows}) != len(rows):
+            raise AssertionError('DUPLICATE_TEST_CATALOG_IDENTITY')
+        calls.append(tuple(sorted((row[0], row[1]) for row in rows)))
+        return sorted(rows, key=lambda row: row[0])
+    dialect._get_table_oids = ordered
+    return calls
+
+
+class DeterministicCatalogInputTests(unittest.TestCase):
+    def test_wrapper_forwards_once_without_sql_or_row_replacement(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        first, second = (24450, 'synthetic_b'), (24438, 'synthetic_a')
+        original = Mock(return_value=[first, second])
+        dialect = SimpleNamespace(_get_table_oids=original)
+        unrelated = SimpleNamespace(_get_table_oids=original)
+        calls = deterministic_catalog_order(dialect)
+        connection, cache = object(), {}
+        result = dialect._get_table_oids(connection, 'public', ['synthetic_b', 'synthetic_a'],
+            scope='synthetic_scope', kind='synthetic_kind', info_cache=cache)
+        original.assert_called_once_with(connection, 'public', ['synthetic_b', 'synthetic_a'],
+            scope='synthetic_scope', kind='synthetic_kind', info_cache=cache)
+        self.assertIs(result[0], second); self.assertIs(result[1], first)
+        self.assertEqual(calls, [((24438, 'synthetic_a'), (24450, 'synthetic_b'))])
+        self.assertIs(unrelated._get_table_oids, original)
+
+    def test_wrapper_rejects_duplicates_invalid_oids_and_names(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        for rows in ([(1,'a'),(1,'a')], [(1,'a'),(1,'b')], [(1,'a'),(2,'a')],
+                     [(True,'a')], [(0,'a')], [(-1,'a')], [('1','a')],
+                     [(1,'')], [(1,None)], [(1,'a','extra')]):
+            with self.subTest(rows=rows):
+                original = Mock(return_value=rows)
+                dialect = SimpleNamespace(_get_table_oids=original)
+                calls = deterministic_catalog_order(dialect)
+                with self.assertRaisesRegex(AssertionError, 'TEST_CATALOG_IDENTITY'):
+                    dialect._get_table_oids('synthetic_connection')
+                original.assert_called_once_with('synthetic_connection')
+                self.assertEqual(calls, [])
+
+    def compiled_trace(self, rows):
+        # The actual pinned SQLAlchemy PG/pg8000 queries and positional binds,
+        # using an inert connection. No engine, socket, or database is created.
+        from sqlalchemy.dialects.postgresql.pg8000 import PGDialect_pg8000
+        from sqlalchemy.engine.reflection import ObjectKind, ObjectScope
+        dialect = PGDialect_pg8000(); dialect.server_version_info = (18, 0)
+        trace = []
+        class Result:
+            def all(self): return rows
+            def mappings(self): return []
+        class Connection:
+            def execute(self, statement, parameters):
+                compiled = statement.params(**parameters).compile(dialect=dialect,
+                    compile_kwargs={'render_postcompile': True})
+                trace.append((str(compiled), tuple(compiled.params[name]
+                    for name in compiled.positiontup), False))
+                return Result()
+        calls = deterministic_catalog_order(dialect)
+        for method in ('get_multi_pk_constraint','get_multi_indexes','get_multi_unique_constraints'):
+            list(getattr(dialect,method)(Connection(), 'public', ['synthetic_a','synthetic_b'],
+                ObjectScope.ANY, ObjectKind.ANY))
+        self.assertEqual(len(trace),6)  # Three original OID SELECTs plus three catalog SELECTs.
+        self.assertEqual(len(calls),3)
+        return trace, calls
+
+    def test_actual_catalog_sql_and_binds_equal_for_reordered_input(self):
+        rows = [(24450,'synthetic_b'),(24438,'synthetic_a')]
+        self.assertEqual(self.compiled_trace(rows), self.compiled_trace(rows[::-1]))
+
+    def test_changed_missing_extra_identity_remains_visible(self):
+        rows = [(24450,'synthetic_b'),(24438,'synthetic_a')]
+        original = self.compiled_trace(rows)
+        for changed in ([(24451,'synthetic_b'),rows[1]],
+                        [(24450,'changed_name'),rows[1]], rows[:1], rows+[(24469,'extra')]):
+            with self.subTest(rows=changed):
+                self.assertNotEqual(original, self.compiled_trace(changed))
+
+    def test_exact_trace_comparison_rejects_sql_bind_order_and_count_changes(self):
+        import copy
+        original = self.compiled_trace([(24450,'synthetic_b'),(24438,'synthetic_a')])[0]
+        original.append(('SELECT synthetic_business_value WHERE id = %s', (123,), False))
+        changes = []
+        changed = copy.deepcopy(original); changed[-1] = (changed[-1][0], (124,), False); changes.append(changed)
+        changed = copy.deepcopy(original); changed[-1] = (changed[-1][0]+' ', (123,), False); changes.append(changed)
+        changed = copy.deepcopy(original); changed[-1] = (*changed[-1][:2], True); changes.append(changed)
+        changed = copy.deepcopy(original); changed[0],changed[1] = changed[1],changed[0]; changes.append(changed)
+        changes.extend([original[:-1],original+[original[-1]]])
+        # Even permutation of known OID binds is NOT normalized in the trace.
+        changed = copy.deepcopy(original)
+        sql, binds, many = changed[1]; swapped=list(binds)
+        positions=[i for i,value in enumerate(binds) if value in (24438,24450)]
+        swapped[positions[0]],swapped[positions[1]]=swapped[positions[1]],swapped[positions[0]]
+        changed[1]=(sql,tuple(swapped),many); changes.append(changed)
+        for changed in changes:
+            with self.subTest(trace=changes.index(changed)):
+                with self.assertRaises(AssertionError): self.assertEqual(original,changed)
+
+
 class PostgreSQLObservationAcceptance(unittest.TestCase):
     setUpClass = classmethod(baseline.PostgreSQLRestoreAcceptance.setUpClass.__func__)
     setUp = baseline.PostgreSQLRestoreAcceptance.setUp
@@ -88,11 +203,13 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
     def test_instrumentation_preserves_exact_sql_binds_and_connection_count(self):
         from sqlalchemy import event
         from sqlalchemy.pool import NullPool
-        traces = []; plans = []; connections = []
+        traces = []; plans = []; connections = []; catalogs = []
         for enabled in (False, True):
             args = client_connection.connection_args(cafile=self.cafile, read_only=True,
                 application_name='worlex_synthetic_restore')
             engine = core.create_engine(self.url, poolclass=NullPool, hide_parameters=True, connect_args=args)
+            # Make only the unordered catalog input deterministic on BOTH engines.
+            catalog_calls = deterministic_catalog_order(engine.dialect)
             trace = []; opened = []
             event.listen(engine, 'before_cursor_execute', lambda c, cursor, statement, parameters, context, many:
                 trace.append((statement, parameters, many)))
@@ -107,7 +224,8 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
                         self.source_hash,generated=self.approved['generated_identifiers']))
             finally:
                 engine.dispose(); inspect_observation.ACTIVE = None
-            traces.append(trace); connections.append(len(opened))
+            traces.append(trace); connections.append(len(opened)); catalogs.append(catalog_calls)
+        self.assertTrue(catalogs[0]); self.assertEqual(catalogs[0],catalogs[1])
         self.assertEqual(plans[0], plans[1]); self.assertEqual(traces[0],traces[1])
         self.assertEqual(connections,[1,1]); self.unchanged()
 
