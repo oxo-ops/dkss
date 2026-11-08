@@ -276,7 +276,8 @@ class EquivalenceTests(unittest.TestCase):
         old_node, old_source, _ = source_function_and_remainder(HERE / 'catalog_baseline.py')
         node, _, remainder = source_function_and_remainder(ROOT / 'worlex_restore.py')
         self.assertEqual(hashlib.sha256(old_source.encode()).hexdigest(), old.BASELINE_FUNCTION_SHA256)
-        self.assertEqual(hashlib.sha256(remainder.encode()).hexdigest(), old.UNCHANGED_CORE_SHA256)
+        from integrated_change_scope import assert_unchanged_business_functions
+        assert_unchanged_business_functions(self, (ROOT / 'worlex_restore.py').read_text())
         self.assertFalse(any(isinstance(n, ast.Assert) for n in ast.walk(node)))
         # Index/source guard prefix and PK/tenant/UUID checks stay identical;
         # only the target probe delivery is batched.

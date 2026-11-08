@@ -4,9 +4,10 @@ sys.dont_write_bytecode = True
 root=pathlib.Path(__file__).resolve().parents[1];evidence=pathlib.Path(os.environ['WORLEX_EVIDENCE_DIR']);evidence.mkdir(exist_ok=True)
 sys.path.insert(0,str(root/'tests/windows-ci'))
 from verify_client_evidence import (validate_restore_scope, validate_acceptance,
-    REQUIRED_ACCEPTANCE_IDS, COLLISION_REQUIRED_CASES, acceptance_artifact_paths)
+    REQUIRED_ACCEPTANCE_IDS, COLLISION_REQUIRED_CASES, POSTGRES_REQUIRED_CASES, acceptance_artifact_paths)
+from preservation_scope import PRESERVATION_CONTRACT
 if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise SystemExit('Explicit PostgreSQL acceptance required')
-suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_restore_*.py')
+suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_*.py')
 expected=suite.countTestCases()
 if expected<len(REQUIRED_ACCEPTANCE_IDS):raise SystemExit('Full catalog, sequence, collision and evidence-gate acceptance suite required')
 def test_ids(items):
@@ -52,10 +53,12 @@ test_restore_batched_catalog.EquivalenceTests.test_uuid_and_generation_checks_un
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_maps_match_original_full_fixture
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_preflight_reduces_real_full_fixture_queries
 """.split())
+actual_postgres_cases=sum('.PostgreSQL' in name for name in ids)
+if actual_postgres_cases != POSTGRES_REQUIRED_CASES:raise SystemExit('Exact PostgreSQL test count changed')
 if len(ids)!=len(set(ids)) or not required_catalog_tests.issubset(ids) or not REQUIRED_ACCEPTANCE_IDS.issubset(ids):raise SystemExit('Required catalog-batching tests missing or duplicate tests discovered')
 
 result=unittest.TextTestRunner(verbosity=2).run(suite)
-summary={'suite_ids':sorted(ids),'collision_required_cases':COLLISION_REQUIRED_CASES,'suite_ids_sha256':hashlib.sha256('\n'.join(sorted(ids)).encode()).hexdigest(),'catalog_required_cases':len(required_catalog_tests),'expected':expected,'run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'postgres_required':True}
+summary={'postgres_cases':POSTGRES_REQUIRED_CASES,'preservation_contract':PRESERVATION_CONTRACT,'suite_ids':sorted(ids),'collision_required_cases':COLLISION_REQUIRED_CASES,'suite_ids_sha256':hashlib.sha256('\n'.join(sorted(ids)).encode()).hexdigest(),'catalog_required_cases':len(required_catalog_tests),'expected':expected,'run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'postgres_required':True}
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))
 if not result.wasSuccessful() or result.skipped or result.testsRun!=expected:raise SystemExit(1)
 from test_restore_postgres import CATALOG_BATCHING_EVIDENCE

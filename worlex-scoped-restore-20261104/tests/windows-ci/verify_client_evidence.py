@@ -231,18 +231,42 @@ def validate_restore_scope(item, counts):
             'Legacy remap/all-source import proof forbidden')
 
 
-# Exact mandatory coverage: original 139, 32 collision, 9 offline gate, and 1 live collision-control cases.
+# Exact mandatory coverage for this candidate, including formal inspect and preservation.
 REQUIRED_ACCEPTANCE_IDS = frozenset("""
-test_restore_postgres.PostgreSQLRestoreAcceptance.test_collision_batch_real_cross_tenant_conflicts_match_sequential
-test_restore_collision_evidence.CollisionEvidenceTests.test_complete_synthetic_schema_is_accepted_without_claiming_live_proof
-test_restore_collision_evidence.CollisionEvidenceTests.test_old_139_case_evidence_cannot_pass
-test_restore_collision_evidence.CollisionEvidenceTests.test_missing_or_duplicate_mandatory_id_rejected
-test_restore_collision_evidence.CollisionEvidenceTests.test_stale_hash_counts_and_incomplete_runs_rejected
-test_restore_collision_evidence.CollisionEvidenceTests.test_every_collision_field_is_required
-test_restore_collision_evidence.CollisionEvidenceTests.test_altered_collision_metrics_and_boolean_proofs_rejected
-test_restore_collision_evidence.CollisionEvidenceTests.test_every_catalog_map_proof_is_required
-test_restore_collision_evidence.CollisionEvidenceTests.test_contract_and_oracles_are_hashed_and_missing_or_altered_rejected
-test_restore_collision_evidence.CollisionEvidenceTests.test_all_execution_and_seal_routes_call_shared_validator
+test_inspect_observation.ObservationEdgeTests.test_cleanup_runs_despite_persist_failure_without_primary
+test_inspect_observation.ObservationEdgeTests.test_cli_rejects_unsealed_helpers_before_import
+test_inspect_observation.ObservationEdgeTests.test_cursor_iterator_and_context_manager_contract
+test_inspect_observation.ObservationEdgeTests.test_explicit_capture_survives_persist_failure
+test_inspect_observation.ObservationEdgeTests.test_hostile_attribute_does_not_replace_error
+test_inspect_observation.ObservationEdgeTests.test_logging_failure_cannot_skip_cleanup_or_mask_primary
+test_inspect_observation.ObservationTests.test_atomic_snapshot_failure_does_not_reopen_old_attempt
+test_inspect_observation.ObservationTests.test_cleanup_only_not_primary_or_stale_query
+test_inspect_observation.ObservationTests.test_connect_start_not_tls_or_startup
+test_inspect_observation.ObservationTests.test_dbapi_success_pid_only_no_extra_calls
+test_inspect_observation.ObservationTests.test_error_graph_cycle_and_secret_omission
+test_inspect_observation.ObservationTests.test_events_bounded_monotonic_and_durable_before_body
+test_inspect_observation.ObservationTests.test_execute_failure_not_fetch
+test_inspect_observation.ObservationTests.test_fetch_failure_retains_original_query_category
+test_inspect_observation.ObservationTests.test_forwarding_execute_fetch_exact_args_results
+test_inspect_observation.ObservationTests.test_graph_bounded
+test_inspect_observation.ObservationTests.test_partial_persist_keeps_previous_valid_record
+test_inspect_observation.ObservationTests.test_primary_frozen_cleanup_separate_and_exception_precedence
+test_inspect_observation.ObservationTests.test_private_distinct_attempts
+test_inspect_observation.ObservationTests.test_strict_launcher_roundtrip_and_extra_field_rejection
+test_inspect_observation.ObservationTests.test_unknown_error_and_invalid_codes
+test_preservation_scope.PostgreSQLPreservationScopeTests.test_pg_each_required_projection_mutation_is_rejected
+test_preservation_scope.PostgreSQLPreservationScopeTests.test_pg_unrelated_business_change_preserves_plan
+test_preservation_scope.PostgreSQLPreservationScopeTests.test_pg_unrelated_primary_key_collision_still_rejected
+test_preservation_scope.PreservationScopeTests.test_all_global_and_push_rows_are_protected
+test_preservation_scope.PreservationScopeTests.test_audit_import_exclusion_preserves_existing_worlex_audit
+test_preservation_scope.PreservationScopeTests.test_contract_is_explicit_serializable_six_table_scope
+test_preservation_scope.PreservationScopeTests.test_every_protected_column_change_is_detected
+test_preservation_scope.PreservationScopeTests.test_exact_six_queries_and_exact_itc_selection
+test_preservation_scope.PreservationScopeTests.test_invalid_audit_ids_fail_before_any_query
+test_preservation_scope.PreservationScopeTests.test_keyless_duplicate_rows_are_not_collapsed
+test_preservation_scope.PreservationScopeTests.test_missing_table_or_selector_fails_before_any_query
+test_preservation_scope.PreservationScopeTests.test_null_changes_in_nonselector_columns_are_protected
+test_preservation_scope.PreservationScopeTests.test_unrelated_business_and_non_itc_rows_are_out_of_scope
 test_restore_batched_catalog.EquivalenceTests.test_bulk_query_failure_propagates_without_retry_or_fallback
 test_restore_batched_catalog.EquivalenceTests.test_compilation_across_postgres_dialect_versions
 test_restore_batched_catalog.EquivalenceTests.test_composite_key_noncollision
@@ -350,6 +374,15 @@ test_restore_collision_batch.CollisionBatchTests.test_single_probe_bind_cap_fail
 test_restore_collision_batch.CollisionBatchTests.test_source_and_target_uniqueness_guards
 test_restore_collision_batch.CollisionBatchTests.test_sql_byte_cap_is_applied
 test_restore_collision_batch.CollisionBatchTests.test_tenant_alias_pk_uuid_itc_guards_unchanged
+test_restore_collision_evidence.CollisionEvidenceTests.test_all_execution_and_seal_routes_call_shared_validator
+test_restore_collision_evidence.CollisionEvidenceTests.test_altered_collision_metrics_and_boolean_proofs_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_complete_synthetic_schema_is_accepted_without_claiming_live_proof
+test_restore_collision_evidence.CollisionEvidenceTests.test_contract_and_oracles_are_hashed_and_missing_or_altered_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_every_catalog_map_proof_is_required
+test_restore_collision_evidence.CollisionEvidenceTests.test_every_collision_field_is_required
+test_restore_collision_evidence.CollisionEvidenceTests.test_missing_or_duplicate_mandatory_id_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_old_139_case_evidence_cannot_pass
+test_restore_collision_evidence.CollisionEvidenceTests.test_stale_hash_counts_and_incomplete_runs_rejected
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_24_source_blobs_are_nonempty_and_hash_verified
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_37_primary_keys_are_present_and_unique
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_required_columns_lengths_and_typed_values
@@ -363,12 +396,21 @@ test_restore_full_fixture.FullSyntheticFixtureCoverage.test_matches_every_approv
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_primary_key_corruption_is_rejected_in_every_populated_table
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_sqlite_all_rows_insert_with_fk_checks_and_preserved_values
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_synthetic_copy_roundtrip_covers_all_62_tables
+test_restore_launcher_adapter.LauncherAdapterTests.test_exclusive_result_and_failed_persistence_stop_progression
+test_restore_launcher_adapter.LauncherAdapterTests.test_new_attempt_requires_immediate_stop_active_inputs_and_unique_directory
+test_restore_launcher_adapter.LauncherAdapterTests.test_safe_observation_roundtrip_persisted_without_secrets
+test_restore_launcher_adapter.LauncherAdapterTests.test_unknown_observation_fields_and_missing_observation_fail_closed
+test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_formal_cli_observation_roundtrip_and_canonical_plan
+test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_formal_cli_server_error_preserved_before_cleanup_no_reconnect
+test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_instrumentation_preserves_exact_sql_binds_and_connection_count
+test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_locked_context_rejects_other_connection_and_stale_transaction
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_audit_baseline_change_between_inspection_and_execution_stops
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_audit_ids_are_never_rewritten_to_hide_a_collision
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_case_alias_is_rejected
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_maps_match_original_full_fixture
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_preflight_reduces_real_full_fixture_queries
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_changed_schema_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_collision_batch_real_cross_tenant_conflicts_match_sequential
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_commit_preserves_rows_blobs_ownership_and_sequence_next_insert
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_disconnect_after_commit_reconciles_without_reinserting
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_disconnect_before_commit_rolls_back_all_imported_tables_and_sequences
@@ -416,6 +458,7 @@ test_restore_unit.RestoreGuards.test_safe_identifiers
 test_restore_unit.RestoreGuards.test_tenant_filter_and_escapes
 """.split())
 COLLISION_REQUIRED_CASES = 32
+POSTGRES_REQUIRED_CASES = 40
 
 
 def validate_acceptance(summary):
@@ -423,7 +466,7 @@ def validate_acceptance(summary):
     require(isinstance(summary, dict), 'Acceptance summary missing')
     ids = summary.get('suite_ids')
     require(isinstance(ids, list) and all(isinstance(i, str) for i in ids) and
-            len(ids) == len(set(ids)) and REQUIRED_ACCEPTANCE_IDS.issubset(ids),
+            len(ids) == len(set(ids)) and REQUIRED_ACCEPTANCE_IDS == set(ids),
             'Mandatory collision/full-suite test IDs missing or duplicated')
     require(summary.get('suite_ids_sha256') == hashlib.sha256(
             '\n'.join(sorted(ids)).encode()).hexdigest(), 'Acceptance suite ID hash differs')
@@ -438,6 +481,11 @@ def validate_acceptance(summary):
             type(summary.get('collision_required_cases')) is int and
             summary['collision_required_cases'] == COLLISION_REQUIRED_CASES,
             'Required batching coverage counts differ')
+    require(type(summary.get('postgres_cases')) is int and summary['postgres_cases'] == POSTGRES_REQUIRED_CASES,
+            'Exact PostgreSQL coverage required')
+    from preservation_scope import PRESERVATION_CONTRACT
+    require(summary.get('preservation_contract') == PRESERVATION_CONTRACT,
+            'Current required preservation scope required')
     batching = summary.get('catalog_batching')
     require(isinstance(batching, dict), 'Actual PostgreSQL batching evidence missing')
     controls = batching.get('collision_controls')
@@ -487,7 +535,8 @@ def acceptance_artifact_paths(root):
     root = Path(root)
     return [root / name for name in ('.gitattributes', 'worlex_restore.py', 'policy.json',
         'source-manifest.json', 'source-counts.json', 'client_runtime_guard.py',
-        'client_bootstrap.py', 'client_connection.py', 'tests/application_contract.json',
+        'client_bootstrap.py', 'client_connection.py', 'inspect_observation.py',
+        'preservation_scope.py', 'launcher_adapter.py', 'tests/application_contract.json',
         'tests/windows-ci/client-build-inputs.json')] + sorted((root / 'tests').rglob('*.py')) + sorted((root / 'tests').rglob('*.sh'))
 
 
@@ -520,7 +569,8 @@ def validate_client(client, linux_policy, root, directory, commit):
     require(client.get('tested_artifacts') == linux_policy['tested_artifacts'], 'Linux/Windows code maps differ')
     require(client.get('workflow_sha256') == linux_policy['workflow_sha256'], 'Linux/Windows workflows differ')
     for relative in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py',
-                     'client_connection.py', 'tests/windows-ci/client-build-inputs.json'):
+                     'client_connection.py', 'inspect_observation.py', 'preservation_scope.py',
+                     'launcher_adapter.py', 'tests/windows-ci/client-build-inputs.json'):
         require(client['tested_artifacts'].get(relative) == sha(root / relative),
                 'Required client artifact hash mismatch: ' + relative)
     validate_acceptance_artifacts(client['tested_artifacts'], root)
@@ -630,6 +680,9 @@ def validate_client(client, linux_policy, root, directory, commit):
             'guard_sha256': sha(root / 'client_runtime_guard.py'),
             'bootstrap_sha256': sha(root / 'client_bootstrap.py'),
             'connection_helper_sha256': sha(root / 'client_connection.py'),
+            'observation_sha256': sha(root / 'inspect_observation.py'),
+            'preservation_sha256': sha(root / 'preservation_scope.py'),
+            'launcher_adapter_sha256': sha(root / 'launcher_adapter.py'),
             'wheels': wheels, 'wheel_files': merged, 'imported_modules': imported,
             'ssl_runtime': ssl_runtime, 'acceptance_summary': summary,
             'full_table_acceptance': full, 'disconnect_acceptance': disconnect,

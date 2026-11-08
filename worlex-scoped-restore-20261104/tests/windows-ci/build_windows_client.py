@@ -461,7 +461,7 @@ def main():
         profile = validate_client(proof, policy, PACKAGE, EVIDENCE, commit)
         operational = work / 'operational-smoke'
         operational.mkdir()
-        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py', 'client_connection.py', 'source-counts.json'):
+        for name in ('worlex_restore.py', 'client_runtime_guard.py', 'client_bootstrap.py', 'client_connection.py', 'inspect_observation.py', 'preservation_scope.py', 'launcher_adapter.py', 'source-counts.json'):
             shutil.copyfile(PACKAGE / name, operational / name)
         # Synthetic-only guard fixture, never published as a usable policy.
         smoke_policy = dict(policy, windows_client_acceptance_passed=True,

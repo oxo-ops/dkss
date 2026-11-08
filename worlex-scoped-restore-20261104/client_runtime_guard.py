@@ -266,7 +266,10 @@ def policy_profile(root, policy):
     for key, filename in (('runner_sha256','worlex_restore.py'),
                           ('guard_sha256','client_runtime_guard.py'),
                           ('bootstrap_sha256','client_bootstrap.py'),
-                          ('connection_helper_sha256','client_connection.py')):
+                          ('connection_helper_sha256','client_connection.py'),
+                          ('observation_sha256','inspect_observation.py'),
+                          ('preservation_sha256','preservation_scope.py'),
+                          ('launcher_adapter_sha256','launcher_adapter.py')):
         require(profile.get(key) == sha(root / filename), 'CLIENT_PROOF_CODE_MISMATCH')
     summary = profile.get('acceptance_summary', {})
     require(summary.get('postgres_required') is True and summary.get('run', 0) >= 103 and

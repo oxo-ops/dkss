@@ -6,12 +6,27 @@ execute is one transaction and requires the unchanged preflight plan plus an
 explicit stopped-writers acknowledgement. Error details never expose row data.
 """
 from __future__ import annotations
+import contextlib
 import argparse, datetime as dt, decimal, hashlib, json, os, re, subprocess, sys, tarfile, tempfile, uuid
 from pathlib import Path
 from sqlalchemy import (MetaData, Column, String, Integer, Boolean, DateTime, Date,
                         LargeBinary, Numeric, Float, select, func, text, create_engine, inspect, tuple_)
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
+# The CLI must verify new executable helpers before importing them. The later
+# runtime guard additionally verifies the complete cross-platform CI seal.
+if __name__=='__main__':
+ try:
+  _root=Path(__file__).resolve().parent
+  _artifacts=json.loads((_root/'policy.json').read_text()).get('tested_artifacts',{})
+  for _name in ('inspect_observation.py','preservation_scope.py'):
+   _path=_root/_name
+   if _path.is_symlink() or not _path.is_file() or _artifacts.get(_name)!=hashlib.sha256(_path.read_bytes()).hexdigest():
+    raise ValueError('UNTESTED_HELPER')
+ except (OSError,ValueError,TypeError,AttributeError):
+  print(json.dumps({'status':'STOPPED','reason':'HELPER_DIFFERS_FROM_TESTED_REVISION'}));sys.exit(2)
+import inspect_observation as observation
+import preservation_scope
 
 TENANT='WORLEX'
 DEFERRED_SOURCE_ROWS={'push_subscription':[1]}
@@ -160,7 +175,8 @@ def policy_type(value):
 def validate_schema(connection,policy,*,building_ci_seal=False):
  require(digest(policy.get('restore_scope'))==digest(RESTORE_SCOPE),'RESTORE_SCOPE_POLICY_REQUIRED')
  require(connection.dialect.name=='postgresql','POSTGRESQL_REQUIRED')
- require(connection.scalar(text('SHOW server_version_num')) and int(connection.scalar(text('SHOW server_version_num')))>=180000 and int(connection.scalar(text('SHOW server_version_num')))<190000,'POSTGRESQL_18_REQUIRED')
+ server_version=connection.scalar(text('SHOW server_version_num'))
+ require(server_version and 180000<=int(server_version)<190000,'POSTGRESQL_18_REQUIRED')
  require(connection.scalar(text("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%' AND c.relkind IN ('r','p','f')"))==0,'UNREVIEWED_NONPUBLIC_TABLES')
  require(connection.scalar(text("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND (c.relkind IN ('p','f') OR c.relrowsecurity OR c.relforcerowsecurity OR c.relispartition)"))==0,'UNSUPPORTED_TABLE_SECURITY_OR_PARTITION')
  require(connection.scalar(text("SELECT count(*) FROM pg_inherits i JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'"))==0,'INHERITANCE_BLOCKED')
@@ -321,24 +337,18 @@ def prepare_deferred_push(connection,tables,typed):
  return len(existing)
 
 def verify_deferred_plan(approved,data,counts):
+ require(digest(approved.get('preservation_contract'))==digest(preservation_scope.PRESERVATION_CONTRACT),'PRESERVATION_CONTRACT_CHANGED')
  scope=import_scope(counts,approved.get('deferred_source_rows'))
- require(type(approved.get('version')) is int and approved['version']==3 and all(digest(approved.get(k))==digest(v) for k,v in scope.items()),'DEFERRED_PLAN_SCOPE_CHANGED')
+ require(type(approved.get('version')) is int and approved['version']==4 and all(digest(approved.get(k))==digest(v) for k,v in scope.items()),'DEFERRED_PLAN_SCOPE_CHANGED')
  require(digest(approved.get('source_counts'))==digest(counts) and approved.get('archive_sha256')==ARCHIVE_SHA256 and approved.get('tenant')==TENANT,'DEFERRED_PLAN_SOURCE_CHANGED')
  require(approved.get('deferred_source_sha256')==digest(data.get('push_subscription')),'DEFERRED_SOURCE_DIGEST_CHANGED')
  require('push_subscription_id_remap' not in approved,'LEGACY_PUSH_REMAP_PLAN_BLOCKED')
  return scope
 
 def snapshot(connection,tables,exclude_vehicle_compat=False,audit_import_ids=()):
- result={}
- for name,t in sorted(tables.items()):
-  stmt=select(*[c for c in t.c if not (exclude_vehicle_compat and name=='vehicle' and c.name=='vehicle_id')])
-  if name=='audit_log':
-   if audit_import_ids:stmt=stmt.where(t.c.id.not_in(audit_import_ids))
-  elif 'company_code' in t.c:stmt=stmt.where((t.c.company_code!=TENANT)|(t.c.company_code.is_(None)))
-  # Sorting by row digests works for tables without a primary key and binary columns.
-  rows=sorted(digest(dict(r)) for r in connection.execute(stmt).mappings())
-  result[name]={'count':len(rows),'sha256':digest(rows)}
- return result
+ # Vehicle is not part of the required settings/preserved-row projection.
+ try:return preservation_scope.snapshot(connection,tables,digest,audit_import_ids=audit_import_ids)
+ except preservation_scope.PreservationScopeError as error:raise Stop(str(error)) from None
 
 def identity(connection):
  row=connection.execute(text("SELECT current_database(),current_user,(SELECT oid FROM pg_database WHERE datname=current_database()),inet_server_addr()::text,inet_server_port(),current_setting('server_version_num')")).one()
@@ -437,7 +447,8 @@ def check_empty_and_itc(connection,tables,typed):
      require(values not in seen,'SOURCE_UNIQUE_KEY_COLLISION:'+name);seen.add(values)
     values=list(seen)
     statements=[select(*[table.c[c] for c in cols]).where(tuple_(*[table.c[c] for c in cols]).in_(values[offset:offset+500])).limit(1) for offset in range(0,len(values),500)]
-   except Exception:
+   except Exception as error:
+    if observation.ACTIVE:observation.ACTIVE.capture(error)
     probes.flush()
     raise
    # Never catch execution errors here: a disconnect must not trigger flush again.
@@ -493,7 +504,7 @@ def require_push_sequence_unchanged(states,baseline,code):
  key=('push_subscription','id')
  require(key in states and 'push_subscription.id' in baseline and digest(states[key])==digest(baseline['push_subscription.id']),code)
 
-def plan(connection,data,columns,policy,counts,source_sha,generated=None):
+def plan(connection,data,columns,policy,counts,source_sha,generated=None,*,_context=None):
  tables,schema_hash=validate_schema(connection,policy)
  typed,order=typed_payload(data,columns,tables,counts,generated)
  scope=import_scope(counts,DEFERRED_SOURCE_ROWS)
@@ -502,7 +513,9 @@ def plan(connection,data,columns,policy,counts,source_sha,generated=None):
  baseline=snapshot(connection,tables)
  seq=sequence_states(connection,tables)
  generated={name:{str(r['id']):{field:r[field] for field in ('account_identity','master_generation') if field in r} for r in rows} for name,rows in typed.items() if rows and any(field in rows[0] for field in ('account_identity','master_generation'))}
- return {**scope,'deferred_source_sha256':digest(data['push_subscription']),'preserved_worlex_audit_rows':preserved_audits,'generated_identifiers':generated,'version':3,'tenant':TENANT,'source_sha256':source_sha,'archive_sha256':ARCHIVE_SHA256,'runner_sha256':sha(Path(__file__).read_bytes()),'policy_sha256':digest(policy),'target_sha256':identity(connection),'schema_sha256':schema_hash,'preserved_rows_sha256':digest(baseline),'sequence_baseline':{'.'.join(k):v for k,v in seq.items()},'sequences_sha256':digest(sorted((list(k),v) for k,v in seq.items())),'source_counts':counts,'blank_chassis_to_null':11,'account_owner_policy':'new account UUID; historical owner/actor identity NULL; no username rebinding','legacy_vehicle_id_addition': 'vehicle_id' not in tables['vehicle'].c}
+ if _context is not None:
+  _context.update(connection=connection,transaction=connection.get_transaction(),tables=tables,baseline=baseline)
+ return {**scope,'preservation_contract':json.loads(json.dumps(preservation_scope.PRESERVATION_CONTRACT)),'deferred_source_sha256':digest(data['push_subscription']),'preserved_worlex_audit_rows':preserved_audits,'generated_identifiers':generated,'version':4,'tenant':TENANT,'source_sha256':source_sha,'archive_sha256':ARCHIVE_SHA256,'runner_sha256':sha(Path(__file__).read_bytes()),'policy_sha256':digest(policy),'target_sha256':identity(connection),'schema_sha256':schema_hash,'preserved_rows_sha256':digest(baseline),'sequence_baseline':{'.'.join(k):v for k,v in seq.items()},'sequences_sha256':digest(sorted((list(k),v) for k,v in seq.items())),'source_counts':counts,'blank_chassis_to_null':11,'account_owner_policy':'new account UUID; historical owner/actor identity NULL; no username rebinding','legacy_vehicle_id_addition': 'vehicle_id' not in tables['vehicle'].c}
 
 def execute_restore(connection,data,columns,policy,counts,source_sha,approved_plan,*,inject_failure=False):
  """Caller owns ONE transaction. All exceptions must roll it back, never retry."""
@@ -522,10 +535,11 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  connection.exec_driver_sql('LOCK TABLE '+','.join('public.'+q(n) for n in names)+' IN ACCESS EXCLUSIVE MODE')
  no_sessions()
  # Validate AFTER locks, not only at the earlier read-only inspection.
- current=plan(connection,data,columns,policy,counts,source_sha,approved_plan.get('generated_identifiers'))
+ context={}
+ current=plan(connection,data,columns,policy,counts,source_sha,approved_plan.get('generated_identifiers'),_context=context)
  require(current==approved_plan,'PREFLIGHT_PLAN_CHANGED')
- tables,_=validate_schema(connection,policy)
- baseline=snapshot(connection,tables)
+ require(context.get('connection') is connection and context.get('transaction') is connection.get_transaction() and connection.in_transaction(),'LOCKED_PLAN_CONTEXT_CHANGED')
+ tables=context['tables'];baseline=context['baseline']
  typed,order=typed_payload(data,columns,tables,counts,approved_plan['generated_identifiers'])
  verify_deferred_plan(approved_plan,data,counts)
  assert_no_deferred_references(tables)
@@ -555,7 +569,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  if current['legacy_vehicle_id_addition']:
   vehicle=tables['vehicle']
   require(connection.scalar(select(func.count()).select_from(vehicle).where((vehicle.c.company_code!=TENANT)|(vehicle.c.company_code.is_(None)),vehicle.c.vehicle_id.is_not(None)))==0,'COMPATIBILITY_COLUMN_CHANGED_OTHER_TENANT')
- require(snapshot(connection,tables,exclude_vehicle_compat=current['legacy_vehicle_id_addition'],audit_import_ids=[r['id'] for r in typed.get('audit_log',[])])==baseline,'OTHER_TENANT_OR_GLOBAL_ROWS_CHANGED')
+ require(snapshot(connection,tables,exclude_vehicle_compat=current['legacy_vehicle_id_addition'],audit_import_ids=[r['id'] for r in typed.get('audit_log',[])])==baseline,'REQUIRED_SETTINGS_OR_PRESERVED_ROWS_CHANGED')
  # Derived cache epochs are allowed for WORLEX only; other extra data is refused.
  derived={}
  for name,table in tables.items():
@@ -575,7 +589,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  require_push_sequence_unchanged(sequence_states(connection,{'push_subscription':tables['push_subscription']}),current['sequence_baseline'],'PUSH_SEQUENCE_CHANGED_DURING_RESTORE')
  if inject_failure in (True,'after_sequences'):raise Stop('INJECTED_ROLLBACK_PROBE')
  no_sessions()
- return {'status':'TRANSACTION_VERIFIED','preserved_worlex_audit_rows':current['preserved_worlex_audit_rows'],**import_scope(counts,current['deferred_source_rows']),'imported_values_and_blobs_match':True,'deferred_source_not_imported':True,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'users':15,'vehicles':565,'active_vehicles':289,'deleted_vehicles':276,'operation_records':2571,'blank_chassis_normalized':11,'derived_rows':derived,'sequences_advanced':sequence_changes,'non_worlex_and_global_rows_unchanged':True,'owner_bindings_quarantined':True,'live_login_tested':False,'live_pages_tested':False}
+ return {'status':'TRANSACTION_VERIFIED','preserved_worlex_audit_rows':current['preserved_worlex_audit_rows'],**import_scope(counts,current['deferred_source_rows']),'imported_values_and_blobs_match':True,'deferred_source_not_imported':True,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'users':15,'vehicles':565,'active_vehicles':289,'deleted_vehicles':276,'operation_records':2571,'blank_chassis_normalized':11,'derived_rows':derived,'sequences_advanced':sequence_changes,'required_settings_and_preserved_rows_unchanged':True,'owner_bindings_quarantined':True,'live_login_tested':False,'live_pages_tested':False}
 
 def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
  """Read-only reconciliation, including commit-disconnect outcomes. Never retry."""
@@ -612,7 +626,7 @@ def verify_restore(connection,data,columns,policy,counts,source_sha,approved):
   if typed.get(key[0]):
    maximum=connection.scalar(select(func.max(tables[key[0]].c[key[1]])))
    require(state['next']>maximum,'VERIFY_SEQUENCE_NOT_AHEAD')
- return {'status':'RESTORE_PRESENT_MATCHES_PLAN','preserved_worlex_audit_rows':approved['preserved_worlex_audit_rows'],**scope,'imported_values_and_blobs_match':True,'deferred_source_not_imported':True,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'non_worlex_and_global_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
+ return {'status':'RESTORE_PRESENT_MATCHES_PLAN','preserved_worlex_audit_rows':approved['preserved_worlex_audit_rows'],**scope,'imported_values_and_blobs_match':True,'deferred_source_not_imported':True,'push_subscription_rows_unchanged':True,'push_subscription_sequence_unchanged':True,'required_settings_and_preserved_rows_unchanged':True,'sequence_positions_safe':True,'read_only':True}
 
 def enforce_windows_client(root,policy):
  # The operational CLI requires the exact CI-tested pure client and verified
@@ -626,6 +640,10 @@ def enforce_windows_client(root,policy):
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
  try:return module.enforce(root,policy)
  except module.ClientStop as error:raise Stop(str(error)) from None
+
+# Fixed call-site labels; function bodies and SQL remain unchanged.
+for _phase in ('validate_schema', 'typed_payload', 'prepare_deferred_push', 'check_empty_and_itc', 'snapshot', 'sequence_states', 'identity', 'plan'):
+ globals()[_phase]=observation.phase(_phase)(globals()[_phase])
 
 def cli():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['inspect','execute','verify']);p.add_argument('--archive',required=True);p.add_argument('--pg-restore',required=True);p.add_argument('--plan',required=True);p.add_argument('--report',required=True);p.add_argument('--writers-stopped',action='store_true')
@@ -657,33 +675,50 @@ def cli():
   if key.startswith('PG'):os.environ.pop(key,None)
  from client_connection import connection_args,verify_tls_connection
  # sslmode is a validated user-facing declaration, not a pg8000 keyword.
- engine=create_engine(url.set(query={}),poolclass=NullPool,hide_parameters=True,connect_args=connection_args(read_only=a.action in ('inspect','verify')))
+ obs=observation.Observation(Path(a.report).parent) if a.action=='inspect' else None
+ observation.ACTIVE=observation.LAST=obs
+ args=connection_args(read_only=a.action in ('inspect','verify'),**({'application_name':obs.value['application_name']} if obs else {}))
+ engine=create_engine(url.set(query={}),poolclass=NullPool,hide_parameters=True,connect_args=args)
+ if obs:obs.install(engine,args)
  try:
   with tempfile.TemporaryDirectory(prefix='worlex-private-render-') as tmp:
-   sql=render_archive(a.archive,a.pg_restore,tmp);require(copy_digest(sql)==SOURCE_COPY_SHA256,'SOURCE_COPY_HASH_MISMATCH');data,columns=read_copy(sql)
-   source_sha=digest({'columns':columns,'data':data})
-   with engine.connect() as connection:
-    try:verify_tls_connection(connection,EXPECTED_HOST)
+   with obs.scope('source_render') if obs else contextlib.nullcontext():
+    sql=render_archive(a.archive,a.pg_restore,tmp);require(copy_digest(sql)==SOURCE_COPY_SHA256,'SOURCE_COPY_HASH_MISMATCH');data,columns=read_copy(sql)
+    source_sha=digest({'columns':columns,'data':data})
+   with obs.wrap_context(obs.connect(engine),'connection_close') if obs else engine.connect() as connection:
+    try:
+     if obs:
+      obs.call('tls_verify',verify_tls_connection,connection,EXPECTED_HOST)
+      obs.value['tls_completed']=True;obs.persist()
+     else:verify_tls_connection(connection,EXPECTED_HOST)
     except ValueError as error:raise Stop(str(error)) from None
-    with connection.begin():
+    with obs.wrap_context(obs.call('transaction_setup',connection.begin),'transaction_end') if obs else connection.begin():
      if a.action in ('inspect','verify'):
-      connection.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+      if obs:obs.call('transaction_setup',connection.exec_driver_sql,'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+      else:connection.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
       result=plan(connection,data,columns,policy,counts,source_sha) if a.action=='inspect' else verify_restore(connection,data,columns,policy,counts,source_sha,approved)
      else:result=execute_restore(connection,data,columns,policy,counts,source_sha,approved)
-   if a.action=='inspect':
-    result['client_runtime_sha256']=digest(client_runtime)
-    Path(a.plan).write_text(json.dumps(result,indent=2));os.chmod(a.plan,0o600)
-    output={'status':'READ_ONLY_PREFLIGHT_PASSED','target_sha256':result['target_sha256'],**import_scope(counts,result['deferred_source_rows']),'live_changes':False}
-   elif a.action=='execute':
-    output={**result,'status':'COMMITTED'}
-    attempt.write_text(json.dumps({'status':'COMMITTED','target_sha256':approved['target_sha256']}))
-   else:output=result
-   Path(a.report).write_text(json.dumps(output,indent=2));os.chmod(a.report,0o600)
-   print(json.dumps(output))
- finally:engine.dispose()
+   with obs.scope('output_write') if obs else contextlib.nullcontext():
+    if a.action=='inspect':
+     result['client_runtime_sha256']=digest(client_runtime)
+     Path(a.plan).write_text(json.dumps(result,indent=2));os.chmod(a.plan,0o600)
+     output={'status':'READ_ONLY_PREFLIGHT_PASSED','target_sha256':result['target_sha256'],**import_scope(counts,result['deferred_source_rows']),'live_changes':False}
+    elif a.action=='execute':
+     output={**result,'status':'COMMITTED'}
+     attempt.write_text(json.dumps({'status':'COMMITTED','target_sha256':approved['target_sha256']}))
+    else:output=result
+    output.update(observation.output_fields())
+    Path(a.report).write_text(json.dumps(output,indent=2));os.chmod(a.report,0o600)
+    print(json.dumps(output))
+ finally:
+  try:
+   if obs:
+    with obs.scope('engine_dispose',cleanup=True):engine.dispose()
+   else:engine.dispose()
+  finally:observation.ACTIVE=None
 if __name__=='__main__':
  try:cli()
- except Stop as error:print(json.dumps({'status':'STOPPED','reason':str(error)}));sys.exit(2)
+ except Stop as error:print(json.dumps({'status':'STOPPED','reason':str(error),**observation.output_fields()}));sys.exit(2)
  except Exception as error:
   # SQLAlchemy errors can include credentials, source values and constraint data.
-  print(json.dumps({'status':'FAILED_OR_COMMIT_UNCERTAIN','error_type':type(error).__name__,'instruction':'Do not retry. Inspect the target read-only and reconcile before any new write.'}));sys.exit(3)
+  print(json.dumps({'status':'FAILED_OR_COMMIT_UNCERTAIN','error_type':type(error).__name__ if type(error).__name__ in observation.TYPES else 'OtherError',**observation.output_fields(),'instruction':'Do not retry. Inspect the target read-only and reconcile before any new write.'}));sys.exit(3)

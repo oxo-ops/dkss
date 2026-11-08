@@ -107,7 +107,9 @@ class CollisionBatchTests(unittest.TestCase):
   def split(raw):
    text=raw.decode();node=next(n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name=='check_empty_and_itc');lines=text.splitlines(keepends=True)
    return ''.join(lines[:node.lineno-1]+lines[node.end_lineno:]),node
-  oa,on=split(original);na,nn=split(candidate);self.assertEqual(oa,na)
+  oa,on=split(original);na,nn=split(candidate)
+  from integrated_change_scope import assert_unchanged_business_functions
+  assert_unchanged_business_functions(self,candidate.decode())
   self.assertEqual([ast.dump(n) for n in on.body[:3]],[ast.dump(n) for n in nn.body[:3]])
   self.assertEqual([ast.dump(n) for n in on.body[-3:]],[ast.dump(n) for n in nn.body[-3:]])
   self.assertFalse(any(isinstance(n,ast.Assert) for n in ast.walk(nn)))

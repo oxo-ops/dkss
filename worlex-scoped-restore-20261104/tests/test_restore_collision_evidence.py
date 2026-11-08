@@ -32,7 +32,8 @@ def fixture():
         collision_cases=6, noncollision_cases=6, exact_outcomes_equal=True,
         same_readonly_transaction=True, preserved_rows_and_sequences_unchanged=True,
         global_and_scoped_unique_keys_verified=True)
-    return dict(suite_ids=ids, suite_ids_sha256=hashlib.sha256('\n'.join(ids).encode()).hexdigest(),
+    from preservation_scope import PRESERVATION_CONTRACT
+    return dict(postgres_cases=gate.POSTGRES_REQUIRED_CASES, preservation_contract=PRESERVATION_CONTRACT, suite_ids=ids, suite_ids_sha256=hashlib.sha256('\n'.join(ids).encode()).hexdigest(),
         expected=len(ids), run=len(ids), failures=0, errors=0, skipped=0, postgres_required=True,
         catalog_required_cases=36, collision_required_cases=32,
         catalog_batching=dict(maps=maps, preflight=preflight, collision_controls=controls))
@@ -57,7 +58,8 @@ class CollisionEvidenceTests(unittest.TestCase):
     def test_stale_hash_counts_and_incomplete_runs_rejected(self):
         for key, value in [('suite_ids_sha256','0'*64), ('expected',172), ('run',170),
                 ('failures',1), ('errors',1), ('skipped',1), ('postgres_required',False),
-                ('catalog_required_cases',35), ('collision_required_cases',31), ('run',True)]:
+                ('catalog_required_cases',35), ('collision_required_cases',31), ('run',True),
+                ('postgres_cases',33), ('preservation_contract',{})]:
             item = fixture(); item[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError): gate.validate_acceptance(item)
 
@@ -94,7 +96,8 @@ class CollisionEvidenceTests(unittest.TestCase):
         paths = gate.acceptance_artifact_paths(ROOT)
         hashes = {p.relative_to(ROOT).as_posix(): gate.sha(p) for p in paths}
         required = ('tests/application_contract.json', 'tests/collision_baseline.py',
-                    'tests/collision_diagnostic_guard.py')
+                    'tests/collision_diagnostic_guard.py', 'inspect_observation.py',
+                    'preservation_scope.py', 'launcher_adapter.py')
         for key in required: self.assertIn(key, hashes)
         gate.validate_acceptance_artifacts(hashes, ROOT)
         for key in required:

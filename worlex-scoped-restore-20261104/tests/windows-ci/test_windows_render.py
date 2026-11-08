@@ -11,6 +11,8 @@ import tarfile
 BASE_COMMIT = 'e838e65949e5fde3eb996979ae08029bc429b8ef'
 BASE_SHA = '5b09871233af743c487ba535eb444e768bad813ba1d2e6a759efd4f9ef16d7a4'
 PACKAGE = Path('worlex-scoped-restore-20261104')
+# Candidate now imports reviewed sibling observation/preservation modules.
+sys.path.insert(0, str(PACKAGE.resolve()))
 EVIDENCE = Path('windows-evidence')
 FIXTURE = Path('windows-fixture/synthetic.tar.gz')
 MARKER = b'WINDOWS_RENDER_SYNTHETIC_ONLY_20261104'

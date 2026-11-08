@@ -47,7 +47,7 @@ class ClientRuntimeTests(unittest.TestCase):
                     push_subscription_sequence_unchanged=True)
     def policy(self):
         (self.root/'source-counts.json').write_bytes((ROOT/'source-counts.json').read_bytes())
-        for name in ('worlex_restore.py','client_runtime_guard.py','client_bootstrap.py','client_connection.py'):
+        for name in ('worlex_restore.py','client_runtime_guard.py','client_bootstrap.py','client_connection.py','inspect_observation.py','preservation_scope.py','launcher_adapter.py'):
             (self.root/name).write_bytes(('fixture '+name).encode())
         before = {k:True for k in ('actual_connection_closed_before_commit','all_imports_absent',
             'preserved_rows_match','sequences_unchanged','fresh_readonly_verification_rejects_absent_restore')}
@@ -61,6 +61,9 @@ class ClientRuntimeTests(unittest.TestCase):
             guard_sha256=guard.sha(self.root/'client_runtime_guard.py'),
             bootstrap_sha256=guard.sha(self.root/'client_bootstrap.py'),
             connection_helper_sha256=guard.sha(self.root/'client_connection.py'),
+            observation_sha256=guard.sha(self.root/'inspect_observation.py'),
+            preservation_sha256=guard.sha(self.root/'preservation_scope.py'),
+            launcher_adapter_sha256=guard.sha(self.root/'launcher_adapter.py'),
             acceptance_summary={'postgres_required':True,'run':103,'expected':103,'errors':0,'failures':0,'skipped':0},
             tls_acceptance={k:True for k in ('verify_full_used','wrong_root_rejected','wrong_hostname_rejected','plaintext_server_rejected','tls_read_timeout_rejected')},
             full_table_acceptance={**self.scope(),
@@ -139,8 +142,10 @@ class ClientRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(guard.ClientStop,'DISTRIBUTIONS_MISMATCH'):self.loaded(distributions=bad)
     def test_code_hash_and_old_native_seal_rejected(self):
         policy=self.policy();guard.policy_profile(self.root,policy)
-        self.profile['connection_helper_sha256']='0'*64
-        with self.assertRaisesRegex(guard.ClientStop,'CODE_MISMATCH'):guard.policy_profile(self.root,policy)
+        for field in ('connection_helper_sha256','observation_sha256','preservation_sha256','launcher_adapter_sha256'):
+            original=self.profile[field]; self.profile[field]='0'*64
+            with self.subTest(field=field), self.assertRaisesRegex(guard.ClientStop,'CODE_MISMATCH'):guard.policy_profile(self.root,policy)
+            self.profile[field]=original
         self.profile['client_profile']='psycopg2'
         with self.assertRaisesRegex(guard.ClientStop,'PURE_PYTHON_CLIENT_PROOF'):guard.policy_profile(self.root,policy)
     def test_full_values_and_disconnect_proof_required(self):
