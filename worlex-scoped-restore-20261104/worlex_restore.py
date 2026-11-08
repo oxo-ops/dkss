@@ -369,23 +369,80 @@ def check_empty_and_itc(connection,tables,typed):
   require(set(unique_constraints)==expected_keys,'UNIQUE_CATALOG_SCOPE_MISMATCH')
   table_indexes=inspector.get_multi_indexes(schema='public',filter_names=populated_names,kind=ObjectKind.ANY,scope=ObjectScope.ANY)
   require(set(table_indexes)==expected_keys,'INDEX_CATALOG_SCOPE_MISMATCH')
+ # This queue lives only inside this call and the existing transaction. It
+ # changes natural-key round trips only; PK/tenant/UUID/catalog/ITC guards stay.
+ from sqlalchemy import literal, union_all
+ class CollisionProbes:
+  MAX_BRANCHES=16
+  MAX_BINDS=8000
+  MAX_SQL_BYTES=131072
+  def __init__(self):
+   self.transaction=connection.get_transaction()
+   require(self.transaction is not None and connection.in_transaction(),'COLLISION_TRANSACTION_REQUIRED')
+   self.pending=[];self.pending_keys=set();self.successful=set()
+  def unchanged_transaction(self):
+   require(connection.in_transaction() and connection.get_transaction() is self.transaction,'COLLISION_TRANSACTION_CHANGED')
+  def compile(self,statement):
+   return statement.compile(dialect=connection.dialect,compile_kwargs={'render_postcompile':True})
+  def statement(self,items):
+   branches=[select(literal(i).label('probe_ordinal'),stmt.exists().label('has_collision')) for i,(stmt,_,_) in enumerate(items)]
+   return branches[0] if len(branches)==1 else union_all(*branches)
+  def within_budget(self,items):
+   compiled=self.compile(self.statement(items))
+   bind_count=len(compiled.positiontup) if compiled.positiontup is not None else len(compiled.params)
+   return len(items)<=self.MAX_BRANCHES and bind_count<=self.MAX_BINDS and len(str(compiled).encode('utf-8'))<=self.MAX_SQL_BYTES
+  def flush(self):
+   if not self.pending:return
+   self.unchanged_transaction()
+   result=connection.execute(self.statement(self.pending)).all()
+   # UNION result ordering is not trusted. Missing/extra/duplicate ordinals or
+   # coerced booleans must never turn an incomplete check into a clean result.
+   require(type(result) in (list,tuple) and len(result)==len(self.pending),'COLLISION_RESULT_SHAPE_CHANGED')
+   values={}
+   for row in result:
+    require(hasattr(row,'__len__') and len(row)==2 and type(row[0]) is int and 0<=row[0]<len(self.pending) and type(row[1]) is bool and row[0] not in values,'COLLISION_RESULT_SHAPE_CHANGED')
+    values[row[0]]=row[1]
+   require(set(values)==set(range(len(self.pending))),'COLLISION_RESULT_SHAPE_CHANGED')
+   self.unchanged_transaction()
+   for i,(_,code,key) in enumerate(self.pending):
+    require(not values[i],code)
+    self.successful.add(key)
+   self.pending=[];self.pending_keys=set()
+  def add(self,statement,code):
+   compiled=self.compile(statement)
+   # Column order/predicate and typed bind values are part of the key. No
+   # literal interpolation and no keys or parameters are emitted to telemetry.
+   key=(str(compiled),tuple(compiled.positiontup or ()),tuple((k,type(v),v) for k,v in compiled.params.items()))
+   self.unchanged_transaction()
+   if key in self.successful or key in self.pending_keys:return
+   item=(statement,code,key)
+   if self.pending and not self.within_budget(self.pending+[item]):self.flush()
+   require(self.within_budget([item]),'COLLISION_PROBE_BUDGET_EXCEEDED')
+   self.pending.append(item);self.pending_keys.add(key)
+ probes=CollisionProbes()
  for name,rows in typed.items():
   if not rows:continue
   table=tables[name]
   indexes=unique_constraints[('public',name)]+ [i for i in table_indexes[('public',name)] if i.get('unique')]
   for index in indexes:
-   cols=index.get('column_names') or []
-   require(cols and all(c in table.c for c in cols),'EXPRESSION_UNIQUE_INDEX_BLOCKED:'+name)
-   # Apply full-key checks conservatively for partial indexes. False positives stop.
-   require(not index.get('dialect_options',{}).get('postgresql_nulls_not_distinct'),'NULLS_NOT_DISTINCT_INDEX_BLOCKED:'+name)
-   seen=set()
-   for row in rows:
-    values=tuple(row.get(c) for c in cols)
-    if None in values:continue
-    require(values not in seen,'SOURCE_UNIQUE_KEY_COLLISION:'+name);seen.add(values)
-   values=list(seen)
-   for offset in range(0,len(values),500):
-    require(connection.execute(select(*[table.c[c] for c in cols]).where(tuple_(*[table.c[c] for c in cols]).in_(values[offset:offset+500])).limit(1)).first() is None,'TARGET_UNIQUE_KEY_COLLISION:'+name)
+   try:
+    cols=index.get('column_names') or []
+    require(cols and all(c in table.c for c in cols),'EXPRESSION_UNIQUE_INDEX_BLOCKED:'+name)
+    # Apply full-key checks conservatively for partial indexes. False positives stop.
+    require(not index.get('dialect_options',{}).get('postgresql_nulls_not_distinct'),'NULLS_NOT_DISTINCT_INDEX_BLOCKED:'+name)
+    seen=set()
+    for row in rows:
+     values=tuple(row.get(c) for c in cols)
+     if None in values:continue
+     require(values not in seen,'SOURCE_UNIQUE_KEY_COLLISION:'+name);seen.add(values)
+    values=list(seen)
+    statements=[select(*[table.c[c] for c in cols]).where(tuple_(*[table.c[c] for c in cols]).in_(values[offset:offset+500])).limit(1) for offset in range(0,len(values),500)]
+   except Exception:
+    probes.flush()
+    raise
+   # Never catch execution errors here: a disconnect must not trigger flush again.
+   for statement in statements:probes.add(statement,'TARGET_UNIQUE_KEY_COLLISION:'+name)
+ probes.flush()
  user=tables['user']; company=tables['company']
  require(connection.scalar(select(func.count()).select_from(company).where(company.c.company_code=='ITC'))==1,'ITC_COMPANY_MISSING')
  require(connection.scalar(select(func.count()).select_from(user).where(user.c.company_code=='ITC',user.c.username=='itc',user.c.role=='itc'))>=1,'ITC_ADMIN_MISSING')

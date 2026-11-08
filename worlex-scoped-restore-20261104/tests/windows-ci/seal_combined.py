@@ -5,7 +5,8 @@ import shutil
 import subprocess
 
 from verify_client_evidence import (artifact_path, safe_relative, sha, validate_client,
-                                    validate_imported_modules, validate_ssl_runtime, validate_restore_scope)
+                                    validate_imported_modules, validate_ssl_runtime, validate_restore_scope,
+                                    validate_acceptance, validate_acceptance_artifacts)
 
 
 def require(value, message):
@@ -47,10 +48,8 @@ def main():
     require(summary['candidate_commit'] == commit == (linux / 'commit.txt').read_text().strip(),
             'Acceptance commit mismatch')
     acceptance = policy['acceptance_summary']
-    require(acceptance.get('postgres_required') is True and type(acceptance.get('expected')) is int and
-            acceptance['expected'] >= 103, 'Mandatory PostgreSQL suite absent')
-    require(acceptance.get('run') == acceptance['expected'] and all(type(acceptance.get(key)) is int and
-            acceptance[key] == 0 for key in ('failures', 'errors', 'skipped')), 'Linux tests incomplete')
+    validate_acceptance(acceptance)
+    validate_acceptance_artifacts(policy['tested_artifacts'], root)
     require(read_json(linux / 'summary.json') == acceptance, 'Standalone Linux summary differs')
     require(read_json(linux / 'tested-code-sha256.json') == policy['tested_artifacts'],
             'Standalone Linux code map differs')

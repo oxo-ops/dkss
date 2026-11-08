@@ -3,11 +3,12 @@ import hashlib,json,os,pathlib,sys,unittest
 sys.dont_write_bytecode = True
 root=pathlib.Path(__file__).resolve().parents[1];evidence=pathlib.Path(os.environ['WORLEX_EVIDENCE_DIR']);evidence.mkdir(exist_ok=True)
 sys.path.insert(0,str(root/'tests/windows-ci'))
-from verify_client_evidence import validate_restore_scope
+from verify_client_evidence import (validate_restore_scope, validate_acceptance,
+    REQUIRED_ACCEPTANCE_IDS, COLLISION_REQUIRED_CASES, acceptance_artifact_paths)
 if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise SystemExit('Explicit PostgreSQL acceptance required')
 suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_restore_*.py')
 expected=suite.countTestCases()
-if expected<139:raise SystemExit('Full 139-case catalog and sequence batching acceptance suite required')
+if expected<len(REQUIRED_ACCEPTANCE_IDS):raise SystemExit('Full catalog, sequence, collision and evidence-gate acceptance suite required')
 def test_ids(items):
  for item in items:
   if isinstance(item,unittest.TestSuite):yield from test_ids(item)
@@ -51,18 +52,15 @@ test_restore_batched_catalog.EquivalenceTests.test_uuid_and_generation_checks_un
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_maps_match_original_full_fixture
 test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_preflight_reduces_real_full_fixture_queries
 """.split())
-if len(ids)!=len(set(ids)) or not required_catalog_tests.issubset(ids):raise SystemExit('Required catalog-batching tests missing or duplicate tests discovered')
+if len(ids)!=len(set(ids)) or not required_catalog_tests.issubset(ids) or not REQUIRED_ACCEPTANCE_IDS.issubset(ids):raise SystemExit('Required catalog-batching tests missing or duplicate tests discovered')
 
 result=unittest.TextTestRunner(verbosity=2).run(suite)
-summary={'suite_ids_sha256':hashlib.sha256('\n'.join(sorted(ids)).encode()).hexdigest(),'catalog_required_cases':len(required_catalog_tests),'expected':expected,'run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'postgres_required':True}
+summary={'suite_ids':sorted(ids),'collision_required_cases':COLLISION_REQUIRED_CASES,'suite_ids_sha256':hashlib.sha256('\n'.join(sorted(ids)).encode()).hexdigest(),'catalog_required_cases':len(required_catalog_tests),'expected':expected,'run':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'postgres_required':True}
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))
 if not result.wasSuccessful() or result.skipped or result.testsRun!=expected:raise SystemExit(1)
 from test_restore_postgres import CATALOG_BATCHING_EVIDENCE
-maps=CATALOG_BATCHING_EVIDENCE.get('maps',{});preflight=CATALOG_BATCHING_EVIDENCE.get('preflight',{})
-if maps.get('populated_import_tables')!=36 or not all(maps.get(k) is True for k in ('exact_public_keys','unique_maps_equal','index_maps_equal','ordered_combination_equal','preserved_state_unchanged')):raise SystemExit('Actual PostgreSQL catalog equivalence evidence missing')
-if any(preflight.get(k)!=v for k,v in {'source_rows':4100,'import_rows':4099,'populated_import_tables':36,'old_catalog_execute_calls':108,'new_catalog_execute_calls':3}.items()) or not all(preflight.get(k) is True for k in ('application_queries_and_binds_equal','preserved_state_unchanged','synthetic_only')) or preflight.get('network_disconnect_fix_proven') is not False:raise SystemExit('Actual PostgreSQL catalog query reduction evidence missing')
-if type(preflight.get('old_application_execute_calls')) is not int or preflight['old_application_execute_calls']<=0 or preflight.get('new_application_execute_calls')!=preflight['old_application_execute_calls']:raise SystemExit('Application query equivalence evidence missing')
 summary['catalog_batching']=CATALOG_BATCHING_EVIDENCE
+validate_acceptance(summary)
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))
 coverage=json.loads((evidence/'full-fixture-coverage.json').read_text())
 counts=json.loads((root/'source-counts.json').read_text())
@@ -82,7 +80,7 @@ policy['full_table_acceptance']=coverage
 policy.pop('postgres_acceptance_passed',None)
 policy.pop('windows_render_acceptance_passed',None)
 policy['acceptance_summary']=summary
-files=[root/'.gitattributes',root/'worlex_restore.py',root/'policy.json',root/'source-manifest.json',root/'source-counts.json',root/'client_runtime_guard.py',root/'client_bootstrap.py',root/'client_connection.py',root/'tests/windows-ci/client-build-inputs.json',*sorted((root/'tests').rglob('*.py')),*sorted((root/'tests').rglob('*.sh'))]
+files=acceptance_artifact_paths(root)
 code={f.relative_to(root).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
 policy['tested_artifacts']=code
 policy['workflow_sha256']=hashlib.sha256(pathlib.Path('.github/workflows/worlex-restore-postgres.yml').read_bytes()).hexdigest()

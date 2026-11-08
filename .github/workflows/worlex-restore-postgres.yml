@@ -1,12 +1,13 @@
-name: Synthetic WORLEX Scoped Restore
+name: Synthetic WORLEX Collision Batching
 on:
   push:
-    branches: ['verify/worlex-sequence-batch-20261107', 'verify/worlex-restore-20261104', 'verify/worlex-full-fixture-20261104']
+    branches: ['verify/worlex-collision-batch-20261108']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   restore:
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-collision-batch-20261108' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -83,6 +84,7 @@ jobs:
           retention-days: 14
 
   windows-render:
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-collision-batch-20261108' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: restore
     runs-on: windows-2025
     timeout-minutes: 20
@@ -128,6 +130,7 @@ jobs:
           retention-days: 14
 
   windows-client:
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-collision-batch-20261108' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -171,6 +174,7 @@ jobs:
           retention-days: 14
 
   combined-seal:
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-collision-batch-20261108' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [restore, windows-render, windows-client]
     runs-on: ubuntu-latest
     timeout-minutes: 5

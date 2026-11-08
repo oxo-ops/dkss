@@ -349,37 +349,130 @@ class PostgreSQLRestoreAcceptance(unittest.TestCase):
   CATALOG_BATCHING_EVIDENCE['maps']={'populated_import_tables':len(names),'exact_public_keys':True,
     'unique_maps_equal':True,'index_maps_equal':True,'ordered_combination_equal':True,'preserved_state_unchanged':True}
  def test_catalog_preflight_reduces_real_full_fixture_queries(self):
-  import catalog_baseline
+  import catalog_baseline,collision_baseline
+  from sqlalchemy.sql.selectable import CompoundSelect,Select
   from worlex_restore import check_empty_and_itc, defer_push_subscription, DEFERRED_SOURCE_ROWS
   typed,_=typed_payload(self.data,self.columns,self.tables,self.counts,self.approved['generated_identifiers'])
   defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
   self.assertEqual(sum(self.counts.values()),4100)
   self.assertEqual(sum(map(len,typed.values())),4099)
   self.assertEqual(sum(bool(rows) for rows in typed.values()),36)
-  captured=[]
+  captured=[];logical=[];batch_metrics=[]
   def record(connection,cursor,statement,parameters,context,executemany):
-   # Kept in memory only for equality. Evidence contains counts, never SQL/binds.
+   # Kept in memory only. Evidence contains counts/booleans, never SQL/binds.
    captured.append(('catalog' if 'pg_catalog.' in statement else 'application',statement,copy.deepcopy(parameters),executemany))
-  traces=[]
+  def record_clause(connection,clause,multiparams,params,execution_options):
+   branches=list(clause.selects) if isinstance(clause,CompoundSelect) else [clause]
+   is_batch=all(isinstance(branch,Select) and list(branch.selected_columns.keys())==['probe_ordinal','has_collision'] for branch in branches)
+   compiled=clause.params(**params).compile(dialect=connection.dialect,compile_kwargs={'render_postcompile':True})
+   if is_batch:
+    batch_metrics.append({'branches':len(branches),'binds':len(compiled.positiontup) if compiled.positiontup is not None else len(compiled.params),'sql_bytes':len(str(compiled).encode('utf-8'))})
+    for branch in branches:
+     inner=list(branch.selected_columns)[1].element.element.element
+     expanded=inner.compile(dialect=connection.dialect,compile_kwargs={'render_postcompile':True})
+     logical.append((str(expanded),copy.deepcopy(expanded.params)))
+   elif 'pg_catalog.' not in str(compiled):logical.append((str(compiled),copy.deepcopy(compiled.params)))
+  traces=[];logical_traces=[];metrics=[]
   with self.engine.begin() as c:
-   c.exec_driver_sql('SET TRANSACTION READ ONLY')
-   for preflight in (catalog_baseline.check_empty_and_itc,check_empty_and_itc):
-    captured.clear();event.listen(c,'before_cursor_execute',record)
+   c.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+   tx=c.get_transaction()
+   for preflight in (catalog_baseline.check_empty_and_itc,collision_baseline.check_empty_and_itc,check_empty_and_itc):
+    captured.clear();logical.clear();batch_metrics.clear()
+    event.listen(c,'before_cursor_execute',record);event.listen(c,'before_execute',record_clause)
     try:preflight(c,self.tables,typed)
-    finally:event.remove(c,'before_cursor_execute',record)
-    traces.append(list(captured))
-  old_catalog=[row for row in traces[0] if row[0]=='catalog']
-  new_catalog=[row for row in traces[1] if row[0]=='catalog']
-  old_application=[row for row in traces[0] if row[0]=='application']
-  new_application=[row for row in traces[1] if row[0]=='application']
-  self.assertEqual(len(old_catalog),108);self.assertEqual(len(new_catalog),3)
-  self.assertTrue(old_application);self.assertEqual(old_application,new_application)
+    finally:event.remove(c,'before_cursor_execute',record);event.remove(c,'before_execute',record_clause)
+    self.assertIs(c.get_transaction(),tx)
+    traces.append(list(captured));logical_traces.append(list(logical));metrics.append(list(batch_metrics))
+   self.assertEqual(c.exec_driver_sql('SHOW transaction_read_only').scalar(),'on')
+  old_catalog,prior_catalog,new_catalog=([row for row in trace if row[0]=='catalog'] for trace in traces)
+  old_application,prior_application,new_application=([row for row in trace if row[0]=='application'] for trace in traces)
+  self.assertEqual((len(old_catalog),len(prior_catalog),len(new_catalog)),(108,3,3))
+  self.assertEqual(old_application,prior_application)
+  self.assertEqual((len(prior_application),len(new_application)),(159,112))
+  self.assertEqual(logical_traces[0],logical_traces[1])
+  def unique(trace):return [row for row in trace if ' IN ((' in row[0]]
+  def ordinary(trace):return [row for row in trace if ' IN ((' not in row[0]]
+  expected=[]
+  for row in unique(logical_traces[1]):
+   if row not in expected:expected.append(row)
+  self.assertEqual(expected,unique(logical_traces[2]))
+  self.assertEqual(ordinary(logical_traces[1]),ordinary(logical_traces[2]))
+  self.assertEqual(len(unique(logical_traces[1])),49)
+  self.assertEqual(len(expected),29);self.assertEqual(len(metrics[2]),2)
+  self.assertTrue(all(m['branches']<=16 and m['binds']<=8000 and m['sql_bytes']<=131072 for m in metrics[2]))
   self.unchanged()
   CATALOG_BATCHING_EVIDENCE['preflight']={'source_rows':4100,'import_rows':4099,'populated_import_tables':36,
-    'old_catalog_execute_calls':len(old_catalog),'new_catalog_execute_calls':len(new_catalog),
-    'old_application_execute_calls':len(old_application),'new_application_execute_calls':len(new_application),
-    'application_queries_and_binds_equal':True,'preserved_state_unchanged':True,
+    'old_catalog_execute_calls':len(old_catalog),'prior_catalog_execute_calls':len(prior_catalog),'new_catalog_execute_calls':len(new_catalog),
+    'old_application_execute_calls':len(old_application),'prior_application_execute_calls':len(prior_application),'new_application_execute_calls':len(new_application),
+    'old_unique_probe_round_trips':49,'new_unique_probe_round_trips':len(metrics[2]),'distinct_unique_predicates':len(expected),
+    'collision_max_branches':max(m['branches'] for m in metrics[2]),'collision_max_binds':max(m['binds'] for m in metrics[2]),'collision_max_sql_bytes':max(m['sql_bytes'] for m in metrics[2]),
+    'noncollision_application_queries_and_binds_equal':True,'distinct_unique_predicates_and_binds_equal':True,
+    'same_readonly_transaction':True,'preserved_state_unchanged':True,
     'synthetic_only':True,'network_disconnect_fix_proven':False}
+ def test_collision_batch_real_cross_tenant_conflicts_match_sequential(self):
+  # This table exists only inside the already verified disposable CI database.
+  # The global key must find ITC/other rows; the scoped key must not treat the
+  # same label in a different tenant as a conflict. No user archive is read.
+  from sqlalchemy import Table,Column,Integer,String,MetaData,UniqueConstraint
+  from collision_baseline import check_empty_and_itc as sequential, Stop as SequentialStop
+  from worlex_restore import check_empty_and_itc as batched, defer_push_subscription, DEFERRED_SOURCE_ROWS
+  probe=Table('synthetic_collision_probe',MetaData(),
+    Column('id',Integer,primary_key=True,autoincrement=False),
+    Column('company_code',String(100),nullable=False),
+    Column('natural_key',String(100),nullable=False),
+    Column('scoped_key',String(100),nullable=False),
+    UniqueConstraint('natural_key',name='uq_synthetic_collision_global'),
+    UniqueConstraint('company_code','scoped_key',name='uq_synthetic_collision_scoped'),schema='public')
+  existing=[{'id':8000001+i,'company_code':tenant,'natural_key':'global-'+tenant,'scoped_key':'shared-scope'}
+            for i,tenant in enumerate(('ITC','SYNTHETIC_OTHER'))]
+  typed,_=typed_payload(self.data,self.columns,self.tables,self.counts,self.approved['generated_identifiers'])
+  defer_push_subscription(typed,DEFERRED_SOURCE_ROWS)
+  self.assertEqual(sum(map(len,typed.values())),4099)
+  tables=dict(self.tables,synthetic_collision_probe=probe)
+  with self.engine.begin() as c:
+   probe.create(c);c.execute(probe.insert(),existing)
+  cases={'collision':0,'noncollision':0}
+  try:
+   for target in existing:
+    for position in ('first','middle','last'):
+     for collision in (True,False):
+      with self.subTest(tenant=target['company_code'],position=position,collision=collision):
+       source={'id':7000001,'company_code':'WORLEX',
+               'natural_key':target['natural_key'] if collision else 'no-global-collision',
+               'scoped_key':'shared-scope'}
+       ordered=list(typed.items())
+       offset={'first':0,'middle':len(ordered)//2,'last':len(ordered)}[position]
+       ordered.insert(offset,(probe.name,[source]));payload=dict(ordered)
+       with self.engine.begin() as c:
+        c.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+        transaction=c.get_transaction()
+        before=snapshot(c,self.tables);sequences_before=sequence_states(c,self.tables)
+        targets_before=[dict(r) for r in c.execute(select(probe).order_by(probe.c.id)).mappings()]
+        self.assertEqual(targets_before,existing)
+        outcomes=[]
+        for implementation in (sequential,batched):
+         try:implementation(c,tables,payload)
+         except (SequentialStop,Stop) as error:outcomes.append(str(error))
+         else:outcomes.append(None)
+         self.assertIs(c.get_transaction(),transaction)
+        expected='TARGET_UNIQUE_KEY_COLLISION:'+probe.name if collision else None
+        self.assertEqual(outcomes,[expected,expected])
+        self.assertEqual(c.exec_driver_sql('SHOW transaction_read_only').scalar(),'on')
+        self.assertEqual(c.exec_driver_sql('SHOW transaction_isolation').scalar(),'repeatable read')
+        self.assertEqual(snapshot(c,self.tables),before)
+        self.assertEqual(sequence_states(c,self.tables),sequences_before)
+        self.assertEqual([dict(r) for r in c.execute(select(probe).order_by(probe.c.id)).mappings()],targets_before)
+       cases['collision' if collision else 'noncollision']+=1
+  finally:
+   with self.engine.begin() as c:probe.drop(c)
+  self.assertEqual(cases,{'collision':6,'noncollision':6})
+  self.unchanged()
+  CATALOG_BATCHING_EVIDENCE['collision_controls']={'actual_postgresql':True,
+    'implementations':['sequential','batched'],'tenants':['ITC','SYNTHETIC_OTHER'],
+    'positions':['first','middle','last'],'collision_cases':cases['collision'],
+    'noncollision_cases':cases['noncollision'],'exact_outcomes_equal':True,
+    'same_readonly_transaction':True,'preserved_rows_and_sequences_unchanged':True,
+    'global_and_scoped_unique_keys_verified':True}
  def test_full_count_fixture_all_tables_constraints_and_preservation(self):
   from test_restore_full_fixture import assert_full_postgres_coverage
   assert_full_postgres_coverage(self)

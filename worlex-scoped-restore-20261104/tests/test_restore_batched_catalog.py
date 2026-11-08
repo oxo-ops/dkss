@@ -23,6 +23,7 @@ from sqlalchemy.engine.reflection import Inspector, ObjectKind, ObjectScope
 from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import BindParameter, BooleanClauseList, Grouping, Null, Tuple
 from sqlalchemy.sql.functions import Function
+from sqlalchemy.sql.selectable import CompoundSelect, Select
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -106,6 +107,15 @@ class InertConnection:
         self.reflection_requests = []
         self.mutation = None
         self.fail_kind = None
+        self.transaction = object()
+        self.expanded_unique_calls = []
+        self.collision_batches = []
+
+    def get_transaction(self):
+        return self.transaction
+
+    def in_transaction(self):
+        return self.transaction is not None
 
     def inspector(self):
         inspector = Inspector._construct(Inspector._init_connection, self)
@@ -127,6 +137,21 @@ class InertConnection:
 
     def execute(self, statement, parameters=None):
         sql, params = self.compile(statement, parameters)
+        branches = list(statement.selects) if isinstance(statement, CompoundSelect) else [statement]
+        if all(isinstance(branch, Select) and list(branch.selected_columns.keys()) == ['probe_ordinal', 'has_collision'] for branch in branches):
+            self.application_calls.append((sql, params))
+            result = []
+            for branch in branches:
+                columns = list(branch.selected_columns)
+                ordinal = columns[0].element.value
+                inner = columns[1].element.element.element
+                self.expanded_unique_calls.append(self.compile(inner))
+                table = inner.get_final_froms()[0]
+                matched = any(all(evaluate(c, row) for c in inner._where_criteria)
+                              for row in self.fixture['target'].get(table.name, []))
+                result.append((ordinal, matched))
+            self.collision_batches.append({'branches': len(branches), 'binds': len(params), 'sql_bytes': len(sql.encode())})
+            return Result(result)
         parameters = parameters or {}
         if statement is self.dialect._constraint_query:
             kind = 'unique_constraints'
@@ -235,7 +260,15 @@ class EquivalenceTests(unittest.TestCase):
         b, cb = run(new, f, version=version)
         self.assertEqual(a, expected)
         self.assertEqual(b, expected)
-        self.assertEqual(ca.application_calls, cb.application_calls)
+        if expected == 'PASS':
+            original_unique = [query for query in ca.application_calls if 'IN ((' in query[0]]
+            distinct = []
+            for query in original_unique:
+                if query not in distinct:
+                    distinct.append(query)
+            self.assertEqual(distinct, cb.expanded_unique_calls)
+            self.assertEqual([query for query in ca.application_calls if 'IN ((' not in query[0]],
+                             [query for query in cb.application_calls if 'probe_ordinal' not in query[0]])
         return ca, cb
 
     def test_exact_source_and_change_scope(self):
@@ -245,10 +278,12 @@ class EquivalenceTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(old_source.encode()).hexdigest(), old.BASELINE_FUNCTION_SHA256)
         self.assertEqual(hashlib.sha256(remainder.encode()).hexdigest(), old.UNCHANGED_CORE_SHA256)
         self.assertFalse(any(isinstance(n, ast.Assert) for n in ast.walk(node)))
-        # The complete collision body and preceding PK/tenant/UUID checks stay identical.
+        # Index/source guard prefix and PK/tenant/UUID checks stay identical;
+        # only the target probe delivery is batched.
         old_loop = next(n for n in old_node.body if isinstance(n, ast.For) and any(isinstance(x, ast.For) and isinstance(x.target, ast.Name) and x.target.id == 'index' for x in n.body))
         new_loop = next(n for n in node.body if isinstance(n, ast.For) and any(isinstance(x, ast.For) and isinstance(x.target, ast.Name) and x.target.id == 'index' for x in n.body))
-        self.assertEqual(ast.dump(old_loop.body[-1]), ast.dump(new_loop.body[-1]))
+        self.assertEqual([ast.dump(n) for n in old_loop.body[-1].body[:6]],
+                         [ast.dump(n) for n in new_loop.body[-1].body[0].body[:6]])
         self.assertEqual([ast.dump(n) for n in old_node.body[:3]], [ast.dump(n) for n in node.body[:3]])
         self.assertEqual([ast.dump(n) for n in old_node.body[-3:]], [ast.dump(n) for n in node.body[-3:]])
 
@@ -317,15 +352,15 @@ class EquivalenceTests(unittest.TestCase):
     def test_duplicate_constraint_backing_index_retained(self):
         f = fixture(); constraint(f); index(f, duplicate=True)
         ca, cb = self.equivalent(f)
-        predicate_calls = [sql for sql, _ in cb.application_calls if 'IN ((' in sql]
-        self.assertEqual(len(predicate_calls), 2)
-        self.assertEqual(len(ca.application_calls), len(cb.application_calls))
+        self.assertEqual(len([sql for sql, _ in ca.application_calls if 'IN ((' in sql]), 2)
+        self.assertEqual(len(cb.expanded_unique_calls), 1)
+        self.assertEqual(len(cb.collision_batches), 1)
 
     def test_seen_dedup_null_and_500_row_chunk_semantics(self):
         f = fixture(); constraint(f)
         f['typed']['thing'] = [{'id': 1000+i, 'company_code': 'WORLEX', 'key_a': 'k%04d' % i, 'key_b': 'b'} for i in range(1001)]
         _, cb = self.equivalent(f)
-        unique_calls = [params for sql, params in cb.application_calls if 'IN ((' in sql]
+        unique_calls = [params for sql, params in cb.expanded_unique_calls]
         self.assertEqual(len(unique_calls), 3)
         self.assertEqual([len([k for k in params if k.startswith('param_1_')]) for params in unique_calls], [500, 500, 1])
 
@@ -470,7 +505,7 @@ class EquivalenceTests(unittest.TestCase):
         self.assertEqual(len(ca.catalog_calls), 108)
         self.assertEqual(len(cb.catalog_calls), 3)
         self.assertEqual([c['kind'] for c in cb.catalog_calls], ['table_oids', 'unique_constraints', 'indexes'])
-        self.assertEqual(len(ca.application_calls), len(cb.application_calls))
+        self.assertLess(len(cb.application_calls), len(ca.application_calls))
         # No generated evidence is written into the tested source tree.
 
     def test_compilation_across_postgres_dialect_versions(self):

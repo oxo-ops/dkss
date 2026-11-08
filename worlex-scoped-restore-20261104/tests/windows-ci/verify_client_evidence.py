@@ -231,6 +231,279 @@ def validate_restore_scope(item, counts):
             'Legacy remap/all-source import proof forbidden')
 
 
+# Exact mandatory coverage: original 139, 32 collision, 9 offline gate, and 1 live collision-control cases.
+REQUIRED_ACCEPTANCE_IDS = frozenset("""
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_collision_batch_real_cross_tenant_conflicts_match_sequential
+test_restore_collision_evidence.CollisionEvidenceTests.test_complete_synthetic_schema_is_accepted_without_claiming_live_proof
+test_restore_collision_evidence.CollisionEvidenceTests.test_old_139_case_evidence_cannot_pass
+test_restore_collision_evidence.CollisionEvidenceTests.test_missing_or_duplicate_mandatory_id_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_stale_hash_counts_and_incomplete_runs_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_every_collision_field_is_required
+test_restore_collision_evidence.CollisionEvidenceTests.test_altered_collision_metrics_and_boolean_proofs_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_every_catalog_map_proof_is_required
+test_restore_collision_evidence.CollisionEvidenceTests.test_contract_and_oracles_are_hashed_and_missing_or_altered_rejected
+test_restore_collision_evidence.CollisionEvidenceTests.test_all_execution_and_seal_routes_call_shared_validator
+test_restore_batched_catalog.EquivalenceTests.test_bulk_query_failure_propagates_without_retry_or_fallback
+test_restore_batched_catalog.EquivalenceTests.test_compilation_across_postgres_dialect_versions
+test_restore_batched_catalog.EquivalenceTests.test_composite_key_noncollision
+test_restore_batched_catalog.EquivalenceTests.test_constraint_and_unique_index
+test_restore_batched_catalog.EquivalenceTests.test_duplicate_constraint_backing_index_retained
+test_restore_batched_catalog.EquivalenceTests.test_empty_typed_never_queries_all_catalog
+test_restore_batched_catalog.EquivalenceTests.test_exact_source_and_change_scope
+test_restore_batched_catalog.EquivalenceTests.test_existing_uuid_duplicate_rejected
+test_restore_batched_catalog.EquivalenceTests.test_expression_index_blocked
+test_restore_batched_catalog.EquivalenceTests.test_fresh_inspector_each_preflight
+test_restore_batched_catalog.EquivalenceTests.test_included_columns_are_not_added_to_unique_key
+test_restore_batched_catalog.EquivalenceTests.test_itc_guards_unchanged
+test_restore_batched_catalog.EquivalenceTests.test_missing_actual_oid_fails_closed
+test_restore_batched_catalog.EquivalenceTests.test_missing_foreign_extra_keys_fail_closed
+test_restore_batched_catalog.EquivalenceTests.test_no_unique_constraints
+test_restore_batched_catalog.EquivalenceTests.test_nonunique_expression_index_ignored
+test_restore_batched_catalog.EquivalenceTests.test_null_keys_skipped
+test_restore_batched_catalog.EquivalenceTests.test_nulls_not_distinct_constraint_and_index_blocked
+test_restore_batched_catalog.EquivalenceTests.test_only_exact_populated_names_any_kind_any_scope
+test_restore_batched_catalog.EquivalenceTests.test_partial_index_keeps_conservative_full_key_check
+test_restore_batched_catalog.EquivalenceTests.test_partial_index_noncollision
+test_restore_batched_catalog.EquivalenceTests.test_pk_collision_before_catalog
+test_restore_batched_catalog.EquivalenceTests.test_real_compiled_catalog_calls_36_tables_108_to_3
+test_restore_batched_catalog.EquivalenceTests.test_real_dialect_maps_and_ordered_combination_equal
+test_restore_batched_catalog.EquivalenceTests.test_seen_dedup_null_and_500_row_chunk_semantics
+test_restore_batched_catalog.EquivalenceTests.test_source_natural_key_collision
+test_restore_batched_catalog.EquivalenceTests.test_target_natural_key_collision
+test_restore_batched_catalog.EquivalenceTests.test_tenant_case_alias_before_catalog
+test_restore_batched_catalog.EquivalenceTests.test_unique_index_target_collision
+test_restore_batched_catalog.EquivalenceTests.test_unknown_and_empty_columns_blocked
+test_restore_batched_catalog.EquivalenceTests.test_uuid_and_generation_checks_unchanged
+test_restore_client_bootstrap.BootstrapReview.test_arbitrary_target_rejected
+test_restore_client_bootstrap.BootstrapReview.test_bootstrap_hash_mismatch_rejected
+test_restore_client_bootstrap.BootstrapReview.test_cli_gate_appears_before_engine_connection
+test_restore_client_bootstrap.BootstrapReview.test_cli_gate_executes_exact_guard
+test_restore_client_bootstrap.BootstrapReview.test_cli_gate_refuses_unsealed_policy
+test_restore_client_bootstrap.BootstrapReview.test_cli_gate_refuses_wrong_guard_hash
+test_restore_client_bootstrap.BootstrapReview.test_fixed_core_target_after_guard
+test_restore_client_bootstrap.BootstrapReview.test_fixed_launcher_target_after_guard
+test_restore_client_bootstrap.BootstrapReview.test_guard_hash_mismatch_rejected_before_import
+test_restore_client_bootstrap.BootstrapReview.test_guard_stop_does_not_run_target
+test_restore_client_bootstrap.BootstrapReview.test_missing_sidecar_stops_before_target
+test_restore_client_bootstrap.BootstrapReview.test_preimported_client_rejected
+test_restore_client_cli.ClientCLITests.test_execute_uses_exact_database_plan_after_runtime_check
+test_restore_client_cli.ClientCLITests.test_inspect_binds_runtime_and_starts_readonly
+test_restore_client_cli.ClientCLITests.test_runtime_change_stops_before_connect_or_marker
+test_restore_client_cli.ClientCLITests.test_verify_uses_original_plan_readonly_no_execute
+test_restore_client_connection.ConnectionTests.test_execute_has_no_readonly_override_or_plaintext_flag
+test_restore_client_connection.ConnectionTests.test_invalid_ca_does_not_fallback
+test_restore_client_connection.ConnectionTests.test_read_only_is_connection_startup_setting
+test_restore_client_connection.ConnectionTests.test_safe_sqlstate_never_returns_detail_or_secret
+test_restore_client_connection.ConnectionTests.test_timeout_and_application_overrides_fail_closed
+test_restore_client_connection.ConnectionTests.test_tls_context_requires_ca_and_hostname
+test_restore_client_runtime.ClientRuntimeTests.test_actual_runtime_module_observation_contract
+test_restore_client_runtime.ClientRuntimeTests.test_all_tls_negatives_and_runtime_proof_required
+test_restore_client_runtime.ClientRuntimeTests.test_candidate_commit_mismatch_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_code_hash_and_old_native_seal_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_deferred_ci_scope_matches_runtime_contract
+test_restore_client_runtime.ClientRuntimeTests.test_deferred_counts_and_legacy_fields_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_deferred_scope_rejects_old_import_and_wrong_deferred_identity
+test_restore_client_runtime.ClientRuntimeTests.test_extra_modified_and_native_payload_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_full_values_and_disconnect_proof_required
+test_restore_client_runtime.ClientRuntimeTests.test_native_magic_hidden_under_text_extension_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_outside_imported_module_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_path_aliases_and_casefold_collision_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_provider_shape_distinguishes_builtin_extension_unknown
+test_restore_client_runtime.ClientRuntimeTests.test_push_preservation_required_in_every_runtime_proof
+test_restore_client_runtime.ClientRuntimeTests.test_runtime_forbids_native_postgres_driver
+test_restore_client_runtime.ClientRuntimeTests.test_runtime_rejects_duplicate_tls_module
+test_restore_client_runtime.ClientRuntimeTests.test_runtime_rejects_external_tls_module
+test_restore_client_runtime.ClientRuntimeTests.test_runtime_requires_each_tls_module
+test_restore_client_runtime.ClientRuntimeTests.test_runtime_support_dll_allowed_only_in_base_or_real_system
+test_restore_client_runtime.ClientRuntimeTests.test_valid_pure_manifest_and_imported_modules
+test_restore_client_runtime.ClientRuntimeTests.test_wheel_provenance_and_distribution_version_rejected
+test_restore_client_runtime.ClientRuntimeTests.test_wrong_platform_and_unsealed_policy_rejected
+test_restore_collision_batch.CollisionBatchTests.test_baseline_pin_and_exact_change_scope
+test_restore_collision_batch.CollisionBatchTests.test_batch_first_middle_last_collision_original_order
+test_restore_collision_batch.CollisionBatchTests.test_caps_branches_and_bind_parameters
+test_restore_collision_batch.CollisionBatchTests.test_catalog_failure_scope_guards_unchanged
+test_restore_collision_batch.CollisionBatchTests.test_chunk_sizes_zero_one_499_500_501_2571
+test_restore_collision_batch.CollisionBatchTests.test_compilation_binding_unicode_uuid_date_binary_decimal
+test_restore_collision_batch.CollisionBatchTests.test_composite_key_respects_full_tuple
+test_restore_collision_batch.CollisionBatchTests.test_diagnostic_allowlist_new_statements_and_denials
+test_restore_collision_batch.CollisionBatchTests.test_different_column_order_not_deduplicated
+test_restore_collision_batch.CollisionBatchTests.test_disconnect_during_flush_before_invalid_source_not_retried
+test_restore_collision_batch.CollisionBatchTests.test_disconnect_not_retried_or_replaced_with_fallback
+test_restore_collision_batch.CollisionBatchTests.test_duplicate_constraint_backing_index_one_probe
+test_restore_collision_batch.CollisionBatchTests.test_duplicate_missing_or_extra_ordinal_same_length_fails
+test_restore_collision_batch.CollisionBatchTests.test_empty_no_unique_no_extra_call
+test_restore_collision_batch.CollisionBatchTests.test_empty_rows_skip_catalog_and_probe
+test_restore_collision_batch.CollisionBatchTests.test_full_count_synthetic_fixture_query_reduction
+test_restore_collision_batch.CollisionBatchTests.test_invalid_later_duplicate_metadata_still_rejected
+test_restore_collision_batch.CollisionBatchTests.test_itc_and_other_tenant_global_unique_collisions
+test_restore_collision_batch.CollisionBatchTests.test_later_source_invalid_flushes_earlier_target_collision
+test_restore_collision_batch.CollisionBatchTests.test_later_unsupported_index_preserves_earlier_target_precedence
+test_restore_collision_batch.CollisionBatchTests.test_malformed_result_shapes_rejected
+test_restore_collision_batch.CollisionBatchTests.test_no_result_cache_across_calls_or_connections
+test_restore_collision_batch.CollisionBatchTests.test_null_keys_skipped_without_changing_null_policy
+test_restore_collision_batch.CollisionBatchTests.test_partial_metadata_not_used_to_hide_collision
+test_restore_collision_batch.CollisionBatchTests.test_reordered_valid_result_rows_are_matched_by_ordinal
+test_restore_collision_batch.CollisionBatchTests.test_same_columns_different_partial_metadata_checked
+test_restore_collision_batch.CollisionBatchTests.test_same_transaction_required_before_and_after_query
+test_restore_collision_batch.CollisionBatchTests.test_single_oversize_probe_fails_closed
+test_restore_collision_batch.CollisionBatchTests.test_single_probe_bind_cap_fails_closed
+test_restore_collision_batch.CollisionBatchTests.test_source_and_target_uniqueness_guards
+test_restore_collision_batch.CollisionBatchTests.test_sql_byte_cap_is_applied
+test_restore_collision_batch.CollisionBatchTests.test_tenant_alias_pk_uuid_itc_guards_unchanged
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_24_source_blobs_are_nonempty_and_hash_verified
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_37_primary_keys_are_present_and_unique
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_all_required_columns_lengths_and_typed_values
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_broken_reference_is_rejected_for_each_represented_fk
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_count_drift_is_rejected_for_each_declared_source_table
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_every_represented_fk_is_populated_closed_and_ordered
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_every_source_value_is_preserved_except_documented_transformations
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_historical_accounts_are_not_rebound_and_generated_ids_replay
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_legacy_acceptance_anchors_and_vehicle_state_counts_remain
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_matches_every_approved_source_count_including_empty_tables
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_primary_key_corruption_is_rejected_in_every_populated_table
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_sqlite_all_rows_insert_with_fk_checks_and_preserved_values
+test_restore_full_fixture.FullSyntheticFixtureCoverage.test_synthetic_copy_roundtrip_covers_all_62_tables
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_audit_baseline_change_between_inspection_and_execution_stops
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_audit_ids_are_never_rewritten_to_hide_a_collision
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_case_alias_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_maps_match_original_full_fixture
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_catalog_preflight_reduces_real_full_fixture_queries
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_changed_schema_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_commit_preserves_rows_blobs_ownership_and_sequence_next_insert
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_disconnect_after_commit_reconciles_without_reinserting
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_disconnect_before_commit_rolls_back_all_imported_tables_and_sequences
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_existing_one_audit_and_all_423_source_audits_survive
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_full_count_fixture_all_tables_constraints_and_preservation
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_more_than_one_existing_worlex_audit_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_pk_conflict_is_rejected_before_insert
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_push_endpoint_and_id_collision_defers_source_and_preserves_all_values
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_push_without_collision_is_still_deferred_without_owner_rebinding
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_raw_deferred_source_mutation_is_rejected_with_unchanged_source_hash
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_read_only_reconciliation_and_modified_payload_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_real_synthetic_login_and_primary_pages
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_replay_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_rollback_after_sequences_restores_rows_column_triggers_and_sequences
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_rollback_keeps_existing_audit_and_original_sequence
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_second_connection_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_sequence_batch_lock_preserves_push_and_value_order
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_sequence_batch_matches_original_and_reduces_queries
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_unapproved_existing_audit_is_not_allowed
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_unsealed_policy_is_rejected
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_additional_unplanned_audit
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_changes_to_preserved_audit
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_preserved_push_value_mutation
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_push_sequence_called_mutation
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_push_sequence_catalog_mutation
+test_restore_postgres.PostgreSQLRestoreAcceptance.test_verified_restore_detects_push_sequence_last_value_mutation
+test_restore_postgres.ServiceGuardTests.test_app_config_rejects_non_ci_destinations_before_context_creation
+test_restore_postgres.ServiceGuardTests.test_app_config_uses_explicit_context_without_libpq_environment
+test_restore_postgres.ServiceGuardTests.test_dedicated_service_and_rejections
+test_restore_postgres.ServiceGuardTests.test_missing_explicit_ca_fails_closed
+test_restore_postgres.ServiceGuardTests.test_tls_check_requires_verified_pg8000_socket
+test_restore_sequence_batch.SequenceBatchDifferential.test_all_differential_guards
+test_restore_unit.RestoreGuards.test_blob_hashes_are_sensitive_to_bytes_without_exposing_them
+test_restore_unit.RestoreGuards.test_copy_decoding
+test_restore_unit.RestoreGuards.test_counts_and_exact_states
+test_restore_unit.RestoreGuards.test_deferred_mapping_rejects_other_tables_ids_counts_and_types
+test_restore_unit.RestoreGuards.test_deferred_source_requires_one_id_one_tenant_and_unbound_owner
+test_restore_unit.RestoreGuards.test_exactly_one_push_row_is_deferred_without_mutating_source
+test_restore_unit.RestoreGuards.test_full_synthetic_fixture_matches_pinned_schema
+test_restore_unit.RestoreGuards.test_malformed_and_duplicate_copy_are_blocked
+test_restore_unit.RestoreGuards.test_payload_count_tenant_and_numeric_id_guards
+test_restore_unit.RestoreGuards.test_render_environment_preserves_only_windows_runtime_paths
+test_restore_unit.RestoreGuards.test_render_failure_classification_never_exposes_raw_details
+test_restore_unit.RestoreGuards.test_safe_identifiers
+test_restore_unit.RestoreGuards.test_tenant_filter_and_escapes
+""".split())
+COLLISION_REQUIRED_CASES = 32
+
+
+def validate_acceptance(summary):
+    """Validate offline evidence structure only; this does not prove a live run."""
+    require(isinstance(summary, dict), 'Acceptance summary missing')
+    ids = summary.get('suite_ids')
+    require(isinstance(ids, list) and all(isinstance(i, str) for i in ids) and
+            len(ids) == len(set(ids)) and REQUIRED_ACCEPTANCE_IDS.issubset(ids),
+            'Mandatory collision/full-suite test IDs missing or duplicated')
+    require(summary.get('suite_ids_sha256') == hashlib.sha256(
+            '\n'.join(sorted(ids)).encode()).hexdigest(), 'Acceptance suite ID hash differs')
+    require(summary.get('postgres_required') is True and
+            type(summary.get('expected')) is int and summary['expected'] >= len(REQUIRED_ACCEPTANCE_IDS) and
+            summary['expected'] == len(ids) and type(summary.get('run')) is int and
+            summary['run'] == summary['expected'] and
+            all(type(summary.get(k)) is int and summary[k] == 0
+                for k in ('failures', 'errors', 'skipped')), 'Full acceptance run incomplete')
+    require(type(summary.get('catalog_required_cases')) is int and
+            summary['catalog_required_cases'] == 36 and
+            type(summary.get('collision_required_cases')) is int and
+            summary['collision_required_cases'] == COLLISION_REQUIRED_CASES,
+            'Required batching coverage counts differ')
+    batching = summary.get('catalog_batching')
+    require(isinstance(batching, dict), 'Actual PostgreSQL batching evidence missing')
+    controls = batching.get('collision_controls')
+    require(isinstance(controls, dict), 'Actual PostgreSQL collision controls missing')
+    expected_controls = {
+        'actual_postgresql': True,
+        'implementations': ['sequential', 'batched'],
+        'tenants': ['ITC', 'SYNTHETIC_OTHER'],
+        'positions': ['first', 'middle', 'last'],
+        'collision_cases': 6,
+        'noncollision_cases': 6,
+        'exact_outcomes_equal': True,
+        'same_readonly_transaction': True,
+        'preserved_rows_and_sequences_unchanged': True,
+        'global_and_scoped_unique_keys_verified': True,
+    }
+    require(all(type(controls.get(k)) is type(v) and controls[k] == v
+                for k, v in expected_controls.items()),
+            'Actual PostgreSQL cross-tenant collision controls incomplete or changed')
+    maps, preflight = batching.get('maps'), batching.get('preflight')
+    require(isinstance(maps, dict) and maps.get('populated_import_tables') == 36 and
+            all(maps.get(k) is True for k in ('exact_public_keys', 'unique_maps_equal',
+                'index_maps_equal', 'ordered_combination_equal', 'preserved_state_unchanged')),
+            'Actual PostgreSQL catalog equivalence evidence missing')
+    expected = {'source_rows':4100, 'import_rows':4099, 'populated_import_tables':36,
+        'old_catalog_execute_calls':108, 'prior_catalog_execute_calls':3,
+        'new_catalog_execute_calls':3, 'old_application_execute_calls':159,
+        'prior_application_execute_calls':159, 'new_application_execute_calls':112,
+        'old_unique_probe_round_trips':49, 'new_unique_probe_round_trips':2,
+        'distinct_unique_predicates':29}
+    require(isinstance(preflight, dict) and all(type(preflight.get(k)) is int and
+            preflight[k] == v for k, v in expected.items()),
+            'Actual PostgreSQL collision query reduction evidence missing')
+    require(all(preflight.get(k) is True for k in (
+                'noncollision_application_queries_and_binds_equal',
+                'distinct_unique_predicates_and_binds_equal', 'same_readonly_transaction',
+                'preserved_state_unchanged', 'synthetic_only')) and
+            preflight.get('network_disconnect_fix_proven') is False,
+            'Collision semantic/transaction preservation evidence missing')
+    for key, limit in (('collision_max_branches',16), ('collision_max_binds',8000),
+                       ('collision_max_sql_bytes',131072)):
+        require(type(preflight.get(key)) is int and 0 < preflight[key] <= limit,
+                'Collision batch resource bound missing or exceeded: ' + key)
+
+
+def acceptance_artifact_paths(root):
+    root = Path(root)
+    return [root / name for name in ('.gitattributes', 'worlex_restore.py', 'policy.json',
+        'source-manifest.json', 'source-counts.json', 'client_runtime_guard.py',
+        'client_bootstrap.py', 'client_connection.py', 'tests/application_contract.json',
+        'tests/windows-ci/client-build-inputs.json')] + sorted((root / 'tests').rglob('*.py')) + sorted((root / 'tests').rglob('*.sh'))
+
+
+def validate_acceptance_artifacts(artifacts, root):
+    root = Path(root)
+    required = {p.relative_to(root).as_posix() for p in acceptance_artifact_paths(root)}
+    require(isinstance(artifacts, dict) and set(artifacts) == required,
+            'Full current acceptance artifact coverage required')
+    for relative in required:
+        safe_relative(relative)
+        path = root / relative
+        require(path.is_file() and not path.is_symlink() and
+                path.resolve().is_relative_to(root.resolve()) and
+                artifacts[relative] == sha(path), 'Acceptance artifact mismatch: ' + relative)
+
+
 def validate_client(client, linux_policy, root, directory, commit):
     lock = json.loads((root / 'tests/windows-ci/client-build-inputs.json').read_text())
     require(client.get('schema_version') == 2 and client.get('passed') is True and
@@ -250,12 +523,10 @@ def validate_client(client, linux_policy, root, directory, commit):
                      'client_connection.py', 'tests/windows-ci/client-build-inputs.json'):
         require(client['tested_artifacts'].get(relative) == sha(root / relative),
                 'Required client artifact hash mismatch: ' + relative)
+    validate_acceptance_artifacts(client['tested_artifacts'], root)
     summary = client['acceptance_summary']
     require(summary == linux_policy['acceptance_summary'], 'Linux/Windows test coverage differs')
-    require(summary.get('postgres_required') is True and type(summary.get('expected')) is int and
-            summary['expected'] >= 103 and summary.get('run') == summary['expected'] and
-            all(type(summary.get(k)) is int and summary[k] == 0 for k in ('failures', 'errors', 'skipped')),
-            'Windows acceptance incomplete')
+    validate_acceptance(summary)
     for key in ('full_table_acceptance', 'disconnect_acceptance'):
         require(client.get(key) == linux_policy.get(key), 'Linux/Windows acceptance evidence differs: ' + key)
     full = client['full_table_acceptance']

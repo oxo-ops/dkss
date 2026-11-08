@@ -20,6 +20,8 @@ import urllib.request
 import uuid
 import zipfile
 
+from verify_client_evidence import validate_acceptance
+
 HERE = Path(__file__).resolve().parent
 PACKAGE = HERE.parents[1]
 REPO = PACKAGE.parent
@@ -269,9 +271,11 @@ def filtered_requirements(source):
 
 
 def acceptance_valid(summary):
-    return (summary.get('postgres_required') is True and summary.get('expected', 0) >= 103 and
-            summary.get('run') == summary['expected'] and
-            all(summary.get(key) == 0 for key in ('errors', 'failures', 'skipped')))
+    try:
+        validate_acceptance(summary)
+    except (ValueError, KeyError, TypeError):
+        return False
+    return True
 
 
 def main():

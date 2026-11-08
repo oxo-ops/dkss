@@ -24,3 +24,4 @@ def sequence_states(connection,tables,lock=False):
     states[(name,col.name)]['log_cnt']=log_cnt
     states[(name,col.name)]['catalog'].update(persistence=persistence,options=options,tablespace=tablespace,filenode=filenode)
  return states
+
