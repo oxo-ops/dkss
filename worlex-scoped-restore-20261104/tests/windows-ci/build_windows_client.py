@@ -24,6 +24,8 @@ from verify_client_evidence import validate_acceptance
 
 HERE = Path(__file__).resolve().parent
 PACKAGE = HERE.parents[1]
+sys.path.insert(0, str(PACKAGE / 'tests'))
+from ci_server_diagnostics import PREFIX, owned_server_lifecycle
 REPO = PACKAGE.parent
 EVIDENCE = REPO / 'windows-client-evidence'
 PASSWORD = 'restore-disposable-synthetic-only'  # Disposable CI identity only.
@@ -413,13 +415,31 @@ def main():
               "ssl_cert_file = '%s'\nssl_key_file = '%s'\n"
               "password_encryption = 'scram-sha-256'\n" %
               (port, (work / 'server.crt').as_posix(), (work / 'server.key').as_posix()))
+    # Diagnostics apply only to this newly initialized owned CI cluster.
+    config += "log_timezone = 'UTC'\nlog_connections = on\nlog_disconnections = on\n" + PREFIX
     with (data / 'postgresql.conf').open('a', encoding='utf-8') as output:
         output.write(config)
     (data / 'pg_hba.conf').write_text('hostssl all all 127.0.0.1/32 scram-sha-256\nhostnossl all all 127.0.0.1/32 reject\n', encoding='ascii')
-    attempted_start = False
-    try:
-        attempted_start = True
+    def start_owned_server():
         run([pg_bin / 'pg_ctl.exe', '-D', data, '-l', work / 'server.log', '-w', '-t', '60', 'start'], env=pg_env)
+
+    def cleanup_owned_server():
+        # A failed start can still leave this exact owned server alive.
+        require((work / 'OWNER').read_text() == 'WORLEX_WINDOWS_CLIENT_SYNTHETIC_ONLY', 'OWNERSHIP_LOST')
+        status = subprocess.run([str(pg_bin / 'pg_ctl.exe'), '-D', str(data), 'status'],
+                                env=pg_env, cwd=REPO, timeout=30, capture_output=True)
+        require(status.returncode in (0, 3), 'OWNED_SERVER_STATUS_UNCERTAIN')
+        if status.returncode == 0:
+            run([pg_bin / 'pg_ctl.exe', '-D', data, '-m', 'fast', '-w', 'stop'], env=pg_env)
+
+    def cleanup_owned_secrets():
+        for path in (work / 'server.key', password_file):
+            if path.exists():
+                path.unlink()
+
+    with owned_server_lifecycle(work, os.environ['RUNNER_TEMP'], EVIDENCE,
+                                start=start_owned_server, cleanup=cleanup_owned_server,
+                                secrets_cleanup=cleanup_owned_secrets):
         run([app_python, HERE / 'windows_client_probe.py', 'probe', work, str(port), pure_wheels, EVIDENCE], env=test_env)
         test_env['WORLEX_TEST_POSTGRES_URL'] = (
             f'postgresql+pg8000://restore_ci:{PASSWORD}@127.0.0.1:{port}/dkss_restore_ci')
@@ -479,20 +499,6 @@ def main():
         json_write(EVIDENCE / 'sidecar-proof.json', sidecar)
         proof['sidecar'] = sidecar
         json_write(EVIDENCE / 'client-proof.json', proof)
-    finally:
-        try:
-            if attempted_start:
-                # A failed start can still leave this exact owned server alive.
-                require((work / 'OWNER').read_text() == 'WORLEX_WINDOWS_CLIENT_SYNTHETIC_ONLY', 'OWNERSHIP_LOST')
-                status = subprocess.run([str(pg_bin / 'pg_ctl.exe'), '-D', str(data), 'status'],
-                                        env=pg_env, cwd=REPO, timeout=30, capture_output=True)
-                require(status.returncode in (0, 3), 'OWNED_SERVER_STATUS_UNCERTAIN')
-                if status.returncode == 0:
-                    run([pg_bin / 'pg_ctl.exe', '-D', data, '-m', 'fast', '-w', 'stop'], env=pg_env)
-        finally:
-            for path in (work / 'server.key', password_file):
-                if path.exists():
-                    path.unlink()
 
 
 if __name__ == '__main__':
