@@ -4,7 +4,7 @@ sys.dont_write_bytecode = True
 root=pathlib.Path(__file__).resolve().parents[1];evidence=pathlib.Path(os.environ['WORLEX_EVIDENCE_DIR']);evidence.mkdir(exist_ok=True)
 sys.path.insert(0,str(root/'tests/windows-ci'))
 from verify_client_evidence import (validate_restore_scope, validate_acceptance,
-    REQUIRED_ACCEPTANCE_IDS, COLLISION_REQUIRED_CASES, POSTGRES_REQUIRED_CASES, acceptance_artifact_paths)
+    REQUIRED_ACCEPTANCE_IDS, COLLISION_REQUIRED_CASES, POSTGRES_REQUIRED_CASES, acceptance_artifact_paths, BOUNDED_INSERT_CASES)
 from preservation_scope import PRESERVATION_CONTRACT
 if os.environ.get('WORLEX_REQUIRE_POSTGRES')!='1':raise SystemExit('Explicit PostgreSQL acceptance required')
 suite=unittest.defaultTestLoader.discover(str(root/'tests'),pattern='test_*.py')
@@ -63,6 +63,7 @@ summary={'postgres_cases':POSTGRES_REQUIRED_CASES,'preservation_contract':PRESER
 if not result.wasSuccessful() or result.skipped or result.testsRun!=expected:raise SystemExit(1)
 from test_restore_postgres import CATALOG_BATCHING_EVIDENCE
 summary['catalog_batching']=CATALOG_BATCHING_EVIDENCE
+summary['bounded_insert']={name:json.loads((evidence/('bounded-insert-'+name+'.json')).read_text()) for name in BOUNDED_INSERT_CASES}
 validate_acceptance(summary)
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))
 coverage=json.loads((evidence/'full-fixture-coverage.json').read_text())

@@ -33,9 +33,11 @@ def fixture():
         same_readonly_transaction=True, preserved_rows_and_sequences_unchanged=True,
         global_and_scoped_unique_keys_verified=True)
     from preservation_scope import PRESERVATION_CONTRACT
+    from bounded_insert_evidence_fixture import fixture as bounded_fixture
     return dict(postgres_cases=gate.POSTGRES_REQUIRED_CASES, preservation_contract=PRESERVATION_CONTRACT, suite_ids=ids, suite_ids_sha256=hashlib.sha256('\n'.join(ids).encode()).hexdigest(),
         expected=len(ids), run=len(ids), failures=0, errors=0, skipped=0, postgres_required=True,
         catalog_required_cases=36, collision_required_cases=32,
+        bounded_insert=bounded_fixture(),
         catalog_batching=dict(maps=maps, preflight=preflight, collision_controls=controls))
 
 

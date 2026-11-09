@@ -423,6 +423,29 @@ test_restore_full_fixture.FullSyntheticFixtureCoverage.test_matches_every_approv
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_primary_key_corruption_is_rejected_in_every_populated_table
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_sqlite_all_rows_insert_with_fk_checks_and_preserved_values
 test_restore_full_fixture.FullSyntheticFixtureCoverage.test_synthetic_copy_roundtrip_covers_all_62_tables
+test_restore_insert_batch.InsertBatchTests.test_all_typed_values_and_explicit_ids_match_original_dbapi_order
+test_restore_insert_batch.InsertBatchTests.test_bind_budget_exact_boundary_and_wider_rows
+test_restore_insert_batch.InsertBatchTests.test_bytea_hex_expansion_and_utf8_are_measured_not_python_lengths
+test_restore_insert_batch.InsertBatchTests.test_compiled_sql_budget_splits_and_rejects_oversized_singleton
+test_restore_insert_batch.InsertBatchTests.test_compiler_shape_drift_fails_closed
+test_restore_insert_batch.InsertBatchTests.test_eight_mib_singleton_boundary_is_enforced
+test_restore_insert_batch.InsertBatchTests.test_exact_four_mib_multirow_and_next_byte_split
+test_restore_insert_batch.InsertBatchTests.test_exact_four_mib_singleton_and_oversized_row_are_isolated
+test_restore_insert_batch.InsertBatchTests.test_fixed_limits_and_existing_300s_transaction_budget
+test_restore_insert_batch.InsertBatchTests.test_full_synthetic_source_dispatch_preserves_table_and_row_order
+test_restore_insert_batch.InsertBatchTests.test_middle_batch_error_propagates_once_without_retry
+test_restore_insert_batch.InsertBatchTests.test_missing_extra_or_mixed_columns_rejected_without_dispatch
+test_restore_insert_batch.InsertBatchTests.test_missing_primary_key_and_nonprimitive_values_fail_closed
+test_restore_insert_batch.InsertBatchTests.test_unknown_encoding_client_and_custom_adapter_fail_closed
+test_restore_insert_batch.InsertBatchTests.test_wire_size_matches_actual_driver_bind_bytes_and_processors
+test_restore_insert_batch.InsertBatchTests.test_zero_one_100_101_rows_use_single_execute_without_returning
+test_restore_insert_postgres.InsertSizeFixtureTests.test_full_size_synthetic_envelope_and_five_large_draft_rows
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_actual_third_batch_constraint_error_rolls_back_without_retry
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_after_sequences_rolls_back_full_size_import
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_disconnect_after_commit
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_disconnect_before_commit
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_values_preservation_epochs_and_bounded_dispatch
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_middle_insert_batch_rolls_back
 test_restore_launcher_adapter.LauncherAdapterTests.test_exclusive_result_and_failed_persistence_stop_progression
 test_restore_launcher_adapter.LauncherAdapterTests.test_new_attempt_requires_immediate_stop_active_inputs_and_unique_directory
 test_restore_launcher_adapter.LauncherAdapterTests.test_safe_observation_roundtrip_persisted_without_secrets
@@ -477,6 +500,19 @@ test_restore_postgres.ServiceGuardTests.test_app_config_uses_explicit_context_wi
 test_restore_postgres.ServiceGuardTests.test_dedicated_service_and_rejections
 test_restore_postgres.ServiceGuardTests.test_missing_explicit_ca_fails_closed
 test_restore_postgres.ServiceGuardTests.test_tls_check_requires_verified_pg8000_socket
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_active_source_archive_and_target_changes_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_any_prior_bytes_mutation_breaks_reconciliation_binding
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_baseline_flags_missing_false_wrong_type_or_extra_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_changed_expected_hashes_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_duplicate_json_fields_and_partial_json_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_exact_evidence_preserves_original_uncertainty
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_journal_incomplete_cleanup_and_wrong_order_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_missing_or_extra_evidence_fails_before_attempt
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_new_distinct_attempt_and_duplicate_invocation
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_nonascii_outer_runtime_uses_exact_core_digest
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_old_begin_attempt_does_not_accept_uncertain_without_reconciliation
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_partial_binding_persistence_poisoned_attempt_not_retried
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_prior_false_cannot_replace_historical_null
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_child_reporting_failure_preserves_exit_and_does_not_retry
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_graph_cycles_and_truncation_are_bounded
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_parser_rejects_malformed_oversize_nonfinite_and_unknown_fields
@@ -486,6 +522,17 @@ test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_ssl_subclasses_and_p
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_strict_redaction_never_includes_messages_args_sql_or_paths
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_timeline_bound_and_legacy_v1_are_supported
 test_restore_schema_diagnostics.SchemaDiagnosticsTests.test_timeline_partial_timeout_bytes_and_final_event_are_retained
+test_restore_schema_pool.SchemaPoolTests.test_child_only_config_copy_preserves_shared_options_and_ssl_context
+test_restore_schema_pool.SchemaPoolTests.test_context_teardown_failure_disposes_once_and_remains_primary
+test_restore_schema_pool.SchemaPoolTests.test_create_app_or_context_entry_failure_never_disposes_uncaptured_engine
+test_restore_schema_pool.SchemaPoolTests.test_creator_failure_has_one_attempt_no_retry_or_fallback
+test_restore_schema_pool.SchemaPoolTests.test_dispose_failure_never_replaces_primary_failure
+test_restore_schema_pool.SchemaPoolTests.test_dispose_only_failure_cannot_report_success_or_retry
+test_restore_schema_pool.SchemaPoolTests.test_each_initialization_failure_cleans_up_once_without_later_phases
+test_restore_schema_pool.SchemaPoolTests.test_pool_has_distinct_overlapping_checkouts_and_no_overflow
+test_restore_schema_pool.SchemaPoolTests.test_shared_ci_config_remains_nullpool_for_ui_and_keeps_guards
+test_restore_schema_pool.SchemaPoolTests.test_simulated_initialization_order_and_rollback_semantics_match_nullpool
+test_restore_schema_pool.SchemaPoolTests.test_tls_precheck_and_initializers_reuse_same_healthy_connection
 test_restore_sequence_batch.SequenceBatchDifferential.test_all_differential_guards
 test_restore_server_diagnostics.OwnedServerDiagnosticsTests.test_allowlisted_events_have_synthetic_correlation
 test_restore_server_diagnostics.OwnedServerDiagnosticsTests.test_atomic_publish_failure_keeps_complete_old_file_and_removes_temp
@@ -526,20 +573,9 @@ test_restore_unit.RestoreGuards.test_render_environment_preserves_only_windows_r
 test_restore_unit.RestoreGuards.test_render_failure_classification_never_exposes_raw_details
 test_restore_unit.RestoreGuards.test_safe_identifiers
 test_restore_unit.RestoreGuards.test_tenant_filter_and_escapes
-test_restore_schema_pool.SchemaPoolTests.test_child_only_config_copy_preserves_shared_options_and_ssl_context
-test_restore_schema_pool.SchemaPoolTests.test_context_teardown_failure_disposes_once_and_remains_primary
-test_restore_schema_pool.SchemaPoolTests.test_create_app_or_context_entry_failure_never_disposes_uncaptured_engine
-test_restore_schema_pool.SchemaPoolTests.test_creator_failure_has_one_attempt_no_retry_or_fallback
-test_restore_schema_pool.SchemaPoolTests.test_dispose_failure_never_replaces_primary_failure
-test_restore_schema_pool.SchemaPoolTests.test_dispose_only_failure_cannot_report_success_or_retry
-test_restore_schema_pool.SchemaPoolTests.test_each_initialization_failure_cleans_up_once_without_later_phases
-test_restore_schema_pool.SchemaPoolTests.test_pool_has_distinct_overlapping_checkouts_and_no_overflow
-test_restore_schema_pool.SchemaPoolTests.test_shared_ci_config_remains_nullpool_for_ui_and_keeps_guards
-test_restore_schema_pool.SchemaPoolTests.test_simulated_initialization_order_and_rollback_semantics_match_nullpool
-test_restore_schema_pool.SchemaPoolTests.test_tls_precheck_and_initializers_reuse_same_healthy_connection
 """.split())
 COLLISION_REQUIRED_CASES = 32
-POSTGRES_REQUIRED_CASES = 43
+POSTGRES_REQUIRED_CASES = 49
 
 
 def _preservation_contract_from_source():
@@ -573,6 +609,77 @@ def _preservation_contract_from_source():
     return contract
 
 
+BOUNDED_INSERT_CASES = ('full-size', 'middle_insert_batch', 'actual-third-batch-error',
+                        'after_sequences', 'disconnect-before-commit', 'disconnect-after-commit')
+
+
+def validate_bounded_insert(evidence):
+    """Require actual full-size PG receipts in each OS's mandatory suite."""
+    require(isinstance(evidence, dict) and set(evidence) == set(BOUNDED_INSERT_CASES),
+            'Full-size bounded INSERT cases missing')
+    envelope = {'source_rows': 4100, 'imported_rows': 4099, 'blob_values': 24,
+                'blob_bytes': 15189518, 'encoded_parameter_bytes': 60968018}
+    partial = {'middle_insert_batch', 'actual-third-batch-error'}
+    for name, item in evidence.items():
+        require(isinstance(item, dict) and item.get('synthetic_only') is True and
+                item.get('actual_postgres_18') is True and item.get('envelope') == envelope and
+                all(type(item['envelope'].get(k)) is int for k in envelope),
+                'Actual synthetic PG size envelope missing')
+        dispatch = item.get('insert_dispatch')
+        require(isinstance(dispatch, list) and 0 < len(dispatch) < 150,
+                'Bounded INSERT dispatch proof missing')
+        for batch in dispatch:
+            require(isinstance(batch, dict) and isinstance(batch.get('table'), str) and
+                    batch.get('executemany') is False and batch.get('returning') is False and
+                    batch.get('explicit_multi_values') is True, 'Explicit INSERT-only dispatch required')
+            for key, maximum in (('rows',100), ('binds',8000), ('sql_bytes',131072),
+                                 ('parameter_bytes',8388608 if batch.get('rows') == 1 else 4194304)):
+                require(type(batch.get(key)) is int and 0 < batch[key] <= maximum,
+                        'Bounded INSERT limit exceeded: ' + key)
+        if name in partial:
+            require(len(dispatch) > 2 and sum(b['table'] == 'vehicle_operation_record' for b in dispatch) == 2,
+                    'Rollback must follow two successful split-table batches')
+        else:
+            require(sum(b['rows'] for b in dispatch) == 4099 and
+                    len({b['table'] for b in dispatch}) == 36 and
+                    sum(b['parameter_bytes'] for b in dispatch) == 60968018 and
+                    sum(b['parameter_bytes'] > 4194304 for b in dispatch) == 5,
+                    'Full-size bounded INSERT cardinality or bytes differ')
+    full = evidence['full-size']
+    require(all(full.get(k) is True for k in ('exact_all_imported_values_and_blobs',
+                'preserved_itc_settings_audit_push', 'deferred_source_retained')),
+            'Full-size value or preservation verification missing')
+    epochs = full.get('exact_epoch_revisions')
+    require(isinstance(epochs, dict) and epochs and
+            all(isinstance(k, str) and type(v) is int and v > 0 for k,v in epochs.items()) and
+            sum(epochs.values()) == 3271, 'Exact per-row trigger revisions missing')
+    for name in partial | {'after_sequences'}:
+        item = evidence[name]
+        require(all(item.get(k) is True for k in ('all_imports_absent', 'preserved_rows_match', 'sequences_unchanged')),
+                'Full-size rollback verification missing')
+    require(all(evidence[name].get('compatibility_column_rolled_back') is True
+                for name in ('middle_insert_batch', 'after_sequences')),
+            'Compatibility DDL rollback verification missing')
+    error = evidence['actual-third-batch-error']
+    require(error.get('actual_postgres_constraint_error') is True and
+            error.get('target_table') == 'vehicle_operation_record' and
+            type(error.get('attempted_target_batches')) is int and error['attempted_target_batches'] == 3 and
+            type(error.get('successful_target_batches')) is int and error['successful_target_batches'] == 2 and
+            error.get('restore_retried') is False, 'Actual middle-batch constraint failure/no-retry proof missing')
+    before = evidence['disconnect-before-commit'].get('reconciliation', {})
+    after = evidence['disconnect-after-commit'].get('reconciliation', {})
+    require(all(before.get(k) is True for k in ('actual_connection_closed_before_commit',
+                'all_imports_absent', 'preserved_rows_match', 'sequences_unchanged',
+                'fresh_readonly_verification_rejects_absent_restore')) and
+            before.get('restore_retried') is False, 'Full-size before-commit disconnect proof missing')
+    require(all(after.get(k) is True for k in ('real_commit_then_client_error',
+                'fresh_readonly_verification_matches', 'preserved_rows_match',
+                'replay_guard_rejected_before_insert', 'sequences_unchanged_by_replay')) and
+            after.get('network_packet_loss_reproduced') is False and
+            evidence['disconnect-after-commit'].get('exact_epoch_revisions') == epochs,
+            'Full-size after-commit reconciliation proof missing')
+
+
 def validate_acceptance(summary):
     """Validate offline evidence structure only; this does not prove a live run."""
     require(isinstance(summary, dict), 'Acceptance summary missing')
@@ -598,6 +705,7 @@ def validate_acceptance(summary):
     PRESERVATION_CONTRACT = _preservation_contract_from_source()
     require(summary.get('preservation_contract') == PRESERVATION_CONTRACT,
             'Current required preservation scope required')
+    validate_bounded_insert(summary.get('bounded_insert'))
     batching = summary.get('catalog_batching')
     require(isinstance(batching, dict), 'Actual PostgreSQL batching evidence missing')
     controls = batching.get('collision_controls')

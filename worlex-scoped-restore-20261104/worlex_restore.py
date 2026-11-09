@@ -517,6 +517,66 @@ def plan(connection,data,columns,policy,counts,source_sha,generated=None,*,_cont
   _context.update(connection=connection,transaction=connection.get_transaction(),tables=tables,baseline=baseline)
  return {**scope,'preservation_contract':json.loads(json.dumps(preservation_scope.PRESERVATION_CONTRACT)),'deferred_source_sha256':digest(data['push_subscription']),'preserved_worlex_audit_rows':preserved_audits,'generated_identifiers':generated,'version':4,'tenant':TENANT,'source_sha256':source_sha,'archive_sha256':ARCHIVE_SHA256,'runner_sha256':sha(Path(__file__).read_bytes()),'policy_sha256':digest(policy),'target_sha256':identity(connection),'schema_sha256':schema_hash,'preserved_rows_sha256':digest(baseline),'sequence_baseline':{'.'.join(k):v for k,v in seq.items()},'sequences_sha256':digest(sorted((list(k),v) for k,v in seq.items())),'source_counts':counts,'blank_chassis_to_null':11,'account_owner_policy':'new account UUID; historical owner/actor identity NULL; no username rebinding','legacy_vehicle_id_addition': 'vehicle_id' not in tables['vehicle'].c}
 
+# These bound each explicit statement, not a driver executemany parameter list.
+INSERT_MAX_ROWS=100
+INSERT_MAX_BINDS=8000
+INSERT_MAX_SQL_BYTES=128*1024
+INSERT_MAX_PARAMETER_BYTES=4*1024*1024
+INSERT_MAX_SINGLETON_BYTES=8*1024*1024
+
+def insert_batch_metrics(connection,statement,row_count,column_count):
+ """Measure compiled binds after SQLAlchemy and the actual pg8000 converters.
+
+ Includes each Bind value's four-byte length, including NULL's -1 length.
+ Excludes fixed protocol framing/TLS. Never estimate Python object sizes or
+ log values. Unknown compilation/transport shapes stop the whole transaction.
+ """
+ from pg8000.converters import PY_TYPES,make_params
+ dialect=connection.dialect
+ require(dialect.name=='postgresql' and dialect.driver=='pg8000' and dialect.paramstyle=='format','INSERT_CLIENT_UNSUPPORTED')
+ raw=connection.connection.driver_connection
+ require(raw._client_encoding in ('utf8','utf-8') and raw.py_types==PY_TYPES,'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED')
+ compiled=statement.compile(dialect=dialect)
+ require(not compiled.returning and not compiled.post_compile_params and not compiled.literal_execute_params and not compiled.insert_prefetch,'INSERT_COMPILED_SHAPE_UNSUPPORTED')
+ params=compiled.construct_params();positions=compiled.positiontup
+ require(positions is not None and len(positions)==len(set(positions))==len(params)==row_count*column_count and set(positions)==set(params),'INSERT_BIND_SHAPE_UNSUPPORTED')
+ processors=compiled._bind_processors
+ processed=[processors[key](params[key]) if key in processors else params[key] for key in positions]
+ supported={type(None),bool,int,float,str,bytes,decimal.Decimal,dt.date,dt.datetime}
+ require(all(type(value) in supported for value in processed),'INSERT_PARAMETER_TYPE_UNSUPPORTED')
+ encoded=make_params(raw.py_types,processed)
+ require(all(value is None or type(value) is str for value in encoded),'INSERT_WIRE_TYPE_UNSUPPORTED')
+ return {'rows':row_count,'binds':len(positions),'sql_bytes':len(str(compiled).encode(raw._client_encoding)),
+         'parameter_bytes':sum(4+(0 if value is None else len(value.encode(raw._client_encoding))) for value in encoded)}
+
+def iter_insert_batches(connection,table,rows):
+ """Yield bounded, ordered multi-VALUES INSERTs; no execution or recovery here."""
+ if not rows:return
+ keys=set(table.c.keys());primary=[col.name for col in table.primary_key]
+ supported={type(None),bool,int,float,str,bytes,decimal.Decimal,dt.date,dt.datetime}
+ require(keys and primary and len(keys)<=INSERT_MAX_BINDS,'INSERT_TABLE_SHAPE_UNSUPPORTED')
+ for row in rows:
+  require(type(row) is dict and set(row)==keys,'INSERT_ROW_COLUMNS_CHANGED')
+  require(all(row[key] is not None for key in primary),'INSERT_EXPLICIT_PRIMARY_KEY_REQUIRED')
+  require(all(type(value) in supported for value in row.values()),'INSERT_PARAMETER_TYPE_UNSUPPORTED')
+ def bounded(batch):
+  statement=table.insert().values(batch)
+  sizes=insert_batch_metrics(connection,statement,len(batch),len(keys))
+  structural=sizes['binds']<=INSERT_MAX_BINDS and sizes['sql_bytes']<=INSERT_MAX_SQL_BYTES
+  if structural and sizes['parameter_bytes']<=INSERT_MAX_PARAMETER_BYTES:
+   yield statement
+  elif len(batch)==1:
+   require(structural and sizes['parameter_bytes']<=INSERT_MAX_SINGLETON_BYTES,'INSERT_SINGLETON_BUDGET_EXCEEDED')
+   yield statement
+  else:
+   # Contiguous halves retain table/row ordering and isolate any large row.
+   middle=len(batch)//2
+   yield from bounded(batch[:middle])
+   yield from bounded(batch[middle:])
+ width=min(INSERT_MAX_ROWS,INSERT_MAX_BINDS//len(keys))
+ for start in range(0,len(rows),width):
+  yield from bounded(rows[start:start+width])
+
 def execute_restore(connection,data,columns,policy,counts,source_sha,approved_plan,*,inject_failure=False):
  """Caller owns ONE transaction. All exceptions must roll it back, never retry."""
  require(connection.in_transaction(),'TRANSACTION_REQUIRED')
@@ -551,8 +611,12 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
   connection.exec_driver_sql('ALTER TABLE public.vehicle ADD COLUMN vehicle_id VARCHAR(50) NULL')
   tables['vehicle'].append_column(Column('vehicle_id',String(50),nullable=True))
  for name in order:
-  # No default-ID generation, conflict handlers, updates, deletes, truncate or init.
-  connection.execute(tables[name].insert(),typed[name])
+  inserted_batches=0
+  # No defaults, RETURNING, executemany, conflict handlers or partial commits.
+  for statement in iter_insert_batches(connection,tables[name],typed[name]):
+   connection.execute(statement)
+   inserted_batches+=1
+   if inject_failure=='middle_insert_batch' and name=='vehicle_operation_record' and inserted_batches==2:raise Stop('INJECTED_ROLLBACK_PROBE')
  if inject_failure=='after_insert':raise Stop('INJECTED_ROLLBACK_PROBE')
  for name,rows in typed.items():
   table=tables[name]

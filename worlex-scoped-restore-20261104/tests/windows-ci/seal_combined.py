@@ -6,7 +6,7 @@ import subprocess
 
 from verify_client_evidence import (artifact_path, safe_relative, sha, validate_client,
                                     validate_imported_modules, validate_ssl_runtime, validate_restore_scope,
-                                    validate_acceptance, validate_acceptance_artifacts)
+                                    validate_acceptance, validate_acceptance_artifacts, BOUNDED_INSERT_CASES)
 
 
 def require(value, message):
@@ -109,6 +109,10 @@ def main():
             client_policy['disconnect_acceptance'] == client['disconnect_acceptance'] and
             client_policy['workflow_sha256'] == client['workflow_sha256'],
             'Windows provisional acceptance proof differs')
+    for directory, summary_ in ((linux, acceptance), (client_dir, client['acceptance_summary'])):
+        for name in BOUNDED_INSERT_CASES:
+            require(read_json(directory / ('bounded-insert-' + name + '.json')) == summary_['bounded_insert'][name],
+                    'Standalone bounded INSERT evidence differs: ' + name)
     runtime = read_json(client_dir / 'runtime-proof.json')
     for key in ('wheels', 'wheel_files', 'imported_modules', 'ssl_runtime', 'tls'):
         require(runtime[key] == client[key], 'Standalone Windows runtime proof differs: ' + key)
@@ -168,6 +172,8 @@ def main():
     write_json(out / 'disconnect-before-commit.json', before)
     write_json(out / 'disconnect-after-commit.json', after)
     write_json(out / 'full-fixture-coverage.json', coverage)
+    for prefix, summary_ in (('linux', acceptance), ('windows', client['acceptance_summary'])):
+        write_json(out / (prefix + '-bounded-insert.json'), summary_['bounded_insert'])
     write_json(out / 'tested-code-sha256.json', policy['tested_artifacts'])
     # Emit the executable seal only after all gates and copied artifacts pass.
     write_json(out / 'sealed-policy.json', policy)

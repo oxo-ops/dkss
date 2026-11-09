@@ -47,9 +47,45 @@ test_inspect_diagnostic_io.DiagnosticIOTests.test_write_and_fsync_errors_close_o
 test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_accept_in_fresh_stdlib_processes
 test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_reject_summary_tampering
 test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_reject_unsafe_contract_sources
+test_restore_insert_batch.InsertBatchTests.test_all_typed_values_and_explicit_ids_match_original_dbapi_order
+test_restore_insert_batch.InsertBatchTests.test_bind_budget_exact_boundary_and_wider_rows
+test_restore_insert_batch.InsertBatchTests.test_bytea_hex_expansion_and_utf8_are_measured_not_python_lengths
+test_restore_insert_batch.InsertBatchTests.test_compiled_sql_budget_splits_and_rejects_oversized_singleton
+test_restore_insert_batch.InsertBatchTests.test_compiler_shape_drift_fails_closed
+test_restore_insert_batch.InsertBatchTests.test_eight_mib_singleton_boundary_is_enforced
+test_restore_insert_batch.InsertBatchTests.test_exact_four_mib_multirow_and_next_byte_split
+test_restore_insert_batch.InsertBatchTests.test_exact_four_mib_singleton_and_oversized_row_are_isolated
+test_restore_insert_batch.InsertBatchTests.test_fixed_limits_and_existing_300s_transaction_budget
+test_restore_insert_batch.InsertBatchTests.test_full_synthetic_source_dispatch_preserves_table_and_row_order
+test_restore_insert_batch.InsertBatchTests.test_middle_batch_error_propagates_once_without_retry
+test_restore_insert_batch.InsertBatchTests.test_missing_extra_or_mixed_columns_rejected_without_dispatch
+test_restore_insert_batch.InsertBatchTests.test_missing_primary_key_and_nonprimitive_values_fail_closed
+test_restore_insert_batch.InsertBatchTests.test_unknown_encoding_client_and_custom_adapter_fail_closed
+test_restore_insert_batch.InsertBatchTests.test_wire_size_matches_actual_driver_bind_bytes_and_processors
+test_restore_insert_batch.InsertBatchTests.test_zero_one_100_101_rows_use_single_execute_without_returning
+test_restore_insert_postgres.InsertSizeFixtureTests.test_full_size_synthetic_envelope_and_five_large_draft_rows
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_actual_third_batch_constraint_error_rolls_back_without_retry
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_after_sequences_rolls_back_full_size_import
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_disconnect_after_commit
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_disconnect_before_commit
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_full_size_values_preservation_epochs_and_bounded_dispatch
+test_restore_insert_postgres.PostgreSQLBoundedInsertAcceptance.test_middle_insert_batch_rolls_back
 test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_formal_cli_degraded_diagnostics_same_read_only_plan_and_terminal
 test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_formal_cli_required_plan_report_adapter_and_execute_marker_still_block
 test_restore_observation_acceptance.PostgreSQLObservationAcceptance.test_formal_cli_server_error_after_degradation_stays_primary
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_active_source_archive_and_target_changes_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_any_prior_bytes_mutation_breaks_reconciliation_binding
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_baseline_flags_missing_false_wrong_type_or_extra_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_changed_expected_hashes_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_duplicate_json_fields_and_partial_json_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_exact_evidence_preserves_original_uncertainty
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_journal_incomplete_cleanup_and_wrong_order_rejected
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_missing_or_extra_evidence_fails_before_attempt
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_new_distinct_attempt_and_duplicate_invocation
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_nonascii_outer_runtime_uses_exact_core_digest
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_old_begin_attempt_does_not_accept_uncertain_without_reconciliation
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_partial_binding_persistence_poisoned_attempt_not_retried
+test_restore_reconciled_attempt.ReconciledAttemptTests.test_prior_false_cannot_replace_historical_null
 test_restore_schema_pool.SchemaPoolTests.test_child_only_config_copy_preserves_shared_options_and_ssl_context
 test_restore_schema_pool.SchemaPoolTests.test_context_teardown_failure_disposes_once_and_remains_primary
 test_restore_schema_pool.SchemaPoolTests.test_create_app_or_context_entry_failure_never_disposes_uncaptured_engine
@@ -79,7 +115,10 @@ def regression_summary(validator):
         raise AssertionError('Regression fixture must retain exactly the old suite plus new controls')
     summary['suite_ids_sha256'] = hashlib.sha256('\n'.join(summary['suite_ids']).encode()).hexdigest()
     summary['run'] = summary['expected'] = len(summary['suite_ids'])
-    summary['postgres_cases'] = 43
+    summary['postgres_cases'] = validator.POSTGRES_REQUIRED_CASES
+    sys.path.insert(0, str(HERE))
+    from bounded_insert_evidence_fixture import fixture as bounded_fixture
+    summary['bounded_insert'] = bounded_fixture()
     return original, summary
 
 
@@ -128,7 +167,8 @@ def isolated_case(mode, caller):
         for label in ('missing_contract', 'changed_contract', 'skip', 'failure', 'error',
                       'missing_mandatory', 'duplicate_id', 'suite_hash', 'incomplete',
                       'postgres_count', 'collision_count', 'catalog_count',
-                      'query_count', 'preserved_state', 'network_fix_claim'):
+                      'query_count', 'preserved_state', 'network_fix_claim', 'missing_insert',
+                      'insert_oversize', 'insert_rollback', 'insert_epoch'):
             value = copy.deepcopy(summary)
             if label == 'missing_contract': value.pop('preservation_contract')
             elif label == 'changed_contract': value['preservation_contract']['tables'].pop('push_subscription')
@@ -144,6 +184,10 @@ def isolated_case(mode, caller):
             elif label == 'query_count': value['catalog_batching']['preflight']['new_catalog_execute_calls'] = 108
             elif label == 'preserved_state': value['catalog_batching']['preflight']['preserved_state_unchanged'] = False
             elif label == 'network_fix_claim': value['catalog_batching']['preflight']['network_disconnect_fix_proven'] = True
+            if label == 'missing_insert': value.pop('bounded_insert')
+            elif label == 'insert_oversize': value['bounded_insert']['full-size']['insert_dispatch'][0]['binds'] = 8001
+            elif label == 'insert_rollback': value['bounded_insert']['actual-third-batch-error']['restore_retried'] = True
+            elif label == 'insert_epoch': value['bounded_insert']['full-size']['exact_epoch_revisions'] = {'shared':1}
             reject(value)
             checks.append(label)
     elif mode == 'source':
