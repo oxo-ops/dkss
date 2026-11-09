@@ -23,6 +23,27 @@ from unittest.mock import patch
 HERE = Path(__file__).resolve().parent
 PACKAGE = HERE.parent
 NEW_IDS = frozenset("""
+test_readonly_reconciliation.PostgreSQLReadOnlyReconciliationAcceptance.test_after_commit_outcome_loss_keeps_full_legacy_verify_and_sequences_equal
+test_readonly_reconciliation.PostgreSQLReadOnlyReconciliationAcceptance.test_before_commit_disconnect_keeps_full_legacy_plan_and_sequences_equal
+test_readonly_reconciliation.ReadOnlyObservationTests.test_actual_sqlalchemy_absorbed_terminate_error_is_captured
+test_readonly_reconciliation.ReadOnlyObservationTests.test_bundle_rejects_malformed_incomplete_secret_and_counter_mutations
+test_readonly_reconciliation.ReadOnlyObservationTests.test_bundle_rejects_reordered_phases_and_unfinished_query
+test_readonly_reconciliation.ReadOnlyObservationTests.test_clean_bundle_exact_files_and_nested_phase_order
+test_readonly_reconciliation.ReadOnlyObservationTests.test_cleanup_only_pool_failure_never_allows_success
+test_readonly_reconciliation.ReadOnlyObservationTests.test_mandatory_journal_failure_preserves_primary_and_still_runs_cleanup
+test_readonly_reconciliation.ReadOnlyObservationTests.test_observer_removal_errors_restore_logger_and_keep_original_primary
+test_readonly_reconciliation.ReadOnlyObservationTests.test_pid_never_retains_cancel_key_and_sqlstate_is_whitelisted
+test_readonly_reconciliation.ReadOnlyObservationTests.test_primary_and_swallowed_pool_cleanup_are_separate_secret_free
+test_readonly_reconciliation.ReadOnlySequenceTests.test_batch_failure_propagates_once_no_partial_result
+test_readonly_reconciliation.ReadOnlySequenceTests.test_complete_state_shape_and_bounded_16_value_reads
+test_readonly_reconciliation.ReadOnlySequenceTests.test_context_binds_original_and_restores_on_success_and_failure
+test_readonly_reconciliation.ReadOnlySequenceTests.test_context_rejects_lock_other_connection_nested_changed_function_and_hash
+test_readonly_reconciliation.ReadOnlySequenceTests.test_legacy_source_pin_and_no_production_changes
+test_readonly_reconciliation.ReadOnlySequenceTests.test_original_sequence_guards_and_nonserial_keys_remain
+test_readonly_reconciliation.ReadOnlySequenceTests.test_readonly_repeatable_read_is_required_and_request_limit_is_bounded
+test_readonly_reconciliation.ReadOnlySequenceTests.test_transaction_swap_fails_after_every_read_no_retry
+test_readonly_reconciliation.ReadOnlySequenceTests.test_unknown_metadata_and_ownership_fail_before_values
+test_readonly_reconciliation.ReadOnlySequenceTests.test_value_results_are_order_independent_and_exact_typed
 test_restore_execute_budget.ExecuteBudgetTests.test_effective_search_path_formatting_keeps_exact_schema_order_and_limits
 test_restore_completed_reconciliation.CompletedReconciliationTests.test_absent_exact_requires_new_inspection_and_preserves_all_bytes
 test_restore_completed_reconciliation.CompletedReconciliationTests.test_all_original_and_proof_files_required_for_both_outcomes
@@ -138,6 +159,10 @@ def regression_summary(validator):
     sys.path.insert(0, str(HERE))
     from bounded_insert_evidence_fixture import fixture as bounded_fixture
     summary['bounded_insert'] = bounded_fixture()
+    # Synthetic validator input only, not actual readonly CI evidence.
+    summary['readonly_batch'] = {}
+    for name,classification,outcome in (('before_commit','absent','actual_close_before_commit'),('after_commit','present','real_commit_before_outcome_loss')):
+        summary['readonly_batch'][name]={'synthetic_only':True,'actual_postgres_18':True,'legacy_core_sha256':'fd22c4f29b566a0403da17d9b524ad8d6091a417d4ab9f2ca3788991eb2ba446','complete_plan_or_verify_equal':True,'complete_sequence_dict_equal':True,'preserved_itc_audit_settings_push_equal':True,'same_readonly_transaction':True,'actual_observer_pid_and_clean_bundle':True,'sequences':36,'old_sequence_queries':38,'new_sequence_queries':5,'max_branches':16,'max_sql_bytes':32768,'restore_retried':False,'classification':classification,outcome:True}
     return original, summary
 
 
@@ -187,7 +212,7 @@ def isolated_case(mode, caller):
                       'missing_mandatory', 'duplicate_id', 'suite_hash', 'incomplete',
                       'postgres_count', 'collision_count', 'catalog_count',
                       'query_count', 'preserved_state', 'network_fix_claim', 'missing_insert',
-                      'insert_oversize', 'insert_rollback', 'insert_epoch'):
+                      'insert_oversize', 'insert_rollback', 'insert_epoch', 'readonly_missing', 'readonly_incomplete', 'readonly_wrong_core', 'readonly_unbounded', 'readonly_retry'):
             value = copy.deepcopy(summary)
             if label == 'missing_contract': value.pop('preservation_contract')
             elif label == 'changed_contract': value['preservation_contract']['tables'].pop('push_subscription')
@@ -207,6 +232,11 @@ def isolated_case(mode, caller):
             elif label == 'insert_oversize': value['bounded_insert']['full-size']['insert_dispatch'][0]['binds'] = 8001
             elif label == 'insert_rollback': value['bounded_insert']['actual-third-batch-error']['restore_retried'] = True
             elif label == 'insert_epoch': value['bounded_insert']['full-size']['exact_epoch_revisions'] = {'shared':1}
+            if label=='readonly_missing':value.pop('readonly_batch')
+            elif label=='readonly_incomplete':value['readonly_batch']['before_commit']['complete_plan_or_verify_equal']=False
+            elif label=='readonly_wrong_core':value['readonly_batch']['after_commit']['legacy_core_sha256']='0'*64
+            elif label=='readonly_unbounded':value['readonly_batch']['before_commit']['max_branches']=100
+            elif label=='readonly_retry':value['readonly_batch']['after_commit']['restore_retried']=True
             reject(value)
             checks.append(label)
     elif mode == 'source':

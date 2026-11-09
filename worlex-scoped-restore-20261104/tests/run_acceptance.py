@@ -63,6 +63,8 @@ summary={'postgres_cases':POSTGRES_REQUIRED_CASES,'preservation_contract':PRESER
 if not result.wasSuccessful() or result.skipped or result.testsRun!=expected:raise SystemExit(1)
 from test_restore_postgres import CATALOG_BATCHING_EVIDENCE
 summary['catalog_batching']=CATALOG_BATCHING_EVIDENCE
+from test_readonly_reconciliation import READONLY_BATCH_EVIDENCE
+summary['readonly_batch']=READONLY_BATCH_EVIDENCE
 summary['bounded_insert']={name:json.loads((evidence/('bounded-insert-'+name+'.json')).read_text()) for name in BOUNDED_INSERT_CASES}
 validate_acceptance(summary)
 (evidence/'summary.json').write_text(json.dumps(summary,indent=2))

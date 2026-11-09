@@ -234,6 +234,27 @@ def validate_restore_scope(item, counts):
 
 # Exact mandatory coverage for this candidate, including formal inspect and preservation.
 REQUIRED_ACCEPTANCE_IDS = frozenset("""
+test_readonly_reconciliation.PostgreSQLReadOnlyReconciliationAcceptance.test_after_commit_outcome_loss_keeps_full_legacy_verify_and_sequences_equal
+test_readonly_reconciliation.PostgreSQLReadOnlyReconciliationAcceptance.test_before_commit_disconnect_keeps_full_legacy_plan_and_sequences_equal
+test_readonly_reconciliation.ReadOnlyObservationTests.test_actual_sqlalchemy_absorbed_terminate_error_is_captured
+test_readonly_reconciliation.ReadOnlyObservationTests.test_bundle_rejects_malformed_incomplete_secret_and_counter_mutations
+test_readonly_reconciliation.ReadOnlyObservationTests.test_bundle_rejects_reordered_phases_and_unfinished_query
+test_readonly_reconciliation.ReadOnlyObservationTests.test_clean_bundle_exact_files_and_nested_phase_order
+test_readonly_reconciliation.ReadOnlyObservationTests.test_cleanup_only_pool_failure_never_allows_success
+test_readonly_reconciliation.ReadOnlyObservationTests.test_mandatory_journal_failure_preserves_primary_and_still_runs_cleanup
+test_readonly_reconciliation.ReadOnlyObservationTests.test_observer_removal_errors_restore_logger_and_keep_original_primary
+test_readonly_reconciliation.ReadOnlyObservationTests.test_pid_never_retains_cancel_key_and_sqlstate_is_whitelisted
+test_readonly_reconciliation.ReadOnlyObservationTests.test_primary_and_swallowed_pool_cleanup_are_separate_secret_free
+test_readonly_reconciliation.ReadOnlySequenceTests.test_batch_failure_propagates_once_no_partial_result
+test_readonly_reconciliation.ReadOnlySequenceTests.test_complete_state_shape_and_bounded_16_value_reads
+test_readonly_reconciliation.ReadOnlySequenceTests.test_context_binds_original_and_restores_on_success_and_failure
+test_readonly_reconciliation.ReadOnlySequenceTests.test_context_rejects_lock_other_connection_nested_changed_function_and_hash
+test_readonly_reconciliation.ReadOnlySequenceTests.test_legacy_source_pin_and_no_production_changes
+test_readonly_reconciliation.ReadOnlySequenceTests.test_original_sequence_guards_and_nonserial_keys_remain
+test_readonly_reconciliation.ReadOnlySequenceTests.test_readonly_repeatable_read_is_required_and_request_limit_is_bounded
+test_readonly_reconciliation.ReadOnlySequenceTests.test_transaction_swap_fails_after_every_read_no_retry
+test_readonly_reconciliation.ReadOnlySequenceTests.test_unknown_metadata_and_ownership_fail_before_values
+test_readonly_reconciliation.ReadOnlySequenceTests.test_value_results_are_order_independent_and_exact_typed
 test_restore_execute_budget.ExecuteBudgetTests.test_effective_search_path_formatting_keeps_exact_schema_order_and_limits
 test_restore_completed_reconciliation.CompletedReconciliationTests.test_absent_exact_requires_new_inspection_and_preserves_all_bytes
 test_restore_completed_reconciliation.CompletedReconciliationTests.test_all_original_and_proof_files_required_for_both_outcomes
@@ -594,7 +615,7 @@ test_restore_unit.RestoreGuards.test_safe_identifiers
 test_restore_unit.RestoreGuards.test_tenant_filter_and_escapes
 """.split())
 COLLISION_REQUIRED_CASES = 32
-POSTGRES_REQUIRED_CASES = 51
+POSTGRES_REQUIRED_CASES = 53
 
 
 def _preservation_contract_from_source():
@@ -699,6 +720,33 @@ def validate_bounded_insert(evidence):
             'Full-size after-commit reconciliation proof missing')
 
 
+def validate_readonly_batch(evidence):
+    """Both OS jobs must report actual fd22 read-only equality around commit."""
+    require(type(evidence) is dict and set(evidence)=={'before_commit','after_commit'},
+            'Actual readonly batching evidence required')
+    for name, classification, outcome in (
+            ('before_commit','absent','actual_close_before_commit'),
+            ('after_commit','present','real_commit_before_outcome_loss')):
+        value=evidence[name]
+        required={'synthetic_only','actual_postgres_18','legacy_core_sha256',
+            'complete_plan_or_verify_equal','complete_sequence_dict_equal',
+            'preserved_itc_audit_settings_push_equal','same_readonly_transaction','actual_observer_pid_and_clean_bundle','sequences',
+            'old_sequence_queries','new_sequence_queries','max_branches','max_sql_bytes',
+            'restore_retried','classification',outcome}
+        require(type(value) is dict and set(value)==required
+                and value['legacy_core_sha256']=='fd22c4f29b566a0403da17d9b524ad8d6091a417d4ab9f2ca3788991eb2ba446'
+                and all(value[k] is True for k in ('synthetic_only','actual_postgres_18',
+                    'complete_plan_or_verify_equal','complete_sequence_dict_equal',
+                    'preserved_itc_audit_settings_push_equal','same_readonly_transaction','actual_observer_pid_and_clean_bundle',outcome))
+                and value['restore_retried'] is False and value['classification']==classification,
+                'Readonly identity, equivalence or outcome proof invalid')
+        require(all(type(value[k]) is int for k in ('sequences','old_sequence_queries','new_sequence_queries','max_branches','max_sql_bytes'))
+                and 30<value['sequences']<=256 and value['max_branches']==16 and value['max_sql_bytes']==32768
+                and value['old_sequence_queries']==value['sequences']+2
+                and value['new_sequence_queries']==2+(value['sequences']+15)//16,
+                'Readonly bounded value query proof invalid')
+
+
 def validate_acceptance(summary):
     """Validate offline evidence structure only; this does not prove a live run."""
     require(isinstance(summary, dict), 'Acceptance summary missing')
@@ -725,6 +773,7 @@ def validate_acceptance(summary):
     require(summary.get('preservation_contract') == PRESERVATION_CONTRACT,
             'Current required preservation scope required')
     validate_bounded_insert(summary.get('bounded_insert'))
+    validate_readonly_batch(summary.get('readonly_batch'))
     batching = summary.get('catalog_batching')
     require(isinstance(batching, dict), 'Actual PostgreSQL batching evidence missing')
     controls = batching.get('collision_controls')
@@ -775,7 +824,7 @@ def acceptance_artifact_paths(root):
     return [root / name for name in ('.gitattributes', 'worlex_restore.py', 'policy.json',
         'source-manifest.json', 'source-counts.json', 'client_runtime_guard.py',
         'client_bootstrap.py', 'client_connection.py', 'inspect_observation.py',
-        'preservation_scope.py', 'launcher_adapter.py', 'tests/application_contract.json',
+        'preservation_scope.py', 'launcher_adapter.py', 'readonly_reconciliation.py', 'tests/application_contract.json',
         'tests/windows-ci/client-build-inputs.json',
         'tests/fixtures/ci-summary-ef4899fe.json')] + sorted((root / 'tests').rglob('*.py')) + sorted((root / 'tests').rglob('*.sh'))
 
