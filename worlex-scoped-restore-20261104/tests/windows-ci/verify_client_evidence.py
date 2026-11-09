@@ -1,4 +1,5 @@
 """Fail-closed combined-gate checks for actual Windows pure-client evidence."""
+import ast
 import base64
 import csv
 import hashlib
@@ -344,6 +345,9 @@ test_restore_client_runtime.ClientRuntimeTests.test_runtime_support_dll_allowed_
 test_restore_client_runtime.ClientRuntimeTests.test_valid_pure_manifest_and_imported_modules
 test_restore_client_runtime.ClientRuntimeTests.test_wheel_provenance_and_distribution_version_rejected
 test_restore_client_runtime.ClientRuntimeTests.test_wrong_platform_and_unsealed_policy_rejected
+test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_accept_in_fresh_stdlib_processes
+test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_reject_summary_tampering
+test_restore_ci_validator.IsolatedValidatorTests.test_actual_callers_reject_unsafe_contract_sources
 test_restore_collision_batch.CollisionBatchTests.test_baseline_pin_and_exact_change_scope
 test_restore_collision_batch.CollisionBatchTests.test_batch_first_middle_last_collision_original_order
 test_restore_collision_batch.CollisionBatchTests.test_caps_branches_and_bind_parameters
@@ -503,6 +507,37 @@ COLLISION_REQUIRED_CASES = 32
 POSTGRES_REQUIRED_CASES = 40
 
 
+def _preservation_contract_from_source():
+    """Read the reviewed literal without importing application dependencies.
+
+    Builder and sealer parents have only the standard library. Resolve this
+    checkout's source, never cwd/sys.path or a cached application module. The
+    byte pin also rejects indirect mutation through globals(), exec or aliases
+    that inspecting only AST Name nodes could not rule out.
+    """
+    source = Path(__file__).resolve().parents[2] / 'preservation_scope.py'
+    require(source.is_file() and not source.is_symlink(),
+            'Reviewed preservation source missing or unsafe')
+    try:
+        content = source.read_bytes()
+        tree = ast.parse(content, filename='preservation_scope.py')
+        bindings = [node for node in tree.body if isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and
+                            target.id == 'PRESERVATION_CONTRACT' for target in node.targets)]
+        names = [node for node in ast.walk(tree) if isinstance(node, ast.Name)
+                 and node.id == 'PRESERVATION_CONTRACT']
+        require(len(bindings) == len(names) == 1 and len(bindings[0].targets) == 1,
+                'One unmodified literal preservation contract required')
+        contract = ast.literal_eval(bindings[0].value)
+    except (OSError, SyntaxError, ValueError, TypeError) as error:
+        raise ValueError('Invalid reviewed preservation contract source') from error
+    require(isinstance(contract, dict), 'Preservation contract dictionary required')
+    require(hashlib.sha256(content).hexdigest() ==
+            '7b8038196a3be17ba8bfbd84c16cec30ce03de77e97827c5e372b69a40e6ac66',
+            'Reviewed preservation source hash differs')
+    return contract
+
+
 def validate_acceptance(summary):
     """Validate offline evidence structure only; this does not prove a live run."""
     require(isinstance(summary, dict), 'Acceptance summary missing')
@@ -525,7 +560,7 @@ def validate_acceptance(summary):
             'Required batching coverage counts differ')
     require(type(summary.get('postgres_cases')) is int and summary['postgres_cases'] == POSTGRES_REQUIRED_CASES,
             'Exact PostgreSQL coverage required')
-    from preservation_scope import PRESERVATION_CONTRACT
+    PRESERVATION_CONTRACT = _preservation_contract_from_source()
     require(summary.get('preservation_contract') == PRESERVATION_CONTRACT,
             'Current required preservation scope required')
     batching = summary.get('catalog_batching')
@@ -579,7 +614,8 @@ def acceptance_artifact_paths(root):
         'source-manifest.json', 'source-counts.json', 'client_runtime_guard.py',
         'client_bootstrap.py', 'client_connection.py', 'inspect_observation.py',
         'preservation_scope.py', 'launcher_adapter.py', 'tests/application_contract.json',
-        'tests/windows-ci/client-build-inputs.json')] + sorted((root / 'tests').rglob('*.py')) + sorted((root / 'tests').rglob('*.sh'))
+        'tests/windows-ci/client-build-inputs.json',
+        'tests/fixtures/ci-summary-ef4899fe.json')] + sorted((root / 'tests').rglob('*.py')) + sorted((root / 'tests').rglob('*.sh'))
 
 
 def validate_acceptance_artifacts(artifacts, root):
