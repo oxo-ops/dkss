@@ -72,6 +72,37 @@ class ExecuteBudgetTests(unittest.TestCase):
                 connection.commit.assert_not_called()
 
 
+    def test_effective_search_path_formatting_keeps_exact_schema_order_and_limits(self):
+        checker = PostgreSQLExecuteBudgetAcceptance('test_actual_cli_execute_startup_and_local_budget_are_900s')
+        values = {'transaction_timeout':'15min', 'statement_timeout':'2min',
+            'lock_timeout':'10s', 'idle_in_transaction_session_timeout':'3min',
+            'transaction_read_only':'off', 'search_path':'pg_catalog,public'}
+        def connection(overrides=None, socket_timeout=130):
+            settings = {**values, **(overrides or {})}
+            result = Mock()
+            result.exec_driver_sql.side_effect = lambda sql: Mock(scalar=Mock(return_value=settings[sql.removeprefix('SHOW ')]))
+            result.connection.driver_connection._usock.gettimeout.return_value = socket_timeout
+            return result
+        with patch.object(postgres_fixture, 'assert_pg8000_tls') as tls:
+            for value in ('pg_catalog,public', 'pg_catalog, public', ' pg_catalog , public '):
+                with self.subTest(valid=value):
+                    actual = checker.assert_effective(connection({'search_path':value}), 900, False)
+                    self.assertEqual(actual['search_path'], ['pg_catalog','public'])
+            for value in ('public,pg_catalog', 'pg_catalog,public,extra', 'pg_catalog,pg_catalog',
+                          'pg_catalog', 'public', '', 'pg_catalog,', 'pg_catalogue,public',
+                          'pg_ catalog,public', '$user,public', 'pg_catalog,public,'):
+                with self.subTest(invalid=value), self.assertRaises(AssertionError):
+                    checker.assert_effective(connection({'search_path':value}), 900, False)
+            for key, value in (('transaction_timeout','5min'), ('statement_timeout','3min'),
+                               ('lock_timeout','11s'), ('idle_in_transaction_session_timeout','4min'),
+                               ('transaction_read_only','on')):
+                with self.subTest(unchanged_limit=key), self.assertRaises(AssertionError):
+                    checker.assert_effective(connection({key:value}), 900, False)
+            with self.assertRaises(AssertionError):
+                checker.assert_effective(connection(socket_timeout=129), 900, False)
+            self.assertEqual(tls.call_count, 20)
+
+
 class PostgreSQLExecuteBudgetAcceptance(unittest.TestCase):
     # Same marked workflow-owned service, exact source and TLS gates as the
     # existing suite. No new database is needed: only SHOW/SET LOCAL are issued.
@@ -83,10 +114,13 @@ class PostgreSQLExecuteBudgetAcceptance(unittest.TestCase):
         actual = {name: connection.exec_driver_sql('SHOW '+name).scalar() for name in (
             'transaction_timeout', 'statement_timeout', 'lock_timeout',
             'idle_in_transaction_session_timeout', 'transaction_read_only', 'search_path')}
+        # SHOW preserves startup formatting but SET LOCAL may insert a space.
+        # Only surrounding token whitespace is immaterial; names/order are exact.
+        actual['search_path'] = [name.strip() for name in actual['search_path'].split(',')]
         self.assertEqual(actual, {'transaction_timeout':str(seconds//60)+'min',
             'statement_timeout':'2min', 'lock_timeout':'10s',
             'idle_in_transaction_session_timeout':'3min',
-            'transaction_read_only':'on' if read_only else 'off', 'search_path':'pg_catalog,public'})
+            'transaction_read_only':'on' if read_only else 'off', 'search_path':['pg_catalog','public']})
         self.assertEqual(connection.connection.driver_connection._usock.gettimeout(), 130)
         return actual
 
