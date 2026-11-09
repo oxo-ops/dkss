@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from sqlalchemy import create_engine, text, select, func, event
 from sqlalchemy.engine import make_url
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 from client_connection import connection_args, verify_tls_connection
 from worlex_restore import Stop, validate_schema, typed_payload, snapshot, plan, execute_restore, verify_restore, digest, sequence_states
 from synthetic_fixture import fixture, PASSWORD
@@ -119,15 +119,36 @@ def run_ci_schema_initialization():
   from dkss_app.driving_access import initialize_driving_access
   from dkss_app.vehicle_couplings import initialize_coupling_schema
   phase='create_app';emit('started')
-  app=create_app(ci_app_config(os.environ['DATABASE_URL'],os.environ['WORLEX_TEST_CA_FILE']),initialize_database=False)
-  with app.app_context():
-   phase='tls_precheck';emit('started')
-   with db.engine.connect() as connection:assert_pg8000_tls(connection)
-   phase='init_db';emit('started')
-   result=app.test_cli_runner().invoke(args=['init-db'])
-   if result.exit_code:raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
-   phase='driving_access';emit('started');initialize_driving_access(app)
-   phase='coupling_schema';emit('started');initialize_coupling_schema(app)
+  # Reuse connections only in this disposable schema child. Keep the shared
+  # config (also used by UI smoke), TLS args and non-pool options unchanged.
+  # Copy mappings rather than deepcopying the non-pickleable SSLContext.
+  config=ci_app_config(os.environ['DATABASE_URL'],os.environ['WORLEX_TEST_CA_FILE'])
+  config={**config,'SQLALCHEMY_ENGINE_OPTIONS':{**config['SQLALCHEMY_ENGINE_OPTIONS'],
+          'poolclass':QueuePool,'pool_size':5,'max_overflow':0,
+          'pool_pre_ping':False,'pool_reset_on_return':'rollback'}}
+  app=create_app(config,initialize_database=False)
+  engine=None;primary=None
+  try:
+   with app.app_context():
+    engine=db.engine
+    phase='tls_precheck';emit('started')
+    with engine.connect() as connection:assert_pg8000_tls(connection)
+    phase='init_db';emit('started')
+    result=app.test_cli_runner().invoke(args=['init-db'])
+    if result.exit_code:raise RuntimeError('SYNTHETIC_INIT_FAILED') from result.exception
+    phase='driving_access';emit('started');initialize_driving_access(app)
+    phase='coupling_schema';emit('started');initialize_coupling_schema(app)
+  except BaseException as error:
+   primary=error
+   raise
+  finally:
+   # Flask removes its scoped session on context exit before idle connections
+   # close. A dispose error fails an otherwise successful child, but cannot
+   # replace an initialization/context failure or trigger another attempt.
+   if engine is not None:
+    try:engine.dispose()
+    except BaseException:
+     if primary is None:raise
   phase='complete';emit('passed')
  except BaseException as error:
   try:emit('failed',error)

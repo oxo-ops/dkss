@@ -1,13 +1,13 @@
 name: Synthetic WORLEX Inspect and Preservation
 on:
   push:
-    branches: ['verify/worlex-inspect-diagnostic-io-20261109']
+    branches: ['verify/worlex-ci-setup-pool-20261109']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   restore:
-    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-inspect-diagnostic-io-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-ci-setup-pool-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -84,7 +84,7 @@ jobs:
           retention-days: 14
 
   windows-render:
-    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-inspect-diagnostic-io-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-ci-setup-pool-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: restore
     runs-on: windows-2025
     timeout-minutes: 20
@@ -130,7 +130,7 @@ jobs:
           retention-days: 14
 
   windows-client:
-    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-inspect-diagnostic-io-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-ci-setup-pool-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -175,7 +175,7 @@ jobs:
           retention-days: 14
 
   combined-seal:
-    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-inspect-diagnostic-io-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'oxo-ops/dkss' && github.ref == 'refs/heads/verify/worlex-ci-setup-pool-20261109' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [restore, windows-render, windows-client]
     runs-on: ubuntu-latest
     timeout-minutes: 5
