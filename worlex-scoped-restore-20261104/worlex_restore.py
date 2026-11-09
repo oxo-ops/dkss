@@ -586,7 +586,7 @@ def execute_restore(connection,data,columns,policy,counts,source_sha,approved_pl
  connection.exec_driver_sql("SET LOCAL lock_timeout='10s'")
  connection.exec_driver_sql("SET LOCAL statement_timeout='120s'")
  connection.exec_driver_sql("SET LOCAL idle_in_transaction_session_timeout='180s'")
- connection.exec_driver_sql("SET LOCAL transaction_timeout='300s'")
+ connection.exec_driver_sql("SET LOCAL transaction_timeout='900s'")
  connection.exec_driver_sql("SET LOCAL search_path=pg_catalog,public")
  require(connection.scalar(text('SELECT pg_try_advisory_xact_lock(873624100,20261104)')),'RESTORE_ALREADY_RUNNING')
  # Every writer pool must have been stopped externally. No termination is attempted.
@@ -745,6 +745,7 @@ def cli():
  obs=observation.Observation(Path(a.report).parent) if a.action=='inspect' else None
  observation.ACTIVE=observation.LAST=obs
  args=connection_args(read_only=a.action in ('inspect','verify'),**({'application_name':obs.value['application_name']} if obs else {}))
+ if a.action=='execute':args['startup_params']['transaction_timeout']='900000'
  engine=create_engine(url.set(query={}),poolclass=NullPool,hide_parameters=True,connect_args=args)
  if obs:obs.install(engine,args)
  try:

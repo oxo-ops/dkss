@@ -58,6 +58,7 @@ class ClientCLITests(unittest.TestCase):
         self.assertEqual(engine.call_args.args[0].drivername,'postgresql+pg8000')
         self.assertEqual(engine.call_args.args[0].query,{})
         self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['default_transaction_read_only'],'on')
+        self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['transaction_timeout'],'300000')
         execute.assert_not_called();verify.assert_not_called()
         report=json.loads(self.report.read_text())
         self.assertEqual((report['source_rows'],report['imported_rows'],report['deferred_rows']),(4100,4099,1))
@@ -68,12 +69,14 @@ class ClientCLITests(unittest.TestCase):
         self.assertEqual(execute.call_args.args[-1],self.plan)
         self.assertEqual(json.loads(Path(str(self.private)+'.execution.json').read_text())['status'],'COMMITTED')
         self.assertNotIn('default_transaction_read_only',engine.call_args.kwargs['connect_args']['startup_params'])
+        self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['transaction_timeout'],'900000')
         verify.assert_not_called()
     def test_verify_uses_original_plan_readonly_no_execute(self):
         self.approved();before=self.private.read_bytes();engine,execute,verify=self.invoke('verify')
         self.assertEqual(verify.call_args.args[-1],self.plan);self.assertEqual(self.private.read_bytes(),before)
         self.assertFalse(Path(str(self.private)+'.execution.json').exists())
         self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['default_transaction_read_only'],'on')
+        self.assertEqual(engine.call_args.kwargs['connect_args']['startup_params']['transaction_timeout'],'300000')
         execute.assert_not_called()
     def test_runtime_change_stops_before_connect_or_marker(self):
         self.approved({'changed':'runtime'})

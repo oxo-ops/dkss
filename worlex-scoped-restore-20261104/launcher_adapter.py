@@ -154,7 +154,7 @@ def _strict_evidence(raw):
     return value
 
 
-def validate_reconciled_evidence(*, prior_files, reconciliation_files, expected):
+def _validate_reconciliation_evidence(*, prior_files, reconciliation_files, expected, required_result):
     """Validate held byte snapshots. The pinned launcher supplies trusted pins.
 
     Never reads a DB, imports old executable code, alters old files, or authorizes
@@ -183,7 +183,7 @@ def validate_reconciled_evidence(*, prior_files, reconciliation_files, expected)
         and failed.get('read_only_reconciliation_required') is True
         and failed.get('web_resumed') is False, 'PRIOR_UNCERTAIN_EXECUTE_REQUIRED')
     result = checks['safe-result.json']
-    _require(_equal(result, BASELINE_RECONCILIATION)
+    _require(_equal(result, required_result)
         and _hash(_canonical(result)) == expected['reconciliation_result_canonical_sha256'],
         'EXACT_FULL_BASELINE_RECONCILIATION_REQUIRED')
     bound = checks['00-evidence-bound.json']
@@ -257,7 +257,9 @@ def validate_reconciled_evidence(*, prior_files, reconciliation_files, expected)
         _require(finished <= points[0] and points == sorted(points), 'RECONCILIATION_CHRONOLOGY_INVALID')
     except (TypeError, KeyError):
         raise ValueError('RECONCILIATION_CHRONOLOGY_INVALID') from None
-    return {'status': 'PRIOR_UNCERTAIN_EXECUTE_RECONCILED_BASELINE_UNCHANGED',
+    return {'status': ('PRIOR_UNCERTAIN_EXECUTE_RECONCILED_BASELINE_UNCHANGED'
+        if _equal(required_result, BASELINE_RECONCILIATION)
+        else 'PRIOR_UNCERTAIN_EXECUTE_RECONCILED_PRESENT_VERIFIED_NO_EXECUTE'),
         'prior_restore_attempted': None, 'prior_result_unchanged': True,
         'reconciliation_read_only': True, 'automatic_retry': False,
         'expected_prior': dict(expected), 'prior_files': actual,
@@ -274,3 +276,59 @@ def _persist_reconciled_binding(destination, receipt):
         stream.flush()
         os.fsync(stream.fileno())
     _require(path.read_bytes() == raw, 'RECONCILIATION_BINDING_READBACK_MISMATCH')
+
+
+PRESENT_RECONCILIATION = {'status': 'RESTORE_PRESENT_MATCHES_APPROVED_PLAN',
+    'imported_rows': 4099, 'deferred_rows': 1,
+    'values_blobs_required_settings_and_sequences_verified': True,
+    'restore_sessions_absent_before_and_after': True, 'cleanup': [],
+    'read_only': True, 'restore_attempted': False, 'automatic_retry': False,
+    'web_resumed': False, 'live_login_checked': False,
+    'original_outcome_unknown_until_reconciliation': True,
+    'read_only_reconciliation_required': False}
+
+
+def validate_reconciled_evidence(*, prior_files, reconciliation_files, expected):
+    """The existing write-attempt boundary remains strictly absence-only."""
+    return _validate_reconciliation_evidence(prior_files=prior_files,
+        reconciliation_files=reconciliation_files, expected=expected,
+        required_result=BASELINE_RECONCILIATION)
+
+
+def classify_completed_reconciliation(child_exit_code, result_bytes):
+    """Zero is required before reading any positive, potentially stale record.
+
+    The caller must invoke the exact reviewed read-only child once. Its exit 0
+    occurs only after durable output, successful SafeFS close and final prints.
+    This pure classifier never starts a connection, child, inspect or execute.
+    """
+    _require(type(child_exit_code) is int and child_exit_code == 0,
+        'READONLY_CHILD_NOT_COMPLETED_NO_EXECUTE')
+    result = _strict_evidence(result_bytes)
+    if _equal(result, BASELINE_RECONCILIATION):
+        return 'ABSENT_BASELINE_EXACT_NEW_INSPECT_REQUIRED'
+    if _equal(result, PRESENT_RECONCILIATION):
+        return 'PRESENT_EXACT_NO_NEW_RESTORE'
+    raise ValueError('READONLY_OUTCOME_UNRESOLVED_NO_EXECUTE')
+
+
+def validate_completed_reconciliation(*, child_exit_code, prior_files,
+                                      reconciliation_files, expected):
+    """Readonly completion API. Present never satisfies begin_attempt()."""
+    _require(type(child_exit_code) is int and child_exit_code == 0,
+        'READONLY_CHILD_NOT_COMPLETED_NO_EXECUTE')
+    _require(type(reconciliation_files) is dict and set(reconciliation_files) == RECONCILIATION_FILES,
+        'COMPLETE_RECONCILIATION_EVIDENCE_REQUIRED')
+    classification = classify_completed_reconciliation(child_exit_code, reconciliation_files['safe-result.json'])
+    # The launcher pins the two allowed schemas, not a predicted live outcome.
+    # Never rewrite result bytes or original restore_attempted:null to fabricate
+    # absence. Only the expected schema's canonical digest differs for present.
+    _require(type(expected) is dict and expected.get('reconciliation_result_canonical_sha256')
+        == _hash(_canonical(BASELINE_RECONCILIATION)), 'PINNED_ABSENCE_SCHEMA_REQUIRED')
+    required = (BASELINE_RECONCILIATION if classification == 'ABSENT_BASELINE_EXACT_NEW_INSPECT_REQUIRED'
+                else PRESENT_RECONCILIATION)
+    selected_expected = dict(expected)
+    selected_expected['reconciliation_result_canonical_sha256'] = _hash(_canonical(required))
+    receipt = _validate_reconciliation_evidence(prior_files=prior_files,
+        reconciliation_files=reconciliation_files, expected=selected_expected, required_result=required)
+    return {'classification': classification, 'evidence': receipt}

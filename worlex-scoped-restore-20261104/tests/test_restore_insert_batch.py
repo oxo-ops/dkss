@@ -90,11 +90,11 @@ class InsertBatchTests(unittest.TestCase):
     def sizes(self, statement, rows, columns=2):
         return wr.insert_batch_metrics(self.connection, statement, rows, columns)
 
-    def test_fixed_limits_and_existing_300s_transaction_budget(self):
+    def test_fixed_limits_and_execute_only_900s_transaction_budget(self):
         self.assertEqual((wr.INSERT_MAX_ROWS, wr.INSERT_MAX_BINDS,
                           wr.INSERT_MAX_SQL_BYTES, wr.INSERT_MAX_PARAMETER_BYTES,
                           wr.INSERT_MAX_SINGLETON_BYTES), (100, 8000, 131072, 4194304, 8388608))
-        self.assertIn("transaction_timeout='300s'", inspect.getsource(wr.execute_restore))
+        self.assertIn("transaction_timeout='900s'", inspect.getsource(wr.execute_restore))
         self.assertIn('connection.execute(statement)', inspect.getsource(wr.execute_restore))
 
     def test_zero_one_100_101_rows_use_single_execute_without_returning(self):
