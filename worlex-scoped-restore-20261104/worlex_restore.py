@@ -532,10 +532,13 @@ def insert_batch_metrics(connection,statement,row_count,column_count):
  log values. Unknown compilation/transport shapes stop the whole transaction.
  """
  from pg8000.converters import PY_TYPES,make_params
+ from sqlalchemy.sql.elements import quoted_name
  dialect=connection.dialect
  require(dialect.name=='postgresql' and dialect.driver=='pg8000' and dialect.paramstyle=='format','INSERT_CLIENT_UNSUPPORTED')
  raw=connection.connection.driver_connection
- require(raw._client_encoding in ('utf8','utf-8') and raw.py_types==PY_TYPES,'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED')
+ # SQLAlchemy's real on_connect adds exactly this string-subclass adapter.
+ expected_types=PY_TYPES.copy();expected_types[quoted_name]=PY_TYPES[str]
+ require(raw._client_encoding in ('utf8','utf-8') and type(raw.py_types) is dict and raw.py_types.keys()==expected_types.keys() and all(raw.py_types[key] is converter for key,converter in expected_types.items()),'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED')
  compiled=statement.compile(dialect=dialect)
  require(not compiled.returning and not compiled.post_compile_params and not compiled.literal_execute_params and not compiled.insert_prefetch,'INSERT_COMPILED_SHAPE_UNSUPPORTED')
  params=compiled.construct_params();positions=compiled.positiontup

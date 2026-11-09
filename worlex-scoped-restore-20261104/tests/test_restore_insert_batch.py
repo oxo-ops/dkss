@@ -9,10 +9,11 @@ from unittest import mock
 import pg8000
 from pg8000.converters import PY_TYPES, make_params
 from sqlalchemy import (MetaData, Table, Column, Integer, String, Text, Boolean,
-                        Numeric, Date, DateTime, Float, LargeBinary, literal)
+                        Numeric, Date, DateTime, Float, LargeBinary, literal, create_engine)
 from sqlalchemy.dialects.postgresql.pg8000 import PGDialect_pg8000
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.sql.elements import quoted_name
 import worlex_restore as wr
 
 
@@ -62,6 +63,9 @@ def fake_engine():
     dialect = PGDialect_pg8000(dbapi=pg8000)
     dialect.server_version_info = (18, 6)
     dialect.default_schema_name = 'public'
+    # Direct Engine construction bypasses create_engine's connection hook.
+    # Invoke the pinned dialect's actual hook, as a real connection does.
+    dialect.on_connect()(db)
     return Engine(StaticPool(creator=lambda: db), dialect, URL.create('postgresql+pg8000')), db
 
 
@@ -216,6 +220,67 @@ class InsertBatchTests(unittest.TestCase):
             list(wr.iter_insert_batches(self.connection, table, [dict(payload='x')]))
         self.assertEqual(self.db.calls, [])
 
+    def test_real_on_connect_initialization_is_required_and_exact_map_accepted(self):
+        expected = PY_TYPES.copy()
+        expected[quoted_name] = PY_TYPES[str]
+        self.assertEqual(self.db.py_types, expected)
+        self.assertIs(self.db.py_types[quoted_name], PY_TYPES[str])
+        self.assertNotIn(quoted_name, PY_TYPES)
+        self.db.py_types = PY_TYPES.copy()
+        with self.assertRaisesRegex(wr.Stop, 'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED'):
+            self.statements([dict(id=1, payload='synthetic')])
+        self.connection.dialect.on_connect()(self.db)
+        statement = self.statements([dict(id=1, payload='synthetic')])[0]
+        self.connection.execute(statement)
+        self.assertEqual(self.db.calls[0][1], (1, 'synthetic'))
+        self.assertEqual(self.sizes(statement, 1)['parameter_bytes'], 18)
+        # Exercise create_engine's real pool hook registration too. Only
+        # server introspection is mocked; creator prevents socket creation.
+        db = FakeDB()
+        engine = create_engine('postgresql+pg8000://', creator=lambda: db, poolclass=StaticPool)
+        try:
+            with mock.patch.object(engine.dialect, 'initialize') as initialize:
+                with engine.connect() as connection:
+                    self.assertEqual(db.py_types.keys(), expected.keys())
+                    self.assertTrue(all(db.py_types[key] is value for key, value in expected.items()))
+                    for batch in wr.iter_insert_batches(connection, self.table, [dict(id=1, payload='synthetic')]):
+                        connection.execute(batch)
+                initialize.assert_called_once()
+            self.assertEqual(db.calls[0][1], (1, 'synthetic'))
+        finally:
+            engine.dispose()
+
+    def test_missing_unknown_and_replaced_adapter_entries_are_rejected(self):
+        initialized = self.db.py_types.copy()
+        class DeceptiveConverter:
+            def __call__(self, value):
+                return str(value) + '-changed'
+            def __eq__(self, other):
+                return True
+        cases = [
+            ('missing_quoted_name', lambda adapters: adapters.pop(quoted_name)),
+            ('missing_builtin', lambda adapters: adapters.pop(int)),
+            ('replaced_quoted_name', lambda adapters: adapters.update({quoted_name: lambda value: str(value)})),
+            ('replaced_str', lambda adapters: adapters.update({str: lambda value: str(value)})),
+            ('replaced_builtin', lambda adapters: adapters.update({int: lambda value: str(value)})),
+            ('unknown_adapter', lambda adapters: adapters.update({object: lambda value: str(value)})),
+            ('deceptive_equality', lambda adapters: adapters.update({str: DeceptiveConverter()})),
+        ]
+        for name, mutate in cases:
+            with self.subTest(adapter=name):
+                self.db.py_types = initialized.copy()
+                mutate(self.db.py_types)
+                with self.assertRaisesRegex(wr.Stop, 'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED'):
+                    self.statements([dict(id=1, payload='synthetic')])
+        self.assertEqual(self.db.calls, [])
+        class AdapterMap(dict):
+            pass
+        self.db.py_types = AdapterMap(initialized)
+        with self.assertRaisesRegex(wr.Stop, 'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED'):
+            self.statements([dict(id=1, payload='synthetic')])
+        self.db.py_types = initialized
+        self.assertEqual(len(self.statements([dict(id=1, payload='synthetic')])), 1)
+
     def test_unknown_encoding_client_and_custom_adapter_fail_closed(self):
         rows = [dict(id=1, payload='x')]
         self.db._client_encoding = 'latin1'
@@ -226,6 +291,7 @@ class InsertBatchTests(unittest.TestCase):
         with self.assertRaisesRegex(wr.Stop, 'INSERT_ENCODING_OR_ADAPTER_UNSUPPORTED'):
             self.statements(rows)
         self.db.py_types = PY_TYPES.copy()
+        self.connection.dialect.on_connect()(self.db)
         with mock.patch.object(self.connection.dialect, 'driver', 'other'):
             with self.assertRaisesRegex(wr.Stop, 'INSERT_CLIENT_UNSUPPORTED'):
                 self.statements(rows)
