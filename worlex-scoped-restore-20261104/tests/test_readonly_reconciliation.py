@@ -1,4 +1,5 @@
 """Focused readonly-only differential and observation guards; no live fallback."""
+import ast
 import contextlib
 import copy
 import hashlib
@@ -17,6 +18,24 @@ import test_restore_postgres as postgres
 
 MODULE_SHA = lambda: hashlib.sha256(Path(R.__file__).read_bytes()).hexdigest()
 READONLY_BATCH_EVIDENCE = {}
+
+
+def legacy_fixture_policy(policy):
+    """Synthetic-only policy for the exact legacy file, never a production seal.
+
+    Preserve the current runner/policy pair and every artifact path/hash. The
+    fixture has its own tests/readonly_legacy_core.py entry in the real CI map;
+    worlex_restore.py must continue to identify the unchanged production file.
+    """
+    source=Path(legacy.__file__)
+    if source.is_symlink() or not source.is_file():raise AssertionError('LEGACY_FIXTURE_FILE_INVALID')
+    digest=hashlib.sha256(source.read_bytes()).hexdigest()
+    if digest!=R.LEGACY_CORE_SHA256:raise AssertionError('LEGACY_FIXTURE_SOURCE_CHANGED')
+    current=hashlib.sha256((Path(R.__file__).parent/'worlex_restore.py').read_bytes()).hexdigest()
+    if policy.get('tested_runner_sha256')!=current:raise AssertionError('CURRENT_FIXTURE_RUNNER_MISMATCH')
+    result=copy.deepcopy(policy)
+    result['tested_runner_sha256']=digest
+    return result
 
 class Observer:
     application = 'worlex_reconcile_0123456789ab'
@@ -87,6 +106,52 @@ class ReadOnlySequenceTests(unittest.TestCase):
         root=Path(R.__file__).parent
         self.assertEqual(hashlib.sha256((root/'worlex_restore.py').read_bytes()).hexdigest(), 'b43ba710a6dd48a831d5236293df7a59655ae637f3d9a62071aba23a086df118')
         self.assertEqual(hashlib.sha256((root/'launcher_adapter.py').read_bytes()).hexdigest(), '083eedc180ea773790a3672ef5a344933642073366553e96cf9d8587a3ce07ba')
+
+    def test_legacy_fixture_policy_binds_exact_source_without_mutating_current_policy_or_artifacts(self):
+        current=hashlib.sha256((Path(R.__file__).parent/'worlex_restore.py').read_bytes()).hexdigest()
+        policy={'tested_runner_sha256':current,'postgres_structure_sha256':'synthetic-catalog',
+            'postgres_acceptance_passed':True,'windows_render_acceptance_passed':True,
+            'tested_artifacts':{'worlex_restore.py':current,'tests/readonly_legacy_core.py':R.LEGACY_CORE_SHA256},
+            'tables':{'synthetic':{'columns':['id']}}}
+        original=copy.deepcopy(policy);fixed=legacy_fixture_policy(policy)
+        self.assertEqual(policy,original)
+        self.assertEqual(fixed,{**original,'tested_runner_sha256':R.LEGACY_CORE_SHA256})
+        self.assertIsNot(fixed['tables'],policy['tables']);self.assertIsNot(fixed['tested_artifacts'],policy['tested_artifacts'])
+        self.assertEqual(fixed['tested_artifacts'],original['tested_artifacts'])
+        # Execute the unchanged actual validate_schema seal-gate AST, after the
+        # catalog has been checked. No DB stub can bypass its runner comparison.
+        tree=ast.parse(Path(legacy.__file__).read_bytes())
+        function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='validate_schema')
+        gate=next(n for n in function.body if isinstance(n,ast.If) and isinstance(n.test,ast.UnaryOp)
+                  and isinstance(n.test.operand,ast.Name) and n.test.operand.id=='building_ci_seal')
+        code=compile(ast.Module(body=[gate],type_ignores=[]),legacy.__file__,'exec')
+        def check(value):
+            namespace=dict(legacy.__dict__,policy=value,signature='synthetic-catalog',building_ci_seal=False)
+            exec(code,namespace)
+        with self.assertRaisesRegex(legacy.Stop,'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION'):check(policy)
+        check(fixed)
+        with self.assertRaisesRegex(legacy.Stop,'RUNNER_DIFFERS_FROM_POSTGRES_TESTED_REVISION'):
+            check({**fixed,'tested_runner_sha256':'0'*64})
+        with self.assertRaisesRegex(AssertionError,'CURRENT_FIXTURE_RUNNER_MISMATCH'):
+            legacy_fixture_policy({**policy,'tested_runner_sha256':'0'*64})
+        read_bytes=Path.read_bytes
+        with patch.object(Path,'read_bytes',lambda p: b'changed legacy' if p==Path(legacy.__file__) else read_bytes(p)):
+            with self.assertRaisesRegex(AssertionError,'LEGACY_FIXTURE_SOURCE_CHANGED'):legacy_fixture_policy(policy)
+        # Both legacy paths must use this same copied policy for schema, plan,
+        # execute and verify; the inherited current-policy setup is untouched.
+        candidate=ast.parse(Path(__file__).read_bytes())
+        cls=next(n for n in candidate.body if isinstance(n,ast.ClassDef) and n.name=='PostgreSQLReadOnlyReconciliationAcceptance')
+        calls=[n for n in ast.walk(cls) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute)
+               and isinstance(n.func.value,ast.Name) and n.func.value.id=='legacy'
+               and n.func.attr in ('plan','execute_restore','validate_schema')]
+        self.assertEqual(len(calls),4)
+        for call in calls:
+            self.assertTrue(any(isinstance(a,ast.Attribute) and isinstance(a.value,ast.Name)
+                                and a.value.id=='self' and a.attr=='legacy_policy' for a in call.args))
+        args_assign=next(n for n in ast.walk(cls) if isinstance(n,ast.Assign)
+                         and any(isinstance(t,ast.Name) and t.id=='args' for t in n.targets))
+        self.assertTrue(any(isinstance(a,ast.Attribute) and a.attr=='legacy_policy' for a in args_assign.value.elts))
+        self.assertEqual(policy,original)
 
     def test_complete_state_shape_and_bounded_16_value_reads(self):
         for count in (0,1,16,17,36,256):
@@ -339,10 +404,14 @@ class PostgreSQLReadOnlyReconciliationAcceptance(unittest.TestCase):
     existing_push=postgres.PostgreSQLRestoreAcceptance.existing_push
 
     def prepare(self):
+        self.legacy_policy=legacy_fixture_policy(self.policy)
         self.preserved_audit();self.preserved_audit(company='ITC',identifier=2);self.existing_push()
         with self.engine.connect() as c:
-            self.oldplan=legacy.plan(c,self.data,self.columns,self.policy,self.counts,self.source_hash)
+            self.oldplan=legacy.plan(c,self.data,self.columns,self.legacy_policy,self.counts,self.source_hash)
         self.assertEqual(self.oldplan['runner_sha256'],R.LEGACY_CORE_SHA256)
+        self.assertEqual(self.oldplan['policy_sha256'],legacy.digest(self.legacy_policy))
+        self.assertEqual(self.approved['policy_sha256'],legacy.digest(self.policy))
+        self.assertEqual(self.approved['runner_sha256'],self.policy['tested_runner_sha256'])
 
     def compare_readonly(self, present):
         original=legacy.sequence_states; trace=[];files,journal=journal_store()
@@ -361,12 +430,12 @@ class PostgreSQLReadOnlyReconciliationAcceptance(unittest.TestCase):
                             if phase!='data':
                                 self.assertEqual(c.exec_driver_sql('SELECT 1').scalar_one(),1)
                                 continue
-                            tables,_=legacy.validate_schema(c,self.policy)
+                            tables,_=legacy.validate_schema(c,self.legacy_policy)
                             audits=[int(row['id']) for row in self.data['audit_log']] if present else ()
                             before=legacy.snapshot(c,tables,audit_import_ids=audits)
                             serial=original(c,tables)
                             operation=legacy.verify_restore if present else legacy.plan
-                            args=(c,self.data,self.columns,self.policy,self.counts,self.source_hash)
+                            args=(c,self.data,self.columns,self.legacy_policy,self.counts,self.source_hash)
                             kwargs={} if present else {'generated':self.oldplan['generated_identifiers']}
                             old=operation(*args,self.oldplan) if present else operation(*args,**kwargs)
                             if not present:self.assertEqual(old,self.oldplan)
@@ -405,7 +474,7 @@ class PostgreSQLReadOnlyReconciliationAcceptance(unittest.TestCase):
     def test_before_commit_disconnect_keeps_full_legacy_plan_and_sequences_equal(self):
         self.prepare();conn=self.engine.connect();tx=conn.begin()
         try:
-            legacy.execute_restore(conn,self.data,self.columns,self.policy,self.counts,self.source_hash,self.oldplan)
+            legacy.execute_restore(conn,self.data,self.columns,self.legacy_policy,self.counts,self.source_hash,self.oldplan)
             conn.connection.driver_connection.close();conn.invalidate()
         finally:
             with contextlib.suppress(Exception):tx.rollback()
@@ -415,7 +484,7 @@ class PostgreSQLReadOnlyReconciliationAcceptance(unittest.TestCase):
 
     def test_after_commit_outcome_loss_keeps_full_legacy_verify_and_sequences_equal(self):
         self.prepare()
-        with self.engine.begin() as conn:legacy.execute_restore(conn,self.data,self.columns,self.policy,self.counts,self.source_hash,self.oldplan)
+        with self.engine.begin() as conn:legacy.execute_restore(conn,self.data,self.columns,self.legacy_policy,self.counts,self.source_hash,self.oldplan)
         # The commit happened; a client outcome-loss exception is modeled after it.
         # This is not a network-packet-loss experiment and is never a retry.
         try:raise RuntimeError('synthetic outcome loss after real commit')
