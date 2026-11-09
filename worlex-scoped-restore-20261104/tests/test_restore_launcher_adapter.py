@@ -34,11 +34,15 @@ class LauncherAdapterTests(unittest.TestCase):
 
     def test_exclusive_result_and_failed_persistence_stop_progression(self):
         with tempfile.TemporaryDirectory() as tmp:
-            parsed = {'observation': Observation(Path(tmp)).value}
+            observed = Observation(Path(tmp)).value
+            observed.update(inspection_completed=True,startup_completed=True,tls_completed=True)
+            parsed = {'status':'READ_ONLY_PREFLIGHT_PASSED','live_changes':False,'observation':observed}
             persist_stage(tmp, parsed, stage='inspect', exit_code=0)
             with self.assertRaises(FileExistsError): persist_stage(tmp, parsed, stage='inspect', exit_code=0)
         with tempfile.TemporaryDirectory() as tmp:
-            parsed = {'observation': Observation(Path(tmp)).value}
+            observed = Observation(Path(tmp)).value
+            observed.update(inspection_completed=True,startup_completed=True,tls_completed=True)
+            parsed = {'status':'READ_ONLY_PREFLIGHT_PASSED','live_changes':False,'observation':observed}
             with patch('launcher_adapter.os.fsync', side_effect=OSError('SECRET')):
                 with self.assertRaises(OSError): persist_stage(tmp, parsed, stage='inspect', exit_code=0)
 

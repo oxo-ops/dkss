@@ -22,7 +22,7 @@ def safe_stage_output(parsed):
         'status': {'READ_ONLY_PREFLIGHT_PASSED', 'FAILED_OR_COMMIT_UNCERTAIN',
                    'STOPPED', 'COMMITTED', 'RESTORE_PRESENT_MATCHES_PLAN'},
         'reason': {'CLIENT_RUNTIME_CHANGED_SINCE_INSPECT', 'PLAN_ALREADY_EXISTS',
-                   'REPORT_ALREADY_EXISTS', 'PREFLIGHT_PLAN_CHANGED'},
+                   'REPORT_ALREADY_EXISTS', 'PREFLIGHT_PLAN_CHANGED', 'INSPECT_OPERATION_FAILED'},
         'error_type': TYPES,
     }
     for key, allowed in vocabulary.items():
@@ -42,8 +42,20 @@ def persist_stage(directory, parsed, *, stage, exit_code):
     safe = safe_stage_output(parsed)
     if stage == 'inspect' and 'observation' not in safe:
         raise ValueError('INSPECT_OBSERVATION_REQUIRED')
+    eligible = False
+    if stage == 'inspect' and exit_code == 0:
+        observed = safe['observation']
+        if not (safe.get('status') == 'READ_ONLY_PREFLIGHT_PASSED'
+                and safe.get('live_changes') is False
+                and observed['inspection_completed'] is True
+                and observed['startup_completed'] is True
+                and observed['tls_completed'] is True
+                and observed['primary'] is None and observed['cleanup'] == []):
+            raise ValueError('INSPECT_COMPLETION_REQUIRED')
+        eligible = True
     record = {'stage': stage, 'exit_code': exit_code, 'automatic_retry': False,
-              'safe_output': safe}
+              'safe_output': safe, 'execute_eligible': eligible}
+
     # Exclusive creation prevents stale attempt/result reuse. A failed or partial
     # write raises, leaving no successful return that could authorize execution.
     path = Path(directory) / (stage + '-finished.json')

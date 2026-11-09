@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 import client_connection
@@ -134,8 +135,8 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
     setUp = baseline.PostgreSQLRestoreAcceptance.setUp
     unchanged = baseline.PostgreSQLRestoreAcceptance.unchanged
 
-    def invoke_inspect(self, fail=False):
-        root = Path(self.temp.name)/'formal-cli'; root.mkdir()
+    def invoke_inspect(self, fail=False, diagnostic_fault=None, mandatory_fault=None):
+        root = Path(tempfile.mkdtemp(prefix='formal-cli-',dir=self.temp.name))
         source = root/'worlex_restore.py'; source.write_bytes(Path(core.__file__).read_bytes())
         (root/'policy.json').write_text(json.dumps(self.policy))
         (root/'source-counts.json').write_bytes((baseline.PACKAGE/'source-counts.json').read_bytes())
@@ -147,7 +148,30 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
         def args(**kwargs): return real_args(cafile=self.cafile, **kwargs)
         approved = root/'plan.json'; report = root/'report.json'
         url = self.url.set(port=5432).render_as_string(hide_password=False)
+        original_open, original_replace, original_write_text = os.open, os.replace, Path.write_text
+        injected = []
+        def denial():
+            error = PermissionError(13, 'synthetic observer denial'); error.winerror = 5
+            return error
+        def open_file(path, *args, **kwargs):
+            if diagnostic_fault == 'early_open' and Path(path).name == 'next.json':
+                injected.append('early_open'); raise denial()
+            return original_open(path,*args,**kwargs)
+        def replace_file(src,dst):
+            obs=inspect_observation.LAST
+            event=obs.value['events'][-1] if obs is not None and obs.value['events'] else {}
+            if (diagnostic_fault == 'after_fetch' and obs is not None and Path(src).parent == obs.directory and event.get('phase') == 'validate_schema'
+                    and event.get('operation') == 'cursor_fetchone' and event.get('state') == 'ok'):
+                injected.append('after_fetch'); raise denial()
+            return original_replace(src,dst)
+        def write_text(path,*args,**kwargs):
+            if mandatory_fault in ('plan','report') and path == (approved if mandatory_fault == 'plan' else report):
+                raise denial()
+            return original_write_text(path,*args,**kwargs)
         with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(os,'open',side_effect=open_file))
+            stack.enter_context(patch.object(os,'replace',side_effect=replace_file))
+            stack.enter_context(patch.object(Path,'write_text',write_text))
             for target, value in [('__file__',str(source)), ('EXPECTED_HOST',self.url.host),
                                   ('EXPECTED_DATABASE',self.url.database), ('EXPECTED_USER',self.url.username)]:
                 stack.enter_context(patch.object(core,target,value))
@@ -161,6 +185,17 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
             stack.enter_context(patch.object(sys,'argv',['restore','inspect','--archive','synthetic',
                 '--pg-restore','synthetic','--plan',str(approved),'--report',str(report)]))
             stack.enter_context(contextlib.redirect_stdout(output))
+            if mandatory_fault in ('plan','report'):
+                with self.assertRaises(PermissionError):core.cli()
+                self.assertEqual(output.getvalue(),'')
+                observed=inspect_observation.output_fields()['observation']
+                self.assertFalse(observed['inspection_completed'])
+                self.assertFalse((root/'inspect-finished.json').exists())
+                self.assertFalse(Path(str(approved)+'.execution.json').exists())
+                self.assertEqual(len(calls),1)
+                if diagnostic_fault:self.assertEqual(injected,[diagnostic_fault])
+                self.unchanged()
+                return observed
             if fail:
                 # Real server statement failure, captured before rollback; no retry.
                 def denied(connection,*a,**kw): connection.exec_driver_sql('SELECT 1/0')
@@ -169,9 +204,27 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
                 parsed = {'status':'FAILED_OR_COMMIT_UNCERTAIN', **inspect_observation.output_fields()}
             else:
                 core.cli(); parsed = json.loads(output.getvalue())
+            if mandatory_fault == 'execute_marker':
+                execute_report=root/'execute-report.json'
+                with patch.object(sys,'argv',['restore','execute','--archive','synthetic',
+                    '--pg-restore','synthetic','--plan',str(approved),'--report',str(execute_report),'--writers-stopped']):
+                    def marker_open(path,*args,**kwargs):
+                        if str(path).endswith('.execution.json'):raise denial()
+                        return open_file(path,*args,**kwargs)
+                    with patch.object(os,'open',side_effect=marker_open),self.assertRaises(PermissionError):core.cli()
+                self.assertFalse(execute_report.exists())
+                self.assertFalse(Path(str(approved)+'.execution.json').exists())
         self.assertEqual(len(calls),1)
         self.assertEqual(calls[0]['connect_args']['startup_params']['default_transaction_read_only'],'on')
+        if diagnostic_fault:self.assertEqual(injected,[diagnostic_fault])
+        if mandatory_fault == 'adapter':
+            with patch('launcher_adapter.os.fsync',side_effect=denial()),self.assertRaises(PermissionError):
+                persist_stage(root,parsed,stage='inspect',exit_code=0)
+            self.assertFalse(Path(str(approved)+'.execution.json').exists())
+            self.unchanged()
+            return parsed['observation']
         saved = persist_stage(root,parsed,stage='inspect',exit_code=3 if fail else 0)
+        self.assertEqual(saved['execute_eligible'],not fail)
         observed = saved['safe_output']['observation']
         self.assertTrue(observed['startup_completed']); self.assertTrue(observed['tls_completed'])
         self.assertIs(type(observed['backend_pid']),int)
@@ -200,11 +253,31 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
         self.assertIn('22012', json.dumps(observed['primary']))
         self.assertEqual(observed['cleanup'],[])
 
+    def test_formal_cli_degraded_diagnostics_same_read_only_plan_and_terminal(self):
+        observed=self.invoke_inspect(diagnostic_fault='after_fetch')
+        self.assertTrue(observed['inspection_completed'])
+        self.assertFalse(observed['diagnostic_persistence']['complete'])
+        self.assertEqual(observed['diagnostic_persistence']['warning']['operation'],'replace_snapshot')
+        self.assertIsNone(observed['primary']);self.assertEqual(observed['cleanup'],[])
+
+    def test_formal_cli_server_error_after_degradation_stays_primary(self):
+        observed=self.invoke_inspect(fail=True,diagnostic_fault='early_open')
+        self.assertFalse(observed['inspection_completed'])
+        self.assertFalse(observed['diagnostic_persistence']['complete'])
+        self.assertIn('22012',json.dumps(observed['primary']))
+        self.assertEqual(observed['cleanup'],[])
+
+    def test_formal_cli_required_plan_report_adapter_and_execute_marker_still_block(self):
+        for target in ('plan','report','adapter','execute_marker'):
+            with self.subTest(target=target):
+                self.invoke_inspect(diagnostic_fault='after_fetch',mandatory_fault=target)
+
     def test_instrumentation_preserves_exact_sql_binds_and_connection_count(self):
         from sqlalchemy import event
         from sqlalchemy.pool import NullPool
         traces = []; plans = []; connections = []; catalogs = []
-        for enabled in (False, True):
+        for mode in ('disabled','healthy','degraded'):
+            enabled = mode != 'disabled'
             args = client_connection.connection_args(cafile=self.cafile, read_only=True,
                 application_name='worlex_synthetic_restore')
             engine = core.create_engine(self.url, poolclass=NullPool, hide_parameters=True, connect_args=args)
@@ -215,7 +288,12 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
                 trace.append((statement, parameters, many)))
             event.listen(engine, 'connect', lambda dbapi, record: opened.append(True))
             observer = inspect_observation.Observation(Path(self.temp.name)) if enabled else None
-            if observer: observer.install(engine,args)
+            if observer:
+                observer.install(engine,args)
+                if mode == 'degraded':
+                    with patch('inspect_observation.os.replace',side_effect=PermissionError(13,'synthetic')):
+                        observer.persist()
+                    self.assertFalse(observer.value['diagnostic_persistence']['complete'])
             inspect_observation.ACTIVE = observer
             try:
                 with engine.connect() as connection, connection.begin():
@@ -225,9 +303,12 @@ class PostgreSQLObservationAcceptance(unittest.TestCase):
             finally:
                 engine.dispose(); inspect_observation.ACTIVE = None
             traces.append(trace); connections.append(len(opened)); catalogs.append(catalog_calls)
-        self.assertTrue(catalogs[0]); self.assertEqual(catalogs[0],catalogs[1])
-        self.assertEqual(plans[0], plans[1]); self.assertEqual(traces[0],traces[1])
-        self.assertEqual(connections,[1,1]); self.unchanged()
+        self.assertTrue(catalogs[0])
+        for index in (1,2):
+            self.assertEqual(catalogs[0],catalogs[index])
+            self.assertEqual(plans[0],plans[index]);self.assertEqual(traces[0],traces[index])
+        self.assertIn(('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY',(),False),traces[0])
+        self.assertEqual(connections,[1,1,1]); self.unchanged()
 
     def test_locked_context_rejects_other_connection_and_stale_transaction(self):
         original = core.plan

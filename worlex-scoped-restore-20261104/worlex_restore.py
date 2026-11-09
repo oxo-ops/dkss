@@ -709,13 +709,21 @@ def cli():
     else:output=result
     output.update(observation.output_fields())
     Path(a.report).write_text(json.dumps(output,indent=2));os.chmod(a.report,0o600)
-    print(json.dumps(output))
+    if not obs:print(json.dumps(output))
  finally:
   try:
    if obs:
     with obs.scope('engine_dispose',cleanup=True):engine.dispose()
    else:engine.dispose()
   finally:observation.ACTIVE=None
+ if obs:
+  # The report is a preterminal snapshot. Only this refreshed stdout record,
+  # persisted by launcher_adapter, can authorize a subsequent execute stage.
+  require(obs.value['primary'] is None and not obs.value['cleanup'],'INSPECT_OPERATION_FAILED')
+  obs.value['inspection_completed']=True
+  obs.persist()
+  output.update(observation.output_fields())
+  print(json.dumps(output))
 if __name__=='__main__':
  try:cli()
  except Stop as error:print(json.dumps({'status':'STOPPED','reason':str(error),**observation.output_fields()}));sys.exit(2)

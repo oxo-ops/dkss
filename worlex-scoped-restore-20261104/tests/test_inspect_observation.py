@@ -136,8 +136,10 @@ class ObservationTests(unittest.TestCase):
     def test_partial_persist_keeps_previous_valid_record(self):
         before=(self.obs.directory/'observation.json').read_bytes()
         with patch.object(m.os,'replace',side_effect=OSError('private path')):
-            with self.assertRaises(OSError):
-                with self.obs.scope('snapshot'):self.fail('Persistence must fail closed before body')
+            calls=[]
+            with self.obs.scope('snapshot'):calls.append('body')
+            self.assertEqual(calls,['body'])
+            self.assertFalse(self.obs.value['diagnostic_persistence']['complete'])
         self.assertEqual((self.obs.directory/'observation.json').read_bytes(),before)
         m.validate_observation(json.loads(before))
     def test_atomic_snapshot_failure_does_not_reopen_old_attempt(self):

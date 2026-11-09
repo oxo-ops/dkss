@@ -29,6 +29,14 @@ PHASES = frozenset(('startup source_render dbapi_connect tls_handshake '
     'collision_flush cleanup rollback close commit cursor_close').split())
 OPERATIONS = frozenset(('phase cursor_execute cursor_executemany cursor_fetchone '
     'cursor_fetchmany cursor_fetchall cursor_iterate cleanup').split())
+DIAGNOSTIC_OPERATIONS = {
+    'create_directory': 'snapshot_directory',
+    'open_snapshot': 'pending_snapshot',
+    'write_snapshot': 'pending_snapshot',
+    'fsync_snapshot': 'pending_snapshot',
+    'close_snapshot': 'pending_snapshot',
+    'replace_snapshot': 'current_snapshot',
+}
 ACTIVE = None
 LAST = None
 
@@ -77,8 +85,9 @@ def validate_observation(value):
             raise ValueError('OBSERVATION_SCHEMA_INVALID')
     require(type(value) is dict and set(value) == {'version', 'nonce', 'application_name',
         'backend_pid', 'tls_completed', 'startup_completed', 'server_clock',
-        'effective_timeouts', 'events', 'primary', 'cleanup', 'dropped_events'})
-    require(type(value['version']) is int and value['version'] == 1)
+        'effective_timeouts', 'events', 'primary', 'cleanup', 'dropped_events',
+        'inspection_completed', 'diagnostic_persistence'})
+    require(type(value['version']) is int and value['version'] == 2)
     require(type(value['nonce']) is str and re.fullmatch('[a-f0-9]{32}', value['nonce']) is not None)
     require(value['application_name'] == 'worlex_inspect_' + value['nonce'])
     require(value['backend_pid'] is None or _integer(value['backend_pid'], 1, 2147483647))
@@ -110,6 +119,24 @@ def validate_observation(value):
     if value['primary'] is not None: failure(value['primary'])
     require(type(value['cleanup']) is list and len(value['cleanup']) <= 8)
     for f in value['cleanup']: failure(f)
+    require(type(value['inspection_completed']) is bool)
+    persistence = value['diagnostic_persistence']
+    require(type(persistence) is dict and set(persistence) == {'complete', 'warning'})
+    require(type(persistence['complete']) is bool)
+    warning = persistence['warning']
+    require(persistence['complete'] is (warning is None))
+    if warning is not None:
+        require(type(warning) is dict and {'code', 'operation', 'target', 'event'} <= set(warning)
+                <= {'code', 'operation', 'target', 'event', 'errno', 'winerror'})
+        require(type(warning['code']) is str and warning['code'] in
+                ('DIAGNOSTIC_IO_DISABLED', 'DIAGNOSTIC_SHORT_WRITE'))
+        require(type(warning['operation']) is str and warning['operation'] in DIAGNOSTIC_OPERATIONS)
+        require(warning['target'] == DIAGNOSTIC_OPERATIONS[warning['operation']])
+        require(warning['code'] != 'DIAGNOSTIC_SHORT_WRITE' or
+                warning['operation'] == 'write_snapshot' and set(warning) == {'code','operation','target','event'})
+        event(warning['event'])
+        for k in ('errno', 'winerror'):
+            if k in warning: require(_integer(warning[k], -2147483648, 2147483647))
     # Serialize only after exact shape and primitive type validation.
     return json.loads(json.dumps(value, separators=(',', ':')))
 
@@ -121,22 +148,70 @@ class Observation:
         self.ordinal = 0
         self.failures = []
         nonce = uuid.uuid4().hex
-        self.value = dict(version=1, nonce=nonce, application_name='worlex_inspect_'+nonce,
+        self.value = dict(version=2, nonce=nonce, application_name='worlex_inspect_'+nonce,
             backend_pid=None, tls_completed=None, startup_completed=None,
             server_clock=None, effective_timeouts=None, events=[], primary=None,
-            cleanup=[], dropped_events=0)
+            cleanup=[], dropped_events=0, inspection_completed=False,
+            diagnostic_persistence={'complete': True, 'warning': None})
         # A nonce directory is always new; never reopen an earlier attempt.
         self.directory = Path(directory) / ('inspect-observation-' + nonce)
-        self.directory.mkdir(mode=0o700)
+        try:
+            self.directory.mkdir(mode=0o700)
+        except FileExistsError:
+            # A duplicate nonce or occupied path is an integrity failure, not
+            # optional diagnostic unavailability. Never reuse its contents.
+            raise
+        except OSError as error:
+            self._diagnostic_failure('create_directory', error)
         self.persist()
 
+    def _diagnostic_failure(self, operation, error=None):
+        if not self.value['diagnostic_persistence']['complete']:
+            return
+        # No arbitrary exception graph, text, filename, URL or locals here.
+        # A startup failure has no event yet; its context is a safe start event.
+        context = (dict(self.value['events'][-1]) if self.value['events'] else
+                   self.event('startup', 'phase', 0, 'start', self.started))
+        warning = dict(code='DIAGNOSTIC_IO_DISABLED' if error is not None else 'DIAGNOSTIC_SHORT_WRITE',
+                       operation=operation, target=DIAGNOSTIC_OPERATIONS[operation], event=context)
+        if error is not None:
+            for field in ('errno', 'winerror'):
+                value = _attribute(error, field)
+                if _integer(value, -2147483648, 2147483647): warning[field] = value
+        self.value['diagnostic_persistence'] = {'complete': False, 'warning': warning}
+
+    def _io(self, operation, function, *args):
+        # Called only for observer-owned filesystem operations. Schema checks,
+        # serialization and all operational callbacks stay outside this catch.
+        try:
+            return True, function(*args)
+        except OSError as error:
+            self._diagnostic_failure(operation, error)
+            return False, None
+
     def persist(self):
+        # Validate even after degradation; programming/schema failures still stop.
         data = json.dumps(validate_observation(self.value), separators=(',', ':')).encode()
+        if not self.value['diagnostic_persistence']['complete']:
+            return
         temporary = self.directory / 'next.json'
-        fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        with os.fdopen(fd, 'wb') as out:
-            out.write(data); out.flush(); os.fsync(out.fileno())
-        os.replace(temporary, self.directory / 'observation.json')
+        ok, fd = self._io('open_snapshot', os.open, temporary,
+                          os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        if not ok: return
+        # Unbuffered I/O prevents a close after failed write/fsync from flushing
+        # again. Close the already-owned descriptor once; never reopen or delete.
+        try:
+            ok, count = self._io('write_snapshot', os.write, fd, data)
+            if not ok: return
+            if count != len(data):
+                self._diagnostic_failure('write_snapshot')
+                return
+            ok, _ = self._io('fsync_snapshot', os.fsync, fd)
+            if not ok: return
+        finally:
+            closed, _ = self._io('close_snapshot', os.close, fd)
+        if not closed or not self.value['diagnostic_persistence']['complete']: return
+        self._io('replace_snapshot', os.replace, temporary, self.directory / 'observation.json')
 
     def event(self, phase, operation, ordinal, state, start):
         now = time.monotonic_ns()
