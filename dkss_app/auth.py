@@ -1,4 +1,5 @@
 """Auth responsibilities; routes are registered by the application factory."""
+from .delivery_failure_logging import log_email_delivery_failure
 from . import audit as _dkss_audit, common as _dkss_common, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, storage as _dkss_storage
 
 
@@ -117,27 +118,32 @@ def send_email_change_code_email(
         "このコードの有効期限は10分です。"
     )
 
+    smtp_stage = "connect"
     try:
         with _dkss_common.smtplib.SMTP(
             smtp_host,
             smtp_port,
             timeout=20
         ) as server:
+            smtp_stage = "starttls"
             server.starttls()
 
             if smtp_username:
+                smtp_stage = "authenticate"
                 server.login(
                     smtp_username,
                     smtp_password
                 )
 
+            smtp_stage = "send"
             server.send_message(email)
+            smtp_stage = "close"
 
         return True
 
-    except Exception:
-        _dkss_runtime.app.logger.exception(
-            "メールアドレス変更確認メール送信中に予期しないエラーが発生しました。"
+    except Exception as error:
+        log_email_delivery_failure(
+            _dkss_runtime.app.logger, purpose="email_change", stage=smtp_stage, error=error
         )
         return False
 
