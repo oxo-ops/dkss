@@ -10,8 +10,8 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = '230a4ae29023ec6eb5fb5391cdc46ff912bbcece'
-FROZEN_TREE = '94093e937e1499e6f611775c97a77dad799beca2'
+PUBLIC_SHA = '38891e31e4065359cf5f2aa55fb3873917685939'
+FROZEN_TREE = '3f940872a47e898225ecd9c66e53603e82098bf1'
 ORIGIN = 'http://127.0.0.1:8765'
 
 
@@ -151,7 +151,7 @@ def main():
                     else:
                         require(all('日付' in v['markerContent'] for v in values),'Mobile date label lost')
                     require(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'Page horizontal overflow')
-                for width in (1440,1024,769,768,390):
+                for width in (1440,1024,901,900,769,768,390):
                     page.set_viewport_size({'width':width,'height':1000})
                     for path in (history,canonical):
                         page.goto(ORIGIN+path,wait_until='networkidle')
@@ -163,6 +163,8 @@ def main():
                         expect(page.locator('.sidebar-nav a.active')).to_be_visible()
                         page.screenshot(path=str(output/f'history-nav-{width}.png'),full_page=True)
                         page.locator('#sidebarOverlay').click(position={'x':width-20,'y':600})
+                        expect(page.locator('#sidebarToggle')).to_have_attribute('aria-expanded','false')
+                        expect(page.locator('body')).not_to_have_class(re.compile(r'.*sidebar-open.*'))
                     with page.expect_navigation(wait_until='domcontentloaded'):
                         page.locator('.vehicle-history-categories a[data-category="maintenance"]').click()
                     nav_check()
