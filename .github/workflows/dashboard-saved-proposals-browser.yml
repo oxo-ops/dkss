@@ -1,0 +1,64 @@
+name: Dashboard Saved Proposals Browser
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'templates/index.html'
+      - 'static/css/dashboard_attention.css'
+      - 'tests/test_dashboard_saved_proposals.py'
+      - 'tests/dashboard_saved_proposals_browser/**'
+      - '.github/workflows/dashboard-saved-proposals-browser.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-saved-proposals-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-browser:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install isolated application and pinned browser dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Verify exact head with synthetic proposals
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/dashboard-saved-proposals-results" \
+            bash tests/dashboard_saved_proposals_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$chromium"
+      - name: Save synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-saved-proposals-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dashboard-saved-proposals-results/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,36 @@
+/* Saved recommendations only: no scoring or diagnosis is performed here. */
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-preview {
+    max-height: none;
+    overflow-y: visible;
+}
+
+.dashboard-attention-table .dashboard-attention-priority {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6em;
+    margin-right: 0.3em;
+    padding: 0.1em 0.25em;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+
+.dashboard-attention-priority[data-priority="高"] {
+    color: #a52331;
+    background: #fff1f2;
+}
+
+.dashboard-attention-priority[data-priority="中"] {
+    color: #805200;
+    background: #fff8e5;
+}
+
+.dashboard-attention-priority[data-priority="低"] {
+    color: #43566d;
+    background: #f1f5f9;
+}

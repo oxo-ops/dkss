@@ -3,6 +3,7 @@
 {% block title %}ダッシュボード{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_attention.css', v='20261110-saved-proposals-1') }}">
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
@@ -371,8 +372,9 @@
 {% if dashboard_settings.get("show_analysis", True) %}
     <section class="dashboard-attention dashboard-attention-list" aria-label="車両の確認・対応候補">
         <h3 class="dashboard-reference-title">確認・対応すること</h3>
-        {% macro attention_table(items) %}
-        <div class="dashboard-attention-table-wrap">
+        {% set attention_preview_limit = 5 %}
+        {% macro attention_table(items, preview=false) %}
+        <div class="dashboard-attention-table-wrap{% if preview %} dashboard-attention-preview{% endif %}">
             <table class="dashboard-attention-table">
                 <thead>
                     <tr>
@@ -388,7 +390,12 @@
                     <tr>
                         <td>
                             <a href="{{ item.url }}">{{ item.vehicle_number }}</a>
-                            <strong>{{ item.target or item.title }}</strong>
+                            <strong>
+                                {% if item.priority in ['高', '中', '低'] %}
+                                <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="保存済みの優先度：{{ item.priority }}">{{ item.priority }}</span>
+                                {% endif %}
+                                {{ item.target or item.title }}
+                            </strong>
                         </td>
                         <td>
                             <strong class="dashboard-reference-action" title="{{ item.action }}">{{ item.action }}</strong>
@@ -428,7 +435,7 @@
                     {{ title }}
                 {% endif %}
                 <span>{{ maintenance|length }}件</span>
-                {% if maintenance|length > 3 %}
+                {% if maintenance|length > attention_preview_limit %}
                 <button type="button" class="dashboard-attention-view-all"
                         data-reference-target="#dashboard-attention-more-{{ key }}"
                         aria-controls="dashboard-attention-more-{{ key }}">全件を見る</button>
@@ -446,11 +453,11 @@
             {% endif %}
 
             {% if maintenance %}
-                {{ attention_table(maintenance[:3]) }}
-                {% if maintenance|length > 3 %}
+                {{ attention_table(maintenance[:attention_preview_limit], true) }}
+                {% if maintenance|length > attention_preview_limit %}
                 <details class="dashboard-attention-more" id="dashboard-attention-more-{{ key }}">
-                    <summary>残り{{ maintenance|length - 3 }}件の対応候補を見る</summary>
-                    {{ attention_table(maintenance[3:]) }}
+                    <summary>残り{{ maintenance|length - attention_preview_limit }}件の対応候補を見る</summary>
+                    {{ attention_table(maintenance[attention_preview_limit:]) }}
                 </details>
                 {% endif %}
             {% else %}
