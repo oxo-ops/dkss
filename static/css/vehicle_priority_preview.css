@@ -13,3 +13,11 @@
     grid-template-columns: max-content minmax(0, 1fr) auto;
 }
 .priority-preview-context-banner { margin-block: .75rem; padding: .75rem; border: 1px solid #b8c4d1; border-radius: .5rem; background: #f6f9fc; overflow-wrap: anywhere; }
+.priority-timing-preview { min-width: 0; margin-block: 1rem; padding: .75rem; border-inline-start: 3px solid #b8c4d1; background: #f6f9fc; }
+.priority-timing-preview p { margin-block: .4rem; }
+.priority-timing-source-quote { white-space: pre-wrap; overflow-wrap: anywhere; }
+.priority-timing-conditions { padding-inline-start: 1.4rem; }
+.priority-timing-condition { margin-block: .75rem; }
+.priority-timing-disclaimer, .priority-timing-provenance { font-size: .9rem; }
+.priority-timing-status { font-weight: 600; }
+.priority-timing-gaps { color: #724400; }
