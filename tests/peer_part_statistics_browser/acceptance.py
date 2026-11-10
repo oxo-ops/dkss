@@ -149,7 +149,11 @@ def main():
                         viewport.focus()
                         require(viewport.evaluate('e => e.scrollLeft == 0'), 'Keyboard scroll starts at left edge')
                         page.keyboard.press('ArrowRight')
-                        page.wait_for_function("document.querySelector('.ka-peer-parts-scroll').scrollLeft > 0")
+                        for _ in range(20):
+                            if viewport.evaluate('e => e.scrollLeft > 0'):
+                                break
+                            page.wait_for_timeout(50)
+                        require(viewport.evaluate('e => e.scrollLeft > 0'), 'ArrowRight scrolls the table')
                         cell = last.locator('td').last
                         cell.scroll_into_view_if_needed(); expect(cell).to_be_in_viewport(ratio=1)
                         require(viewport.evaluate('e => e.scrollLeft > 0'), 'No horizontal table scroll')
