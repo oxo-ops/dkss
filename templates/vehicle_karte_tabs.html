@@ -1,7 +1,7 @@
 <nav class="vehicle-karte-tabs" aria-label="車両カルテの表示切替">
     {% if vehicle is defined and vehicle %}
         <a
-            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id) }}"
+            href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}"
             class="vehicle-karte-tab"
             {% if request.endpoint == "vehicle_karte" %}
                 aria-current="page"
@@ -138,7 +138,7 @@
 
     {% if vehicle is defined and vehicle %}
         <a
-            href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}"
+            href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}"
             class="vehicle-karte-tab"
             {% if request.endpoint == "vehicle_karte_analysis" %}
                 aria-current="page"

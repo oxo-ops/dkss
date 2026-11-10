@@ -7,6 +7,14 @@
     {% endif %}
 {%- endmacro %}
 
+{% if priority_preview_mode|default(false) %}
+<aside class="priority-preview-context-banner" role="note">
+    <strong>非本番・合成データの優先度試行</strong>
+    <p>優先度の試算・表示のみ読み取り専用です。点数は試行値で、運行可否は人が判断します。</p>
+    <p>概要・分析間の切替は試行表示を維持します。履歴・点検・整備・車両編集・取込・点検予定・連結設定は通常機能です。</p>
+    <a href="{{ url_for(request.endpoint, vehicle_record_id=vehicle.id) }}">試行表示を終了して通常表示へ</a>
+</aside>
+{% endif %}
 <div class="karte-vehicle-top-controls">
     {% if karte_usage_vehicles %}
     <nav class="karte-vehicle-switcher" aria-label="使用車両の切替">
@@ -39,7 +47,7 @@
                     usage_vehicle.type or ""
                 ) | vehicle_icon(usage_vehicle.body_type or "") %}
                 <a
-                    href="{{ url_for(switch_endpoint, vehicle_record_id=usage_vehicle.id) }}"
+                    href="{{ url_for(switch_endpoint, vehicle_record_id=usage_vehicle.id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}"
                     class="karte-vehicle-switcher-link{% if usage_is_selected %} is-selected{% endif %}"
                     {% if usage_is_selected %}aria-current="true"{% endif %}
                 >

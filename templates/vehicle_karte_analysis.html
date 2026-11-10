@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}車両カルテ・分析{% endblock %}
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261023-detail-overlay-1') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
 {% endblock %}
@@ -16,6 +17,7 @@
     <header class="ka7-toolbar">
         <h2><span class="ka10-page-icon">{{ visual_icon('chart') }}</span>車両分析</h2>
         <form method="get" class="ka-period-form" action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
+            {% if priority_preview_mode|default(false) %}<input type="hidden" name="priority_preview" value="1">{% endif %}
             <input type="hidden" name="peer_registration" value="{{ analysis_comparison.registration_scope }}">
             {% if analysis_comparison.include_inactive %}<input type="hidden" name="peer_inactive" value="1">{% endif %}
             <label for="ka-start-date">実績の集計期間</label>
@@ -109,6 +111,7 @@
             <header><h3><span class="ka10-panel-icon">{{ visual_icon("chart") }}</span>同型式車との比較</h3><span>同一会社内</span></header>
             {% if not analysis_comparison.metrics %}<p class="ka9-peer-empty">{% if analysis_comparison.vehicle_count == 0 %}現在の条件に合う比較車両はありません。{% elif analysis_comparison.comparison_scope.status == 'missing_registration_year' %}初度登録年が未登録のため、同年式では比較できません。{% else %}比較に必要な記録がありません。{% endif %}</p><details class="ka9-peer-settings"><summary>比較条件を変更</summary>{% endif %}
             <form method="get" id="ka-reference-peer-conditions" class="ka7-peer-conditions" action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}#ka-reference-peer-conditions">
+            {% if priority_preview_mode|default(false) %}<input type="hidden" name="priority_preview" value="1">{% endif %}
                 <input type="hidden" name="start_date" value="{{ data.start_date }}"><input type="hidden" name="end_date" value="{{ data.end_date }}">
                 <span>{{ vehicle.model_code or '型式未登録' }}</span>
                 <select name="peer_registration" aria-label="初度登録年の比較範囲">
@@ -144,6 +147,7 @@
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261026-previous-proposals-2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261110-priority-preview-3') }}" defer></script>
 </div>
 {% endblock %}

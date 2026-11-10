@@ -1,0 +1,15 @@
+.priority-preview { line-height: 1.65; overflow-wrap: anywhere; }
+.priority-preview-card { margin-block: 1rem; padding: 1rem; border: 1px solid #b8c4d1; border-radius: .6rem; scroll-margin-top: 5rem; }
+.priority-preview-badge { display: inline-block; font-weight: 700; padding: .25rem .6rem; border: 1px solid currentColor; border-radius: .3rem; }
+.priority-preview-badge[data-priority="高"] { color: #9e2525; background: #fff4f4; }
+.priority-preview-badge[data-priority="中"] { color: #735000; background: #fff8e5; }
+.priority-preview-badge[data-priority="低"] { color: #30546f; background: #f1f7fc; }
+.priority-preview-warning, .priority-preview-blocker, .priority-preview-gaps { color: #724400; }
+.priority-preview-disclaimer { font-size: .9rem; }
+#ko-ai .priority-preview-badge { white-space: nowrap; }
+
+/* A score badge is wider than the normal single-character priority badge. */
+#vehicle-karte-overview #ko-ai .ko-proposal[data-priority-preview="true"] {
+    grid-template-columns: max-content minmax(0, 1fr) auto;
+}
+.priority-preview-context-banner { margin-block: .75rem; padding: .75rem; border: 1px solid #b8c4d1; border-radius: .5rem; background: #f6f9fc; overflow-wrap: anywhere; }

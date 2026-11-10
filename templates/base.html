@@ -59,6 +59,7 @@
     data-responsive-shell
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
     data-authenticated="{{ 'true' if session.get('username') else 'false' }}"
+    data-priority-preview="{{ 'true' if priority_preview_mode|default(false) else 'false' }}"
     data-current-user="{{ session.get('name') or '' }}"
     data-unread-notification-count="{{ unread_notification_count }}"
 >
@@ -67,6 +68,9 @@
 <script src="{{ url_for('static', filename='js/shell_bootstrap.js', v='20261026-first-paint-1') }}"></script>
 
 {% set path = request.path %}
+{# Karte routes also have legacy /master/vehicles/... aliases. Use their
+   resolved endpoint so the same page keeps the same navigation selection. #}
+{% set is_vehicle_karte_page = request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
 
 <div class="app-layout">
 
@@ -118,7 +122,7 @@
                 </div>
             </div>
 
-            <div class="sidebar-group {% if path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
+            <div class="sidebar-group {% if is_vehicle_karte_page or path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
                 <button type="button" class="menu-item sidebar-parent">
                     <span class="menu-icon">
                         <img src="{{ url_for('static',
@@ -131,7 +135,8 @@
                 <div class="sidebar-submenu">
                     <a
                         href="{{ url_for('vehicle_karte_list') }}"
-                        class="menu-item submenu-item {% if path.startswith('/vehicle/karte') %}active{% endif %}"
+                        class="menu-item submenu-item {% if is_vehicle_karte_page %}active{% endif %}"
+                        {% if is_vehicle_karte_page %}aria-current="page"{% endif %}
                     >
                         <span class="menu-text">車両カルテ</span>
                     </a>
@@ -147,8 +152,8 @@
             {% if session.get("role") in ["admin", "itc"] %}
             <a
                 href="/master/drivers"
-                class="menu-item {% if path.startswith('/master') %}active{% endif %}"
-                {% if path.startswith('/master') %}aria-current="page"{% endif %}
+                class="menu-item {% if path.startswith('/master') and not is_vehicle_karte_page %}active{% endif %}"
+                {% if path.startswith('/master') and not is_vehicle_karte_page %}aria-current="page"{% endif %}
             >
                 <span class="menu-icon">
                     <img src="{{ url_for('static', filename='icons/master.png') }}" alt="">
@@ -484,7 +489,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/responsive_layout.js', v='20261026-first-paint-1') }}"></script>
-<script defer src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261029-approval-conflict-1') }}"></script>
+<script defer src="{{ url_for('static', filename='js/base.js', invoice_stream='20261019-ai-output-2', import_feedback='20261019-live-1', import_progress='20261025-driving-report-1', v='20261110-drawer-boundary-1') }}"></script>
 <div id="mentionBox" class="mention-box"></div>
 
 

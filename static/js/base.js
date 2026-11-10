@@ -608,7 +608,7 @@ document.addEventListener("DOMContentLoaded", function () {
     sidebarOverlay?.addEventListener(
         "click",
         function () {
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth <= 900) {
                 document.body.classList.remove(
                     "sidebar-open"
                 );
@@ -2094,6 +2094,12 @@ document.addEventListener("submit", async function (event) {
 
 document.addEventListener("DOMContentLoaded", function () {
     if (document.body.dataset.authenticated !== "true") {
+        return;
+    }
+
+    // The validated synthetic preview must not trigger notification maintenance.
+    // Normal documents retain polling; the flag is server-rendered, not query-derived.
+    if (document.body.dataset.priorityPreview === "true") {
         return;
     }
 

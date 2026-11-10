@@ -4,6 +4,10 @@ from . import access as _dkss_access, analysis as _dkss_analysis, audit as _dkss
 
 
 def vehicle_karte(vehicle_record_id):
+    priority_preview_mode = _dkss_common.request.args.get("priority_preview") == "1"
+    if priority_preview_mode:
+        from .priority_preview import require_preview_access
+        require_preview_access()
     vehicle = _dkss_models.Vehicle.query.filter_by(
         id=vehicle_record_id,
         company_code=_dkss_common.session.get("company_code")
@@ -26,7 +30,7 @@ def vehicle_karte(vehicle_record_id):
         username=_dkss_common.session.get("username")
     ).first()
 
-    if current_user is not None:
+    if current_user is not None and not priority_preview_mode:
         user_settings = _dkss_serialization.safe_json_dict(
             current_user.dashboard_settings_json
         )
@@ -47,7 +51,7 @@ def vehicle_karte(vehicle_record_id):
     overview = get_vehicle_karte_overview_context(vehicle)
     return _dkss_common.render_template(
         "vehicle_karte.html", vehicle=vehicle, vehicle_number=number,
-        open_defects=open_defects, **overview,
+        open_defects=open_defects, priority_preview_mode=priority_preview_mode, **overview,
     )
 
 
@@ -1029,6 +1033,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
         action_label = {"cancelled": "取消", "completed": "実施記録と連動", "completed_manual": "実施先行登録", "document_attached": "点検簿を関連付け", "created_from_document": "点検簿から作成"}.get(change.action, "登録・変更")
         entries.append({
             "key": f"inspection-plan:{change.id}",
+            "history_category": "maintenance" if plan.kind == "ad_hoc" else "inspection",
             "date": normalize_date(change.created_at),
             "kind": "点検予定",
             "content": f"{kind_label} {action_label} / 予定月 {after.get('planned_month', '')} / 予約日 {after.get('reservation_date') or '未定'} / {after.get('factory') or '実施先未定'}",
@@ -2953,6 +2958,28 @@ def vehicle_karte_maintenance(vehicle_record_id, record_id):
 
 
 
+HISTORY_CATEGORIES = (
+    ("", "すべて"),
+    ("inspection", "点検"),
+    ("maintenance", "整備・修理"),
+    ("other", "その他"),
+)
+
+
+def vehicle_history_category(entry):
+    """Group by the durable source, not arbitrary user-entered category labels."""
+    if entry.get("history_category"):
+        category = entry["history_category"]
+        return category if category in {"inspection", "maintenance", "other"} else "other"
+    source = entry.get("key", "").split(":", 1)[0]
+    if source in {"maintenance", "inspection-repair"} or entry.get("kind") == "突発修理":
+        return "maintenance"
+    if source in {"inspection", "defect", "periodic", "inspection-plan",
+                  "inspection-execution", "periodic-issue-event"}:
+        return "inspection"
+    return "other"
+
+
 def vehicle_karte_history(vehicle_record_id):
     vehicle = _dkss_models.Vehicle.query.filter_by(
         id=vehicle_record_id,
@@ -3054,6 +3081,23 @@ def vehicle_karte_history(vehicle_record_id):
             )
         ]
 
+    selected_category = _dkss_common.request.args.get("category", "").strip()
+    if selected_category not in dict(HISTORY_CATEGORIES):
+        selected_category = ""
+    # Facet counts cover all pages under the current type/status/date filters.
+    # Do not apply the category itself until after counting the alternatives.
+    category_counts = {key: 0 for key, _ in HISTORY_CATEGORIES}
+    category_counts[""] = len(history_entries)
+    for entry in history_entries:
+        category_counts[vehicle_history_category(entry)] += 1
+    history_categories = [
+        {"key": key, "label": label, "count": category_counts[key]}
+        for key, label in HISTORY_CATEGORIES
+    ]
+    if selected_category:
+        history_entries = [entry for entry in history_entries
+                           if vehicle_history_category(entry) == selected_category]
+
     per_page = _dkss_common.request.args.get("per_page", 10, type=int)
     if per_page not in {10, 20, 50}:
         per_page = 10
@@ -3086,6 +3130,8 @@ def vehicle_karte_history(vehicle_record_id):
         history_details={},
         history_event_types=history_event_types,
         history_statuses=history_statuses,
+        history_categories=history_categories,
+        selected_category=selected_category,
         selected_event_type=selected_event_type,
         selected_status=selected_status,
         selected_start_date=selected_start_date,

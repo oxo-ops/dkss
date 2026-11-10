@@ -10,7 +10,8 @@
 <a class="ko-action-button" href="{{ item.link }}">{{ item.next }} <span aria-hidden="true">→</span></a></li>
 {% endmacro %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_overview.css', v='20261026-overview-compact-4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_overview.css', v='20261110-priority-data-state-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -40,7 +41,7 @@
 <section class="card ko-work-card" aria-labelledby="ko-work-title">
     <div class="ko-heading">
 <h3 id="ko-work-title">{{ icon('tool') }}次に必要な対応</h3>
-<a href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">すべての対応を見る →</a></div>
+<a href="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}">すべての対応を見る →</a></div>
     <div class="ko-work-summary"><span>{{ icon('file') }}未解消の対応 <b>{{ ko_actions|length }}件</b></span><span>{{ icon('alert') }}予防整備の提案 <b data-ko-summary-count>確認中</b></span></div>
     {% if ko_actions %}<div id="ko-confirmed">
 <ul class="ko-action-list">{% for item in ko_actions[:3] %}{{ action_row(item) }}{% endfor %}</ul>
@@ -50,8 +51,8 @@
 </details>
 {% endif %}</div>
 {% endif %}
-    <div class="ko-ai-card" id="ko-ai" data-result-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) if not vehicle.deleted else '' }}" data-analysis-url="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}">
-        <h4 class="ko-accessible-label">予防整備の提案</h4>
+    <div class="ko-ai-card" id="ko-ai" data-result-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) if not vehicle.deleted else '' }}" data-analysis-url="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}">
+        <h4 class="ko-ai-heading">予防整備の提案 <small>高いものから表示</small></h4>
         <ul class="ko-proposals" data-ko-ai-list></ul>
         <p class="ko-meta ko-ai-status" data-ko-ai-status role="status">{% if vehicle.deleted %}台帳無効のため、分析タブで保存済みの結果を確認してください。{% else %}保存済みの提案を確認しています。{% endif %}</p>
         <noscript>
@@ -128,7 +129,7 @@
     <section class="card" id="vehicle-note">
         <div class="ko-heading">
             <h3>{{ icon('file') }}車両メモ</h3>
-            {% if session.get('role') in ['admin', 'itc'] %}
+            {% if session.get('role') in ['admin', 'itc'] and not priority_preview_mode|default(false) %}
             <button type="button" class="btn btn-outline btn-small" data-note-edit>編集</button>
             {% endif %}
         </div>
@@ -137,7 +138,7 @@
 <p class="ko-note-content" data-note-display>{{ karte_note.content if karte_note and karte_note.content else '車両メモはまだありません。' }}</p>
 </details>
         {% if karte_note %}<small data-note-meta>更新 {{ karte_note.updated_at }}{% if ko_note_author %} · {{ ko_note_author }}{% endif %}</small>{% endif %}
-        {% if session.get('role') in ['admin', 'itc'] %}
+        {% if session.get('role') in ['admin', 'itc'] and not priority_preview_mode|default(false) %}
         <form method="post" action="{{ url_for('vehicle_karte_note', vehicle_record_id=vehicle.id) }}" data-note-form hidden>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="version" value="{{ karte_note.version if karte_note else 0 }}">
@@ -200,6 +201,7 @@
 </div>
 {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/vehicle_karte_overview.js', v='20261026-overview-compact-4') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_overview.js', v='20261110-priority-data-state-1') }}" defer></script>
 {% endblock %}
 

@@ -307,8 +307,8 @@ def delete_uploaded_file(filename, folder=None):
                 )
             )
         except _dkss_common.ClientError:
-            _dkss_runtime.app.logger.exception(
-                "アップロード済みファイルの削除に失敗しました。"
+            _dkss_runtime.app.logger.error(
+                "UPLOAD_DELETE_FAILED backend=s3 error_type=ClientError"
             )
         return
 
@@ -337,8 +337,8 @@ def delete_uploaded_file(filename, folder=None):
         try:
             _dkss_common.os.remove(file_path)
         except OSError:
-            _dkss_runtime.app.logger.exception(
-                "アップロード済みファイルの削除に失敗しました。"
+            _dkss_runtime.app.logger.error(
+                "UPLOAD_DELETE_FAILED backend=local error_type=OSError"
             )
 
 

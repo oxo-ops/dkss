@@ -18,9 +18,24 @@ class M01PublicCaTests(unittest.TestCase):
         self.assertEqual(manifest['bundle_sha256'], hashlib.sha256(raw).hexdigest())
         self.assertEqual(raw.count(b'-----BEGIN CERTIFICATE-----'), 118)
         self.assertNotIn(b'PRIVATE KEY', raw)
+        begin_marker = '-----BEGIN CERTIFICATE-----'
+        end_marker = '-----END CERTIFICATE-----'
+        bundle_certificates = {
+            ssl.PEM_cert_to_DER_cert(block[block.index(begin_marker):] + end_marker)
+            for block in raw.decode('ascii').split(end_marker)
+            if begin_marker in block
+        }
+        self.assertEqual(len(bundle_certificates), 118)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        # Some managed runtimes preload trust anchors when a context is created.
+        # Check every pinned certificate, without requiring an empty host store.
+        existing_certificates = set(ctx.get_ca_certs(binary_form=True))
         ctx.load_verify_locations(cafile=str(pem))
-        self.assertEqual(ctx.cert_store_stats()['x509_ca'], 118)
+        expected_certificates = existing_certificates | bundle_certificates
+        self.assertEqual(set(ctx.get_ca_certs(binary_form=True)),
+                         expected_certificates)
+        self.assertEqual(ctx.cert_store_stats()['x509_ca'],
+                         len(expected_certificates))
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(ctx.check_hostname)
 

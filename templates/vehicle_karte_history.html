@@ -2,6 +2,10 @@
 
 {% block title %}車両カルテ・履歴{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_history.css', v='20261110-presentation-4') }}">
+{% endblock %}
+
 {% block content %}
 
 {% include "vehicle_karte_header.html" %}
@@ -27,7 +31,7 @@
         </h3>
 
         <p>
-            この車両に関するすべての出来事を時系列で表示します。
+            記録されている点検・整備・日報を時系列で表示します。
         </p>
 
         <form
@@ -36,6 +40,7 @@
             class="vehicle-karte-history-filters"
         >
             <input type="hidden" name="per_page" value="{{ history_page.per_page }}">
+            <input type="hidden" name="category" value="{{ selected_category }}">
             <select name="event_type" aria-label="履歴の種別">
                 <option value="">すべての種別</option>
                 {% for event_type in history_event_types %}
@@ -86,6 +91,19 @@
         <span class="vehicle-karte-history-count">
             {{ history_page.total }}件
         </span>
+        <nav class="vehicle-history-categories" aria-label="履歴のカテゴリ" aria-describedby="history-category-help">
+            {% for category in history_categories %}
+                <a class="btn btn-outline" data-category="{{ category.key }}"
+                   href="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id,
+                       category=category.key, event_type=selected_event_type,
+                       status=selected_status, start_date=selected_start_date,
+                       end_date=selected_end_date, per_page=history_page.per_page) }}"
+                   {% if selected_category == category.key %}aria-current="true"{% endif %}>
+                    {{ category.label }} <span>{{ category.count }}</span>
+                </a>
+            {% endfor %}
+        </nav>
+        <small id="history-category-help" class="vehicle-history-category-help">件数は種別・状態・期間の条件に一致する全ページ分です。</small>
     </div>
 
     {% if history_page.items %}
@@ -246,6 +264,7 @@
             page=number,
             per_page=history_page.per_page,
             event_type=selected_event_type,
+            category=selected_category,
             status=selected_status,
             start_date=selected_start_date,
             end_date=selected_end_date
@@ -257,6 +276,7 @@
           action="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
           hidden>
         <input type="hidden" name="page" value="1">
+        <input type="hidden" name="category" value="{{ selected_category }}">
         <input type="hidden" name="event_type" value="{{ selected_event_type }}">
         <input type="hidden" name="status" value="{{ selected_status }}">
         <input type="hidden" name="start_date" value="{{ selected_start_date }}">

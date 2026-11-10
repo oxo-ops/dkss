@@ -11,7 +11,7 @@
     </div>
     <div class="vc-chips">
         {% for link in coupling.links[:3] %}
-        <a href="{{ url_for('vehicle_karte', vehicle_record_id=link.vehicle_id) }}">{{ link.label }}{% if link.deleted %}<small>無効</small>{% endif %}<span aria-hidden="true">›</span></a>
+        <a href="{{ url_for('vehicle_karte', vehicle_record_id=link.vehicle_id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}">{{ link.label }}{% if link.deleted %}<small>無効</small>{% endif %}<span aria-hidden="true">›</span></a>
         {% else %}<span class="vc-empty">紐づけなし</span>{% endfor %}
         {% if coupling.links|length > 3 %}<button type="button" data-coupling-open class="vc-more">ほか{{ coupling.links|length - 3 }}台</button>{% endif %}
     </div>
@@ -23,7 +23,7 @@
         <h3>紐づけ済み <small>{{ coupling.links|length }}台</small></h3>
         <ul class="vc-linked-list">
             {% for link in coupling.links %}<li>
-                <div><a href="{{ url_for('vehicle_karte', vehicle_record_id=link.vehicle_id) }}">{{ link.label }}</a>{% if link.deleted %}<small>無効</small>{% endif %}</div>
+                <div><a href="{{ url_for('vehicle_karte', vehicle_record_id=link.vehicle_id, **({'priority_preview': '1'} if priority_preview_mode|default(false) else {})) }}">{{ link.label }}</a>{% if link.deleted %}<small>無効</small>{% endif %}</div>
                 {% if coupling.can_edit %}<form method="post" action="{{ url_for('vehicle_coupling_remove', vehicle_record_id=vehicle.id, coupling_id=link.id) }}" data-coupling-remove>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-outline">解除する</button>
