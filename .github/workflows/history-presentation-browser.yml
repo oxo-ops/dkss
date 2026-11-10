@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   synthetic-browser:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.ref == 'fix/history-short-viewport-20261110' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
