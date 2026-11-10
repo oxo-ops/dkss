@@ -11,13 +11,14 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = "3ca0f38e36f47ad94a625e71492bedbdd2f11841"
-FROZEN_TREE = "cc05950a0ef99241ac1a80b320ddcafd0944c710"
+PUBLIC_SHA = "5c5a41babc6b4ac762414d96043383b7159b387a"
+FROZEN_TREE = "58d83c00acf29ad202bb16ba864ef504af816cb3"
 ORIGIN = "http://127.0.0.1:8765"
 
 
@@ -137,8 +138,19 @@ def main():
 
         # The fixture's signed test cookie was created for localhost. Let the
         # Flask client keep its original cookie domain; no cookie is exported.
+        active_request = ["outside_request"]
         def request(path, method="GET", data=None, headers=None):
-            return case.client.open(path, method=method, data=data, headers=headers or {})
+            parsed = urlsplit(path)
+            try:
+                endpoint, _values = m.app.url_map.bind("localhost").match(parsed.path, method=method)
+            except Exception:
+                endpoint = "unmatched_route"
+            previous = active_request[0]
+            active_request[0] = endpoint + (":preview" if parse_qs(parsed.query).get("priority_preview") == ["1"] else ":normal")
+            try:
+                return case.client.open(path, method=method, data=data, headers=headers or {})
+            finally:
+                active_request[0] = previous
 
         ordinary = request(analysis + "/result").json
         preview = request(analysis + "/result?priority_preview=1").json
@@ -200,10 +212,14 @@ def main():
         report["python_version"] = sys.version.split()[0]
         report["playwright_version"] = version("playwright")
         writes = []
+        report["database_mutations"] = writes
         def track_write(_connection, _cursor, statement, _parameters, _context, _many):
             verb = statement.lstrip().split(None, 1)[0].upper()
             if verb in {"INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "REPLACE"}:
-                writes.append(verb)
+                # Record only endpoint/action, operation and table identifier.
+                # Never save SQL text, parameters, credentials or row values.
+                match = re.match(r'\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM|(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX))\s+["`]?([A-Za-z_][A-Za-z_0-9]*)', statement, re.I)
+                writes.append(dict(action=active_request[0], verb=verb, table=match.group(1) if match else "UNIDENTIFIED"))
 
         with sync_playwright() as p:
             options = dict(headless=True)
@@ -348,6 +364,17 @@ def main():
                 require(m.User.query.filter_by(company_code="TEST", username="admin").one().dashboard_settings_json == before_settings, "Preview changed last vehicle setting")
                 require(m.VehicleKarteAnalysis.query.get(state_id).result_json == original_bytes, "Stored analysis changed")
                 require([(r.proposal_key,r.proposal_revision,r.status,r.comment) for r in m.VehicleAnalysisFeedback.query.all()] == feedback_before, "Feedback changed")
+                # Normal return is a separate phase after the complete preview
+                # listener/saved-state assertions. Normal notification maintenance
+                # is deliberately not described as read-only.
+                with page.expect_request(lambda req: urlsplit(req.url).path == "/api/notifications/unread-count") as normal_poll:
+                    with page.expect_navigation(wait_until="domcontentloaded"):
+                        page.get_by_role("link", name="試行表示を終了して通常表示へ", exact=True).click()
+                require(normal_poll.value.method == "GET", "Normal return did not resume notification GET")
+                expect(page.locator("body")).to_have_attribute("data-priority-preview", "false")
+                require("priority_preview" not in parse_qs(urlsplit(page.url).query), "Normal return retained preview")
+                page.locator(".ko-proposal").nth(4).wait_for()
+                report["cases"].append("NORMAL RETURN: explicit exit restores ordinary document and notification polling")
                 require(not report["non_get_requests"], "Unexpected write request")
                 require(not report["page_errors"], "Browser script error")
                 report["cases"].append("PRIORITY: three labels, score/evidence separate, narrow width, period/comparison/vehicle navigation, blocked missing fixture, zero DB writes and preserved saved state")

@@ -85,8 +85,8 @@ jobs:
           --health-cmd "pg_isready -U ${{ matrix.user }} -d ${{ matrix.database }}"
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
-      EXPECTED_COMMIT: 3ca0f38e36f47ad94a625e71492bedbdd2f11841
-      EXPECTED_TREE: cc05950a0ef99241ac1a80b320ddcafd0944c710
+      EXPECTED_COMMIT: 5c5a41babc6b4ac762414d96043383b7159b387a
+      EXPECTED_TREE: 58d83c00acf29ad202bb16ba864ef504af816cb3
       PYTHONPATH: .:tests
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUNBUFFERED: '1'
@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: 3ca0f38e36f47ad94a625e71492bedbdd2f11841
+          ref: 5c5a41babc6b4ac762414d96043383b7159b387a
           persist-credentials: false
       - name: Assert frozen application commit and tree
         shell: bash
@@ -199,7 +199,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: supplemental-${{ matrix.group }}-3ca0f38e-${{ github.run_id }}
+          name: supplemental-${{ matrix.group }}-5c5a41ba-${{ github.run_id }}
           path: supplemental-evidence/
           if-no-files-found: warn
           retention-days: 14

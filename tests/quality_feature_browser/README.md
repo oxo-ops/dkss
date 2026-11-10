@@ -1,6 +1,6 @@
 # Frozen candidate browser acceptance
 
-The workflow checks out application commit `3ca0f38e36f47ad94a625e71492bedbdd2f11841`, tree `cc05950a0ef99241ac1a80b320ddcafd0944c710`, into `candidate`. It reads the acceptance harness from the pull request head in a separate `validation` checkout. Later harness/CI commits do not silently change the application under test. A real browser run requires the exact candidate commit, complete tree identity and a clean worktree.
+The workflow checks out application commit `5c5a41babc6b4ac762414d96043383b7159b387a`, tree `58d83c00acf29ad202bb16ba864ef504af816cb3`, into `candidate`. It reads the acceptance harness from the pull request head in a separate `validation` checkout. Later harness/CI commits do not silently change the application under test. A real browser run requires the exact candidate commit, complete tree identity and a clean worktree.
 
 The narrow workflow runs on relevant pull-request changes for PR 361 from this repository only. It uses read-only repository permissions, no repository secrets, no deployment and no production service. Candidate Python dependencies and Playwright 1.62.0 are freshly installed on the hosted runner, then official Chromium is installed. These installation steps need access to their public distribution services.
 
@@ -39,3 +39,7 @@ Set `DKSS_BROWSER_ARTIFACT_DIR` to an absolute sidecar directory to control repo
 For fixture-only validation of a clean commit with the **identical complete tree** but different commit metadata, `--preflight-only --allow-identical-tree-preflight` is available. That flag cannot launch Chromium and is not used by the workflow. Preflight success is explicitly `PREFLIGHT_PASS_BROWSER_NOT_RUN` and is not browser acceptance.
 
 Dedicated PostgreSQL tests, existing patrol-form browser cases, dependency vulnerability audits, real-data normalization and maintenance-expert approval remain independent acceptance checks.
+
+## Preview notification polling repair
+
+This frozen candidate includes the minimal preview polling repair. Server-validated synthetic preview documents suppress the automatic unread-count request and polling events. Normal documents, explicit return to normal, the notification API and manual notification actions remain unchanged. The zero-write assertion covers the complete defined preview navigation before the separate normal-return phase. The final normal-return check requires notification polling to resume. Safe failure diagnostics contain only endpoint/action, SQL verb and table identifier, never SQL statements, parameters or row contents. Previous acceptance results for candidate 3ca0f38e do not certify this repaired candidate.
