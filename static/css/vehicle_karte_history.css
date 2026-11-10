@@ -34,4 +34,8 @@
     body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table th:first-child {
         padding-left: 28px;
     }
+    /* Keep YYYY/MM/DD inside its column at tablet and narrow desktop widths. */
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table th:first-child {
+        width: 112px;
+    }
 }
