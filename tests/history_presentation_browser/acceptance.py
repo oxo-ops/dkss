@@ -57,7 +57,7 @@ def main():
     report = dict(candidate_sha=sha, candidate_tree=tree, frozen_public_sha=PUBLIC_SHA,
                   started_utc=datetime.now(timezone.utc).isoformat(), fixture_only=True,
                   production_accessed=False, browser_started=False, browser_acceptance_passed=False,
-                  transport='in-process Flask WSGI GET bridge', cases=[], geometry=[], short_viewports=[],
+                  transport='in-process Flask WSGI GET bridge', cases=[], geometry=[], short_viewports=[], reachability=[],
                   baseline_collapse=args.baseline_collapse,
                   page_errors=[], non_get_requests=[], blocked_external_requests=[], failed_gets=[],
                   database_mutations=[], normal_notification_gets=0, ordinary_app_globally_read_only=False)
@@ -212,19 +212,26 @@ def main():
                             expect(control).to_be_in_viewport()
                             # Use pixel bounds, not area ratios: collapsed table borders can
                             # clip 0.5px from a 50px row and falsely fail even a 99% ratio.
-                            require(control.evaluate("""e => {
+                            reach=control.evaluate("""e => {
                                 const r=e.getBoundingClientRect();
-                                if (r.top < -1 || r.bottom > innerHeight+1) return false;
+                                const result={tag:e.tagName,classes:e.className,top:r.top,bottom:r.bottom,height:r.height,viewportHeight:innerHeight,clippedBy:[],coveredAt:[]};
+                                if (r.top < -1 || r.bottom > innerHeight+1) result.clippedBy.push('viewport');
                                 for (let p=e.parentElement;p;p=p.parentElement) {
                                     if (p === document.scrollingElement) continue;
                                     if (/auto|scroll|hidden|clip/.test(getComputedStyle(p).overflowY)) {
                                         const b=p.getBoundingClientRect(), top=b.top+p.clientTop;
-                                        if (r.top < top-1 || r.bottom > top+p.clientHeight+1) return false;
+                                        if (r.top < top-1 || r.bottom > top+p.clientHeight+1) result.clippedBy.push({tag:p.tagName,classes:p.className,top,bottom:top+p.clientHeight});
                                     }
                                 }
-                                return [r.top+1,r.top+r.height/2,r.bottom-1].every(y =>
-                                    e.contains(document.elementFromPoint(r.left+r.width/2,y)));
-                            }"""), 'History row or control clipped or covered after scrolling')
+                                for (const y of [r.top+1,r.top+r.height/2,r.bottom-1]) {
+                                    const hit=document.elementFromPoint(r.left+r.width/2,y);
+                                    if (!e.contains(hit)) result.coveredAt.push({y,tag:hit?.tagName,classes:hit?.className});
+                                }
+                                return result;
+                            }""")
+                            reach.update(width=width,height=height,density=density)
+                            report['reachability'].append(reach)
+                            require(not reach['clippedBy'] and not reach['coveredAt'], 'History row or control clipped or covered after scrolling: '+json.dumps(reach))
                         if density=='dense':
                             with page.expect_navigation(wait_until='domcontentloaded'):
                                 page.get_by_role('link',name='次のページ',exact=True).click()
@@ -307,7 +314,9 @@ def main():
                               baseline_collapse_reproduced=args.baseline_collapse)
                 return 0
             except Exception:
-                if 'page' in locals() and not page.is_closed():page.screenshot(path=str(output/'failure.png'),full_page=True)
+                if 'page' in locals() and not page.is_closed():
+                    page.screenshot(path=str(output/'failure-viewport.png'))
+                    page.screenshot(path=str(output/'failure.png'),full_page=True)
                 raise
             finally:
                 browser.close()
