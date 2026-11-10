@@ -1,5 +1,6 @@
 """Vehicle Documents responsibilities; routes are registered by the application factory."""
 from . import access as _dkss_access, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_imports as _dkss_vehicle_imports, vehicle_pending as _dkss_vehicle_pending, vehicle_readers as _dkss_vehicle_readers
+from .invoice_review_failure_logging import log_invoice_review_failure
 
 
 def vehicle_maintenance_document_duplicate(document_id):
@@ -101,9 +102,9 @@ def vehicle_maintenance_document_duplicate(document_id):
     except (_dkss_common.UploadValidationError, ValueError) as error:
         _dkss_common.db.session.rollback()
         return _dkss_http.return_form_errors([(str(error), "")])
-    except _dkss_common.SQLAlchemyError:
+    except _dkss_common.SQLAlchemyError as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception("請求書の確認結果を保存できませんでした。")
+        log_invoice_review_failure(_dkss_runtime.app.logger, action="already_recorded", error=error)
         return _dkss_http.return_form_errors([
             ("確認結果を保存できませんでした。再度お試しください。", "")
         ], status_code=500)
@@ -288,9 +289,9 @@ def review_vehicle_maintenance_document_cost(document_id, cost_mode):
         return _dkss_http.return_form_errors([(
             "請求書の金額・明細・確認状態を確認してください。 " + str(error), ""
         )])
-    except _dkss_common.SQLAlchemyError:
+    except _dkss_common.SQLAlchemyError as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception("初回の請求費用を保存できませんでした。")
+        log_invoice_review_failure(_dkss_runtime.app.logger, action=cost_mode, error=error)
         return _dkss_http.return_form_errors([(
             "費用を保存できませんでした。再度お試しください。", ""
         )], status_code=500)
@@ -452,9 +453,9 @@ def vehicle_maintenance_document_parts(document_id):
     except (ValueError, KeyError, TypeError, _dkss_common.InvalidOperation) as error:
         _dkss_common.db.session.rollback()
         return _dkss_http.return_form_errors([("交換部品を確認してください。 " + str(error), "")])
-    except _dkss_common.SQLAlchemyError:
+    except _dkss_common.SQLAlchemyError as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception("請求書の交換部品を保存できませんでした。")
+        log_invoice_review_failure(_dkss_runtime.app.logger, action="parts_review", error=error)
         return _dkss_http.return_form_errors([("交換部品を保存できませんでした。再度お試しください。", "")], status_code=500)
     _dkss_common.flash("交換部品を確認しました。新規登録は" + str(created_count) + "件です。費用は変更していません。", "success")
     return _dkss_common.redirect(_dkss_common.url_for("vehicle_maintenance_document_reviews"))
