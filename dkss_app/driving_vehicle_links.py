@@ -163,15 +163,17 @@ def group_vehicles(panel):
 
 def correction_state():
     """Reuse one company-scoped read within this HTTP request, never across users."""
-    key = ('dkss.driving.corrections', session['company_code'])
-    if key not in request.environ:
+    # Keep company keys inside one string-named WSGI extension, not in environ.
+    cache = request.environ.setdefault('dkss.driving.corrections', {})
+    key = session['company_code']
+    if key not in cache:
         inspector = inspect(db.engine)
         table = DrivingVehicleCorrection.__tablename__
         ready = inspector.has_table(table) and set(CORRECTION_IDENTITIES).issubset(
             c['name'] for c in inspector.get_columns(table))
         items = DrivingVehicleCorrection.query.filter_by(company_code=session['company_code']).order_by(DrivingVehicleCorrection.revision).all() if ready else []
-        request.environ[key] = (ready, items)
-    return request.environ[key]
+        cache[key] = (ready, items)
+    return cache[key]
 
 
 def account_corrections(user, corrections):

@@ -155,9 +155,11 @@ class Resolver:
 def resolver(fresh=False):
     company = session.get('company_code')
     if not has_request_context(): return Resolver(company)
-    key = ('dkss.driving.identity', company)
-    if fresh or key not in request.environ: request.environ[key] = Resolver(company)
-    return request.environ[key]
+    # WSGI extensions use string keys; company-scoped cache keys stay inside.
+    cache = request.environ.setdefault('dkss.driving.identity', {})
+    if fresh or company not in cache:
+        cache[company] = Resolver(company)
+    return cache[company]
 
 
 def preview(values, registered=False):
