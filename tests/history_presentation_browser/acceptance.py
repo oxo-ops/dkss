@@ -10,8 +10,8 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = 'c1bffcf87a919963806d4641820a1ae9ff39286b'
-FROZEN_TREE = '80a3352c45afd14cec75f0d15cadab56ef36f9ad'
+PUBLIC_SHA = '230a4ae29023ec6eb5fb5391cdc46ff912bbcece'
+FROZEN_TREE = '94093e937e1499e6f611775c97a77dad799beca2'
 ORIGIN = 'http://127.0.0.1:8765'
 
 
@@ -142,6 +142,7 @@ def main():
                             markerContent:marker.content,paddingLeft:getComputedStyle(e).paddingLeft,
                             text:e.textContent.trim()};
                     })''')
+                    report['geometry'].append(dict(width=width,rows=values))
                     require(len(values)>0,'Missing history dates')
                     if width>=769:
                         require(all(v['paddingLeft']=='28px' for v in values),'Desktop date gutter overridden')
@@ -150,7 +151,6 @@ def main():
                     else:
                         require(all('日付' in v['markerContent'] for v in values),'Mobile date label lost')
                     require(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'Page horizontal overflow')
-                    report['geometry'].append(dict(width=width,rows=values))
                 for width in (1440,1024,769,768,390):
                     page.set_viewport_size({'width':width,'height':1000})
                     for path in (history,canonical):

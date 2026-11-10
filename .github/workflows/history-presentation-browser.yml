@@ -23,7 +23,7 @@ jobs:
       - name: Check out frozen application candidate
         uses: actions/checkout@v7
         with:
-          ref: c1bffcf87a919963806d4641820a1ae9ff39286b
+          ref: 230a4ae29023ec6eb5fb5391cdc46ff912bbcece
           path: candidate
           persist-credentials: false
           fetch-depth: 1
@@ -51,8 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/history-presentation-browser-results"
-          test "$(git -C candidate rev-parse HEAD)" = c1bffcf87a919963806d4641820a1ae9ff39286b
-          test "$(git -C candidate rev-parse HEAD^{tree})" = 80a3352c45afd14cec75f0d15cadab56ef36f9ad
+          test "$(git -C candidate rev-parse HEAD)" = 230a4ae29023ec6eb5fb5391cdc46ff912bbcece
+          test "$(git -C candidate rev-parse HEAD^{tree})" = 94093e937e1499e6f611775c97a77dad799beca2
           test -z "$(git -C candidate status --porcelain --untracked-files=all)"
           printf 'candidate=%s\nvalidation=%s\n' "$(git -C candidate rev-parse HEAD)" "$(git -C validation rev-parse HEAD)" > "$RUNNER_TEMP/history-presentation-browser-results/source-identity.txt"
           chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
