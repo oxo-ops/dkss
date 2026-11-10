@@ -158,10 +158,12 @@ def selected_candidate_ids(company, usernames, previous):
 def current_user_id():
     if not has_request_context():
         return None
-    key = ('safety.user_id', session.get('company_code'), session.get('username'))
-    if key not in request.environ:
-        request.environ[key] = user_id(key[1], key[2])
-    return request.environ[key]
+    # WSGI environ keys must be strings; Gunicorn lowercases them for access logs.
+    cache = request.environ.setdefault('dkss.safety.user_ids', {})
+    key = (session.get('company_code'), session.get('username'))
+    if key not in cache:
+        cache[key] = user_id(*key)
+    return cache[key]
 
 
 def is_current(saved_identity):
