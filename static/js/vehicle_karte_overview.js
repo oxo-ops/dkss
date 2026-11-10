@@ -17,14 +17,12 @@
     // Hide presentation annotations in saved AI output; preserve the actual advice.
     const text = value => typeof value === "string"
         ? value.replace(/[（(]\s*(?:提案上の時[機期]|リスク区分とは別)\s*[）)]/g, "").trim() : "";
-    function fact(label, value) {
-        const row = node("div", "ko-proposal-fact", "");
-        row.append(node("span", "", label), node("span", "", value));
-        return row;
-    }
+    const visibleProposalLimit = 5;
+    const previewMode = new URLSearchParams(window.location.search || "").get("priority_preview") === "1";
+    const preview = window.VehiclePriorityPreview;
     async function load() {
         try {
-            const response = await fetch(panel.dataset.resultUrl, {
+            const response = await fetch(previewMode ? preview.url(panel.dataset.resultUrl, window.location) : panel.dataset.resultUrl, {
                 credentials:"same-origin", cache:"no-store", signal:AbortSignal.timeout(15000)
             });
             if (response.redirected || !response.ok) throw new Error();
@@ -32,6 +30,17 @@
             if (!data.ok) throw new Error();
             const current = data.status === "completed" && data.is_current === true;
             list.replaceChildren();
+            let previewResult;
+            if (previewMode) {
+                previewResult = preview.validate(data);
+                if (!previewResult.available) {
+                    summary.textContent = "試行表示不可";
+                    panel.dataset.current = "false";
+                    status.hidden = false;
+                    status.textContent = previewResult.message;
+                    return;
+                }
+            }
             if (!data.has_result || !Array.isArray(data.analysis?.recommendations)) {
                 summary.textContent = "未取得";
                 status.textContent = data.status === "error" ? "分析結果を取得できません。分析タブで確認してください。" :
@@ -39,45 +48,57 @@
                 return;
             }
             const priorities = {"高":0,"中":1,"低":2};
-            const items = data.analysis.recommendations.filter(item => item && typeof item === "object" &&
+            const items = (previewMode ? previewResult.items : data.analysis.recommendations).filter(item => item && typeof item === "object" &&
                 item.category !== "記録確認" && !(item.feedback?.revision === item.proposal_revision &&
                 ["completed","dismissed"].includes(item.feedback?.status)))
-                .sort((a,b) => (priorities[a.priority] ?? 3) - (priorities[b.priority] ?? 3));
+                .sort((a,b) => previewMode ? 0 : (priorities[a.priority] ?? 3) - (priorities[b.priority] ?? 3));
             summary.textContent = `${items.length}件`;
             panel.dataset.current = String(current);
-            for (const item of items.slice(0,3)) {
+            for (const item of items.slice(0, visibleProposalLimit)) {
                 const url = new URL(panel.dataset.analysisUrl, window.location.origin);
                 if (url.origin !== window.location.origin) throw new Error();
+                if (previewMode) url.searchParams.set("priority_preview", "1");
                 if (item.proposal_id) url.hash = `proposal=${encodeURIComponent(item.proposal_id)}`;
                 const row = node("li", "ko-proposal", "");
+                if (previewMode) row.dataset.priorityPreview = "true";
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
+                const priorityValue = ["高", "中", "低"].includes(item.priority) ? item.priority : "未評価";
+                const priority = previewMode ? preview.badge(document, item.priority_preview) : node("span", "ko-priority", priorityValue);
+                if (!previewMode) {
+                    priority.dataset.priority = priorityValue;
+                    priority.setAttribute("aria-label", `対応優先度：${priorityValue}`);
+                }
+                const copy = node("div", "ko-proposal-copy", "");
                 const heading = node("div", "ko-proposal-heading", "");
-                const badges = node("div", "ko-proposal-badges", "");
                 const changed = item.feedback?.revision && item.feedback.revision !== item.proposal_revision;
                 const feedback = changed ? "提案更新あり" : ({open:"未着手",accepted:"採用",in_progress:"対応中"}[item.feedback?.status] || "未着手");
-                badges.append(node("span", "ko-badge ko-attention", text(item.timing) || "時期未評価"), node("span", "ko-badge", feedback));
-                heading.append(node("strong", "", text(item.target) || "確認項目"), badges);
-                row.append(heading, node("div", "ko-proposal-action", text(item.action) || "提案内容を確認"));
-                row.append(fact("状態", text(item.current_state) || "状態を判断できる記録が不足しています。"));
-                row.append(fact("懸念", text(item.risk) || "影響は未評価です。"));
-                const footer = node("div", "ko-proposal-footer", "");
-                const priority = node("span", "ko-badge ko-priority", `対応優先度：${["高","中","低"].includes(item.priority) ? item.priority : "未評価"}`);
-                priority.dataset.priority = item.priority || "";
-                const action = node("a", "ko-primary-action", "対応を確認 →");
+                const target = text(item.target) || "確認項目";
+                heading.append(node("strong", "", target));
+                if (feedback !== "未着手") heading.append(node("span", "ko-badge", feedback));
+                // Show saved advice verbatim. Full state, risk, timing and sources
+                // remain available through the proposal-specific analysis link.
+                copy.append(heading, node("p", "ko-proposal-action", text(item.action) || "提案内容を確認してください。"));
+                if (previewMode) {
+                    const p = item.priority_preview;
+                    copy.append(node("p", "priority-preview-evidence", `根拠：${p.evidence_status}${p.missing_conditions.length ? ` / 確認事項 ${p.missing_conditions.length}件` : ""}`));
+                }
+                const action = node("a", "ko-proposal-detail", "詳細 ›");
+                action.setAttribute("aria-label", `詳細：${target}の提案と対応を確認`);
                 action.href = url.href;
-                footer.append(priority, action);
-                row.append(footer);
+                row.append(priority, copy, action);
                 list.append(row);
             }
             if (!items.length) list.append(node("li", "ko-empty", "対応済み・見送り等を除く予防整備の提案はありません。"));
-            if (items.length > 3) {
+            if (items.length > visibleProposalLimit) {
                 const row=node("li", "", "");
-                const more=node("a", "ko-action-button", `残り${items.length-3}件を分析で確認 →`);
-                more.href=panel.dataset.analysisUrl; row.append(more); list.append(row);
+                const more=node("a", "ko-action-button", `残り${items.length-visibleProposalLimit}件を分析で確認 →`);
+                more.href=previewMode ? preview.url(panel.dataset.analysisUrl, window.location) : panel.dataset.analysisUrl; row.append(more); list.append(row);
             }
             status.textContent = current ? "" : `前回の提案 · ${data.status === "error" ? "更新エラー" : data.status === "running" ? "分析中" : data.status === "pending" || data.is_current === false ? "更新待ち" : "更新状態未確認"}`;
-            status.hidden = current;
+            status.hidden = current && !previewMode;
+            if (previewMode) status.textContent = `${status.textContent ? status.textContent + " · " : ""}${previewResult.message} 試行値・本番未承認。低は安全確認済みではありません。根拠不足は詳細で確認し、運行可否は人が判断してください。`;
         } catch {
+            if (previewMode) { list.replaceChildren(); panel.dataset.current = "false"; }
             if (summary) summary.textContent = "取得失敗";
             status.hidden = false;
             status.textContent = "分析結果を取得できませんでした。分析タブで確認してください。";
@@ -88,6 +109,12 @@
 (() => {
     "use strict";
     const form = document.querySelector("[data-note-form]");
+    if (new URLSearchParams(window.location.search || "").get("priority_preview") === "1") {
+        if (form) form.hidden = true;
+        const editButton = document.querySelector("[data-note-edit]");
+        if (editButton) editButton.hidden = true;
+        return;
+    }
     const edit = document.querySelector("[data-note-edit]");
     if (!form || !edit) return;
     const display = document.querySelector("[data-note-display]");

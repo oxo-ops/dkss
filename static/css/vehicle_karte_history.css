@@ -1,0 +1,28 @@
+/* History facets remain normal GET links, including without JavaScript. */
+.vehicle-history-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-basis: 100%;
+}
+.vehicle-history-categories a {
+    min-height: 44px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.vehicle-history-categories a[aria-current="true"] {
+    background: #dceaff;
+    border-color: #075bea;
+    color: #064ba9;
+    font-weight: 700;
+}
+.vehicle-history-categories a:focus-visible {
+    outline: 2px solid #075bea;
+    outline-offset: 3px;
+}
+.vehicle-history-category-help {
+    flex-basis: 100%;
+    color: #526581;
+}

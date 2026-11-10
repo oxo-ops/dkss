@@ -5,6 +5,16 @@
     const results = document.getElementById("ka-ai-results");
     if (!status || !results || !status.dataset.url) return;
 
+    if (new URLSearchParams(window.location.search || "").get("priority_preview") === "1") {
+        if (window.VehiclePriorityPreview) {
+            window.VehiclePriorityPreview.mountAnalysis({doc: document, location: window.location, status, results, fetcher: fetch});
+        } else {
+            status.textContent = "試行表示を読み込めません。画面を再読み込みしてください。";
+            status.hidden = false;
+        }
+        return;
+    }
+
     let timer;
     let busy = false;
     let stopped = false;

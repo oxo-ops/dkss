@@ -75,6 +75,11 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     ).first()
 
     bundle = _dkss_serialization.safe_json_dict(state.result_json) if state else {}
+    # An isolated synthetic preview bypasses normal cache refresh and AI paths.
+    # No production flag or request-provided facts can enable this projection.
+    if _dkss_common.request.args.get("priority_preview") == "1":
+        from .priority_preview import preview_result
+        return preview_result(vehicle, state, bundle)
     analysis = bundle.get("analysis")
     has_result = isinstance(analysis, dict)
     status = state.status if state else "waiting"
@@ -1598,6 +1603,10 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
 
 def vehicle_karte_analysis(vehicle_record_id):
     from flask import abort
+    priority_preview_mode = _dkss_common.request.args.get("priority_preview") == "1"
+    if priority_preview_mode:
+        from .priority_preview import require_preview_access
+        require_preview_access()
     if not _dkss_common.session.get('username'):
         return _dkss_common.redirect(_dkss_common.url_for('login'))
     vehicle = _dkss_models.Vehicle.query.filter_by(
@@ -1647,4 +1656,4 @@ def vehicle_karte_analysis(vehicle_record_id):
                     status = 502
                 return (_dkss_common.jsonify(ok=False, message=message), status)
         return _dkss_common.jsonify(ok=True, analysis=result, sources=sources, coverage=payload['coverage'], generated_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M'))
-    return _dkss_common.render_template('vehicle_karte_analysis.html', karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat()), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'), include_inactive=_dkss_common.request.args.get('peer_inactive') == '1'), analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)
+    return _dkss_common.render_template('vehicle_karte_analysis.html', priority_preview_mode=priority_preview_mode, karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat()), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'), include_inactive=_dkss_common.request.args.get('peer_inactive') == '1'), analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)
