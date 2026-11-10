@@ -10,8 +10,8 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = '38891e31e4065359cf5f2aa55fb3873917685939'
-FROZEN_TREE = '3f940872a47e898225ecd9c66e53603e82098bf1'
+PUBLIC_SHA = '2cea64f5a9124ed4a92bb8bc8863af2426dbb420'
+FROZEN_TREE = '7a7d1850740b67c0559d2438f8e15be2931b7474'
 ORIGIN = 'http://127.0.0.1:8765'
 
 
@@ -146,6 +146,9 @@ def main():
                     require(len(values)>0,'Missing history dates')
                     if width>=769:
                         require(all(v['paddingLeft']=='28px' for v in values),'Desktop date gutter overridden')
+                        require(all(v['markerContent'] == '""' for v in values),'Mobile date label leaked into timeline marker')
+                        other_labels = page.locator('.vehicle-karte-history-table tbody td:not(.vehicle-history-date)').evaluate_all("els => els.map(e => getComputedStyle(e,'::before').content)")
+                        require(all(content == 'none' for content in other_labels),'Mobile field labels leaked into desktop table')
                         require(all(v['textLeft']-v['markerRight']>=6 for v in values),'Timeline marker overlaps date')
                         require(all(v['textRight']<=v['cellRight']+1 for v in values),'Date text crosses adjacent column')
                     else:
