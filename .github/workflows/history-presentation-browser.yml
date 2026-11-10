@@ -103,16 +103,13 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import base64, json, os
+          import json, os
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])/'history-presentation-browser-results'
           for source in ('historical','baseline','candidate'):
               report=root/source/'browser-result.json'
               if not report.exists():
                   continue
-              screenshot=root/source/'observed-viewport.jpg'
-              if screenshot.exists():
-                  print('SCREENSHOT_JPEG_BASE64:'+source+':'+base64.b64encode(screenshot.read_bytes()).decode())
               data=json.loads(report.read_text())
               print(source, data['candidate_sha'], data['candidate_tree'], data['status'])
               for row in data['short_viewports']:

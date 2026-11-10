@@ -112,7 +112,7 @@ def main():
                 require(nav.active[0].get('aria-current') == 'page','Missing current page semantics')
         require(snapshot() == before,'History data changed in preflight')
         require(not report['database_mutations'],'History route wrote SQL')
-        report['cases'].append('PREFLIGHT: both aliases, filtered page, selected Karte nav, 25 synthetic records unchanged')
+        report['cases'].append('PREFLIGHT: both aliases, filtered page, 25 synthetic records unchanged' + ('' if args.historical_height_only else ', selected Karte nav'))
         if args.preflight_only:
             report['status'] = 'PREFLIGHT_PASS_BROWSER_NOT_RUN'; return 0
         from importlib.metadata import version
@@ -209,10 +209,22 @@ def main():
                                         page.locator('.kp-footer'),
                                         page.get_by_role('button',name='絞り込み',exact=True)):
                             control.scroll_into_view_if_needed()
-                            # Collapsed table borders can clip a subpixel at the horizontal edge.
-                            expect(control).to_be_in_viewport(ratio=0.99)
-                            require(control.evaluate("e => { const r=e.getBoundingClientRect(); return r.top >= -1 && r.bottom <= innerHeight+1; }"), 'History row or control vertically clipped')
-                            require(control.evaluate("e => { const r=e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)); }"), 'History row or control covered after scrolling')
+                            expect(control).to_be_in_viewport()
+                            # Use pixel bounds, not area ratios: collapsed table borders can
+                            # clip 0.5px from a 50px row and falsely fail even a 99% ratio.
+                            require(control.evaluate("""e => {
+                                const r=e.getBoundingClientRect();
+                                if (r.top < -1 || r.bottom > innerHeight+1) return false;
+                                for (let p=e.parentElement;p;p=p.parentElement) {
+                                    if (p === document.scrollingElement) continue;
+                                    if (/auto|scroll|hidden|clip/.test(getComputedStyle(p).overflowY)) {
+                                        const b=p.getBoundingClientRect(), top=b.top+p.clientTop;
+                                        if (r.top < top-1 || r.bottom > top+p.clientHeight+1) return false;
+                                    }
+                                }
+                                return [r.top+1,r.top+r.height/2,r.bottom-1].every(y =>
+                                    e.contains(document.elementFromPoint(r.left+r.width/2,y)));
+                            }"""), 'History row or control clipped or covered after scrolling')
                         if density=='dense':
                             with page.expect_navigation(wait_until='domcontentloaded'):
                                 page.get_by_role('link',name='次のページ',exact=True).click()
