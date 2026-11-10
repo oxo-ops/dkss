@@ -10,8 +10,8 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = '8d36d64aaa7080e9e53538cf4433a752024e5614'
-FROZEN_TREE = '0425395f26bcdfdbd8f7f7e6216b283bdc77e06f'
+PUBLIC_SHA = '8ee31738b68b486a86ef9c48f67a0182b5a9f376'
+FROZEN_TREE = 'b16a1fd2b0e5f6da25f693e6a24a8c98f0dc79ba'
 ORIGIN = 'http://127.0.0.1:8765'
 
 
@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--chromium', type=Path)
+    parser.add_argument('--expected-sha', help='Exact candidate SHA supplied by trusted CI event')
+    parser.add_argument('--baseline-collapse', action='store_true', help='Measure the pinned release, expecting the short-height defect')
     parser.add_argument('--allow-identical-tree-preflight', action='store_true')
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument('--preflight-only', action='store_true')
@@ -35,9 +37,11 @@ def main():
     require(os.environ.get('DATABASE_URL') == 'sqlite:///:memory:', 'No external DB allowed')
     sha = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'], text=True).strip()
     tree = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD^{tree}'], text=True).strip()
-    require(tree == FROZEN_TREE, 'Wrong frozen source tree')
+    require(not args.baseline_collapse or not args.expected_sha, 'Baseline must use the pinned release')
+    if not args.expected_sha:
+        require(tree == FROZEN_TREE, 'Wrong frozen source tree')
     require(not args.allow_identical_tree_preflight or args.preflight_only, 'Tree-only flag cannot launch browser')
-    require(sha == PUBLIC_SHA or args.allow_identical_tree_preflight, 'Wrong frozen source commit')
+    require(sha == (args.expected_sha or PUBLIC_SHA) or args.allow_identical_tree_preflight, 'Wrong exact source commit')
     require(not subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=all'], text=True).strip(), 'Candidate must be clean')
     if args.run_browser:
         require(args.chromium is not None and args.chromium.is_file(), 'Explicit installed Chromium required')
@@ -50,7 +54,8 @@ def main():
     report = dict(candidate_sha=sha, candidate_tree=tree, frozen_public_sha=PUBLIC_SHA,
                   started_utc=datetime.now(timezone.utc).isoformat(), fixture_only=True,
                   production_accessed=False, browser_started=False, browser_acceptance_passed=False,
-                  transport='in-process Flask WSGI GET bridge', cases=[], geometry=[],
+                  transport='in-process Flask WSGI GET bridge', cases=[], geometry=[], short_viewports=[],
+                  baseline_collapse=args.baseline_collapse,
                   page_errors=[], non_get_requests=[], blocked_external_requests=[], failed_gets=[],
                   database_mutations=[], normal_notification_gets=0, ordinary_app_globally_read_only=False)
     case = WorkflowRegressionTests()
@@ -64,7 +69,7 @@ def main():
         require(Path(m.db.engine.url.database).resolve().is_relative_to(Path(os.environ['DKSS_VALIDATION_TMP']).resolve()), 'DB outside disposable fixture')
         for index in range(25):
             m.db.session.add(m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=case.vehicle.id,
-                content=f'合成履歴{index:02d}', status='完了', entry_date='2026-11-10'))
+                content=f'合成履歴{index:02d}', status='要対応' if index < 2 else '完了', entry_date='2026-11-10'))
         user = m.User.query.filter_by(company_code='TEST', username='admin').one()
         user.dashboard_settings_json = json.dumps({'vehicle_karte_last_vehicle_id':case.vehicle.id})
         m.db.session.commit()
@@ -154,7 +159,70 @@ def main():
                     else:
                         require(all('日付' in v['markerContent'] for v in values),'Mobile date label lost')
                     require(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'Page horizontal overflow')
-                for width in (1440,1024,901,900,769,768,390):
+                def short_height_geometry(width, height, density):
+                    values = page.locator('.vehicle-karte-history-panel').evaluate("""panel => {
+                        const box = e => { const r=e.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:r.height}; };
+                        const scroller=panel.querySelector('.table-scroll');
+                        const table=scroller.querySelector('table');
+                        const heading=panel.querySelector('.vehicle-karte-history-heading');
+                        const footer=panel.querySelector('.kp-footer');
+                        return {panel:box(panel),heading:box(heading),footer:box(footer),
+                            clientHeight:scroller.clientHeight,scrollHeight:scroller.scrollHeight,
+                            table:box(table),thead:box(table.tHead),row:box(table.tBodies[0].rows[0]),
+                            rowCount:table.tBodies[0].rows.length,flow:panel.dataset.flowLayout,
+                            computedHeight:getComputedStyle(panel).height,
+                            workspaceHeight:panel.style.getPropertyValue('--karte-workspace-height')};
+                    }""")
+                    values.update(width=width,height=height,density=density)
+                    values['readable'] = values['clientHeight'] + 1 >= min(values['table']['height'], values['thead']['height'] + values['row']['height'])
+                    report['short_viewports'].append(values)
+                    return values
+                short_sizes = ((1180,757),(1165,747),(1165,600),(1165,650),(1165,700),(1165,800),(1165,850),
+                               (960,747),(961,747),(1440,650),(1024,650),(390,600))
+                for width,height in short_sizes:
+                    page.set_viewport_size({'width':width,'height':height})
+                    for density,suffix,count in (('dense','',10),('two-rows','?status=要対応',2)):
+                        page.goto(ORIGIN+history+suffix,wait_until='networkidle')
+                        nav_check(); geometry(width)
+                        expect(page.locator('.vehicle-karte-history-table tbody tr')).to_have_count(count)
+                        values=short_height_geometry(width,height,density)
+                        page.screenshot(path=str(output/f'history-{width}x{height}-{density}.png'),full_page=True)
+                        if args.baseline_collapse:
+                            continue
+                        require(values['readable'],f'History rows clipped at {width}x{height} ({density})')
+                        require(values['footer']['top']+1>=values['table']['bottom'], 'History footer overlaps rows')
+                        # Rows and controls must be reachable by normal browser scrolling, not just present in DOM.
+                        for control in (page.locator('.vehicle-karte-history-table tbody tr').first,
+                                        page.locator('.vehicle-karte-history-table tbody tr').last,
+                                        page.locator('.kp-footer'),
+                                        page.get_by_role('button',name='絞り込み',exact=True)):
+                            control.scroll_into_view_if_needed()
+                            expect(control).to_be_in_viewport(ratio=1)
+                            require(control.evaluate("e => { const r=e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)); }"), 'History row or control covered after scrolling')
+                        if density=='dense':
+                            with page.expect_navigation(wait_until='domcontentloaded'):
+                                page.get_by_role('link',name='次のページ',exact=True).click()
+                            require(parse_qs(urlsplit(page.url).query).get('page')==['2'],'Short-height pagination failed')
+                            with page.expect_navigation(wait_until='domcontentloaded'):
+                                page.locator('.vehicle-history-categories a[data-category="maintenance"]').click()
+                            require(parse_qs(urlsplit(page.url).query).get('category')==['maintenance'],'Short-height category filter failed')
+                            with page.expect_navigation(wait_until='domcontentloaded'):
+                                page.get_by_role('button',name='絞り込み',exact=True).click()
+                            nav_check()
+                            require(short_height_geometry(width,height,'after-controls')['readable'],'Controls recollapsed history')
+                    report['cases'].append(f'SHORT_HEIGHT: {width}x{height}, dense and two-row history')
+                if args.baseline_collapse:
+                    require(any(not item['readable'] and (item['width'],item['height']) in {(1180,757),(1165,747)} for item in report['short_viewports']), 'Pinned baseline did not reproduce table collapse at reported viewport')
+                    report['cases'].append('BASELINE: short-height table collapse reproduced')
+                else:
+                    # Repeated resize on the same document must not recollapse it.
+                    page.goto(ORIGIN+history,wait_until='networkidle')
+                    for height in (747,600,850,747):
+                        page.set_viewport_size({'width':1165,'height':height})
+                        page.wait_for_timeout(100)
+                        require(short_height_geometry(1165,height,'resize')['readable'],'Repeated resize clipped history')
+                for width in (() if args.baseline_collapse else (1440,1024,901,900,769,768,390)):
+
                     page.set_viewport_size({'width':width,'height':1000})
                     for path in (history,canonical):
                         page.goto(ORIGIN+path,wait_until='networkidle')
@@ -207,7 +275,9 @@ def main():
                 require(all(w['endpoint'] in notification_endpoints and (w['verb'],w['table']) in allowed for w in report['database_mutations']),'Unexpected write outside normal notifications')
                 require(report['normal_notification_gets']>0,'Normal notification polling missing')
                 require(not report['page_errors'] and not report['non_get_requests'] and not report['blocked_external_requests'] and not report['failed_gets'],'Browser request or script failure')
-                report.update(status='PASS',saved_history_unchanged=True,browser_acceptance_passed=True)
+                report.update(status='BASELINE_COLLAPSE_REPRODUCED' if args.baseline_collapse else 'PASS',
+                              saved_history_unchanged=True,browser_acceptance_passed=not args.baseline_collapse,
+                              baseline_collapse_reproduced=args.baseline_collapse)
                 return 0
             except Exception:
                 if 'page' in locals() and not page.is_closed():page.screenshot(path=str(output/'failure.png'),full_page=True)
