@@ -174,6 +174,22 @@ def main():
         preview_html = request(analysis + "?priority_preview=1").get_data(as_text=True)
         forms = [f for f in PreviewHTML(preview_html).forms if f.get("class") in ("ka-period-form", "ka7-peer-conditions")]
         require(len(forms) == 2, "Preview forms fixture missing")
+        # Confirm the GET-navigation contract using the actual rendered pages.
+        # Browser synchronization below must wait for these replacement documents.
+        for registration in ("same_year", "all_years"):
+            path = analysis + "?priority_preview=1&start_date=2026-01-01&end_date=2026-11-10&peer_registration=" + registration
+            response = request(path)
+            require(response.status_code == 200, "Preview navigation route failed")
+            html = response.get_data(as_text=True)
+            parsed = PreviewHTML(html)
+            navigation_forms = [f for f in parsed.forms if f.get("class") in ("ka-period-form", "ka7-peer-conditions")]
+            require(len(navigation_forms) == 2, "Preview replacement forms missing")
+            for form in navigation_forms:
+                require(form["fields"].get("priority_preview") == "1", "Replacement form lost preview")
+                require(form["fields"].get("start_date") == "2026-01-01" and form["fields"].get("end_date") == "2026-11-10", "Replacement form lost dates")
+            require('<details class="ka9-peer-settings"><summary>比較条件を変更</summary>' in html, "Synthetic no-peer form must start in a closed disclosure")
+            require(any(link.get("class") == "vehicle-karte-tab" and link.get("href") == overview + "?priority_preview=1" for link in parsed.links), "Replacement page lost preview overview link")
+        report["navigation_contract_preflight"] = "PASS: date/comparison GETs retain preview/dates; no-peer disclosure starts closed; overview link retained"
         report["cases"].append("PREFLIGHT: clean frozen source identity; synthetic persisted proposals/history; authenticated routes; six persisted same-company source links; stale freshness retained; three preview labels; identity and company scope")
         if args.preflight_only:
             report["status"] = "PREFLIGHT_PASS_BROWSER_NOT_RUN"
@@ -290,19 +306,38 @@ def main():
                     require(page.get_by_text("運行可否は人が判断してください。", exact=False).count() > 0, "Human decision notice absent")
                     page.locator(".ka-period-form input[name=start_date]").fill("2026-01-01")
                     page.locator(".ka-period-form input[name=end_date]").fill("2026-11-10")
-                    page.locator(".ka-period-form button[type=submit]").click()
-                    require(parse_qs(urlsplit(page.url).query).get("priority_preview") == ["1"], "Period lost preview")
+                    with page.expect_navigation(wait_until="domcontentloaded"):
+                        page.locator(".ka-period-form button[type=submit]").click()
+                    period_query = parse_qs(urlsplit(page.url).query)
+                    require(period_query.get("priority_preview") == ["1"], "Period lost preview")
+                    require(period_query.get("start_date") == ["2026-01-01"] and period_query.get("end_date") == ["2026-11-10"], "Period dates were not submitted")
+                    expect(page.locator(".priority-preview-card")).to_have_count(6)
                     peer_details = page.locator("details.ka9-peer-settings")
-                    if peer_details.count() and peer_details.get_attribute("open") is None:
-                        peer_details.locator("summary").click()
-                    page.locator('.ka7-peer-conditions select[name=peer_registration]').select_option("all_years")
-                    page.locator('.ka7-peer-conditions button[type=submit]').click()
-                    require(parse_qs(urlsplit(page.url).query).get("priority_preview") == ["1"], "Comparison lost preview")
-                    page.locator(f'a.vehicle-karte-tab[href="{overview}?priority_preview=1"]').click()
+                    expect(peer_details).to_have_count(1)
+                    peer_summary = peer_details.locator("summary")
+                    expect(peer_summary).to_be_visible()
+                    if peer_details.get_attribute("open") is None:
+                        peer_summary.click()
+                    require(peer_details.get_attribute("open") is not None, "Comparison disclosure did not open")
+                    peer_select = peer_details.locator('select[name=peer_registration]')
+                    expect(peer_select).to_be_visible()
+                    peer_select.select_option("all_years")
+                    expect(peer_select).to_have_value("all_years")
+                    with page.expect_navigation(wait_until="domcontentloaded"):
+                        page.locator('.ka7-peer-conditions button[type=submit]').click()
+                    comparison_query = parse_qs(urlsplit(page.url).query)
+                    require(comparison_query.get("priority_preview") == ["1"], "Comparison lost preview")
+                    require(comparison_query.get("peer_registration") == ["all_years"], "Comparison choice was not submitted")
+                    require(comparison_query.get("start_date") == ["2026-01-01"] and comparison_query.get("end_date") == ["2026-11-10"], "Comparison lost dates")
+                    expect(page.locator(".priority-preview-card")).to_have_count(6)
+                    with page.expect_navigation(wait_until="domcontentloaded"):
+                        page.locator(f'a.vehicle-karte-tab[href="{overview}?priority_preview=1"]').click()
                     page.locator(".ko-proposal").nth(4).wait_for()
                     switch = page.locator(f'a.karte-vehicle-switcher-link[href*="/vehicle/karte/{other_id}"]').first
-                    switch.click()
+                    with page.expect_navigation(wait_until="domcontentloaded"):
+                        switch.click()
                     require(parse_qs(urlsplit(page.url).query).get("priority_preview") == ["1"], "Vehicle switch lost preview")
+                    require(urlsplit(page.url).path == f"/vehicle/karte/{other_id}", "Vehicle switch target wrong")
                     expect(page.locator("[data-ko-summary-count]")).to_have_text("試行表示不可")
                     page.go_back(wait_until="networkidle")
                     page.locator(".ko-proposal").nth(4).wait_for()
