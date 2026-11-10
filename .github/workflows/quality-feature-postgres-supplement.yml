@@ -1,4 +1,4 @@
-name: Quality Feature PostgreSQL Supplement
+name: Combined Quality Feature PostgreSQL Supplement
 
 # This workflow only validates the frozen draft-PR candidate below.
 # Do not retarget it to a live database or silently advance the checkout ref.
@@ -19,9 +19,8 @@ jobs:
   supplemental:
     if: >-
       github.repository == 'oxo-ops/dkss' &&
-      github.event.pull_request.number == 361 &&
       github.event.pull_request.head.repo.full_name == 'oxo-ops/dkss' &&
-      github.event.pull_request.head.ref == 'verify/quality-feature-20261110'
+      github.event.pull_request.head.ref == 'verify/combined-quality-feature-20261110'
     name: Supplemental / ${{ matrix.group }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -85,8 +84,8 @@ jobs:
           --health-cmd "pg_isready -U ${{ matrix.user }} -d ${{ matrix.database }}"
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
-      EXPECTED_COMMIT: 5c5a41babc6b4ac762414d96043383b7159b387a
-      EXPECTED_TREE: 58d83c00acf29ad202bb16ba864ef504af816cb3
+      EXPECTED_COMMIT: 8d36d64aaa7080e9e53538cf4433a752024e5614
+      EXPECTED_TREE: 0425395f26bcdfdbd8f7f7e6216b283bdc77e06f
       PYTHONPATH: .:tests
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUNBUFFERED: '1'
@@ -112,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: 5c5a41babc6b4ac762414d96043383b7159b387a
+          ref: 8d36d64aaa7080e9e53538cf4433a752024e5614
           persist-credentials: false
       - name: Assert frozen application commit and tree
         shell: bash
@@ -199,7 +198,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: supplemental-${{ matrix.group }}-5c5a41ba-${{ github.run_id }}
+          name: supplemental-${{ matrix.group }}-8d36d64a-${{ github.run_id }}
           path: supplemental-evidence/
           if-no-files-found: warn
           retention-days: 14

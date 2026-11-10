@@ -10,8 +10,8 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
 
-PUBLIC_SHA = '2cea64f5a9124ed4a92bb8bc8863af2426dbb420'
-FROZEN_TREE = '7a7d1850740b67c0559d2438f8e15be2931b7474'
+PUBLIC_SHA = '8d36d64aaa7080e9e53538cf4433a752024e5614'
+FROZEN_TREE = '0425395f26bcdfdbd8f7f7e6216b283bdc77e06f'
 ORIGIN = 'http://127.0.0.1:8765'
 
 

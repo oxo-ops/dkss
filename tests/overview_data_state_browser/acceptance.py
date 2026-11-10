@@ -14,8 +14,8 @@ import subprocess
 import sys
 from urllib.parse import quote, urlsplit
 
-PUBLIC_SHA = "779c9f2f3ff1e8dc3574e12c82019bdd4e8d436c"
-FROZEN_TREE = "9ce8508d28a03960f6c07eead1a1ba3ea13e7186"
+PUBLIC_SHA = "8d36d64aaa7080e9e53538cf4433a752024e5614"
+FROZEN_TREE = "0425395f26bcdfdbd8f7f7e6216b283bdc77e06f"
 ORIGIN = "http://127.0.0.1:8765"
 DATA_STATE = "保存された優先度を確認できません。詳細から元の提案を確認してください。"
 
