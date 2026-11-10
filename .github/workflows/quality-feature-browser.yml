@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m venv "$RUNNER_TEMP/browser-venv"
-          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r candidate/requirements.txt playwright==1.62.1
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r candidate/requirements.txt playwright==1.62.0
           "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
       - name: Verify frozen source and run synthetic browser acceptance once
         shell: bash

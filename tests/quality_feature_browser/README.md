@@ -2,7 +2,7 @@
 
 The workflow checks out application commit `3ca0f38e36f47ad94a625e71492bedbdd2f11841`, tree `cc05950a0ef99241ac1a80b320ddcafd0944c710`, into `candidate`. It reads the acceptance harness from the pull request head in a separate `validation` checkout. Later harness/CI commits do not silently change the application under test. A real browser run requires the exact candidate commit, complete tree identity and a clean worktree.
 
-The narrow workflow runs on relevant pull-request changes for PR 361 from this repository only. It uses read-only repository permissions, no repository secrets, no deployment and no production service. Candidate Python dependencies and Playwright 1.62.1 are freshly installed on the hosted runner, then official Chromium is installed. These installation steps need access to their public distribution services.
+The narrow workflow runs on relevant pull-request changes for PR 361 from this repository only. It uses read-only repository permissions, no repository secrets, no deployment and no production service. Candidate Python dependencies and Playwright 1.62.0 are freshly installed on the hosted runner, then official Chromium is installed. These installation steps need access to their public distribution services.
 
 ## Test isolation
 
@@ -23,7 +23,7 @@ This validates real Chromium rendering/interaction with real Flask route respons
 
 ## Standalone commands
 
-Use Python 3.12 with the candidate requirements and Playwright 1.62.1. Supply an installed official Chromium executable. Preserve the virtual-environment Python path instead of resolving its symlink.
+Use Python 3.12 with the candidate requirements and Playwright 1.62.0. Supply an installed official Chromium executable. Preserve the virtual-environment Python path instead of resolving its symlink.
 
 ```sh
 bash tests/quality_feature_browser/run-isolated.sh \
