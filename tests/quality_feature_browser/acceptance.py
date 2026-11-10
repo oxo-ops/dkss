@@ -54,6 +54,8 @@ def main():
     from test_vehicle_priority_preview import VehiclePriorityPreviewTests, PreviewHTML
     from dkss_app.models import VehicleDocumentImportDraft, VehiclePeriodicInspectionRecord, VehicleDrivingReportRecord
     from vehicle_priority_assessment import Fact
+    from dkss_app.analysis_feedback import vehicle_analysis_maintenance_value
+    from dkss_app.priority_preview import snapshot_hash
     from sqlalchemy import event
 
     report = dict(candidate_sha=actual_sha, candidate_tree=actual_tree, frozen_public_sha=PUBLIC_SHA,
@@ -74,6 +76,20 @@ def main():
         require(Path(m.db.engine.url.database).resolve().is_relative_to(Path(os.environ["DKSS_VALIDATION_TMP"]).resolve()), "Fixture DB outside disposable root")
         case.vehicle.model_code = "SYNTHETIC-MODEL"
         state, bundle, fixture = case.save_synthetic_analysis(("低", "中", "高", "中", "高", "低"))
+        # The API-only fixture has source snapshots but no navigable links.
+        # Build actual same-company record links with the application's serializer,
+        # preserving saved proposals and intentionally stale fingerprints.
+        expected_source_links = {}
+        with m.app.test_request_context("/"):
+            for source_id, source in bundle["sources"].items():
+                record = m.VehicleMaintenanceRecord.query.filter_by(
+                    id=int(source_id.split(":", 1)[1]), company_code="TEST",
+                    vehicle_record_id=case.vehicle.id).one()
+                saved_source = vehicle_analysis_maintenance_value(record)
+                source.update(url=saved_source["url"], label=saved_source["label"])
+                expected_source_links[source_id] = (saved_source["url"], record.content)
+        state.result_json = json.dumps(bundle, ensure_ascii=False)
+        fixture = replace(fixture, sources_hash=snapshot_hash(bundle["sources"]))
         first_key = next(iter(fixture.candidates))
         first_candidate = fixture.candidates[first_key]
         first_source = first_candidate.facts[0].source_ids[0]
@@ -127,6 +143,24 @@ def main():
         ordinary = request(analysis + "/result").json
         preview = request(analysis + "/result?priority_preview=1").json
         require(len(ordinary["analysis"]["recommendations"]) == 6, "Ordinary fixture missing proposals")
+        require(ordinary["is_current"] is False, "Synthetic sentinel fingerprints must remain stale")
+        require(preview["is_current"] is None, "Preview must not assert input freshness")
+        linked_sources = {source_id for item in ordinary["analysis"]["recommendations"] for source_id in item["source_ids"]}
+        require(linked_sources == set(expected_source_links), "Saved source coverage changed")
+        for source_id in linked_sources:
+            source = ordinary["sources"][source_id]
+            expected_url, expected_content = expected_source_links[source_id]
+            require(source["url"] == expected_url and source["label"], "Source navigation contract missing")
+            parsed_source = urlsplit(source["url"])
+            require(not parsed_source.scheme and not parsed_source.netloc and parsed_source.path.startswith("/"), "Source must be same-origin")
+            evidence_response = request(source["url"])
+            require(evidence_response.status_code == 200, "Saved source route failed")
+            evidence_html = evidence_response.get_data(as_text=True)
+            require(expected_content in evidence_html, "Saved source target record missing")
+            require("PRIVATE_OTHER_COMPANY_SHOULD_NOT_APPEAR" not in evidence_html, "Saved source crossed company scope")
+        report["saved_source_links_verified"] = len(linked_sources)
+        report["ordinary_is_current"] = ordinary["is_current"]
+        report["preview_is_current"] = preview["is_current"]
         require(preview["priority_preview"]["status"] == "available", "Preview fixture blocked")
         require({p["priority_preview"]["label"] for p in preview["analysis"]["recommendations"]} == {"高", "中", "低"}, "All three preview labels required")
         require([(p["proposal_id"], p["proposal_revision"]) for p in preview["analysis"]["recommendations"]] == original_ids, "Proposal identity changed")
@@ -140,7 +174,7 @@ def main():
         preview_html = request(analysis + "?priority_preview=1").get_data(as_text=True)
         forms = [f for f in PreviewHTML(preview_html).forms if f.get("class") in ("ka-period-form", "ka7-peer-conditions")]
         require(len(forms) == 2, "Preview forms fixture missing")
-        report["cases"].append("PREFLIGHT: clean frozen source identity; synthetic persisted proposals/history; authenticated routes; three preview labels; identity and company scope")
+        report["cases"].append("PREFLIGHT: clean frozen source identity; synthetic persisted proposals/history; authenticated routes; six persisted same-company source links; stale freshness retained; three preview labels; identity and company scope")
         if args.preflight_only:
             report["status"] = "PREFLIGHT_PASS_BROWSER_NOT_RUN"
             return 0
