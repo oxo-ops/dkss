@@ -68,6 +68,9 @@
 <script src="{{ url_for('static', filename='js/shell_bootstrap.js', v='20261026-first-paint-1') }}"></script>
 
 {% set path = request.path %}
+{# Karte routes also have legacy /master/vehicles/... aliases. Use their
+   resolved endpoint so the same page keeps the same navigation selection. #}
+{% set is_vehicle_karte_page = request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
 
 <div class="app-layout">
 
@@ -119,7 +122,7 @@
                 </div>
             </div>
 
-            <div class="sidebar-group {% if path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
+            <div class="sidebar-group {% if is_vehicle_karte_page or path.startswith('/vehicle') or path.startswith('/vehicle-patrols') %}open{% endif %}" data-menu-key="vehicle">
                 <button type="button" class="menu-item sidebar-parent">
                     <span class="menu-icon">
                         <img src="{{ url_for('static',
@@ -132,7 +135,8 @@
                 <div class="sidebar-submenu">
                     <a
                         href="{{ url_for('vehicle_karte_list') }}"
-                        class="menu-item submenu-item {% if path.startswith('/vehicle/karte') %}active{% endif %}"
+                        class="menu-item submenu-item {% if is_vehicle_karte_page %}active{% endif %}"
+                        {% if is_vehicle_karte_page %}aria-current="page"{% endif %}
                     >
                         <span class="menu-text">車両カルテ</span>
                     </a>
@@ -148,8 +152,8 @@
             {% if session.get("role") in ["admin", "itc"] %}
             <a
                 href="/master/drivers"
-                class="menu-item {% if path.startswith('/master') %}active{% endif %}"
-                {% if path.startswith('/master') %}aria-current="page"{% endif %}
+                class="menu-item {% if path.startswith('/master') and not is_vehicle_karte_page %}active{% endif %}"
+                {% if path.startswith('/master') and not is_vehicle_karte_page %}aria-current="page"{% endif %}
             >
                 <span class="menu-icon">
                     <img src="{{ url_for('static', filename='icons/master.png') }}" alt="">
