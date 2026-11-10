@@ -56,7 +56,7 @@ class HistoryCategoryTests(unittest.TestCase):
         rows = [self.row(f'maintenance:{i}') for i in range(25)] + [self.row('inspection:1'), self.row('driving-report:1')]
         response, ctx = self.get('?category=maintenance&page=2&per_page=10&status=完了&event_type=点検&start_date=2026-11-01&end_date=2026-11-01', rows)
         self.assertEqual(response.status_code, 200)
-        self.assertIn('vehicle_karte_history.css?v=20261110-presentation-4', response.get_data(as_text=True))
+        self.assertIn('vehicle_karte_history.css?v=20261110-short-viewport-5', response.get_data(as_text=True))
         self.assertEqual(self.counts(ctx), {'':27, 'inspection':1, 'maintenance':25, 'other':1})
         self.assertEqual(ctx['history_page'].total, 25)
         self.assertEqual(len(ctx['history_page'].items), 10)

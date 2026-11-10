@@ -47,3 +47,13 @@
         width: 112px;
     }
 }
+
+/* Filters and category counts can wrap beyond the remaining viewport height.
+   Let this history card grow and use page scrolling instead of squeezing rows. */
+@media (min-width: 961px) {
+    body.vehicle-list-ppt .main-content:has(.vehicle-karte-tabs)
+    .vehicle-karte-history-panel {
+        height: auto;
+        min-height: var(--karte-workspace-height, 0px);
+    }
+}
