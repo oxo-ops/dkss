@@ -49,6 +49,7 @@ jobs:
             DATABASE_URL='' RENDER='' PYTHONDONTWRITEBYTECODE=1 \
             "$python_bin" -B - <<'PY'
           import json
+          import socket
           import sys
           import unittest
           from unittest.mock import patch
@@ -61,7 +62,10 @@ jobs:
           sys.addaudithook(reject_io)
 
           from sqlalchemy.engine import Engine
-          with patch.object(Engine, 'connect', side_effect=RuntimeError('STORAGE_TEST_DATABASE_FORBIDDEN')) as connect:
+          # urllib3 probes IPv6 by binding a loopback socket at import time.
+          # Disable only that capability probe in this mocked-storage fixture;
+          # all network/bind/database guards remain active and must see zero IO.
+          with patch.object(socket, 'has_ipv6', False), patch.object(Engine, 'connect', side_effect=RuntimeError('STORAGE_TEST_DATABASE_FORBIDDEN')) as connect:
               loader = unittest.TestLoader()
               suite = unittest.TestSuite([
                   loader.discover('tests', pattern='test_storage_delete_safe_logging.py'),
