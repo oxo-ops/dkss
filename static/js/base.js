@@ -608,7 +608,7 @@ document.addEventListener("DOMContentLoaded", function () {
     sidebarOverlay?.addEventListener(
         "click",
         function () {
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth <= 900) {
                 document.body.classList.remove(
                     "sidebar-open"
                 );
