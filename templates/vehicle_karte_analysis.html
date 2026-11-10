@@ -3,6 +3,7 @@
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261023-detail-overlay-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/peer_part_statistics.css', v='20261110-1') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
 {% endblock %}
 
@@ -130,6 +131,26 @@
             {% endif %}
             {% if analysis_comparison.metrics %}<p class="ka7-note">{% if data.cost_per_km_status %}{{ data.cost_per_km_note }} {% endif %}登録0件は、実際の故障・交換がなかったことを示しません。</p>
             <button type="button" class="ka-reference-link-button" data-analysis-comparison="1">比較条件・母数を確認 →</button>{% endif %}
+            {% if analysis_comparison.comparison_scope.status == 'available' %}
+            <details class="ka-peer-parts" id="ka-peer-parts">
+                <summary>同型式車の部品別交換登録{% if analysis_comparison.part_statistics %}（{{ analysis_comparison.part_statistics|length }}種類）{% endif %}</summary>
+                <p class="ka-peer-parts-scope">{{ data.start_date }} ～ {{ data.end_date }} / 比較対象 {{ analysis_comparison.vehicle_count }}台（この車両を除く）</p>
+                {% if analysis_comparison.part_statistics %}
+                <div class="ka-peer-parts-scroll" tabindex="0" role="region" aria-label="同型式車の部品別交換登録">
+                    <table class="ka-peer-parts-table">
+                        <caption>現在の比較条件・期間内に登録された部品交換</caption>
+                        <thead><tr><th scope="col">部品・品番</th><th scope="col">交換登録件数</th><th scope="col">登録のある車両数</th></tr></thead>
+                        <tbody>{% for part in analysis_comparison.part_statistics %}
+                            <tr><th scope="row">{{ part.part_name }}<small>品番：{{ part.part_number or '未登録' }}</small>{% if part.recorded_names|length > 1 %}<small>登録名：{{ part.recorded_names|join(' / ') }}</small>{% endif %}</th><td>{{ part.registered_event_count }}件</td><td>{{ part.vehicles_with_registered_events }}台</td></tr>
+                        {% endfor %}</tbody>
+                    </table>
+                </div>
+                <p class="ka-peer-parts-note">{{ analysis_comparison.part_statistics_note }}</p>
+                {% else %}
+                <p class="ka-peer-parts-empty">現在の比較条件・期間内に、集計できる部品交換登録はありません。実際に交換がなかったことを示すものではありません。</p>
+                {% endif %}
+            </details>
+            {% endif %}
         </section>
         {% endif %}
     </div>
