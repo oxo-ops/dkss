@@ -1,4 +1,5 @@
 """Notifications Delivery responsibilities; routes are registered by the application factory."""
+from .delivery_failure_logging import log_email_delivery_failure
 from .account_identity import current_identity
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime
 
@@ -209,8 +210,7 @@ def send_web_push_notification(
 
         except _dkss_common.WebPushException as e:
             _dkss_runtime.app.logger.warning(
-                "Web Push送信エラー: %s",
-                e
+                "WEB_PUSH_SEND_FAILED error_type=provider"
             )
 
             response = getattr(
@@ -227,8 +227,8 @@ def send_web_push_notification(
                 _dkss_common.db.session.commit()
 
         except Exception:
-            _dkss_runtime.app.logger.exception(
-                "Web Push送信中に予期しないエラーが発生しました。"
+            _dkss_runtime.app.logger.error(
+                "WEB_PUSH_SEND_FAILED error_type=unexpected"
             )
 
     return sent
@@ -355,27 +355,32 @@ def send_email_notification(
 
     email.set_content(body)
 
+    smtp_stage = "connect"
     try:
         with _dkss_common.smtplib.SMTP(
             smtp_host,
             smtp_port,
             timeout=20
         ) as server:
+            smtp_stage = "starttls"
             server.starttls()
 
             if smtp_username:
+                smtp_stage = "authenticate"
                 server.login(
                     smtp_username,
                     smtp_password
                 )
 
+            smtp_stage = "send"
             server.send_message(email)
+            smtp_stage = "close"
 
         return True
 
-    except Exception:
-        _dkss_runtime.app.logger.exception(
-            "メール通知送信中に予期しないエラーが発生しました。"
+    except Exception as error:
+        log_email_delivery_failure(
+            _dkss_runtime.app.logger, purpose="notification", stage=smtp_stage, error=error
         )
         return False
 
