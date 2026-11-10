@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--chromium', type=Path)
+    parser.add_argument('--short-controls-only', action='store_true', help='Only the 390x600 dense/two-row control case')
     parser.add_argument('--historical-height-only', action='store_true', help='Measure pre-category history geometry only')
     parser.add_argument('--expected-sha', help='Exact candidate SHA supplied by trusted CI event')
     parser.add_argument('--baseline-collapse', action='store_true', help='Measure the pinned release, expecting the short-height defect')
@@ -38,6 +39,7 @@ def main():
     require(os.environ.get('DATABASE_URL') == 'sqlite:///:memory:', 'No external DB allowed')
     sha = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'], text=True).strip()
     tree = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD^{tree}'], text=True).strip()
+    require(not args.short_controls_only or not (args.historical_height_only or args.baseline_collapse), 'Focused controls cannot be a historical/collapse measurement')
     require(not args.historical_height_only or args.expected_sha == '008ed6e41352a852828f10193972e6e415f9a20e', 'Historical measurement requires exact pre-release SHA')
     require(not args.baseline_collapse or not args.expected_sha, 'Baseline must use the pinned release')
     if not args.expected_sha:
@@ -187,6 +189,8 @@ def main():
                                (960,747),(961,747),(1440,650),(1024,650),(390,600))
                 if args.historical_height_only:
                     short_sizes = ((1180,757),)
+                elif args.short_controls_only:
+                    short_sizes = ((390,600),)
                 for width,height in short_sizes:
                     page.set_viewport_size({'width':width,'height':height})
                     for density,suffix,count in (('dense','',10),('two-rows','?status=要対応',2)):
@@ -214,7 +218,7 @@ def main():
                             # clip 0.5px from a 50px row and falsely fail even a 99% ratio.
                             reach=control.evaluate("""e => {
                                 const r=e.getBoundingClientRect();
-                                const result={tag:e.tagName,classes:e.className,top:r.top,bottom:r.bottom,height:r.height,viewportHeight:innerHeight,clippedBy:[],coveredAt:[]};
+                                const result={tag:e.tagName,classes:e.className,top:r.top,bottom:r.bottom,elementHeight:r.height,viewportHeight:innerHeight,clippedBy:[],coveredAt:[],hitSamples:[]};
                                 if (r.top < -1 || r.bottom > innerHeight+1) result.clippedBy.push('viewport');
                                 for (let p=e.parentElement;p;p=p.parentElement) {
                                     if (p === document.scrollingElement) continue;
@@ -223,9 +227,19 @@ def main():
                                         if (r.top < top-1 || r.bottom > top+p.clientHeight+1) result.clippedBy.push({tag:p.tagName,classes:p.className,top,bottom:top+p.clientHeight});
                                     }
                                 }
-                                for (const y of [r.top+1,r.top+r.height/2,r.bottom-1]) {
-                                    const hit=document.elementFromPoint(r.left+r.width/2,y);
-                                    if (!e.contains(hit)) result.coveredAt.push({y,tag:hit?.tagName,classes:hit?.className});
+                                const x=r.left+r.width/2, edgeY=r.bottom-1;
+                                if (edgeY > innerHeight-2) {
+                                    const edge=document.elementFromPoint(x,edgeY);
+                                    result.unclampedBottomProbe={y:edgeY,tag:edge?.tagName,classes:edge?.className};
+                                }
+                                // A fractional y=599.7 can round outside a 600px viewport.
+                                // Keep the 1px clipping tolerance; sample painted interior pixels.
+                                for (const rawY of [r.top+1,r.top+r.height/2,r.bottom-1]) {
+                                    const y=Math.max(1,Math.min(innerHeight-2,rawY));
+                                    const hit=document.elementFromPoint(x,y);
+                                    const insideElement=y>r.top && y<r.bottom;
+                                    result.hitSamples.push({rawY,y,insideElement,inside:e.contains(hit)});
+                                    if (!insideElement || !e.contains(hit)) result.coveredAt.push({y,tag:hit?.tagName,classes:hit?.className});
                                 }
                                 return result;
                             }""")
@@ -247,14 +261,14 @@ def main():
                 if args.baseline_collapse:
                     require(any(not item['readable'] and (item['width'],item['height']) in {(1180,757),(1165,747)} for item in report['short_viewports']), 'Pinned baseline did not reproduce table collapse at reported viewport')
                     report['cases'].append('BASELINE: short-height table collapse reproduced')
-                elif not args.historical_height_only:
+                elif not (args.historical_height_only or args.short_controls_only):
                     # Repeated resize on the same document must not recollapse it.
                     page.goto(ORIGIN+history,wait_until='networkidle')
                     for height in (747,600,850,747):
                         page.set_viewport_size({'width':1165,'height':height})
                         page.wait_for_timeout(100)
                         require(short_height_geometry(1165,height,'resize')['readable'],'Repeated resize clipped history')
-                for width in (() if args.baseline_collapse or args.historical_height_only else (1440,1024,901,900,769,768,390)):
+                for width in (() if args.baseline_collapse or args.historical_height_only or args.short_controls_only else (1440,1024,901,900,769,768,390)):
 
                     page.set_viewport_size({'width':width,'height':1000})
                     for path in (history,canonical):
@@ -309,8 +323,9 @@ def main():
                 require(all(w['endpoint'] in notification_endpoints and (w['verb'],w['table']) in allowed for w in report['database_mutations']),'Unexpected write outside normal notifications')
                 require(report['normal_notification_gets']>0,'Normal notification polling missing')
                 require(not report['page_errors'] and not report['non_get_requests'] and not report['blocked_external_requests'] and not report['failed_gets'],'Browser request or script failure')
-                report.update(status='HISTORICAL_HEIGHT_MEASURED' if args.historical_height_only else 'BASELINE_COLLAPSE_REPRODUCED' if args.baseline_collapse else 'PASS',
-                              saved_history_unchanged=True,browser_acceptance_passed=not (args.baseline_collapse or args.historical_height_only),
+                report.update(status='SHORT_CONTROLS_PASS' if args.short_controls_only else 'HISTORICAL_HEIGHT_MEASURED' if args.historical_height_only else 'BASELINE_COLLAPSE_REPRODUCED' if args.baseline_collapse else 'PASS',
+                              saved_history_unchanged=True,browser_acceptance_passed=not (args.baseline_collapse or args.historical_height_only or args.short_controls_only),
+                              focused_controls_passed=args.short_controls_only,
                               baseline_collapse_reproduced=args.baseline_collapse)
                 return 0
             except Exception:

@@ -42,3 +42,8 @@ geometry-only causal comparison, not a claim that the old UI passes new
 category/navigation requirements. Its distinct report status is
 `HISTORICAL_HEIGHT_MEASURED`; baseline reproduction is
 `BASELINE_COLLAPSE_REPRODUCED`, and only candidate acceptance reports `PASS`.
+
+A focused `--short-controls-only` pass also checks 390x600 dense/two-row row and
+control reachability on the unchanged released baseline, distinguishing mobile
+scrolling behavior from the desktop-only product fix. Pixel bounds and hit-test
+coordinates are retained in `reachability` for diagnostic transparency.

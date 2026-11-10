@@ -83,6 +83,12 @@ jobs:
           PY
           )
           test -x "$chromium"
+          # Localize the mobile reachability check on the unchanged released layout.
+          DKSS_BROWSER_ARTIFACT_DIR="$results/baseline-mobile" \
+            bash "$GITHUB_WORKSPACE/candidate/tests/history_presentation_browser/run-isolated.sh" \
+            "$GITHUB_WORKSPACE/baseline" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --run-browser --short-controls-only --expected-sha 8ee31738b68b486a86ef9c48f67a0182b5a9f376 --chromium "$chromium" \
+            2>&1 | tee "$results/baseline-mobile.log"
           DKSS_BROWSER_ARTIFACT_DIR="$results/historical" \
             bash "$GITHUB_WORKSPACE/candidate/tests/history_presentation_browser/run-isolated.sh" \
             "$GITHUB_WORKSPACE/historical" "$RUNNER_TEMP/browser-venv/bin/python" \
@@ -106,7 +112,7 @@ jobs:
           import json, os
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])/'history-presentation-browser-results'
-          for source in ('historical','baseline','candidate'):
+          for source in ('baseline-mobile','historical','baseline','candidate'):
               report=root/source/'browser-result.json'
               if not report.exists():
                   continue
