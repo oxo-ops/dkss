@@ -26,3 +26,24 @@
     flex-basis: 100%;
     color: #526581;
 }
+
+/* Reserve the timeline gutter after the shared dense-table padding rules.
+   Mobile cards keep their existing generated date label and layout. */
+@media screen and (min-width: 769px) {
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table td.vehicle-history-date,
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table th:first-child {
+        padding-left: 28px;
+    }
+    /* The shared checklist card labels extend through1024px. This table
+       remains tabular above768px, so retain only the empty timeline marker. */
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table td::before {
+        content: none;
+    }
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table td.vehicle-history-date::before {
+        content: "";
+    }
+    /* Keep YYYY/MM/DD inside its column at tablet and narrow desktop widths. */
+    body.vehicle-list-ppt .vehicle-karte-history-panel .vehicle-karte-history-table.responsive-table th:first-child {
+        width: 112px;
+    }
+}
