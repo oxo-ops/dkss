@@ -94,3 +94,21 @@ vm.runInNewContext(source('shell_bootstrap.js'),{window:noStorage,document:{body
 assert.equal(noStorage.DkssShell.readPreference('sidebarCollapsed'),null);
 assert.doesNotThrow(()=>noStorage.DkssShell.writePreference('sidebarCollapsed','1'));
 console.log('PASS: first-paint sidebar preferences, page overrides, mobile and unavailable storage');
+
+
+// Overlay dismissal must use the same 900px boundary as the mobile drawer.
+const baseSource = source('base.js');
+const overlayStart = baseSource.indexOf('document.addEventListener("DOMContentLoaded", function () {\n    const sidebarOverlay');
+const overlayEnd = baseSource.indexOf('\n});', overlayStart) + 4;
+assert.ok(overlayStart >= 0 && overlayEnd > overlayStart, 'Overlay listener found');
+for (const viewportWidth of [390, 768, 769, 900, 901, 1440]) {
+    const body = element(); body.classList.add('sidebar-open');
+    let click;
+    const overlay = {addEventListener: (event, fn) => {assert.equal(event, 'click'); click = fn;}};
+    const document = {body, getElementById: id => id === 'sidebarOverlay' ? overlay : null,
+        addEventListener: (event, fn) => {assert.equal(event, 'DOMContentLoaded'); fn();}};
+    vm.runInNewContext(baseSource.slice(overlayStart, overlayEnd), {document, window:{innerWidth:viewportWidth}});
+    assert.equal(typeof click, 'function'); click();
+    assert.equal(body.classList.contains('sidebar-open'), viewportWidth > 900, 'Overlay boundary ' + viewportWidth);
+}
+console.log('PASS: drawer overlay closes at 390/768/769/900 and leaves desktop state unchanged');
