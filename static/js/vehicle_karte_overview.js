@@ -47,11 +47,14 @@
                     ["running","pending"].includes(data.status) ? "初回の分析結果を待っています。" : "保存済みの分析結果はまだありません。";
                 return;
             }
-            const priorities = {"高":0,"中":1,"低":2};
+            const priorities = ["高", "中", "低"];
+            // Only the three literal labels are priorities. Historical malformed
+            // values keep their stable trailing order without being reclassified.
+            const priorityRank = value => priorities.includes(value) ? priorities.indexOf(value) : priorities.length;
             const items = (previewMode ? previewResult.items : data.analysis.recommendations).filter(item => item && typeof item === "object" &&
                 item.category !== "記録確認" && !(item.feedback?.revision === item.proposal_revision &&
                 ["completed","dismissed"].includes(item.feedback?.status)))
-                .sort((a,b) => previewMode ? 0 : (priorities[a.priority] ?? 3) - (priorities[b.priority] ?? 3));
+                .sort((a,b) => previewMode ? 0 : priorityRank(a.priority) - priorityRank(b.priority));
             summary.textContent = `${items.length}件`;
             panel.dataset.current = String(current);
             for (const item of items.slice(0, visibleProposalLimit)) {
@@ -62,11 +65,12 @@
                 const row = node("li", "ko-proposal", "");
                 if (previewMode) row.dataset.priorityPreview = "true";
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
-                const priorityValue = ["高", "中", "低"].includes(item.priority) ? item.priority : "未評価";
-                const priority = previewMode ? preview.badge(document, item.priority_preview) : node("span", "ko-priority", priorityValue);
-                if (!previewMode) {
-                    priority.dataset.priority = priorityValue;
-                    priority.setAttribute("aria-label", `対応優先度：${priorityValue}`);
+                const hasSavedPriority = priorities.includes(item.priority);
+                const priority = previewMode ? preview.badge(document, item.priority_preview) :
+                    hasSavedPriority ? node("span", "ko-priority", item.priority) : null;
+                if (!previewMode && priority) {
+                    priority.dataset.priority = item.priority;
+                    priority.setAttribute("aria-label", `対応優先度：${item.priority}`);
                 }
                 const copy = node("div", "ko-proposal-copy", "");
                 const heading = node("div", "ko-proposal-heading", "");
@@ -78,6 +82,10 @@
                 // Show saved advice verbatim. Full state, risk, timing and sources
                 // remain available through the proposal-specific analysis link.
                 copy.append(heading, node("p", "ko-proposal-action", text(item.action) || "提案内容を確認してください。"));
+                if (!previewMode && !hasSavedPriority) {
+                    row.dataset.priorityDataState = "invalid";
+                    copy.append(node("p", "ko-proposal-data-state", "保存された優先度を確認できません。詳細から元の提案を確認してください。"));
+                }
                 if (previewMode) {
                     const p = item.priority_preview;
                     copy.append(node("p", "priority-preview-evidence", `根拠：${p.evidence_status}${p.missing_conditions.length ? ` / 確認事項 ${p.missing_conditions.length}件` : ""}`));
@@ -85,7 +93,8 @@
                 const action = node("a", "ko-proposal-detail", "詳細 ›");
                 action.setAttribute("aria-label", `詳細：${target}の提案と対応を確認`);
                 action.href = url.href;
-                row.append(priority, copy, action);
+                if (priority) row.append(priority);
+                row.append(copy, action);
                 list.append(row);
             }
             if (!items.length) list.append(node("li", "ko-empty", "対応済み・見送り等を除く予防整備の提案はありません。"));

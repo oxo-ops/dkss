@@ -80,15 +80,20 @@ test('preserves accepted and in-progress feedback without treating it as complet
     assert.equal(ui.rows[1].children[1].children[0].children[1].textContent, '対応中');
 });
 
-test('unknown priority is not upgraded, HTML stays text, and proposal hashes are encoded', async () => {
+test('invalid saved priority is separate data state without a fourth badge, HTML stays text, and hashes are encoded', async () => {
     const value = '<img src=x onerror=alert(1)>';
     const ui = await mount([proposal('a/#b', 'unexpected', {target: value, action: value}), proposal('low', '低')]);
     const row = ui.rows[1];
-    assert.equal(row.children[0].textContent, '未評価');
-    assert.equal(row.children[1].children[0].children[0].textContent, value);
-    assert.equal(row.children[1].children[1].textContent, value);
-    assert.equal(row.children[1].children[1].children.length, 0);
-    assert.equal(new URL(row.children[2].href).hash, '#proposal=a%2F%23b');
+    assert.equal(row.dataset.priorityDataState, 'invalid');
+    assert.equal(row.children.some(child => child.className === 'ko-priority'), false);
+    const copy = row.children[0];
+    assert.equal(copy.className, 'ko-proposal-copy');
+    assert.equal(copy.children[0].children[0].textContent, value);
+    assert.equal(copy.children[1].textContent, value);
+    assert.equal(copy.children[1].children.length, 0);
+    assert.equal(copy.children[2].className, 'ko-proposal-data-state');
+    assert.equal(copy.children[2].textContent, '保存された優先度を確認できません。詳細から元の提案を確認してください。');
+    assert.equal(new URL(row.children[1].href).hash, '#proposal=a%2F%23b');
 });
 
 test('stale results remain explicitly marked during pending, running, and failed refreshes', async () => {
@@ -125,4 +130,52 @@ test('inactive vehicles do not fetch analysis or trigger work', async () => {
     const ui = await mount([proposal('x')], {inactive: true});
     assert.equal(ui.requests.length, 0);
     assert.equal(ui.summary.textContent, '確認不可');
+});
+
+const walk = el => [el, ...el.children.flatMap(walk)];
+
+test('missing and malformed priorities never manufacture labels or modify saved proposals', async () => {
+    const values = [undefined, null, '', '未評価', 'unknown', ' 高 ', 0, false, ['高'], {label: '高'}, '__proto__', 'constructor'];
+    for (const value of values) {
+        const item = proposal('invalid');
+        if (value === undefined) delete item.priority;
+        else item.priority = value;
+        const recommendations = [item, proposal('low', '低'), proposal('high', '高'), proposal('medium', '中')];
+        const original = JSON.stringify(recommendations);
+        const first = await mount(recommendations), second = await mount(recommendations);
+        for (const ui of [first, second]) {
+            assert.deepEqual(ui.rows.map(row => row.dataset.proposalId), ['high', 'medium', 'low', 'invalid']);
+            assert.deepEqual(walk(ui.list).filter(el => el.className === 'ko-priority').map(el => el.textContent), ['高', '中', '低']);
+            const invalid = ui.rows[3];
+            assert.equal(invalid.dataset.priorityDataState, 'invalid');
+            assert.equal(walk(invalid).some(el => el.attributes['aria-label']?.startsWith('対応優先度：')), false);
+            assert.equal(walk(invalid).filter(el => el.className === 'ko-proposal-data-state').length, 1);
+            assert.equal(invalid.children.at(-1).href, 'https://example.test/vehicle/karte/7/analysis#proposal=invalid');
+            assert.doesNotMatch(walk(ui.list).map(el => el.textContent).join('\n'), /未評価/);
+            assert.equal(ui.requests.length, 1);
+            assert.equal(ui.requests[0].init.method, undefined);
+        }
+        assert.equal(JSON.stringify(recommendations), original);
+    }
+});
+
+test('invalid data keeps proposal identity, feedback filtering, count and five-row limit', async () => {
+    const recommendations = [proposal('first', null), proposal('second', ''), proposal('third', 'unknown'),
+        proposal('fourth', null), proposal('fifth', null), proposal('sixth', null),
+        proposal('done', null, {feedback: {revision: 'current', status: 'completed'}}),
+        proposal('record', null, {category: '記録確認'})];
+    const original = JSON.stringify(recommendations), ui = await mount(recommendations);
+    assert.equal(ui.summary.textContent, '6件');
+    assert.deepEqual(ui.rows.map(row => row.dataset.proposalId), ['first', 'second', 'third', 'fourth', 'fifth']);
+    assert.equal(ui.list.children.at(-1).children[0].textContent, '残り1件を分析で確認 →');
+    assert.equal(walk(ui.list).some(el => el.className === 'ko-priority'), false);
+    assert.equal(JSON.stringify(recommendations), original);
+});
+
+test('data-state copy spans the missing badge column at every viewport and assets are versioned', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../static/css/vehicle_karte_overview.css'), 'utf8');
+    assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
+    const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
+    assert.match(template, /css\/vehicle_karte_overview\.css', v='20261110-priority-data-state-1'/);
+    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261110-priority-data-state-1'/);
 });
