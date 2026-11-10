@@ -2097,6 +2097,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
+    // The validated synthetic preview must not trigger notification maintenance.
+    // Normal documents retain polling; the flag is server-rendered, not query-derived.
+    if (document.body.dataset.priorityPreview === "true") {
+        return;
+    }
+
     let refreshing = false;
     let refreshAgain = false;
 

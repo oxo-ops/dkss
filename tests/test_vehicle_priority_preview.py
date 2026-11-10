@@ -25,11 +25,13 @@ from vehicle_priority_assessment import Candidate, Evidence, Fact, InvalidInput,
 class PreviewHTML(HTMLParser):
     def __init__(self, text):
         super().__init__()
-        self.forms, self.links, self._form = [], [], None
+        self.forms, self.links, self._form, self.body = [], [], None, {}
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == 'body':
+            self.body = attrs
         if tag == 'a':
             self.links.append(attrs)
         if tag == 'form':
@@ -379,6 +381,26 @@ class VehiclePriorityPreviewTests(unittest.TestCase):
         preview_text = self.client.get(f'/vehicle/karte/{self.vehicle.id}?priority_preview=1').get_data(as_text=True)
         self.assertNotIn('data-note-edit', preview_text)
         self.assertNotIn('data-note-form', preview_text)
+
+    def test_preview_notification_marker_and_normal_return_are_server_scoped(self):
+        _state, _bundle, fixture = self.save_synthetic_analysis()
+        self.install(fixture)
+        for suffix in ['', '/analysis']:
+            base = f'/vehicle/karte/{self.vehicle.id}{suffix}'
+            preview_response = self.client.get(base + '?priority_preview=1')
+            self.assertEqual(preview_response.status_code, 200)
+            text = preview_response.get_data(as_text=True)
+            self.assertEqual(PreviewHTML(text).body.get('data-priority-preview'), 'true')
+            exit_links = [a for a in PreviewHTML(text).links
+                          if a.get('href') == base]
+            self.assertGreaterEqual(len(exit_links), 1)
+            normal = self.client.get(exit_links[0]['href'])
+            self.assertEqual(normal.status_code, 200)
+            self.assertEqual(PreviewHTML(normal.get_data(as_text=True)).body.get('data-priority-preview'), 'false')
+        # A query on an unrelated normal view cannot declare a trusted preview.
+        normal_history = self.client.get(f'/master/vehicles/{self.vehicle.id}/karte/history?priority_preview=1')
+        self.assertEqual(normal_history.status_code, 200)
+        self.assertEqual(PreviewHTML(normal_history.get_data(as_text=True)).body.get('data-priority-preview'), 'false')
 
     def test_preview_analysis_post_is_rejected_before_ai(self):
         _state, _bundle, fixture = self.save_synthetic_analysis()

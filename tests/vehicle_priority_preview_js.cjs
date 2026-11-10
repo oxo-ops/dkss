@@ -199,3 +199,64 @@ test('trial score column uses content width without changing normal priority col
     const css = fs.readFileSync(require.resolve('../static/css/vehicle_priority_preview.css'), 'utf8');
     assert.match(css, /#vehicle-karte-overview #ko-ai \.ko-proposal\[data-priority-preview="true"\]\s*\{\s*grid-template-columns:\s*max-content minmax\(0, 1fr\) auto;/);
 });
+
+// Exercise the real common-shell polling listener with synthetic DOM/events.
+async function notificationPollingDocument(marker, search = '') {
+    const source = fs.readFileSync(require.resolve('../static/js/base.js'), 'utf8');
+    const anchor = source.indexOf('    let refreshing = false;');
+    const start = source.lastIndexOf('document.addEventListener("DOMContentLoaded", function () {', anchor);
+    const end = source.indexOf('// ベル：最近の通知の開閉・取得', anchor);
+    assert.ok(start >= 0 && end > anchor);
+    const docEvents = new Map(), winEvents = new Map(), intervals = [], requests = [];
+    const doc = {
+        body: {dataset: {authenticated: 'true', unreadNotificationCount: '0', ...(marker === undefined ? {} : {priorityPreview: marker})}},
+        visibilityState: 'visible',
+        addEventListener(name, fn) {docEvents.set(name, fn);},
+        getElementById() {return null;}, querySelectorAll() {return [];}, dispatchEvent() {},
+    };
+    const context = {document: doc, navigator: {}, console,
+        window: {location: {search}, addEventListener(name, fn) {winEvents.set(name, fn);}, setInterval(fn, delay) {intervals.push({fn, delay});}},
+        fetch: async (url, init) => {requests.push({url, init}); return {ok: true, redirected: false, json: async () => ({unread_count: 0})};},
+    };
+    vm.runInNewContext(source.slice(start, end), context);
+    docEvents.get('DOMContentLoaded')();
+    const flush = () => new Promise(resolve => setImmediate(resolve));
+    await flush();
+    return {doc, docEvents, winEvents, intervals, requests, flush};
+}
+
+test('server-marked preview starts no notification GET or polling event/timer', async () => {
+    const previewDoc = await notificationPollingDocument('true', '?priority_preview=1');
+    assert.equal(previewDoc.requests.length, 0);
+    assert.equal(previewDoc.intervals.length, 0);
+    for (const name of ['pageshow', 'focus', 'storage']) assert.equal(previewDoc.winEvents.has(name), false);
+    assert.equal(previewDoc.docEvents.has('visibilitychange'), false);
+    assert.equal(previewDoc.docEvents.has('dkss:notifications-changed'), false);
+});
+
+test('normal notification GET polling and resume events are unchanged', async () => {
+    const normal = await notificationPollingDocument('false');
+    assert.equal(normal.requests.length, 1);
+    assert.equal(normal.intervals.length, 1);
+    assert.equal(normal.intervals[0].delay, 30000);
+    for (const fn of [normal.intervals[0].fn, normal.winEvents.get('pageshow'), normal.winEvents.get('focus'), normal.docEvents.get('visibilitychange')]) {
+        assert.equal(typeof fn, 'function');
+        fn(); await normal.flush();
+    }
+    assert.equal(normal.requests.length, 5);
+    assert.ok(normal.requests.every(r => r.url === '/api/notifications/unread-count' && !r.init.method && !r.init.body));
+});
+
+test('query alone never disables normal polling and normal return has no sticky suppression', async () => {
+    const normalBefore = await notificationPollingDocument('false');
+    const previewDoc = await notificationPollingDocument('true', '?priority_preview=1');
+    const normalAfter = await notificationPollingDocument('false');
+    const queryOnly = await notificationPollingDocument(undefined, '?priority_preview=1');
+    assert.equal(normalBefore.requests.length, 1);
+    assert.equal(previewDoc.requests.length, 0);
+    assert.equal(normalAfter.requests.length, 1);
+    assert.equal(queryOnly.requests.length, 1);
+    for (const invalidMarker of ['false', 'TRUE', '1', '', undefined]) {
+        assert.equal((await notificationPollingDocument(invalidMarker, '?priority_preview=1')).requests.length, 1);
+    }
+});
