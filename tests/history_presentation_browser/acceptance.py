@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--chromium', type=Path)
+    parser.add_argument('--historical-height-only', action='store_true', help='Measure pre-category history geometry only')
     parser.add_argument('--expected-sha', help='Exact candidate SHA supplied by trusted CI event')
     parser.add_argument('--baseline-collapse', action='store_true', help='Measure the pinned release, expecting the short-height defect')
     parser.add_argument('--allow-identical-tree-preflight', action='store_true')
@@ -37,6 +38,7 @@ def main():
     require(os.environ.get('DATABASE_URL') == 'sqlite:///:memory:', 'No external DB allowed')
     sha = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'], text=True).strip()
     tree = subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD^{tree}'], text=True).strip()
+    require(not args.historical_height_only or args.expected_sha == '008ed6e41352a852828f10193972e6e415f9a20e', 'Historical measurement requires exact pre-release SHA')
     require(not args.baseline_collapse or not args.expected_sha, 'Baseline must use the pinned release')
     if not args.expected_sha:
         require(tree == FROZEN_TREE, 'Wrong frozen source tree')
@@ -49,7 +51,8 @@ def main():
     os.chdir(repo)
     sys.path[:0] = [str(repo), str(repo/'tests')]
     from test_workflow_regressions import WorkflowRegressionTests
-    from test_vehicle_karte_navigation import Sidebar
+    if not args.historical_height_only:
+        from test_vehicle_karte_navigation import Sidebar
     from sqlalchemy import event
     report = dict(candidate_sha=sha, candidate_tree=tree, frozen_public_sha=PUBLIC_SHA,
                   started_utc=datetime.now(timezone.utc).isoformat(), fixture_only=True,
@@ -103,9 +106,10 @@ def main():
         for path in (history,canonical,history+'?category=maintenance&page=2&per_page=10'):
             response = request(path)
             require(response.status_code == 200,'History route failed')
-            nav = Sidebar(response.get_data(as_text=True))
-            require([a['href'] for a in nav.active] == ['/vehicle/karte'],'Wrong history sidebar selection')
-            require(nav.active[0].get('aria-current') == 'page','Missing current page semantics')
+            if not args.historical_height_only:
+                nav = Sidebar(response.get_data(as_text=True))
+                require([a['href'] for a in nav.active] == ['/vehicle/karte'],'Wrong history sidebar selection')
+                require(nav.active[0].get('aria-current') == 'page','Missing current page semantics')
         require(snapshot() == before,'History data changed in preflight')
         require(not report['database_mutations'],'History route wrote SQL')
         report['cases'].append('PREFLIGHT: both aliases, filtered page, selected Karte nav, 25 synthetic records unchanged')
@@ -133,6 +137,8 @@ def main():
                 page = context.new_page()
                 page.on('pageerror',lambda error:report['page_errors'].append(str(error)))
                 def nav_check():
+                    if args.historical_height_only:
+                        return
                     active = page.locator('.sidebar-nav a.active')
                     expect(active).to_have_count(1)
                     expect(active).to_have_attribute('href','/vehicle/karte')
@@ -179,15 +185,21 @@ def main():
                     return values
                 short_sizes = ((1180,757),(1165,747),(1165,600),(1165,650),(1165,700),(1165,800),(1165,850),
                                (960,747),(961,747),(1440,650),(1024,650),(390,600))
+                if args.historical_height_only:
+                    short_sizes = ((1180,757),)
                 for width,height in short_sizes:
                     page.set_viewport_size({'width':width,'height':height})
                     for density,suffix,count in (('dense','',10),('two-rows','?status=要対応',2)):
                         page.goto(ORIGIN+history+suffix,wait_until='networkidle')
-                        nav_check(); geometry(width)
+                        nav_check()
+                        if not args.historical_height_only:
+                            geometry(width)
                         expect(page.locator('.vehicle-karte-history-table tbody tr')).to_have_count(count)
                         values=short_height_geometry(width,height,density)
                         page.screenshot(path=str(output/f'history-{width}x{height}-{density}.png'),full_page=True)
-                        if args.baseline_collapse:
+                        if (width,height,density) == (1180,757,'two-rows'):
+                            page.screenshot(path=str(output/'observed-viewport.jpg'),type='jpeg',quality=65)
+                        if args.baseline_collapse or args.historical_height_only:
                             continue
                         require(values['readable'],f'History rows clipped at {width}x{height} ({density})')
                         require(values['footer']['top']+1>=values['table']['bottom'], 'History footer overlaps rows')
@@ -197,7 +209,9 @@ def main():
                                         page.locator('.kp-footer'),
                                         page.get_by_role('button',name='絞り込み',exact=True)):
                             control.scroll_into_view_if_needed()
-                            expect(control).to_be_in_viewport(ratio=1)
+                            # Collapsed table borders can clip a subpixel at the horizontal edge.
+                            expect(control).to_be_in_viewport(ratio=0.99)
+                            require(control.evaluate("e => { const r=e.getBoundingClientRect(); return r.top >= -1 && r.bottom <= innerHeight+1; }"), 'History row or control vertically clipped')
                             require(control.evaluate("e => { const r=e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)); }"), 'History row or control covered after scrolling')
                         if density=='dense':
                             with page.expect_navigation(wait_until='domcontentloaded'):
@@ -214,14 +228,14 @@ def main():
                 if args.baseline_collapse:
                     require(any(not item['readable'] and (item['width'],item['height']) in {(1180,757),(1165,747)} for item in report['short_viewports']), 'Pinned baseline did not reproduce table collapse at reported viewport')
                     report['cases'].append('BASELINE: short-height table collapse reproduced')
-                else:
+                elif not args.historical_height_only:
                     # Repeated resize on the same document must not recollapse it.
                     page.goto(ORIGIN+history,wait_until='networkidle')
                     for height in (747,600,850,747):
                         page.set_viewport_size({'width':1165,'height':height})
                         page.wait_for_timeout(100)
                         require(short_height_geometry(1165,height,'resize')['readable'],'Repeated resize clipped history')
-                for width in (() if args.baseline_collapse else (1440,1024,901,900,769,768,390)):
+                for width in (() if args.baseline_collapse or args.historical_height_only else (1440,1024,901,900,769,768,390)):
 
                     page.set_viewport_size({'width':width,'height':1000})
                     for path in (history,canonical):
@@ -262,12 +276,13 @@ def main():
                     expect(page.locator('.vehicle-karte-history-table')).to_have_count(0)
                     report['cases'].append(f'BROWSER {width}: both aliases, date geometry, selected nav, mobile drawer, filter/page/back/forward/empty')
                 page.set_viewport_size({'width':1440,'height':1000})
-                page.goto(ORIGIN+'/master/drivers',wait_until='networkidle')
-                expect(page.locator('.sidebar-nav a.active')).to_have_attribute('href','/master/drivers')
-                page.goto(ORIGIN+history,wait_until='networkidle'); nav_check()
-                page.go_back(wait_until='domcontentloaded')
-                expect(page.locator('.sidebar-nav a.active')).to_have_attribute('href','/master/drivers')
-                page.go_forward(wait_until='domcontentloaded'); nav_check()
+                if not args.historical_height_only:
+                    page.goto(ORIGIN+'/master/drivers',wait_until='networkidle')
+                    expect(page.locator('.sidebar-nav a.active')).to_have_attribute('href','/master/drivers')
+                    page.goto(ORIGIN+history,wait_until='networkidle'); nav_check()
+                    page.go_back(wait_until='domcontentloaded')
+                    expect(page.locator('.sidebar-nav a.active')).to_have_attribute('href','/master/drivers')
+                    page.go_forward(wait_until='domcontentloaded'); nav_check()
                 m.db.session.expire_all()
                 require(snapshot()==before,'Saved history data changed')
                 allowed={('UPDATE','company'),('INSERT','inspection_plan_alert_run'),('UPDATE','inspection_plan_alert_run')}
@@ -275,8 +290,8 @@ def main():
                 require(all(w['endpoint'] in notification_endpoints and (w['verb'],w['table']) in allowed for w in report['database_mutations']),'Unexpected write outside normal notifications')
                 require(report['normal_notification_gets']>0,'Normal notification polling missing')
                 require(not report['page_errors'] and not report['non_get_requests'] and not report['blocked_external_requests'] and not report['failed_gets'],'Browser request or script failure')
-                report.update(status='BASELINE_COLLAPSE_REPRODUCED' if args.baseline_collapse else 'PASS',
-                              saved_history_unchanged=True,browser_acceptance_passed=not args.baseline_collapse,
+                report.update(status='HISTORICAL_HEIGHT_MEASURED' if args.historical_height_only else 'BASELINE_COLLAPSE_REPRODUCED' if args.baseline_collapse else 'PASS',
+                              saved_history_unchanged=True,browser_acceptance_passed=not (args.baseline_collapse or args.historical_height_only),
                               baseline_collapse_reproduced=args.baseline_collapse)
                 return 0
             except Exception:

@@ -25,6 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Check out pre-category historical baseline
+        uses: actions/checkout@v7
+        with:
+          ref: 008ed6e41352a852828f10193972e6e415f9a20e
+          path: historical
+          persist-credentials: false
+          fetch-depth: 1
       - name: Check out pinned pre-fix release
         uses: actions/checkout@v7
         with:
@@ -60,7 +67,7 @@ jobs:
           test "$(git -C baseline rev-parse HEAD)" = 8ee31738b68b486a86ef9c48f67a0182b5a9f376
           test "$(git -C baseline rev-parse HEAD^{tree})" = b16a1fd2b0e5f6da25f693e6a24a8c98f0dc79ba
           test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_HEAD"
-          for source in baseline candidate; do
+          for source in historical baseline candidate; do
             test -z "$(git -C "$source" status --porcelain --untracked-files=all)"
             printf '%s_head=%s\n%s_tree=%s\n' "$source" "$(git -C "$source" rev-parse HEAD)" "$source" "$(git -C "$source" rev-parse HEAD^{tree})" >> "$results/source-identity.txt"
           done
@@ -76,6 +83,11 @@ jobs:
           PY
           )
           test -x "$chromium"
+          DKSS_BROWSER_ARTIFACT_DIR="$results/historical" \
+            bash "$GITHUB_WORKSPACE/candidate/tests/history_presentation_browser/run-isolated.sh" \
+            "$GITHUB_WORKSPACE/historical" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --run-browser --historical-height-only --expected-sha 008ed6e41352a852828f10193972e6e415f9a20e --chromium "$chromium" \
+            2>&1 | tee "$results/historical.log"
           DKSS_BROWSER_ARTIFACT_DIR="$results/baseline" \
             bash "$GITHUB_WORKSPACE/candidate/tests/history_presentation_browser/run-isolated.sh" \
             "$GITHUB_WORKSPACE/baseline" "$RUNNER_TEMP/browser-venv/bin/python" \
@@ -91,13 +103,16 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import json, os
+          import base64, json, os
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])/'history-presentation-browser-results'
-          for source in ('baseline','candidate'):
+          for source in ('historical','baseline','candidate'):
               report=root/source/'browser-result.json'
               if not report.exists():
                   continue
+              screenshot=root/source/'observed-viewport.jpg'
+              if screenshot.exists():
+                  print('SCREENSHOT_JPEG_BASE64:'+source+':'+base64.b64encode(screenshot.read_bytes()).decode())
               data=json.loads(report.read_text())
               print(source, data['candidate_sha'], data['candidate_tree'], data['status'])
               for row in data['short_viewports']:

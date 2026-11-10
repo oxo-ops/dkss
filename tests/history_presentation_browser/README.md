@@ -35,3 +35,10 @@ short viewport are artifacts. No real data is copied into fixtures or artifacts.
 the updated harness requires the pinned pre-fix release SHA and tree.
 `--baseline-collapse` is allowed only for that pinned release. Local preflight can
 still use an identical baseline tree; browser execution does not permit that flag.
+
+The same synthetic dense/two-row fixture is also measured at 1180x757 on the
+pre-category release `008ed6e41352a852828f10193972e6e415f9a20e`. This is a
+geometry-only causal comparison, not a claim that the old UI passes new
+category/navigation requirements. Its distinct report status is
+`HISTORICAL_HEIGHT_MEASURED`; baseline reproduction is
+`BASELINE_COLLAPSE_REPRODUCED`, and only candidate acceptance reports `PASS`.
