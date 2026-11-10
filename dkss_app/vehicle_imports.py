@@ -1,5 +1,6 @@
 """Vehicle Imports responsibilities; routes are registered by the application factory."""
 from inspection_kind_identity import new_storage_kind
+from .import_failure_logging import log_document_import_failure
 from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, common as _dkss_common, http as _dkss_http, maintenance as _dkss_maintenance, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_karte as _dkss_vehicle_karte, vehicle_master as _dkss_vehicle_master, vehicle_operations as _dkss_vehicle_operations, vehicle_pending as _dkss_vehicle_pending, vehicle_readers as _dkss_vehicle_readers
 
@@ -746,7 +747,7 @@ def vehicle_data_import_progress():
                             yield report('type_mismatch', index, draft.source_filename,
                                          document_type=suggested, file_index=index)
                             return
-                    _dkss_runtime.app.logger.exception('資料の読み取り失敗: %s', draft.source_filename)
+                    log_document_import_failure(_dkss_runtime.app.logger, mode='progress', stage='extract', error=error, code=code)
                     reason = {'API_KEY_NOT_SET': 'AIの接続設定を確認してください。', 'OPENAI_NETWORK_OR_TIMEOUT': 'AIとの通信が中断、または時間切れになりました。', 'NO_INVOICE_FOUND': '整備請求書が見つかりませんでした。', 'NO_INSPECTION_FOUND': '点検表が見つかりませんでした。', 'NO_DRIVING_REPORT_FOUND': '安全運転日報が見つかりませんでした。', 'INVALID_DRIVING_REPORT_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_DRIVING_REPORT_EXTRACTION': '安全運転日報の読取結果を確認できませんでした。', 'INVALID_INSPECTION_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_INSPECTION_EXTRACTION': '点検表の読取結果を確認できませんでした。原本を確認して再試行してください。', 'OCR_NO_RECORDS': '資料の内容を読み取れませんでした。', 'DOCUMENT_TOO_LARGE': '1ファイル20MB以下にしてください。', 'CONVERTED_PDF_TOO_LARGE': '変換後の容量が20MBを超えています。画像を小さくしてください。', 'IMAGE_TOO_LARGE': '画像の縦横サイズを小さくしてください。', 'IMAGE_READ_FAILED': '画像を開けません。ファイルを確認してください。', 'INVALID_SOURCE_PAGES': '読取結果のページ番号を確認できませんでした。', 'EXTRACTION_NOT_COMPLETED': 'AIの読み取りが完了しませんでした。'}.get(code, '読み取りに失敗しました。資料とサーバーログを確認してください。')
                     reason = getattr(error, 'user_message', None) or reason
                     failures.append({'filename': draft.source_filename, 'reason': reason})
@@ -768,9 +769,9 @@ def vehicle_data_import_progress():
         except GeneratorExit:
             _dkss_common.db.session.rollback()
             raise
-        except Exception:
+        except Exception as error:
             _dkss_common.db.session.rollback()
-            _dkss_runtime.app.logger.exception('資料取り込みの進捗処理に失敗しました')
+            log_document_import_failure(_dkss_runtime.app.logger, mode='progress', stage='process', error=error)
             yield report('error', 0, message='処理を完了できませんでした。サーバーログを確認してください。')
     return Response(generate(), mimetype='application/x-ndjson', headers={'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no'})
 
@@ -802,8 +803,8 @@ def vehicle_data_import():
                 if not preview.get('records'):
                     raise ValueError('OCR_NO_RECORDS')
             except (ValueError, RuntimeError) as error:
-                _dkss_runtime.app.logger.exception('資料の読み取りに失敗しました: %s', draft.source_filename)
                 code = str(error).split(':', 1)[0]
+                log_document_import_failure(_dkss_runtime.app.logger, mode='form', stage='extract', error=error, code=code)
                 reason = {'API_KEY_NOT_SET': 'AIの接続設定を確認してください。', 'DOCUMENT_TOO_LARGE': '1ファイル20MB以下にしてください。', 'CONVERTED_PDF_TOO_LARGE': '変換後の容量が20MBを超えています。画像を小さくしてください。', 'IMAGE_TOO_LARGE': '画像の縦横サイズを小さくしてください。', 'IMAGE_READ_FAILED': '画像を開けません。ファイルを確認してください。', 'OCR_NO_RECORDS': '資料の内容を読み取れませんでした。', 'NO_INVOICE_FOUND': '整備請求書が見つかりませんでした。', 'NO_INSPECTION_FOUND': '点検表が見つかりませんでした。', 'NO_DRIVING_REPORT_FOUND': '安全運転日報が見つかりませんでした。', 'INVALID_DRIVING_REPORT_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_DRIVING_REPORT_EXTRACTION': '安全運転日報の読取結果を確認できませんでした。', 'INVALID_INSPECTION_PDF': 'PDFが破損・暗号化されているか、200ページを超えています。', 'INVALID_INSPECTION_EXTRACTION': '点検表の読取結果を確認できませんでした。原本を確認して再試行してください。', 'OPENAI_NETWORK_OR_TIMEOUT': 'AIとの通信が中断、または時間切れになりました。', 'EXTRACTION_NOT_COMPLETED': 'AIの読み取りが完了しませんでした。'}.get(code, '読み取りに失敗しました。ファイルとサーバーログを確認してください。')
                 reason = getattr(error, 'user_message', None) or reason
                 failed_imports.append({'filename': draft.source_filename, 'reason': reason})
@@ -823,7 +824,7 @@ def vehicle_data_import():
         _dkss_common.db.session.commit()
     except (ValueError, RuntimeError) as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception('資料の読み取りに失敗しました')
+        log_document_import_failure(_dkss_runtime.app.logger, mode='form', stage='process', error=error)
         if str(error) == 'API_KEY_NOT_SET':
             message = '請求書を読み取るためのOPENAI_API_KEYが設定されていません。サーバーの設定を確認してください。'
         elif str(error) == 'OCR_NO_RECORDS':
@@ -831,9 +832,9 @@ def vehicle_data_import():
         else:
             message = '資料の読み取りに失敗しました。サーバーログで原因を確認してください。'
         return _dkss_http.return_form_errors([(message, 'document_files')], status_code=503)
-    except _dkss_common.SQLAlchemyError:
+    except _dkss_common.SQLAlchemyError as error:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception('資料取り込みの確認用データを保存できませんでした')
+        log_document_import_failure(_dkss_runtime.app.logger, mode='form', stage='persist', error=error)
         return _dkss_http.return_form_errors([('資料を保存できませんでした。もう一度お試しください。', 'document_files')], status_code=500)
     return _dkss_common.redirect(_dkss_common.url_for('vehicle_document_import_preview', batch_id=drafts[0].batch_id))
 
