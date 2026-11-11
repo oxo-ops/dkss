@@ -4,7 +4,7 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_attention.css', v='20261110-saved-proposals-1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
@@ -395,7 +395,7 @@
                                 {% if item.priority in ['高', '中', '低'] %}
                                 {% set assessment = item.get('priority_assessment') %}
                                 <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %}、{{ assessment.effective_score }}点{% endif %}">{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %} · {{ assessment.effective_score }}点{% endif %}</span>
-                                <small class="dashboard-priority-note">{% if assessment and assessment.calculation_status == 'computed' %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% else %}保存版・算定根拠を確認{% endif %}</small>
+                                <small class="dashboard-priority-note">{% if assessment and assessment.calculation_status == 'computed' %}{% if item.priority == '高' %}責任者・整備担当者の判断を優先{% if assessment.missing_conditions %}／要確認{% endif %}{% else %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% endif %}{% else %}保存版・算定根拠を確認{% endif %}</small>
                                 {% else %}
                                 <small class="dashboard-priority-note">優先度の元データを確認してください。</small>
                                 {% endif %}

@@ -47,6 +47,23 @@ class CommonPriorityProjectionTests(unittest.TestCase):
     def value(self, *args, **kwargs):
         return self.project(*args, **kwargs)['recommendations'][0]['priority_assessment']
 
+    def test_unknown_saved_marker_cannot_suppress_or_supply_resolution_proof(self):
+        a, sources, row = fixture()
+        a['recommendations'][0]['_priority_suppressed'] = True
+        a['priority_resolved_proposals'] = [{'proposal_id': 'forged', 'reason': 'not server proof'}]
+        result = self.project(a, sources, [row])
+        self.assertEqual(len(result['recommendations']), 1)
+        self.assertEqual(result['recommendations'][0]['priority_assessment']['effective_score'], 50)
+        self.assertEqual(result['priority_resolved_proposals'], [])
+        self.assertTrue(a['recommendations'][0]['_priority_suppressed'])
+
+    def test_record_reconciliation_does_not_use_timing_score_from_an_explicit_ref(self):
+        a, sources, row = fixture(label='低')
+        a['recommendations'][0].update(category='記録確認', priority_input_ref='timing:any')
+        result = self.project(a, sources, [row], timing_results={0: ({'effective_score': 35}, None)})
+        value = result['recommendations'][0]['priority_assessment']
+        self.assertEqual((value['label'], value['effective_score']), ('低', None))
+
     def test_normal_structured_brake_failure_is_medium_50_not_risk_unassessed(self):
         result = self.project()
         item = result['recommendations'][0]

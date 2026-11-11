@@ -3,6 +3,8 @@
 .priority-response-details summary{cursor:pointer;font-weight:600;}
 .priority-response-details ul{padding-left:1.4em;}
 .priority-response-source{display:block;margin:5px 0;overflow-wrap:anywhere;}
+.priority-response-public-source{display:block;margin:5px 0;overflow-wrap:anywhere;}
+.priority-response-instruction,.priority-response-reference{margin:8px 0;padding:8px;border:1px solid #d8e1ec;border-radius:5px;}
 .priority-response-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:5px;font-weight:700;white-space:nowrap;background:#e6edf5;color:#45617a;}
 .priority-response-badge[data-priority="高"]{color:#a92a44;background:#ffe5ea;}
 .priority-response-badge[data-priority="中"]{color:#1b5fae;background:#e1edff;}

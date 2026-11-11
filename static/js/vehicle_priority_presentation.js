@@ -7,13 +7,33 @@
     const POINTS = {impact: [0, 10, 25, 40], timing: [0, 10, 25, 35], state: [0, 10, 25]};
     const FLOORS = {operation_instruction_active: 60, manufacturer_immediate_condition: 60,
         safety_issue_open: 25, required_safety_check_not_done: 25, verified_legal_deadline_due: 60};
-    const RULE_NAMES = {impact_safety: "標準点検の安全機能に関する具体的な不良回答", state_open: "元記録で未解消の指摘", safety_issue_open: "安全上の指摘の確認が必要", impact_minor: "具体的な軽度の劣化", impact_functional: "記録された機能不良", preventive_plan: "予防整備の計画", record_discrepancy: "記録の照合"};
+    const RULE_NAMES = {impact_safety: "標準点検の安全機能に関する具体的な不良回答", state_open: "元記録で未解消の指摘", safety_issue_open: "安全上の指摘の確認が必要", impact_minor: "具体的な軽度の劣化", impact_functional: "記録された機能不良", preventive_plan: "予防整備の計画", record_discrepancy: "記録の照合", state_worsening: "同じ事象の比較記録で確認した悪化", state_recurrent: "解消後の別事象で確認した同じ症状の再発", explicit_planned_action: "記録された対応予定", no_timing_required: "時期の追加対応が不要と確認した記録"};
     const FLOOR_NAMES = {operation_instruction_active: "既存の運行前確認・停止等の指示",
         manufacturer_immediate_condition: "適用できるメーカーの即時対応条件", safety_issue_open: "未解消の安全上の指摘",
         required_safety_check_not_done: "必要な安全確認の明示された未実施", verified_legal_deadline_due: "確認済みの法的期限"};
     const text = v => typeof v === "string" && v.trim().length > 0;
     const strings = v => Array.isArray(v) && v.every(text);
     const score = v => Number.isInteger(v) && v >= 0 && v <= 100;
+    const dateOnly = v => text(v) && /^\d{4}-\d{2}-\d{2}$/.test(v)
+        && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+    const validInstruction = v => v == null || (typeof v === "object" && !Array.isArray(v)
+        && v.scope === "whole_vehicle" && v.recorded_status === "運行不可"
+        && text(v.actor_name) && text(v.authority_role) && text(v.source_id)
+        && typeof v.reason === "string" && text(v.recorded_at)
+        && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.recorded_at)
+        && dateOnly(v.recorded_at.slice(0, 10))
+        && Number.isFinite(Date.parse(v.recorded_at)));
+    const publicURL = value => {
+        if (!text(value)) return null;
+        try {
+            const url = new URL(value);
+            return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+        } catch (_) { return null; }
+    };
+    const validTimingReference = v => v == null || (typeof v === "object" && !Array.isArray(v)
+        && v.authority === "manufacturer" && ["replace", "inspect"].includes(v.action)
+        && text(v.issuer) && text(v.title) && text(v.version) && text(v.quote)
+        && Number.isInteger(v.source_page) && v.source_page > 0 && publicURL(v.url));
     const unavailable = () => ({valid: false, label: null, score: null, note: "優先度のデータを確認できません。元の提案を確認してください。"});
     function read(item) {
         if (!item || typeof item !== "object") return unavailable();
@@ -25,6 +45,11 @@
             || p.operation_decision !== "human_only" || p.safety_cleared !== false
             || p.candidate_id !== item.proposal_id || p.proposal_revision !== item.proposal_revision
             || !text(item.proposal_id) || !text(item.proposal_revision)
+            || !validInstruction(p.instruction_details)
+            || (p.earliest_due_on != null && !dateOnly(p.earliest_due_on))
+            || (p.subject_label != null && !text(p.subject_label))
+            || !validTimingReference(p.timing_reference)
+            || (p.timing_origin_on != null && !dateOnly(p.timing_origin_on))
             || !strings(p.missing_conditions) || !strings(p.applicable_reference_ids)
             || !Array.isArray(p.factors) || p.factors.length !== 3 || !Array.isArray(p.applied_floors)) return unavailable();
         const axes = new Set();
@@ -48,11 +73,14 @@
             if (!f || !Object.hasOwn(FLOORS, f.code) || f.minimum !== FLOORS[f.code]
                 || !strings(f.source_ids) || !f.source_ids.length || !strings(f.reference_ids)) return unavailable();
         }
+        if (p.instruction_details && !p.applied_floors.some(f => f.code === "operation_instruction_active"
+            && f.source_ids.includes(p.instruction_details.source_id))) return unavailable();
         if (p.effective_score !== Math.max(p.base_score, ...p.applied_floors.map(f => f.minimum))
             || p.floor_adjustment !== p.effective_score - p.base_score
             || (p.factors.some(f => f.points === null) && !p.missing_conditions.length)) return unavailable();
         return {valid: true, label: p.label, score: p.effective_score, legacy: false, assessment: p,
-            note: p.missing_conditions.length ? "要確認" : "試行値"};
+            note: p.label === "高" ? `責任者・整備担当者の判断を優先${p.missing_conditions.length ? "／要確認" : ""}`
+                : p.missing_conditions.length ? "要確認" : "試行値"};
     }
     function ordered(items, analysis = {}) {
         const values = items.filter(item => item && typeof item === "object");
@@ -98,7 +126,32 @@
         box.append(node(doc, "p", "priority-response-note", p.note));
         if (p.valid && p.assessment) {
             const a = p.assessment;
-            if (!p.legacy) box.append(node(doc, "p", "", `基本点 ${a.base_score}点 / 下限適用後 ${a.effective_score}点`));
+            if (a.subject_label) box.append(node(doc, "p", "priority-response-subject", `算定の対象：${a.subject_label}`));
+            if (a.timing_reference) {
+                const r = a.timing_reference;
+                const reference = node(doc, "section", "priority-response-reference");
+                reference.append(node(doc, "strong", "", `適用した${r.action === "inspect" ? "点検" : "交換"}基準`));
+                const link = node(doc, "a", "priority-response-public-source", `${r.issuer}：${r.title}（${r.source_page}ページ）`);
+                link.href = publicURL(r.url); link.target = "_blank"; link.rel = "noopener noreferrer";
+                reference.append(link, node(doc, "p", "", r.quote));
+                if (a.timing_origin_on) reference.append(node(doc, "p", "", `起算記録：${a.timing_origin_on}`));
+                box.append(reference);
+            }
+            if (!p.legacy) {
+                box.append(node(doc, "p", "", `基本点 ${a.base_score}点 / 下限適用後 ${a.effective_score}点`));
+                if (a.floor_adjustment > 0) box.append(node(doc, "p", "", `下限による調整：+${a.floor_adjustment}点`));
+            }
+            if (a.earliest_due_on) box.append(node(doc, "p", "priority-response-deadline", `根拠のある対応期限：${a.earliest_due_on}`));
+            if (a.instruction_details) {
+                const i = a.instruction_details;
+                const origin = node(doc, "section", "priority-response-instruction");
+                origin.append(node(doc, "strong", "", "元記録にある権限者の判断（車両全体）"));
+                origin.append(node(doc, "p", "", `${i.recorded_status} / ${i.actor_name}（${i.authority_role}）`));
+                origin.append(node(doc, "p", "", `記録日時：${i.recorded_at}`));
+                if (i.reason) origin.append(node(doc, "p", "", i.reason));
+                origin.append(node(doc, "p", "priority-response-note", "個別部品が原因という判定ではありません。現在の適用範囲と解除は元記録から責任者に確認してください。"));
+                box.append(origin);
+            }
             const list = node(doc, "ul", "");
             for (const f of a.factors) {
                 const basis = f.rule_ids.map(id => RULE_NAMES[id] || "適用ルールの根拠を確認").join("、");
@@ -108,7 +161,8 @@
             for (const message of a.missing_conditions) list.append(node(doc, "li", "", message));
             box.append(list);
             box.append(node(doc, "p", "", `根拠：${a.evidence_status || "確認要"} / 最終観測：${a.observed_at || "記録なし"} / 算定基準日：${a.as_of || "不明"}`));
-            const ids = [...new Set([...a.factors.flatMap(f => f.source_ids), ...a.applied_floors.flatMap(f => f.source_ids)])];
+            const ids = [...new Set([...a.factors.flatMap(f => f.source_ids), ...a.applied_floors.flatMap(f => f.source_ids),
+                ...(a.instruction_details ? [a.instruction_details.source_id] : [])])];
             for (const id of ids) {
                 const source = sources[id];
                 if (!source || !text(source.url) || !origin) continue;

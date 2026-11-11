@@ -200,7 +200,7 @@ test('normal overview uses common server order and score, not the old risk matri
     assert.equal(ui.rows[1].children[0].textContent,'中 · 50点');
     assert.equal(ui.rows[0].dataset.priorityScore,'60');
     assert.equal(ui.rows[1].dataset.priorityScore,'50');
-    assert.equal(ui.rows[0].children[1].children.at(-1).textContent,'要確認');
+    assert.equal(ui.rows[0].children[1].children.at(-1).textContent,'責任者・整備担当者の判断を優先／要確認');
     assert.equal(JSON.stringify(recommendations),before);
 });
 test('normal overview rejects a mismatched score without creating a fourth priority', async()=>{

@@ -1,5 +1,7 @@
 """車両分析の提案生成。整備・点検・車両データは更新しない。"""
 
+from vehicle_priority_inputs import generation_priority_inputs, validate_priority_input
+
 import json
 import os
 import urllib.error
@@ -215,7 +217,7 @@ def analyze_vehicle_karte(payload, on_progress=None):
         "status", "completion_date", "repair_date",
         "repair_content", "notes", "findings", "treatments",
         "registered_operation_judgment", "judgment_reason",
-        "mileage", "part_number",
+        "mileage", "part_number", "priority_inputs",
     }
     review_records = []
     for record in payload.get("records", []):
@@ -478,6 +480,7 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
         return {"type": "string"}
 
     properties = {
+        "priority_input_ref": {"type": "string", "enum": [""] + list(generation_priority_inputs(payload))},
         "priority": {
             "type": "string",
             "enum": ["高", "中", "低"],
@@ -575,7 +578,7 @@ priorityは記録上の必要性と対応時期に基づいて選び、メーカ
 出力は部品・箇所ごとの判断一覧に使用します。長文ではなく、以下の項目に分けてください。
 categoryは実車の確認・点検・整備の提案なら「整備・点検」、入力や明細・集計の確認なら「記録確認」。両者を混同しないでください。
 targetは部品・箇所名のみ24文字以内。current_stateは日付・症状・経過距離等の要点を36文字以内。
-日常点検の1つの具体的な指摘を直接の根拠にする提案では、findings.contentの原文が24文字以内なら、その原文をtargetへ保持し、その記録のinspection:で始まるsource_idを指定してください。複数の指摘・別事象を1つの項目へ推測で対応付けないでください。原文が24文字を超える場合は既存の短いtargetを維持し、短縮名だけで項目の同一性や点数が確定したと扱わないでください。点数やpriority_assessmentは出力せず、最終的な共通点数は原記録との対応を確認するサーバー処理が決めます。
+日常点検の1つの具体的な指摘を直接の根拠にする提案では、findings.contentの原文が24文字以内なら、その原文をtargetへ保持し、その記録のinspection:で始まるsource_idを指定してください。複数の指摘・別事象を1つの項目へ推測で対応付けないでください。原文が24文字を超える場合も、後述のサーバー指定表示名を使い、短縮名だけで項目の同一性や点数が確定したと扱わないでください。priority_inputsに当該提案の対象がある場合は、そのrefをpriority_input_refへそのまま指定し、targetはdisplay_target（未設定ならtarget原文の改行・連続空白を1個の空白にまとめた先頭24文字）と完全一致させてください。別部品名や独自の短縮名へ言い換えません。source_idsにはその参照が指定する根拠IDをすべて含めます。対象がない場合やcategoryが記録確認の場合は空文字にします。短いtargetではなく、この参照で項目・指摘・適用規則を区別します。registered_operation_instructionの参照ではtargetを「既存の運行判断の確認」とし、車両全体の既存判断を確認する提案だけに使用します。部品の原因や新たな運行禁止を作らず、古い判断の有効期限を推定しません。点数やpriority_assessmentは出力せず、最終的な共通点数は原記録との対応を確認するサーバー処理が決めます。
 出力は「現在の状態 → リスク・懸念 → 推奨する対応」の因果関係が分かるようにしてください。current_stateには、その対象に記録された症状・状態・経過の事実を簡潔に示してください。内部の照合処理や提案への回答状況だけで埋めず、対象の指摘と解消確認の有無を優先してください。
 riskは80文字以内で、状態から想定される影響と確認理由を示してください。詳細はリスク判定v4の契約に従ってください。根拠のある故障リスクと、解消確認ができず判断できないことを区別してください。記録確認の提案では具体的に何の解消・再確認が未確認かを示し、作業未実施や故障とは断定しないでください。実車の状態やメーカー基準の裏付けがない事故・故障・運行不可・期限超過は創作しないでください。影響が分からなければ、その影響は判断できないと明記してください。
 actionは、その状態と懸念に対して行う具体的な対応にしてください。reasonは引用した記録・基準がその判断を支える理由を示し、riskやactionの繰り返しにしないでください。
@@ -1106,6 +1109,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
             # Do not leak source contents or guessed IDs in worker logs.
             raise ValueError("INVALID_ANALYSIS_SOURCES: " + reason)
 
+        validate_priority_input(item, payload)
         validate_vehicle_risk(item, payload.get("_risk_evidence_payload", payload))
         used_knowledge = item.get("knowledge_ids")
         if (

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}車両カルテ・分析{% endblock %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261023-detail-overlay-1') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
@@ -148,7 +148,7 @@
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-common-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-common-3') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261111-common-1') }}" defer></script>
 </div>

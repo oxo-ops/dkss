@@ -26,6 +26,61 @@ test('existing human instruction floor is shown without issuing an operation dec
     const item=proposal('stop',[null,null,10],true), detail=view.details(doc,item);
     assert.equal(view.read(item).score,60);assert.match(texts(detail),/既存の運行前確認・停止等の指示：下限60点/);
     assert.doesNotMatch(texts(detail),/自動.*運行禁止/);
+    assert.match(view.read(item).note,/責任者・整備担当者の判断を優先/);
+    assert.match(texts(detail),/下限による調整：\+50点/);
+});
+
+test('recorded vehicle-wide instruction stays distinct from a component cause and a new decision',()=>{
+    const item=proposal('stop',[null,null,null],true);
+    item.priority_assessment.instruction_details={scope:'whole_vehicle',recorded_status:'運行不可',
+        actor_name:'<img src=x onerror=alert(1)>',authority_role:'整備管理者',recorded_at:'2026-11-11T08:15:00+09:00',
+        reason:'元の指示文',source_id:'instruction:1'};
+    item.priority_assessment.subject_label='既存の運行判断の確認';
+    const before=JSON.stringify(item), tree=view.details(doc,item), content=texts(tree);
+    assert.equal(view.read(item).valid,true);
+    assert.match(content,/元記録にある権限者の判断（車両全体）/);
+    assert.match(content,/算定の対象：既存の運行判断の確認/);
+    assert.match(content,/個別部品が原因という判定ではありません/);
+    assert.match(content,/2026-11-11T08:15:00\+09:00/);
+    assert.match(content,/元の指示文/);
+    assert.equal(walk(tree).some(e=>['img','script','form','input'].includes(e.tag)),false);
+    assert.equal(JSON.stringify(item),before);
+});
+
+test('low priority keeps a verified deadline without implying delay is safe',()=>{
+    const item=proposal('plan',[0,10,0]);item.priority_assessment.earliest_due_on='2026-12-31';
+    const content=texts(view.details(doc,item));
+    assert.equal(view.read(item).label,'低');assert.match(content,/根拠のある対応期限：2026-12-31/);
+    assert.match(content,/低も安全確認済みを意味しません/);
+    for(const invalid of ['2026-02-31','2026-12','<script>bad</script>']){
+        item.priority_assessment.earliest_due_on=invalid;assert.equal(view.read(item).valid,false);
+    }
+});
+
+test('adopted timing shows the original rule and origin without calculating a new interval',()=>{
+    const item=proposal('timing',[0,35,0]);
+    item.priority_assessment.timing_origin_on='2026-01-31';
+    item.priority_assessment.timing_reference={url:'https://example.test/manual.pdf',issuer:'合成メーカー',
+        title:'点検基準',source_page:3,version:'source-checksum',quote:'<b>合成の点検条件</b>',authority:'manufacturer',action:'inspect'};
+    const before=JSON.stringify(item), tree=view.details(doc,item), content=texts(tree);
+    assert.equal(view.read(item).valid,true);assert.match(content,/適用した点検基準/);
+    assert.match(content,/合成メーカー：点検基準（3ページ）/);assert.match(content,/起算記録：2026-01-31/);
+    assert.equal(walk(tree).find(e=>e.tag==='a').href,'https://example.test/manual.pdf');
+    assert.equal(walk(tree).find(e=>e.tag==='a').rel,'noopener noreferrer');
+    assert.equal(walk(tree).some(e=>e.tag==='b'),false);assert.equal(JSON.stringify(item),before);
+    for(const url of ['javascript:alert(1)','file:///etc/passwd','https://name:secret@example.test/manual.pdf']){
+        item.priority_assessment.timing_reference.url=url;assert.equal(view.read(item).valid,false);
+    }
+});
+
+test('malformed instruction attribution is not presented as a valid server assessment',()=>{
+    const base={scope:'whole_vehicle',recorded_status:'運行不可',actor_name:'管理者',authority_role:'整備管理者',
+        recorded_at:'2026-11-11T08:15:00+09:00',reason:'確認指示',source_id:'instruction:1'};
+    for(const invalid of [{...base,scope:'brake'},{...base,actor_name:''},{...base,recorded_at:'2026-11-11 08:15:00'},
+        {...base,recorded_at:'2026-02-31T08:15:00+09:00'},{...base,recorded_status:'運行可'},{...base,source_id:'instruction:foreign'}]){
+        const item=proposal('stop',[null,null,null],true);item.priority_assessment.instruction_details=invalid;
+        assert.equal(view.read(item).valid,false);assert.equal(view.badge(doc,item),null);
+    }
 });
 test('legacy label stays literal with no score or fourth class',()=>{
     for(const label of ['高','中','低']) {

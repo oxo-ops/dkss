@@ -1295,6 +1295,8 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
         # saved sources stay untouched; citations alone cannot bind a new event.
         from .priority_projection import registered_inspection_provenance
         sources[f'inspection:{row.id}']['priority_provenance'] = registered_inspection_provenance(vehicle, row)
+        from vehicle_priority_inputs import inspection_inputs
+        records[-1]['priority_inputs'] = inspection_inputs(sources[f'inspection:{row.id}']['priority_provenance'])
     periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
     for row in periodic:
         excluded_inspection = periodic_inspection_synthetic_evidence(row)
@@ -1403,6 +1405,8 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
     payload['feedback_context'] = feedback_context
     fingerprints['important_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps({'history': fingerprints['important_hash'], 'knowledge': knowledge_for_fingerprint, 'feedback': feedback_context}, sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
     fingerprints['has_important_history'] = fingerprints['has_important_history'] or bool(knowledge) or bool(feedback_context)
+    from .priority_timing import attach_timing_priority_inputs
+    attach_timing_priority_inputs(vehicle, payload, sources)
     return (payload, sources)
 
 

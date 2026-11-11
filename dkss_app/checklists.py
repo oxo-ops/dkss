@@ -4384,10 +4384,11 @@ def save_vehicle_operation_judgment(result_index):
     if _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1":
         return _dkss_common.jsonify({"success": True})
 
-    judged_at = _dkss_checklist_common.get_user_local_now(
+    judged_local = _dkss_checklist_common.get_user_local_now(
         result_record.company_code,
         current_user.username
-    ).strftime("%Y-%m-%d %H:%M:%S")
+    )
+    judged_at = judged_local.strftime("%Y-%m-%d %H:%M:%S")
     judgment = {
         **previous,
         "status": decision,
@@ -4404,6 +4405,12 @@ def save_vehicle_operation_judgment(result_index):
         "operation_notify_usernames": operation_notify_usernames,
         "version": current_version + 1
     }
+
+    # Source proof only. The human decision and existing workflow are unchanged.
+    judgment.pop('priority_instruction_context', None)
+    if decision in {'運行不可', '運行可'}:
+        from .priority_projection import operation_instruction_context
+        judgment['priority_instruction_context'] = operation_instruction_context(result_record, judged_local)
 
     approval = approvals[0]
     approval_added = not (

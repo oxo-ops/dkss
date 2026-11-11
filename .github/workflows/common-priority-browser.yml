@@ -5,7 +5,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'vehicle_priority_projection.py'
+      - 'vehicle_priority_inputs.py'
       - 'dkss_app/priority_projection.py'
+      - 'dkss_app/priority_timing.py'
+      - 'dkss_app/checklists.py'
       - 'dkss_app/analysis.py'
       - 'dkss_app/dashboard.py'
       - 'static/js/vehicle_priority_presentation.js'
@@ -15,6 +18,8 @@ on:
       - 'templates/vehicle_karte*.html'
       - 'templates/index.html'
       - 'tests/test_priority_common*.py'
+      - 'tests/test_priority_stage2*.py'
+      - 'tests/test_priority_adopted_timing.py'
       - 'tests/common_priority_browser/**'
       - '.github/workflows/common-priority-browser.yml'
 
@@ -62,6 +67,12 @@ jobs:
             bash tests/common_priority_browser/run-isolated.sh \
             "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
             --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$chromium"
+          for scenario in instruction recheck timing; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/$scenario" \
+              bash tests/common_priority_browser/run-stage2-isolated.sh \
+              "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
+          done
       - name: Save synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v7
