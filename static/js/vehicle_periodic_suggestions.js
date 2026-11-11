@@ -44,7 +44,7 @@
             detail.append(node('p',item.confirmation_branch),node('p',item.uncertainty,'help-text'),node('p',item.basis_type,'help-text'));
             (item.source_ids || []).forEach(id => { const source = (data.evidence || {})[id];if (!source || typeof source.url !== 'string' || !/^(\/[^/]|https?:\/\/)/.test(source.url)) return;const a=node('a',source.label);a.href=source.url;a.target='_blank';a.rel='noopener';detail.append(a,document.createTextNode('　')); });
             card.append(detail);
-            if (priority) card.append(priority.details(document, item, data.evidence || {}));
+            if (priority) card.append(priority.details(document, item, data.evidence || {}, window.location.origin));
             list.append(card);
         });
         if (data.updated_at) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));

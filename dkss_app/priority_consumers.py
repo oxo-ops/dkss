@@ -5,6 +5,7 @@ proposal's original source proof is never reconstructed from today's records.
 """
 from copy import deepcopy
 from datetime import datetime
+import json
 from zoneinfo import ZoneInfo
 
 from vehicle_priority_projection import project_priority
@@ -51,7 +52,10 @@ def capture_periodic_priority_sources(company_code, vehicle_id, sources):
     if not company_code or type(vehicle_id) is not int or vehicle_id <= 0 or not isinstance(sources, dict):
         raise ValueError('trusted periodic priority source scope required')
     return {'version': PERIODIC_PROOF_VERSION, 'company_code': company_code,
-            'vehicle_id': vehicle_id, 'sources': deepcopy(sources)}
+            'vehicle_id': vehicle_id,
+            # Match the normal analysis cache: Decimal/date snapshots are
+            # stored as strings before crossing the background-job boundary.
+            'sources': json.loads(json.dumps(sources, ensure_ascii=False, default=str))}
 
 
 def bind_periodic_priority_sources(result, proof):
