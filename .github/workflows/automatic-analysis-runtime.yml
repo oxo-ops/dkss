@@ -12,6 +12,7 @@ on:
       - 'vehicle_analysis_service.py'
       - 'tests/test_analysis_worker.py'
       - 'tests/test_analysis_worker_postgres.py'
+      - 'tests/test_analysis_generation_fence*.py'
       - 'tests/test_analysis_runtime_*.py'
       - 'tests/run_analysis_runtime_ci.py'
       - 'tests/analysis_runtime_ci_*.py'

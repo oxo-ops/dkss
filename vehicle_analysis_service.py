@@ -154,6 +154,7 @@ class VehicleAnalysisJobService:
         token = self.new_token()
         if not self.repository.claim(state_id, claimed_hash, token, now):
             return False
+        signature = None
         try:
             vehicle = self.repository.find_vehicle(state.company_code, state.vehicle_record_id)
             if vehicle is None:
@@ -203,7 +204,8 @@ class VehicleAnalysisJobService:
                 code = code.replace(key, "[REDACTED]")
             code = code[:500]
             self.logger.warning("車両自動分析に失敗しました: %s", code)
-            self.repository.fail(state_id, token, code, self.utc_now() + timedelta(hours=1))
+            self.repository.fail(state_id, token, code, self.utc_now() + timedelta(hours=1),
+                claimed_hash=claimed_hash, snapshot_hash=signature)
             return False
 
 

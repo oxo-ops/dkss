@@ -210,7 +210,7 @@ class AnalysisWorkerPostgresTests(unittest.TestCase):
         self.assertTrue(repo.claim(self.state_id, 'old', 'new-owner', now))
         self.assertFalse(repo.finish(self.state_id, 'old-owner', claimed_hash='old', snapshot_hash='old',
             bundle={'analysis': {'overview': 'stale'}}, finished=now, method='ai'))
-        repo.fail(self.state_id, 'old-owner', 'stale-error', now+timedelta(hours=1))
+        repo.fail(self.state_id, 'old-owner', 'stale-error', now+timedelta(hours=1), claimed_hash='old')
         state = self.db.session.get(self.models.VehicleKarteAnalysis, self.state_id)
         self.assertEqual(state.lease_token, 'new-owner'); self.assertEqual(state.status, 'running')
         self.assertEqual(json.loads(state.result_json), {})

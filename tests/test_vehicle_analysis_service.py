@@ -247,14 +247,20 @@ class AnalysisServiceDatabaseTests(unittest.TestCase):
         self.assertEqual(json.loads(state.result_json)["analysis"]["overview"], "previous")
 
     def test_input_changed_during_ai_retains_new_hash_and_requeues(self):
+        state = self.state()
+        state.result_json = '{"analysis":{"overview":"previous"}}'
+        reserved = NOW + timedelta(seconds=45)
+        self.m.db.session.commit()
         def ai(payload, on_progress):
-            self.m.VehicleKarteAnalysis.query.filter_by(id=self.state_id).update({"input_hash": "new-input"})
+            self.m.VehicleKarteAnalysis.query.filter_by(id=self.state_id).update({
+                "input_hash": "new-input", "next_analysis_at": reserved})
             self.m.db.session.commit()
             return {"overview": "old-input-result", "recommendations": []}
-        self.assertTrue(self.run_job(ai)[0])
+        self.assertFalse(self.run_job(ai)[0])
         state = self.state()
         self.assertEqual((state.status, state.input_hash), ("pending", "new-input"))
-        self.assertEqual(aware(state.next_analysis_at), NOW + timedelta(minutes=2))
+        self.assertEqual(aware(state.next_analysis_at), reserved)
+        self.assertEqual(json.loads(state.result_json)["analysis"]["overview"], "previous")
         self.assertIsNone(state.lease_token)
 
     def test_new_lease_owner_result_cannot_be_overwritten(self):

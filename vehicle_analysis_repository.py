@@ -116,27 +116,50 @@ class VehicleAnalysisJobRepository:
             self.db.session.rollback()
             return False
         changed = state.input_hash not in {claimed_hash, snapshot_hash}
+        if changed:
+            # A newer queued generation owns its reservation. Do not replace
+            # the previously saved result with an obsolete model response.
+            state.status = "pending"
+            if state.next_analysis_at is None:
+                state.next_analysis_at = finished + timedelta(minutes=2)
+            state.lease_token = None
+            state.lease_expires_at = None
+            self.db.session.commit()
+            return False
         state.result_json = json.dumps(bundle, ensure_ascii=False, default=str)
         state.last_analyzed_at = finished if method == "ai" else None
         state.last_error = None
         state.lease_token = None
         state.lease_expires_at = None
-        if changed:
-            state.status = "pending"
-            state.next_analysis_at = finished + timedelta(minutes=2)
-        else:
-            state.status = "completed"
-            state.input_hash = snapshot_hash
-            state.next_analysis_at = None
+        state.status = "completed"
+        state.input_hash = snapshot_hash
+        state.next_analysis_at = None
         self.db.session.commit()
         return True
 
     def rollback(self):
         self.db.session.rollback()
 
-    def fail(self, state_id, token, code, retry_at):
-        self.State.query.filter_by(id=state_id, lease_token=token).update({
-            "status": "error", "last_error": code, "next_analysis_at": retry_at,
-            "lease_token": None, "lease_expires_at": None,
-        }, synchronize_session=False)
+    def fail(self, state_id, token, code, retry_at, *, claimed_hash, snapshot_hash=None):
+        self.db.session.expire_all()
+        state = self.State.query.filter_by(id=state_id, lease_token=token).with_for_update().first()
+        if state is None:
+            self.db.session.rollback()
+            return False
+        expected = {claimed_hash}
+        if snapshot_hash is not None:
+            expected.add(snapshot_hash)
+        if state.input_hash not in expected:
+            # An old attempt's failure must not bury newly queued input in the
+            # old one-hour retry. Keep its deadline, previous result and error.
+            state.status = "pending"
+            if state.next_analysis_at is None:
+                state.next_analysis_at = retry_at - timedelta(hours=1) + timedelta(minutes=2)
+        else:
+            state.status = "error"
+            state.last_error = code
+            state.next_analysis_at = retry_at
+        state.lease_token = None
+        state.lease_expires_at = None
         self.db.session.commit()
+        return True

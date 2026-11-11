@@ -76,6 +76,11 @@ lease, renewal before model chunks, stale-owner rejection and 1-hour retry after
 an error. The leader's backend identity is checked before work, model chunks and
 saving. Lost/reconnected leadership cannot intentionally continue a later chunk.
 
+The [queued-generation save/failure fence](analysis_generation_fence.md) also
+preserves the previous result and newer reservation when the locked analysis row
+has moved to a different input hash. It does not claim that every source POST
+immediately updates that row or that all source writes are atomically serialized.
+
 The Gunicorn exit hook only sets a cooperative stop event and wakes idle waits.
 It does not join the daemon analysis thread. Normal SIGTERM/reload process exit
 can therefore terminate an in-flight analysis immediately, as can a hard kill.
