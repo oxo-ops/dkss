@@ -1,0 +1,137 @@
+{
+  "provenance": {
+    "run_id": 43069457448,
+    "purpose": "Synthetic one-page DOM and response observations only; not visible-canvas or new-frame acceptance.",
+    "added_scope_frame_viewport_fields": "Constructed only by pure fixture tests, not observed in this run."
+  },
+  "invoice_source_events": [
+    {
+      "sequence": 1,
+      "event": "request",
+      "phase": "width:1440/maintenance-tab",
+      "request_id": 1,
+      "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+      "method": "GET",
+      "resource_type": "fetch",
+      "is_navigation_request": false,
+      "request_headers": {
+        "range": null,
+        "if-range": null,
+        "accept": "*/*",
+        "sec-fetch-dest": null,
+        "sec-fetch-mode": null,
+        "sec-fetch-site": null
+      }
+    },
+    {
+      "sequence": 2,
+      "event": "bridge_response",
+      "phase": "width:1440/maintenance-tab",
+      "request_id": 1,
+      "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+      "method": "GET",
+      "resource_type": "fetch",
+      "is_navigation_request": false,
+      "request_headers": {
+        "range": null,
+        "if-range": null,
+        "accept": "*/*",
+        "sec-fetch-dest": null,
+        "sec-fetch-mode": null,
+        "sec-fetch-site": null
+      },
+      "status": 200,
+      "mimetype": "application/pdf",
+      "content_disposition": "inline; filename=invoice.pdf",
+      "response_headers": {
+        "content-type": "application/pdf",
+        "content-length": "470",
+        "content-range": null,
+        "accept-ranges": null,
+        "content-encoding": null,
+        "content-disposition": "inline; filename=invoice.pdf",
+        "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+        "x-content-type-options": "nosniff"
+      },
+      "byte_length": 470,
+      "source_sha256": "dd59770b5814ff55005ebc5f12bb6be40dbda2d73617a0c3c25747bc41b14004"
+    },
+    {
+      "sequence": 3,
+      "event": "response",
+      "phase": "width:1440/maintenance-tab",
+      "request_id": 1,
+      "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+      "method": "GET",
+      "resource_type": "fetch",
+      "is_navigation_request": false,
+      "request_headers": {
+        "range": null,
+        "if-range": null,
+        "accept": "*/*",
+        "sec-fetch-dest": null,
+        "sec-fetch-mode": null,
+        "sec-fetch-site": null
+      },
+      "status": 200,
+      "response_headers": {
+        "content-type": "application/pdf",
+        "content-length": "470",
+        "content-range": null,
+        "accept-ranges": null,
+        "content-encoding": null,
+        "content-disposition": "inline; filename=invoice.pdf",
+        "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "sequence": 4,
+      "event": "requestfailed",
+      "phase": "width:1440/maintenance-tab",
+      "request_id": 1,
+      "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+      "method": "GET",
+      "resource_type": "fetch",
+      "is_navigation_request": false,
+      "request_headers": {
+        "range": null,
+        "if-range": null,
+        "accept": "*/*",
+        "sec-fetch-dest": null,
+        "sec-fetch-mode": null,
+        "sec-fetch-site": null
+      },
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "invoice_preview_observations": [
+    {
+      "width": 1440,
+      "stage": "maintenance-tab",
+      "phase": "width:1440/maintenance-tab",
+      "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance",
+      "present": true,
+      "ready": true,
+      "error": false,
+      "total": "1",
+      "current": "1",
+      "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
+      "dimensions": [
+        {
+          "width": 119,
+          "height": 169
+        }
+      ],
+      "raster": [
+        {
+          "width": 119,
+          "height": 169
+        }
+      ],
+      "source_base": "/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+      "record_key": "maintenance_1",
+      "disclosure_open": true
+    }
+  ]
+}

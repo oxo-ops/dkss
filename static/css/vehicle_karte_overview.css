@@ -43,8 +43,8 @@
 #vehicle-karte-overview .ko-judgment-note { margin-top:8px; padding:8px 12px; border-left:3px solid #b87a1b; background:#fff8eb; overflow-wrap:anywhere; }
 #vehicle-karte-overview .ko-workspace { display:grid; grid-template-columns:minmax(0,1.14fr) minmax(0,1fr); gap:10px; align-items:stretch; }
 #vehicle-karte-overview .ko-support-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; align-items:start; }
-#vehicle-karte-overview .ko-work-summary { display:flex; gap:8px; border-bottom:1px solid var(--ov-line); margin-bottom:8px; padding:0 0 7px; font-size:12px; }
-#vehicle-karte-overview .ko-work-summary > span { display:flex; gap:7px; align-items:center; flex:1; }
+#vehicle-karte-overview .ko-work-summary { display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--ov-line); margin-bottom:8px; padding:0 0 7px; font-size:12px; }
+#vehicle-karte-overview .ko-work-summary > span { display:flex; flex-wrap:wrap; gap:7px; align-items:center; flex:1 1 auto; min-width:0; white-space:nowrap; }
 #vehicle-karte-overview .ko-work-summary > span + span { border-left:1px solid var(--ov-line); padding-left:14px; }
 #vehicle-karte-overview .ko-work-summary b { font-size:14px; white-space:nowrap; }
 #vehicle-karte-overview .ko-work-summary > span + span .ko-icon { color:#925500; }
@@ -102,7 +102,7 @@
 #vehicle-karte-overview .ko-distance-pending .ko-icon { width:15px; height:15px; color:#925500; }
 #vehicle-karte-overview .ko-distance a { margin-left:auto; font-size:11px; }
 #vehicle-karte-overview .ko-cost .ko-heading { flex-wrap:wrap; }
-#vehicle-karte-overview .ko-cost .ko-heading > .ko-meta { flex:1; margin:0; font-size:11px; }
+#vehicle-karte-overview .ko-cost .ko-heading > .ko-meta { flex:1 1 24em; margin:0; font-size:11px; }
 #vehicle-karte-overview .ko-cost-grid { display:grid; grid-template-columns:minmax(170px,.55fr) minmax(0,1.6fr); gap:12px; align-items:stretch; }
 #vehicle-karte-overview .ko-spend-summary { background:#f4f8fd; border-radius:5px; padding:10px; }
 #vehicle-karte-overview .ko-cost-total { font-size:22px; font-weight:700; margin:5px 0; font-variant-numeric:tabular-nums; line-height:1.5; }
@@ -168,6 +168,13 @@
  #vehicle-karte-overview .ko-part-event > span { font-size:10px; }
 }
 @container(max-width:680px) {
+ /* Keep labels intact; a long prior-evaluation count may use its own line. */
+ #vehicle-karte-overview .ko-work-summary > span { flex-basis:100%; }
+ #vehicle-karte-overview .ko-work-summary > span + span { border-left:0; padding-left:0; }
+ /* Reserve the full card width for the period, below the title and link. */
+ #vehicle-karte-overview .ko-cost .ko-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+ #vehicle-karte-overview .ko-cost .ko-heading > .ko-meta { grid-column:1 / -1; grid-row:2; }
+ #vehicle-karte-overview .ko-cost .ko-heading > a { grid-column:2; grid-row:1; }
  #vehicle-karte-overview .ko-support-grid { grid-template-columns:minmax(0,1fr); }
  #vehicle-karte-overview .ko-cost-grid { grid-template-columns:minmax(0,1fr); }
  #vehicle-karte-overview .ko-spend-summary { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 12px; }

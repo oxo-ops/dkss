@@ -43,6 +43,7 @@ def main():
     from test_priority_common_routes import CommonPriorityRouteTests
     from test_dashboard_saved_proposals import DashboardSavedProposalTests
     from sqlalchemy import event
+    from overview_layout_contract import assert_overview_readability
     from unittest.mock import patch
     report = dict(candidate_sha=sha, candidate_tree=tree, fixture_only=True, production_accessed=False,
                   browser_started=False, browser_acceptance_passed=False, cases=[], page_errors=[],
@@ -130,6 +131,7 @@ def main():
                         require(computed.evaluate('row => row.children[0].getBoundingClientRect().right <= row.querySelector(".ko-proposal-copy").getBoundingClientRect().left'), 'Computed badge overlaps proposal text')
                         expect(rows.first.locator('.priority-response-note')).to_contain_text('保存版')
                         require(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Overview page overflow')
+                        report.setdefault('overview_readability', []).append(assert_overview_readability(page))
                         page.screenshot(path=str(out/f'overview-{width}.png'),full_page=True)
                         computed.get_by_role('link',name=re.compile('詳細：')).click()
                         drawer=page.locator('.ka-reference-drawer');expect(drawer).to_be_visible()

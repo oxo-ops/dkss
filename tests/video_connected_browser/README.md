@@ -556,3 +556,54 @@ images use `confirmation_manufacturer-historical-companion-<width>.png`.
 This extension has only been prepared and statically checked; its changed HTTP
 and browser assertions have not yet run on a final candidate. The earlier
 8b2d399c preflight pass does not cover this added boundary.
+
+### Integrated narrow overview and exact invoice transport
+
+The overview readability checks now measure actual text ranges at the existing
+five widths. Summary labels/counts remain readable and the narrow cost period
+uses a full-width row. The new CSS has only pure/static checks until an exact
+new candidate receives Chromium screenshots; earlier frozen-app passes do not
+verify this layout.
+
+The invoice browser case requires `--native-invoice-download-http`; the workflow
+passes it only for `invoice`. Other scenarios and the isolated `env -i` wrapper,
+Python outbound-network guard, and disposable-SQLite restrictions are unchanged.
+The standard-library receiver serves one immutable response from the existing
+synthetic Flask GET at `127.0.0.1:8765`, only around the real download click. It
+accepts only the exact GET/path/Host and loopback peer, has a 15-second lifetime
+and 2-second connection timeout, and requires complete cleanup. It does not host
+the app, access a DB or files, proxy requests, enable outbound access, or create
+a general listener allowance. Occupancy, changed binding, unexpected requests,
+expiry and failed cleanup remain fatal.
+
+Receiver blob `e84e269a1f72e9772bd33284024601f31644d1c0` is unchanged from run
+[43066261383](https://github.com/oxo-ops/dkss/actions/runs/43066261383), which recorded
+three actual 470-byte saved files at 1440/390/320, null Download failures, exact
+hashes, one transfer each and complete cleanup. That run still **failed overall**
+on preview fetch failures. It is receiver evidence, not full invoice or new-head
+acceptance.
+
+The integrated invoice helper preserves all 51 immediate-baseline assertions,
+bridge/get/snapshot and native-download checks. A preview fetch is classified
+only after exact same-Request/page/frame/scope/URL event correlation, full PDF
+response evidence, a ready one-page rendered canvas with stable final dimensions
+and raster for at least 300 ms, real viewer scrolling to both endpoints, and
+unobscured clipped rectangles whose union reaches the full page width and height.
+Top and bottom screenshots are saved before disclosure closure. No preview console
+error is allowed. Only that
+Request's `net::ERR_ABORTED` may be retained as verified preview evidence instead
+of an unknown failure. The abort caller is not proven. Equal-valued failures
+from other Requests remain fatal. The diagnostic-only mode remains explicitly
+NOT_ACCEPTANCE and cannot substitute for a complete invoice run.
+
+Portable pure tests use minimal synthetic observation evidence plus explicitly
+synthetic frame/scope/viewport fields. They do not retroactively certify those
+fields in older screenshots. All local receiver tests mock socket construction;
+real transport and new CSS rendering must be checked only in the authorized CI
+run for the final fixed candidate.
+
+The scrollable viewer may intentionally show less than the full responsive canvas
+at once. Its top/bottom coverage contract replaces the earlier whole-canvas
+viewport-ratio requirement; the blank synthetic page is expected. Diagnostic/full
+mode selection, native-download attempt and completed acceptance are reported
+separately. New scroll-region assertions remain pending actual fixed-candidate CI.

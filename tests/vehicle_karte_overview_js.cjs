@@ -176,7 +176,7 @@ test('data-state copy spans the missing badge column at every viewport and asset
     const css = fs.readFileSync(path.join(__dirname, '../static/css/vehicle_karte_overview.css'), 'utf8');
     assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
     const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
-    assert.match(template, /css\/vehicle_karte_overview\.css', v='20261110-priority-data-state-1'/);
+    assert.match(template, /css\/vehicle_karte_overview\.css', v='20261112-overview-readability-1'/);
     assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-confirmed-3'/);
 });
 
