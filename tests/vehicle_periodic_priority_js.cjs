@@ -29,7 +29,7 @@ async function render(result, options={}) {
     root.dataset={periodicSuggestions:'/vehicle/karte/1/periodic/1/suggestions',canGenerate:'true'};
     root.querySelector=s=>entries[s];
     const doc={createElement:el,createTextNode:text=>({...el('#text'),textContent:text}),querySelector:s=>s==='[data-periodic-suggestions]'?root:null};
-    const data={status:'completed',result,evidence:options.evidence||{'inspection:1':{url:'/vehicle/checklist-results/1',label:'元の点検'}},updated_at:'2026-11-11T12:00:00+09:00'};
+    const data={status:options.status||'completed',is_current:options.is_current,result,evidence:options.evidence||{'inspection:1':{url:'/vehicle/checklist-results/1',label:'元の点検'}},updated_at:'2026-11-11T12:00:00+09:00'};
     const window={VehiclePriorityPresentation:options.noHelper?undefined:view,location:{origin:'https://app.example.test'},addEventListener(){}};
     vm.runInNewContext(source,{document:doc,window,Date,URL,setTimeout(){throw Error('No polling on complete');},clearTimeout(){},
         fetch:async(url,init)=>{calls.push({url,init});return{ok:true,json:async()=>data};}});
@@ -68,4 +68,14 @@ test('missing shared helper never silently guesses low',async()=>{
 test('invalid summary is ignored rather than computing a client-side count',async()=>{
     const ui=await render({recommendations:[item('saved','高')],priority_summary:{labels:{高:0,中:0,低:1},invalid_count:1,proposal_count:1}});
     assert.doesNotMatch(texts(ui.status),/低1件/);
+});
+
+
+test('failed update keeps the previous cards and separates retry status from saved assessment',async()=>{
+    const value=item('previous','高');
+    const ui=await render({recommendations:[value]},{status:'error',is_current:false});
+    assert.equal(ui.list.children.length,1);assert.match(texts(ui.list),/previous/);assert.match(texts(ui.list),/保存版/);
+    assert.match(texts(ui.status),/更新できません/);assert.match(texts(ui.status),/前回の提案を保存版/);
+    assert.doesNotMatch(texts(ui.status),/追加提案なし/);assert.equal(ui.retry.hidden,false);
+    assert.equal(ui.calls.length,1);assert.equal(ui.calls[0].init.method,undefined);
 });

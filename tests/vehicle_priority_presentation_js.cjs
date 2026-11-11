@@ -169,3 +169,21 @@ test('legal confirmation opens only the fixed public legal reference outside the
     const tree=view.details(doc,item,{},'https://dkss.test');
     assert.deepEqual(walk(tree).filter(e=>e.tag==='a').map(e=>e.href),['https://www.mlit.go.jp/jidosha/content/001740686.pdf#page=121']);
 });
+
+test('merged confirmations show each original actor and source without blending them',()=>{
+    const first={kind:'progression',event_id:42,confirmed_at:'2026-11-11T12:00:00+09:00',actor_name:'担当A',
+        statements:['同症状再発を確認'],display_sources:[{label:'原観測A',text:'再発の原文',url:'/vehicle/checklists/1'}]};
+    const second={kind:'manufacturer_immediate',event_id:43,confirmed_at:'2026-11-11T13:00:00+09:00',actor_name:'担当B',
+        statements:['メーカー条件を確認'],display_sources:[{label:'原本B',text:'<img src=x>即時対応の原文',url:'/vehicle/knowledge/2'}]};
+    const item=proposal();item.priority_assessment.confirmation_details=first;
+    item.priority_assessment.confirmation_details_list=[first,second];
+    const before=JSON.stringify(item),tree=view.details(doc,item,{},'https://dkss.test');
+    assert.equal(view.read(item).valid,true);
+    const sections=walk(tree).filter(e=>e.className==='priority-response-confirmation');
+    assert.equal(sections.length,2);assert.match(texts(sections[0]),/担当A/);assert.doesNotMatch(texts(sections[0]),/担当B/);
+    assert.match(texts(sections[1]),/担当B/);assert.match(texts(sections[1]),/<img src=x>/);
+    assert.equal(walk(tree).some(e=>e.tag==='img'),false);assert.equal(JSON.stringify(item),before);
+    for(const list of [[],[null],[first,first],Array.from({length:101},(_,i)=>({...first,event_id:i+1})),[first,{...second,actor_name:''}]]) {
+        item.priority_assessment.confirmation_details_list=list;assert.equal(view.read(item).valid,false);
+    }
+});

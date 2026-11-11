@@ -47,7 +47,7 @@
             if (priority) card.append(priority.details(document, item, data.evidence || {}, window.location.origin));
             list.append(card);
         });
-        if (data.updated_at) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
+        if (data.updated_at && data.is_current !== false) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
     }
     async function check(start = false, explicitRetry = false) {
         if (pending || stopped) return;
@@ -56,20 +56,24 @@
             let response = await fetch(root.dataset.periodicSuggestions, {credentials:'same-origin',headers:{'Accept':'application/json'}});
             if (!response.ok) throw new Error('request_failed');
             let data = await response.json();
+            const previous = data.result && Array.isArray(data.result.recommendations) ? data : null;
+            if (previous && (data.status !== 'completed' || data.is_current === false)) render(previous);
             if ((data.status === 'missing' || explicitRetry) && canGenerate && start) {
                 response = await fetch(root.dataset.periodicSuggestions,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''},body:JSON.stringify({retry:explicitRetry})});
                 if (!response.ok) throw new Error('request_failed');
                 data = await response.json();
             }
-            if (data.status === 'completed') { render(data); return; }
+            if (data.status === 'completed' && data.is_current !== false) { render(data); return; }
+            if (data.result && Array.isArray(data.result.recommendations)) render(data);
+            const savedNote = previous || data.result ? ' 前回の提案を保存版として表示しています。' : '';
             if (data.status === 'running') {
-                status.textContent = 'AIが日常点検・定期点検と整備履歴を照合しています…';
+                status.textContent = 'AIが日常点検・定期点検と整備履歴を照合しています…' + savedNote;
                 if (Date.now()-started > 900000) throw new Error('long_running');
                 timer=setTimeout(()=>check(true),2000);return;
             }
-            if (data.status === 'missing' && !canGenerate) {status.textContent='AI提案はまだありません。管理者がこの画面を開くと作成します。';return;}
+            if (data.status === 'missing' && !canGenerate) {status.textContent = savedNote ? '分析の更新待ちです。' + savedNote : 'AI提案はまだありません。管理者がこの画面を開くと作成します。';return;}
             if (data.status === 'missing') {timer=setTimeout(()=>check(true),2000);return;}
-            status.textContent = data.error === 'not_configured' ? 'AIの接続設定を確認してください。提案はまだ生成されていません。' : 'AI提案を取得できませんでした。時間をおいて再確認してください。';
+            status.textContent = (data.error === 'not_configured' ? 'AIの接続設定を確認してください。今回の更新は完了していません。' : 'AI提案を更新できませんでした。時間をおいて再確認してください。') + savedNote;
             if (retry) retry.hidden=false;
         } catch (_) {status.textContent='AI提案の確認を続けられませんでした。時間をおいて再確認してください。';if(retry)retry.hidden=false;}
         finally { pending=false; }

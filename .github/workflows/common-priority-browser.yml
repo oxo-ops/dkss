@@ -6,6 +6,7 @@ on:
     paths:
       - 'vehicle_priority_projection.py'
       - 'vehicle_priority_inputs.py'
+      - 'vehicle_karte_analysis_ai.py'
       - 'dkss_app/priority_projection.py'
       - 'dkss_app/priority_timing.py'
       - 'dkss_app/priority_consumers.py'
@@ -45,12 +46,14 @@ on:
       - 'tests/test_notification_priority.py'
       - 'tests/test_priority_periodic_consumers.py'
       - 'tests/test_priority_confirmation*.py'
+      - 'tests/test_priority_deterministic*.py'
       - 'tests/test_priority_manufacturer*.py'
       - 'tests/test_priority_certificate_sources.py'
       - 'tests/test_priority_progression_workflow.py'
       - 'tests/test_priority_observation_sources.py'
       - 'tests/vehicle_periodic_priority_js.cjs'
       - 'tests/vehicle_priority_confirmations_js.cjs'
+      - 'tests/vehicle_priority_presentation_js.cjs'
       - 'tests/common_priority_browser/**'
       - 'tests/video_connected_browser/**'
       - '.github/workflows/common-priority-browser.yml'
@@ -84,7 +87,7 @@ jobs:
           "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
           "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
       - name: Check priority presentation and confirmation controls
-        run: node --test tests/vehicle_periodic_priority_js.cjs tests/vehicle_priority_confirmations_js.cjs
+        run: node --test tests/vehicle_periodic_priority_js.cjs tests/vehicle_priority_confirmations_js.cjs tests/vehicle_priority_presentation_js.cjs
       - name: Verify exact head with scoped priority facts
         shell: bash
         env:

@@ -223,7 +223,7 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                 updates = {'status': 'completed', 'result_json': json.dumps(result, ensure_ascii=False), 'error': None}
             except Exception as exc:
                 app.logger.warning('Periodic inspection proposal generation failed (%s)', type(exc).__name__)
-                updates = {'status': 'error', 'result_json': '{}', 'error': 'not_configured' if str(exc) == 'API_KEY_NOT_SET' else 'generation_failed'}
+                updates = {'status': 'error', 'error': 'not_configured' if str(exc) == 'API_KEY_NOT_SET' else 'generation_failed'}
             try:
                 updates['updated_at'] = now().isoformat(timespec='seconds')
                 PeriodicInspectionProposal.query.filter_by(company_code=company, inspection_record_id=record_id, run_token=run_token).update(updates, synchronize_session=False)
@@ -258,7 +258,7 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                     db.session.add(job)
                 token = str(uuid4())
                 job.input_hash, job.run_token, job.status = digest, token, 'running'
-                job.result_json, job.error, job.updated_at = '{}', None, now().isoformat(timespec='seconds')
+                job.error, job.updated_at = None, now().isoformat(timespec='seconds')
                 db.session.commit()
                 try:
                     from dkss_app.priority_consumers import capture_periodic_priority_sources
@@ -270,14 +270,16 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                     return jsonify(status='error', error=job.error)
                 return jsonify(status='running'), 202
             db.session.rollback()
-        if not job or job.input_hash != digest:
+        if not job:
             return jsonify(status='missing')
+        current = job.status == 'completed' and job.input_hash == digest
         result = None
-        if job.status == 'completed':
+        saved = json_dict(job.result_json)
+        if isinstance(saved.get('recommendations'), list):
             from dkss_app.priority_consumers import project_periodic_priorities
-            result, evidence = project_periodic_priorities(json_dict(job.result_json), vehicle, evidence)
-        return jsonify(status=job.status, result=result,
-            evidence=evidence, error=job.error, updated_at=job.updated_at)
+            result, evidence = project_periodic_priorities(saved, vehicle, evidence, is_current=current)
+        return jsonify(status=job.status if job.input_hash == digest else 'missing', result=result,
+            is_current=current, evidence=evidence, error=job.error, updated_at=job.updated_at)
 
     @app.route('/vehicle/karte/<int:vehicle_record_id>/periodic/<int:record_id>/followup', methods=['GET', 'POST'])
     def vehicle_periodic_followup(vehicle_record_id, record_id):

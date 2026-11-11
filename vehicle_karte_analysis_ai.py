@@ -195,11 +195,14 @@ def build_vehicle_karte_analysis_batches(payload):
 
 
 def analyze_vehicle_karte(payload, on_progress=None):
+    from dkss_app.priority_confirmed_projection import finalize_confirmed_priority_candidates
+
     batches = build_vehicle_karte_analysis_batches(payload)
     if len(batches) == 1:
-        return _analyze_vehicle_karte_once(
+        result = _analyze_vehicle_karte_once(
             payload, on_progress=on_progress,
         )
+        return finalize_confirmed_priority_candidates(result, payload)
 
     candidates = []
     referenced_ids = set()
@@ -408,7 +411,7 @@ def analyze_vehicle_karte(payload, on_progress=None):
     )
     if on_progress is not None:
         on_progress()
-    return result
+    return finalize_confirmed_priority_candidates(result, payload)
 
 
 def _analyze_vehicle_karte_once(payload, on_progress=None):

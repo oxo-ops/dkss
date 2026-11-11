@@ -68,7 +68,7 @@ def bind_periodic_priority_sources(result, proof):
     return output
 
 
-def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None):
+def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None, is_current=True):
     """Return (response, source links), preserving saved labels when unbound."""
     from .priority_projection import project_registered_priorities
     as_of = as_of or datetime.now(ZoneInfo('Asia/Tokyo')).date()
@@ -80,7 +80,7 @@ def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None
              and proof.get('vehicle_id') == vehicle.id and isinstance(proof.get('sources'), dict))
     if valid:
         sources = proof['sources']
-        projected = project_registered_priorities(identified, vehicle, sources, as_of=as_of, is_current=True)
+        projected = project_registered_priorities(identified, vehicle, sources, as_of=as_of, is_current=is_current)
     else:
         # Render existing links if available, but never use them as the missing
         # original generation proof or bind old output to a newly-created event.
@@ -88,5 +88,19 @@ def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None
         projected = project_priority(identified, {}, [], company_code=vehicle.company_code,
             vehicle_id=vehicle.id, as_of=as_of, is_current=True,
             unavailable_reason='この保存提案には生成時の根拠証明がないため、保存された区分を無点数で表示します')
+    if is_current is False:
+        # Apply exact withdrawal/resolution first, but do not turn the remaining
+        # previous result into a fresh score while a replacement is pending.
+        retained = {(item.get('proposal_id'), item.get('proposal_revision'))
+                    for item in projected.get('recommendations', []) if isinstance(item, dict)}
+        held = deepcopy(identified)
+        held['recommendations'] = [item for item in identified.get('recommendations', [])
+            if isinstance(item, dict) and (item.get('proposal_id'), item.get('proposal_revision')) in retained]
+        preserved = project_priority(held, sources, [], company_code=vehicle.company_code,
+            vehicle_id=vehicle.id, as_of=as_of, is_current=False,
+            unavailable_reason='分析の更新が完了していないため、前回の保存区分を無点数で表示します')
+        if 'priority_resolved_proposals' in projected:
+            preserved['priority_resolved_proposals'] = projected['priority_resolved_proposals']
+        projected = preserved
     projected['priority_summary'] = priority_counts(projected)
     return projected, sources
