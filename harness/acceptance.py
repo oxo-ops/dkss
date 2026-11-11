@@ -69,15 +69,25 @@ PREVIEW_GEOMETRY = """() => {
         const style = getComputedStyle(node), rect = node.getBoundingClientRect();
         const x = /(auto|scroll|hidden|clip)/.test(style.overflowX);
         const y = /(auto|scroll|hidden|clip)/.test(style.overflowY);
-        if (x || y) clipping.push({x,y,left:rect.left+node.clientLeft,top:rect.top+node.clientTop,
-            right:rect.left+node.clientLeft+node.clientWidth,bottom:rect.top+node.clientTop+node.clientHeight});
+        const raw = {left:rect.left+node.clientLeft,top:rect.top+node.clientTop,
+            right:rect.left+node.clientLeft+node.clientWidth,bottom:rect.top+node.clientTop+node.clientHeight};
+        // In this standards-mode document, the actual scrolling root's client
+        // size is the viewport. Its scrolled bounding-box origin must not be
+        // added to that size. Do not exempt BODY or other clipping ancestors.
+        const viewportRoot = document.compatMode === 'CSS1Compat'
+            && node === document.documentElement && node === document.scrollingElement;
+        const bounds = viewportRoot ? {left:0,top:0,right:node.clientWidth,bottom:node.clientHeight} : raw;
+        if (x || y) clipping.push({x,y,...bounds,raw_client_box:raw,
+            box_kind:viewportRoot?'document_viewport':'client_box',tag_name:node.tagName || null,
+            is_document_element:node===document.documentElement,is_body:node===document.body,
+            is_scrolling_element:node===document.scrollingElement});
         if (x) {
-            clip.left = Math.max(clip.left, rect.left + node.clientLeft);
-            clip.right = Math.min(clip.right, rect.left + node.clientLeft + node.clientWidth);
+            clip.left = Math.max(clip.left, bounds.left);
+            clip.right = Math.min(clip.right, bounds.right);
         }
         if (y) {
-            clip.top = Math.max(clip.top, rect.top + node.clientTop);
-            clip.bottom = Math.min(clip.bottom, rect.top + node.clientTop + node.clientHeight);
+            clip.top = Math.max(clip.top, bounds.top);
+            clip.bottom = Math.min(clip.bottom, bounds.bottom);
         }
     }
     const visible = {left:Math.max(paper.left,clip.left), top:Math.max(paper.top,clip.top),
@@ -91,6 +101,8 @@ PREVIEW_GEOMETRY = """() => {
     const unobscured = visible.right-visible.left > 2 && visible.bottom-visible.top > 2
         && points.every(([x,y]) => page.contains(document.elementFromPoint(x,y)));
     return {paper, clip, region, clipping, viewport:{width:innerWidth,height:innerHeight},
+        document_compat_mode:document.compatMode,
+        document_viewport:{width:document.documentElement.clientWidth,height:document.documentElement.clientHeight},
         unobscured, raster:{width:canvas.width,height:canvas.height},
         scroll:{top:scroll.scrollTop,left:scroll.scrollLeft,width:scroll.clientWidth,height:scroll.clientHeight,
             extent_width:scroll.scrollWidth,extent_height:scroll.scrollHeight,
@@ -118,6 +130,17 @@ def verify_preview_regions(regions, observation):
         viewport = sample['viewport']
         actual_clip = dict(left=0,top=0,right=viewport['width'],bottom=viewport['height'])
         for ancestor in sample['clipping']:
+            bounds = {key: ancestor[key] for key in ('left','top','right','bottom')}
+            root = (sample.get('document_compat_mode') == 'CSS1Compat' and
+                    ancestor.get('is_document_element') is True and ancestor.get('is_scrolling_element') is True)
+            if root:
+                require(ancestor.get('box_kind') == 'document_viewport' and ancestor.get('tag_name') == 'HTML' and
+                        ancestor.get('is_body') is False and bounds == dict(left=0,top=0,
+                            right=sample['document_viewport']['width'],bottom=sample['document_viewport']['height']),
+                        'Actual standards-mode scrolling root must use viewport coordinates')
+            else:
+                require(ancestor.get('box_kind') == 'client_box' and bounds == ancestor.get('raw_client_box'),
+                        'Ordinary ancestor clipping cannot be omitted or replaced with viewport bounds')
             for axis, start, end in (('x','left','right'), ('y','top','bottom')):
                 if ancestor[axis]:
                     actual_clip[start] = max(actual_clip[start], ancestor[start])

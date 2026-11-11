@@ -13,11 +13,11 @@ from urllib.parse import urlsplit
 APP_SHA = '30d4dfeee97f69bd00650c6bf56a5ce234f34437'
 APP_TREE = '31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea'
 FIXED_HELPER_BLOB = '44e1612f2ca59eca80a2c6a436426bc722af18a7'
-FIXED_ACCEPTANCE_BLOB = '7c5a881153b061b08734fda8ef7e3bd8a54c0e90'
+FIXED_ACCEPTANCE_BLOB = '81840fd3ea281fd198ce1101794c1c887eb7d9c3'
 RECEIVER_BLOB = 'e84e269a1f72e9772bd33284024601f31644d1c0'
 CONTAINER_IMAGE = 'mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d'
 PDF_NAVIGATION_BLOB = '4573aa6f07666f1d4e508b7352cc4cd42df0a323'
-PRIOR_INDEX_SHA256 = '756a19a2731cf3c68679ee396ad0c4d12a187bf987a7436a98fd482400904892'
+PRIOR_INDEX_SHA256 = '3d135f66de36f03aeeb38abd05890f6d0eb343cd5979123ee3502e445f7cc4d9'
 VALIDATION_FILES = {
     '.github/workflows/pr377-supplemental-browser.yml', 'README.md',
     'harness/confirmation_acceptance.py', 'harness/validate_remaining.py',
@@ -103,7 +103,7 @@ def verify_sources(args):
 
 
 def harness_root(args):
-    return args.artifacts.parent / 'pr377-invoice-scroll-harness'
+    return args.artifacts.parent / 'pr377-invoice-document-scroll-harness'
 
 
 def verify_copies(args):
@@ -164,22 +164,22 @@ def prior_evidence(args):
     prior = json.loads(path.read_text())
     require(prior['application_commit'] == APP_SHA and prior['application_tree'] == APP_TREE,
             'Prior evidence application mismatch')
-    require(prior['run_id'] == 43072294744 and prior['artifact_id'] == 13878337943,
+    require(prior['run_id'] == 43075650114 and prior['artifact_id'] == 13882316519,
             'Wrong previous invoice evidence run')
-    require(prior['http_passed'] == 0 and prior['browser_passed'] == 0 and prior['source_unchanged'] is True,
-            'Prior counts or source status changed')
-    require(prior['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Latest invoice failure must remain intact')
+    require(prior['http_passed'] == 0 and prior['browser_passed'] == 0 and prior['source_unchanged'] is True
+            and prior['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Latest invoice failure must remain intact')
     require(len(prior['scenarios']) == 1 and prior['scenarios'][0]['id'] == 'browser-connected-invoice'
             and prior['scenarios'][0]['passed'] is False, 'Current scope remains the failed invoice browser case')
     reached = prior['actual_reached_evidence']
-    require(reached['native_download_count'] == reached['native_transfer_count']
-            == reached['verified_preview_proof_count'] == reached['classified_preview_cancellation_count'] == 0
+    require(reached['native_download_count'] == reached['native_transfer_count'] == 1
+            and reached['reachable_preview_count'] == reached['verified_preview_proof_count']
+            == reached['classified_preview_cancellation_count'] == 2
+            and reached['completed_component_widths'] == [1440]
             and reached['final_protected_records_unchanged_field_present'] is False,
-            'Mode intent must not be relabeled as reached acceptance evidence')
+            'Partial components must not be relabeled as full acceptance')
     previous = prior['previous_evidence_reference']
-    require(previous['run_id'] == 43069457448 and previous['http_passed'] == 0 and previous['browser_passed'] == 0
-            and previous['overall_status'] == 'PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE',
-            'Earlier diagnostic must remain separate and contribute zero acceptance')
+    require(previous['run_id'] == 43072294744 and previous['http_passed'] == 0 and previous['browser_passed'] == 0
+            and previous['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Earlier invoice failure must remain separate')
     return prior
 
 
@@ -331,6 +331,17 @@ def verify_preview_regions(regions, observation):
         viewport = sample['viewport']
         actual_clip = dict(left=0,top=0,right=viewport['width'],bottom=viewport['height'])
         for ancestor in sample['clipping']:
+            bounds = {key: ancestor[key] for key in ('left','top','right','bottom')}
+            root = (sample.get('document_compat_mode') == 'CSS1Compat' and
+                    ancestor.get('is_document_element') is True and ancestor.get('is_scrolling_element') is True)
+            if root:
+                require(ancestor.get('box_kind') == 'document_viewport' and ancestor.get('tag_name') == 'HTML' and
+                        ancestor.get('is_body') is False and bounds == dict(left=0,top=0,
+                            right=sample['document_viewport']['width'],bottom=sample['document_viewport']['height']),
+                        'Actual standards-mode scrolling root must use viewport coordinates')
+            else:
+                require(ancestor.get('box_kind') == 'client_box' and bounds == ancestor.get('raw_client_box'),
+                        'Ordinary ancestor clipping cannot be omitted or replaced with viewport bounds')
             for axis, start, end in (('x','left','right'), ('y','top','bottom')):
                 if ancestor[axis]:
                     actual_clip[start] = max(actual_clip[start], ancestor[start])
