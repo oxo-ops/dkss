@@ -1,0 +1,55 @@
+{
+  "resource": "srv-synthetic12345678",
+  "window": {
+    "startTime": "2026-11-11T10:00:00Z",
+    "endTime": "2026-11-11T12:00:00Z"
+  },
+  "direction": "forward",
+  "pages": [
+    {
+      "query": {
+        "resource": [
+          "srv-synthetic12345678"
+        ],
+        "type": [
+          "app"
+        ],
+        "direction": "forward",
+        "startTime": "2026-11-11T10:00:00Z",
+        "endTime": "2026-11-11T12:00:00Z",
+        "limit": 1000
+      },
+      "reply": {
+        "ok": true,
+        "page": {
+          "hasMore": false,
+          "logs": [
+            {
+              "id": "opaque-provider-log-1",
+              "timestamp": "2026-11-11T11:00:00Z",
+              "labels": [
+                {
+                  "name": "resource",
+                  "value": "srv-synthetic12345678"
+                },
+                {
+                  "name": "type",
+                  "value": "app"
+                },
+                {
+                  "name": "level",
+                  "value": "error"
+                },
+                {
+                  "name": "instance",
+                  "value": "DO_NOT_EXPORT_private@example.test_SECRET"
+                }
+              ],
+              "message": "INVOICE_REVIEW_FAILED action=correction error_type=database DO_NOT_EXPORT_private@example.test_SECRET"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
