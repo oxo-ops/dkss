@@ -306,4 +306,66 @@ class ManufacturerEvidenceTests(unittest.TestCase):
         self.assertIsNone(manufacturer_confirmation_terminal(self.vehicle, changed, as_of=self.day))
 
 
+    def use_original_instruction_only(self):
+        text = 'If abnormal motion is observed, inspect the affected component immediately.'
+        self.raw = original_pdf(text)
+        checksum = hashlib.sha256(self.raw).hexdigest()
+        self.extracted.update(page=1, quote=text, manufacturer='日野', maintenance_rules=[])
+        self.document.original_data = self.raw; self.document.checksum = checksum
+        self.document.extraction_json = json.dumps([self.extracted]); self.public.checksum = checksum
+        self.db.session.commit()
+        options = manufacturer_confirmation_options(self.vehicle, self.refs()[0], as_of=self.day)
+        self.assertEqual(options['missing_conditions'], [])
+        self.assertEqual(len(options['bundles']), 1)
+        original = options['bundles'][0]['manufacturer']
+        self.selection['rule_key'] = original['rule_key']
+        return original
+
+    def test_nonperiodic_original_instruction_needs_no_invented_cycle_or_ai_adoption(self):
+        from vehicle_priority_assessment import Candidate, assess_priority
+        original = self.use_original_instruction_only()
+        self.assertEqual(original['evidence_path'], 'original_instruction')
+        self.assertEqual(original['adoption']['status'], 'requires_human_confirmation')
+        self.assertNotIn('criteria', original['rule'])
+        self.assertNotIn('numeric_evidence', original['original_verification'])
+        self.assertEqual(original['rule']['semantic_review']['status'], 'requires_human_confirmation')
+        preview = self.preview()
+        self.assertFalse(preview['sources']['bundle']['immediate_action_verified'])
+        inputs = manufacturer_confirmation_inputs(preview, event_id=111, confirmed_on=self.day)
+        result = assess_priority(Candidate('original-instruction', inputs['scope'], inputs['event_id'],
+            facts=inputs['facts']), inputs['evidence'], inputs['references'], as_of=self.day)
+        self.assertEqual((result['label'], result['effective_score'], result['operation_decision']), ('高', 60, 'human_only'))
+
+    def test_nonperiodic_source_issuer_model_validity_and_public_version_are_not_assumed(self):
+        self.use_original_instruction_only()
+        for attr, value in [('manufacturer', '別メーカー'), ('model_code', 'OTHER-MODEL'),
+                ('status', 'retired'), ('valid_from', '2099-01-01'), ('source_kind', '整備士の知識')]:
+            with self.subTest(attr=attr):
+                before = getattr(self.knowledge, attr)
+                setattr(self.knowledge, attr, value); self.db.session.commit()
+                self.assertEqual(self.read()['bundles'], [])
+                setattr(self.knowledge, attr, before); self.db.session.commit()
+        self.public.available = False; self.db.session.commit()
+        self.assertEqual(self.read()['bundles'], [])
+
+    def test_nonperiodic_original_item_cannot_be_rebound_or_forged(self):
+        self.use_original_instruction_only()
+        self.extracted['quote'] = 'This new condition is absent from the original.'
+        self.document.extraction_json = json.dumps([self.extracted]); self.db.session.commit()
+        self.assertEqual(self.read()['bundles'], [])
+        options = manufacturer_confirmation_options(self.vehicle, self.refs()[0], as_of=self.day)
+        self.assertEqual(options['bundles'], [])
+
+    def test_nonperiodic_missing_document_page_or_unbound_knowledge_is_not_a_reference(self):
+        self.use_original_instruction_only()
+        original = self.document.extraction_json
+        for key in ('page', 'quote'):
+            value = dict(self.extracted); value.pop(key)
+            self.document.extraction_json = json.dumps([value]); self.db.session.commit()
+            self.assertEqual(manufacturer_confirmation_options(self.vehicle, self.refs()[0], as_of=self.day)['bundles'], [])
+        self.document.extraction_json = original
+        self.document.knowledge_ids_json = json.dumps([99999]); self.db.session.commit()
+        self.assertEqual(self.read()['bundles'], [])
+
+
 if __name__ == '__main__': unittest.main()

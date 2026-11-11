@@ -1,7 +1,7 @@
-"""Bind adopted manufacturer originals to explicitly selected observation records.
+"""Bind manufacturer originals to explicitly selected observation records.
 
-This is a read-only evidence reader, not a priority consumer. It rereads original
-bytes, source quotes, current adoption and exact inspection provenance. Neither
+This read-only provider rereads original bytes, source quotes, current public
+provenance/adoption and exact inspection provenance. Neither
 matching models, quoted urgency words, AI review nor selecting two records proves
 that the manufacturer's immediate condition occurred on this vehicle. The absent
 condition/action confirmation remains explicit. Only the separately verified
@@ -10,6 +10,8 @@ common confirmation workflow may use the fact mapper to request the core floor.
 from copy import deepcopy
 from datetime import date, datetime
 import hashlib
+import json
+import unicodedata
 import re
 from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
@@ -88,6 +90,104 @@ def _verify_original(original, checksum, rule):
         'semantic_sources': [value['source_verification'] for value in verified[1:]]}
 
 
+def _original_instruction_candidate(vehicle, row, evidence, as_of):
+    """Literal existing source item, not an invented non-periodic timing rule.
+
+    Current manufacturer provenance and explicit model conflicts are checked
+    here. Meaning, equipment/specification exceptions, actual condition and the
+    immediate request remain the four authenticated human statements. No AI
+    semantic flag, periodic number or old knowledge approval can substitute.
+    """
+    from sqlalchemy import func
+    from .models import db
+    from .maintenance_knowledge_import_models import get_models
+    Document, Revision = get_models(db)
+    def normal(value):
+        return unicodedata.normalize('NFKC', str(value or '')).strip().casefold()
+    def maker(value):
+        value = normal(value)
+        return {'hino': '日野', '日野自動車': '日野', '日野自動車株式会社': '日野'}.get(value, value)
+    if (row.company_code != vehicle.company_code or row.source_kind != 'メーカー公式資料'
+            or row.status not in {'draft', 'active'} or evidence.get('knowledge_id') != row.id
+            or not maker(row.manufacturer) or maker(row.manufacturer) != maker(vehicle.manufacturer)
+            or (row.model_code and normal(row.model_code) != normal(vehicle.model_code))):
+        return None
+    today = datetime.now(ZoneInfo('Asia/Tokyo')).date()
+    try:
+        start = date.fromisoformat(row.valid_from)
+        end = date.fromisoformat(row.valid_until) if row.valid_until else None
+    except (ValueError, TypeError):
+        return None
+    if start > min(today, as_of) or (end and end < max(today, as_of)):
+        return None
+    document_id, checksum = evidence.get('document_id'), evidence.get('document_checksum')
+    if not isinstance(checksum, str) or not SHA256.fullmatch(checksum):
+        return None
+    marker = '[knowledge-document:' + str(document_id) + ']'
+    if marker not in (row.source_reference or '') or evidence.get('public_source_status') != 'available':
+        return None
+    states = [state for state in evidence.get('public_document_states', [])
+        if (state.get('company_code') == vehicle.company_code and state.get('document_id') == document_id
+            and state.get('document_checksum') == checksum and state.get('source_state') == 'observed'
+            and state.get('available') is True and isinstance(state.get('source_url'), str)
+            and state['source_url'].startswith('https://')
+            and (row.source_reference or '').startswith(state['source_url'] + ' /'))]
+    if not states:
+        return None
+    stored = []
+    for Model, filters in ((Document, {'company_code': vehicle.company_code, 'id': document_id, 'checksum': checksum}),
+            (Revision, {'company_code': vehicle.company_code, 'document_id': document_id,
+                'document_checksum': checksum, 'extraction_version': 1})):
+        sizes = db.session.query(func.length(Model.extraction_json), func.length(Model.knowledge_ids_json)).filter_by(**filters).all()
+        if any(not isinstance(a, int) or not 0 < a <= 1024 * 1024 or not isinstance(b, int) or not 0 < b <= 65536 for a, b in sizes):
+            return None
+        stored.extend(db.session.query(Model.knowledge_ids_json, Model.extraction_json).filter_by(**filters).all())
+    matched = []
+    for ids_json, extracted_json in stored:
+        try:
+            ids, items = json.loads(ids_json), json.loads(extracted_json)
+        except (ValueError, TypeError):
+            return None
+        if (not isinstance(ids, list) or not isinstance(items, list) or len(ids) != len(items)
+                or any(type(value) is not int for value in ids) or len(set(ids)) != len(ids)):
+            return None
+        if row.id not in ids:
+            continue
+        item = items[ids.index(row.id)]
+        if (not isinstance(item, dict) or any(item.get(key) != getattr(row, key) for key in
+                ('title', 'part_name', 'model_code', 'conditions', 'guidance', 'provider'))
+                or (item.get('manufacturer') and maker(item['manufacturer']) != maker(row.manufacturer))
+                or type(item.get('page')) is not int or not 1 <= item['page'] <= 300
+                or not isinstance(item.get('quote'), str) or not item['quote'].strip() or len(item['quote']) > 2000):
+            return None
+        matched.append(item)
+    if len(matched) != 1:
+        return None
+    item = matched[0]
+    original_identity = {key: item.get(key) for key in ('title', 'part_name', 'manufacturer', 'model_code',
+        'conditions', 'guidance', 'provider', 'page', 'quote', 'vehicle_scope', 'valid_from', 'valid_until')}
+    key = fingerprint({'kind': 'manufacturer_original_instruction', 'knowledge_id': row.id,
+        'document_id': document_id, 'document_checksum': checksum, 'item': original_identity})
+    rule = {'source_page': item['page'], 'source_quote': item['quote'], 'conditions': item['conditions'],
+        'semantic_review': {'status': 'requires_human_confirmation', 'evidence': []},
+        'evidence_kind': 'original_instruction', 'original_identity': original_identity}
+    return {'rule_key': key, 'rule': rule, 'adoption': {'status': 'requires_human_confirmation',
+        'source_url': states[0]['source_url'], 'document_id': document_id, 'document_checksum': checksum,
+        'reason': '原本の出典・版・登録メーカーと型式を照合。対象機器の全条件・現車症状・即時要求は今回の人の確認が必要',
+        'calculation_permitted': False}}
+
+
+def _verify_original_instruction(original, checksum, rule):
+    from maintenance_knowledge_import import verify_maintenance_rule_sources
+    if not isinstance(original, bytes) or hashlib.sha256(original).hexdigest() != checksum:
+        raise EvidenceUnavailable('メーカー原本の保存bytesと版checksumが一致しません')
+    verified = verify_maintenance_rule_sources(original, [{'page': rule['source_page'], 'quote': rule['source_quote']}])[0]['source_verification']
+    if verified['status'] != 'quote_matched':
+        raise EvidenceUnavailable('選択したメーカー通達の引用を保存原本で再照合できません')
+    return {'document_checksum': checksum, 'source': verified, 'scope': 'literal_original_only',
+        'meaning_and_vehicle_condition': 'requires_current_human_confirmation'}
+
+
 def _read(vehicle, selections, as_of):
     from flask import current_app
     from sqlalchemy import func
@@ -121,12 +221,20 @@ def _read(vehicle, selections, as_of):
         if not isinstance(checksum, str) or not SHA256.fullmatch(checksum):
             raise EvidenceUnavailable('メーカー原本の版を確認できません')
         matches = [rule for rule in evidence.get('rules', []) if _rule_key(row.id, document_id, checksum, rule) == selection['rule_key']]
-        if len(matches) != 1:
-            raise EvidenceUnavailable('指定メーカー規則と採用された原文の一意な対応を確認できません')
-        rule = matches[0]
-        adoption = k.assess_public_maintenance_rule_adoption(vehicle, row, evidence, rule, vehicle_category=category)
-        if adoption['status'] != 'eligible' or not row.valid_from or row.valid_from > as_of.isoformat():
-            raise EvidenceUnavailable('メーカー原本の現在版・採用・対象車両への適用条件を確認できません')
+        original_instruction = None
+        if not matches:
+            original_instruction = _original_instruction_candidate(vehicle, row, evidence, as_of)
+        if original_instruction and original_instruction['rule_key'] == selection['rule_key']:
+            rule, adoption = original_instruction['rule'], original_instruction['adoption']
+            evidence_path = 'original_instruction'
+        elif len(matches) == 1:
+            rule = matches[0]
+            adoption = k.assess_public_maintenance_rule_adoption(vehicle, row, evidence, rule, vehicle_category=category)
+            if adoption['status'] != 'eligible' or not row.valid_from or row.valid_from > as_of.isoformat():
+                raise EvidenceUnavailable('メーカー原本の現在版・採用・対象車両への適用条件を確認できません')
+            evidence_path = 'adopted_rule'
+        else:
+            raise EvidenceUnavailable('指定メーカー規則・通達と原文の一意な対応を確認できません')
         if document_id not in originals:
             size = db.session.query(func.length(Document.original_data)).filter_by(
                 company_code=vehicle.company_code, id=document_id, checksum=checksum).scalar()
@@ -138,14 +246,16 @@ def _read(vehicle, selections, as_of):
                 raise EvidenceUnavailable('メーカー原本の保存内容を確認できません')
             originals[document_id] = raw
             used_bytes += size
-        verification = _verify_original(originals[document_id], checksum, rule)
+        verifier = _verify_original_instruction if evidence_path == 'original_instruction' else _verify_original
+        verification = verifier(originals[document_id], checksum, rule)
         manufacturers[identity] = {
             'knowledge_source_id': selection['knowledge_source_id'], 'rule_key': selection['rule_key'],
             'document_id': document_id, 'document_checksum': checksum, 'source_url': adoption['source_url'],
             'knowledge': {key: getattr(row, key) for key in ('title', 'part_name', 'manufacturer', 'model_code',
                 'conditions', 'guidance', 'source_kind', 'source_reference', 'provider', 'status',
                 'valid_from', 'valid_until', 'confirmed_by', 'confirmed_at')},
-            'rule': deepcopy(rule), 'adoption': deepcopy(adoption), 'original_verification': verification}
+            'rule': deepcopy(rule), 'adoption': deepcopy(adoption), 'original_verification': verification,
+            'evidence_path': evidence_path}
     refs = list(dict.fromkeys(value['observation_input_ref'] for value in selections))
     observation_result = read_inspection_observation_sources(vehicle, refs, as_of=as_of)
     observations = {value['input_ref']: value for value in observation_result['observations']}
@@ -176,7 +286,7 @@ def _read(vehicle, selections, as_of):
 
 
 def read_manufacturer_priority_evidence(vehicle, selections, *, as_of=None):
-    """Read selected adopted originals and observations, without semantic joining.
+    """Read selected manufacturer originals and observations, without semantic joining.
 
     A selection contains knowledge_source_id, rule_key and observation_input_ref.
     Optional expected_fingerprint rejects changed evidence instead of rebinding a
@@ -222,7 +332,7 @@ MAX_KNOWLEDGE_OPTIONS = 100
 
 
 def manufacturer_confirmation_options(vehicle, observation_input_ref, *, as_of=None):
-    """Offer current adopted originals for a user-selected observation, not facts.
+    """Offer current manufacturer originals for a user-selected observation, not facts.
 
     No textual/target matching selects a rule for the user. If the bounded set is
     incomplete, no partial set masquerades as an exhaustive manufacturer search.
@@ -268,8 +378,12 @@ def manufacturer_confirmation_options(vehicle, observation_input_ref, *, as_of=N
                         selections.append({'knowledge_source_id': f'knowledge:{row.id}',
                             'rule_key': _rule_key(row.id, evidence['document_id'], evidence['document_checksum'], rule),
                             'observation_input_ref': observation_input_ref})
+                    original = _original_instruction_candidate(fresh, row, evidence, as_of)
+                    if original:
+                        selections.append({'knowledge_source_id': f'knowledge:{row.id}',
+                            'rule_key': original['rule_key'], 'observation_input_ref': observation_input_ref})
                 if not selections:
-                    raise EvidenceUnavailable('この車両に採用可能なメーカー原本の規則を確認できません。即時対応は推定しません')
+                    raise EvidenceUnavailable('この車両について確認可能なメーカー原本を確認できません。即時対応は推定しません')
                 if len(selections) > MAX_SELECTIONS:
                     raise EvidenceUnavailable('確認できるメーカー規則の候補数を超えています')
                 return read_manufacturer_priority_evidence(fresh, selections, as_of=as_of)
@@ -323,7 +437,10 @@ def _preview(bundle, selection):
         display_sources.append({'label': '整備の原記録' if transition['kind'] == 'repair' else '再確認の原記録',
             'text': transition['performed_at'] + '\n' + transition['note'], 'url': source_links[observation['source_id']]})
     result = {'kind': 'manufacturer_immediate', 'selection': selection, 'subject': observation['target'],
-        'source_ids': source_ids, 'source_links': source_links, 'display_sources': display_sources, 'sources': {'bundle': deepcopy(bundle), 'selected_quotes': selected_quotes},
+        'source_ids': source_ids, 'source_links': {
+            observation['source_id']: {'label': '元の現車観測: ' + observation['target'], 'url': source_links[observation['source_id']]},
+            manufacturer['knowledge_source_id']: {'label': manufacturer['knowledge']['title'], 'url': original_url}},
+        'display_sources': display_sources, 'sources': {'bundle': deepcopy(bundle), 'selected_quotes': selected_quotes},
         'statements': [{'key': key, 'label': label} for key, label in STATEMENTS]}
     result['fingerprint'] = fingerprint(result)
     return result
