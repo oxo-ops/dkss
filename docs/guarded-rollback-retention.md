@@ -2,9 +2,12 @@
 
 This candidate starts from old Live commit `e8a529e48be239e1acbebbab333fe6395fd061f3`
 (tree `1463cb2ae034d9847cfe090f1435a6be4d48eabd`). It is **not a deployment** and
-is not a backport of PR377. PR377's tested feature commit is
-`97f15339c30324e364c486287b837c94cdacbd3c` (tree
-`e58d7467b7a099242a15ec4f75ead4427818a0d7`).
+is not a backport of PR377. The pinned compatible PR377 candidate is
+`0f91f42e3fe2ac88b4697c8935a49ffd8c48710f` (tree
+`9afe16ebe79b895c557f9efa5c5290d0519a7a95`).
+This pin includes the newer-generation reservation fence and the final Vehicle
+FOR NO KEY UPDATE source gate. Pinning it does not claim its native PostgreSQL
+acceptance has run. The guarded product remains based only on old Live.
 
 ## Why old Live alone is unsafe
 
@@ -137,12 +140,12 @@ provider. Use the non-exporting runner, not unittest's ordinary text runner:
 private_root=$(mktemp -d)
 export DKSS_VALIDATION_TMP="$private_root" TMPDIR="$private_root"
 export PYTHONPATH="$PWD/tests/guarded_independent_guard:$PWD:$PWD/tests"
-python tests/run_guarded_independent.py --producer /path/to/exact97f
+python tests/run_guarded_independent.py --producer /path/to/exact-v8
 rm -rf "$private_root"
 ```
 
-The producer must have tree e58d7467b7a099242a15ec4f75ead4427818a0d7, commit
-97f15339c30324e364c486287b837c94cdacbd3c. The runner checks the full source tree.
+The producer must have tree 9afe16ebe79b895c557f9efa5c5290d0519a7a95, commit
+0f91f42e3fe2ac88b4697c8935a49ffd8c48710f. The runner checks the full source tree.
 The dedicated CI additionally verifies both checkout HEADs. No saved JSON fixture,
 old snapshot, prior recipe or generated-data hash is an input or an export.
 
@@ -153,10 +156,28 @@ is separate from recurrent-defect confirmation. Existing published HTTP inspecti
 import helpers add a periodic record. Actual new normal/periodic workers persist
 the server-generated legal result, with only external model output stubbed empty.
 
-The two producer states and their baseline responses live only in fresh temporary
+The active, held and pending-reservation states and their baseline responses live only in fresh temporary
 SQLite files outside both checkouts. Separate processes run the new producer,
 guarded old code and compatible new code. Round trips compare full responses and
 all tables without exporting their contents. Temporary DBs are removed on exit.
+
+The added pending case uses the public real-reconcile/queue interleaving from
+tests/test_analysis_generation_fence.py on the same independent Certificate60
+case. After real reconciliation, the certificate's published completed_at change
+is applied and the actual input builder and queue create a distinct reservation.
+The actual new worker must reject its obsolete save, retain the previous result
+bytes, last analysis time and error, and return to pending with the new input hash,
+reason and due time unchanged and its old lease released. The audit stays intact.
+The hook must complete normally, the wrapped real finish must be called once and
+return false, and the wrapped real fail must not be called. Every audit column is
+compared, not only its identifier and detail payload. A failure-path lookalike is
+therefore not counted as successful final-save refusal.
+Its baseline new response is stale/pending with no current score. Both guarded
+old and returning new code must leave every table and reservation column unchanged;
+the new responses must match the pre-rollback baseline exactly. This is a
+deterministic SQLite generation-fence check, not proof that source writers can
+enter the V8 locked section concurrently. It neither asserts nor simulates native
+lock scheduling.
 
 Four boundary tests assert success/failure output suppression, refusal when the
 child guard is absent, and transport/SQLite/PG audit-event enforcement. Every
@@ -172,7 +193,19 @@ Local SQLite proves the assertions and deterministic interleavings, not native
 PostgreSQL locking. Do not claim the20 native protected-data races pass until the
 PG stage executes. No-URL discovery/skips are not acceptance. New→guarded-old→new
 checks include active legal confirmation and held/carry history without a current
-score. They do not assert equality with any prior fixed fixture contents.
+score, plus the pending reservation described above. They do not assert equality
+with any prior fixed fixture contents. The earlier 97f roundtrip evidence remains
+version-specific; this new producer pin needs its own acceptance. The existing
+24 PG guard methods are unchanged and are a separate gate from the producer's
+five queued-generation/source-gate PG methods. No pending or skipped PG run counts
+as native acceptance. Ordinary legacy scheduling has not acquired the producer's
+new reservation behavior through a product backport.
+
+The producer's FOR NO KEY UPDATE gate excludes source UPDATEs while permitting
+FK KEY SHARE. Its separate native compatibility case addresses an analysis-row
+first lock followed by an evaluation FK insert; it is not an end-to-end old-guard
+HTTP evaluation run. The guarded document NOWAIT fence and the release-time
+drain of unguarded processes remain required.
 
 Every child discards stdout/stderr at OS descriptor level before app imports,
 including loader, SQL bind and future-result exception output. The controller

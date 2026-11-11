@@ -1,8 +1,10 @@
 """Independent ephemeral certificate cases. Never export generated content.
 
-Producer: exact GitHub 97f15339c30324e364c486287b837c94cdacbd3c.
+Producer: exact GitHub 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f.
 Public scenario: CertificateSourceTests legal_deadline confirmation; completed_at
 change from test_http_today_confirmation_becomes_held_tomorrow_or_when_evidence_changes.
+Pending reservation uses the published real-reconcile/queue interleaving in
+tests/test_analysis_generation_fence.py, with only this certificate input.
 This does not load or reconstruct any earlier rollback snapshot or progression recipe.
 """
 import json
@@ -12,8 +14,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-PRODUCER = '97f15339c30324e364c486287b837c94cdacbd3c'
-PRODUCER_TREE = 'e58d7467b7a099242a15ec4f75ead4427818a0d7'
+PRODUCER = '0f91f42e3fe2ac88b4697c8935a49ffd8c48710f'
+PRODUCER_TREE = '9afe16ebe79b895c557f9efa5c5290d0519a7a95'
 
 
 def directory():
@@ -93,8 +95,106 @@ def expected(response, case):
     value = item.get('priority_assessment', {})
     if case == 'active':
         return value.get('effective_score') == 60 and not item.get('priority_candidate_carryover')
+    if case == 'pending':
+        # The previous active bundle is retained verbatim, not regenerated into a
+        # carry bundle. Fresh read projection must withhold its current score.
+        return (value.get('effective_score') is None
+                and len(value.get('historical_confirmation_details', [])) == 1)
     return (value.get('effective_score') is None and bool(item.get('priority_candidate_carryover'))
             and len(value.get('historical_confirmation_details', [])) == 1)
+
+
+def generate_pending_reservation(c, document_id):
+    """Exercise V7's generation fence through the real V8 worker and queue.
+
+    The deterministic hook represents a newer reservation visible at final save.
+    SQLite does not prove concurrent writers can enter V8's locked section.
+    Native V8 source-writer/lock-order acceptance remains separate.
+    """
+    from dkss_app import analysis, common, priority_confirmed_projection as projection
+    from vehicle_analysis_repository import VehicleAnalysisJobRepository
+    from vehicle_analysis_service import snapshot_hash
+    state = c.models.VehicleKarteAnalysis.query.one()
+    state_id, vehicle_id = state.id, c.vehicle.id
+    retained = (state.result_json, state.last_analyzed_at, state.last_error)
+    state.status = 'pending'
+    state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    state.lease_token = None
+    state.lease_expires_at = None
+    c.db.session.commit()
+    claimed_hash = state.input_hash
+    reservation = {}
+    reached = []
+    finished = []
+    def audit():
+        columns = c.models.ChecklistEvent.__table__.columns.keys()
+        return [tuple(getattr(row, column) for column in columns) for row in
+                c.models.ChecklistEvent.query.order_by(c.models.ChecklistEvent.id).all()]
+    previous_audit = audit()
+    real = projection.reconcile_confirmed_candidates_before_save
+    def reconcile(*args, **kwargs):
+        generated = real(*args, **kwargs)
+        # Same independently published certificate-change scenario as held.
+        document = c.db.session.get(c.models.VehicleDocumentImportDraft, document_id)
+        document.completed_at = datetime(2026, 1, 2)
+        c.db.session.commit()
+        vehicle = c.db.session.get(c.models.Vehicle, vehicle_id)
+        with c.app.test_request_context('/'):
+            fresh, _ = analysis.get_vehicle_karte_analysis_job_data(vehicle)
+            queued = analysis.queue_vehicle_karte_analysis(vehicle, fresh)
+        c.db.session.commit()
+        reservation.update(input_hash=queued.input_hash, next_analysis_at=queued.next_analysis_at,
+                           request_reason=queued.request_reason)
+        if (queued.input_hash in {claimed_hash, snapshot_hash(args[2]['_fingerprints'])}
+                or queued.status != 'running' or not queued.lease_token
+                or queued.next_analysis_at is None or not queued.request_reason):
+            raise RuntimeError('NEW_RESERVATION_NOT_DISTINCT')
+        reached.append(True)
+        return generated
+    real_finish = VehicleAnalysisJobRepository.finish
+    real_fail = VehicleAnalysisJobRepository.fail
+    def finish(*args, **kwargs):
+        result = real_finish(*args, **kwargs)
+        finished.append(result)
+        return result
+    with patch.object(common, 'analyze_vehicle_karte', return_value={'recommendations': []}) as ai, \
+            patch.object(projection, 'reconcile_confirmed_candidates_before_save', side_effect=reconcile) as gate, \
+            patch.object(VehicleAnalysisJobRepository, 'finish', autospec=True, side_effect=finish) as saver, \
+            patch.object(VehicleAnalysisJobRepository, 'fail', autospec=True, side_effect=real_fail) as failure:
+        outcome = analysis.run_vehicle_karte_analysis_job(state_id)
+    c.db.session.expire_all()
+    state = c.db.session.get(c.models.VehicleKarteAnalysis, state_id)
+    if (outcome or ai.call_count != 1 or gate.call_count != 1 or not reservation
+            or reached != [True] or saver.call_count != 1 or finished != [False] or failure.call_count != 0
+            or state.status != 'pending' or state.lease_token is not None or state.lease_expires_at is not None
+            or (state.result_json, state.last_analyzed_at, state.last_error) != retained
+            or any(getattr(state, key) != value for key, value in reservation.items())
+            or audit() != previous_audit):
+        raise RuntimeError('NEW_RESERVATION_NOT_PRESERVED')
+
+
+def save_case(c, case, vehicle_id, record_id):
+    c.db.session.expire_all()
+    normal = c.models.VehicleKarteAnalysis.query.one()
+    proposal = c.app.extensions['dkss']['periodic_followups'].Proposal.query.one()
+    record(case, 'analysis', normal.result_json)
+    record(case, 'periodic', proposal.result_json)
+    record(case, 'vehicle_id', str(vehicle_id))
+    record(case, 'record_id', str(record_id))
+    record(case, 'state_id', str(normal.id))
+    for kind, url in (
+            ('analysis', f'/vehicle/karte/{vehicle_id}/analysis/result'),
+            ('periodic', f'/vehicle/karte/{vehicle_id}/periodic/{record_id}/suggestions')):
+        response = c.client.get(url)
+        if response.status_code != 200 or not expected(response.json, case):
+            raise RuntimeError('INDEPENDENT_EXPECTATION_FAILED')
+        if case == 'pending' and kind == 'analysis' and (
+                response.json.get('status') != 'pending' or response.json.get('is_current') is not False):
+            raise RuntimeError('PENDING_READ_NOT_STALE')
+        record(case, 'baseline_' + kind, json.dumps(response.json, sort_keys=True))
+    path = c.db.engine.url.database
+    c.db.session.remove()
+    backup(path, directory() / (case + '.sqlite'))
 
 
 def generate():
@@ -124,24 +224,11 @@ def generate():
                 c.db.session.commit()
             generate_normal(c)
             generate_periodic(c, record_id)
-            c.db.session.expire_all()
-            normal = c.models.VehicleKarteAnalysis.query.one()
-            proposal = c.app.extensions['dkss']['periodic_followups'].Proposal.query.one()
-            record(case, 'analysis', normal.result_json)
-            record(case, 'periodic', proposal.result_json)
-            record(case, 'vehicle_id', str(c.vehicle.id))
-            record(case, 'record_id', str(record_id))
-            record(case, 'state_id', str(normal.id))
-            for kind, url in (
-                    ('analysis', f'/vehicle/karte/{c.vehicle.id}/analysis/result'),
-                    ('periodic', f'/vehicle/karte/{c.vehicle.id}/periodic/{record_id}/suggestions')):
-                response = c.client.get(url)
-                if response.status_code != 200 or not expected(response.json, case):
-                    raise RuntimeError('INDEPENDENT_EXPECTATION_FAILED')
-                record(case, 'baseline_' + kind, json.dumps(response.json, sort_keys=True))
-            path = c.db.engine.url.database
-            c.db.session.remove()
-            backup(path, directory() / (case + '.sqlite'))
+            save_case(c, case, vehicle_id, record_id)
+            if case == 'active':
+                c.vehicle = c.db.session.get(c.models.Vehicle, vehicle_id)
+                generate_pending_reservation(c, document_id)
+                save_case(c, 'pending', vehicle_id, record_id)
     finally:
         c.tearDown()
         c.doCleanups()

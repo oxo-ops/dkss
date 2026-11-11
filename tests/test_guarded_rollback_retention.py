@@ -21,7 +21,7 @@ NOW = datetime.now(timezone.utc)
 
 class SavedFormatTests(TestCase):
     def test_independent_public_producer_cases_are_detected(self):
-        self.assertEqual(PRODUCER, '97f15339c30324e364c486287b837c94cdacbd3c')
+        self.assertEqual(PRODUCER, '0f91f42e3fe2ac88b4697c8935a49ffd8c48710f')
         for case in ('active', 'held'):
             for kind in ('analysis', 'periodic'):
                 with self.subTest(case=case, kind=kind):

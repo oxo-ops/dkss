@@ -58,15 +58,15 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v7
         with:
-          ref: 97f15339c30324e364c486287b837c94cdacbd3c
-          path: .producer97f
+          ref: 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f
+          path: .producer-v8
           persist-credentials: false
       - name: Record exact code versions only
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-          test "$(git -C .producer97f rev-parse HEAD)" = 97f15339c30324e364c486287b837c94cdacbd3c
+          test "$(git -C .producer-v8 rev-parse HEAD)" = 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f
           mkdir -p guarded-safe-summary
           git rev-parse HEAD > guarded-safe-summary/commit.txt
           git rev-parse 'HEAD^{tree}' > guarded-safe-summary/tree.txt
@@ -106,7 +106,7 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE/tests/guarded_independent_guard:$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/tests"
           # Child stdout/stderr and exceptions are discarded before any app import.
           # This file contains only source versions, counts, stage names and booleans.
-          python tests/run_guarded_independent.py --producer .producer97f --postgres > guarded-safe-summary/result.json
+          python tests/run_guarded_independent.py --producer .producer-v8 --postgres > guarded-safe-summary/result.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

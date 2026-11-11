@@ -14,7 +14,8 @@ import sys
 import tempfile
 import unittest
 
-STAGES = {'generate', 'guarded-active', 'guarded-held', 'new-active', 'new-held', 'retention', 'postgres', 'runner'}
+STAGES = {'generate', 'guarded-active', 'guarded-held', 'guarded-pending',
+          'new-active', 'new-held', 'new-pending', 'retention', 'postgres', 'runner'}
 
 
 def tree(root):
@@ -77,7 +78,7 @@ def child(stage):
         from guarded_independent_cases import generate, run_roundtrip
         if stage == 'generate':
             generate()
-            result.update(passed=True, cases=4)
+            result.update(passed=True, cases=6, pending_reservation_verified=True)
         elif stage.startswith('guarded-') or stage.startswith('new-'):
             run_roundtrip(stage.split('-')[1], stage.startswith('new-'))
             result.update(passed=True, database_unchanged=True, semantics_verified=True)
@@ -141,7 +142,8 @@ def main():
         stages = ['runner', 'generate', 'retention']
         if args.postgres:
             stages.append('postgres')
-        stages += ['guarded-active', 'guarded-held', 'new-active', 'new-held']
+        stages += ['guarded-active', 'guarded-held', 'guarded-pending',
+                   'new-active', 'new-held', 'new-pending']
         for stage in stages:
             source = producer if stage == 'generate' or stage.startswith('new-') else candidate
             guard = candidate / 'tests' / 'guarded_independent_guard'
