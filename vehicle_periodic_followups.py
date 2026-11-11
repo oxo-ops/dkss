@@ -1,4 +1,5 @@
 """Read-only AI proposals from periodic evidence; existing actual facts are preserved."""
+from copy import deepcopy
 import hashlib
 import json
 from datetime import date, datetime, timedelta
@@ -172,6 +173,8 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
 
     def proposal_input(vehicle, selected):
         payload, evidence = analysis_context(vehicle)
+        # Keep server source snapshots immutable while enriching the AI view.
+        payload = deepcopy(payload)
         rows = payload["records"]
         by_source = {row["source_id"]: row for row in rows}
         focus = []
@@ -189,7 +192,8 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                 by_source[source].update(values)
             else:
                 rows.append(values)
-            evidence[source] = {'label': record.inspection_date + ' 点検簿', 'url': url_for('vehicle_periodic_inspection_source', record_id=record.id)}
+            evidence[source] = {**evidence.get(source, {}), 'label': record.inspection_date + ' 点検簿',
+                'url': url_for('vehicle_periodic_inspection_source', record_id=record.id)}
             if record.id == selected.id:
                 focus.append(source)
         for issue in PeriodicInspectionIssue.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).order_by(PeriodicInspectionIssue.id).all():
@@ -206,10 +210,12 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
         digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
         return payload, evidence, digest
 
-    def proposal_worker(company, record_id, run_token, payload):
+    def proposal_worker(company, record_id, run_token, payload, priority_source_proof=None):
         with app.app_context():
             try:
                 result = generate_periodic_proposals(payload)
+                from dkss_app.priority_consumers import bind_periodic_priority_sources
+                result = bind_periodic_priority_sources(result, priority_source_proof)
                 updates = {'status': 'completed', 'result_json': json.dumps(result, ensure_ascii=False), 'error': None}
             except Exception as exc:
                 app.logger.warning('Periodic inspection proposal generation failed (%s)', type(exc).__name__)
@@ -251,7 +257,9 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                 job.result_json, job.error, job.updated_at = '{}', None, now().isoformat(timespec='seconds')
                 db.session.commit()
                 try:
-                    executor.submit(proposal_worker, vehicle.company_code, record.id, token, payload)
+                    from dkss_app.priority_consumers import capture_periodic_priority_sources
+                    proof = capture_periodic_priority_sources(vehicle.company_code, vehicle.id, evidence)
+                    executor.submit(proposal_worker, vehicle.company_code, record.id, token, payload, proof)
                 except RuntimeError:
                     job.status, job.error = 'error', 'generation_failed'
                     db.session.commit()
@@ -260,7 +268,11 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
             db.session.rollback()
         if not job or job.input_hash != digest:
             return jsonify(status='missing')
-        return jsonify(status=job.status, result=json_dict(job.result_json) if job.status == 'completed' else None,
+        result = None
+        if job.status == 'completed':
+            from dkss_app.priority_consumers import project_periodic_priorities
+            result, evidence = project_periodic_priorities(json_dict(job.result_json), vehicle, evidence)
+        return jsonify(status=job.status, result=result,
             evidence=evidence, error=job.error, updated_at=job.updated_at)
 
     @app.route('/vehicle/karte/<int:vehicle_record_id>/periodic/<int:record_id>/followup', methods=['GET', 'POST'])

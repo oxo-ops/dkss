@@ -14,13 +14,27 @@
     };
     function render(data) {
         list.replaceChildren();
-        const items = data.result.recommendations || [];
-        status.textContent = `AI提案 ${items.length}件` + (items.length ? ' · 優先度の高い順' : ' · 追加提案なし');
+        const priority = window.VehiclePriorityPresentation;
+        const savedItems = data.result.recommendations || [];
+        const items = priority ? priority.ordered(savedItems, data.result) : savedItems;
+        status.textContent = `AI提案 ${items.length}件` + (items.length ? ' · 確認・対応の優先度順' : ' · 追加提案なし');
+        const summary = data.result.priority_summary;
+        if (summary && summary.labels && summary.proposal_count === items.length) {
+            const labels = ['高', '中', '低'];
+            if (labels.every(label => Number.isInteger(summary.labels[label]) && summary.labels[label] >= 0)
+                && Number.isInteger(summary.invalid_count) && summary.invalid_count >= 0
+                && labels.reduce((sum, label) => sum + summary.labels[label], summary.invalid_count) === items.length) {
+                status.append(document.createTextNode(' ／ ' + labels.map(label => `${label}${summary.labels[label]}件`).join('・')
+                    + (summary.invalid_count ? ` ／ 保存データ確認${summary.invalid_count}件` : '')));
+            }
+        }
         if (order) order.style.display = items.length ? '' : 'none';
         items.forEach((item, index) => {
             const card = node('article', '', 'pf-proposal');
             const heading = node('div', '', 'card-title-row');
-            heading.append(node('strong', `${index + 1}. ${item.title}`), node('span', `優先度 ${item.priority}`, 'pf-priority pf-priority-' + ({'高':'high','中':'medium','低':'low'}[item.priority] || 'low')));
+            heading.append(node('strong', `${index + 1}. ${item.title}`));
+            if (priority) { const badge = priority.badge(document, item); if (badge) heading.append(badge); }
+            else heading.append(node('span', '優先度の元データを確認してください', 'help-text'));
             card.append(heading);
             [['対象',item.target],['現在の記録',item.current_state],['確認時期',item.timing],['提案',item.action],['理由',item.reason]].forEach(([label,value]) => {
                 const row = node('p'); row.append(node('b',label+'：'),document.createTextNode(value || ''));card.append(row);
@@ -28,8 +42,10 @@
             const detail = node('details');detail.append(node('summary','確認方法・根拠'));
             const steps = node('ol');(item.confirmation_steps || []).forEach(text => steps.append(node('li',text)));detail.append(steps);
             detail.append(node('p',item.confirmation_branch),node('p',item.uncertainty,'help-text'),node('p',item.basis_type,'help-text'));
-            (item.source_ids || []).forEach(id => { const source = (data.evidence || {})[id];if (!source) return;const a=node('a',source.label);a.href=source.url;a.target='_blank';a.rel='noopener';detail.append(a,document.createTextNode('　')); });
-            card.append(detail);list.append(card);
+            (item.source_ids || []).forEach(id => { const source = (data.evidence || {})[id];if (!source || typeof source.url !== 'string' || !/^(\/[^/]|https?:\/\/)/.test(source.url)) return;const a=node('a',source.label);a.href=source.url;a.target='_blank';a.rel='noopener';detail.append(a,document.createTextNode('　')); });
+            card.append(detail);
+            if (priority) card.append(priority.details(document, item, data.evidence || {}));
+            list.append(card);
         });
         if (data.updated_at) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
     }
