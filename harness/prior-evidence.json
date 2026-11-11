@@ -1,161 +1,29 @@
 {
-  "evidence_kind": "immutable_previous_run_reference_not_current_run_results",
+  "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
   "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
   "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-  "run_id": 43053078956,
+  "run_id": 43058463867,
   "run_attempt": 1,
-  "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43053078956",
-  "validation_commit": "4c83b07efa9aeb8e9af4c41baa23034802d5df28",
-  "validation_tree": "9b13b3646bcbc0d23c51f15ddd4b513897a9e827",
+  "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43058463867",
+  "validation_commit": "43b03d244e5483aaa8a68f27bfe9c002c82877fa",
+  "validation_tree": "f2171c6d5206be6f954cec36d0fe1783d893bb6b",
   "overall_status": "FAILED_OR_INCOMPLETE",
   "source_unchanged": true,
-  "artifact_id": 13870588160,
-  "artifact_digest": "sha256:1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a",
-  "http_passed": 3,
-  "browser_passed": 10,
+  "artifact_id": 13873565921,
+  "artifact_digest": "sha256:40c871f5329bb4a0c6343a8ec52afd541915368360bedee730b9d933f9cf03c7",
+  "http_passed": 0,
+  "browser_passed": 1,
   "scenarios": [
-    {
-      "id": "http-confirmation_manufacturer",
-      "report": "connected-confirmation_manufacturer-preflight/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "report_sha256": "a27672c0498b5bc6a91106496438a2de1867f01404ebf55aebb1d366e3260810",
-      "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "started_utc": "2026-11-11T15:55:49.692089+00:00",
-      "finished_utc": "2026-11-11T15:56:13.148411+00:00"
-    },
-    {
-      "id": "http-confirmation_legal",
-      "report": "connected-confirmation_legal-preflight/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "report_sha256": "2850e093242991d3e0ee2782377c3ce8da4803cbc2cff6ebd23123cfad78d5e6",
-      "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "started_utc": "2026-11-11T15:56:13.221484+00:00",
-      "finished_utc": "2026-11-11T15:56:24.572411+00:00"
-    },
-    {
-      "id": "http-confirmation_progression",
-      "report": "connected-confirmation_progression-preflight/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "report_sha256": "8152246f328c01105f80bd364fc3200f2c516884bbe844a787a374be095ea10e",
-      "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-      "started_utc": "2026-11-11T15:56:24.644784+00:00",
-      "finished_utc": "2026-11-11T15:56:34.551105+00:00"
-    },
-    {
-      "id": "browser-common",
-      "report": "browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "e0c7a4888ce15aa899882b91c7a3cbebc987faa46658de7e44d4fdf705461e9a",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:56:34.623565+00:00",
-      "finished_utc": "2026-11-11T15:56:55.649504+00:00"
-    },
-    {
-      "id": "browser-stage2-instruction",
-      "report": "instruction/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "440cd070a3b21ea453823fba86b6c114a8e13ab0810e6cd4538070d32247b1fd",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:56:55.721403+00:00",
-      "finished_utc": "2026-11-11T15:57:16.136727+00:00"
-    },
-    {
-      "id": "browser-stage2-recheck",
-      "report": "recheck/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "99a2a5c9a714978814c84b8c7f5d9690f1cc5cd07c62efefa4a01c8b59852cb0",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:57:16.209462+00:00",
-      "finished_utc": "2026-11-11T15:57:36.410688+00:00"
-    },
-    {
-      "id": "browser-stage2-timing",
-      "report": "timing/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "71a14e9367f989bb6450850a252416df1b3638410468957e0d68e6092232b2bf",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:57:36.484734+00:00",
-      "finished_utc": "2026-11-11T15:57:56.602467+00:00"
-    },
-    {
-      "id": "browser-connected-normal",
-      "report": "connected-normal/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "5fc65365a66333d83b3e532e8e1ff8e5dea78360e57f6be5383749075d246ace",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:57:56.675351+00:00",
-      "finished_utc": "2026-11-11T15:58:17.046358+00:00"
-    },
-    {
-      "id": "browser-connected-instruction",
-      "report": "connected-instruction/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "aac2c991484d902ef7f80d744b32fe9397b4b90fb59d2a7b95865e65ceb5f369",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:58:17.118323+00:00",
-      "finished_utc": "2026-11-11T15:58:44.504748+00:00"
-    },
-    {
-      "id": "browser-connected-recheck",
-      "report": "connected-recheck/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "305652ac7457d4ed8a118145c3a0ea398fd0a3fb008db909a00ce211a371d000",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:58:44.577603+00:00",
-      "finished_utc": "2026-11-11T15:59:12.101483+00:00"
-    },
     {
       "id": "browser-connected-invoice",
       "report": "connected-invoice/browser-result.json",
       "passed": false,
       "exit_code": 1,
       "error_type": "AssertionError",
-      "report_sha256": "033dee3207038a29b6157cef8c997390bad639e0292e3d58640fdef3d318f93d",
+      "report_sha256": "7d2534a71ae4a00fe06ba7eee11de409959e46f8905a1c531630e349e088b83d",
       "original_report_status": "FAILED",
-      "started_utc": "2026-11-11T15:59:12.174313+00:00",
-      "finished_utc": "2026-11-11T15:59:47.788217+00:00"
-    },
-    {
-      "id": "browser-connected-periodic_instruction",
-      "report": "connected-periodic_instruction/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "8f028f1fc7c0d7e432626f7156e8b6e1af7490bf51debbd2ac181e9ce3be1c4a",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:59:47.861397+00:00",
-      "finished_utc": "2026-11-11T15:59:59.568711+00:00"
-    },
-    {
-      "id": "browser-connected-periodic_timing",
-      "report": "connected-periodic_timing/browser-result.json",
-      "passed": true,
-      "exit_code": 0,
-      "report_status": "PASS",
-      "report_sha256": "ec4487986e0795ce91c861c7c83fbdb9d0abf276d43f76565e6e7c4072252d54",
-      "original_report_status": "PASS",
-      "started_utc": "2026-11-11T15:59:59.642266+00:00",
-      "finished_utc": "2026-11-11T16:00:11.090619+00:00"
+      "started_utc": "2026-11-11T16:28:00.746530+00:00",
+      "finished_utc": "2026-11-11T16:28:08.259717+00:00"
     },
     {
       "id": "browser-connected-confirmation_manufacturer",
@@ -163,68 +31,261 @@
       "passed": false,
       "exit_code": 1,
       "error_type": "AssertionError",
-      "report_sha256": "0306234fccbea30530500ffd5670d1dd623095b9344a1199735c289f55064b7d",
+      "report_sha256": "b9f6697ff75f179a8370a2a9440a890d9ba0deff34e753d9deaea69b03856aa8",
       "original_report_status": "FAILED",
-      "started_utc": "2026-11-11T16:00:11.164716+00:00",
-      "finished_utc": "2026-11-11T16:03:19.200233+00:00"
+      "started_utc": "2026-11-11T16:28:08.318011+00:00",
+      "finished_utc": "2026-11-11T16:29:17.664042+00:00"
     },
     {
       "id": "browser-connected-confirmation_legal",
       "report": "connected-confirmation_legal/browser-result.json",
-      "passed": false,
-      "exit_code": 1,
-      "error_type": "AssertionError",
-      "report_sha256": "2e9637597171b0104ac28601642deb96b48761b7025d97f5cdc4f7236924d474",
-      "original_report_status": "FAILED",
-      "started_utc": "2026-11-11T16:03:19.273478+00:00",
-      "finished_utc": "2026-11-11T16:05:52.125762+00:00"
-    },
-    {
-      "id": "browser-connected-confirmation_progression",
-      "report": "connected-confirmation_progression/browser-result.json",
       "passed": true,
       "exit_code": 0,
       "report_status": "PASS",
-      "report_sha256": "08bc2a60d839f1f804f2a8576dc66d779e2bf5b38aa9bf6a005a8eb45543a900",
+      "report_sha256": "34016834b63fa154989a5ff8390780aa0c43ffb195f1fb50e4b75de9573d84c8",
       "original_report_status": "PASS",
-      "started_utc": "2026-11-11T16:05:52.199105+00:00",
-      "finished_utc": "2026-11-11T16:07:54.561758+00:00"
+      "started_utc": "2026-11-11T16:29:17.724530+00:00",
+      "finished_utc": "2026-11-11T16:31:59.391643+00:00"
     }
   ],
   "manifest_sha256": {
-    "remaining-summary.json": "a6f4930fcf43b657d77ecf45a401307837681d81d5c54d1571ec6c38e9c7c9c5",
-    "scenario-exits.json": "360e24f4bf72bd8250e313e591994b624f407ed76e7c5360e5cbe884465b7bd6",
-    "harness-provenance.json": "472bf2758ba805fc2300772689975885d00983938931724744d97c86cf478bac",
-    "runtime-manifest.json": "d9b4c340c9026235fdd52c999bafc3f7582b30e11f1fb112bcdccf6d79289258",
-    "source-identity.txt": "da1ee3ceab4000f5025943ac24862eb6afdc38f6a52ce1fab7033e10425615e0"
+    "remaining-summary.json": "1190a2ade2d186a90d5c47337c282ffce0cec8af799745d1c6df284b9f4f844c",
+    "scenario-exits.json": "653b12ef62cd0a1baa70232aa469eba49a7d69ca56c090afa1e29a792621e374",
+    "harness-provenance.json": "f19a10fc2f4ef972b57818ff3745055e5a85740d557604b77c3a4e4d2379603e",
+    "runtime-manifest.json": "c70620b2b1c1b95ad7aabf97c1fed46dcc3175ca2d7a62369e28cd84eee7ee40",
+    "source-identity.txt": "1f0ec291c72c3f2a4d73572ab30eee9e5c66dba7e3e65848a992ca01f277d059"
   },
-  "earlier_node_comparison_dashboard": {
-    "run_id": 43043343085,
-    "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43043343085",
-    "validation_commit": "05d5e5f21efb9f3f3bba4be49a1a137efb545c10",
-    "overall_status": "failure",
-    "node_tests_passed": 41,
-    "comparison_cases_passed": 14,
-    "dashboard_widths_passed": 6,
-    "artifacts": [
+  "previous_evidence_index_sha256": "226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475",
+  "previous_evidence_reference": {
+    "evidence_kind": "immutable_previous_run_reference_not_current_run_results",
+    "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
+    "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
+    "run_id": 43053078956,
+    "run_attempt": 1,
+    "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43053078956",
+    "validation_commit": "4c83b07efa9aeb8e9af4c41baa23034802d5df28",
+    "validation_tree": "9b13b3646bcbc0d23c51f15ddd4b513897a9e827",
+    "overall_status": "FAILED_OR_INCOMPLETE",
+    "source_unchanged": true,
+    "artifact_id": 13870588160,
+    "artifact_digest": "sha256:1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a",
+    "http_passed": 3,
+    "browser_passed": 10,
+    "scenarios": [
       {
-        "id": 13866322166,
-        "digest": "sha256:f74d618aaa2bc11cde34e7643d4105bd9d0d8a25c2e92f84a4b54a9215c4f4fd"
+        "id": "http-confirmation_manufacturer",
+        "report": "connected-confirmation_manufacturer-preflight/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "report_sha256": "a27672c0498b5bc6a91106496438a2de1867f01404ebf55aebb1d366e3260810",
+        "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "started_utc": "2026-11-11T15:55:49.692089+00:00",
+        "finished_utc": "2026-11-11T15:56:13.148411+00:00"
       },
       {
-        "id": 13865109256,
-        "digest": "sha256:a661361e19fa74cb9986d68897ce51b0fd6aa4c9d040f1e847954b0a63d519c9"
+        "id": "http-confirmation_legal",
+        "report": "connected-confirmation_legal-preflight/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "report_sha256": "2850e093242991d3e0ee2782377c3ce8da4803cbc2cff6ebd23123cfad78d5e6",
+        "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "started_utc": "2026-11-11T15:56:13.221484+00:00",
+        "finished_utc": "2026-11-11T15:56:24.572411+00:00"
       },
       {
-        "id": 13865104317,
-        "digest": "sha256:5f09548863045092d702db807df6a1b01046c62d0042a41549d9ab11147670a2"
+        "id": "http-confirmation_progression",
+        "report": "connected-confirmation_progression-preflight/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "report_sha256": "8152246f328c01105f80bd364fc3200f2c516884bbe844a787a374be095ea10e",
+        "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+        "started_utc": "2026-11-11T15:56:24.644784+00:00",
+        "finished_utc": "2026-11-11T15:56:34.551105+00:00"
+      },
+      {
+        "id": "browser-common",
+        "report": "browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "e0c7a4888ce15aa899882b91c7a3cbebc987faa46658de7e44d4fdf705461e9a",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:56:34.623565+00:00",
+        "finished_utc": "2026-11-11T15:56:55.649504+00:00"
+      },
+      {
+        "id": "browser-stage2-instruction",
+        "report": "instruction/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "440cd070a3b21ea453823fba86b6c114a8e13ab0810e6cd4538070d32247b1fd",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:56:55.721403+00:00",
+        "finished_utc": "2026-11-11T15:57:16.136727+00:00"
+      },
+      {
+        "id": "browser-stage2-recheck",
+        "report": "recheck/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "99a2a5c9a714978814c84b8c7f5d9690f1cc5cd07c62efefa4a01c8b59852cb0",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:57:16.209462+00:00",
+        "finished_utc": "2026-11-11T15:57:36.410688+00:00"
+      },
+      {
+        "id": "browser-stage2-timing",
+        "report": "timing/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "71a14e9367f989bb6450850a252416df1b3638410468957e0d68e6092232b2bf",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:57:36.484734+00:00",
+        "finished_utc": "2026-11-11T15:57:56.602467+00:00"
+      },
+      {
+        "id": "browser-connected-normal",
+        "report": "connected-normal/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "5fc65365a66333d83b3e532e8e1ff8e5dea78360e57f6be5383749075d246ace",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:57:56.675351+00:00",
+        "finished_utc": "2026-11-11T15:58:17.046358+00:00"
+      },
+      {
+        "id": "browser-connected-instruction",
+        "report": "connected-instruction/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "aac2c991484d902ef7f80d744b32fe9397b4b90fb59d2a7b95865e65ceb5f369",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:58:17.118323+00:00",
+        "finished_utc": "2026-11-11T15:58:44.504748+00:00"
+      },
+      {
+        "id": "browser-connected-recheck",
+        "report": "connected-recheck/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "305652ac7457d4ed8a118145c3a0ea398fd0a3fb008db909a00ce211a371d000",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:58:44.577603+00:00",
+        "finished_utc": "2026-11-11T15:59:12.101483+00:00"
+      },
+      {
+        "id": "browser-connected-invoice",
+        "report": "connected-invoice/browser-result.json",
+        "passed": false,
+        "exit_code": 1,
+        "error_type": "AssertionError",
+        "report_sha256": "033dee3207038a29b6157cef8c997390bad639e0292e3d58640fdef3d318f93d",
+        "original_report_status": "FAILED",
+        "started_utc": "2026-11-11T15:59:12.174313+00:00",
+        "finished_utc": "2026-11-11T15:59:47.788217+00:00"
+      },
+      {
+        "id": "browser-connected-periodic_instruction",
+        "report": "connected-periodic_instruction/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "8f028f1fc7c0d7e432626f7156e8b6e1af7490bf51debbd2ac181e9ce3be1c4a",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:59:47.861397+00:00",
+        "finished_utc": "2026-11-11T15:59:59.568711+00:00"
+      },
+      {
+        "id": "browser-connected-periodic_timing",
+        "report": "connected-periodic_timing/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "ec4487986e0795ce91c861c7c83fbdb9d0abf276d43f76565e6e7c4072252d54",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T15:59:59.642266+00:00",
+        "finished_utc": "2026-11-11T16:00:11.090619+00:00"
+      },
+      {
+        "id": "browser-connected-confirmation_manufacturer",
+        "report": "connected-confirmation_manufacturer/browser-result.json",
+        "passed": false,
+        "exit_code": 1,
+        "error_type": "AssertionError",
+        "report_sha256": "0306234fccbea30530500ffd5670d1dd623095b9344a1199735c289f55064b7d",
+        "original_report_status": "FAILED",
+        "started_utc": "2026-11-11T16:00:11.164716+00:00",
+        "finished_utc": "2026-11-11T16:03:19.200233+00:00"
+      },
+      {
+        "id": "browser-connected-confirmation_legal",
+        "report": "connected-confirmation_legal/browser-result.json",
+        "passed": false,
+        "exit_code": 1,
+        "error_type": "AssertionError",
+        "report_sha256": "2e9637597171b0104ac28601642deb96b48761b7025d97f5cdc4f7236924d474",
+        "original_report_status": "FAILED",
+        "started_utc": "2026-11-11T16:03:19.273478+00:00",
+        "finished_utc": "2026-11-11T16:05:52.125762+00:00"
+      },
+      {
+        "id": "browser-connected-confirmation_progression",
+        "report": "connected-confirmation_progression/browser-result.json",
+        "passed": true,
+        "exit_code": 0,
+        "report_status": "PASS",
+        "report_sha256": "08bc2a60d839f1f804f2a8576dc66d779e2bf5b38aa9bf6a005a8eb45543a900",
+        "original_report_status": "PASS",
+        "started_utc": "2026-11-11T16:05:52.199105+00:00",
+        "finished_utc": "2026-11-11T16:07:54.561758+00:00"
       }
-    ]
-  },
-  "original_pr_ci": {
-    "run_id": 43036556295,
-    "attempt": 2,
-    "status": "failed_dependency_installation_dns_not_rerun"
+    ],
+    "manifest_sha256": {
+      "remaining-summary.json": "a6f4930fcf43b657d77ecf45a401307837681d81d5c54d1571ec6c38e9c7c9c5",
+      "scenario-exits.json": "360e24f4bf72bd8250e313e591994b624f407ed76e7c5360e5cbe884465b7bd6",
+      "harness-provenance.json": "472bf2758ba805fc2300772689975885d00983938931724744d97c86cf478bac",
+      "runtime-manifest.json": "d9b4c340c9026235fdd52c999bafc3f7582b30e11f1fb112bcdccf6d79289258",
+      "source-identity.txt": "da1ee3ceab4000f5025943ac24862eb6afdc38f6a52ce1fab7033e10425615e0"
+    },
+    "earlier_node_comparison_dashboard": {
+      "run_id": 43043343085,
+      "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43043343085",
+      "validation_commit": "05d5e5f21efb9f3f3bba4be49a1a137efb545c10",
+      "overall_status": "failure",
+      "node_tests_passed": 41,
+      "comparison_cases_passed": 14,
+      "dashboard_widths_passed": 6,
+      "artifacts": [
+        {
+          "id": 13866322166,
+          "digest": "sha256:f74d618aaa2bc11cde34e7643d4105bd9d0d8a25c2e92f84a4b54a9215c4f4fd"
+        },
+        {
+          "id": 13865109256,
+          "digest": "sha256:a661361e19fa74cb9986d68897ce51b0fd6aa4c9d040f1e847954b0a63d519c9"
+        },
+        {
+          "id": 13865104317,
+          "digest": "sha256:5f09548863045092d702db807df6a1b01046c62d0042a41549d9ab11147670a2"
+        }
+      ]
+    },
+    "original_pr_ci": {
+      "run_id": 43036556295,
+      "attempt": 2,
+      "status": "failed_dependency_installation_dns_not_rerun"
+    },
+    "rerun_successful_cases": false,
+    "previous_failures_preserved": true
   },
   "rerun_successful_cases": false,
   "previous_failures_preserved": true

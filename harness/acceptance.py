@@ -193,6 +193,21 @@ def main():
             return 0
         from playwright.sync_api import sync_playwright, expect
         pdf = NativePdfNavigation(report, ORIGIN)
+        invoice_phase = 'setup'
+        invoice_request_ids = {}
+        if args.case == 'invoice':
+            report['invoice_source_events'] = []
+            report['invoice_downloads'] = []
+
+        def observe_invoice_source(event, request, **details):
+            if args.case != 'invoice' or request.url != ORIGIN + invoice_source_path:
+                return
+            request_id = invoice_request_ids.setdefault(request, len(invoice_request_ids) + 1)
+            report['invoice_source_events'].append(dict(
+                sequence=len(report['invoice_source_events']) + 1, event=event,
+                phase=invoice_phase, request_id=request_id, url=request.url,
+                method=request.method, resource_type=request.resource_type,
+                is_navigation_request=request.is_navigation_request(), **details))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True, executable_path=str(args.chromium.resolve()))
             report.update(browser_started=True, browser_version=browser.version)
@@ -207,6 +222,12 @@ def main():
                             resource_type=request.resource_type))
                         route.abort(); return
                     response = get(parsed.path + ('?' + parsed.query if parsed.query else ''))
+                    if args.case == 'invoice' and request.url == ORIGIN + invoice_source_path:
+                        observe_invoice_source('bridge_response', request,
+                            status=response.status_code, mimetype=response.mimetype,
+                            content_disposition=response.headers.get('Content-Disposition'),
+                            byte_length=len(response.get_data()),
+                            source_sha256=hashlib.sha256(response.get_data()).hexdigest())
                     if args.case == 'invoice' and parsed.path == invoice_source_path and request.is_navigation_request():
                         report['invoice_source_navigations'].append(dict(
                             url=request.url, status=response.status_code, mimetype=response.mimetype,
@@ -241,6 +262,13 @@ def main():
                     pdf.observe_response(request, response.status_code, headers, response.get_data())
                     route.fulfill(status=response.status_code, headers=headers, body=response.get_data())
                 context.route('**/*', bridge)
+                if args.case == 'invoice':
+                    context.on('request', lambda request: observe_invoice_source('request', request))
+                    context.on('response', lambda response: observe_invoice_source(
+                        'response', response.request, status=response.status))
+                    context.on('requestfinished', lambda request: observe_invoice_source('requestfinished', request))
+                    context.on('requestfailed', lambda request: observe_invoice_source(
+                        'requestfailed', request, failure=request.failure))
                 context.on('requestfailed', lambda request: None if pdf.record_request_failed(request) else report['failed_requests'].append(
                     dict(method=request.method, url=request.url, failure=request.failure)))
                 page = context.new_page()
@@ -279,6 +307,7 @@ def main():
                         expect(page.locator('.priority-response-badge')).to_have_text(badge)
                         report['cases'].append(f'Browser {width}: periodic {score} badge/counts/source details and actual list/back navigation; no generation POST')
                     elif args.case == 'invoice':
+                        invoice_phase = f'width:{width}/history'
                         # History opens this invoice's original PDF, not its
                         # maintenance-detail page. Follow that real rendered link.
                         page.goto(ORIGIN + paths[0], wait_until='networkidle')
@@ -286,6 +315,7 @@ def main():
                         expect(source_link).to_have_count(1)
                         expect(source_link).to_have_attribute('href', invoice_source_path)
                         source_url = urljoin(ORIGIN, source_link.get_attribute('href'))
+                        invoice_phase = f'width:{width}/history-original'
                         pdf.begin(page, source_url, original_hash)
                         navigation_count = len(report['invoice_source_navigations'])
                         with page.expect_response(lambda response: response.url == source_url and
@@ -302,6 +332,7 @@ def main():
                         page.wait_for_url(source_url, wait_until='networkidle')
                         pdf.finish(page, opened.value)
                         pdf.end()
+                        invoice_phase = f'width:{width}/history-back'
                         page.go_back(wait_until='networkidle')
                         expect(page).to_have_url(ORIGIN + paths[0])
                         expect(page.locator('main')).to_contain_text('タイヤ交換（読取訂正）')
@@ -310,6 +341,7 @@ def main():
                         maintenance_path = f'/vehicle/karte/{case.vehicle.id}/maintenance'
                         maintenance_tab = page.locator('.vehicle-karte-tabs').get_by_role('link', name='整備・修理', exact=True)
                         expect(maintenance_tab).to_have_attribute('href', maintenance_path)
+                        invoice_phase = f'width:{width}/maintenance-tab'
                         maintenance_tab.click()
                         expect(page).to_have_url(ORIGIN + maintenance_path)
                         record_link = page.locator('.km-record-content a').filter(has_text='タイヤ交換（読取訂正）')
@@ -319,6 +351,7 @@ def main():
                         require(f'{target.scheme}://{target.netloc}' == ORIGIN and
                                 target.path == maintenance_path + f'/{invoice_record.id}' and
                                 target.fragment == 'maintenance_detail_panel', 'Rendered link targets a different maintenance record')
+                        invoice_phase = f'width:{width}/maintenance-record'
                         record_link.click()
                         expect(page).to_have_url(urljoin(ORIGIN, record_href))
                         detail = page.locator('.km-detail-panel')
@@ -326,12 +359,22 @@ def main():
                         download_link = detail.locator('.km-file-card[download]')
                         expect(download_link).to_have_count(1)
                         expect(download_link).to_have_attribute('href', invoice_source_path)
+                        invoice_phase = f'width:{width}/original-download'
+                        download_href = download_link.get_attribute('href')
+                        download_attribute = download_link.get_attribute('download')
                         with page.expect_download() as transfer:
                             download_link.click()
                         downloaded = transfer.value
-                        require(downloaded.failure() is None, 'Original download failed')
+                        download_failure = downloaded.failure()
+                        report['invoice_downloads'].append(dict(width=width, phase=invoice_phase,
+                            href=download_href, download_attribute=download_attribute,
+                            url=downloaded.url, suggested_filename=downloaded.suggested_filename,
+                            failure=download_failure,
+                            source_event_count=len(report['invoice_source_events'])))
+                        require(download_failure is None, f'Original download failed: {download_failure!r}')
                         require(hashlib.sha256(Path(downloaded.path()).read_bytes()).hexdigest() == original_hash, 'Original download changed')
                         report['cases'].append(f'Browser {width}: rendered history -> exact original PDF GET/hash -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
+                        invoice_phase = f'width:{width}/connected-views'
                         for number, path in enumerate(paths):
                             page.goto(ORIGIN + path, wait_until='networkidle')
                             if '/history' in path: expect(page.locator('main')).to_contain_text('タイヤ交換（読取訂正）')

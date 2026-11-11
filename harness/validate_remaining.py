@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run only the three failed PR377 browser cases; never modify the frozen application."""
+"""Run only the two remaining PR377 browser cases; never modify the frozen application."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -11,10 +11,10 @@ import subprocess
 
 APP_SHA = '30d4dfeee97f69bd00650c6bf56a5ce234f34437'
 APP_TREE = '31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea'
-FIXED_HELPER_BLOB = '7168dd213cf261d34230c8e4f83db2e085940e2e'
-FIXED_ACCEPTANCE_BLOB = 'f006c811340844eb2f435a0e35493b9f0141aab1'
+FIXED_HELPER_BLOB = '44e1612f2ca59eca80a2c6a436426bc722af18a7'
+FIXED_ACCEPTANCE_BLOB = '7862711860f8131cecf02caca7d06a43d5a3413e'
 PDF_NAVIGATION_BLOB = '4573aa6f07666f1d4e508b7352cc4cd42df0a323'
-PRIOR_INDEX_SHA256 = '226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475'
+PRIOR_INDEX_SHA256 = '5d11217430be095c2e35069e4ad63272aeebb9134fc25bfa8b46d9bec057a9a3'
 VALIDATION_FILES = {
     '.github/workflows/pr377-supplemental-browser.yml', 'README.md',
     'harness/confirmation_acceptance.py', 'harness/validate_remaining.py',
@@ -35,7 +35,7 @@ COPIES = (
     'tests/video_connected_browser/run-isolated.sh',
     'tests/history_presentation_browser/guard/sitecustomize.py',
 )
-CURRENT_CASES = ('invoice', 'confirmation_manufacturer', 'confirmation_legal')
+CURRENT_CASES = ('invoice', 'confirmation_manufacturer')
 
 
 def require(value, message):
@@ -87,7 +87,7 @@ def verify_sources(args):
     require(validation_files['harness/confirmation_acceptance.py']['git_blob'] == FIXED_HELPER_BLOB,
             'Confirmation helper differs from the reviewed external correction')
     require(validation_files['harness/acceptance.py']['git_blob'] == FIXED_ACCEPTANCE_BLOB,
-            'Acceptance entry point differs from the reviewed invoice/PDF correction')
+            'Acceptance entry point differs from the reviewed invoice observation helper')
     require(validation_files['harness/native_pdf_navigation.py']['git_blob'] == PDF_NAVIGATION_BLOB,
             'PDF navigation classifier differs from the reviewed helper')
     prior_evidence(args)
@@ -98,7 +98,7 @@ def verify_sources(args):
 
 
 def harness_root(args):
-    return args.artifacts.parent / 'pr377-final-three-harness'
+    return args.artifacts.parent / 'pr377-final-two-harness'
 
 
 def verify_copies(args):
@@ -156,11 +156,17 @@ def prior_evidence(args):
     prior = json.loads(path.read_text())
     require(prior['application_commit'] == APP_SHA and prior['application_tree'] == APP_TREE,
             'Prior evidence application mismatch')
-    require(prior['run_id'] == 43053078956 and prior['artifact_id'] == 13870588160,
+    require(prior['run_id'] == 43058463867 and prior['artifact_id'] == 13873565921,
             'Wrong previous evidence run')
-    require(prior['http_passed'] == 3 and prior['browser_passed'] == 10 and prior['source_unchanged'] is True,
+    require(prior['http_passed'] == 0 and prior['browser_passed'] == 1 and prior['source_unchanged'] is True,
             'Prior pass counts or source status changed')
     require(prior['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Prior failure must not be relabeled')
+    previous = prior['previous_evidence_reference']
+    require(previous['run_id'] == 43053078956 and previous['http_passed'] == 3
+            and previous['browser_passed'] == 10 and previous['overall_status'] == 'FAILED_OR_INCOMPLETE',
+            'Earlier run hierarchy must remain intact')
+    require({s['id'] for s in prior['scenarios'] if s['passed']}
+            == {'browser-connected-confirmation_legal'}, 'Latest legal pass must remain separate')
     failed_ids = {s['id'] for s in prior['scenarios'] if not s['passed']}
     require(failed_ids == {'browser-connected-' + case for case in CURRENT_CASES},
             'Current scope must be exactly the previously failed browser cases')
@@ -274,9 +280,10 @@ def aggregate(args):
         status='PASS' if not failures else 'FAILED_OR_INCOMPLETE',
         verification_kind='supplemental_separate_fixture_harness_not_original_pr_ci',
         application_commit=APP_SHA, application_tree=APP_TREE, validation_commit=args.validation_sha,
-        http_required=0, browser_required=3,
+        http_required=0, browser_required=2,
         http_passed=0, browser_passed=sum(r['passed'] for r in results),
         current_run_scope=list(CURRENT_CASES),
+        invoice_instrumentation_only=True, invoice_download_fix_claimed=False,
         previous_results_not_counted_as_current_run=True,
         prior_evidence_index_sha256=PRIOR_INDEX_SHA256,
         prior_evidence_reference=prior,

@@ -903,9 +903,15 @@ def run_browser(args, f, report, out, origin):
                 # here or weaken the completed-state original_downloads hashes.
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical drawer overflows')
                 page.screenshot(path=str(out / f'{args.case}-historical-detail-{view_width}.png'), full_page=True)
-                # The drawer scrolls independently; full-page capture alone can
-                # leave the already-asserted missing-source explanation offscreen.
+                # Source records live in a separate, initially closed disclosure.
+                # Open its real summary before checking visibility and scrolling.
+                evidence = drawer.locator('details.ka-action-evidence')
+                expect(evidence).to_have_count(1)
+                expect(evidence).not_to_have_attribute('open', '')
+                evidence.locator(':scope > summary').click()
+                expect(evidence).to_have_attribute('open', '')
                 gap = drawer.locator('p.ka-historical-source-gap')
+                expect(gap).to_be_visible()
                 gap.scroll_into_view_if_needed()
                 expect(gap).to_be_in_viewport()
                 page.screenshot(path=str(out / f'{args.case}-historical-source-gap-{view_width}.png'), full_page=True)
