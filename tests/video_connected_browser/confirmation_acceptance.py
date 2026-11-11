@@ -7,7 +7,9 @@ AI/OCR request is made and no result JSON is seeded directly.
 Browser POSTs remain limited to the two confirmation endpoints. The controlled
 background helper may change only this vehicle's normal analysis state, which is
 re-protected after the job. Other business records and prior audit rows remain
-protected; only the target vehicle's input epoch/read cache are exempt.
+protected; only the target vehicle's input epoch/read cache are exempt. The
+manufacturer history branch explicitly revises/restores one original PDF field,
+verifies the complete database delta, and rebases only that owned row.
 
 These are prepared acceptance assertions, not a claim of browser execution.
 Existing GET-only scenarios do not import this module.
@@ -90,6 +92,7 @@ class Fixture:
         from flask import g
         g.pop('csrf_token', None)
         self.db, self.app = c.db, c.app
+        self.vehicle_id = c.vehicle.id  # Primitive: safe inside Playwright route greenlets.
         self.url = f'/vehicle/karte/{c.vehicle.id}/priority-confirmations'
         self.analysis = f'/vehicle/karte/{c.vehicle.id}/analysis'
         self.overview = f'/vehicle/karte/{c.vehicle.id}'
@@ -107,6 +110,10 @@ class Fixture:
         require(set(markup.confirmation_forms) == {'data-confirmation-selection', 'data-confirmation-preview'},
                 'Separate optional forms missing')
         self.csrf = markup.csrf
+        # base.js immediately polls this normal route. Prime its initial alert
+        # bookkeeping before the protected baseline, without excluding its table.
+        warm = c.client.get('/api/notifications/unread-count')
+        require(warm.status_code == 200, 'Normal unread-count warm-up failed')
         self.saved = self.snapshot()
         self.original_events = self.events()
         self.seen_events = dict(self.original_events)
@@ -156,9 +163,9 @@ class Fixture:
             rows = self.db.session.execute(table.select().order_by(*table.primary_key.columns)).mappings()
             protected = []
             for row in rows:
-                if table.name == 'analysis_input_epoch' and row['company_code'] == 'A' and row['bucket'] == f'vehicle:{self.case.vehicle.id}':
+                if table.name == 'analysis_input_epoch' and row['company_code'] == 'A' and row['bucket'] == f'vehicle:{self.vehicle_id}':
                     continue
-                if table.name == 'analysis_input_read_cache' and row['company_code'] == 'A' and row['vehicle_record_id'] == self.case.vehicle.id:
+                if table.name == 'analysis_input_read_cache' and row['company_code'] == 'A' and row['vehicle_record_id'] == self.vehicle_id:
                     continue
                 protected.append(tuple(row.values()))
             result[table.name] = protected
@@ -168,7 +175,7 @@ class Fixture:
         table = self.case.models.VehicleKarteAnalysis.__table__
         keys = [column.name for column in table.columns]
         owner, vehicle = keys.index('company_code'), keys.index('vehicle_record_id')
-        return [row for row in rows if not (row[owner] == 'A' and row[vehicle] == self.case.vehicle.id)]
+        return [row for row in rows if not (row[owner] == 'A' and row[vehicle] == self.vehicle_id)]
 
     def events(self):
         table = self.case.models.ChecklistEvent.__table__
@@ -183,7 +190,7 @@ class Fixture:
             compared[analysis_table] = self.analysis_others(compared[analysis_table])
             baseline[analysis_table] = self.analysis_others(baseline[analysis_table])
             require(self.case.models.VehicleKarteAnalysis.query.filter_by(company_code='A',
-                vehicle_record_id=self.case.vehicle.id).count() == 1, 'Only one target analysis state may change')
+                vehicle_record_id=self.vehicle_id).count() == 1, 'Only one target analysis state may change')
         changed = sorted(k for k in set(compared) | set(baseline) if compared.get(k) != baseline.get(k))
         require(not changed, 'Protected tables changed: ' + ', '.join(changed))
         events = self.events()
@@ -192,7 +199,7 @@ class Fixture:
         require(allow_append or not new, 'Read/rejected request appended an event')
         for value in new.values():
             require(value['company_code'] == 'A' and value['result_type'] == 'vehicle_priority'
-                    and value['result_id'] == self.case.vehicle.id and value['event_type'] in (CONFIRM, WITHDRAW),
+                    and value['result_id'] == self.vehicle_id and value['event_type'] in (CONFIRM, WITHDRAW),
                     'Unexpected event append')
         self.seen_events = events
 
@@ -200,21 +207,24 @@ class Fixture:
         return len(self.events()) - len(self.original_events)
 
     def request(self, method, path, *, body=None, csrf=True, raw=None, headers=None):
-        require(method == 'GET' or (method == 'POST' and path in self.post_paths), 'Forbidden bridge write')
-        if method == 'GET': response = self.case.client.get(path)
-        else:
-            kwargs = {'headers': headers if headers is not None else
-                      ({'X-CSRFToken': self.csrf} if csrf else {})}
-            if raw is not None: kwargs.update(data=raw, content_type='application/json')
-            else: kwargs['json'] = body
-            response = self.case.client.post(path, **kwargs)
-        entry = dict(method=method, path=urlsplit(path).path, status=response.status_code)
-        if urlsplit(path).path in self.original_downloads:
-            entry['source_sha256'] = hashlib.sha256(response.get_data()).hexdigest()
-            require(entry['source_sha256'] == self.original_downloads[urlsplit(path).path], 'Original response bytes changed')
-        self.report['requests'].append(entry)
-        self.protected(allow_append=method == 'POST' and path == self.url and response.status_code == 200)
-        return response
+        # Sync Playwright RouteGreenlet does not inherit the fixture's contextvars.
+        # Cover both Flask dispatch and every protection query in this context.
+        with self.app.app_context():
+            require(method == 'GET' or (method == 'POST' and path in self.post_paths), 'Forbidden bridge write')
+            if method == 'GET': response = self.case.client.get(path)
+            else:
+                kwargs = {'headers': headers if headers is not None else
+                          ({'X-CSRFToken': self.csrf} if csrf else {})}
+                if raw is not None: kwargs.update(data=raw, content_type='application/json')
+                else: kwargs['json'] = body
+                response = self.case.client.post(path, **kwargs)
+            entry = dict(method=method, path=urlsplit(path).path, status=response.status_code)
+            if urlsplit(path).path in self.original_downloads:
+                entry['source_sha256'] = hashlib.sha256(response.get_data()).hexdigest()
+                require(entry['source_sha256'] == self.original_downloads[urlsplit(path).path], 'Original response bytes changed')
+            self.report['requests'].append(entry)
+            self.protected(allow_append=method == 'POST' and path == self.url and response.status_code == 200)
+            return response
 
     def options(self, selection=None):
         from urllib.parse import urlencode
@@ -311,6 +321,71 @@ class Fixture:
         require(selected[0]['priority_assessment']['confirmation_details']['kind'] == self.kind, 'Wrong confirmation source')
         return selected[0]
 
+    def replace_manufacturer_original(self, replacement, phase):
+        """Permit one explicit fixture PDF-field change, never a table exclusion."""
+        require(self.kind == 'manufacturer_immediate' and phase in {'revision', 'restore'},
+                'Original revision is only a manufacturer fixture operation')
+        require(isinstance(replacement, bytes) and replacement.startswith(b'%PDF-'),
+                'A synthetic PDF original is required')
+        self.protected()
+        table = self.case.document.__table__
+        require(table.name == 'maintenance_knowledge_document', 'Unexpected original table')
+        document_id = self.case.document.id
+        columns = [column.name for column in table.columns]
+        id_at, company_at, data_at = (columns.index(name) for name in ('id', 'company_code', 'original_data'))
+        rows = list(self.saved[table.name])
+        matching = [index for index, row in enumerate(rows)
+                    if row[id_at] == document_id and row[company_at] == 'A']
+        require(len(matching) == 1, 'Original change must identify one owned row')
+        index = matching[0]
+        before = rows[index][data_at]
+        require(before != replacement, 'Original change must be explicit')
+        changed = list(rows[index]); changed[data_at] = replacement
+        rows[index] = tuple(changed)
+        expected = dict(self.saved); expected[table.name] = rows
+        updated = self.db.session.execute(table.update().where(
+            table.c.id == document_id, table.c.company_code == 'A').values(original_data=replacement))
+        require(updated.rowcount == 1, 'Original change affected another row')
+        self.db.session.commit()
+        require(self.snapshot() == expected, 'Original change touched more than one allowed row/field')
+        require(self.events() == self.seen_events, 'Original change mutated audit history')
+        # Rebase only this exact row after proving all other tables/columns equal.
+        self.saved[table.name][index] = rows[index]
+        self.protected()
+        self.report.setdefault('intentional_source_changes', []).append(dict(
+            table=table.name, row_id=document_id, field='original_data', phase=phase,
+            before_sha256=hashlib.sha256(before).hexdigest(),
+            after_sha256=hashlib.sha256(replacement).hexdigest()))
+        return before
+
+    def revise_manufacturer_original(self):
+        from test_priority_manufacturer_evidence import original_pdf
+        return self.replace_manufacturer_original(
+            original_pdf('REVISED-SYNTHETIC-ORIGINAL-ONLY. The former instruction is absent.'), 'revision')
+
+    def assert_historical(self, data, previous_item, previous_generated_at):
+        require(data['status'] == 'completed' and data['is_current'] is True,
+                'Historical display must come from the completed normal job')
+        items = data['analysis']['recommendations']
+        require(len(items) == 1 and items[0]['proposal_id'] == previous_item['proposal_id'],
+                'Historical candidate identity was lost or duplicated')
+        item = items[0]; assessment = item['priority_assessment']
+        original = previous_item['priority_assessment']['confirmation_details']
+        require((assessment['label'], assessment['effective_score']) == ('高', None),
+                'Historical class must not become a current numeric score')
+        require(assessment['calculation_status'] == 'legacy_preserved', 'Historical result was recalculated')
+        require(not assessment.get('confirmation_details') and not assessment.get('confirmation_details_list'),
+                'Old confirmation was presented as current')
+        require(assessment.get('historical_confirmation_details') == [original],
+                'Historical actor/time/statements/original text changed')
+        prior = assessment.get('previous_result') or {}
+        require(prior.get('label') == '高' and prior.get('reason') and
+                prior.get('confirmed_at') == [original['confirmed_at']] and
+                prior.get('previous_generated_at') == previous_generated_at,
+                'Historical attribution or saved-generation time missing')
+        self.protected()
+        return item
+
     def close(self):
         if self.setup: self.case.tearDown(); self.case.doCleanups()
         if self.started: self.case.tearDownClass()
@@ -341,17 +416,23 @@ def exercise_http(f):
     active_event = correction.json['event_id']; f.assert_state(3, 1)
     generated = f.generate(); item = f.assert_generated(generated, active_event)
     remaining_ids = {v['proposal_id'] for v in generated['analysis']['recommendations']} - {item['proposal_id']}
+    original_bytes = None
+    if f.kind == 'manufacturer_immediate':
+        original_bytes = f.revise_manufacturer_original()
+        f.assert_historical(f.generate(), item, generated['generated_at'])
+        f.report['cases'].append('Manufacturer original revised in one PDF field; real job preserves previous label, actor/time/original text without current points')
     require(f.request('POST', f.url, body=f.confirmation_body(stale)).status_code == 409, 'Old preview accepted')
     cancel = {'token': next(v['cancel_token'] for v in f.history() if v['event_id'] == active_event)}
     require(f.request('POST', f.url, body=cancel).status_code == 200, 'Cancellation failed')
     f.assert_state(4, 0)
     f.assert_generated(f.read_result(), previous_ids=remaining_ids)
     f.assert_generated(f.generate(), previous_ids=remaining_ids)
+    if original_bytes is not None: f.replace_manufacturer_original(original_bytes, 'restore')
     require(f.request('POST', f.url, body=cancel).status_code == 409, 'Cancellation replay accepted')
     prepared = f.preview()
     require(f.request('POST', f.url, body=f.confirmation_body(prepared)).status_code == 200, 'Cannot confirm after cancellation')
     f.assert_state(5, 1)
-    f.report['cases'].append('Real options/preview/CSRF/save/replay/correction/stale revision/cancel/new confirmation; real empty-response queue/job completion and cancellation GET/regeneration; original records unchanged')
+    f.report['cases'].append('Real options/preview/CSRF/save/replay/correction/stale revision/cancel/new confirmation; real empty-response queue/job completion and cancellation GET/regeneration; protected records unchanged outside the explicit manufacturer revision/restore')
 
 
 def run_browser(args, f, report, out, origin):
@@ -505,7 +586,16 @@ def run_browser(args, f, report, out, origin):
                 rows = page.locator('.ka7-proposal-table tbody tr')
                 expect(page.locator('.ka7-board')).to_be_visible()
                 expect(rows).to_have_count(len(order))
-                for index in range(rows.count()): expect(rows.nth(index).locator('.ka7-priority')).to_have_text(badge)
+                for index, value in enumerate(ordered):
+                    row = rows.nth(index)
+                    expect(row.locator('.ka7-priority')).to_have_text(badge)
+                    expect(row.locator('.ka7-target > strong')).to_have_text(value.get('target') or value.get('title') or '確認項目')
+                    ids = value['source_ids']
+                    sid = next((sid for sid in ids if str(sid).startswith(('inspection:', 'periodic:'))),
+                        next((sid for sid in ids if str(sid).startswith('maintenance:')), ids[0]))
+                    source_url = data['sources'][sid]['url']
+                    expected_url = source_url if urlsplit(source_url).netloc else origin + source_url
+                    expect(row.locator('.ka7-record-link')).to_have_attribute('href', expected_url)
                 if item:
                     drawer = page.locator('.ka-reference-drawer')
                     if len(order) > 5:
@@ -550,7 +640,57 @@ def run_browser(args, f, report, out, origin):
                 report['cases'].append(f'Browser {view_width}: {phase} normal job GET/poll, {len(order)} total proposals, top-five and remaining-analysis navigation, exact common scores and source details' + ('/original GET' if item else '; only cancelled candidate removed'))
                 f.protected()
 
+        def historical_views(page, data, previous_item, previous_generated_at):
+            """Display actual saved history after one explicit source-PDF revision."""
+            original = previous_item['priority_assessment']['confirmation_details']
+            historical_item = f.assert_historical(data, previous_item, previous_generated_at)
+            for view_width, view_height in WIDTHS:
+                page.set_viewport_size(dict(width=view_width, height=view_height))
+                with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
+                    page.goto(origin + f.overview, wait_until='networkidle')
+                f.assert_historical(fetched.value.json(), previous_item, previous_generated_at)
+                cards = page.locator('#ko-ai .ko-proposal')
+                expect(cards).to_have_count(1)
+                expect(cards).to_have_attribute('data-proposal-id', historical_item['proposal_id'])
+                expect(cards.locator('.ko-priority')).to_have_text('高')
+                require(cards.get_attribute('data-priority-score') is None, 'Historical overview exposed a current score')
+                expect(page.locator('[data-ko-summary-count]')).to_have_text('1件（前回評価を含む）')
+                require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical overview overflows')
+                page.screenshot(path=str(out / f'{args.case}-historical-overview-{view_width}.png'), full_page=True)
+                with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
+                    cards.locator('.ko-proposal-detail').click()
+                f.assert_historical(fetched.value.json(), previous_item, previous_generated_at)
+                rows = page.locator('.ka7-proposal-table tbody tr')
+                expect(rows).to_have_count(1)
+                expect(rows.locator('.ka7-priority')).to_have_text('高')
+                expect(page.locator('.ka7-count')).to_have_text('1件（前回評価を含む）')
+                drawer = page.locator('.ka-reference-drawer')
+                expect(drawer).to_be_visible()
+                expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text('高')
+                details = drawer.locator('.priority-response-details')
+                details.locator('summary').click()
+                prior = details.locator('.priority-response-previous')
+                expect(prior).to_contain_text('前回の評価：高（現在の再計算値ではありません）')
+                expect(prior).to_contain_text(previous_generated_at)
+                expect(prior).to_contain_text(original['confirmed_at'])
+                expect(prior).to_contain_text(historical_item['priority_assessment']['previous_result']['reason'])
+                history = details.locator('.priority-response-confirmation')
+                expect(history).to_have_count(1)
+                expect(history.locator('strong').first).to_have_text('前回保存時の根拠確認（現在の成立を示すものではありません）')
+                expect(history).to_contain_text(original['actor_name'])
+                expect(history).to_contain_text(original['confirmed_at'])
+                for statement in original['statements']: expect(history).to_contain_text(statement)
+                for source in original['display_sources']: expect(history).to_contain_text(source['text'])
+                expect(history).not_to_contain_text('REVISED-SYNTHETIC-ORIGINAL-ONLY')
+                # The original URL now refers to revised bytes. Do not click it
+                # here or weaken the completed-state original_downloads hashes.
+                require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical drawer overflows')
+                page.screenshot(path=str(out / f'{args.case}-historical-detail-{view_width}.png'), full_page=True)
+                f.protected()
+                report['cases'].append(f'Browser {view_width}: revised manufacturer original -> normal empty-response job -> same historical proposal, previous label without current points, exact former actor/time/statements/text')
+
         page = new_page()
+        original_bytes = None
         try:
             for width, height in WIDTHS:
                 page.set_viewport_size(dict(width=width, height=height))
@@ -589,6 +729,9 @@ def run_browser(args, f, report, out, origin):
                     completed_item = f.assert_generated(generated, corrected['event_id'])
                     remaining_ids = {v['proposal_id'] for v in generated['analysis']['recommendations']} - {completed_item['proposal_id']}
                     completed_views(page, generated, completed_item)
+                    if f.kind == 'manufacturer_immediate':
+                        original_bytes = f.revise_manufacturer_original()
+                        historical_views(page, f.generate(), completed_item, generated['generated_at'])
                     page.set_viewport_size(dict(width=width, height=height)); root = open_form(page)
 
                 before = len(captured)
@@ -607,6 +750,9 @@ def run_browser(args, f, report, out, origin):
                     regenerated = f.generate()
                     f.assert_generated(regenerated, previous_ids=remaining_ids)
                     completed_views(page, regenerated, cancelled_id=completed_item['proposal_id'])
+                    if original_bytes is not None:
+                        f.replace_manufacturer_original(original_bytes, 'restore')
+                        original_bytes = None
                     page.set_viewport_size(dict(width=width, height=height)); root = open_form(page)
 
                 # Cancelled evidence is not a prerequisite for ordinary navigation.
@@ -620,7 +766,7 @@ def run_browser(args, f, report, out, origin):
                 expect(page.locator('#priority-evidence')).to_be_visible()
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Optional page overflows')
                 f.assert_state(start_count + 4, 0)
-                report['cases'].append(f'Browser {width}: real selects/original preview/required checkboxes/double click/save/correction/stale second-tab 409/cancel/dismiss/replays/Escape/overview/Back; protected originals unchanged')
+                report['cases'].append(f'Browser {width}: real selects/original preview/required checkboxes/double click/save/correction/stale second-tab 409/cancel/dismiss/replays/Escape/overview/Back; protected records unchanged outside the explicit manufacturer revision/restore')
             require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'], 'Browser script/request failure')
             report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
         except Exception:

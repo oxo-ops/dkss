@@ -92,6 +92,18 @@ jobs:
           "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
       - name: Check priority presentation and confirmation controls
         run: node --test tests/vehicle_periodic_priority_js.cjs tests/vehicle_priority_confirmations_js.cjs tests/vehicle_priority_presentation_js.cjs tests/vehicle_karte_overview_js.cjs
+      - name: Check confirmation HTTP contracts without browser
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          for scenario in confirmation_manufacturer confirmation_legal confirmation_progression; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/connected-$scenario-preflight" \
+              bash tests/video_connected_browser/run-isolated.sh \
+              "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --preflight-only
+          done
       - name: Verify exact head with scoped priority facts
         shell: bash
         env:

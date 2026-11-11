@@ -291,7 +291,10 @@ the job, so browser GET/confirmation POST cannot edit its saved JSON. Only a suc
 new `ChecklistEvent` rows, scoped to this company/vehicle and the confirmation or
 withdrawal event types; every previously appended row remains immutable too.
 Correction must append two rows, cancellation one, and rejected requests none.
-No raw signed token is written to the result artifact.
+The representative manufacturer-history branch below has one additional,
+explicit original-PDF field change and restoration. It does not grant a browser
+write route or exclude the original's table. No raw signed token is written to
+the result artifact.
 
 These are preparation assertions until the official browser run returns PASS.
 The new form acceptance does not convert the older inspection/invoice flows into
@@ -331,9 +334,10 @@ The first form cycle in each new scenario continues after its correction save:
 The generation is controlled fixture background work, not a new user-facing
 button or a third permitted browser POST. Ordinary reload is used instead of
 waiting through the product's 60-second poll at every width; the product timer
-and rendering code are unchanged. Only one confirmed-state job and one cancelled-
-state job run per scenario. The remaining form-width cycles do not trigger extra
-model generations. Result artifacts record transport call counts, normal analysis
+and rendering code are unchanged. Legal and progression each run one confirmed-
+state job and one cancelled-state job. Manufacturer additionally runs one job
+between them after its explicit source revision to verify historical display.
+The remaining form-width cycles do not trigger extra model generations. Result artifacts record transport call counts, normal analysis
 state ID, result digest and saved candidate count, without raw signed tokens.
 These assertions test deterministic inclusion from verified synthetic evidence
 despite empty AI advice, not the quality of real model advice.
@@ -346,3 +350,69 @@ The last legal/progression HTTP rerun has no recovered outcome and is not a pass
 No browser run has been completed for this extension. Earlier component tests
 are not evidence that the reconstructed candidate passed. Use the final clean
 candidate's official CI artifacts to establish browser/full-regression results.
+
+
+### Route callback context and ordinary notification warm-up
+
+The sync Playwright route callback enters an explicit Flask app context for the
+whole `Fixture.request` operation: both test-client dispatch and the protection
+queries that follow it. The parent fixture's app context is not assumed to cross
+Playwright's route greenlet. Vehicle IDs used by protection checks are saved as
+plain integers, not lazily read from an ORM instance inside the callback.
+
+Before recording the baseline, the fixture reads the ordinary
+`/api/notifications/unread-count` route once. This performs the normal initial
+inspection-alert bookkeeping that `base.js` would otherwise trigger on its first
+browser poll. `inspection_plan_alert_run`, notifications and delivery records
+remain protected afterward; no table is added to the exclusion list.
+
+### Representative manufacturer-original revision and saved history
+
+Manufacturer alone adds a source-change branch between its completed-candidate
+display and cancellation. The comparison values are captured from the actual
+completed result before the change, not built from the changed source.
+
+- The fixture changes only `maintenance_knowledge_document.original_data` for
+  its one company-owned document to a different synthetic, parseable PDF. It does
+  not update its checksum, extracted quote, confirmation audit, actor or timestamps.
+- The expected complete database snapshot is constructed by replacing that one
+  row/field only. The actual post-change snapshot must equal it, and every audit
+  row must remain byte-for-byte unchanged. Only after that comparison succeeds is
+  the exact original row rebased. The source-change artifact records the row,
+  field and before/after SHA-256 digests.
+- The existing real queue/job runs with the same empty model transport. Its
+  current normal result must retain the same proposal ID and previous high class,
+  with `effective_score=null` and historical rather than current confirmation
+  details. The former actor, confirmation timestamp, fixed statements and original
+  display text must equal the pre-change result exactly.
+- At all five widths the browser reloads ordinary overview/analysis pages. It
+  verifies `前回評価を含む`, a high badge with no current points, the previous-
+  evaluation explanation, old generation/confirmation times, actor and original
+  quote. It does not click the changed original URL in this historical branch or
+  replace, delete or bypass an entry in `original_downloads`. Completed-state
+  original-response hashes remain enforced.
+- Cancellation and its normal generation still remove only the selected
+  candidate. The original bytes are then restored using the same one-row,
+  one-field complete-snapshot check before later form-width cycles continue.
+  Other source rows, saved audit and business records are never rebased.
+
+The ordinary analysis-order assertions also compare each rendered row's target
+and original-record link with the same server-ordered candidate, including the
+five otherwise similar progression candidates.
+
+### HTTP preflight is separate from browser acceptance
+
+`--run-browser` does not implicitly run `exercise_http`. Final CI invokes only
+the three new confirmation cases with `--preflight-only` before the browser cases,
+using the same candidate SHA and venv but separate
+`connected-<scenario>-preflight` artifact directories. A successful HTTP run
+writes `PREFLIGHT_PASS_BROWSER_NOT_RUN`, `browser_started=false` and
+`browser_acceptance_passed=false`; it must not be reported as a browser pass.
+The thirteen browser scenarios remain separate.
+
+Regression discovery also includes `test_priority_confirmation_workflow.py`:
+missing CSRF, replay/stale preview, changed source, unchecked/forged input and
+concurrent submission contracts. Its source provider is mocked. The real-reader
+manufacturer/progression tests and this connected preflight are distinct evidence.
+All changes in this section are prepared assertions pending execution on the
+final fixed candidate; the interrupted earlier rerun is not converted into a pass.
