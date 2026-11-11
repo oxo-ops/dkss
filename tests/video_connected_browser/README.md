@@ -227,12 +227,13 @@ For these three scenarios only, same-origin JSON POST is permitted to exactly
 `/vehicle/karte/<fixture_vehicle_id>/priority-confirmations/preview` and
 `/vehicle/karte/<fixture_vehicle_id>/priority-confirmations`, with no query string.
 Other writes, other vehicles' POSTs and external requests are rejected. There is
-no live Flask server or access to a real database. Browser requests forward the
+no live Flask server or access to a production or existing database. Browser requests forward the
 actual rendered CSRF token to Flask; CSRF is enabled after fixture seeding. Fixture
 authentication is synthetic and rate limiting is disabled. A missing-CSRF request
-is rejected in HTTP preflight. No source provider, parser, auth check, calculator,
-priority projection or model transport is mocked in these new cases. No AI/OCR
-generation is called or seeded to imply evidence that has not been verified.
+is rejected in HTTP preflight. Source providers, parsers, authorization checks,
+calculators, priority projection and the normal queue/job are real. Only the model
+urllib transport is replaced with an empty recommendation response, as described
+below. No external AI/OCR request is made and no result JSON is directly seeded.
 
 Sources are entirely fictional but read by real providers:
 
@@ -249,12 +250,21 @@ Sources are entirely fictional but read by real providers:
   synthetic prior observation is resolved at 10:30 and a distinct later observed
   comment is registered at 12:00. Only the fixture clock is controlled. Exact
   current/baseline/relation option values are selected, not inferred by label.
+  Five additional distinct historical observations and confirmations are created
+  through ordinary routes before the protected baseline. With the selected form
+  confirmation this gives six source-bound candidates for the existing overview
+  limit of five, not six copies of a seeded model proposal.
 
 `--preflight-only` exercises real options, preview and original-source GET, CSRF
 rejection, required-statement rejection, confirmation, replay 409, atomic
 correction (withdrawal plus new confirmation), stale-preview 409, cancellation,
-cancel-replay 409 and a fresh confirmation after cancellation. It checks static
-non-nesting of the two forms. This is HTTP preflight, not a browser result.
+cancel-replay 409 and a fresh confirmation after cancellation. After correction
+it drives the real queue/job with an empty model response, checks current normal
+result GET with manufacturer/60, legal/60 or progression/65, and after cancellation
+checks immediate normal GET and a second normal generation. The progression case
+must go from six candidates to five, preserving the other five proposal IDs. It
+checks static non-nesting of the two forms. This is HTTP preflight, not a browser
+result.
 
 The prepared browser sequence runs at 1440/1024/768/390/320 pixels. It uses actual
 selects, original text/link previews, fixed required checkboxes and submit
@@ -263,7 +273,8 @@ double-click must produce one save, and a deliberate fetch replay of its capture
 synthetic body must return 409. Another browser tab holds an old preview while
 the first tab corrects the confirmation; the old tab's actual submit must fail
 with 409. Cancellation is first dismissed, then confirmed, and replayed (409).
-History must show withdrawals with no active confirmation after cancellation.
+History must show withdrawal of the selected confirmation after cancellation;
+the five unrelated progression confirmations must remain active.
 Escape closes/focuses the optional details, and the ordinary overview link and
 Back remain usable without requiring confirmation. Forms must be separate, not
 nested in each other or the existing normal form, with no page overflow.
@@ -271,8 +282,12 @@ nested in each other or the existing normal form, with no page overflow.
 After **every** bridged request, all business tables and existing audit rows are
 compared with the protected baseline, including original PDF bytes, source
 records, inspection answers, repairs, operation judgments, notifications, users
-and saved AI JSON. Only `analysis_input_epoch` and `analysis_input_read_cache`
-bookkeeping are exempt. Only a successful confirmation-save request may append
+and saved AI JSON. Only this company and vehicle's `analysis_input_epoch` bucket
+and `analysis_input_read_cache` row are exempt as bookkeeping. During the explicit
+background-generation helper only, its single normal `VehicleKarteAnalysis` row
+may change through the actual queue/job. Other companies' and vehicles' analysis
+rows remain protected. The target saved result is re-protected immediately after
+the job, so browser GET/confirmation POST cannot edit its saved JSON. Only a successful confirmation-save request may append
 new `ChecklistEvent` rows, scoped to this company/vehicle and the confirmation or
 withdrawal event types; every previously appended row remains immutable too.
 Correction must append two rows, cancellation one, and rejected requests none.
@@ -285,3 +300,49 @@ or office transfer history from current vehicle attributes. Existing history
 coverage proves arrival at the original linked record. Full video completion
 requires all fixed scenes and the final integrated checks, not these three forms
 alone.
+
+
+### Form confirmation to normal generated candidates
+
+The first form cycle in each new scenario continues after its correction save:
+
+1. The fixture helper calls normal `get_vehicle_karte_analysis_job_data`,
+   `queue_vehicle_karte_analysis`, and `run_vehicle_karte_analysis_job`. Only the
+   synthetic job due time is advanced. The normal input builder, candidate
+   completion, source validation, pre-save reconciliation and persistence run.
+   `urllib.request.urlopen` returns `recommendations=[]`; no result object or
+   rendering function receives directly seeded proposals.
+2. The browser reloads ordinary pages and obtains the usual result GET. At all
+   five widths it checks manufacturer high/60, expired-certificate high/60 or
+   recurrence high/65, shared order, overview counts, analysis rows and source
+   details. Progression checks exactly five overview cards plus the actual
+   `残り1件を分析で確認` link, arriving at all six analysis candidates. It opens the
+   selected proposal's ordinary detail control, reads its confirmation actor,
+   fixed statements and original text, then follows an internal original link.
+   PDF responses are compared by SHA-256 against the source response. This proves
+   the rendered link reaches original bytes, not visual PDF-viewer text quality.
+   External MLIT links remain attributes only.
+3. The selected confirmation is cancelled through the browser form. The fixture's
+   normal HTTP result GET must immediately omit only its proposal without changing
+   saved result JSON. A second normal queue/job then saves the cancellation-
+   consistent result. Browser overview/analysis GETs at all widths must omit the
+   selected proposal and retain the same five unrelated progression IDs.
+
+The generation is controlled fixture background work, not a new user-facing
+button or a third permitted browser POST. Ordinary reload is used instead of
+waiting through the product's 60-second poll at every width; the product timer
+and rendering code are unchanged. Only one confirmed-state job and one cancelled-
+state job run per scenario. The remaining form-width cycles do not trigger extra
+model generations. Result artifacts record transport call counts, normal analysis
+state ID, result digest and saved candidate count, without raw signed tokens.
+These assertions test deterministic inclusion from verified synthetic evidence
+despite empty AI advice, not the quality of real model advice.
+
+### Verification status of the recovered extension
+
+The extension was reconstructed from previously sent edits after environment
+loss. Its final exact-candidate preflight and browser acceptance remain pending.
+The last legal/progression HTTP rerun has no recovered outcome and is not a pass.
+No browser run has been completed for this extension. Earlier component tests
+are not evidence that the reconstructed candidate passed. Use the final clean
+candidate's official CI artifacts to establish browser/full-regression results.

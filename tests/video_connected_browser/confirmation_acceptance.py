@@ -1,7 +1,16 @@
-"""Optional confirmation forms, real source readers and narrowly allowed POSTs.
+"""Optional confirmation forms and normal generation on synthetic source records.
 
-No model, OCR, network, source-provider or scoring mocks. All records and original
-PDFs are synthetic. Existing GET-only scenarios do not import this module.
+Source readers, routes, scoring, queue/job and persistence are real. Only model
+urllib transport returns a synthetic empty recommendation response; no external
+AI/OCR request is made and no result JSON is seeded directly.
+
+Browser POSTs remain limited to the two confirmation endpoints. The controlled
+background helper may change only this vehicle's normal analysis state, which is
+re-protected after the job. Other business records and prior audit rows remain
+protected; only the target vehicle's input epoch/read cache are exempt.
+
+These are prepared acceptance assertions, not a claim of browser execution.
+Existing GET-only scenarios do not import this module.
 """
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
