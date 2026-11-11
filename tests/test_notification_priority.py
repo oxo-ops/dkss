@@ -73,6 +73,25 @@ class NotificationPriorityTests(flows.ConnectedInspectionFlowTests):
         self.saved.result_json = json.dumps(bundle); self.db.session.commit()
         self.assertIsNone(self.related())
 
+    def test_related_text_is_escaped_and_proposal_url_ignores_saved_ids(self):
+        self.prepare()
+        bundle = deepcopy(self.bundle)
+        bundle['analysis']['recommendations'][0]['proposal_id'] = 'javascript:alert(1)'
+        self.saved.result_json = json.dumps(bundle); self.db.session.commit()
+        related = self.related()
+        self.assertRegex(related['items'][0]['url'], rf'^/vehicle/karte/{self.vehicle.id}/analysis#proposal=[a-f0-9]{{64}}$')
+        attack = '<script>alert(1)</script><img src=x onerror=alert(1)>'
+        related['summary'] = attack
+        related['items'][0].update(subject=attack, missing_conditions=[attack])
+        with patch('dkss_app.notifications.related_notification_priority', return_value=related):
+            html = self.client.get('/notifications').get_data(as_text=True)
+            detail = self.client.get(f'/notifications/{self.note.id}?panel=1').json['html']
+            recent = self.client.get('/api/notifications/recent').json
+        for page in (html, detail):
+            self.assertNotIn(attack, page)
+            self.assertIn('&lt;script&gt;', page)
+        self.assertEqual(next(n for n in recent['notifications'] if n['id'] == self.note.id)['related_priority']['summary'], attack)
+
     def test_operation_event_context_link_and_explicit_ref_must_all_match(self):
         self.prepare()
         original_context, original_link = self.note.workflow_context_json, self.note.link

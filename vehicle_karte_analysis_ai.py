@@ -480,7 +480,10 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
         return {"type": "string"}
 
     properties = {
-        "priority_input_ref": {"type": "string", "enum": [""] + list(generation_priority_inputs(payload))},
+        # The three dynamic enum fields each cap at 200 values/12,000 chars:
+        # at most 614 values overall, including the 14 fixed enum values.
+        # Fallback changes only the schema, never offered refs or server validation.
+        "priority_input_ref": source_id_items([""] + list(generation_priority_inputs(payload))),
         "priority": {
             "type": "string",
             "enum": ["高", "中", "低"],

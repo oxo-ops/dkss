@@ -87,7 +87,7 @@ forms in a real browser; POST behavior is covered by the Flask tests.
 Run only after the candidate is fixed, in the official CI/browser environment:
 
 ```sh
-for scenario in normal instruction recheck invoice; do
+for scenario in normal instruction recheck invoice periodic_instruction periodic_timing; do
   DKSS_BROWSER_ARTIFACT_DIR="/absolute/artifacts/$scenario" \
   bash tests/video_connected_browser/run-isolated.sh "$PWD" /absolute/venv/bin/python \
     --expected-sha "$EXPECTED_HEAD" --case "$scenario" \
@@ -104,7 +104,7 @@ browser version, blocked/failed requests and script errors, plus screenshots.
 Business-table snapshots must remain unchanged after GETs; usage/last-selected
 vehicle/periodic-notice bookkeeping is excluded explicitly.
 
-The harness was prepared without starting local Chromium. Add its four scenario
+The harness was prepared without starting local Chromium. Add its six scenario
 invocations to the final integrated CI job; do not create repeated full runs for
 small changes. Full regression and exact-candidate browser results are separate
 from passing focused Flask tests.
@@ -160,3 +160,42 @@ priority score inferred from an invoice. Session/CSRF/OCR boundaries above still
 apply. The existing browser invoice scenario is unchanged; these additional
 numeric/transport assertions are Flask/HTML acceptance, not browser-rendered
 acceptance or a claim of completing form submissions in a browser.
+
+
+## Notification-related priority browser extension
+
+The existing `instruction` and `recheck` scenarios also use the **checker-owned
+notifications created by the real operation/repair routes**. Preflight checks
+exact proposal ID, revision and event binding with high/60 or medium/25, plus
+access to the same inspection source. The original admin approval notice is an
+unsupported representative and must have no related-priority summary.
+
+At each configured browser width, the checker opens the actual notification row,
+reads its list summary and detail, clicks its proposal link, verifies the same
+proposal fragment/title/score in the analysis drawer, and follows the drawer's
+original-record link to the same inspection. This does not recreate notifications
+or alter their text, event, human decision or ordering. Both specific synthetic
+notices are marked read through their ordinary Flask target GET before the
+protected snapshot. Browser POST remains blocked; unread auto-read behavior and
+browser form submission remain outside this harness. Previously covered foreign
+company/owner/revoked-identity/old-event boundaries are not repeated here.
+
+
+## Periodic shared-priority browser extension
+
+`periodic_instruction` and `periodic_timing` prepare an actual periodic record,
+normal proposal POST, real worker save and normal result GET using the dedicated
+periodic fixtures. Only AI recommendation wording is synthetic. The registered
+human stop instruction produces high/60; the adopted manufacturer timing rule
+produces medium/35. Preflight verifies the same shared assessment and one-proposal
+label counts. It does not replace missing inputs with zero or backfill old jobs.
+
+At 1440/390/320px the browser reads the normal follow-up page, verifies its card,
+score and count, opens/closes the common source details, and follows the actual
+inspection-list link then browser Back. Human instruction attribution or the
+adopted reference/quote must be visible as appropriate. External reference links
+are checked as attributes only, never visited. The completed fixture avoids any
+auto-generation POST; writes remain blocked and saved business rows unchanged.
+This extends rendered-read acceptance, not browser form/AI-generation acceptance.
+The existing CI job reuses the same pinned browser and also runs the four Node
+periodic presentation contracts. No second browser environment is introduced.
