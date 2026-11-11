@@ -122,6 +122,11 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         message += " 現在は前回の結果を表示しています。"
 
     from vehicle_risk_assessment import annotate_analysis  # VEHICLE_RISK_MATRIX_API_V1
+    from .priority_projection import project_registered_priorities
+    decorated = annotate_analysis(_dkss_analysis_feedback.analysis_with_vehicle_feedback(analysis, vehicle),
+        bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None
+    decorated = project_registered_priorities(decorated, vehicle, bundle.get("sources"),
+        is_current=is_current) if has_result else None
     response = _dkss_common.jsonify(
         ok=True,
         status=status,
@@ -130,7 +135,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         input_summary=input_summary,
         scheduled_comparison=scheduled_comparison,
         message=message,
-        analysis=annotate_analysis(_dkss_analysis_feedback.analysis_with_vehicle_feedback(analysis, vehicle), bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None,
+        analysis=decorated,
         sources=bundle.get("sources") if has_result else {},
         coverage=bundle.get("coverage") if has_result else {},
         comparison=(
@@ -1286,6 +1291,10 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
                 repair = {}
             treatments.append({'defect_no': defect.get('defect_no'), 'maintenance_source_ids': links_by_defect.get((row.id, defect.get('defect_no')), []), 'recheck_result': short((defect.get('recheck') or {}).get('result')), 'recheck_date': short((defect.get('recheck') or {}).get('performed_at'), 30), 'recheck_note': str((defect.get('recheck') or {}).get('note') or '').strip(), 'item_no': defect.get('item_no'), 'status': short(defect.get('status')), 'repair_note': short(repair.get('note')), 'repair_date': short(repair.get('performed_at'), 30)})
         add('inspection', row, date_text, {'type': '日常点検・車両チェックリスト', 'content': short(snapshot.get('name') or '点検結果'), 'status': short(row.status), 'has_attention': attention, 'answer_count': len(answers), 'failure_count': sum((str(answer.get('value') or '').strip() == '×' for answer in answers)), 'finding_count': len(findings), 'findings': findings, 'treatments': treatments, 'registered_operation_judgment': short(judgment.get('status')), 'judgment_reason': short(judgment.get('reason'))}, _dkss_common.url_for('vehicle_checklist_results', index=row.checklist_id, vehicle_record_id=vehicle.id, year=row.year, month=row.month, active_day=row.day))
+        # Server-created provenance accompanies newly generated results. Old
+        # saved sources stay untouched; citations alone cannot bind a new event.
+        from .priority_projection import registered_inspection_provenance
+        sources[f'inspection:{row.id}']['priority_provenance'] = registered_inspection_provenance(vehicle, row)
     periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
     for row in periodic:
         excluded_inspection = periodic_inspection_synthetic_evidence(row)

@@ -123,7 +123,8 @@ class DashboardSavedProposalTests(unittest.TestCase):
                     self.assertIn(f'残り{count - 5}件', more[0].find(tag='summary')[0].text)
                     self.assertEqual(len(more[0].find(tag='tbody')[0].find(tag='tr')), count - 5)
                 self.assertEqual(len(panel.find(cls='dashboard-attention-view-all')), int(count > 5))
-                expected = sorted(items, key=lambda i: ({'高': 0, '中': 1, '低': 2}[i['priority']], i['title']))
+                # Shared response-priority order uses the stable proposal ID, not title.
+                expected = sorted(items, key=lambda i: ({'高': 0, '中': 1, '低': 2}[i['priority']], vehicle_analysis_proposal_ids(i)[0]))
                 all_rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
                 self.assertEqual(len(all_rows), count)
                 for row, item in zip(all_rows, expected):
@@ -145,7 +146,7 @@ class DashboardSavedProposalTests(unittest.TestCase):
         badges = root.find(cls='dashboard-attention-priority')
         self.assertEqual([b.text for b in badges], ['高', '中', '低'])
         self.assertEqual([b.attrs['aria-label'] for b in badges],
-                         ['保存済みの優先度：高', '保存済みの優先度：中', '保存済みの優先度：低'])
+                         ['対応優先度：高', '対応優先度：中', '対応優先度：低'])
         self.assertNotIn('<img src=x onerror=alert(1)>', html)
         self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
         self.assertNotIn('<script>bad</script>', html)

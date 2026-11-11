@@ -20,6 +20,7 @@
     const visibleProposalLimit = 5;
     const previewMode = new URLSearchParams(window.location.search || "").get("priority_preview") === "1";
     const preview = window.VehiclePriorityPreview;
+    const priorityPresentation = window.VehiclePriorityPresentation;
     async function load() {
         try {
             const response = await fetch(previewMode ? preview.url(panel.dataset.resultUrl, window.location) : panel.dataset.resultUrl, {
@@ -51,10 +52,11 @@
             // Only the three literal labels are priorities. Historical malformed
             // values keep their stable trailing order without being reclassified.
             const priorityRank = value => priorities.includes(value) ? priorities.indexOf(value) : priorities.length;
-            const items = (previewMode ? previewResult.items : data.analysis.recommendations).filter(item => item && typeof item === "object" &&
+            const ordered = previewMode ? previewResult.items : priorityPresentation ? priorityPresentation.ordered(data.analysis.recommendations, data.analysis) : data.analysis.recommendations;
+            const items = ordered.filter(item => item && typeof item === "object" &&
                 item.category !== "記録確認" && !(item.feedback?.revision === item.proposal_revision &&
                 ["completed","dismissed"].includes(item.feedback?.status)))
-                .sort((a,b) => previewMode ? 0 : priorityRank(a.priority) - priorityRank(b.priority));
+                .sort((a,b) => previewMode || priorityPresentation ? 0 : priorityRank(a.priority) - priorityRank(b.priority));
             summary.textContent = `${items.length}件`;
             panel.dataset.current = String(current);
             for (const item of items.slice(0, visibleProposalLimit)) {
@@ -65,10 +67,12 @@
                 const row = node("li", "ko-proposal", "");
                 if (previewMode) row.dataset.priorityPreview = "true";
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
-                const hasSavedPriority = priorities.includes(item.priority);
+                const projected = !previewMode && priorityPresentation ? priorityPresentation.read(item) : null;
+                const hasSavedPriority = projected ? Boolean(projected.label) : priorities.includes(item.priority);
                 const priority = previewMode ? preview.badge(document, item.priority_preview) :
+                    priorityPresentation ? priorityPresentation.badge(document, item, "ko-priority") :
                     hasSavedPriority ? node("span", "ko-priority", item.priority) : null;
-                if (!previewMode && priority) {
+                if (!previewMode && priority && !priorityPresentation) {
                     priority.dataset.priority = item.priority;
                     priority.setAttribute("aria-label", `対応優先度：${item.priority}`);
                 }
@@ -86,6 +90,7 @@
                     row.dataset.priorityDataState = "invalid";
                     copy.append(node("p", "ko-proposal-data-state", "保存された優先度を確認できません。詳細から元の提案を確認してください。"));
                 }
+                if (projected?.valid) copy.append(node("p", "priority-response-note", projected.note));
                 if (previewMode) {
                     const p = item.priority_preview;
                     copy.append(node("p", "priority-preview-evidence", `根拠：${p.evidence_status}${p.missing_conditions.length ? ` / 確認事項 ${p.missing_conditions.length}件` : ""}`));

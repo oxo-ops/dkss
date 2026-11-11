@@ -392,7 +392,11 @@
                             <a href="{{ item.url }}">{{ item.vehicle_number }}</a>
                             <strong>
                                 {% if item.priority in ['高', '中', '低'] %}
-                                <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="保存済みの優先度：{{ item.priority }}">{{ item.priority }}</span>
+                                {% set assessment = item.get('priority_assessment') %}
+                                <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %}、{{ assessment.effective_score }}点{% endif %}">{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %} · {{ assessment.effective_score }}点{% endif %}</span>
+                                <small class="dashboard-reference-reason">{% if assessment and assessment.calculation_status == 'computed' %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% else %}保存版・算定根拠を確認{% endif %}</small>
+                                {% else %}
+                                <small class="dashboard-reference-reason">優先度の元データを確認してください。</small>
                                 {% endif %}
                                 {{ item.target or item.title }}
                             </strong>

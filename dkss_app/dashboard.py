@@ -143,6 +143,8 @@ def get_dashboard_office_maintenance_trend(company_code, office):
 
 
 def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
+    from .priority_projection import project_registered_priorities
+    from vehicle_priority_projection import priority_order_key
     groups = {
         key: {
             "items": [], "vehicles": 0, "missing": 0,
@@ -193,10 +195,16 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
             row.proposal_key: row
             for row in _dkss_analysis_feedback.latest_vehicle_analysis_feedback(company_code, vehicle.id)
         }
-        for item in recommendations:
+        identified = []
+        for original in recommendations:
+            if isinstance(original, dict):
+                key, revision = _dkss_analysis_feedback.vehicle_analysis_proposal_ids(original)
+                identified.append(dict(original, proposal_id=key, proposal_revision=revision))
+        projected = project_registered_priorities({'recommendations': identified}, vehicle, bundle.get('sources'))
+        for item in projected['recommendations']:
             if not isinstance(item, dict) or not item.get("title"):
                 continue
-            proposal_key, proposal_revision = _dkss_analysis_feedback.vehicle_analysis_proposal_ids(item)
+            proposal_key, proposal_revision = item['proposal_id'], item['proposal_revision']
             feedback = feedback_by_key.get(proposal_key)
             if (
                 feedback and feedback.status in {"completed", "dismissed"}
@@ -218,6 +226,8 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
                 "target": item.get("target", ""),
                 "feedback_status": feedback.status if feedback else "open",
                 "proposal_id": proposal_key,
+                "proposal_revision": proposal_revision,
+                "priority_assessment": item['priority_assessment'],
                 "current_state": item.get("current_state", ""),
                 "timing": item.get("timing", ""),
                 "action": item.get("action", ""),
@@ -230,12 +240,7 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
             })
 
     for group in groups.values():
-        group["items"].sort(key=lambda item: (
-            {"整備・点検": 0, "記録確認": 1}.get(item["category"], 2),
-            {"高": 0, "中": 1, "低": 2}.get(item["priority"], 3),
-            item["vehicle_id"],
-            item["title"],
-        ))
+        group["items"].sort(key=priority_order_key)
     return groups
 
 

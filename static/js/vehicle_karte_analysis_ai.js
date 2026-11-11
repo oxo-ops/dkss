@@ -15,6 +15,7 @@
         return;
     }
 
+    const priorityPresentation = window.VehiclePriorityPresentation;
     let timer;
     let busy = false;
     let stopped = false;
@@ -138,22 +139,13 @@
             : "車両状態の要点は分析更新後に表示します。";
     }
 
-    // VEHICLE_RISK_MATRIX_UI_V1
-    function riskResponsePriorityLabel(item) {
-        return item.risk_assessment?.response_priority?.label || "要確認";
-    }
-    function riskResponseTone(item) {
-        return item.risk_assessment?.response_priority?.tone || "";
-    }
-    function riskResponseRank(item) {
-        const p = item.risk_assessment?.response_priority;
-        if (p?.basis === "existing_operation_judgment") return 0;
-        return {"優先対応": 1, "要確認": 2, "計画対応": 3, "通常管理": 4}[p?.label] ?? 2;
+    // The old risk matrix remains an explanation contract, never the response priority.
+    function responsePriorityBadge(item, className = "ka-ai-priority") {
+        const badge = priorityPresentation?.badge(document, item, className);
+        return badge || node("span", "priority-response-note", "優先度の元データを確認してください。");
     }
     function recommendationConcern(item) {
-        const value = recommendationConcernBeforeMatrix(item);
-        const label = item.risk_assessment?.label || "未評価";
-        return {...value, text: `リスク区分：${label}。${value.text}`};
+        return recommendationConcernBeforeMatrix(item);
     }
 
     function recommendationConcernBeforeMatrix(item) {
@@ -573,12 +565,7 @@
             node("span", "ka-drawer-summary-label", "優先度")
         );
 
-        const priority = node(
-            "span",
-            "ka-ai-priority",
-            item.priority || "未設定"
-        );
-        priority.dataset.priority = riskResponseTone(item);
+        const priority = responsePriorityBadge(item);
         priorityRow.append(priority);
 
         const state = node("div", "ka-drawer-summary-field");
@@ -603,6 +590,7 @@
             summary.append(node("p", "ka-action-when", text));
         }
         summary.append(when);
+        if (priorityPresentation) summary.append(priorityPresentation.details(document, item, sources, window.location.origin));
         const original = content.querySelector(".ka-reference-source-links a");
         if (original) {
             const link = original.cloneNode(true);
@@ -820,10 +808,7 @@
 
             for (const item of rows) {
                 const row = node("tr");
-                const priority = node(
-                    "span", "ka-ai-priority", item.priority
-                );
-                priority.dataset.priority = riskResponseTone(item);
+                const priority = responsePriorityBadge(item);
 
                 const first = node("td");
                 first.append(priority);
@@ -846,8 +831,7 @@
                 const knowledgeLinks = node("div", "ka-reference-source-links");
                 const knowledgeIds = new Set(item.knowledge_ids || []);
                 const reason = node("div", "ka-reference-reason");
-                const reasonPriority = node("span", "ka-ai-priority", riskResponsePriorityLabel(item));
-                reasonPriority.dataset.priority = riskResponseTone(item);
+                const reasonPriority = responsePriorityBadge(item);
                 reason.append(reasonPriority, node("p", "", item.reason));
                 detail.append(
                     node("h4", "", "勧める理由"),
@@ -989,8 +973,7 @@
             return wrap;
         };
 
-        const priorityOrder = {"高": 0, "中": 1, "低": 2};
-        const ordered = [...items].sort((a, b) => riskResponseRank(a) - riskResponseRank(b));
+        const ordered = priorityPresentation ? priorityPresentation.ordered(items, data.analysis) : [...items];
         const current = data.is_current === true && data.status === "completed";
         const board = node("section", "ka7-board");
         const heading = node("header", "ka7-board-heading");
@@ -1043,10 +1026,11 @@
             for (const text of ["対象・対応優先度", "現在の状態", "リスク・懸念", "推奨する対応", "時期・回答"]) {const th=node("th","",text);th.scope="col";header.append(th);}
             head.append(header);const body=node("tbody");
             ordered.forEach((item,index) => {
-                const row=node("tr");row.dataset.priority=item.priority || "";
+                const row=node("tr");row.dataset.priority=priorityPresentation?.read(item).label || "";
                 const target=node("td","ka7-target");target.append(node("strong","",item.target || item.title || "確認項目"));
-                const priority=node("span","ka7-priority", riskResponsePriorityLabel(item));priority.dataset.priority=riskResponseTone(item);
+                const priority=responsePriorityBadge(item, "ka7-priority");
                 const priorityLine=node("div", "ka-context-priority");priorityLine.append(priority);target.append(priorityLine);
+                if (priorityPresentation) target.append(node("small", "priority-response-note", priorityPresentation.read(item).note));
                 if(item.category) {const tag=node("small", "ka10-category", item.category);tag.dataset.kind=item.category === "記録確認" ? "record" : "maintenance";target.append(tag);}
                 const state=node("td", "ka-context-state", recommendationState(item));
                 const concern=recommendationConcern(item);
@@ -1126,11 +1110,10 @@
 
         const list = node("ul", "ka-ai-list");
 
-        for (const item of analysis.recommendations) {
+        for (const item of priorityPresentation ? priorityPresentation.ordered(analysis.recommendations, analysis) : analysis.recommendations) {
             const row = node("li", "ka-ai-item");
             const title = node("h4", "ka-ai-item-title");
-            const priority = node("span", "ka-ai-priority", riskResponsePriorityLabel(item));
-            priority.dataset.priority = riskResponseTone(item);
+            const priority = responsePriorityBadge(item);
             title.append(priority, node("span", "", item.title));
             const detail = node("details", "ka-ai-detail");
             const heading = node("summary", "ka-ai-toggle");

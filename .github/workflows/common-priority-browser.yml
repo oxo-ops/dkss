@@ -1,0 +1,72 @@
+name: Common Priority Browser
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'vehicle_priority_projection.py'
+      - 'dkss_app/priority_projection.py'
+      - 'dkss_app/analysis.py'
+      - 'dkss_app/dashboard.py'
+      - 'static/js/vehicle_priority_presentation.js'
+      - 'static/js/vehicle_karte_analysis_ai.js'
+      - 'static/js/vehicle_karte_overview.js'
+      - 'static/css/vehicle_priority_presentation.css'
+      - 'templates/vehicle_karte*.html'
+      - 'templates/index.html'
+      - 'tests/test_priority_common*.py'
+      - 'tests/common_priority_browser/**'
+      - '.github/workflows/common-priority-browser.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: common-priority-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-browser:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install isolated application and pinned browser dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Verify exact head with scoped priority facts
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results" \
+            bash tests/common_priority_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$chromium"
+      - name: Save synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: common-priority-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/common-priority-results/
+          if-no-files-found: warn
+          retention-days: 14

@@ -24,7 +24,7 @@ async function mount(recommendations = [], options = {}) {
     const requests = [];
     const data = {ok: true, has_result: true, status: 'completed', is_current: true,
         analysis: {recommendations}, ...options.data};
-    const context = {URL, URLSearchParams, AbortSignal, window: {location: {origin: 'https://example.test'}},
+    const context = {URL, URLSearchParams, AbortSignal, window: {location: {origin: 'https://example.test'}, ...(options.presentation ? {VehiclePriorityPresentation: require('../static/js/vehicle_priority_presentation.js')} : {})},
         document: {getElementById: id => id === 'ko-ai' ? panel : null,
             querySelector: selector => selector === '[data-ko-summary-count]' ? summary : null,
             createElement: element},
@@ -177,5 +177,33 @@ test('data-state copy spans the missing badge column at every viewport and asset
     assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
     const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
     assert.match(template, /css\/vehicle_karte_overview\.css', v='20261110-priority-data-state-1'/);
-    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261110-priority-data-state-1'/);
+    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-common-1'/);
+});
+
+function computedProposal(id, floor=false) {
+    const item=proposal(id,floor?'高':'中');
+    item.priority_assessment={version:'maintenance-response-priority-v1',candidate_id:id,proposal_revision:'current',
+        method:'maintenance-response-priority-trial-v0.1',policy_version:'trial-20261110',policy_status:'trial',
+        operation_decision:'human_only',safety_cleared:false,calculation_status:'computed',label:item.priority,
+        base_score:50,effective_score:floor?60:50,floor_adjustment:floor?10:0,
+        factors:['impact','timing','state'].map((axis,i)=>({axis,points:[40,null,10][i],source_ids:['inspection:1'],rule_ids:[],reference_ids:[]})),
+        applied_floors:floor?[{code:'operation_instruction_active',minimum:60,source_ids:['instruction:1'],reference_ids:[]}]:[],
+        missing_conditions:['時期を確認'],applicable_reference_ids:[],evidence_status:'一部確認要'};
+    return item;
+}
+test('normal overview uses common server order and score, not the old risk matrix', async()=>{
+    const a=computedProposal('a'), b=computedProposal('b',true); a.risk_assessment={response_priority:{label:'優先対応'}};
+    const recommendations=[a,b], before=JSON.stringify(recommendations);
+    const ui=await mount(recommendations,{presentation:true,data:{analysis:{recommendations,priority_order:['b','a']}}});
+    assert.deepEqual(ui.rows.map(row=>row.dataset.proposalId),['b','a']);
+    assert.equal(ui.rows[0].children[0].textContent,'高 · 60点');
+    assert.equal(ui.rows[1].children[0].textContent,'中 · 50点');
+    assert.equal(ui.rows[0].children[1].children.at(-1).textContent,'要確認');
+    assert.equal(JSON.stringify(recommendations),before);
+});
+test('normal overview rejects a mismatched score without creating a fourth priority', async()=>{
+    const item=computedProposal('a');item.priority_assessment.candidate_id='foreign';
+    const ui=await mount([item],{presentation:true});
+    assert.equal(ui.rows[0].dataset.priorityDataState,'invalid');
+    assert.equal(ui.rows[0].children.some(child=>child.className==='ko-priority'),false);
 });
