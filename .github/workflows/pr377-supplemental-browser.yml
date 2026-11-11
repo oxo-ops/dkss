@@ -1,4 +1,4 @@
-name: PR377 Invoice Native Download Experiment
+name: PR377 Preview Diagnostic Only, Not Acceptance
 
 on:
   push:
@@ -171,7 +171,7 @@ jobs:
             --application "$GITHUB_WORKSPACE/application" --validation "$GITHUB_WORKSPACE/validation" \
             --validation-sha "$GITHUB_SHA" --artifacts "$RUNNER_TEMP/common-priority-results"
 
-      - name: Run only the confined invoice native download experiment
+      - name: Collect only invoice preview evidence at 1440px
         run: |
           set -euo pipefail
           chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PYCHROMIUM'
@@ -185,7 +185,7 @@ jobs:
             --validation-sha "$GITHUB_SHA" --artifacts "$RUNNER_TEMP/common-priority-results" \
             --python "$RUNNER_TEMP/browser-venv/bin/python" --chromium "$chromium"
 
-      - name: Require invoice report, native download evidence and unchanged source
+      - name: Verify diagnostic collection only, never invoice acceptance
         if: ${{ !cancelled() && steps.harness.outcome == 'success' }}
         run: |
           set -euo pipefail
@@ -197,7 +197,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7 from original run
         with:
-          name: pr377-invoice-experiment-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pr377-preview-diagnostic-not-acceptance-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/common-priority-results/
           if-no-files-found: error
           retention-days: 14

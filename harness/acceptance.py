@@ -26,6 +26,35 @@ def require(value, message):
         raise AssertionError(message)
 
 
+def selected_headers(headers, names):
+    lowered = {key.lower(): value for key, value in headers.items()}
+    return {name: lowered.get(name) for name in names}
+
+
+SOURCE_RESPONSE_HEADERS = ('content-type', 'content-length', 'content-range', 'accept-ranges',
+    'content-encoding', 'content-disposition', 'cache-control', 'x-content-type-options')
+SOURCE_REQUEST_HEADERS = ('range', 'if-range', 'accept', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site')
+PREVIEW_STATE = """() => {
+    const root = document.querySelector('.km-detail-panel .invoice-pdf-viewer');
+    if (!root) return {present: false, ready: false, error: false};
+    const pages = [...root.querySelectorAll('.invoice-pdf-page')];
+    const canvases = [...root.querySelectorAll('.invoice-pdf-page canvas')];
+    const total = root.querySelector('[data-pdf-count]')?.textContent.trim();
+    const current = root.querySelector('[data-pdf-page]')?.value;
+    const status = root.querySelector('[data-pdf-status]')?.textContent.trim();
+    const dimensions = pages.map(e => ({width: parseFloat(e.style.width) || 0, height: parseFloat(e.style.height) || 0}));
+    const raster = canvases.map(e => ({width: e.width, height: e.height}));
+    const error = root.dataset.pdfError === 'true';
+    const ready = !error && total === '1' && current === '1' && pages.length === 1
+        && (status || '').includes('スクロールでページ移動') && canvases.length === 1
+        && dimensions.every(e => e.width > 0 && e.height > 0)
+        && raster.every(e => e.width > 0 && e.height > 0);
+    return {present: true, ready, error, total, current, status, dimensions, raster,
+        source_base: root.dataset.sourceBase, record_key: root.dataset.requestedRecordKey,
+        disclosure_open: root.closest('details')?.open};
+}"""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--repo', type=Path, required=True)
@@ -34,13 +63,16 @@ def main():
     parser.add_argument('--case', choices=('normal', 'instruction', 'recheck', 'invoice', 'periodic_instruction', 'periodic_timing', 'confirmation_manufacturer', 'confirmation_legal', 'confirmation_progression'), required=True)
     parser.add_argument('--chromium', type=Path)
     parser.add_argument('--native-invoice-download-http', action='store_true')
+    parser.add_argument('--invoice-preview-observe-only', action='store_true')
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--preflight-only', action='store_true')
     mode.add_argument('--run-browser', action='store_true')
     args = parser.parse_args()
     require(not args.native_invoice_download_http or (args.run_browser and args.case == 'invoice'),
             'Native HTTP experiment is restricted to the invoice browser case')
-    if args.run_browser and args.case == 'invoice':
+    require(not args.invoice_preview_observe_only or (args.run_browser and args.case == 'invoice' and
+            not args.native_invoice_download_http), 'Preview-only diagnosis requires invoice browser without native HTTP experiment')
+    if args.run_browser and args.case == 'invoice' and not args.invoice_preview_observe_only:
         require(args.native_invoice_download_http, 'Explicit official-CI native invoice HTTP experiment flag required')
     require(os.environ.get('DKSS_BROWSER_ACCEPTANCE_ISOLATED') == '1', 'Isolated wrapper required')
     require(os.environ.get('DATABASE_URL') == 'sqlite:///:memory:', 'Disposable DB required')
@@ -71,6 +103,8 @@ def main():
         native_http_redirect_browser_covered=False,
         redirect_transport='Only the verified notification GET uses a synthetic same-origin meta-refresh relay',
         started_utc=datetime.now(timezone.utc).isoformat())
+    if args.invoice_preview_observe_only:
+        report.update(diagnostic_only=True, full_invoice_browser_executed=False, native_download_reexecuted=False)
     notice_open_path = notice_destination = None
     try:
         case.setUpClass(); started = True; case.setUp(); setup = True
@@ -205,7 +239,9 @@ def main():
             report['invoice_source_events'] = []
             report['invoice_downloads'] = []
             report['invoice_http_transfers'] = []
-            report['native_invoice_http_experiment'] = True
+            report['invoice_preview_observations'] = []
+            report['invoice_preview_console_errors'] = []
+            report['native_invoice_http_experiment'] = bool(args.native_invoice_download_http)
 
         def observe_invoice_source(event, request, **details):
             if args.case != 'invoice' or request.url != ORIGIN + invoice_source_path:
@@ -215,7 +251,8 @@ def main():
                 sequence=len(report['invoice_source_events']) + 1, event=event,
                 phase=invoice_phase, request_id=request_id, url=request.url,
                 method=request.method, resource_type=request.resource_type,
-                is_navigation_request=request.is_navigation_request(), **details))
+                is_navigation_request=request.is_navigation_request(),
+                request_headers=selected_headers(request.headers, SOURCE_REQUEST_HEADERS), **details))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True, executable_path=str(args.chromium.resolve()))
             report.update(browser_started=True, browser_version=browser.version)
@@ -234,6 +271,7 @@ def main():
                         observe_invoice_source('bridge_response', request,
                             status=response.status_code, mimetype=response.mimetype,
                             content_disposition=response.headers.get('Content-Disposition'),
+                            response_headers=selected_headers(response.headers, SOURCE_RESPONSE_HEADERS),
                             byte_length=len(response.get_data()),
                             source_sha256=hashlib.sha256(response.get_data()).hexdigest())
                     if args.case == 'invoice' and parsed.path == invoice_source_path and request.is_navigation_request():
@@ -273,7 +311,8 @@ def main():
                 if args.case == 'invoice':
                     context.on('request', lambda request: observe_invoice_source('request', request))
                     context.on('response', lambda response: observe_invoice_source(
-                        'response', response.request, status=response.status))
+                        'response', response.request, status=response.status,
+                        response_headers=selected_headers(response.headers, SOURCE_RESPONSE_HEADERS)))
                     context.on('requestfinished', lambda request: observe_invoice_source('requestfinished', request))
                     context.on('requestfailed', lambda request: observe_invoice_source(
                         'requestfailed', request, failure=request.failure))
@@ -281,6 +320,80 @@ def main():
                     dict(method=request.method, url=request.url, failure=request.failure)))
                 page = context.new_page()
                 page.on('pageerror', lambda error: report['page_errors'].append(str(error)))
+
+                def record_invoice_preview_error(message):
+                    if args.case != 'invoice' or not message.text.startswith('Invoice PDF preview failed'):
+                        return
+                    entry = dict(phase=invoice_phase, text=message.text)
+                    report['invoice_preview_console_errors'].append(entry)
+                    if len(message.args) > 1:
+                        try:
+                            entry['error'] = message.args[1].evaluate(
+                                "e => ({name: String(e?.name || ''), message: String(e?.message || e)})")
+                        except Exception as error:
+                            entry['detail_unavailable'] = type(error).__name__
+
+                if args.invoice_preview_observe_only:
+                    page.on('console', record_invoice_preview_error)
+
+                def observe_invoice_preview(width, stage):
+                    entry = dict(width=width, stage=stage, phase=invoice_phase, url=page.url)
+                    report['invoice_preview_observations'].append(entry)
+                    viewer = page.locator('.km-detail-panel .invoice-pdf-viewer')
+                    disclosure = page.locator('.km-detail-panel details.km-original')
+                    expect(viewer).to_have_count(1)
+                    expect(viewer).to_have_attribute('data-source-base', invoice_source_path)
+                    expect(viewer).to_have_attribute('data-requested-record-key', f'maintenance_{invoice_record.id}')
+                    expect(disclosure).not_to_have_attribute('open', '')
+                    disclosure.locator('summary').click()
+                    expect(disclosure).to_have_attribute('open', '')
+                    try:
+                        page.wait_for_function('() => { const state = (' + PREVIEW_STATE + ')(); return state.ready || state.error; }', timeout=10000)
+                    except Exception as error:
+                        entry['wait_error'] = type(error).__name__
+                    finally:
+                        entry.update(page.evaluate(PREVIEW_STATE))
+                        page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}.png'), full_page=True)
+                    if entry['ready']:
+                        expect(viewer.locator('.invoice-pdf-page canvas')).to_be_visible()
+                    disclosure.locator('summary').click()
+                    expect(disclosure).not_to_have_attribute('open', '')
+
+                if args.invoice_preview_observe_only:
+                    # Evidence collection only. Never call the native receiver,
+                    # never substitute this result for full invoice acceptance.
+                    report.update(diagnostic_only=True, full_invoice_browser_executed=False,
+                        native_download_reexecuted=False, status='PREVIEW_DIAGNOSTIC_IN_PROGRESS')
+                    page.set_viewport_size(dict(width=1440, height=900))
+                    invoice_phase = 'width:1440/diagnostic-history'
+                    page.goto(ORIGIN + paths[0], wait_until='networkidle')
+                    maintenance_path = f'/vehicle/karte/{case.vehicle.id}/maintenance'
+                    tab = page.locator('.vehicle-karte-tabs').get_by_role('link', name='整備・修理', exact=True)
+                    expect(tab).to_have_attribute('href', maintenance_path)
+                    invoice_phase = 'width:1440/maintenance-tab'
+                    tab.click()
+                    expect(page).to_have_url(ORIGIN + maintenance_path)
+                    page.wait_for_load_state('networkidle')
+                    observe_invoice_preview(1440, 'maintenance-tab')
+                    link = page.locator('.km-record-content a').filter(has_text='タイヤ交換（読取訂正）')
+                    expect(link).to_have_count(1)
+                    href = link.get_attribute('href')
+                    target = urlsplit(urljoin(ORIGIN, href))
+                    require(f'{target.scheme}://{target.netloc}' == ORIGIN and
+                            target.path == maintenance_path + f'/{invoice_record.id}' and
+                            target.fragment == 'maintenance_detail_panel', 'Diagnostic record target differs')
+                    invoice_phase = 'width:1440/maintenance-record'
+                    link.click()
+                    expect(page).to_have_url(urljoin(ORIGIN, href))
+                    page.wait_for_load_state('networkidle')
+                    observe_invoice_preview(1440, 'maintenance-record')
+                    require(snapshot() == before, 'Preview observation changed protected data')
+                    report.update(status='PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE',
+                        browser_acceptance_passed=False, protected_records_unchanged=True,
+                        previews_ready=all(item.get('ready') for item in report['invoice_preview_observations']))
+                    report['cases'].append('1440px preview evidence only: real tab/record/disclosures, ready/raster or error DOM, selected headers and console; failed_requests retained; full acceptance and native download not rerun')
+                    return 0
+
                 for width, height in ((1440, 900), (390, 780), (320, 640)):
                     page.set_viewport_size(dict(width=width, height=height))
                     if args.case.startswith('periodic_'):

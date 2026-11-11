@@ -1,74 +1,77 @@
-# PR377 invoice native-download experiment
+# PR377 invoice preview diagnostic only
 
-This disposable validation branch runs **only the invoice browser case**, at its original three widths (1440, 390 and 320). It runs no separate HTTP preflight or other browser case. It selects a confined response-only HTTP receiver for the actual invoice download in official CI. The latest observed Download failure was `canceled`; its cause is not established. This is an experiment, not a proven fix or a promise of success. Any incomplete native download remains a failed case and failed aggregate.
+This branch collects **preview evidence only**, at 1440px, on the actual maintenance-tab and maintenance-record screens. It does not run full invoice acceptance, native downloads, original-PDF navigation, other browser scenarios or separate HTTP preflights. A successful diagnostic job means evidence collection completed, **not invoice/browser acceptance**. The invoice case remains failed in the prior evidence until a separate acceptance result establishes otherwise.
 
-## Frozen application and separate validation identity
+## Frozen application and separate validation
 
 - Application commit: `30d4dfeee97f69bd00650c6bf56a5ce234f34437`.
 - Application tree: `31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea`.
 - Requirements blob: `f29b6951157ecb12ef81490f42dfb5d57bdd9330`, 38 exact pins.
-- Previous validation commit: `9124fa74b8bb9eea7479ed556bbf9fac65302556`.
-- Previous validation tree: `1e554cc21a69a433c392f310415ddcc23ed71510`.
-- This validation commit is the triggering `github.sha`; its commit, tree and eight file hashes are recorded separately from application identity.
+- Previous validation commit: `5ab8b973df9ef762a48555ff374b04c5fd97c5cd`.
+- Previous validation tree: `30cb619f2b1b84ee2490f7eedec6326a0e3f6597`.
+- Current validation identity is the triggering `github.sha`; its tree and eight file hashes are recorded separately.
 
-The workflow uses separate, clean `application/` and `validation/` checkouts. Neither receives an overlay. Application commit/tree, frozen harness hashes, validation identity and external copies are checked before and after execution and during aggregation. No product branch, main, product PR, deployment, live service or existing database action is included.
+Clean application and validation checkouts remain separate. Neither receives an overlay. Source identity, original harness hashes, validation files and external copies are checked before/after execution and at aggregation. No product, main, product PR, deployment, live service or existing database change is included.
 
-## Preserve the run hierarchy and original failures
+## Retain successful components and the failed invoice verdict
 
-`harness/prior-evidence.json` has SHA-256 `340201a9e19ddcfdc8896fc2e6b612b095c1a3605e8f479d5edf9a27ef0a64d7`. Each level retains its original statuses, exits, report hashes, timestamps, runtime/source/provenance manifest hashes and earlier evidence reference. A later pass never overwrites an earlier failure.
+Latest [run 43066261383](https://github.com/oxo-ops/dkss/actions/runs/43066261383) completed all three native downloads, at 1440/390/320px. Each Download had null failure, a saved 470-byte file matching the original SHA-256, exactly one completed receiver transfer, no receiver errors/rejections/expiry and complete cleanup. These observations are retained and **not rerun**.
 
-1. [Run 43061389706](https://github.com/oxo-ops/dkss/actions/runs/43061389706), attempt 1: manufacturer confirmation passed; invoice failed with native Download failure `canceled`. Source stayed unchanged and the overall status remains `FAILED_OR_INCOMPLETE`. Artifact `13872389972` has SHA-256 `18be1a2d32611875c893a0ac82fc250784522d2d492020b0bd81676f48628534`. Both original reports are indexed. Manufacturer is not rerun or counted as current.
-2. Its exact nested previous index, SHA-256 `5d11217430be095c2e35069e4ad63272aeebb9134fc25bfa8b46d9bec057a9a3`, retains [run 43058463867](https://github.com/oxo-ops/dkss/actions/runs/43058463867): legal confirmation passed; invoice and manufacturer failed. Artifact `13873565921`, SHA-256 `40c871f5329bb4a0c6343a8ec52afd541915368360bedee730b9d933f9cf03c7`. Legal is not rerun.
-3. That hierarchy retains [run 43053078956](https://github.com/oxo-ops/dkss/actions/runs/43053078956): 3 HTTP preflights and 10 browser cases passed; invoice/manufacturer/legal browser cases failed. All 16 original entries remain intact. Artifact `13870588160`, SHA-256 `1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a`.
-4. It also retains [run 43043343085](https://github.com/oxo-ops/dkss/actions/runs/43043343085): Node 41 tests, comparison 14 cases and dashboard 6 widths passed, while the run failed on the original companion fixture. Their artifact IDs/digests remain unchanged. None of these groups is rerun.
+The invoice report nevertheless ended `FAILED`, process exit 1. Its remaining six `net::ERR_ABORTED` requests were PDF fetches, one on each maintenance-tab and maintenance-record screen at each width. The report lacks terminal embedded-preview raster/error state and caught PDF.js console detail. This does not establish that the aborts are normal, nor that the preview rendered successfully. No cancellation exemption or product fix is proposed.
 
-The latest archive digest, two reports/exits and nested index were verified against the actual artifact before preparation. The new summary reports only current HTTP 0/browser 1; historical evidence remains separate, not flattened into a new all-pass report.
+`harness/prior-evidence.json`, SHA-256 `9c313472fcfe008ba25bbe49d43843c87fb064253dfcfc46c4d2af93e8d1fe30`, preserves each run separately:
 
-[Original PR run 43036556295, attempt 2](https://github.com/oxo-ops/dkss/actions/runs/43036556295/attempts/2) failed on Ubuntu package-host DNS before HTTP/browser verification. It has not been rerun by this work. Supplemental results do not replace original CI or full regression.
+1. Run `43066261383`: invoice failed, HTTP/browser acceptance counts 0/0, source unchanged. Artifact `13876665717`, SHA-256 `65f6663bb490c2ff630297ac49d608c74768101d2f31e40d471c14ed12024cc3`. The original report hash, exit/timestamps and six manifest hashes are retained. Native-download component observations do not change this failed verdict.
+2. Run `43061389706`: manufacturer passed; invoice failed with native Download `canceled`. Artifact `13872389972`, SHA-256 `18be1a2d32611875c893a0ac82fc250784522d2d492020b0bd81676f48628534`.
+3. Run `43058463867`: legal passed; invoice/manufacturer failed. Artifact `13873565921`, SHA-256 `40c871f5329bb4a0c6343a8ec52afd541915368360bedee730b9d933f9cf03c7`.
+4. Run `43053078956`: 3 HTTP and 10 browser cases passed; invoice/manufacturer/legal failed. Artifact `13870588160`, SHA-256 `1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a`.
+5. Run `43043343085`: Node 41 tests, comparison 14 cases and dashboard 6 widths passed; the run failed on the original companion fixture. Its original artifact references remain intact.
 
-## Confined native-download transport experiment
+The exact previous index, SHA-256 `340201a9e19ddcfdc8896fc2e6b612b095c1a3605e8f479d5edf9a27ef0a64d7`, is nested unchanged. No prior status is rewritten, flattened into a new pass or counted as a current result. The latest ZIP, report/exits, source/harness manifests and nested evidence were checked against the actual artifact.
 
-The invoice helper retains the actual rendered link click, Playwright Download event, `failure()` check, saved-file hash assertion and source-request observations. All ordinary Flask bridge routing is unchanged. The source URL, link attributes, response headers/body and existing browser error policy are unchanged. No `route.continue`, fallback, retry, alternate URL, response rewrite or `ERR_ABORTED` exemption is introduced.
+[Original PR run 43036556295, attempt 2](https://github.com/oxo-ops/dkss/actions/runs/43036556295/attempts/2) failed during dependency installation on Ubuntu-host DNS. It has not been rerun by this work. Supplemental diagnostics do not replace original CI or full regression.
 
-Only the explicit `--native-invoice-download-http` selection enables the receiver, and only for `--case invoice --run-browser`. The outer runner checks its existing GitHub repository/run identity and runtime/source manifests first, then passes this flag through the **byte-identical original `env -i` wrapper**. It records `invoice-experiment-context.json`. These public checks record the requested official-CI experiment location and selection; they are not a security or authorization mechanism. No new environment variable, credential, permission or wrapper change is needed.
+## Bounded observation without replaying completed native paths
 
-For each actual download, the helper obtains the real synthetic fixture's original PDF response on the main thread and freezes its bytes and response headers. A short-lived, response-only receiver serves only that exact resource:
+The runner passes only `--case invoice --run-browser --invoice-preview-observe-only`. That flag excludes `--native-invoice-download-http`. The helper retains ordinary disposable fixture setup and source checks, then follows a small early-return branch before the unchanged full three-width acceptance loop:
 
-- IPv4 `127.0.0.1:8765`; exact original-source path, exact single Host, GET and loopback peer. No query, body, transfer encoding, other resource or second accepted transfer.
-- Maximum 15-second lifetime, 2-second accepted-socket read/write timeout and bounded thread cleanup. It is armed only around this download and closed afterward.
-- No Flask request dispatch, database/filesystem access, proxy, outbound connection or DNS lookup in the receiver. The immutable body must retain its original type, length and SHA-256.
-- Actual Download URL and suggested filename must match the rendered source link. `failure()` must be null and the saved file's bytes/length must match the original PDF.
-- Exactly one completed accepted transfer per width, no rejected requests, errors or expiry, and completed cleanup are mandatory. A plain source GET is not successful native-download completion.
+- At 1440px, click the actual maintenance tab and the exact same saved record link.
+- On each screen, open the real initially closed preview disclosure using its summary. Wait up to 10 seconds for ready/raster or explicit error state, then record DOM state and a screenshot even on timeout. Close the disclosure afterward.
+- Observe one-page count/current-page/status, positive page dimensions, actual canvas dimensions, source/record identity and disclosure state. Readiness follows the existing Q12-style criteria; it is an observation, not acceptance.
+- Record the specific `Invoice PDF preview failed` console detail, selected request/response headers and correlated source events. Headers are limited to Range/If-Range, Accept, Sec-Fetch metadata, type/length/range/encoding/disposition/cache/nosniff. No cookies, credentials or response bodies are added to evidence.
 
-The helper records all three `invoice_http_transfers` and `invoice_downloads`. Aggregation independently requires the expected widths, exact receiver/response/Download/saved-file identities, one transfer each and cleanup. Missing data, a canceled Download, unexpected browser failure or receiver anomaly fails the aggregate. The outcome may still be a failure and must be reported as such. No local listener or browser was started during preparation or static review.
+It does not click the history PDF arrow or download card, construct/start the receiver, enter the full three-width loop, change browser APIs, forward additional response headers, alter routing or exempt a failed request. The native receiver and PDF helper remain present and hash-pinned because the acceptance entry point imports them; the receiver is not invoked.
 
-## Pinned external helpers and unchanged isolation
+Outer checks reuse the existing public GitHub repository/run and runtime/source identity before selecting this mode through the original wrapper. `invoice-preview-context.json` records this official-CI diagnostic selection, not a new authorization mechanism. No new credentials, environment variables or permissions are introduced.
+
+## Diagnostic completion is never acceptance
+
+A complete helper report must have:
+
+- `status: PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE` and `diagnostic_only: true`.
+- `browser_acceptance_passed: false`, `full_invoice_browser_executed: false`, `native_download_reexecuted: false`, and `native_invoice_http_experiment: false`.
+- Two 1440px observations, in maintenance-tab/maintenance-record order, plus both screenshots and unchanged protected records.
+- Empty native download/transfer/original-PDF navigation arrays.
+
+`previews_ready` records observed readiness only. Error DOM, bounded-wait timeout, console exceptions and all failed/blocked requests remain in the report and are copied into the diagnostic summary. They are not reclassified or silently discarded. Evidence collection may complete with those findings; it cannot certify the invoice case.
+
+The separate `preview-diagnostic-summary.json` uses `PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE` or `PREVIEW_DIAGNOSTIC_FAILED_OR_INCOMPLETE`, never `PASS`. It always reports full-browser acceptance required/passed 0/0, HTTP 0/0, invoice acceptance false and native-download reexecution false. Diagnostic browser required/completed counts are separate. Exactly one diagnostic subprocess, zero exit, matching source/isolation/scope, complete observations and both PNG artifacts are required for collection completion. Missing, duplicate, interrupted, mismatched or failing execution/evidence cannot complete. Source/guard/copy failures remain failures.
+
+Artifacts and workflow names explicitly identify diagnostic-only work. A green diagnostic job is evidence-collection success, not a change to the prior invoice failure. Cancellation/infrastructure failure cannot manufacture completion.
+
+## Fixed helpers and unchanged isolation/runtime
 
 Runtime-enforced Git blobs:
 
-- `harness/acceptance.py`: `58217339bde1f0c08151b6af99642a6490495847`, reviewed invoice experiment.
-- `harness/exact_invoice_download.py`: `e84e269a1f72e9772bd33284024601f31644d1c0`, reviewed confined response-only receiver.
-- `harness/native_pdf_navigation.py`: `4573aa6f07666f1d4e508b7352cc4cd42df0a323`, unchanged.
-- `harness/confirmation_acceptance.py`: `44e1612f2ca59eca80a2c6a436426bc722af18a7`, retained unchanged for provenance; not invoked in this run.
+- `acceptance.py`: `7b1ef09ca54fb545c44fb85bf78bfd68f36637b2`, reviewed observation-only early-return mode. The prior full three-width loop is AST-identical and all 48 prior required conditions remain.
+- `confirmation_acceptance.py`: `44e1612f2ca59eca80a2c6a436426bc722af18a7`, retained, not invoked.
+- `native_pdf_navigation.py`: `4573aa6f07666f1d4e508b7352cc4cd42df0a323`, unchanged.
+- `exact_invoice_download.py`: `e84e269a1f72e9772bd33284024601f31644d1c0`, unchanged and not invoked.
 
-Helpers execute from a new directory outside both checkouts. Original application helper bytes remain unchanged and separately hashed. Original `tests/video_connected_browser/run-isolated.sh` (blob `f1be008f4e441e09b8f22ff41772d114fb0ba38d`) and `tests/history_presentation_browser/guard/sitecustomize.py` (blob `fecc07a6a8d0ddbbe19cc2cbd4d234dc209e7cef`) are copied byte-for-byte from the frozen app and rechecked. Earlier-path shadows of confirmation, PDF navigation and exact invoice receiver modules are rejected.
+External copies reside outside both checkouts. The original `tests/video_connected_browser/run-isolated.sh` blob `f1be008f4e441e09b8f22ff41772d114fb0ba38d` and `tests/history_presentation_browser/guard/sitecustomize.py` blob `fecc07a6a8d0ddbbe19cc2cbd4d234dc209e7cef` are copied byte-for-byte. All copies and earlier-path module shadows are checked. The original `env -i` isolation, disposable HOME/TMPDIR, disabled integrations, Python outbound-connection guard and SQLite restrictions remain unchanged. No source, score, proposal, computed result or database protection is patched or newly seeded.
 
-The original wrapper still supplies the frozen `--repo`, disposable HOME/TMPDIR and disabled integrations. The unchanged guard rejects Python outbound connections and SQLite outside the disposable fixture root. No application file, source reader, score, proposal, generated result or database-protection rule is patched or newly seeded. Original page/request failure and protected-record assertions remain.
+The pinned official MCR Playwright image, Playwright 1.62.0, Node 24.22.2, 38 application pins, recorded Python identity and 45-minute limit are unchanged. No apt/install-deps/browser installation, added dependency, DNS/proxy/security change, privileged/browser option or safe.directory exception. Prior container Python was 3.12.3; original PR CI Python was 3.12.16.
 
-The unchanged native-PDF helper aborts recognized internal assets with exact URL/method/type, verified PDF response and strict frame ancestry. Unknown requests remain fatal. Only an identical Request already aborted by that helper can have its expected `net::ERR_FAILED` separated. Source `net::ERR_ABORTED` is not exempted. Older reports without actual scheme/frame evidence remain failed. Native PDF viewer rendering is explicitly not covered.
+Native PDF viewer rendering and native HTTP redirect transport remain outside coverage. The unchanged notification relay is synthetic same-origin meta-refresh. These diagnostics do not certify live AI/OCR, external delivery, production data, concurrency, professional acceptance or full regression.
 
-## Strict scope, evidence and runtime
-
-The immutable current plan is one invoice browser subprocess. Commands for manufacturer, legal, any other successful case or HTTP-only execution are rejected. The ledger retains started/finished state and exact exit code. A launch failure, nonzero exit, missing/duplicate/skipped/interrupted entry, wrong source/scenario/isolation flags, absent browser PASS or incomplete download evidence cannot pass. Source and helper integrity are rechecked before aggregation. Original failures remain failures even when useful diagnostic evidence is collected.
-
-The aggregate writes `remaining-summary.json` after ordinary scenario failure. Cancellation or infrastructure failure cannot manufacture a pass. Artifact `pr377-invoice-experiment-30d4dfe-RUN-ATTEMPT` retains reports/screenshots/logs, ledger, runtime/install records, source/harness provenance and experiment context for 14 days. Orchestration and pure/static contracts are not application/browser acceptance results.
-
-The official image, installation, 45-minute job limit and default container security are unchanged:
-
-- `mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d` (`v1.62.0-noble`).
-- Playwright 1.62.0, Node 24.22.2 and all 38 exact application pins verified. Exact runtime identity is recorded; previous container runs used Python 3.12.3, distinct from original PR CI's 3.12.16.
-- No apt, install-deps, browser installation, new dependency, mirror, proxy/DNS/security change, privileged option, new browser flag or safe.directory exception.
-
-Original notification navigation remains a synthetic same-origin meta-refresh relay, not native HTTP redirect coverage. These tests do not certify live AI/OCR, external delivery, production data, PostgreSQL concurrency, professional acceptance or full regression.
-
-The branch contains exactly this README, the workflow and six harness files: runner, acceptance, confirmation, native-PDF helper, exact invoice receiver and prior-evidence index. Only the dedicated validation branch push triggers it; permissions remain `contents: read` and credentials are not persisted. Independent review precedes publication by the parent. Verify remote identities and actual run evidence before reporting any new pass. Preparation is not execution, a confirmed diagnosis or a successful download.
+The branch contains exactly this README, the workflow and six harness files (runner, acceptance, confirmation, native PDF helper, receiver and prior index). Artifacts are kept for 14 days. Permissions remain `contents: read`, credentials are not persisted, and only the dedicated validation branch push triggers execution. Preparation used static/pure tests only, with no local browser/listener or remote write. Parent publication follows independent review. Actual preview state and the abort cause remain unknown until official diagnostic evidence is read.
