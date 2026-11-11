@@ -131,7 +131,7 @@ class VehicleAnalysisQueueService:
 
 class VehicleAnalysisJobService:
     def __init__(self, *, repository, load_input, analyze, utc_now, new_token,
-                 input_context, logger, read_api_key, prepare_confirmed=None, reconcile_confirmed=None):
+                 input_context, logger, read_api_key, prepare_confirmed=None, reconcile_confirmed=None, ownership_check=None):
         self.repository = repository
         self.load_input = load_input
         self.analyze = analyze
@@ -142,8 +142,10 @@ class VehicleAnalysisJobService:
         self.read_api_key = read_api_key
         self.prepare_confirmed = prepare_confirmed
         self.reconcile_confirmed = reconcile_confirmed
+        self.ownership_check = ownership_check or (lambda: None)
 
     def run(self, state_id):
+        self.ownership_check()
         now = self.utc_now()
         state = self.repository.get(state_id)
         if state is None:
@@ -170,6 +172,7 @@ class VehicleAnalysisJobService:
             method = "ai" if fingerprints["has_important_history"] else "record_check"
             if method == "ai":
                 def renew_analysis_lease():
+                    self.ownership_check()
                     self.repository.renew(state_id, token, self.utc_now())
                 analysis = self.analyze(payload, on_progress=renew_analysis_lease)
             else:
@@ -187,6 +190,7 @@ class VehicleAnalysisJobService:
                 "analysis_method": method,
                 "generated_at": finished.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M"),
             }
+            self.ownership_check()
             return self.repository.finish(
                 state_id, token, claimed_hash=claimed_hash, snapshot_hash=signature,
                 bundle=bundle, finished=finished, method=method,

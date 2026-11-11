@@ -15,6 +15,8 @@ def post_worker_init(worker):
     initialize_coupling_schema(worker.wsgi)
     from dkss_app.document_import_worker import start_worker
     start_worker(worker.wsgi)
+    from dkss_app.analysis_worker import start_worker as start_analysis_worker
+    start_analysis_worker(worker.wsgi)
 
 
 def worker_exit(server, worker):
@@ -22,3 +24,5 @@ def worker_exit(server, worker):
     app = getattr(worker, "wsgi", None)
     if app is not None:
         stop_worker(app)
+        from dkss_app.analysis_worker import stop_worker as stop_analysis_worker
+        stop_analysis_worker(app)

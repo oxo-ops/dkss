@@ -56,7 +56,7 @@ class VehicleAnalysisJobRepository:
 
     def get_or_create(self, vehicle):
         scope = {"company_code": vehicle.company_code, "vehicle_record_id": vehicle.id}
-        state = self.State.query.filter_by(**scope).first()
+        state = self.State.query.filter_by(**scope).with_for_update().first()
         if state is None:
             try:
                 with self.db.session.begin_nested():
@@ -64,7 +64,7 @@ class VehicleAnalysisJobRepository:
                     self.db.session.add(state)
                     self.db.session.flush()
             except IntegrityError:
-                state = self.State.query.filter_by(**scope).one()
+                state = self.State.query.filter_by(**scope).with_for_update().one()
         return state
 
     def get(self, state_id):

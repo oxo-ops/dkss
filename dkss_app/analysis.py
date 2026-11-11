@@ -229,7 +229,7 @@ def get_vehicle_karte_analysis_job_data(vehicle):
 
 
 
-def run_vehicle_karte_analysis_job(state_id):
+def run_vehicle_karte_analysis_job(state_id, *, ownership_check=None):
     """専用のバックグラウンド処理から呼び出す。"""
     from .priority_confirmed_projection import prepare_held_confirmed_candidates, reconcile_confirmed_candidates_before_save
     repository = _dkss_common.VehicleAnalysisJobRepository(
@@ -237,6 +237,7 @@ def run_vehicle_karte_analysis_job(state_id):
     )
     return _dkss_common.VehicleAnalysisJobService(
         repository=repository, load_input=get_vehicle_karte_analysis_job_data,
+        ownership_check=ownership_check,
         analyze=_dkss_common.analyze_vehicle_karte,
         prepare_confirmed=prepare_held_confirmed_candidates,
         reconcile_confirmed=reconcile_confirmed_candidates_before_save,
@@ -286,7 +287,19 @@ def vehicle_karte_analysis_worker():
 
 
 def vehicle_karte_analysis_tick():
-    """公開資料と登録内容の変更を確認し、予約済み分析を実行する。"""
+    """Share the analysis leader gate with the opt-in web runtime."""
+    from flask import current_app
+    from .analysis_worker import leadership
+    _refresh_analysis_public_knowledge()
+    with leadership(current_app._get_current_object(), allow_local=True) as owner:
+        if owner is None:
+            print("ANALYSIS_WORKER_BUSY", flush=True)
+            return
+        return _vehicle_karte_analysis_tick_unlocked(ownership_check=owner.check)
+
+
+def _refresh_analysis_public_knowledge():
+    """Keep the pre-existing public-source CLI refresh independent of leadership."""
     try:
         public_result = _dkss_runtime.app.extensions["dkss"]['public_knowledge_tick']()
         if public_result:
@@ -297,6 +310,9 @@ def vehicle_karte_analysis_tick():
     finally:
         _dkss_common.db.session.remove()
 
+def _vehicle_karte_analysis_tick_unlocked(*, ownership_check=lambda: None):
+    """Explicit CLI scan; web execution uses bounded batches instead."""
+    ownership_check()
     targets = (
         _dkss_common.db.session.query(_dkss_models.Vehicle.id, _dkss_models.Vehicle.company_code)
         .join(
@@ -315,6 +331,7 @@ def vehicle_karte_analysis_tick():
     scan_errors = 0
 
     for vehicle_id, company_code in targets:
+        ownership_check()
         try:
             vehicle = _dkss_models.Vehicle.query.filter_by(
                 id=vehicle_id,
@@ -328,6 +345,7 @@ def vehicle_karte_analysis_tick():
             with _dkss_runtime.app.test_request_context("/"):
                 payload, _ = get_vehicle_karte_analysis_job_data(vehicle)
 
+            ownership_check()
             queue_vehicle_karte_analysis(vehicle, payload)
             _dkss_common.db.session.commit()
             scanned += 1
@@ -383,7 +401,7 @@ def vehicle_karte_analysis_tick():
 
     for (state_id,) in due_ids:
         try:
-            if run_vehicle_karte_analysis_job(state_id):
+            if run_vehicle_karte_analysis_job(state_id, ownership_check=ownership_check):
                 completed += 1
             else:
                 failed += 1
