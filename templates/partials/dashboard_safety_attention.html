@@ -1,0 +1,30 @@
+{% set safety = dashboard_safety_attention|default({'available': false, 'items': []}, true) %}
+{% macro safety_rows(items) %}
+<ul class="dashboard-safety-items">
+    {% for item in items %}
+    <li>
+        <span class="dashboard-safety-state">{{ item.state }}</span>
+        <div class="dashboard-safety-content">
+            <a href="{{ item.url }}">{{ item.content }}</a>
+            <p>{{ item.location }} · {{ item.action }}{% if item.due_date %} · 期限 {{ item.due_date }}{% endif %}</p>
+            <small>{{ item.office }}{% if item.date %} · 記録日 {{ item.date }}{% endif %}</small>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% endmacro %}
+<section class="dashboard-safety-attention" aria-labelledby="dashboardSafetyAttentionTitle">
+    <h4 id="dashboardSafetyAttentionTitle">安全管理：次の対応 <span>{{ safety['items']|length }}件</span></h4>
+    <p class="dashboard-safety-scope">{{ dashboard_scope_office or '所属営業所未設定' }} · 閲覧できる未完了の記録（全期間）</p>
+    {% if safety['items'] %}
+        {{ safety_rows(safety['items'][:3]) }}
+        {% if safety['items']|length > 3 %}
+        <details class="dashboard-safety-more">
+            <summary>残り{{ safety['items']|length - 3 }}件の安全の対応を見る</summary>
+            {{ safety_rows(safety['items'][3:]) }}
+        </details>
+        {% endif %}
+    {% else %}
+        <p class="dashboard-safety-empty">{% if safety.available %}現在表示できる安全の対応はありません。{% else %}所属営業所を確認すると、閲覧できる安全の対応を表示します。{% endif %}</p>
+    {% endif %}
+</section>

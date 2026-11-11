@@ -1563,9 +1563,9 @@ def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_dat
 
 
 
-def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date):
+def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date, *, mileage_reference=None):
     """Period-scoped saved registrations, independent of AI selection/freshness."""
-    from decimal import Decimal, InvalidOperation
+    from vehicle_comparison_presentation import finite_number, replacement_distance
 
     def day(value):
         try:
@@ -1581,8 +1581,10 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
                and row.vehicle_record_id == vehicle.id]
     children = [row for row in parts if row.company_code == vehicle.company_code
                 and row.vehicle_record_id == vehicle.id]
-    _, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    parents, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    parents_by_id = {row.id: row for row in parents}
     candidates = []
+    daily_mileages = {}
     for part in children:
         replaced = day(part.replacement_date)
         if replaced is None or not start <= replaced <= end:
@@ -1591,22 +1593,22 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
         if not name:
             continue
         candidates.append((replaced, int(part.id or 0), part))
+        key = (name, str(part.part_number or "").strip())
+        daily_mileages.setdefault((replaced, key), set()).add(finite_number(part.mileage, nonnegative=True))
     result, seen = [], set()
     for replaced, _, part in sorted(candidates, key=lambda value: value[:2], reverse=True):
         key = (str(part.part_name).strip(), str(part.part_number or "").strip())
         if key in seen:
             continue
         seen.add(key)
-        try:
-            mileage = Decimal(str(part.mileage))
-            if not mileage.is_finite() or mileage < 0:
-                mileage = None
-        except (InvalidOperation, ValueError, TypeError):
-            mileage = None
+        distance = replacement_distance(
+            part, parents_by_id[part.maintenance_record_id], mileage_reference,
+            ambiguous_mileage=len(daily_mileages[(replaced, key)]) > 1,
+        )
         result.append({
             "source_id": f"part:{part.id}", "part_name": key[0],
             "part_number": key[1], "replacement_date": replaced.isoformat(),
-            "mileage": mileage,
+            **distance,
             "url": _dkss_common.url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id,
                            record_id=part.maintenance_record_id),
         })
@@ -1669,4 +1671,10 @@ def vehicle_karte_analysis(vehicle_record_id):
                     status = 502
                 return (_dkss_common.jsonify(ok=False, message=message), status)
         return _dkss_common.jsonify(ok=True, analysis=result, sources=sources, coverage=payload['coverage'], generated_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M'))
-    return _dkss_common.render_template('vehicle_karte_analysis.html', priority_preview_mode=priority_preview_mode, karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat()), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'), include_inactive=_dkss_common.request.args.get('peer_inactive') == '1'), analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)
+    from vehicle_comparison_presentation import cost_comparison
+    comparison = get_vehicle_karte_peer_comparison(
+        vehicle, summary,
+        registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'),
+        include_inactive=_dkss_common.request.args.get('peer_inactive') == '1',
+    )
+    return _dkss_common.render_template('vehicle_karte_analysis.html', analysis_cost_comparison=cost_comparison(summary, comparison), priority_preview_mode=priority_preview_mode, karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat(), mileage_reference=summary.get("mileage_reference")), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=comparison, analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)
