@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run only the remaining PR377 cases; never modify the frozen application."""
+"""Run only the three failed PR377 browser cases; never modify the frozen application."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -11,10 +11,15 @@ import subprocess
 
 APP_SHA = '30d4dfeee97f69bd00650c6bf56a5ce234f34437'
 APP_TREE = '31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea'
-FIXED_HELPER_BLOB = 'f3df79a596a9ad2e7f9bb3dd719f659c5187abce'
+FIXED_HELPER_BLOB = '7168dd213cf261d34230c8e4f83db2e085940e2e'
+FIXED_ACCEPTANCE_BLOB = 'f006c811340844eb2f435a0e35493b9f0141aab1'
+PDF_NAVIGATION_BLOB = '4573aa6f07666f1d4e508b7352cc4cd42df0a323'
+PRIOR_INDEX_SHA256 = '226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475'
 VALIDATION_FILES = {
     '.github/workflows/pr377-supplemental-browser.yml', 'README.md',
     'harness/confirmation_acceptance.py', 'harness/validate_remaining.py',
+    'harness/acceptance.py', 'harness/prior-evidence.json',
+    'harness/native_pdf_navigation.py',
 }
 FROZEN_FILES = {
     'tests/common_priority_browser/acceptance.py': '4375da234da7d2dc8b1939db8f8772cd08d6ef1e',
@@ -27,12 +32,10 @@ FROZEN_FILES = {
     'tests/history_presentation_browser/guard/sitecustomize.py': 'fecc07a6a8d0ddbbe19cc2cbd4d234dc209e7cef',
 }
 COPIES = (
-    'tests/video_connected_browser/acceptance.py',
     'tests/video_connected_browser/run-isolated.sh',
     'tests/history_presentation_browser/guard/sitecustomize.py',
 )
-CONFIRMATIONS = ('confirmation_manufacturer', 'confirmation_legal', 'confirmation_progression')
-CONNECTED = ('normal', 'instruction', 'recheck', 'invoice', 'periodic_instruction', 'periodic_timing')
+CURRENT_CASES = ('invoice', 'confirmation_manufacturer', 'confirmation_legal')
 
 
 def require(value, message):
@@ -82,7 +85,12 @@ def verify_sources(args):
                 'Validation file differs from commit: ' + relative)
         validation_files[relative] = value
     require(validation_files['harness/confirmation_acceptance.py']['git_blob'] == FIXED_HELPER_BLOB,
-            'Confirmation helper differs from the reviewed fixture-only correction')
+            'Confirmation helper differs from the reviewed external correction')
+    require(validation_files['harness/acceptance.py']['git_blob'] == FIXED_ACCEPTANCE_BLOB,
+            'Acceptance entry point differs from the reviewed invoice/PDF correction')
+    require(validation_files['harness/native_pdf_navigation.py']['git_blob'] == PDF_NAVIGATION_BLOB,
+            'PDF navigation classifier differs from the reviewed helper')
+    prior_evidence(args)
     return dict(application_commit=APP_SHA, application_tree=APP_TREE,
                 validation_commit=args.validation_sha,
                 validation_tree=git(validation, 'rev-parse', 'HEAD^{tree}'),
@@ -90,7 +98,7 @@ def verify_sources(args):
 
 
 def harness_root(args):
-    return args.artifacts.parent / 'pr377-confirmation-harness'
+    return args.artifacts.parent / 'pr377-final-three-harness'
 
 
 def verify_copies(args):
@@ -98,15 +106,17 @@ def verify_copies(args):
     for relative in COPIES:
         require((target / relative).read_bytes() == (args.application / relative).read_bytes(),
                 'Copied original harness/guard changed: ' + relative)
-    require((target / 'tests/video_connected_browser/confirmation_acceptance.py').read_bytes()
-            == (args.validation / 'harness/confirmation_acceptance.py').read_bytes(),
-            'Separate confirmation helper changed')
-    # The unchanged acceptance.py prepends app/ and app/tests/ to sys.path.
-    # Neither may shadow the validation-side helper in the script directory.
+    for name in ('acceptance.py', 'confirmation_acceptance.py', 'native_pdf_navigation.py'):
+        require((target / 'tests/video_connected_browser' / name).read_bytes()
+                == (args.validation / 'harness' / name).read_bytes(),
+                'Separate reviewed helper changed: ' + name)
+    # The acceptance entry point still prepends app/ and app/tests/ to sys.path.
+    # Neither may shadow validation-side helpers in the script directory.
     for directory in (args.application, args.application / 'tests',
                       target / 'tests/history_presentation_browser/guard'):
-        require(not (directory / 'confirmation_acceptance.py').exists()
-                and not (directory / 'confirmation_acceptance').exists(), 'Ambiguous helper import')
+        for name in ('confirmation_acceptance', 'native_pdf_navigation'):
+            require(not (directory / (name + '.py')).exists()
+                    and not (directory / name).exists(), 'Ambiguous helper import: ' + name)
 
 
 def prepare(args):
@@ -119,48 +129,55 @@ def prepare(args):
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(args.application / relative, destination)
-    destination = target / 'tests/video_connected_browser/confirmation_acceptance.py'
-    shutil.copyfile(args.validation / 'harness/confirmation_acceptance.py', destination)
+    for name in ('acceptance.py', 'confirmation_acceptance.py', 'native_pdf_navigation.py'):
+        destination = target / 'tests/video_connected_browser' / name
+        shutil.copyfile(args.validation / 'harness' / name, destination)
     verify_copies(args)
     manifest.update(
         verification_kind='supplemental_separate_fixture_harness_not_original_pr_ci',
         copied_original_files=list(COPIES),
-        helper_application_path='tests/video_connected_browser/confirmation_acceptance.py',
-        helper_validation_path='harness/confirmation_acceptance.py',
-        executed_helper_path=str(destination),
+        modified_external_helpers=[dict(application_path='tests/video_connected_browser/' + name,
+                                        validation_path='harness/' + name,
+                                        executed_path=str(target / 'tests/video_connected_browser' / name))
+                                   for name in ('acceptance.py', 'confirmation_acceptance.py')],
+        added_external_helpers=[dict(validation_path='harness/native_pdf_navigation.py',
+                                     executed_path=str(target / 'tests/video_connected_browser/native_pdf_navigation.py'))],
+        prior_evidence_index_sha256=PRIOR_INDEX_SHA256,
+        current_run_browser_cases=list(CURRENT_CASES),
+        current_run_http_cases=[],
         application_checkout_modified=False,
         prepared_utc=now())
     write_json(args.artifacts / 'harness-provenance.json', manifest)
 
 
+def prior_evidence(args):
+    path = args.validation / 'harness/prior-evidence.json'
+    require(identity(path)['sha256'] == PRIOR_INDEX_SHA256, 'Prior evidence index changed')
+    prior = json.loads(path.read_text())
+    require(prior['application_commit'] == APP_SHA and prior['application_tree'] == APP_TREE,
+            'Prior evidence application mismatch')
+    require(prior['run_id'] == 43053078956 and prior['artifact_id'] == 13870588160,
+            'Wrong previous evidence run')
+    require(prior['http_passed'] == 3 and prior['browser_passed'] == 10 and prior['source_unchanged'] is True,
+            'Prior pass counts or source status changed')
+    require(prior['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Prior failure must not be relabeled')
+    failed_ids = {s['id'] for s in prior['scenarios'] if not s['passed']}
+    require(failed_ids == {'browser-connected-' + case for case in CURRENT_CASES},
+            'Current scope must be exactly the previously failed browser cases')
+    return prior
+
+
 def scenarios():
-    result = []
-    for case in CONFIRMATIONS:
-        result.append(dict(id='http-' + case, folder='connected-' + case + '-preflight',
-                           family='confirmation', case=case, browser=False))
-    result.append(dict(id='browser-common', folder='.', family='common', case=None, browser=True))
-    for case in ('instruction', 'recheck', 'timing'):
-        result.append(dict(id='browser-stage2-' + case, folder=case, family='stage2', case=case, browser=True))
-    for case in CONNECTED + CONFIRMATIONS:
-        result.append(dict(id='browser-connected-' + case, folder='connected-' + case,
-                           family='confirmation' if case in CONFIRMATIONS else 'connected',
-                           case=case, browser=True))
-    return result
+    return [dict(id='browser-connected-' + case, folder='connected-' + case,
+                 family='external', case=case, browser=True) for case in CURRENT_CASES]
 
 
 def command(args, scenario):
-    family = scenario['family']
-    scripts = {
-        'common': args.application / 'tests/common_priority_browser/run-isolated.sh',
-        'stage2': args.application / 'tests/common_priority_browser/run-stage2-isolated.sh',
-        'connected': args.application / 'tests/video_connected_browser/run-isolated.sh',
-        'confirmation': harness_root(args) / 'tests/video_connected_browser/run-isolated.sh',
-    }
-    value = ['bash', str(scripts[family]), str(args.application), str(args.python), '--expected-sha', APP_SHA]
-    if scenario['case']:
-        value += ['--case', scenario['case']]
-    value += ['--run-browser', '--chromium', str(args.chromium)] if scenario['browser'] else ['--preflight-only']
-    return value
+    require(any(all(scenario.get(key) == value for key, value in expected.items())
+                for expected in scenarios()), 'No other scenario may execute in this run')
+    script = harness_root(args) / 'tests/video_connected_browser/run-isolated.sh'
+    return ['bash', str(script), str(args.application), str(args.python), '--expected-sha', APP_SHA,
+            '--case', scenario['case'], '--run-browser', '--chromium', str(args.chromium)]
 
 
 def run(args):
@@ -248,16 +265,28 @@ def aggregate(args):
             item['error_type'] = type(error).__name__
             failures.append(dict(id=item['id'], error_type=type(error).__name__))
         results.append(item)
+    prior = None
+    try:
+        prior = prior_evidence(args)
+    except (AssertionError, OSError, ValueError, KeyError, TypeError) as error:
+        failures.append(dict(id='prior-evidence-reference', error_type=type(error).__name__))
     summary = dict(
         status='PASS' if not failures else 'FAILED_OR_INCOMPLETE',
         verification_kind='supplemental_separate_fixture_harness_not_original_pr_ci',
         application_commit=APP_SHA, application_tree=APP_TREE, validation_commit=args.validation_sha,
-        http_required=3, browser_required=13,
-        http_passed=sum(r['passed'] for r in results[:3]), browser_passed=sum(r['passed'] for r in results[3:]),
+        http_required=0, browser_required=3,
+        http_passed=0, browser_passed=sum(r['passed'] for r in results),
+        current_run_scope=list(CURRENT_CASES),
+        previous_results_not_counted_as_current_run=True,
+        prior_evidence_index_sha256=PRIOR_INDEX_SHA256,
+        prior_evidence_reference=prior,
         source_unchanged=not any(f['id'] == 'source-integrity' for f in failures),
         scenarios=results, failures=failures,
         earlier_node_comparison_dashboard_run=43043343085,
-        earlier_evidence_rerun=False, earlier_results_not_part_of_this_pass=True,
+        earlier_node_comparison_dashboard_rerun=False,
+        prior_successful_cases_rerun=False,
+        prior_failed_browser_cases_reexecuted=list(CURRENT_CASES),
+        earlier_results_not_part_of_this_pass=True,
         original_ci_still_requires_separate_status_reporting=True,
         all_original_workflows_replaced=False, native_http_redirect_browser_coverage=False,
         finished_utc=now())

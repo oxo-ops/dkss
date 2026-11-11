@@ -26,6 +26,7 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlsplit, urljoin
+from native_pdf_navigation import NativePdfNavigation
 
 KINDS = {'confirmation_manufacturer': 'manufacturer_immediate',
          'confirmation_legal': 'legal_deadline', 'confirmation_progression': 'progression'}
@@ -615,6 +616,7 @@ def exercise_http(f):
 def run_browser(args, f, report, out, origin):
     from playwright.sync_api import sync_playwright, expect
     captured = []
+    pdf = NativePdfNavigation(report, origin)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True, executable_path=str(args.chromium.resolve()))
         report.update(browser_started=True, browser_version=browser.version)
@@ -625,7 +627,10 @@ def run_browser(args, f, report, out, origin):
             same_origin = f'{parsed.scheme}://{parsed.netloc}' == origin and not parsed.username and not parsed.password
             allowed = request.method == 'GET' or (request.method == 'POST' and parsed.path in f.post_paths and not parsed.query)
             if not same_origin or not allowed:
-                report['blocked_requests'].append(dict(method=request.method, host=parsed.hostname, path=parsed.path))
+                if pdf.abort_if_native(route): return
+                report['blocked_requests'].append(dict(url=request.url, scheme=parsed.scheme,
+                    method=request.method, host=parsed.hostname, path=parsed.path,
+                    resource_type=request.resource_type))
                 route.abort(); return
             path = parsed.path + ('?' + parsed.query if parsed.query else '')
             if request.method == 'POST':
@@ -639,8 +644,11 @@ def run_browser(args, f, report, out, origin):
                 if response.status_code >= 400: report['failed_gets'].append(dict(path=path, status=response.status_code))
             headers = {k: v for k, v in response.headers.items() if k.lower() not in
                        {'content-length', 'transfer-encoding', 'connection', 'set-cookie'}}
+            pdf.observe_response(request, response.status_code, headers, response.get_data())
             route.fulfill(status=response.status_code, headers=headers, body=response.get_data())
         context.route('**/*', bridge)
+        context.on('requestfailed', lambda request: None if pdf.record_request_failed(request) else
+            report['failed_requests'].append(dict(method=request.method, url=request.url, failure=request.failure)))
 
         def new_page():
             p = context.new_page()
@@ -802,16 +810,27 @@ def run_browser(args, f, report, out, origin):
                     source_path = parsed.path + ('?' + parsed.query if parsed.query else '')
                     original = f.request('GET', source_path)
                     require(original.status_code == 200, 'Generated original link unavailable')
+                    require(f.kind == 'progression' or original.mimetype == 'application/pdf',
+                            'Manufacturer/legal original must remain a PDF')
                     if original.mimetype == 'application/pdf':
                         f.original_downloads[parsed.path] = hashlib.sha256(original.get_data()).hexdigest()
                     require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Completed priority drawer overflows')
                     page.screenshot(path=str(out / f'{args.case}-completed-detail-{view_width}.png'), full_page=True)
+                    previous_url = page.url
+                    if parsed.path in f.original_downloads:
+                        pdf.begin(page, origin + source_url, f.original_downloads[parsed.path])
                     with page.expect_response(response_is(parsed.path, 'GET')) as opened:
                         details.locator(f'a.priority-response-confirmation-source[href="{origin + source_url}"]').first.click(no_wait_after=True)
                     require(opened.value.status == 200, 'Rendered original link did not reach the source')
                     if parsed.path in f.original_downloads:
                         observed = next(value for value in reversed(report['requests']) if value['path'] == parsed.path)
                         require(observed.get('source_sha256') == f.original_downloads[parsed.path], 'Browser original response bytes differ')
+                        page.wait_for_url(origin + source_url, wait_until='networkidle')
+                        pdf.finish(page, opened.value)
+                        pdf.end()
+                        page.go_back(wait_until='networkidle')
+                        expect(page).to_have_url(previous_url)
+                        expect(page.locator('.ka-reference-drawer')).to_be_visible()
                 else:
                     page.screenshot(path=str(out / f'{args.case}-cancelled-analysis-{view_width}.png'), full_page=True)
                 report['cases'].append(f'Browser {view_width}: {phase} normal job GET/poll, {len(order)} total proposals, top-five and remaining-analysis navigation, exact common scores and source details' + ('/original GET' if item else '; only cancelled candidate removed'))
@@ -884,6 +903,12 @@ def run_browser(args, f, report, out, origin):
                 # here or weaken the completed-state original_downloads hashes.
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical drawer overflows')
                 page.screenshot(path=str(out / f'{args.case}-historical-detail-{view_width}.png'), full_page=True)
+                # The drawer scrolls independently; full-page capture alone can
+                # leave the already-asserted missing-source explanation offscreen.
+                gap = drawer.locator('p.ka-historical-source-gap')
+                gap.scroll_into_view_if_needed()
+                expect(gap).to_be_in_viewport()
+                page.screenshot(path=str(out / f'{args.case}-historical-source-gap-{view_width}.png'), full_page=True)
                 drawer.locator('.ka-drawer-close').click()
                 expect(drawer).to_be_hidden()
                 current_row.locator('.ka-reference-detail-button').click()
@@ -993,7 +1018,7 @@ def run_browser(args, f, report, out, origin):
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Optional page overflows')
                 f.assert_state(start_count + 4, 0)
                 report['cases'].append(f'Browser {width}: real selects/original preview/required checkboxes/double click/save/correction/stale second-tab 409/cancel/dismiss/replays/Escape/overview/Back; protected records unchanged outside the explicit manufacturer revision/restore and one-key saved-source omission')
-            require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'], 'Browser script/request failure')
+            require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser script/request failure')
             report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
         except Exception:
             if not page.is_closed(): page.screenshot(path=str(out / 'failure.png'), full_page=True)
@@ -1004,7 +1029,7 @@ def run_browser(args, f, report, out, origin):
 def run(args, sha, tree, out, origin):
     report = dict(candidate_sha=sha, candidate_tree=tree, scenario=args.case, status='FAILED',
         fixture_only=True, production_accessed=False, browser_started=False, browser_acceptance_passed=False,
-        page_errors=[], blocked_requests=[], failed_gets=[], requests=[], cases=[],
+        page_errors=[], blocked_requests=[], failed_gets=[], failed_requests=[], requests=[], cases=[],
         started_utc=datetime.now(timezone.utc).isoformat())
     fixture = Fixture(args.case, report)
     try:

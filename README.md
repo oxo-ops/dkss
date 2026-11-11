@@ -1,99 +1,88 @@
-# PR377 remaining supplemental validation
+# PR377 final three browser cases
 
-This disposable validation branch checks only the remaining 3 HTTP preflights and 13 common-priority browser scenarios. It never modifies the application checkout, product branch or main. It is not a replacement for original PR CI, full regression, production validation or merge approval.
+This disposable validation branch executes exactly three previously failing browser cases on the unchanged application: `invoice`, `confirmation_manufacturer`, and `confirmation_legal`. It executes no HTTP-only preflight and does not repeat any previously passing browser, Node, comparison or dashboard case. Previous failures remain failures in their original run; this is new supplemental evidence, not a relabeling of that run or of original PR CI.
 
-## Two separate identities
+## Frozen source and separate validation identity
 
-- Application: `30d4dfeee97f69bd00650c6bf56a5ce234f34437`.
+- Application commit: `30d4dfeee97f69bd00650c6bf56a5ce234f34437`.
 - Application tree: `31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea`.
 - Requirements blob: `f29b6951157ecb12ef81490f42dfb5d57bdd9330`, 38 exact pins.
-- Previous validation commit: `05d5e5f21efb9f3f3bba4be49a1a137efb545c10`.
-- Previous validation tree: `71ee550834e472cbc18679e96e2ffaadc708b582`.
-- This validation commit is the triggering `github.sha`; its exact commit, tree and four file hashes are recorded at runtime.
+- Previous validation commit: `4c83b07efa9aeb8e9af4c41baa23034802d5df28`.
+- Previous validation tree: `9b13b3646bcbc0d23c51f15ddd4b513897a9e827`.
+- The new validation identity is the triggering `github.sha`, checked out separately and recorded with its tree and all seven file hashes.
 
-The workflow checks out the frozen application into `application/` and this validation commit into `validation/`, with separate read-only checkouts and no persisted credentials. It verifies the application commit, tree and clean status and all required harness/guard blobs before execution, between cases and after execution. The validation checkout must also be clean, match the triggering SHA and contain exactly the four files listed below.
+The workflow checks out the frozen application into `application/` and this validation commit into `validation/`. Neither checkout receives an overlay. Both must remain clean; the exact application commit/tree, frozen harness hashes, validation commit/tree and byte equality of external harness copies are checked before, between and after cases. Checkout does not persist credentials. No product branch, main, product PR, merge, deploy, live service or existing database operation is included.
 
-## Observed fixture defect and minimal correction
+## Previous evidence is retained separately
 
-The previous supplemental run stopped in the manufacturer companion-certificate preview before the browser scenarios. An isolated reproduction against the unchanged application observed HTTP 400, `ok: false`, and `選択原本の同一車両・満了日を照合できません`. The real certificate reader returned `explicit_test_or_nonofficial_original` and `literal_verified: false`. The manufacturer's synthetic vehicle model `FICTIONAL-ONLY` had been embedded into the synthesized certificate; that literal is deliberately rejected by the existing nonofficial-original guard.
+[Run 43053078956](https://github.com/oxo-ops/dkss/actions/runs/43053078956), attempt 1, completed with `FAILED_OR_INCOMPLETE`. It verified the unchanged application and passed all 3 HTTP preflights plus 10 of the 13 browser cases. Invoice, manufacturer confirmation and legal confirmation failed. The exact artifact is `13870588160`, SHA-256 `1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a`.
 
-The validation-only copy of `confirmation_acceptance.py` adds exactly two executable lines at the start of the manufacturer branch, before either source is prepared:
+`harness/prior-evidence.json` indexes the original 16 case statuses, process exits, report SHA-256 values and timestamps, plus the original runtime/source/provenance manifest hashes. Its pinned SHA-256 is `226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475`. The archive digest and all 16 report identities/exits/statuses were checked against the downloaded artifact before preparing this index. The index preserves both the 13 passing invocations and the three failures, including the original run's failed aggregate status. It is a reference to previous evidence, not current-run output.
 
-```python
-c.vehicle.model_code = 'TESTMODEL'
-c.db.session.commit()
-```
+Earlier [run 43043343085](https://github.com/oxo-ops/dkss/actions/runs/43043343085) passed Node 41 tests, comparison 14 cases and dashboard 6 widths on the same application. Its overall run failed on the original companion-certificate fixture. The three earlier artifact IDs and digests are retained in the same index. None is rerun here.
 
-Two comments explain why. `TESTMODEL` is the existing certificate fixture's synthetic model. The product reader, rejection guard, vehicle identity checks, source checksums, source creation, real preview/save routes, CSRF, queue/job execution, score computation and all original assertions remain unchanged. No proposal/result/score is newly seeded and no source reader is mocked. Existing explicitly documented fixture operations, including the one-field source revision/restore and one-key saved-source omission, are unchanged.
+[Original PR run 43036556295, attempt 2](https://github.com/oxo-ops/dkss/actions/runs/43036556295/attempts/2) failed on Ubuntu package-host DNS before HTTP/browser verification. This work does not rerun or change that result. Original CI, previous supplemental runs and this new three-case run must be reported separately.
 
-The diagnostic reproduction used Python 3.12.14 and verified all 38 application pins without changing its existing environment. After the fixture-only change it observed preview HTTP 200, `ok: true`, `literal_same_page_matched`, and the complete manufacturer HTTP preflight passed. The manufacturer reader still found its unrestricted original instruction and returned preview 200. The real normal job retained 2, then 2, then 1 candidates across generation, historical carry and cancellation; the independently confirmed legal candidate remained present. The unchanged certificate-source and manufacturer-workflow suites also passed 34 tests, including the explicit-fictional-original negative case. This is HTTP-only diagnostic evidence, not a browser pass or a claim of the official container's Python 3.12.3 execution.
+## External harness corrections
 
-Frozen application helper Git blob: `77038626212de6c5b1c569ad420274e97a16cfc8`.
+The failed invoice case searched the history page for a maintenance-detail URL, but the real rendered arrow links to the preserved invoice PDF. The corrected external acceptance helper binds the expected source draft and SHA-256 to the actual fixture record, clicks the sole rendered history arrow, checks the exact PDF navigation/HTTP 200/type/bytes, uses Back, and follows the real maintenance tab and record link to the existing detail/download checks. Its three widths, original download hash, connected views and protected-data checks remain. The isolated HTTP/rendered-link observation verified these links and bytes; it was not a browser pass.
 
-Corrected validation-only helper Git blob: `f3df79a596a9ad2e7f9bb3dd719f659c5187abce`.
+The two failed confirmation browsers reached their final assertion after recording blocked resource paths associated with Chromium's native PDF viewer. The old report omitted schemes and frame information, so those observations alone cannot prove every resource's precise origin. The new shared `native_pdf_navigation.py` therefore records actual full URL, scheme, resource type, frame/parent URL and source identity, and fails closed rather than broadly ignoring the old paths.
 
-Corrected helper SHA-256: `f47206343983bcf896dbd875995e9401a5c794e113c0cf463be9c570a54fb7a9`.
+The shared helper never loads or allows a native resource: it still aborts every classified request. It classifies only five exact built-in asset URLs with the expected GET/resource type, during a deliberately opened same-page main-frame PDF navigation whose real source response is already verified as HTTP 200/application/pdf with matching bytes. Frame checks bind the PDF embedder to that main frame and viewer assets to its exact direct-child `index.html`. Unknown URL, scheme, query, fragment, method, resource type, page, frame or unverified response stays an ordinary failure. A subsequent `net::ERR_FAILED` is separated only when its Request object is the exact request this helper already aborted; all other failed requests remain fatal. The confirmation helper adds failed-request accounting rather than relaxing it.
 
-## Separate harness, unchanged isolation
+Native-viewer aborts are recorded separately in `blocked_native_pdf_viewer_resources` and `failed_native_pdf_viewer_requests`; the actual source navigations are in `original_pdf_navigations`. Original PDF link/status/type/bytes and Back navigation are asserted. `native_pdf_viewer_rendering_covered` is explicitly false: these aborted assets mean native PDF rendering is not certified. Manufacturer historical missing-source text also receives a dedicated viewport-verified screenshot; its existing assertions are retained.
 
-The preparation script creates a new directory outside both checkouts. It copies only these three frozen files into their original relative layout and verifies byte equality and Git blob hashes:
+Reviewed external Git blobs:
 
-- `tests/video_connected_browser/acceptance.py`: `97f6b6707d88c278cadd975b858762d112f37d56`.
-- `tests/video_connected_browser/run-isolated.sh`: `f1be008f4e441e09b8f22ff41772d114fb0ba38d`.
-- `tests/history_presentation_browser/guard/sitecustomize.py`: `fecc07a6a8d0ddbbe19cc2cbd4d234dc209e7cef`.
+- `acceptance.py`: `f006c811340844eb2f435a0e35493b9f0141aab1` (invoice correction plus PDF accounting).
+- `confirmation_acceptance.py`: `7168dd213cf261d34230c8e4f83db2e085940e2e` (retains the previous TESTMODEL fixture correction).
+- `native_pdf_navigation.py`: `4573aa6f07666f1d4e508b7352cc4cd42df0a323`.
 
-Only the corrected helper comes from the validation checkout. Its reviewed Git blob is enforced. The copied acceptance entry point still receives `--repo application/` and the frozen expected application SHA, so all application and fixture imports remain from the frozen source. The helper is resolved from the external script directory; potential earlier-path shadow modules are rejected. The runtime provenance manifest records both identities, original and corrected helper hashes, every required frozen harness hash and the executed helper path. Copies are rechecked between cases and at aggregation.
+Nine shared-helper contract tests cover exact assets, response/hash/navigation identity, request-failure correlation and negative/spoof cases without launching a browser. This is test-harness evidence, not successful browser execution.
 
-The original `env -i` wrapper and `sitecustomize.py` are not edited. They retain the disposable HOME/TMPDIR, disabled integration settings, Python network-connect block and SQLite-outside-fixture-root rejection. Common, stage2 and the six nonconfirmation connected scenarios execute directly from their original application paths. Only the three confirmation scenarios use the external helper copy. Browser requests still use the original in-process Flask bridge, not a live listener or production service.
+The external harness contains two explicitly changed validation-side files, `harness/acceptance.py` and `harness/confirmation_acceptance.py`. Together with the added shared PDF helper, their exact reviewed Git blobs are enforced by `harness/validate_remaining.py`. The original application versions remain untouched and are separately recorded in the provenance manifest.
 
-## Execution and honest aggregation
+Only these original files are copied byte-for-byte from the frozen app into the external execution directory:
 
-Every case is an independent subprocess with a fresh original isolation wrapper:
+- `tests/video_connected_browser/run-isolated.sh`: Git blob `f1be008f4e441e09b8f22ff41772d114fb0ba38d`.
+- `tests/history_presentation_browser/guard/sitecustomize.py`: Git blob `fecc07a6a8d0ddbbe19cc2cbd4d234dc209e7cef`.
 
-- 3 HTTP-only: manufacturer, legal and progression confirmation.
-- 13 browser: common; stage2 instruction/recheck/timing; connected normal/instruction/recheck/invoice/periodic_instruction/periodic_timing/manufacturer confirmation/legal confirmation/progression confirmation.
+The directory is outside both checkouts. The original wrapper still passes the frozen application as `--repo`, clears the environment with `env -i`, uses a disposable HOME/TMPDIR and disables integrations. The unchanged guard rejects Python network connects and SQLite connections outside the disposable fixture root. Application imports resolve to the frozen application; potential shadow confirmation/PDF-helper modules are rejected. Browser access continues through the existing in-process Flask bridge, not a live server.
 
-A scenario failure or launch failure does not skip the remaining independent scenarios. Each case has an execution log, status, exact process exit code and its original report JSON. Source or harness-integrity failures stop further execution. Interrupted, missing or never-started cases remain incomplete, never passed.
+No source reader, product guard, score, generated proposal, job result, API assertion, database protection or browser security setting is relaxed. The previously verified synthetic-model fixture correction is retained only in the external confirmation helper. Existing deliberately scoped fixture revision/restore and saved-source omission operations remain explicit and unchanged.
 
-The aggregate step runs even after an ordinary scenario failure. It requires all 16 unique expected execution entries with zero exits, all 16 corresponding reports, exact source identity, synthetic-only/no-production flags, and the original browser/preflight status fields. Browser passes also require `browser_started` and `browser_acceptance_passed` to be true. HTTP-only passes require both to be false. Missing reports, wrong scenarios, nonzero exits, skipped cases or dirty source fail the aggregate. It always writes `remaining-summary.json` when aggregation is reached. A cancellation or infrastructure failure before aggregation cannot yield a passing workflow.
+## Strict three-case accounting
 
-The artifact contains original scenario JSON/screenshots/logs, `scenario-exits.json`, `harness-provenance.json`, source identity and exact runtime/install records. Its name is `pr377-remaining-container-30d4dfe-RUN-ATTEMPT`, with 14-day retention. Do not mix these results with orchestration self-tests or the previous run.
+The runner's immutable case list contains exactly invoice, manufacturer confirmation and legal confirmation, all in browser mode. Commands for previously passing or arbitrary cases are rejected. All three run as independent original-wrapper subprocesses with separate disposable fixtures; ordinary failure or launch failure in one does not skip the others. Source or harness-integrity failure stops further execution.
 
-## Runtime preserved
+The ledger retains each exit code and started/finished state. Aggregation requires exactly the three expected entries, zero exits and matching report JSON with the frozen application SHA/tree, correct scenario, `fixture_only: true`, `production_accessed: false`, `browser_started: true`, `browser_acceptance_passed: true` and `status: PASS`. Missing, duplicate, interrupted, skipped, mismatched or failing cases cannot yield success.
 
-The official Microsoft image and installation procedure are unchanged:
+Current-run counts are explicitly HTTP 0 and browser 3. Previous passes are nested under a separate prior-evidence reference and never added to these current-run counts. The aggregate step still runs after ordinary scenario failure and writes `remaining-summary.json`; cancellation or infrastructure failure cannot create a pass.
 
-- Image: `mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d`.
-- Official tag: `v1.62.0-noble`; listed amd64 digest `sha256:51d31fdfacb0cff99a1a724152e34ae408d2bd4e7da310ff157450f49261cc59`.
+The current artifact is named `pr377-final-three-container-30d4dfe-RUN-ATTEMPT` and retains the original scenario JSON/screenshots/logs, individual exits, runtime/install records and separate harness provenance for 14 days. Do not substitute orchestration self-test output for application acceptance results.
+
+## Runtime and boundaries unchanged
+
+- Official image: `mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d` (`v1.62.0-noble`).
 - [Official registry](https://mcr.microsoft.com/en-us/artifact/mar/playwright/python/tag/v1.62.0-noble), [versioned Dockerfile](https://github.com/microsoft/playwright-python/blob/v1.62.0/utils/docker/Dockerfile.noble), [vendor documentation](https://playwright.dev/python/docs/docker).
-- Playwright Python `1.62.0`, Node `24.22.2`, application requirements exactly verified at runtime.
-- Official container's previous run recorded Python `3.12.3`; this run records the exact version again. Original PR CI used Python `3.12.16` on ubuntu-26.04, so runtime equivalence is not claimed.
-- Existing image-provided virtualenv creates a new environment; ordinary isolated pip installs from official PyPI. No apt, install-deps, playwright install, new dependency, DNS/proxy change or custom package mirror.
-- Default GitHub container security remains unchanged. No privileged/capability/seccomp/network/IPC flags, `safe.directory` exception, ownership workaround or new browser flags.
+- Python 3.12 with exact runtime recorded; previous container run used 3.12.3, distinct from original PR CI's 3.12.16.
+- Playwright 1.62.0, Node 24.22.2 and all 38 exact application pins checked at runtime. The existing image-provided virtualenv and isolated pip procedure are unchanged.
+- No apt, install-deps, playwright install, new dependencies, custom package mirrors, DNS/proxy/security changes, privileged container flags, new browser flags or safe.directory exceptions.
+- Job timeout remains 45 minutes. It is an outer limit, not a guarantee of completed acceptance.
 
-## Earlier evidence is preserved, not rerun
-
-[Previous supplemental run 43043343085](https://github.com/oxo-ops/dkss/actions/runs/43043343085), [job 130600661947](https://github.com/oxo-ops/dkss/actions/runs/43043343085/job/130600661947), used the same frozen application and the previous validation commit above. The overall run failed on the companion fixture, but its independent Node 41 tests, comparison 14 cases and dashboard 6 widths passed. Those groups are not rerun by this workflow and are not counted as current-run passes.
-
-Original evidence remains at:
-
-- Common/runtime/failure artifact `13866322166`; digest `sha256:f74d618aaa2bc11cde34e7643d4105bd9d0d8a25c2e92f84a4b54a9215c4f4fd`.
-- Comparison artifact `13865109256`; digest `sha256:a661361e19fa74cb9986d68897ce51b0fd6aa4c9d040f1e847954b0a63d519c9`.
-- Dashboard artifact `13865104317`; digest `sha256:5f09548863045092d702db807df6a1b01046c62d0042a41549d9ab11147670a2`.
-
-GitHub listed these artifacts on 2026-11-11 UTC as unexpired, with expiry 2026-11-25. Their status must be reported separately from this remaining-case run and [original PR run 43036556295, attempt 2](https://github.com/oxo-ops/dkss/actions/runs/43036556295/attempts/2). The original [job 130583582383](https://github.com/oxo-ops/dkss/actions/runs/43036556295/job/130583582383) failed on Ubuntu package-host DNS before verification and has not been rerun by this work.
-
-The original notification transport limitation remains: the verified notification GET uses a synthetic same-origin meta-refresh relay, not native HTTP redirect browser coverage. These results do not certify live AI/OCR accuracy, external delivery, production data, PostgreSQL concurrency, professional acceptance, all eight original workflows or full regression.
+These tests do not certify native HTTP redirect transport: the notification navigation remains the original synthetic same-origin meta-refresh relay. They do not certify live AI/OCR accuracy, external delivery, production data, PostgreSQL concurrency, professional acceptance, every original workflow or full regression.
 
 ## Publication boundary
 
-The validation branch must contain exactly:
+Exactly seven files are permitted in the validation branch:
 
 1. `.github/workflows/pr377-supplemental-browser.yml`.
 2. `README.md`.
 3. `harness/validate_remaining.py`.
-4. `harness/confirmation_acceptance.py`.
+4. `harness/acceptance.py`.
+5. `harness/confirmation_acceptance.py`.
+6. `harness/prior-evidence.json`.
+7. `harness/native_pdf_navigation.py`.
 
-Preparation is not publication or test execution. Independent review must precede any validation-ref update. No product branch/main update, product PR, merge, deployment, credential or permission change is included. Only the dedicated validation branch push triggers this workflow; permissions remain `contents: read`.
-
-After any separately authorized publication, verify the remote validation commit/tree and actual run outcome. Report failed, passed and never-run cases separately, including the original CI failure. Do not claim all acceptance passed merely because this workflow was prepared or a local HTTP-only reproduction passed.
+Preparation is not publication or successful execution. Independent review must precede any validation-ref update. Only the dedicated validation branch push triggers this workflow, with `contents: read`. Verify the published commit/tree and actual run before reporting results; keep prior failure and success evidence linked to its original run.
