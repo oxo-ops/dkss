@@ -409,9 +409,19 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
             continue
         if result is not None and result.get('dedupe_base_candidates'):
             dedupe_requests.append((index, item['target'], result['dedupe_base_candidates']))
+        historical_details = result.get('historical_confirmation_details') if result is not None else None
+        previous_result = result.get('previous_result') if result is not None and result.get('held') is True else None
         if result is not None and result.get('held') is True:
             result = None
         value = _legacy(item, as_of, reasons, fingerprint)
+        if previous_result is None and isinstance(item.get('priority_candidate_carryover'), dict):
+            previous_result = item['priority_candidate_carryover']
+        if isinstance(previous_result, dict):
+            value['previous_result'] = deepcopy(previous_result)
+            if historical_details is None:
+                historical_details = item.get('priority_historical_confirmations')
+        if isinstance(historical_details, list):
+            value['historical_confirmation_details'] = deepcopy(historical_details)
         if result is not None:
             value.update({key: result[key] for key in ('label', 'base_score', 'effective_score',
                 'floor_adjustment', 'applied_floors', 'evidence_status', 'missing_axes',

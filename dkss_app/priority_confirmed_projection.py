@@ -149,8 +149,9 @@ def finalize_confirmed_priority_candidates(result, payload):
     not remove the original unresolved finding. The host assigns IDs/revisions
     afterward using its unchanged algorithm.
     """
-    candidates = payload.get(DETERMINISTIC_KEY)
-    if not candidates:
+    candidates = payload.get(DETERMINISTIC_KEY) or []
+    carries = payload.get('_held_confirmed_priority_candidates') or []
+    if not candidates and not carries:
         return result
     if not isinstance(result, dict) or not isinstance(result.get('recommendations'), list):
         raise ValueError('INVALID_CONFIRMED_PRIORITY_RESULT')
@@ -161,7 +162,12 @@ def finalize_confirmed_priority_candidates(result, payload):
     items = output['recommendations']
     consumed = set()
     replacements, appended = {}, []
+    carry_keys = {value['key'] for value in carries}
+    replaced_refs = {ref for candidate in candidates if candidate['key'] in carry_keys for ref in candidate['proposal']['priority_confirmation_refs']}
+    consumed.update(index for index, item in enumerate(items) if isinstance(item, dict) and item.get('priority_input_ref') in replaced_refs)
     for candidate in candidates:
+        if candidate['key'] in carry_keys:
+            continue
         proposal = candidate['proposal']
         refs = proposal['priority_confirmation_refs']
         if not refs or any(ref not in offered or offered[ref].get('kind') != 'confirmed_priority' for ref in refs):
@@ -179,8 +185,8 @@ def finalize_confirmed_priority_candidates(result, payload):
         item['source_ids'] = sorted(set(item.get('source_ids', [])) | set(proposal['source_ids']))
         item['knowledge_ids'] = [sid for sid in item['source_ids'] if sid.startswith('knowledge:')]
         item['basis_type'] = '登録済み整備知識' if item['knowledge_ids'] else '記録上の指摘・対応'
-        labels = ('低', '中', '高')
-        item['priority'] = labels[max(labels.index(item['priority']), labels.index(proposal['priority']))]
+        item.pop('priority_candidate_carryover', None)
+        item['priority'] = proposal['priority']
         # Preserve different actions even for the same observation. Original
         # candidates remain stored unchanged and regain visibility on withdrawal.
         item['priority_base_candidates'] = [{key: items[index].get(key) for key in
@@ -194,6 +200,11 @@ def finalize_confirmed_priority_candidates(result, payload):
             appended.append(item)
     output['recommendations'] = [replacements[index] if index in replacements else item
         for index, item in enumerate(items) if index not in consumed or index in replacements] + appended
+    for carried in carries:
+        refs = carried['proposal']['priority_confirmation_refs']
+        output['recommendations'] = [item for item in output['recommendations'] if not isinstance(item, dict)
+            or item.get('priority_input_ref') not in refs]
+        output['recommendations'].append(deepcopy(carried['proposal']))
     # Presentation recomputes these from the actual projected list, never AI totals.
     for key in ('priority_summary', 'priority_order', 'priority_order_format'):
         output.pop(key, None)
@@ -209,8 +220,8 @@ def attach_confirmed_priority_inputs(vehicle, payload, sources, *, as_of=None):
         entries = confirmation_statuses(vehicle, as_of=as_of)
     except (ValueError, TypeError, SQLAlchemyError):
         return []
-    if len(entries) > MAX_CONFIRMATIONS:
-        return []
+    if sum(entry['status'] == 'active' for entry in entries) > MAX_CONFIRMATIONS:
+        raise ValueError('CONFIRMED_PRIORITY_CANDIDATE_LIMIT')
     attached, included = [], []
     for entry in entries:
         if entry['status'] != 'active':
@@ -223,7 +234,8 @@ def attach_confirmed_priority_inputs(vehicle, payload, sources, *, as_of=None):
             proof = _proof(entry)
             required = list(dict.fromkeys(entry['source_ids'] + [sid]))
             link = f'/vehicle/karte/{vehicle.id}/analysis#priority-evidence'
-            source = {'label': '確認した優先度の根拠：' + entry['subject'], 'url': link, PROOF_KEY: proof}
+            source = {'label': '確認した優先度の根拠：' + entry['subject'], 'url': link, PROOF_KEY: proof,
+                'priority_confirmation_display': deepcopy(result['confirmation_details'])}
             sources[sid] = source
             links = entry['preview'].get('source_links') or {}
             for source_id in required:
@@ -251,6 +263,172 @@ def attach_confirmed_priority_inputs(vehicle, payload, sources, *, as_of=None):
     if included:
         payload[DETERMINISTIC_KEY] = _deterministic_candidates(included, as_of=as_of)
     return attached
+
+
+CARRY_VERSION = 'previous-confirmed-priority-result-v1'
+
+
+def _entry_key(saved):
+    observation = _observation_ref(saved)
+    event = ':'.join(observation.split(':')[:4]) if observation else 'certificate-expiry:' + saved['selection']['document_id']
+    return fingerprint([{'company_code': saved['company_code'], 'vehicle_id': saved['vehicle_id'], 'target': saved['subject']}, event])
+
+
+def _saved_candidates(analysis, sources, vehicle):
+    """Inspect only already saved generation proof, never infer a new approval."""
+    items = analysis.get('recommendations') if isinstance(analysis, dict) else None
+    if not isinstance(items, list) or not isinstance(sources, dict):
+        return []
+    result = []
+    for item in items:
+        if not isinstance(item, dict) or item.get('priority') not in {'高', '中', '低'}:
+            continue
+        try:
+            refs = item.get('priority_confirmation_refs', [item.get('priority_input_ref')])
+            if (not isinstance(refs, list) or not 1 <= len(refs) <= MAX_CONFIRMATIONS
+                    or any(not isinstance(ref, str) or REF.fullmatch(ref) is None for ref in refs)
+                    or len(set(refs)) != len(refs) or item.get('priority_input_ref') not in refs):
+                continue
+            proofs = []
+            for ref in refs:
+                sid = f"priority_confirmation:{int(REF.fullmatch(ref)[1])}"
+                value = sources.get(sid)
+                saved = value.get(PROOF_KEY) if isinstance(value, dict) else None
+                if (not isinstance(saved, dict) or set(PROOF_FIELDS) - set(saved)
+                        or saved['company_code'] != vehicle.company_code or saved['vehicle_id'] != vehicle.id
+                        or confirmation_ref(saved) != ref or item.get('category') != '整備・点検'
+                        or item.get('target') != display_target(saved['subject'])
+                        or not isinstance(item.get('source_ids'), list)
+                        or not set(saved['source_ids'] + [sid]).issubset(item['source_ids'])):
+                    raise ValueError('保存された原確認のscopeを確認要')
+                proofs.append(saved)
+            keys = {_entry_key(proof) for proof in proofs}
+            if len(keys) != 1:
+                continue
+            result.append({'key': next(iter(keys)), 'proposal': deepcopy(item), 'proofs': deepcopy(proofs),
+                'sources': {sid: deepcopy(sources[sid]) for sid in item['source_ids'] if sid in sources}})
+        except (ValueError, TypeError, KeyError):
+            continue
+    if len(result) > MAX_CONFIRMATIONS:
+        raise ValueError('CONFIRMED_PRIORITY_CANDIDATE_LIMIT')
+    return result
+
+
+def _candidate_state(candidate, statuses):
+    remaining = []
+    for saved in candidate['proofs']:
+        current = statuses.get(saved['event_id'])
+        if current is None or _proof(current) != saved:
+            remaining.append('held')
+        elif current['status'] not in {'withdrawn', 'resolved'}:
+            remaining.append(current['status'])
+    if not remaining:
+        return 'terminal'
+    return 'active' if all(value == 'active' for value in remaining) else 'held'
+
+
+def _statuses(vehicle, as_of):
+    from .priority_confirmations import confirmation_statuses
+    from sqlalchemy.exc import SQLAlchemyError
+    try:
+        return {value['event_id']: value for value in confirmation_statuses(vehicle, as_of=as_of)}
+    except (ValueError, TypeError, SQLAlchemyError):
+        return {}  # Unavailable is not cancellation or a new fact.
+
+
+def _historical_details(proofs, sources):
+    values = []
+    for proof in proofs:
+        source = sources.get(f"priority_confirmation:{proof['event_id']}", {})
+        display = source.get('priority_confirmation_display') if isinstance(source, dict) else None
+        actor = proof['actor'].get('name') or proof['actor']['username']
+        if (isinstance(display, dict) and display.get('event_id') == proof['event_id']
+                and display.get('kind') == proof['kind'] and display.get('confirmed_at') == proof['confirmed_at']
+                and display.get('actor_name') == actor):
+            values.append(deepcopy(display))
+        else:
+            values.append({'kind': proof['kind'], 'event_id': proof['event_id'], 'confirmed_at': proof['confirmed_at'],
+                'actor_name': actor, 'statements': ['当時の任意確認の保存記録です。現在の条件成立を示すものではありません。'],
+                'display_sources': [{'label': '前回保存時の元確認',
+                    'text': 'この保存世代には原文の表示内容を保存していません。元確認画面で当時の原本・観測を確認してください。',
+                    'url': source.get('url') or f"/vehicle/karte/{proof['vehicle_id']}/analysis#priority-evidence"}]})
+    return values
+
+
+def _carry(candidate, previous_generated_at):
+    from .analysis_feedback import vehicle_analysis_proposal_ids
+    item = deepcopy(candidate['proposal'])
+    old = item.get('priority_candidate_carryover')
+    marker = old if isinstance(old, dict) and old.get('version') == CARRY_VERSION else None
+    expected_dates = [proof['confirmed_at'] for proof in candidate['proofs']]
+    if marker is not None and (marker.get('label') != item['priority'] or marker.get('confirmed_at') != expected_dates
+            or re.fullmatch('[0-9a-f]{64}', str(marker.get('original_revision', ''))) is None):
+        marker = None
+    if marker is None:
+        item.pop('priority_candidate_carryover', None)
+        _, revision = vehicle_analysis_proposal_ids(item)
+        marker = {'version': CARRY_VERSION, 'original_revision': revision,
+            'previous_generated_at': str(previous_generated_at or ''),
+            'confirmed_at': [proof['confirmed_at'] for proof in candidate['proofs']], 'label': item['priority'],
+            'reason': '前回保存時の区分です。現在の原本・観測・適用日または確認者の情報を再検証できないため、現在の点数は表示していません。'}
+    item['priority_candidate_carryover'] = deepcopy(marker)
+    item['priority_historical_confirmations'] = _historical_details(candidate['proofs'], candidate['sources'])
+    item['priority_confirmation_refs'] = [confirmation_ref(proof) for proof in candidate['proofs']]
+    return {**deepcopy(candidate), 'proposal': item}
+
+
+def _retain_sources(sources, candidate):
+    for sid, value in candidate['sources'].items():
+        if sid.startswith('priority_confirmation:'):
+            sources[sid] = deepcopy(value)  # Exact old audit proof, never a current replacement.
+        elif sid not in sources and isinstance(value, dict):
+            # Only a link is needed for old history display. Never replace a
+            # current inspection/timing/knowledge version with an old proof.
+            sources[sid] = {key: deepcopy(value[key]) for key in ('label', 'url') if key in value}
+
+
+def prepare_held_confirmed_candidates(vehicle, payload, sources, previous_bundle, *, as_of=None):
+    """Keep saved history private; it is not supplied to AI as a current fact."""
+    as_of = as_of or datetime.now(ZoneInfo('Asia/Tokyo')).date()
+    previous_bundle = previous_bundle if isinstance(previous_bundle, dict) else {}
+    candidates = _saved_candidates(previous_bundle.get('analysis'), previous_bundle.get('sources'), vehicle)
+    statuses = _statuses(vehicle, as_of)
+    payload['_previous_confirmed_priority_candidates'] = candidates
+    payload['_previous_confirmed_priority_generated_at'] = previous_bundle.get('generated_at')
+    carries = [_carry(value, previous_bundle.get('generated_at')) for value in candidates if _candidate_state(value, statuses) == 'held']
+    payload['_held_confirmed_priority_candidates'] = carries
+    for value in carries:
+        _retain_sources(sources, value)
+
+
+def reconcile_confirmed_candidates_before_save(vehicle, result, payload, sources, *, as_of=None):
+    """Fence final save against cancellation or source changes during AI work."""
+    as_of = as_of or datetime.now(ZoneInfo('Asia/Tokyo')).date()
+    statuses = _statuses(vehicle, as_of)
+    previous = payload.get('_previous_confirmed_priority_candidates') or []
+    carries = [_carry(value, payload.get('_previous_confirmed_priority_generated_at'))
+        for value in previous if _candidate_state(value, statuses) == 'held']
+    for value in carries:
+        _retain_sources(sources, value)
+    payload['_held_confirmed_priority_candidates'] = carries
+    final = finalize_confirmed_priority_candidates(result, payload)
+    candidates = _saved_candidates(final, sources, vehicle)
+    dispositions = {value['proposal']['priority_input_ref']: _candidate_state(value, statuses) for value in candidates}
+    carry_refs = {ref for value in carries for ref in value['proposal']['priority_confirmation_refs']}
+    removed = False
+    items = []
+    for item in final.get('recommendations', []):
+        ref = item.get('priority_input_ref') if isinstance(item, dict) else None
+        state = dispositions.get(ref)
+        if state == 'terminal' or (state == 'held' and ref not in carry_refs):
+            removed = True
+            continue  # No previous saved result exists: do not invent one.
+        items.append(item)
+    final = deepcopy(final)
+    final['recommendations'] = items
+    if removed:
+        final['priority_generation_notice'] = '生成中に取消・解消または根拠の変更を確認した候補は確定していません。現在の記録で再生成してください。'
+    return final
 
 
 def _dedupe_candidates(item, base_refs):
@@ -288,6 +466,11 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
     for index, item in requested:
         reason = '生成時の確認原本・本人・版と現在の確認を照合できないため保存区分を保持します'
         values[index] = (None, reason)
+        previous = _saved_candidates({'recommendations': [item]}, sources, vehicle)
+        if previous:
+            values[index] = ({'held': True,
+                'historical_confirmation_details': _historical_details(previous[0]['proofs'], sources),
+                'previous_result': deepcopy(item.get('priority_candidate_carryover'))}, reason)
         try:
             refs = item.get('priority_confirmation_refs', [item['priority_input_ref']])
             if (not isinstance(refs, list) or not 1 <= len(refs) <= MAX_CONFIRMATIONS
@@ -323,7 +506,7 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
             if not remaining:
                 values[index] = ({'suppressed': True,
                     'reason': 'この候補の事実確認が取り消されたか元指摘が真正に解消したため、確認候補のみを表示対象から外しました'}, None)
-            elif all(entry['status'] == 'active' for entry in remaining):
+            elif all(entry['status'] == 'active' for entry in remaining) and not item.get('priority_candidate_carryover'):
                 result = _assessment_many(remaining, item['proposal_id'], as_of=as_of, is_current=is_current)
                 if result is not None:
                     result['dedupe_base_candidates'] = _dedupe_candidates(item, base_refs)
@@ -331,7 +514,7 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
                         result['missing_conditions'].append('取り消された確認根拠は算定から除外しています。元の点検状態・運行判断を変更するものではありません')
                 values[index] = (result, None if result is not None else 'この条件で新しい点数を付ける根拠が成立していないため、保存区分を保持します')
             else:
-                values[index] = ({'held': True, 'dedupe_base_candidates': _dedupe_candidates(item, base_refs)},
+                values[index] = ({'held': True, 'dedupe_base_candidates': _dedupe_candidates(item, base_refs), 'previous_result': deepcopy(item.get('priority_candidate_carryover')), 'historical_confirmation_details': _historical_details([_proof(entry) for entry in checked], sources)},
                     '確認後に元記録・適用日・原本が変わったため、前の区分を無点数で保持しています。元の根拠を再確認してください')
         except (ValueError, TypeError, KeyError):
             continue
