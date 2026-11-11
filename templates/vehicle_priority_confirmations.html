@@ -1,0 +1,29 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_confirmations.css', v='20261111-1') }}">
+<details id="priority-evidence" class="ka7-panel priority-confirmations"
+    data-priority-confirmations="{{ url_for('priority_confirmation_data', vehicle_record_id=vehicle.id) }}"
+    data-preview-url="{{ url_for('preview_priority_confirmation', vehicle_record_id=vehicle.id) }}"
+    data-save-url="{{ url_for('save_priority_confirmation', vehicle_record_id=vehicle.id) }}">
+    <summary>元記録と根拠の確認 <small>任意</small></summary>
+    <p>再発・悪化、メーカーの即時対応条件、車検証の適用期限を、選んだ元記録と結び付けます。通常の点検や取込に追加必須の操作ではありません。</p>
+    <p>点数は入力しません。何も選ばなければ新しい根拠は登録されません。運行可否は従来どおり責任者が判断します。</p>
+    <p data-confirmation-message role="status" aria-live="polite"></p>
+    <div data-confirmation-controls hidden>
+        <label>確認する根拠<select data-confirmation-kind><option value="progression">再発・悪化の観測</option><option value="manufacturer_immediate">メーカーの即時対応条件</option><option value="legal_deadline">車検証の満了日と適用条件</option></select></label>
+        <p data-confirmation-replacing hidden>選択した確認を訂正します。元の確認は消さず、取消と新しい確認を同時に記録します。</p>
+        <form data-confirmation-selection>
+            <div data-confirmation-fields></div>
+            <div data-confirmation-originals></div>
+            <p data-confirmation-missing></p>
+            <button class="btn btn-outline" type="submit">選んだ元記録を確認する</button>
+        </form>
+        <form data-confirmation-preview hidden>
+            <h4 data-confirmation-subject></h4>
+            <div data-confirmation-sources></div>
+            <fieldset data-confirmation-statements><legend>元記録を見て確認した内容だけ選択してください</legend></fieldset>
+            <p>登録後は通常分析の更新を待って提案へ反映します。取消・訂正は当該根拠だけを変更し、点検の解消や運行許可にはなりません。</p>
+            <button class="btn" type="submit">確認内容を登録する</button>
+        </form>
+    </div>
+    <section><h4>この車両の根拠確認履歴</h4><div data-confirmation-history></div></section>
+</details>
+<script src="{{ url_for('static', filename='js/vehicle_priority_confirmations.js', v='20261111-1') }}" defer></script>

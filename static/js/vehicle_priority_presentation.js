@@ -34,6 +34,17 @@
         && v.authority === "manufacturer" && ["replace", "inspect"].includes(v.action)
         && text(v.issuer) && text(v.title) && text(v.version) && text(v.quote)
         && Number.isInteger(v.source_page) && v.source_page > 0 && publicURL(v.url));
+    const validConfirmation = v => v == null || (typeof v === "object" && !Array.isArray(v)
+        && ["progression", "manufacturer_immediate", "legal_deadline"].includes(v.kind)
+        && Number.isInteger(v.event_id) && v.event_id > 0 && text(v.actor_name)
+        && text(v.confirmed_at) && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.confirmed_at)
+        && dateOnly(v.confirmed_at.slice(0, 10)) && Number.isFinite(Date.parse(v.confirmed_at))
+        && strings(v.statements) && v.statements.length > 0 && v.statements.length <= 10
+        && v.statements.every(value => value.length <= 4000)
+        && Array.isArray(v.display_sources) && v.display_sources.length <= 20
+        && v.display_sources.every(source => source && typeof source === "object" && !Array.isArray(source)
+            && text(source.label) && text(source.text) && source.text.length <= 20000
+            && (source.url == null || text(source.url))));
     const unavailable = () => ({valid: false, label: null, score: null, note: "優先度のデータを確認できません。元の提案を確認してください。"});
     function read(item) {
         if (!item || typeof item !== "object") return unavailable();
@@ -46,6 +57,7 @@
             || p.candidate_id !== item.proposal_id || p.proposal_revision !== item.proposal_revision
             || !text(item.proposal_id) || !text(item.proposal_revision)
             || !validInstruction(p.instruction_details)
+            || !validConfirmation(p.confirmation_details)
             || (p.earliest_due_on != null && !dateOnly(p.earliest_due_on))
             || (p.subject_label != null && !text(p.subject_label))
             || !validTimingReference(p.timing_reference)
@@ -151,6 +163,26 @@
                 if (i.reason) origin.append(node(doc, "p", "", i.reason));
                 origin.append(node(doc, "p", "priority-response-note", "個別部品が原因という判定ではありません。現在の適用範囲と解除は元記録から責任者に確認してください。"));
                 box.append(origin);
+            }
+            if (a.confirmation_details) {
+                const confirmation = a.confirmation_details;
+                const section = node(doc, "section", "priority-response-confirmation");
+                section.append(node(doc, "strong", "", "元記録と根拠の確認"),
+                    node(doc, "p", "", `${confirmation.confirmed_at} / ${confirmation.actor_name}`));
+                for (const statement of confirmation.statements) section.append(node(doc, "p", "", statement));
+                for (const source of confirmation.display_sources) {
+                    section.append(node(doc, "strong", "", source.label), node(doc, "p", "", source.text));
+                    if (source.url && origin) {
+                        try {
+                            const url = new URL(source.url, origin);
+                            if (url.origin === origin && !url.username && !url.password && url.pathname.startsWith("/vehicle/")) {
+                                const link = node(doc, "a", "priority-response-confirmation-source", "元記録・原本を開く");
+                                link.href = url.href; section.append(link);
+                            }
+                        } catch (_) {}
+                    }
+                }
+                box.append(section);
             }
             const list = node(doc, "ul", "");
             for (const f of a.factors) {

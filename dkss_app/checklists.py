@@ -6901,16 +6901,17 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
         ):
             continue
 
+        reported_local = _dkss_checklist_common.get_user_local_now(
+            result_record.company_code, _dkss_common.session.get("username")
+        )
         defects.append({
             "defect_no": len(defects) + 1,
             "item_no": item_no,
             "status": "対応待ち",
             "reported_by": _dkss_common.session.get("name") or "",
             "reported_by_username": _dkss_common.session.get("username") or "",
-            "reported_at": _dkss_checklist_common.get_user_local_now(
-                result_record.company_code,
-                _dkss_common.session.get("username")
-            ).strftime("%Y-%m-%d %H:%M:%S"),
+            "reported_at": reported_local.strftime("%Y-%m-%d %H:%M:%S"),
+            "reported_at_iso": reported_local.isoformat(timespec="seconds"),
             "reported_answer": dict(answer),
         })
 

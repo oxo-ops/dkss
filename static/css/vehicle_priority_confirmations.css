@@ -1,0 +1,12 @@
+.priority-confirmations { margin: 18px 0; padding: 16px; overflow-wrap: anywhere; }
+.priority-confirmations summary { cursor: pointer; font-weight: 700; }
+.priority-confirmations summary small { font-weight: 400; margin-left: .5em; }
+.priority-confirmations label { display: block; margin: 12px 0; }
+.priority-confirmations select { display: block; width: 100%; max-width: 100%; margin-top: 5px; }
+.priority-confirmations fieldset { min-width: 0; margin: 16px 0; }
+.priority-confirmations fieldset label { display: flex; align-items: flex-start; gap: 8px; }
+.priority-confirmations input[type=checkbox] { flex: 0 0 auto; margin-top: .3em; }
+.priority-confirmations article { padding: 12px 0; border-bottom: 1px solid var(--border-color, #d9dfe7); }
+.priority-confirmations article p { white-space: pre-wrap; }
+.priority-confirmations button { margin: 6px 8px 6px 0; white-space: normal; }
+.priority-confirmations [hidden] { display: none !important; }

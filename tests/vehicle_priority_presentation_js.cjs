@@ -133,3 +133,28 @@ test('duplicate IDs and revisions retain every occurrence in server source-index
         assert.deepEqual(view.ordered(items,{priority_order_format:'source_indices_v1',priority_order_indices:order}),items);
     }
 });
+
+
+test('confirmed original facts remain server facts with text-only same-origin links',()=>{
+    const item=proposal();
+    item.priority_assessment.confirmation_details={kind:'progression',event_id:42,confirmed_at:'2026-11-11T12:00:00+09:00',
+        actor_name:'<script>actor</script>',statements:['同じ症状と位置を確認'],display_sources:[
+            {label:'現在の観測',text:'<img src=x onerror=alert(1)>',url:'/vehicle/checklists/1'},
+            {label:'外部URL',text:'原文',url:'https://foreign.test/vehicle/source'},
+            {label:'不正URL',text:'原文',url:'javascript:alert(1)'}]};
+    const before=JSON.stringify(item), tree=view.details(doc,item,{},'https://dkss.test');
+    assert.equal(view.read(item).score,50);
+    assert.match(texts(tree),/同じ症状と位置を確認/);assert.match(texts(tree),/<script>actor/);
+    assert.equal(walk(tree).some(e=>['script','img','form','input'].includes(e.tag)),false);
+    assert.deepEqual(walk(tree).filter(e=>e.tag==='a').map(e=>e.href),['https://dkss.test/vehicle/checklists/1']);
+    assert.equal(JSON.stringify(item),before);
+});
+test('malformed confirmation metadata cannot present a computed priority',()=>{
+    const valid={kind:'legal_deadline',event_id:42,confirmed_at:'2026-11-11T12:00:00+09:00',
+        actor_name:'管理者',statements:['適用を確認'],display_sources:[{label:'原本',text:'原文'}]};
+    for(const change of [{event_id:true},{kind:'score_input'},{confirmed_at:'2026-11-11'},
+        {statements:[]},{display_sources:[{label:'原本',text:{html:'x'}}]}]){
+        const item=proposal();item.priority_assessment.confirmation_details={...valid,...change};
+        assert.equal(view.read(item).valid,false);
+    }
+});

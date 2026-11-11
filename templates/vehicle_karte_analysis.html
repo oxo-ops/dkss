@@ -98,6 +98,7 @@
         </section>
         {% endif %}
     </div>
+    {% if not priority_preview_mode %}{% include "vehicle_priority_confirmations.html" %}{% endif %}
     {% include "vehicle_karte_comparison_panels.html" %}
     {% if has_metrics %}<details class="ka7-aggregate" id="ka-reference-aggregate"><summary>月別の数値・比較条件の詳細</summary>
         <p class="kc-data-note">期間内の整備記録 {{ data.maintenance_count }}件。全期間の登録済み費用 {{ value(data.all_time_cost, '円') }}。{% if data.missing_cost_count %}金額未入力 {{ data.missing_cost_count }}件は費用集計から除外。{% endif %}未取得の金額・距離は「—」で表示します。</p>
