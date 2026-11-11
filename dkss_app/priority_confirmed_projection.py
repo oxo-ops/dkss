@@ -355,6 +355,15 @@ def _historical_details(proofs, sources):
     return values
 
 
+def saved_confirmed_priority_history(item, sources, vehicle):
+    """Read only the original proof/display, never today's confirmation detail."""
+    try:
+        saved = _saved_candidates({'recommendations': [item]}, sources, vehicle)
+        return _historical_details(saved[0]['proofs'], sources) if saved else []
+    except (ValueError, TypeError, KeyError):
+        return []  # Missing historical proof cannot be rebuilt from current facts.
+
+
 def _carry(candidate, previous_generated_at):
     from .analysis_feedback import vehicle_analysis_proposal_ids
     item = deepcopy(candidate['proposal'])

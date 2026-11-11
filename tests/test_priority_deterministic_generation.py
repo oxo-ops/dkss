@@ -207,10 +207,12 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
             service = case.app.extensions['dkss']['periodic_followups']
             executor = case.app.extensions['periodic_proposal_executor']
             api = f'/vehicle/karte/{case.vehicle.id}/periodic/{record.id}/suggestions'
-            def run(empty=True):
+            def run(empty=True, check_running=None):
                 with patch.object(executor, 'submit') as submit:
                     self.assertEqual(case.client.post(api, json={'retry': True}).status_code, 202)
                 fn, *args = submit.call_args.args
+                if check_running is not None:
+                    check_running(case.client.get(api).json, 'running')
                 response = {'overview': '合成空応答', 'recommendations': []}
                 def transport(request, **kwargs):
                     if not empty: raise OSError('synthetic periodic transport failure')
@@ -225,7 +227,64 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
             self.assertEqual(shown['result']['recommendations'][0]['priority_assessment']['effective_score'], 60)
             original = job.result_json
             first = shown['result']['recommendations'][0]
+            from dkss_app.priority_consumers import PERIODIC_PROOF_KEY, project_periodic_priorities
+            from dkss_app.priority_confirmations import confirmation_statuses
+            saved = json.loads(original)
+            self.assertNotIn('priority_candidate_carryover', saved['recommendations'][0])
+            saved_sources = saved[PERIODIC_PROOF_KEY]['sources']
+            expected_history = [deepcopy(saved_sources[f'priority_confirmation:{_event_id}']
+                ['priority_confirmation_display'])]
+            self.assertTrue(expected_history[0]['actor_name'])
+            self.assertTrue(expected_history[0]['confirmed_at'])
+            self.assertTrue(expected_history[0]['display_sources'])
+
+            def previous_history(data, expected_status):
+                self.assertEqual(data['status'], expected_status)
+                self.assertFalse(data['is_current'])
+                value, = data['result']['recommendations']
+                self.assertEqual((value['proposal_id'], value['proposal_revision']),
+                    (first['proposal_id'], first['proposal_revision']))
+                assessment = value['priority_assessment']
+                self.assertEqual((value['priority'], assessment['label'],
+                    assessment['calculation_status']), ('高', '高', 'legacy_preserved'))
+                self.assertIsNone(assessment['effective_score'])
+                self.assertEqual(assessment['historical_confirmation_details'], expected_history)
+                self.assertNotIn('confirmation_details', assessment)
+                self.assertNotIn('confirmation_details_list', assessment)
+                case.db.session.refresh(job)
+                self.assertEqual(job.result_json, original)
+
+            # The original confirmation is still active, but another periodic
+            # input changed. Pending/running/failed views must use saved history,
+            # not turn the current confirmation preview into a previous fact.
+            record.content += ' 定期更新だけの合成原文訂正'; case.db.session.commit()
+            self.assertEqual(next(entry for entry in confirmation_statuses(case.vehicle)
+                if entry['event_id'] == _event_id)['status'], 'active')
+            previous_history(case.client.get(api).json, 'missing')
+            failed, job = run(empty=False, check_running=previous_history)
+            previous_history(failed, 'error')
+
+            # The first saved result has no carryover marker. Original-source
+            # loss must not drop its actor, time, statements or saved quotation.
             case.public.available = False; case.db.session.commit()
+            previous_history(case.client.get(api).json, 'missing')
+            failed, job = run(empty=False, check_running=previous_history)
+            previous_history(failed, 'error')
+            legacy = deepcopy(saved)
+            legacy[PERIODIC_PROOF_KEY]['sources'][f'priority_confirmation:{_event_id}'].pop(
+                'priority_confirmation_display')
+            before_legacy = deepcopy(legacy)
+            legacy_response, _ = project_periodic_priorities(legacy, case.vehicle, {}, is_current=False)
+            historical = legacy_response['recommendations'][0]['priority_assessment']['historical_confirmation_details']
+            self.assertEqual((historical[0]['actor_name'], historical[0]['confirmed_at']),
+                (expected_history[0]['actor_name'], expected_history[0]['confirmed_at']))
+            self.assertIn('原文の表示内容を保存していません', historical[0]['display_sources'][0]['text'])
+            self.assertEqual(legacy, before_legacy)
+            foreign = deepcopy(saved)
+            foreign[PERIODIC_PROOF_KEY]['company_code'] = 'OTHER'
+            foreign_response, _ = project_periodic_priorities(foreign, case.vehicle, {}, is_current=False)
+            self.assertNotIn('historical_confirmation_details',
+                foreign_response['recommendations'][0]['priority_assessment'])
             held, job = run()
             value, = held['result']['recommendations']
             self.assertTrue(held['is_current'])

@@ -91,7 +91,7 @@ def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None
     if is_current is False:
         # Apply exact withdrawal/resolution first, but do not turn the remaining
         # previous result into a fresh score while a replacement is pending.
-        retained = {(item.get('proposal_id'), item.get('proposal_revision'))
+        retained = {(item.get('proposal_id'), item.get('proposal_revision')): item
                     for item in projected.get('recommendations', []) if isinstance(item, dict)}
         held = deepcopy(identified)
         held['recommendations'] = [item for item in identified.get('recommendations', [])
@@ -99,6 +99,21 @@ def project_periodic_priorities(result, vehicle, current_evidence, *, as_of=None
         preserved = project_priority(held, sources, [], company_code=vehicle.company_code,
             vehicle_id=vehicle.id, as_of=as_of, is_current=False,
             unavailable_reason='分析の更新が完了していないため、前回の保存区分を無点数で表示します')
+        if valid:
+            from .priority_confirmed_projection import saved_confirmed_priority_history
+            for item in preserved.get('recommendations', []):
+                if not isinstance(item, dict):
+                    continue
+                original = retained.get((item.get('proposal_id'), item.get('proposal_revision')), {})
+                assessment = original.get('priority_assessment') or {}
+                history = assessment.get('historical_confirmation_details')
+                if not isinstance(history, list):
+                    # A still-active confirmation may have only current details
+                    # in the first projection. Read its saved snapshot instead
+                    # of relabelling today's preview as historical evidence.
+                    history = saved_confirmed_priority_history(item, sources, vehicle)
+                if history:
+                    item['priority_assessment']['historical_confirmation_details'] = deepcopy(history)
         if 'priority_resolved_proposals' in projected:
             preserved['priority_resolved_proposals'] = projected['priority_resolved_proposals']
         projected = preserved
