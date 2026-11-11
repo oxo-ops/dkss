@@ -235,8 +235,17 @@ def generate():
         CertificateSourceTests.tearDownClass()
 
 
+def roundtrip_app(target):
+    from dkss_app import create_app
+    # This factory runs in a fresh process after fixture env patches have ended.
+    # Never depend on an ambient/local or production session-signing key.
+    return create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False,
+                       'SECRET_KEY': 'guarded-independent-roundtrip-test-only',
+                       'SQLALCHEMY_DATABASE_URI': 'sqlite:///' + str(target)})
+
+
 def run_roundtrip(case, newer):
-    from dkss_app import create_app, models
+    from dkss_app import models
     from dkss_app.extensions import db, limiter
     from identity_fixture import identity_for
     target = directory() / (case + '.sqlite')
@@ -245,7 +254,7 @@ def run_roundtrip(case, newer):
             names = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
             return {n: sorted(conn.execute('SELECT * FROM "' + n + '"').fetchall(), key=repr) for n in names}
     before = snapshot()
-    app = create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False, 'SQLALCHEMY_DATABASE_URI': 'sqlite:///' + str(target)})
+    app = roundtrip_app(target)
     limiter.enabled = False
     with app.app_context():
         client = app.test_client()

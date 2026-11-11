@@ -86,7 +86,7 @@ def child(stage):
             loader = unittest.TestLoader()
             module = 'test_guarded_independent_runner' if stage == 'runner' else 'test_guarded_rollback_' + stage
             suite = loader.loadTestsFromName(module)
-            wanted = {'runner':4, 'retention':25, 'postgres':24}[stage]
+            wanted = {'runner':5, 'retention':25, 'postgres':24}[stage]
             count = suite.countTestCases()
             if loader.errors or count != wanted:
                 raise RuntimeError('TEST_DISCOVERY_FAILED')

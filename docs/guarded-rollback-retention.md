@@ -179,8 +179,11 @@ deterministic SQLite generation-fence check, not proof that source writers can
 enter the V8 locked section concurrently. It neither asserts nor simulates native
 lock scheduling.
 
-Four boundary tests assert success/failure output suppression, refusal when the
-child guard is absent, and transport/SQLite/PG audit-event enforcement. Every
+Five boundary/bootstrap tests assert success/failure output suppression, refusal when the
+child guard is absent, transport/SQLite/PG audit-event enforcement, and roundtrip
+app creation without an ambient session-signing key. The isolated test app receives
+its own explicit disposable key; no product or production configuration changes.
+Every
 child verifies the exact guard path and boundary rejection before app imports.
 These event probes do not open a socket, listener or external database. Then25 portable retention tests keep the
 same write/read/refusal boundaries. Native PostgreSQL acceptance requires all24

@@ -1,9 +1,12 @@
 """Test only the non-export boundary, with a new literal sentinel, no app data."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 
 class IndependentRunnerOutputTests(unittest.TestCase):
@@ -43,3 +46,18 @@ scope['child']('generate')
     def test_each_child_checks_transport_and_sqlite_pg_audit_boundaries(self):
         from run_guarded_independent import verify_child_isolation
         self.assertTrue(verify_child_isolation())
+
+    def test_roundtrip_bootstraps_without_an_ambient_session_key(self):
+        from guarded_independent_cases import roundtrip_app
+        from dkss_app.extensions import db
+        with patch.dict(os.environ), tempfile.TemporaryDirectory() as root:
+            os.environ.pop('SECRET_KEY', None)
+            target = Path(root) / 'bootstrap.sqlite'
+            app = roundtrip_app(target)
+            self.assertTrue(app.testing)
+            self.assertTrue(app.secret_key)
+            self.assertNotIn('SECRET_KEY', os.environ)
+            self.assertEqual(app.config['SQLALCHEMY_DATABASE_URI'], 'sqlite:///' + str(target))
+            with app.app_context():
+                self.assertEqual(db.engine.dialect.name, 'sqlite')
+                db.engine.dispose()
