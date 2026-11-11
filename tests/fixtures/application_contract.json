@@ -2223,6 +2223,48 @@
       ""
     ],
     [
+      "/vehicle/karte/<int:vehicle_record_id>/priority-confirmations",
+      "priority_confirmation_data",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/karte/<int:vehicle_record_id>/priority-confirmations",
+      "save_priority_confirmation",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/karte/<int:vehicle_record_id>/priority-confirmations/certificates/<string:document_id>/source",
+      "priority_certificate_original",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/vehicle/karte/<int:vehicle_record_id>/priority-confirmations/preview",
+      "preview_priority_confirmation",
+      [
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/vehicle/knowledge-documents/<document_id>/source",
       "knowledge_document_source",
       [

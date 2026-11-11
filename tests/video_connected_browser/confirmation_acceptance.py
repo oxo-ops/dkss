@@ -268,21 +268,70 @@ class Fixture:
         state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         self.db.session.commit()
         self.protected(allow_analysis=True)
-        calls = []
+        calls, observations, analyzer_calls = [], [], []
+        # Observe actual Python frames without replacing analyzer, queue or job.
+        # analysis_method='ai' can still take the real no-source early return.
+        import sys
+        analyzer_code = generator.analyze_vehicle_karte.__code__
+        once_code = generator._analyze_vehicle_karte_once.__code__
+        no_sources_result = {'overview': '分析の根拠となる履歴がありません。', 'recommendations': []}
+        def evidence_ids(payload):
+            ids = {str(row['source_id']) for row in payload.get('records', [])}
+            for fact in payload.get('preventive_facts', {}).get('part_replacements', []):
+                ids.update(str(sid) for sid in fact.get('source_ids', []))
+            vehicle_source = payload.get('vehicle_source', {}).get('source_id')
+            if vehicle_source: ids.add(str(vehicle_source))
+            knowledge_ids = {str(item['source_id']) for item in payload.get('maintenance_knowledge', [])}
+            confirmed_ids = {sid for offer in generator.generation_priority_inputs(payload).values()
+                if offer.get('kind') == 'confirmed_priority' for sid in offer.get('source_ids', [])
+                if isinstance(sid, str)}
+            return sorted(ids | (confirmed_ids - knowledge_ids))
+        def observe(frame, event, returned):
+            if frame.f_code is analyzer_code and event == 'call':
+                analyzer_calls.append(True)
+            if frame.f_code is not once_code: return
+            if event == 'call':
+                observations.append(dict(input_vehicle_evidence_ids=evidence_ids(frame.f_locals['payload'])))
+            elif event == 'return' and observations:
+                observations[-1].update(
+                    actual_vehicle_evidence_ids=sorted(frame.f_locals.get('vehicle_evidence_ids', [])),
+                    source_set_constructed='vehicle_evidence_ids' in frame.f_locals,
+                    exact_no_source_return=returned == no_sources_result)
         def empty_model(request, **kwargs):
+            require(request.full_url == 'https://api.openai.com/v1/responses' and
+                    request.get_method() == 'POST', 'Unexpected model transport endpoint or method')
+            require(not calls, 'Unexpected multiple model transport calls')
             wire = generator.expand_vehicle_karte_analysis_wire_payload(json.loads(json.loads(request.data)['input']))
             require('_confirmed_priority_candidates' not in wire, 'Server candidates leaked into model transport')
             calls.append(wire)
             result = {'overview': '合成空応答。検証済み根拠の補完は実サーバー処理。', 'recommendations': []}
             return BytesIO(json.dumps({'status': 'completed', 'output': [{'content': [
                 {'type': 'output_text', 'text': json.dumps(result)}]}]}).encode())
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
-                patch.object(generator.urllib.request, 'urlopen', side_effect=empty_model):
-            require(service.run_vehicle_karte_analysis_job(state.id), 'Normal analysis job failed')
+        require(sys.getprofile() is None, 'Unexpected existing profiler; do not replace it')
+        try:
+            sys.setprofile(observe)
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
+                    patch.object(generator.urllib.request, 'urlopen', side_effect=empty_model):
+                require(service.run_vehicle_karte_analysis_job(state.id), 'Normal analysis job failed')
+        finally:
+            sys.setprofile(None)
+            self.report.setdefault('generation_source_observations', []).append(dict(
+                analyzer_calls=len(analyzer_calls), sources=observations, transport_calls=len(calls)))
         self.db.session.refresh(state)
         require(state.status == 'completed', 'Normal analysis job did not complete')
         method = json.loads(state.result_json)['analysis_method']
-        expected_calls = int(method == 'ai')
+        require(method in ('ai', 'record_check'), 'Unexpected analysis method')
+        require(len(analyzer_calls) == len(observations) == int(method == 'ai'),
+                'Normal analyzer entry count changed')
+        expected_calls = 0
+        if method == 'ai':
+            observed = observations[0]
+            require(observed['source_set_constructed'] and
+                    observed['input_vehicle_evidence_ids'] == observed['actual_vehicle_evidence_ids'],
+                    'Actual generator sources differ from its observed input')
+            expected_calls = int(bool(observed['input_vehicle_evidence_ids']))
+            if not expected_calls:
+                require(observed['exact_no_source_return'], 'Zero-source generator return was replaced')
         require(len(calls) == expected_calls, f'Unexpected model transport calls: {len(calls)} for {method}')
         self.protected(allow_analysis=True)
         table = self.case.models.VehicleKarteAnalysis.__table__.name

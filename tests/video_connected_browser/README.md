@@ -337,8 +337,26 @@ waiting through the product's 60-second poll at every width; the product timer
 and rendering code are unchanged. Legal and progression each run one confirmed-
 state job and one cancelled-state job. Manufacturer additionally runs one job
 between them after its explicit source revision to verify historical display.
-The remaining form-width cycles do not trigger extra model generations. Result artifacts record transport call counts, normal analysis
-state ID, result digest and saved candidate count, without raw signed tokens.
+The remaining form-width cycles do not trigger extra model generations. Result
+artifacts record transport call counts, normal analysis state ID, result digest
+and saved candidate count, without raw signed tokens.
+
+A read-only Python call/return observer identifies the real analyzer functions by
+code identity; it does not replace the analyzer, queue, job or their response.
+The observer is removed in `finally`; an existing profiler is not overwritten.
+It records only the input-derived and actual vehicle-evidence ID sets, analyzer
+entry counts and whether the real return exactly matches the no-source result.
+No frame locals, API keys or raw signed tokens are saved. An `ai` method requires
+one actual analyzer entry and one single-analysis entry. Nonempty input evidence
+requires exactly one POST to `https://api.openai.com/v1/responses`. Only genuinely
+empty input evidence, matching the actual generator source set and its exact
+normal no-source return, permits zero calls. Unexpected endpoints, methods,
+multiple calls, nonempty-source zero calls or a changed no-source result fail.
+The only replaced external response remains the synthetic urllib empty response
+when that endpoint is actually called. The normal cancelled-result zero count,
+current-result GET, unrelated proposal IDs and full database protection still
+apply. No feedback contract or product behavior is changed.
+
 These assertions test deterministic inclusion from verified synthetic evidence
 despite empty AI advice, not the quality of real model advice.
 
@@ -416,3 +434,16 @@ concurrent submission contracts. Its source provider is mocked. The real-reader
 manufacturer/progression tests and this connected preflight are distinct evidence.
 All changes in this section are prepared assertions pending execution on the
 final fixed candidate; the interrupted earlier rerun is not converted into a pass.
+
+### First integrated CI preflight and follow-up correction
+
+At head `00b68355b0c9953258c10eab7a75d6f398e6476e`, official Common Priority
+Browser run `43025421128` passed manufacturer HTTP preflight, including original
+revision/history preservation/cancellation regeneration. Legal HTTP preflight
+then failed after cancellation on the harness assumption that method `ai`
+always makes one transport call. The real generator can return an empty analysis
+without transport when no vehicle-evidence IDs remain. Progression preflight and
+all 13 browser scenarios were not run in that attempt. The source observer above
+corrects that assumption without skipping the real generation or weakening source,
+result or database assertions. This follow-up candidate has not yet been run;
+the earlier run is not evidence that its browser assertions pass.

@@ -150,11 +150,20 @@ class DashboardSavedProposalTests(unittest.TestCase):
         self.assertNotIn('<img src=x onerror=alert(1)>', html)
         self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
         self.assertNotIn('<script>bad</script>', html)
-        notes = root.find(cls='dashboard-priority-note')
-        self.assertEqual(len(notes), 6)
+        panel = root.find(cls='dashboard-attention-panel')[0]
+        rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
+        self.assertEqual(len(rows), 6)
+        self.assertEqual([len(row.find(cls='dashboard-priority-note')) for row in rows], [1] * 6)
+        notes = [note for row in rows for note in row.find(cls='dashboard-priority-note')]
         self.assertEqual(sum('保存版' in note.text for note in notes), 3)
         self.assertEqual(sum('元データ' in note.text for note in notes), 3)
         self.assertTrue(all('dashboard-reference-reason' not in note.attrs.get('class', '') for note in notes))
+        # The count explanation is separate from each proposal's evidence note.
+        heading = panel.find(tag='h3')[0]
+        count_notes = heading.find(cls='dashboard-priority-note')
+        self.assertEqual([note.text.strip() for note in count_notes], ['前回評価を含む'])
+        self.assertIn('6件', heading.text)
+        self.assertEqual(root.find(cls='dashboard-priority-note'), count_notes + notes)
 
     def test_both_groups_have_independent_preview_limits_and_company_boundaries(self):
         self.configure()

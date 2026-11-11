@@ -266,12 +266,16 @@ class ManufacturerEvidenceTests(unittest.TestCase):
             manufacturer_confirmation_inputs(self.preview(), event_id=111, confirmed_on=self.day-timedelta(days=1))
 
     def test_pending_recheck_or_resolved_observation_cannot_be_confirmed_as_current_condition(self):
-        self.repair_priority()
-        with self.assertRaisesRegex(ValueError, '現在の未解消'):
-            self.preview()
-        self.recheck()
-        with self.assertRaisesRegex(ValueError, '現在の未解消'):
-            self.preview()
+        for advance, expected_status in ((self.repair_priority, '再確認待ち'), (self.recheck, '解消')):
+            with self.subTest(status=expected_status):
+                advance()
+                bundle, = self.read()['bundles']
+                observation = bundle['observation']
+                self.assertEqual(observation['registered_status'], expected_status)
+                self.assertIs(observation['registered_open_answer_matches'], False)
+                with self.assertRaisesRegex(ValueError,
+                        '^現在の承認済み原回答と同じ未解消指摘を確認できません。'):
+                    self.preview()
 
     def test_checksum_knowledge_metadata_or_subject_changes_invalidate_preview_fingerprint(self):
         before = self.preview()['fingerprint']
