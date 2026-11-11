@@ -5,6 +5,8 @@ import json
 
 from sqlalchemy.exc import IntegrityError
 
+from vehicle_saved_result_guard import requires_newer_version
+
 
 @dataclass
 class AnalysisInputRecords:
@@ -56,7 +58,7 @@ class VehicleAnalysisJobRepository:
 
     def get_or_create(self, vehicle):
         scope = {"company_code": vehicle.company_code, "vehicle_record_id": vehicle.id}
-        state = self.State.query.filter_by(**scope).first()
+        state = self.State.query.filter_by(**scope).populate_existing().with_for_update().first()
         if state is None:
             try:
                 with self.db.session.begin_nested():
@@ -64,16 +66,30 @@ class VehicleAnalysisJobRepository:
                     self.db.session.add(state)
                     self.db.session.flush()
             except IntegrityError:
-                state = self.State.query.filter_by(**scope).one()
+                state = self.State.query.filter_by(**scope).populate_existing().with_for_update().one()
         return state
 
     def get(self, state_id):
         return self.db.session.get(self.State, state_id)
 
+    def writable(self, state_id, token=None):
+        query = self.State.query.filter_by(id=state_id)
+        if token is not None:
+            query = query.filter_by(lease_token=token)
+        state = query.populate_existing().with_for_update().first()
+        if state is None or requires_newer_version(state.result_json):
+            self.db.session.rollback()
+            return None
+        return state
+
     def claim(self, state_id, input_hash, token, now):
+        state = self.writable(state_id)
+        if state is None:
+            return False
         claimed = self.State.query.filter(
             self.State.id == state_id,
             self.State.input_hash == input_hash,
+            self.State.result_json == state.result_json,
             self.State.status.in_({"pending", "error", "running"}),
             self.State.next_analysis_at <= now,
             self.db.or_(self.State.lease_expires_at.is_(None),
@@ -91,7 +107,10 @@ class VehicleAnalysisJobRepository:
         ).first()
 
     def skip(self, state_id, token):
-        self.State.query.filter_by(id=state_id, lease_token=token).update({
+        state = self.writable(state_id, token)
+        if state is None:
+            return
+        self.State.query.filter_by(id=state_id, lease_token=token, result_json=state.result_json).update({
             "status": "skipped", "next_analysis_at": None, "lease_token": None,
             "lease_expires_at": None,
             "last_error": "対象車両が存在しないか、無効になっています。",
@@ -99,8 +118,11 @@ class VehicleAnalysisJobRepository:
         self.db.session.commit()
 
     def renew(self, state_id, token, now):
+        state = self.writable(state_id, token)
+        if state is None:
+            raise RuntimeError("ANALYSIS_LEASE_LOST")
         renewed = self.State.query.filter_by(
-            id=state_id, lease_token=token, status="running",
+            id=state_id, lease_token=token, status="running", result_json=state.result_json,
         ).update({"lease_expires_at": now + timedelta(minutes=3)}, synchronize_session=False)
         if renewed != 1:
             self.db.session.rollback()
@@ -108,34 +130,35 @@ class VehicleAnalysisJobRepository:
         self.db.session.commit()
 
     def finish(self, state_id, token, *, claimed_hash, snapshot_hash, bundle, finished, method):
-        self.db.session.expire_all()
-        state = self.State.query.filter_by(
-            id=state_id, lease_token=token,
-        ).with_for_update().first()
+        state = self.writable(state_id, token)
         if state is None:
-            self.db.session.rollback()
             return False
         changed = state.input_hash not in {claimed_hash, snapshot_hash}
-        state.result_json = json.dumps(bundle, ensure_ascii=False, default=str)
-        state.last_analyzed_at = finished if method == "ai" else None
-        state.last_error = None
-        state.lease_token = None
-        state.lease_expires_at = None
-        if changed:
-            state.status = "pending"
-            state.next_analysis_at = finished + timedelta(minutes=2)
-        else:
-            state.status = "completed"
-            state.input_hash = snapshot_hash
-            state.next_analysis_at = None
+        updates = {
+            "result_json": json.dumps(bundle, ensure_ascii=False, default=str),
+            "last_analyzed_at": finished if method == "ai" else None,
+            "last_error": None, "lease_token": None, "lease_expires_at": None,
+            "status": "pending" if changed else "completed",
+            "next_analysis_at": finished + timedelta(minutes=2) if changed else None,
+        }
+        if not changed:
+            updates["input_hash"] = snapshot_hash
+        # Row lock on PostgreSQL plus compare-and-swap for the checked bytes.
+        written = self.State.query.filter_by(
+            id=state_id, lease_token=token, result_json=state.result_json,
+            input_hash=state.input_hash,
+        ).update(updates, synchronize_session=False)
         self.db.session.commit()
-        return True
+        return written == 1
 
     def rollback(self):
         self.db.session.rollback()
 
     def fail(self, state_id, token, code, retry_at):
-        self.State.query.filter_by(id=state_id, lease_token=token).update({
+        state = self.writable(state_id, token)
+        if state is None:
+            return
+        self.State.query.filter_by(id=state_id, lease_token=token, result_json=state.result_json).update({
             "status": "error", "last_error": code, "next_analysis_at": retry_at,
             "lease_token": None, "lease_expires_at": None,
         }, synchronize_session=False)

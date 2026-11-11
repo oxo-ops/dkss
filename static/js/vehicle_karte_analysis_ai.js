@@ -1245,6 +1245,17 @@
                 );
             }
 
+            if (data.status === "held") {
+                closeReferenceDrawer();
+                if (referenceDrawer) referenceDrawer.replaceChildren();
+                referenceMaintenanceRecords = []; referenceFeedbackHistory = [];
+                results.replaceChildren(); results.hidden = true;
+                delete results.dataset.signature;
+                if (!status.isConnected) results.before(status);
+                status.hidden = false; status.textContent = data.message;
+                return;
+            }
+
             if (data.ok) {
                 data.analysis ||= {overview: "", recommendations: []};
                 const signature = JSON.stringify([

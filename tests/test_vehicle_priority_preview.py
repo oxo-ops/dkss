@@ -304,7 +304,7 @@ class VehiclePriorityPreviewTests(unittest.TestCase):
         self.assertNotIn('priority_preview', data['analysis']['recommendations'][0])
         self.assertIn('risk_assessment', data['analysis']['recommendations'][0])
 
-    def test_normal_result_preserves_invalid_historical_priority_without_reclassification(self):
+    def test_rollback_holds_malformed_historical_priority_without_reclassification(self):
         state, bundle, _fixture = self.save_synthetic_analysis(('unexpected', None, '中'))
         before = state.result_json
         identities = [self.m.vehicle_analysis_proposal_ids(item)
@@ -314,11 +314,13 @@ class VehiclePriorityPreviewTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json
             self.assertNotIn('priority_preview', data)
-            proposals = data['analysis']['recommendations']
-            self.assertEqual([item['priority'] for item in proposals], ['unexpected', None, '中'])
-            self.assertEqual([(item['proposal_id'], item['proposal_revision']) for item in proposals], identities)
-            self.assertEqual([item['action'] for item in proposals],
-                             [item['action'] for item in bundle['analysis']['recommendations']])
+            self.assertEqual(data['status'], 'held')
+            self.assertFalse(data['is_current'])
+            self.assertIsNone(data['analysis'])
+            retained = json.loads(state.result_json)['analysis']['recommendations']
+            self.assertEqual([item['priority'] for item in retained], ['unexpected', None, '中'])
+            self.assertEqual([self.m.vehicle_analysis_proposal_ids(item) for item in retained], identities)
+            self.assertIn('保存済み結果を保持', data['message'])
             self.assertEqual(self.m.VehicleKarteAnalysis.query.get(state.id).result_json, before)
 
     def test_repeated_preview_is_stable_and_does_not_accumulate_annotations(self):

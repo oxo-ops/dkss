@@ -425,6 +425,7 @@
             ('office', '所属営業所のほかの車両')
         ] %}
         {% set group = dashboard_vehicle_attention[key] %}
+        {% if group.held %}<p role="status">{{ group.held_message }}（対象 {{ group.held }}台）</p>{% endif %}
         {% set maintenance = group['items']|selectattr('category', 'equalto', '整備・点検')|list %}
         {% set checks = group['items']|rejectattr('category', 'equalto', '整備・点検')|list %}
         <div class="dashboard-attention-panel">
@@ -434,7 +435,7 @@
                 {% else %}
                     {{ title }}
                 {% endif %}
-                <span>{{ maintenance|length }}件</span>
+                <span>{% if group.held %}表示 {{ maintenance|length }}件・保存保持 {{ group.held }}台{% else %}{{ maintenance|length }}件{% endif %}</span>
                 {% if maintenance|length > attention_preview_limit %}
                 <button type="button" class="dashboard-attention-view-all"
                         data-reference-target="#dashboard-attention-more-{{ key }}"
@@ -469,6 +470,8 @@
                     {% else %}
                     対象の車両はありません。
                     {% endif %}
+                {% elif group.held %}
+                この版で表示できない保存結果があります。対応する新版で確認してください。
                 {% else %}
                 現在表示できる整備・点検候補はありません。
                 {% endif %}

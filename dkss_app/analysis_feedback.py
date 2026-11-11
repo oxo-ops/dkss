@@ -144,7 +144,11 @@ def save_vehicle_analysis_feedback(vehicle_record_id):
         return _dkss_common.jsonify(ok=False, message="コメントは5000文字以内で入力してください。"), 400
     state = _dkss_models.VehicleKarteAnalysis.query.filter_by(
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
-    ).first()
+    ).populate_existing().with_for_update().first()
+    from vehicle_saved_result_guard import ERROR, MESSAGE, requires_newer_version
+    if state and requires_newer_version(state.result_json):
+        _dkss_common.db.session.rollback()
+        return _dkss_common.jsonify(ok=False, error=ERROR, message=MESSAGE), 409
     bundle = _dkss_serialization.safe_json_dict(state.result_json) if state else {}
     analysis = bundle.get("analysis") or {}
     selected = None
@@ -271,7 +275,11 @@ def save_vehicle_analysis_evaluation(vehicle_record_id):
 
     state = _dkss_models.VehicleKarteAnalysis.query.filter_by(
         company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
-    ).first()
+    ).populate_existing().with_for_update().first()
+    from vehicle_saved_result_guard import ERROR, MESSAGE, requires_newer_version
+    if state and requires_newer_version(state.result_json):
+        _dkss_common.db.session.rollback()
+        return _dkss_common.jsonify(ok=False, error=ERROR, message=MESSAGE), 409
     bundle = _dkss_serialization.safe_json_dict(state.result_json) if state else {}
     analysis = bundle.get("analysis") or {}
     selected = None

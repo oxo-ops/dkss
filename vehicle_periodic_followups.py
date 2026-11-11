@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 from flask import abort, jsonify, render_template, request, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
+from vehicle_saved_result_guard import ERROR, MESSAGE, requires_newer_version
+
 
 def generate_periodic_proposals(payload):
     from vehicle_karte_analysis_ai import analyze_vehicle_karte
@@ -209,14 +211,25 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
     def proposal_worker(company, record_id, run_token, payload):
         with app.app_context():
             try:
+                job = PeriodicInspectionProposal.query.filter_by(company_code=company,
+                    inspection_record_id=record_id, run_token=run_token).first()
+                if job is None or requires_newer_version(job.result_json, periodic=True):
+                    return
                 result = generate_periodic_proposals(payload)
                 updates = {'status': 'completed', 'result_json': json.dumps(result, ensure_ascii=False), 'error': None}
             except Exception as exc:
                 app.logger.warning('Periodic inspection proposal generation failed (%s)', type(exc).__name__)
                 updates = {'status': 'error', 'result_json': '{}', 'error': 'not_configured' if str(exc) == 'API_KEY_NOT_SET' else 'generation_failed'}
             try:
+                job = PeriodicInspectionProposal.query.filter_by(company_code=company,
+                    inspection_record_id=record_id, run_token=run_token).populate_existing().with_for_update().first()
+                if job is None or requires_newer_version(job.result_json, periodic=True):
+                    db.session.rollback()
+                    return
                 updates['updated_at'] = now().isoformat(timespec='seconds')
-                PeriodicInspectionProposal.query.filter_by(company_code=company, inspection_record_id=record_id, run_token=run_token).update(updates, synchronize_session=False)
+                PeriodicInspectionProposal.query.filter_by(company_code=company,
+                    inspection_record_id=record_id, run_token=run_token,
+                    result_json=job.result_json).update(updates, synchronize_session=False)
                 db.session.commit()
             finally:
                 db.session.remove()
@@ -227,8 +240,17 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
             actor()
             lock(session.get('company_code'))
         vehicle, record = target(vehicle_record_id, record_id)
+        query = PeriodicInspectionProposal.query.filter_by(company_code=vehicle.company_code, inspection_record_id=record.id)
+        job = (query.populate_existing().with_for_update() if request.method == 'POST' else query).first()
+        if job and requires_newer_version(job.result_json, periodic=True):
+            if request.method == 'POST':
+                db.session.rollback()
+            response = jsonify(status='held', error=ERROR, message=MESSAGE,
+                is_current=False, result=None, evidence={}, can_generate=False)
+            response.headers['Cache-Control'] = 'no-store'
+            return response, 409 if request.method == 'POST' else 200
+        checked_result = job.result_json if job else '{}'
         payload, evidence, digest = proposal_input(vehicle, record)
-        job = PeriodicInspectionProposal.query.filter_by(company_code=vehicle.company_code, inspection_record_id=record.id).first()
         if request.method == 'POST':
             if job and job.status == 'running':
                 if datetime.fromisoformat(job.updated_at) > now() - timedelta(minutes=15):
@@ -238,24 +260,41 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
                 if job and job.status == 'error' and job.input_hash == digest and datetime.fromisoformat(job.updated_at) > now() - timedelta(minutes=5) and not (request.get_json(silent=True) or {}).get('retry'):
                     db.session.rollback()
                     return jsonify(status='error', error=job.error)
-                active_count = PeriodicInspectionProposal.query.filter(PeriodicInspectionProposal.company_code == vehicle.company_code,
-                    PeriodicInspectionProposal.status == 'running', PeriodicInspectionProposal.updated_at > (now() - timedelta(minutes=15)).isoformat(timespec='seconds')).count()
+                active_rows = db.session.query(PeriodicInspectionProposal.result_json).filter(
+                    PeriodicInspectionProposal.company_code == vehicle.company_code,
+                    PeriodicInspectionProposal.status == 'running',
+                    PeriodicInspectionProposal.updated_at > (now() - timedelta(minutes=15)).isoformat(timespec='seconds'))
+                active_count = sum(not requires_newer_version(raw, periodic=True)
+                    for (raw,) in active_rows)
                 if active_count >= 2:
                     db.session.rollback()
                     return jsonify(status='error', error='busy'), 429
                 if job is None:
-                    job = PeriodicInspectionProposal(company_code=vehicle.company_code, inspection_record_id=record.id)
+                    job = PeriodicInspectionProposal(company_code=vehicle.company_code, inspection_record_id=record.id,
+                        input_hash=digest, run_token=str(uuid4()), status='running',
+                        updated_at=now().isoformat(timespec='seconds'))
                     db.session.add(job)
+                db.session.flush()
                 token = str(uuid4())
-                job.input_hash, job.run_token, job.status = digest, token, 'running'
-                job.result_json, job.error, job.updated_at = '{}', None, now().isoformat(timespec='seconds')
+                started = PeriodicInspectionProposal.query.filter_by(id=job.id,
+                    result_json=checked_result).update({
+                        'input_hash': digest, 'run_token': token, 'status': 'running',
+                        'result_json': '{}', 'error': None, 'updated_at': now().isoformat(timespec='seconds'),
+                    }, synchronize_session=False)
+                if started != 1:
+                    db.session.rollback()
+                    return jsonify(status='held', error=ERROR, message=MESSAGE,
+                        is_current=False, result=None, can_generate=False), 409
                 db.session.commit()
                 try:
                     executor.submit(proposal_worker, vehicle.company_code, record.id, token, payload)
                 except RuntimeError:
-                    job.status, job.error = 'error', 'generation_failed'
+                    # Submission may race another writer; never dirty a newer result.
+                    PeriodicInspectionProposal.query.filter_by(company_code=vehicle.company_code,
+                        inspection_record_id=record.id, run_token=token, result_json='{}').update(
+                            {'status': 'error', 'error': 'generation_failed'}, synchronize_session=False)
                     db.session.commit()
-                    return jsonify(status='error', error=job.error)
+                    return jsonify(status='error', error='generation_failed')
                 return jsonify(status='running'), 202
             db.session.rollback()
         if not job or job.input_hash != digest:

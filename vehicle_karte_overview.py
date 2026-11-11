@@ -82,7 +82,8 @@ def build_overview(g, vehicle):
     groups = g['get_vehicle_karte_parts_context'](
         vehicle, factual_only=True, read_snapshot=read_snapshot)['part_groups']
     stored = g['VehicleKarteAnalysis'].query.filter_by(company_code=code, vehicle_record_id=vid).first()
-    bundle = g['safe_json_dict'](stored.result_json) if stored else {}
+    from vehicle_saved_result_guard import requires_newer_version
+    bundle = g['safe_json_dict'](stored.result_json) if stored and not requires_newer_version(stored.result_json) else {}
     analysis = bundle.get('analysis') or {}
     targets = [str(item.get('target') or '') for item in analysis.get('recommendations', [])
                if isinstance(item, dict)] if isinstance(analysis, dict) else []

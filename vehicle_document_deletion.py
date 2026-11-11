@@ -6,6 +6,9 @@ from datetime import datetime,timezone
 from flask import abort,flash,redirect,render_template,request,session,url_for
 from itsdangerous import URLSafeTimedSerializer,BadSignature,SignatureExpired
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
+from vehicle_saved_result_guard import (MESSAGE, BUSY_MESSAGE, SavedResultLockConflict,
+                                        requires_newer_version)
 
 
 def register_document_deletion(app,db,g):
@@ -30,6 +33,23 @@ def register_document_deletion(app,db,g):
         return vehicle,draft
     def plan(vehicle,draft,lock=False):
         company=vehicle.company_code;owned=[];problems=[];detach=[]
+        if lock:
+            # Existing-row locks cannot lock absence. These are the actual FK
+            # parents used by both e8a and 97f first-result inserts. NOWAIT avoids
+            # adding an upgrade wait cycle to imports already holding FK shares.
+            try:
+                with db.session.no_autoflush:
+                    g['Vehicle'].query.filter_by(id=vehicle.id,company_code=company).with_for_update(nowait=True).one()
+                    g['VehiclePeriodicInspectionRecord'].query.filter_by(
+                        company_code=company,vehicle_record_id=vehicle.id).order_by(
+                        g['VehiclePeriodicInspectionRecord'].id).with_for_update(nowait=True).all()
+            except OperationalError as error:
+                if getattr(error.orig,'pgcode',None)!='55P03':
+                    raise
+                # In final correction, new business rows may already be flushed.
+                # Never continue after releasing these locks or partially commit.
+                db.session.rollback()
+                raise SavedResultLockConflict(BUSY_MESSAGE) from None
         def rows(model,**filters):
             q=model.query.filter_by(company_code=company,**filters)
             return (q.with_for_update() if lock else q).all()
@@ -116,7 +136,17 @@ def register_document_deletion(app,db,g):
         for row in rows(g['VehicleAnalysisFeedback'],vehicle_record_id=vehicle.id):
             snap=parse(row.snapshot_json);refs=(snap.get('proposal') or {}).get('source_ids',[])
             if isinstance(refs,list) and set(ids).intersection(x for x in refs if isinstance(x,str)):feedback.append(row)
-        state=g['VehicleKarteAnalysis'].query.filter_by(company_code=company,vehicle_record_id=vehicle.id).first()
+        state_query=g['VehicleKarteAnalysis'].query.filter_by(company_code=company,vehicle_record_id=vehicle.id)
+        state=(state_query.populate_existing().with_for_update() if lock else state_query).first()
+        if state and requires_newer_version(state.result_json):problems.append(MESSAGE)
+        service=app.extensions['dkss']['periodic_followups']
+        proposals=service.Proposal.query.join(g['VehiclePeriodicInspectionRecord'],
+            service.Proposal.inspection_record_id==g['VehiclePeriodicInspectionRecord'].id).filter(
+                service.Proposal.company_code==company,
+                g['VehiclePeriodicInspectionRecord'].company_code==company,
+                g['VehiclePeriodicInspectionRecord'].vehicle_record_id==vehicle.id)
+        if lock:proposals=proposals.populate_existing().with_for_update()
+        if any(requires_newer_version(row.result_json,periodic=True) for row in proposals.all()):problems.append(MESSAGE)
         value={'draft':snapshot(draft),'owned':[snapshot(x) for x in owned],'feedback':[snapshot(x) for x in feedback],
                'state':snapshot(state) if state else None,'problems':sorted(set(problems))}
         correction_digest=digest({'draft':value['draft'],'owned':value['owned'],'problems':value['problems']})
@@ -137,7 +167,8 @@ def register_document_deletion(app,db,g):
     @app.route('/vehicle/karte/<int:vehicle_record_id>/documents/<draft_id>/delete',methods=['GET','POST'],endpoint='vehicle_document_delete')
     def delete_document(vehicle_record_id,draft_id):
         vehicle,draft=require_access(vehicle_record_id,draft_id,request.method=='POST')
-        p=plan(vehicle,draft,request.method=='POST')
+        try:p=plan(vehicle,draft,request.method=='POST')
+        except SavedResultLockConflict as error:abort(409,description=str(error))
         serializer=URLSafeTimedSerializer(app.secret_key,salt='vehicle-document-delete-v1')
         token=serializer.dumps({'company':vehicle.company_code,'vehicle':vehicle.id,'draft':draft.id,'digest':p['digest'],'user':session['username']})
         if request.method=='GET':return render_template('vehicle_document_delete_confirm.html',vehicle=vehicle,draft=draft,impact=p,delete_token=token)

@@ -172,6 +172,11 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
     for vehicle, state in rows:
         group = groups["mine" if vehicle.id in own_ids else "office"]
         group["vehicles"] += 1
+        from vehicle_saved_result_guard import MESSAGE, requires_newer_version
+        if state and requires_newer_version(state.result_json):
+            group["held"] = group.get("held", 0) + 1
+            group["held_message"] = MESSAGE
+            continue
         bundle = _dkss_serialization.safe_json_dict(state.result_json) if state else {}
         analysis = bundle.get("analysis")
         recommendations = (

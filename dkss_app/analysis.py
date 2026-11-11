@@ -47,6 +47,9 @@ def build_vehicle_karte_analysis_summary(
 
 
 def vehicle_karte_analysis_matches_input(bundle, payload):
+    from vehicle_saved_result_guard import requires_newer_version
+    if requires_newer_version(_dkss_common.json.dumps(bundle)):
+        return False
     previous = bundle.get("fingerprints")
     current = payload["_fingerprints"]
     return isinstance(previous, dict) and all(
@@ -73,6 +76,17 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         company_code=vehicle.company_code,
         vehicle_record_id=vehicle.id,
     ).first()
+
+    from vehicle_saved_result_guard import ERROR, MESSAGE, requires_newer_version
+    if state and requires_newer_version(state.result_json):
+        response = _dkss_common.jsonify(
+            ok=True, status="held", has_result=False, is_current=False,
+            error=ERROR, message=MESSAGE, analysis=None, sources={}, coverage={},
+            comparison=None, generated_at=None, analysis_method=None,
+            input_summary=None, scheduled_comparison=None, can_generate=False,
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     bundle = _dkss_serialization.safe_json_dict(state.result_json) if state else {}
     # An isolated synthetic preview bypasses normal cache refresh and AI paths.
@@ -333,7 +347,8 @@ def vehicle_karte_analysis_tick():
 
     now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC"))
     due_ids = (
-        _dkss_common.db.session.query(_dkss_models.VehicleKarteAnalysis.id)
+        _dkss_common.db.session.query(
+            _dkss_models.VehicleKarteAnalysis.id, _dkss_models.VehicleKarteAnalysis.result_json)
         .join(
             _dkss_models.Vehicle,
             _dkss_common.db.and_(
@@ -361,9 +376,16 @@ def vehicle_karte_analysis_tick():
             _dkss_models.VehicleKarteAnalysis.next_analysis_at,
             _dkss_models.VehicleKarteAnalysis.id,
         )
-        .limit(20)
-        .all()
+        .yield_per(100)
     )
+    from vehicle_saved_result_guard import requires_newer_version
+    runnable = []
+    for state_id, saved_result in due_ids:
+        if not requires_newer_version(saved_result):
+            runnable.append((state_id,))
+            if len(runnable) == 20:
+                break
+    due_ids = runnable
     _dkss_common.db.session.remove()
 
     completed = 0

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
 import json
+
+from vehicle_saved_result_guard import requires_newer_version
 from zoneinfo import ZoneInfo
 
 
@@ -81,6 +83,8 @@ class VehicleAnalysisQueueService:
             return value.replace(tzinfo=utc) if value.tzinfo is None else value.astimezone(utc)
 
         state = self.repository.get_or_create(vehicle)
+        if requires_newer_version(state.result_json):
+            return state
         fingerprints = payload["_fingerprints"]
         signature = snapshot_hash(fingerprints)
         old_result = self.parse_result(state.result_json)
@@ -144,7 +148,7 @@ class VehicleAnalysisJobService:
     def run(self, state_id):
         now = self.utc_now()
         state = self.repository.get(state_id)
-        if state is None:
+        if state is None or requires_newer_version(state.result_json):
             return False
         claimed_hash = state.input_hash
         token = self.new_token()

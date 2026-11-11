@@ -11,6 +11,7 @@ from .access import require_master_admin
 from . import document_import_queue as queue
 from . import import_owner
 from document_type_detection import KINDS
+from vehicle_saved_result_guard import SavedResultLockConflict
 
 
 def revision(row):
@@ -29,7 +30,11 @@ def correction_impact(row, lock=False):
     vehicle=Vehicle.query.filter_by(company_code=row.company_code,id=next(iter(ids)),deleted=False).first()
     if vehicle is None:
         return None, {'problems':['元の車両を確認できません。車両一覧から登録内容を確認してください。'], 'counts':{}}
-    return vehicle, current_app.extensions['dkss']['document_deletion']['plan'](vehicle,row,lock=lock)
+    try:
+        impact=current_app.extensions['dkss']['document_deletion']['plan'](vehicle,row,lock=lock)
+    except SavedResultLockConflict as error:
+        return vehicle, {'problems':[str(error)], 'counts':{}}
+    return vehicle,impact
 
 
 def document_import_kind(draft_id):

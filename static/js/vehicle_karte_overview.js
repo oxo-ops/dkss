@@ -30,6 +30,10 @@
             if (!data.ok) throw new Error();
             const current = data.status === "completed" && data.is_current === true;
             list.replaceChildren();
+            if (data.status === "held") {
+                summary.textContent = "保存保持中"; panel.dataset.current = "false";
+                status.hidden = false; status.textContent = data.message; return;
+            }
             let previewResult;
             if (previewMode) {
                 previewResult = preview.validate(data);

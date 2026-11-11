@@ -33,6 +33,12 @@
         });
         if (data.updated_at) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
     }
+    function showHeld(data) {
+        if (data.status !== 'held') return false;
+        list.replaceChildren(); if (order) order.style.display = 'none';
+        if (retry) retry.hidden = true;
+        status.textContent = data.message; return true;
+    }
     async function check(start = false, explicitRetry = false) {
         if (pending || stopped) return;
         pending = true;if (retry) retry.hidden = true;
@@ -40,10 +46,12 @@
             let response = await fetch(root.dataset.periodicSuggestions, {credentials:'same-origin',headers:{'Accept':'application/json'}});
             if (!response.ok) throw new Error('request_failed');
             let data = await response.json();
+            if (showHeld(data)) return;
             if ((data.status === 'missing' || explicitRetry) && canGenerate && start) {
                 response = await fetch(root.dataset.periodicSuggestions,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''},body:JSON.stringify({retry:explicitRetry})});
-                if (!response.ok) throw new Error('request_failed');
                 data = await response.json();
+                if (showHeld(data)) return;
+                if (!response.ok) throw new Error('request_failed');
             }
             if (data.status === 'completed') { render(data); return; }
             if (data.status === 'running') {
