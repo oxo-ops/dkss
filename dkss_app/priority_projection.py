@@ -58,6 +58,7 @@ def project_registered_priorities(analysis, vehicle, sources, *, is_current=None
     as_of = as_of or datetime.now(ZoneInfo('Asia/Tokyo')).date()
     snapshots, reason = [], None
     timing_results = {}
+    confirmed_results = {}
     instruction_context_cache = {}
     try:
         if db.session.new or db.session.dirty or db.session.deleted:
@@ -147,8 +148,10 @@ def project_registered_priorities(analysis, vehicle, sources, *, is_current=None
     if reason is None:
         from .priority_timing import project_registered_timing_priorities
         timing_results = project_registered_timing_priorities(analysis, vehicle, sources, as_of=as_of, is_current=is_current)
+        from .priority_confirmed_projection import project_registered_confirmed_priorities
+        confirmed_results = project_registered_confirmed_priorities(analysis, vehicle, sources, as_of=as_of, is_current=is_current)
     return project_priority(analysis, sources, snapshots, company_code=vehicle.company_code,
-        vehicle_id=vehicle.id, as_of=as_of, is_current=is_current, unavailable_reason=reason, timing_results=timing_results)
+        vehicle_id=vehicle.id, as_of=as_of, is_current=is_current, unavailable_reason=reason, timing_results=timing_results, confirmed_results=confirmed_results)
 
 
 def _other_operation_input_fingerprint(result_record, *, cache=None):

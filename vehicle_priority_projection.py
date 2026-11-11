@@ -339,7 +339,7 @@ def priority_order_key(item):
 
 
 def project_priority(analysis, sources, inspections, *, company_code, vehicle_id, as_of,
-                     is_current=None, unavailable_reason=None, timing_results=None):
+                     is_current=None, unavailable_reason=None, timing_results=None, confirmed_results=None):
     """Append assessment after the host fixed original proposal identity/revision."""
     if not isinstance(analysis, dict):
         return analysis
@@ -372,6 +372,10 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
             pass
         elif item.get('category') == '記録確認':
             reasons.append('記録照合と実車の安全指摘の区別は旧文章から推定しません')
+        elif str(item.get('priority_input_ref') or '').startswith('confirmation:'):
+            result, reason = (confirmed_results or {}).get(index, (None, '確認した原事実の現在状態を確認要'))
+            if reason:
+                reasons.append(reason)
         elif str(item.get('priority_input_ref') or '').startswith('timing:'):
             result, reason = (timing_results or {}).get(index, (None, '適用済み時期の現在根拠を確認要'))
             if reason:
@@ -416,7 +420,7 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
             if isinstance(result.get('scope'), dict) and isinstance(result['scope'].get('target'), str):
                 value['subject_label'] = result['scope']['target']
             for field in ('instruction_details', 'timing_reference', 'timing_origin_on',
-                          'timing_relation', 'timing_criteria', 'timing_rule_key'):
+                          'timing_relation', 'timing_criteria', 'timing_rule_key', 'confirmation_details'):
                 if result.get(field) is not None:
                     value[field] = result[field]
             item['priority'] = value['label']

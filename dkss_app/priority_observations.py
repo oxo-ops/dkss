@@ -158,10 +158,32 @@ def _observation(vehicle, row, events, ref, as_of):
     resolved = (verified and transitions[-1]['kind'] == 'recheck'
                 and transitions[-1]['result'] == '異常なし' and defect.get('status') == '解消'
                 and any(v['kind'] == 'repair' and v['status'] == '再確認待ち' for v in transitions))
-    return {'input_ref': ref, 'source_id': f'inspection:{row.id}',
+    try:
+        answers = json.loads(row.answers_json)
+    except (TypeError, ValueError):
+        answers = []
+    current_answers = [v for v in answers if isinstance(v, dict) and str(v.get('item_no')) == str(defect.get('item_no'))] if isinstance(answers, list) else []
+    open_matches = (row.status in {'承認済み', '点検完了'} and defect.get('status') in {'対応待ち', '整備中'}
+        and len(current_answers) == 1 and current_answers[0].get('value') == '×'
+        and all(current_answers[0].get(k) == defect['reported_answer'].get(k) for k in ('item_no', 'content', 'value', 'comment', 'files')))
+    reviewed, stopped = True, judgment.get('status') == '運行不可'
+    for event in events:
+        detail = _object(event.detail_json)
+        if detail is None:
+            reviewed = False; continue
+        for key in ('previous_judgment', 'judgment'):
+            if key in detail and not isinstance(detail[key], dict):
+                reviewed = False
+            elif isinstance(detail.get(key), dict) and detail[key].get('status') == '運行不可':
+                stopped = True
+    source_url = f'/vehicle/checklists/{row.checklist_id}?vehicle_record_id={vehicle.id}&year={row.year}&month={row.month}&active_day={row.day}#vehicle-flow-defect-{row.id}-{defect["defect_no"]}'
+    return {'input_ref': ref, 'source_id': f'inspection:{row.id}', 'source_url': source_url,
+        'registered_open_answer_matches': open_matches,
+        'stop_history_reviewed': reviewed, 'has_registered_stop_history': stopped,
+        'verification_scope': 'registered_event_chain_only_not_physical_validation',
         'record_id': row.id, 'defect_no': selected['defect_no'],
         'item_code': selected['item_code'], 'target': selected['item_content'],
-        'reported_at': defect['reported_at'], 'reported_answer': deepcopy(defect['reported_answer']),
+        'reported_at': defect['reported_at'], 'reported_at_iso': defect.get('reported_at_iso'), 'reported_answer': deepcopy(defect['reported_answer']),
         'registered_status': defect.get('status'), 'original_identity': deepcopy(selected),
         'current_defect_fingerprint': fingerprint(defect),
         'lifecycle_verified': verified, 'resolved_after_repair_and_recheck': resolved,
@@ -197,7 +219,7 @@ def read_inspection_observation_sources(vehicle, input_refs, *, as_of=None):
             exists = db.session.query(Vehicle.id).filter_by(company_code=vehicle.company_code, id=vehicle.id, deleted=False).first()
             if not exists:
                 return held('会社・車両の現在登録を確認できません')
-            rows = db.session.query(Result.id, Result.year, Result.month, Result.day, Result.status,
+            rows = db.session.query(Result.id, Result.checklist_id, Result.year, Result.month, Result.day, Result.status,
                 Result.checklist_snapshot_json, Result.answers_json, Result.operation_judgment_json).filter(
                 Result.company_code == vehicle.company_code, Result.vehicle_record_id == vehicle.id,
                 Result.id.in_(ids)).order_by(Result.id).all()
@@ -221,3 +243,38 @@ def read_inspection_observation_sources(vehicle, input_refs, *, as_of=None):
     except SQLAlchemyError:
         return held('元事象を読み取れないため比較を保留しています')
     return output
+
+
+def inspection_observation_options(vehicle, *, as_of):
+    """Offer exact stored event refs; never silently truncate a vehicle history."""
+    from .models import VehicleChecklistResult as Result, db
+    from sqlalchemy.exc import SQLAlchemyError
+    held = lambda reason: {'options': [], 'missing_conditions': [reason]}
+    if type(as_of) is not date or db.session.new or db.session.dirty or db.session.deleted:
+        return held('未保存変更・基準日を確認してから元観測を選択してください')
+    try:
+        with db.session.no_autoflush:
+            rows = db.session.query(Result.id, Result.year, Result.month, Result.day, Result.status,
+                Result.checklist_snapshot_json, Result.answers_json, Result.operation_judgment_json).filter_by(
+                    company_code=vehicle.company_code, vehicle_record_id=vehicle.id).order_by(Result.id).limit(501).all()
+            if len(rows) > 500:
+                return held('対象車両の点検履歴が候補読取上限を超えています。部分候補で比較はしません')
+            refs = []
+            for row in rows:
+                proof = inspection_provenance(InspectionSnapshot(vehicle.company_code, vehicle.id, row.id,
+                    f'{row.year}-{str(row.month).zfill(2)}-{str(row.day).zfill(2)}', row.status,
+                    row.checklist_snapshot_json, row.answers_json, row.operation_judgment_json, as_of))
+                refs.extend(value['input_ref'] for value in (proof or {}).get('events', []))
+            if len(refs) > 200:
+                return held('対象事象が候補読取上限を超えています。部分候補で比較はしません')
+            values = []
+            for offset in range(0, len(refs), MAX_REFERENCES):
+                result = read_inspection_observation_sources(vehicle, refs[offset:offset + MAX_REFERENCES], as_of=as_of)
+                if result['missing_conditions']:
+                    return {'options': [], 'missing_conditions': result['missing_conditions']}
+                values.extend(result['observations'])
+            return {'options': [{'value': value['input_ref'],
+                'label': f"{value['reported_at']} / {value['target']} / 指摘{value['defect_no']} / {value['registered_status']}",
+                'source_url': value['source_url'], 'observation': value} for value in values], 'missing_conditions': []}
+    except SQLAlchemyError:
+        return held('元観測の候補を読み取れないため比較を保留しています')

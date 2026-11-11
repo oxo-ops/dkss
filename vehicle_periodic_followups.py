@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 def generate_periodic_proposals(payload):
     from vehicle_karte_analysis_ai import analyze_vehicle_karte
+    from vehicle_priority_inputs import generation_priority_inputs
     result = analyze_vehicle_karte(payload)
     allowed = {row['source_id'] for row in payload['records']}
     for fact in payload.get('preventive_facts', {}).get('part_replacements', []):
@@ -21,6 +22,9 @@ def generate_periodic_proposals(payload):
     allowed.update(row['source_id'] for row in payload.get('maintenance_knowledge', []))
     if payload.get('vehicle_source'):
         allowed.add(payload['vehicle_source']['source_id'])
+    for offer in generation_priority_inputs(payload).values():
+        if offer.get('kind') == 'confirmed_priority':
+            allowed.update(offer.get('source_ids', []))
     items = []
     for item in result.get('recommendations', []):
         refs = item.get('source_ids') or []
