@@ -55,6 +55,100 @@ PREVIEW_STATE = """() => {
 }"""
 
 
+PREVIEW_GEOMETRY = """() => {
+    const root = document.querySelector('.km-detail-panel .invoice-pdf-viewer');
+    const canvas = root?.querySelector('.invoice-pdf-page canvas');
+    const scroll = root?.querySelector('[data-pdf-scroll]');
+    if (!canvas || !scroll) return null;
+    const box = element => { const r = element.getBoundingClientRect();
+        return {left:r.left, top:r.top, right:r.right, bottom:r.bottom, width:r.width, height:r.height}; };
+    const paper = box(canvas);
+    const clip = {left:0, top:0, right:innerWidth, bottom:innerHeight};
+    const clipping = [];
+    for (let node = canvas.parentElement; node; node = node.parentElement) {
+        const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+        const x = /(auto|scroll|hidden|clip)/.test(style.overflowX);
+        const y = /(auto|scroll|hidden|clip)/.test(style.overflowY);
+        if (x || y) clipping.push({x,y,left:rect.left+node.clientLeft,top:rect.top+node.clientTop,
+            right:rect.left+node.clientLeft+node.clientWidth,bottom:rect.top+node.clientTop+node.clientHeight});
+        if (x) {
+            clip.left = Math.max(clip.left, rect.left + node.clientLeft);
+            clip.right = Math.min(clip.right, rect.left + node.clientLeft + node.clientWidth);
+        }
+        if (y) {
+            clip.top = Math.max(clip.top, rect.top + node.clientTop);
+            clip.bottom = Math.min(clip.bottom, rect.top + node.clientTop + node.clientHeight);
+        }
+    }
+    const visible = {left:Math.max(paper.left,clip.left), top:Math.max(paper.top,clip.top),
+        right:Math.min(paper.right,clip.right), bottom:Math.min(paper.bottom,clip.bottom)};
+    const region = {left:visible.left-paper.left, top:visible.top-paper.top,
+        right:visible.right-paper.left, bottom:visible.bottom-paper.top};
+    const page = canvas.closest('.invoice-pdf-page');
+    const points = [[visible.left+1,visible.top+1],[visible.right-1,visible.top+1],
+        [visible.left+1,visible.bottom-1],[visible.right-1,visible.bottom-1],
+        [(visible.left+visible.right)/2,(visible.top+visible.bottom)/2]];
+    const unobscured = visible.right-visible.left > 2 && visible.bottom-visible.top > 2
+        && points.every(([x,y]) => page.contains(document.elementFromPoint(x,y)));
+    return {paper, clip, region, clipping, viewport:{width:innerWidth,height:innerHeight},
+        unobscured, raster:{width:canvas.width,height:canvas.height},
+        scroll:{top:scroll.scrollTop,left:scroll.scrollLeft,width:scroll.clientWidth,height:scroll.clientHeight,
+            extent_width:scroll.scrollWidth,extent_height:scroll.scrollHeight,
+            overflow_y:getComputedStyle(scroll).overflowY}};
+}"""
+
+
+def verify_preview_regions(regions, observation):
+    """Two real scroll positions must cover the entire stable rendered page.
+
+    One CSS pixel is only for fractional border/scroll rounding. There is no
+    percentage visibility exemption: both full width and continuous full height
+    must be reached within the actual ancestor-clipped browser viewport.
+    """
+    require(len(regions) == 2 and [r['edge'] for r in regions] == ['top', 'bottom'],
+            'Both real preview scroll endpoints are required')
+    first, last = regions
+    size = (first['paper']['width'], first['paper']['height'])
+    require(size[0] > 2 and size[1] > 2 and observation.get('ready') is True and
+            observation.get('error') is False and
+            observation.get('dimensions') == [dict(width=size[0], height=size[1])] and
+            observation.get('raster') == [first['raster']], 'Final preview dimensions or raster are stale')
+    for sample in regions:
+        paper, clip, region, scroll = (sample[key] for key in ('paper', 'clip', 'region', 'scroll'))
+        viewport = sample['viewport']
+        actual_clip = dict(left=0,top=0,right=viewport['width'],bottom=viewport['height'])
+        for ancestor in sample['clipping']:
+            for axis, start, end in (('x','left','right'), ('y','top','bottom')):
+                if ancestor[axis]:
+                    actual_clip[start] = max(actual_clip[start], ancestor[start])
+                    actual_clip[end] = min(actual_clip[end], ancestor[end])
+        require(clip == actual_clip and viewport['width'] > 0 and viewport['height'] > 0 and
+                abs(paper['right']-paper['left']-paper['width']) < 0.01 and
+                abs(paper['bottom']-paper['top']-paper['height']) < 0.01,
+                'Preview clipping does not match the real viewport and ancestors')
+        require(sample.get('stable_samples', 0) >= 7 and sample.get('stable_ms', 0) >= 300 and
+                (paper['width'], paper['height']) == size and sample['raster'] == first['raster'] and
+                sample['raster']['width'] > 0 and sample['raster']['height'] > 0,
+                'Preview resized or raster changed between endpoint captures')
+        require(sample.get('unobscured') is True and clip['right'] > clip['left'] and
+                clip['bottom'] > clip['top'] and scroll['width'] > 0 and scroll['height'] > 0 and
+                scroll['overflow_y'] in ('auto', 'scroll'), 'Preview scroll window is clipped or obscured')
+        expected = dict(left=max(paper['left'], clip['left'])-paper['left'],
+            top=max(paper['top'], clip['top'])-paper['top'],
+            right=min(paper['right'], clip['right'])-paper['left'],
+            bottom=min(paper['bottom'], clip['bottom'])-paper['top'])
+        require(region == expected and region['right']-region['left'] > 2 and
+                region['bottom']-region['top'] > 2 and region['left'] <= 1 and
+                region['right'] >= size[0]-1, 'Actual visible region does not cover the full page width')
+        require(scroll['left'] <= 1 and scroll['extent_width'] >= scroll['width'] and
+                scroll['extent_height'] >= scroll['height'], 'Invalid preview scroll geometry')
+    require(first['scroll']['top'] <= 1 and
+            abs(last['scroll']['top']-(last['scroll']['extent_height']-last['scroll']['height'])) <= 1 and
+            first['region']['top'] <= 1 and last['region']['bottom'] >= size[1]-1 and
+            first['region']['bottom'] + 1 >= last['region']['top'],
+            'Preview top/bottom scrolling leaves an unreachable page region')
+
+
 def verified_preview_fetch(events, observation, *, source_url, source_hash, page_url,
                            phase, scope_id, record_key, console_errors):
     """Correlate one fully rendered fixture preview, never infer an abort caller.
@@ -76,8 +170,9 @@ def verified_preview_fetch(events, observation, *, source_url, source_hash, page
             observation.get('record_key') == record_key and
             observation.get('disclosure_open') is True and
             observation.get('disclosure_closed') is True and
-            observation.get('canvas_in_viewport') is True,
+            observation.get('canvas_regions_reachable') is True,
             'Preview did not complete its real visible one-page disclosure')
+    verify_preview_regions(observation.get('preview_regions', []), observation)
     for key in ('dimensions', 'raster'):
         values = observation.get(key, [])
         require(len(values) == 1 and values[0].get('width', 0) > 0 and
@@ -318,8 +413,9 @@ def main():
             report['verified_invoice_preview_cancellations'] = []
             report['native_invoice_http_experiment'] = bool(args.native_invoice_download_http)
             if not args.invoice_preview_observe_only:
-                report.update(diagnostic_only=False, full_invoice_browser_executed=True,
-                    native_download_reexecuted=True)
+                report.update(diagnostic_only=False, full_invoice_browser_selected=True,
+                    full_invoice_browser_executed=False, native_download_attempted=False,
+                    native_download_reexecuted=False)
 
         def observe_invoice_source(event, request, **details):
             if args.case != 'invoice' or request.url != ORIGIN + invoice_source_path:
@@ -424,6 +520,25 @@ def main():
                 if args.case == 'invoice':
                     page.on('console', record_invoice_preview_error)
 
+                def settled_invoice_preview(entry):
+                    previous, stable_samples = None, 0
+                    # Seven equal samples span at least 300ms, exceeding the
+                    # frozen viewer's 120ms ResizeObserver debounce. No style,
+                    # viewport, zoom, application state, or renderer is patched.
+                    for _ in range(100):
+                        state, geometry = page.evaluate(PREVIEW_STATE), page.evaluate(PREVIEW_GEOMETRY)
+                        entry.update(state)
+                        if state.get('ready') and geometry and (state, geometry) == previous:
+                            stable_samples += 1
+                        else:
+                            stable_samples = 1
+                        if state.get('ready') and geometry and stable_samples >= 7:
+                            geometry.update(stable_samples=stable_samples, stable_ms=(stable_samples-1)*50)
+                            return geometry
+                        previous = (state, geometry)
+                        page.wait_for_timeout(50)
+                    raise AssertionError('Invoice preview did not reach a stable final rendered size')
+
                 def observe_invoice_preview(width, stage):
                     entry = dict(width=width, stage=stage, phase=invoice_phase, url=page.url,
                         scope_id=invoice_preview_scope['id'] if invoice_preview_scope else None)
@@ -446,11 +561,28 @@ def main():
                     if entry['ready']:
                         canvas = viewer.locator('.invoice-pdf-page canvas')
                         expect(canvas).to_be_visible()
-                        canvas.scroll_into_view_if_needed()
-                        expect(canvas).to_be_in_viewport(ratio=1)
-                        entry.update(page.evaluate(PREVIEW_STATE))
-                        entry['canvas_in_viewport'] = True
-                        page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}-visible.png'))
+                        scroll = viewer.locator('[data-pdf-scroll]')
+                        scroll.scroll_into_view_if_needed()
+                        geometry = settled_invoice_preview(entry)
+                        page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}.png'), full_page=True)
+                        entry['preview_regions'] = []
+                        for edge in ('top', 'bottom'):
+                            scroll.hover()
+                            position = page.evaluate(PREVIEW_GEOMETRY)['scroll']
+                            target = 0 if edge == 'top' else position['extent_height']-position['height']
+                            page.mouse.wheel(0, target-position['top'])
+                            scroll.evaluate("(e,edge) => new Promise((resolve,reject) => { const start=performance.now();"
+                                "const check=()=>{ const target=edge==='top'?0:e.scrollHeight-e.clientHeight;"
+                                "if(Math.abs(e.scrollTop-target)<=1)return resolve();"
+                                "if(performance.now()-start>5000)return reject(new Error('Preview scroll endpoint not reached'));"
+                                "requestAnimationFrame(check); };check(); })", edge)
+                            geometry = settled_invoice_preview(entry)
+                            geometry['edge'] = edge
+                            entry['preview_regions'].append(geometry)
+                            suffix = 'visible' if edge == 'top' else 'visible-bottom'
+                            page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}-{suffix}.png'))
+                        verify_preview_regions(entry['preview_regions'], entry)
+                        entry['canvas_regions_reachable'] = True
                     disclosure.locator('summary').click()
                     expect(disclosure).not_to_have_attribute('open', '')
                     entry['disclosure_closed'] = True
@@ -622,6 +754,7 @@ def main():
                             original_response.status_code, original_response.headers.to_wsgi_list(),
                             original_response.get_data(), original_hash, width=width)
                         report['invoice_http_transfers'].append(receiver.report)
+                        report['native_download_attempted'] = True
                         with receiver:
                             with page.expect_download() as transfer:
                                 download_link.click()
@@ -741,6 +874,8 @@ def main():
                 require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser request or script failure')
                 require(snapshot() == before, 'Browser GET changed protected saved data')
                 report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
+                if args.case == 'invoice':
+                    report.update(full_invoice_browser_executed=True, native_download_reexecuted=True)
                 return 0
             except Exception:
                 if 'page' in locals() and not page.is_closed():

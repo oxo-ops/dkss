@@ -1,4 +1,4 @@
-name: PR377 Invoice Full Acceptance
+name: PR377 Invoice Scroll Preview Acceptance
 
 on:
   push:
@@ -171,7 +171,7 @@ jobs:
             --application "$GITHUB_WORKSPACE/application" --validation "$GITHUB_WORKSPACE/validation" \
             --validation-sha "$GITHUB_SHA" --artifacts "$RUNNER_TEMP/common-priority-results"
 
-      - name: Run only invoice with preview and native download acceptance
+      - name: Run invoice with reachable preview and native download acceptance
         run: |
           set -euo pipefail
           chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PYCHROMIUM'
@@ -185,7 +185,7 @@ jobs:
             --validation-sha "$GITHUB_SHA" --artifacts "$RUNNER_TEMP/common-priority-results" \
             --python "$RUNNER_TEMP/browser-venv/bin/python" --chromium "$chromium"
 
-      - name: Require all invoice previews, native downloads and unchanged source
+      - name: Require scroll coverage, source proofs, native downloads and unchanged source
         if: ${{ !cancelled() && steps.harness.outcome == 'success' }}
         run: |
           set -euo pipefail
@@ -197,7 +197,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7 from original run
         with:
-          name: pr377-invoice-full-acceptance-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pr377-invoice-scroll-acceptance-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/common-priority-results/
           if-no-files-found: error
           retention-days: 14

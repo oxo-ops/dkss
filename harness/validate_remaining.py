@@ -13,11 +13,11 @@ from urllib.parse import urlsplit
 APP_SHA = '30d4dfeee97f69bd00650c6bf56a5ce234f34437'
 APP_TREE = '31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea'
 FIXED_HELPER_BLOB = '44e1612f2ca59eca80a2c6a436426bc722af18a7'
-FIXED_ACCEPTANCE_BLOB = '512fcf2744d991246bee62433d43467ff7bc7573'
+FIXED_ACCEPTANCE_BLOB = '7c5a881153b061b08734fda8ef7e3bd8a54c0e90'
 RECEIVER_BLOB = 'e84e269a1f72e9772bd33284024601f31644d1c0'
 CONTAINER_IMAGE = 'mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d'
 PDF_NAVIGATION_BLOB = '4573aa6f07666f1d4e508b7352cc4cd42df0a323'
-PRIOR_INDEX_SHA256 = '7c976d288d385ac74af17c4fc8903d63d752ca11a714a0c94256f8c6eb418524'
+PRIOR_INDEX_SHA256 = '756a19a2731cf3c68679ee396ad0c4d12a187bf987a7436a98fd482400904892'
 VALIDATION_FILES = {
     '.github/workflows/pr377-supplemental-browser.yml', 'README.md',
     'harness/confirmation_acceptance.py', 'harness/validate_remaining.py',
@@ -103,7 +103,7 @@ def verify_sources(args):
 
 
 def harness_root(args):
-    return args.artifacts.parent / 'pr377-invoice-final-harness'
+    return args.artifacts.parent / 'pr377-invoice-scroll-harness'
 
 
 def verify_copies(args):
@@ -152,7 +152,7 @@ def prepare(args):
         prior_evidence_index_sha256=PRIOR_INDEX_SHA256,
         current_run_browser_cases=list(CURRENT_CASES),
         current_run_http_cases=[],
-        current_invoice_preview_requirements='six rendered and viewport-visible exact-source previews',
+        current_invoice_preview_requirements='six rendered exact-source previews with continuous scroll reachability',
         application_checkout_modified=False,
         prepared_utc=now())
     write_json(args.artifacts / 'harness-provenance.json', manifest)
@@ -164,21 +164,22 @@ def prior_evidence(args):
     prior = json.loads(path.read_text())
     require(prior['application_commit'] == APP_SHA and prior['application_tree'] == APP_TREE,
             'Prior evidence application mismatch')
-    require(prior['run_id'] == 43069457448 and prior['artifact_id'] == 13878495078,
-            'Wrong previous diagnostic evidence run')
-    require(prior['http_passed'] == 0 and prior['browser_passed'] == 0 and prior['source_unchanged'] is True
-            and prior['diagnostic_browser_completed'] == 1,
-            'Prior diagnostic counts or source status changed')
-    require(prior['overall_status'] == 'PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE'
-            and prior['full_invoice_browser_executed'] is False and prior['native_download_reexecuted'] is False,
-            'Prior diagnostic must not be relabeled as acceptance')
+    require(prior['run_id'] == 43072294744 and prior['artifact_id'] == 13878337943,
+            'Wrong previous invoice evidence run')
+    require(prior['http_passed'] == 0 and prior['browser_passed'] == 0 and prior['source_unchanged'] is True,
+            'Prior counts or source status changed')
+    require(prior['overall_status'] == 'FAILED_OR_INCOMPLETE', 'Latest invoice failure must remain intact')
+    require(len(prior['scenarios']) == 1 and prior['scenarios'][0]['id'] == 'browser-connected-invoice'
+            and prior['scenarios'][0]['passed'] is False, 'Current scope remains the failed invoice browser case')
+    reached = prior['actual_reached_evidence']
+    require(reached['native_download_count'] == reached['native_transfer_count']
+            == reached['verified_preview_proof_count'] == reached['classified_preview_cancellation_count'] == 0
+            and reached['final_protected_records_unchanged_field_present'] is False,
+            'Mode intent must not be relabeled as reached acceptance evidence')
     previous = prior['previous_evidence_reference']
-    require(previous['run_id'] == 43066261383 and previous['http_passed'] == 0
-            and previous['browser_passed'] == 0 and previous['overall_status'] == 'FAILED_OR_INCOMPLETE',
-            'Earlier invoice failure must remain intact')
-    require(len(previous['scenarios']) == 1 and previous['scenarios'][0]['id'] == 'browser-connected-invoice'
-            and previous['scenarios'][0]['passed'] is False,
-            'Current scope remains the previously failed invoice browser case')
+    require(previous['run_id'] == 43069457448 and previous['http_passed'] == 0 and previous['browser_passed'] == 0
+            and previous['overall_status'] == 'PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE',
+            'Earlier diagnostic must remain separate and contribute zero acceptance')
     return prior
 
 
@@ -278,6 +279,8 @@ def validate_report(report, scenario):
     else:
         require(report['status'] == 'PREFLIGHT_PASS_BROWSER_NOT_RUN' and report['browser_started'] is False
                 and report['browser_acceptance_passed'] is False, 'HTTP-only report mismatch')
+    require(report['full_invoice_browser_selected'] is True and report['native_download_attempted'] is True,
+            'Full invoice/native paths were not selected and reached')
     require(report['diagnostic_only'] is False and report['full_invoice_browser_executed'] is True
             and report['native_download_reexecuted'] is True, 'Diagnostic report cannot pass full invoice acceptance')
     require(report['native_invoice_http_experiment'] is True
@@ -307,6 +310,56 @@ def validate_report(report, scenario):
     for name in ('page_errors', 'blocked_requests', 'failed_gets', 'failed_requests'):
         require(not report[name], 'Unexpected browser failure remains: ' + name)
 
+
+def verify_preview_regions(regions, observation):
+    """Two real scroll positions must cover the entire stable rendered page.
+
+    One CSS pixel is only for fractional border/scroll rounding. There is no
+    percentage visibility exemption: both full width and continuous full height
+    must be reached within the actual ancestor-clipped browser viewport.
+    """
+    require(len(regions) == 2 and [r['edge'] for r in regions] == ['top', 'bottom'],
+            'Both real preview scroll endpoints are required')
+    first, last = regions
+    size = (first['paper']['width'], first['paper']['height'])
+    require(size[0] > 2 and size[1] > 2 and observation.get('ready') is True and
+            observation.get('error') is False and
+            observation.get('dimensions') == [dict(width=size[0], height=size[1])] and
+            observation.get('raster') == [first['raster']], 'Final preview dimensions or raster are stale')
+    for sample in regions:
+        paper, clip, region, scroll = (sample[key] for key in ('paper', 'clip', 'region', 'scroll'))
+        viewport = sample['viewport']
+        actual_clip = dict(left=0,top=0,right=viewport['width'],bottom=viewport['height'])
+        for ancestor in sample['clipping']:
+            for axis, start, end in (('x','left','right'), ('y','top','bottom')):
+                if ancestor[axis]:
+                    actual_clip[start] = max(actual_clip[start], ancestor[start])
+                    actual_clip[end] = min(actual_clip[end], ancestor[end])
+        require(clip == actual_clip and viewport['width'] > 0 and viewport['height'] > 0 and
+                abs(paper['right']-paper['left']-paper['width']) < 0.01 and
+                abs(paper['bottom']-paper['top']-paper['height']) < 0.01,
+                'Preview clipping does not match the real viewport and ancestors')
+        require(sample.get('stable_samples', 0) >= 7 and sample.get('stable_ms', 0) >= 300 and
+                (paper['width'], paper['height']) == size and sample['raster'] == first['raster'] and
+                sample['raster']['width'] > 0 and sample['raster']['height'] > 0,
+                'Preview resized or raster changed between endpoint captures')
+        require(sample.get('unobscured') is True and clip['right'] > clip['left'] and
+                clip['bottom'] > clip['top'] and scroll['width'] > 0 and scroll['height'] > 0 and
+                scroll['overflow_y'] in ('auto', 'scroll'), 'Preview scroll window is clipped or obscured')
+        expected = dict(left=max(paper['left'], clip['left'])-paper['left'],
+            top=max(paper['top'], clip['top'])-paper['top'],
+            right=min(paper['right'], clip['right'])-paper['left'],
+            bottom=min(paper['bottom'], clip['bottom'])-paper['top'])
+        require(region == expected and region['right']-region['left'] > 2 and
+                region['bottom']-region['top'] > 2 and region['left'] <= 1 and
+                region['right'] >= size[0]-1, 'Actual visible region does not cover the full page width')
+        require(scroll['left'] <= 1 and scroll['extent_width'] >= scroll['width'] and
+                scroll['extent_height'] >= scroll['height'], 'Invalid preview scroll geometry')
+    require(first['scroll']['top'] <= 1 and
+            abs(last['scroll']['top']-(last['scroll']['extent_height']-last['scroll']['height'])) <= 1 and
+            first['region']['top'] <= 1 and last['region']['bottom'] >= size[1]-1 and
+            first['region']['bottom'] + 1 >= last['region']['top'],
+            'Preview top/bottom scrolling leaves an unreachable page region')
 
 def validate_previews(report):
     expected = [(width, stage) for width in (1440, 390, 320)
@@ -338,7 +391,8 @@ def validate_previews(report):
                 and observation['source_base'] == urlsplit(source['source_url']).path
                 and observation['record_key'] == observations[0]['record_key'] and observation['record_key']
                 and observation['disclosure_open'] is True and observation['disclosure_closed'] is True
-                and observation['canvas_in_viewport'] is True, 'Preview is not fully rendered and visibly verified')
+                and observation['canvas_regions_reachable'] is True, 'Preview is not fully rendered and visibly verified')
+        verify_preview_regions(observation['preview_regions'], observation)
         for name in ('dimensions', 'raster'):
             values = observation[name]
             require(len(values) == 1 and values[0]['width'] > 0 and values[0]['height'] > 0,
@@ -417,7 +471,7 @@ def aggregate(args):
             screenshots = []
             for width in (1440, 390, 320):
                 for stage in ('maintenance-tab', 'maintenance-record'):
-                    for suffix in ('', '-visible'):
+                    for suffix in ('', '-visible', '-visible-bottom'):
                         path = args.artifacts / scenario['folder'] / f'invoice-preview-{stage}-{width}{suffix}.png'
                         require(path.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'), 'Required preview screenshot missing')
                         screenshots.append(dict(path=str(path.relative_to(args.artifacts)), **identity(path)))
@@ -443,7 +497,8 @@ def aggregate(args):
         invoice_native_http_experiment=True, invoice_download_cause_confirmed=False,
         diagnostic_only=False, current_run_mode='full_invoice_browser_acceptance',
         native_download_reexecution_required=True,
-        required_invoice_previews=6, required_native_downloads=3, abort_caller_proven=False,
+        required_invoice_previews=6, required_preview_screenshots=18,
+        required_native_downloads=3, abort_caller_proven=False,
         previous_results_not_counted_as_current_run=True,
         prior_evidence_index_sha256=PRIOR_INDEX_SHA256,
         prior_evidence_reference=prior,

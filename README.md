@@ -1,4 +1,4 @@
-# PR377 invoice full browser acceptance
+# PR377 invoice scroll-preview acceptance
 
 This validation runs only the still-unpassed invoice browser case at 1440, 390 and 320px. It requires embedded preview readiness and visible canvas evidence on both maintenance screens, followed by the actual native original download at each width, in the same full invoice flow. No other previously passing browser case, separate HTTP preflight, Node, comparison or dashboard group is rerun.
 
@@ -9,15 +9,21 @@ Native downloads passed in an earlier run, but that invoice case still failed on
 - Application commit: `30d4dfeee97f69bd00650c6bf56a5ce234f34437`.
 - Application tree: `31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea`.
 - Requirements blob: `f29b6951157ecb12ef81490f42dfb5d57bdd9330`, 38 exact pins.
-- Previous validation commit: `e5f3f3ecd4e27cfeb156b9caef70ece006db4445`.
-- Previous validation tree: `529dcb5ef17e0c20beaa78692bce7eaed1d3ee0e`.
+- Previous validation commit: `431a29e94e27a6a295f926801d806a8856805be1`.
+- Previous validation tree: `8f8944775c59da131c1870d6881df1957b202e13`.
 - The triggering `github.sha`, validation tree and every validation file hash are recorded separately.
 
 Application and validation have separate clean checkouts, with no overlay. Runtime verifies source identity, original harness hashes, fixed helper bytes, copied wrapper/guard and import-shadow exclusions before and after execution and at aggregation. No product branch, main, PR, deployment, live service or existing database action is included.
 
 ## Prior evidence retains each original verdict
 
-`harness/prior-evidence.json` has SHA-256 `7c976d288d385ac74af17c4fc8903d63d752ca11a714a0c94256f8c6eb418524`.
+`harness/prior-evidence.json` has SHA-256 `756a19a2731cf3c68679ee396ad0c4d12a187bf987a7436a98fd482400904892`.
+
+Latest [run 43072294744](https://github.com/oxo-ops/dkss/actions/runs/43072294744), validation `431a29e94e27a6a295f926801d806a8856805be1`, stopped at the first 1440px maintenance-tab whole-canvas viewport assertion. The final attached canvas was 337×477, while its overflow:auto scroll window exposed about 400px vertically. The reported 119×169 state had been captured before the resize. A 520px outer viewer with toolbar/status and default width-fit cannot simultaneously show that whole page. This evidence does not establish a product defect.
+
+The run remains failed with zero accepted cases. Preview classification, native download and final protected-record confirmation were not reached: proof/cancellation/download/transfer arrays are empty, and the final protected field is absent. Its old eager `full_invoice_browser_executed`/`native_download_reexecuted` booleans represented mode intent, not completion; the index explicitly records that distinction. Artifact `13878337943`, SHA-256 `9767c1a2a73686f877b35332493bc6361310836082f9241db6a7db90acf38620`. Original report/exit/times, six manifests and the complete nested index are retained.
+
+Earlier hierarchy, preserved unchanged:
 
 1. [Run 43069457448](https://github.com/oxo-ops/dkss/actions/runs/43069457448) completed a 1440px preview diagnostic only. It retains `PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE`, HTTP/browser acceptance 0/0 and no native-download reexecution. Both maintenance-screen DOM observations were ready, with positive raster dimensions and no preview error, alongside two `ERR_ABORTED` fetches. The full-page screenshots did not themselves show the canvas in the viewport; that is distinct from DOM raster readiness. Artifact `13878495078`, SHA-256 `383bd14f62b79c040aada0bc402f282c15a3a45ca9dab116c7d0f49c998d1d36`.
 2. [Run 43066261383](https://github.com/oxo-ops/dkss/actions/runs/43066261383) completed three native downloads with matching saved bytes, one completed receiver transfer per width and cleanup. The full invoice report still failed on six preview fetch cancellations; its exit 1 and failed verdict remain. Artifact `13876665717`, SHA-256 `65f6663bb490c2ff630297ac49d608c74768101d2f31e40d471c14ed12024cc3`.
@@ -26,25 +32,35 @@ Application and validation have separate clean checkouts, with no overlay. Runti
 5. Run `43053078956`: 3 HTTP and 10 browser cases passed; invoice/manufacturer/legal failed.
 6. Run `43043343085`: Node 41 tests, comparison 14 cases and dashboard 6 widths passed; the run failed on the original companion fixture.
 
-Every level preserves its artifact digest, original reports/exits/timestamps, manifest hashes and nested reference. The previous index SHA-256 `9c313472fcfe008ba25bbe49d43843c87fb064253dfcfc46c4d2af93e8d1fe30` is nested unchanged. The latest ZIP and every expanded file, source/harness identities, diagnostic report/exits, screenshot hashes and six manifests were checked before preparation. Diagnostic completion never counts as acceptance. Prior successes do not count as current results.
+Every level preserves its artifact digest, original reports/exits/timestamps, manifest hashes and nested reference. The previous index SHA-256 `7c976d288d385ac74af17c4fc8903d63d752ca11a714a0c94256f8c6eb418524` is nested unchanged. Its diagnostic and older references remain intact. The latest ZIP and every expanded file, source/harness identities, failed report/exits and six manifests were checked before preparation. Diagnostic completion never counts as acceptance. Prior successes do not count as current results.
 
 [Original PR run 43036556295, attempt 2](https://github.com/oxo-ops/dkss/actions/runs/43036556295/attempts/2) failed during dependency installation on Ubuntu-host DNS and was not rerun by this work. Supplemental acceptance does not replace original CI or full regression.
 
 ## Preview and cancellation evidence
 
-For each width, the real maintenance tab and exact record link each require one complete preview: actual disclosure open/close, one-page current/count/status, positive page dimensions and raster, exact source and saved-record identity, no timeout or preview console error. The canvas is scrolled into view and must have 100% viewport intersection before a dedicated `invoice-preview-{stage}-{width}-visible.png`. The original full-page screenshot is retained too. Six ordered observations and all twelve screenshots are mandatory.
+For each width, the real maintenance tab and exact record link require one complete preview: disclosure open/close, one-page current/count/status, positive page dimensions and raster, exact source/record identity and no timeout or preview console error.
+
+The corrected visibility check verifies reachability through the existing scroll window, without changing zoom, layout, rendering, DOM, CSS or scroll values:
+
+- After bringing the inner scroller into view, wait for seven equal ready/raster/geometry samples at 50ms intervals spanning at least 300ms, within a five-second bound. Refresh final reported dimensions after settling.
+- Hover the actual inner scroller and use native mouse-wheel input to its top and bottom. Wait for each real endpoint and settle again.
+- Intersect the viewport with every clipping ancestor, measure the actual paper-local visible region, and verify visible corners/center are not obscured by an unrelated overlay.
+- Both endpoint captures must use the same stable final paper/raster size, expose the full page width and together cover its entire height continuously, from the real top to the real bottom. One CSS pixel permits fractional border/scroll rounding only; no percentage visibility exemption is introduced.
+- Save three PNGs per preview: the original `invoice-preview-{stage}-{width}.png`, top `-visible.png` and bottom `-visible-bottom.png`. All six observations and eighteen PNGs are required.
+
+`canvas_regions_reachable=true` replaces simultaneous whole-canvas visibility. `preview_regions` contains ordered top/bottom paper, viewport, clipping ancestors/intersection, visible region, unobscured check, raster, actual scroll geometry and stability evidence. The outer runner recomputes geometry using the exact reviewed pure predicate (source SHA-256 `88905427917f3f444caf869416f31143a3547232194f2d47eabaa3800e077ae4`) and rejects stale/changing raster, clipped width, gaps, unreachable endpoints or missing evidence. Reachability over two user scroll positions does not mean the entire page was visible simultaneously. The synthetic PDF page is blank: this proves rendered page access, not text or visual-content fidelity.
 
 Each preview must correlate exactly four ordered source events to one distinct Request, the actual same main Frame/Page, exact scope/phase/page and original source: request, bridge response, browser response, then requestfinished or requestfailed. Both responses must be HTTP 200 with the original small PDF hash/length and identical selected inline, unencoded, non-range headers. Range/If-Range, other status/type/body, duplicate/late events, other frame/source or another error cannot qualify.
 
-Only after verified visible rendering may the exact `net::ERR_ABORTED` entry for that identical Request move to `verified_invoice_preview_cancellations`. Its raw failure and all source events remain. Equal-valued failures from other Request objects stay fatal. Normal requestfinished must meet the same evidence requirements. `verified_invoice_preview_fetches` contains six distinct proof records; cancellations must equal only their failed subset. The outer aggregate independently checks these identities and evidence references, all visible/ready fields and screenshots, alongside unchanged native saved-download evidence.
+Only after verified rendered-page scroll reachability may the exact `net::ERR_ABORTED` entry for that identical Request move to `verified_invoice_preview_cancellations`. Its raw failure and all source events remain. Equal-valued failures from other Request objects stay fatal. Normal requestfinished must meet the same evidence requirements. `verified_invoice_preview_fetches` contains six distinct proof records; cancellations must equal only their failed subset. The outer aggregate independently checks these identities and evidence references, all reachability/ready geometry and screenshots, alongside unchanged native saved-download evidence.
 
-All 51 conditions from the immediate helper baseline remain. The bridge, get, snapshot and actual native-download block are unchanged. The fixed helper passed 15 pure/static contracts with negative identity/frame/response/render/error cases and exact Request-object removal checks; read-only review found no static blockers. Those tests do not substitute for the new real-browser evidence.
+The fixed helper preserves 64 of 65 direct-baseline require conditions; only the invalid whole-canvas visibility condition is replaced by stable, continuous scroll reachability. Source/frame/scope/callback/acceptor requirements, bridge/get/snapshot and native download checks remain. It passed 21 pure/static contracts with geometry, clipping, stability, resize, overlay and unknown-failure negatives; independent read-only review found no static blockers. These tests do not substitute for new real-browser scrolling and screenshots.
 
 The observable classification does not prove who called abort or assert an intentional PDF.js completion cancellation. It applies only to the exact evidence-supported preview request. Unknown, unmatched or otherwise failing requests remain fatal. Diagnostic mode cannot satisfy this full-acceptance aggregator.
 
 ## Actual native download in the same full flow
 
-The command uses `--case invoice --run-browser --native-invoice-download-http` without the diagnostic flag. Each width retains the real source navigation, Back, maintenance tab, exact record, actual download click, Playwright Download, null failure and saved-file SHA-256/length match. Native download is rechecked only as part of this complete invoice acceptance with the new preview requirements, not as a separate successful-case rerun.
+The command uses `--case invoice --run-browser --native-invoice-download-http` without the diagnostic flag. `full_invoice_browser_selected` records intent separately. `native_download_attempted` changes only upon reaching that path; full execution and native-download completion markers stay false until final full PASS. Partial arrays remain the actual reached evidence if a run fails. Each width retains the real source navigation, Back, maintenance tab, exact record, actual download click, Playwright Download, null failure and saved-file SHA-256/length match. Native download is rechecked only as part of this complete invoice acceptance with the new preview requirements, not as a separate successful-case rerun.
 
 The unchanged response-only receiver freezes the actual synthetic original PDF response. It serves only one exact GET/Host/path/loopback peer on IPv4 `127.0.0.1:8765`, with a 15-second lifetime, 2-second accepted-socket timeout and bounded cleanup. No Flask dispatch, database/filesystem access, proxy, outbound connection or DNS in the receiver. Exactly one completed transfer per width, zero rejected/errors/expiry, correct body identity and complete cleanup remain mandatory. A source GET alone cannot satisfy native-download completion.
 
@@ -52,7 +68,7 @@ The outer runner retains the existing public GitHub/runtime/source checks and re
 
 ## Fixed helpers, unchanged guards and strict aggregation
 
-- `acceptance.py`: `512fcf2744d991246bee62433d43467ff7bc7573`.
+- `acceptance.py`: `7c5a881153b061b08734fda8ef7e3bd8a54c0e90`.
 - `confirmation_acceptance.py`: `44e1612f2ca59eca80a2c6a436426bc722af18a7`, unchanged and not invoked.
 - `native_pdf_navigation.py`: `4573aa6f07666f1d4e508b7352cc4cd42df0a323`, unchanged.
 - `exact_invoice_download.py`: `e84e269a1f72e9772bd33284024601f31644d1c0`, unchanged.

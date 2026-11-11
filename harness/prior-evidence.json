@@ -2,453 +2,428 @@
   "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
   "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
   "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-  "run_id": 43069457448,
+  "run_id": 43072294744,
   "run_attempt": 1,
-  "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43069457448",
-  "validation_commit": "e5f3f3ecd4e27cfeb156b9caef70ece006db4445",
-  "validation_tree": "529dcb5ef17e0c20beaa78692bce7eaed1d3ee0e",
-  "overall_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
+  "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43072294744",
+  "validation_commit": "431a29e94e27a6a295f926801d806a8856805be1",
+  "validation_tree": "8f8944775c59da131c1870d6881df1957b202e13",
+  "overall_status": "FAILED_OR_INCOMPLETE",
   "source_unchanged": true,
-  "artifact_id": 13878495078,
-  "artifact_digest": "sha256:383bd14f62b79c040aada0bc402f282c15a3a45ca9dab116c7d0f49c998d1d36",
+  "artifact_id": 13878337943,
+  "artifact_digest": "sha256:9767c1a2a73686f877b35332493bc6361310836082f9241db6a7db90acf38620",
   "http_passed": 0,
   "browser_passed": 0,
-  "diagnostic_browser_completed": 1,
-  "full_invoice_browser_executed": false,
-  "native_download_reexecuted": false,
   "scenarios": [
     {
-      "id": "diagnostic-preview-invoice",
-      "report": "preview-invoice/browser-result.json",
-      "collection_completed": true,
-      "exit_code": 0,
-      "report_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
-      "screenshots": [
-        {
-          "path": "preview-invoice/invoice-preview-maintenance-tab-1440.png",
-          "git_blob": "d6ec3c98f95bc962742db71bcb38c2e8199672c7",
-          "sha256": "385c69ba973b41a48d9c4754a27de4913841a9d0825363579502ea3d98fd0d2b",
-          "size_bytes": 256555
-        },
-        {
-          "path": "preview-invoice/invoice-preview-maintenance-record-1440.png",
-          "git_blob": "c7747a144aefb4cc8d9b45ff05ca1ba48d558a84",
-          "sha256": "cc5719537506938d19454c11e5b8b7b02a0a991002429ca2687f14a3864fa2f4",
-          "size_bytes": 256555
-        }
-      ],
-      "diagnostic_findings": {
-        "previews_ready": true,
-        "invoice_preview_observations": [
-          {
-            "width": 1440,
-            "stage": "maintenance-tab",
-            "phase": "width:1440/maintenance-tab",
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance",
-            "present": true,
-            "ready": true,
-            "error": false,
-            "total": "1",
-            "current": "1",
-            "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
-            "dimensions": [
-              {
-                "width": 119,
-                "height": 169
-              }
-            ],
-            "raster": [
-              {
-                "width": 119,
-                "height": 169
-              }
-            ],
-            "source_base": "/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "record_key": "maintenance_1",
-            "disclosure_open": true
-          },
-          {
-            "width": 1440,
-            "stage": "maintenance-record",
-            "phase": "width:1440/maintenance-record",
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance/1?import_batch=&scope=all&category=&status=&start_date=&end_date=&page=1&per_page=10#maintenance_detail_panel",
-            "present": true,
-            "ready": true,
-            "error": false,
-            "total": "1",
-            "current": "1",
-            "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
-            "dimensions": [
-              {
-                "width": 119,
-                "height": 169
-              }
-            ],
-            "raster": [
-              {
-                "width": 119,
-                "height": 169
-              }
-            ],
-            "source_base": "/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "record_key": "maintenance_1",
-            "disclosure_open": true
-          }
-        ],
-        "invoice_preview_console_errors": [],
-        "invoice_source_events": [
-          {
-            "sequence": 1,
-            "event": "request",
-            "phase": "width:1440/maintenance-tab",
-            "request_id": 1,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            }
-          },
-          {
-            "sequence": 2,
-            "event": "bridge_response",
-            "phase": "width:1440/maintenance-tab",
-            "request_id": 1,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "status": 200,
-            "mimetype": "application/pdf",
-            "content_disposition": "inline; filename=invoice.pdf",
-            "response_headers": {
-              "content-type": "application/pdf",
-              "content-length": "470",
-              "content-range": null,
-              "accept-ranges": null,
-              "content-encoding": null,
-              "content-disposition": "inline; filename=invoice.pdf",
-              "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
-              "x-content-type-options": "nosniff"
-            },
-            "byte_length": 470,
-            "source_sha256": "dd59770b5814ff55005ebc5f12bb6be40dbda2d73617a0c3c25747bc41b14004"
-          },
-          {
-            "sequence": 3,
-            "event": "response",
-            "phase": "width:1440/maintenance-tab",
-            "request_id": 1,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "status": 200,
-            "response_headers": {
-              "content-type": "application/pdf",
-              "content-length": "470",
-              "content-range": null,
-              "accept-ranges": null,
-              "content-encoding": null,
-              "content-disposition": "inline; filename=invoice.pdf",
-              "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
-              "x-content-type-options": "nosniff"
-            }
-          },
-          {
-            "sequence": 4,
-            "event": "requestfailed",
-            "phase": "width:1440/maintenance-tab",
-            "request_id": 1,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "failure": "net::ERR_ABORTED"
-          },
-          {
-            "sequence": 5,
-            "event": "request",
-            "phase": "width:1440/maintenance-record",
-            "request_id": 2,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            }
-          },
-          {
-            "sequence": 6,
-            "event": "bridge_response",
-            "phase": "width:1440/maintenance-record",
-            "request_id": 2,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "status": 200,
-            "mimetype": "application/pdf",
-            "content_disposition": "inline; filename=invoice.pdf",
-            "response_headers": {
-              "content-type": "application/pdf",
-              "content-length": "470",
-              "content-range": null,
-              "accept-ranges": null,
-              "content-encoding": null,
-              "content-disposition": "inline; filename=invoice.pdf",
-              "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
-              "x-content-type-options": "nosniff"
-            },
-            "byte_length": 470,
-            "source_sha256": "dd59770b5814ff55005ebc5f12bb6be40dbda2d73617a0c3c25747bc41b14004"
-          },
-          {
-            "sequence": 7,
-            "event": "response",
-            "phase": "width:1440/maintenance-record",
-            "request_id": 2,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "status": 200,
-            "response_headers": {
-              "content-type": "application/pdf",
-              "content-length": "470",
-              "content-range": null,
-              "accept-ranges": null,
-              "content-encoding": null,
-              "content-disposition": "inline; filename=invoice.pdf",
-              "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
-              "x-content-type-options": "nosniff"
-            }
-          },
-          {
-            "sequence": 8,
-            "event": "requestfailed",
-            "phase": "width:1440/maintenance-record",
-            "request_id": 2,
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "method": "GET",
-            "resource_type": "fetch",
-            "is_navigation_request": false,
-            "request_headers": {
-              "range": null,
-              "if-range": null,
-              "accept": "*/*",
-              "sec-fetch-dest": null,
-              "sec-fetch-mode": null,
-              "sec-fetch-site": null
-            },
-            "failure": "net::ERR_ABORTED"
-          }
-        ],
-        "page_errors": [],
-        "blocked_requests": [],
-        "failed_gets": [],
-        "failed_requests": [
-          {
-            "method": "GET",
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "failure": "net::ERR_ABORTED"
-          },
-          {
-            "method": "GET",
-            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
-            "failure": "net::ERR_ABORTED"
-          }
-        ]
-      },
-      "report_sha256": "c48f5055c11ea1199bf8f9cf528da005b46f0882747ef7408dc2faf4a563a191",
-      "original_report_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
-      "started_utc": "2026-11-11T17:35:21.299481+00:00",
-      "finished_utc": "2026-11-11T17:35:28.739343+00:00"
+      "id": "browser-connected-invoice",
+      "report": "connected-invoice/browser-result.json",
+      "passed": false,
+      "exit_code": 1,
+      "error_type": "AssertionError",
+      "report_sha256": "7cb952d303524ffc1240f77c18de0139cc6de16d3fba85b6165cd6e308b4166f",
+      "original_report_status": "FAILED",
+      "started_utc": "2026-11-11T17:53:13.927814+00:00",
+      "finished_utc": "2026-11-11T17:53:26.833953+00:00"
     }
   ],
-  "manifest_sha256": {
-    "preview-diagnostic-summary.json": "3866639e3ee18d337899b400c141c2e84ba426de0f80debd0883956325280941",
-    "scenario-exits.json": "a11c8420986015b85bce4947db17f5318155c6318bab09e7ece0e04620a70746",
-    "harness-provenance.json": "3d434dc10a886de57b8a94cc1a310876644a8e68ece9d536b424f4c964a5ae49",
-    "runtime-manifest.json": "3751ed21f923663314680c09f0b828be9c69e30e803eb3d367804942e000cdd8",
-    "source-identity.txt": "0a2dba374de134d6ab1a9d32f3c488c59fa01096b7bd4c54bb30afac6f6a90a4",
-    "invoice-preview-context.json": "41c2d34ed3df9a7fc5b1ee9e2e92f7ad6a2f7d2f5b841a04a55c9be29cd2db05"
+  "actual_reached_evidence": {
+    "initial_preview_observation_count": 1,
+    "initial_preview_observations": [
+      {
+        "width": 1440,
+        "stage": "maintenance-tab",
+        "phase": "width:1440/maintenance-tab",
+        "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance",
+        "scope_id": "width:1440/maintenance-tab",
+        "present": true,
+        "ready": true,
+        "error": false,
+        "total": "1",
+        "current": "1",
+        "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
+        "dimensions": [
+          {
+            "width": 119,
+            "height": 169
+          }
+        ],
+        "raster": [
+          {
+            "width": 119,
+            "height": 169
+          }
+        ],
+        "source_base": "/vehicle/karte/1/documents/3559e7c6-ada3-59f0-8a3e-36c3957deaec/source",
+        "record_key": "maintenance_1",
+        "disclosure_open": true
+      }
+    ],
+    "verified_preview_proof_count": 0,
+    "classified_preview_cancellation_count": 0,
+    "native_download_count": 0,
+    "native_transfer_count": 0,
+    "final_protected_records_unchanged_field_present": false,
+    "full_invoice_browser_acceptance_passed": false,
+    "raw_mode_flags_are_intent_not_completion": {
+      "diagnostic_only": false,
+      "full_invoice_browser_executed": true,
+      "native_download_reexecuted": true
+    },
+    "failure_point": "First 1440px maintenance-tab whole-canvas viewport ratio assertion, before preview classification, native download or final protected-record check"
   },
-  "previous_evidence_index_sha256": "9c313472fcfe008ba25bbe49d43843c87fb064253dfcfc46c4d2af93e8d1fe30",
+  "manifest_sha256": {
+    "remaining-summary.json": "5df2d04bf645a8fc371b4cb52a3dd99ed4d9a20911cb73b89c457a4f8d8b795d",
+    "scenario-exits.json": "4138dda45e29aa7ec21543099f94ba41e0390627355f28b2328b855be2f0ec41",
+    "harness-provenance.json": "2c1bd727f2b5ac16efb60f999676f0edbd787d3792914afebc93547ecf4d3aeb",
+    "runtime-manifest.json": "a5acfa22716a1c6c1f866b9ab083ab28425c28bbaaac567c211278c5b2064704",
+    "source-identity.txt": "c57bae9f1441379947812862244bf10da2c61ea97d636a3aaf8f8ebf614fe4c7",
+    "invoice-experiment-context.json": "cbc6b1397215783caaa3114cc90e5ff8ab5313701ba704cbf6db4db9a0590d5e"
+  },
+  "previous_evidence_index_sha256": "7c976d288d385ac74af17c4fc8903d63d752ca11a714a0c94256f8c6eb418524",
   "previous_evidence_reference": {
     "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
     "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
     "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-    "run_id": 43066261383,
+    "run_id": 43069457448,
     "run_attempt": 1,
-    "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43066261383",
-    "validation_commit": "5ab8b973df9ef762a48555ff374b04c5fd97c5cd",
-    "validation_tree": "30cb619f2b1b84ee2490f7eedec6326a0e3f6597",
-    "overall_status": "FAILED_OR_INCOMPLETE",
+    "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43069457448",
+    "validation_commit": "e5f3f3ecd4e27cfeb156b9caef70ece006db4445",
+    "validation_tree": "529dcb5ef17e0c20beaa78692bce7eaed1d3ee0e",
+    "overall_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
     "source_unchanged": true,
-    "artifact_id": 13876665717,
-    "artifact_digest": "sha256:65f6663bb490c2ff630297ac49d608c74768101d2f31e40d471c14ed12024cc3",
+    "artifact_id": 13878495078,
+    "artifact_digest": "sha256:383bd14f62b79c040aada0bc402f282c15a3a45ca9dab116c7d0f49c998d1d36",
     "http_passed": 0,
     "browser_passed": 0,
+    "diagnostic_browser_completed": 1,
+    "full_invoice_browser_executed": false,
+    "native_download_reexecuted": false,
     "scenarios": [
       {
-        "id": "browser-connected-invoice",
-        "report": "connected-invoice/browser-result.json",
-        "passed": false,
-        "exit_code": 1,
-        "error_type": "AssertionError",
-        "report_sha256": "f53d14410bc8aceef3c16d48b4ae84955434146354d7aa7303bd0bbbe176afb2",
-        "original_report_status": "FAILED",
-        "started_utc": "2026-11-11T17:15:41.187504+00:00",
-        "finished_utc": "2026-11-11T17:16:12.782307+00:00"
+        "id": "diagnostic-preview-invoice",
+        "report": "preview-invoice/browser-result.json",
+        "collection_completed": true,
+        "exit_code": 0,
+        "report_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
+        "screenshots": [
+          {
+            "path": "preview-invoice/invoice-preview-maintenance-tab-1440.png",
+            "git_blob": "d6ec3c98f95bc962742db71bcb38c2e8199672c7",
+            "sha256": "385c69ba973b41a48d9c4754a27de4913841a9d0825363579502ea3d98fd0d2b",
+            "size_bytes": 256555
+          },
+          {
+            "path": "preview-invoice/invoice-preview-maintenance-record-1440.png",
+            "git_blob": "c7747a144aefb4cc8d9b45ff05ca1ba48d558a84",
+            "sha256": "cc5719537506938d19454c11e5b8b7b02a0a991002429ca2687f14a3864fa2f4",
+            "size_bytes": 256555
+          }
+        ],
+        "diagnostic_findings": {
+          "previews_ready": true,
+          "invoice_preview_observations": [
+            {
+              "width": 1440,
+              "stage": "maintenance-tab",
+              "phase": "width:1440/maintenance-tab",
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance",
+              "present": true,
+              "ready": true,
+              "error": false,
+              "total": "1",
+              "current": "1",
+              "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
+              "dimensions": [
+                {
+                  "width": 119,
+                  "height": 169
+                }
+              ],
+              "raster": [
+                {
+                  "width": 119,
+                  "height": 169
+                }
+              ],
+              "source_base": "/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "record_key": "maintenance_1",
+              "disclosure_open": true
+            },
+            {
+              "width": 1440,
+              "stage": "maintenance-record",
+              "phase": "width:1440/maintenance-record",
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/maintenance/1?import_batch=&scope=all&category=&status=&start_date=&end_date=&page=1&per_page=10#maintenance_detail_panel",
+              "present": true,
+              "ready": true,
+              "error": false,
+              "total": "1",
+              "current": "1",
+              "status": "スクロールでページ移動 · Ctrl＋ホイールで拡大縮小",
+              "dimensions": [
+                {
+                  "width": 119,
+                  "height": 169
+                }
+              ],
+              "raster": [
+                {
+                  "width": 119,
+                  "height": 169
+                }
+              ],
+              "source_base": "/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "record_key": "maintenance_1",
+              "disclosure_open": true
+            }
+          ],
+          "invoice_preview_console_errors": [],
+          "invoice_source_events": [
+            {
+              "sequence": 1,
+              "event": "request",
+              "phase": "width:1440/maintenance-tab",
+              "request_id": 1,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              }
+            },
+            {
+              "sequence": 2,
+              "event": "bridge_response",
+              "phase": "width:1440/maintenance-tab",
+              "request_id": 1,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "status": 200,
+              "mimetype": "application/pdf",
+              "content_disposition": "inline; filename=invoice.pdf",
+              "response_headers": {
+                "content-type": "application/pdf",
+                "content-length": "470",
+                "content-range": null,
+                "accept-ranges": null,
+                "content-encoding": null,
+                "content-disposition": "inline; filename=invoice.pdf",
+                "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+                "x-content-type-options": "nosniff"
+              },
+              "byte_length": 470,
+              "source_sha256": "dd59770b5814ff55005ebc5f12bb6be40dbda2d73617a0c3c25747bc41b14004"
+            },
+            {
+              "sequence": 3,
+              "event": "response",
+              "phase": "width:1440/maintenance-tab",
+              "request_id": 1,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "status": 200,
+              "response_headers": {
+                "content-type": "application/pdf",
+                "content-length": "470",
+                "content-range": null,
+                "accept-ranges": null,
+                "content-encoding": null,
+                "content-disposition": "inline; filename=invoice.pdf",
+                "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+                "x-content-type-options": "nosniff"
+              }
+            },
+            {
+              "sequence": 4,
+              "event": "requestfailed",
+              "phase": "width:1440/maintenance-tab",
+              "request_id": 1,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "failure": "net::ERR_ABORTED"
+            },
+            {
+              "sequence": 5,
+              "event": "request",
+              "phase": "width:1440/maintenance-record",
+              "request_id": 2,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              }
+            },
+            {
+              "sequence": 6,
+              "event": "bridge_response",
+              "phase": "width:1440/maintenance-record",
+              "request_id": 2,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "status": 200,
+              "mimetype": "application/pdf",
+              "content_disposition": "inline; filename=invoice.pdf",
+              "response_headers": {
+                "content-type": "application/pdf",
+                "content-length": "470",
+                "content-range": null,
+                "accept-ranges": null,
+                "content-encoding": null,
+                "content-disposition": "inline; filename=invoice.pdf",
+                "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+                "x-content-type-options": "nosniff"
+              },
+              "byte_length": 470,
+              "source_sha256": "dd59770b5814ff55005ebc5f12bb6be40dbda2d73617a0c3c25747bc41b14004"
+            },
+            {
+              "sequence": 7,
+              "event": "response",
+              "phase": "width:1440/maintenance-record",
+              "request_id": 2,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "status": 200,
+              "response_headers": {
+                "content-type": "application/pdf",
+                "content-length": "470",
+                "content-range": null,
+                "accept-ranges": null,
+                "content-encoding": null,
+                "content-disposition": "inline; filename=invoice.pdf",
+                "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+                "x-content-type-options": "nosniff"
+              }
+            },
+            {
+              "sequence": 8,
+              "event": "requestfailed",
+              "phase": "width:1440/maintenance-record",
+              "request_id": 2,
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "method": "GET",
+              "resource_type": "fetch",
+              "is_navigation_request": false,
+              "request_headers": {
+                "range": null,
+                "if-range": null,
+                "accept": "*/*",
+                "sec-fetch-dest": null,
+                "sec-fetch-mode": null,
+                "sec-fetch-site": null
+              },
+              "failure": "net::ERR_ABORTED"
+            }
+          ],
+          "page_errors": [],
+          "blocked_requests": [],
+          "failed_gets": [],
+          "failed_requests": [
+            {
+              "method": "GET",
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "failure": "net::ERR_ABORTED"
+            },
+            {
+              "method": "GET",
+              "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/2ffe29ad-93cf-58ae-a285-81f6ed3552f7/source",
+              "failure": "net::ERR_ABORTED"
+            }
+          ]
+        },
+        "report_sha256": "c48f5055c11ea1199bf8f9cf528da005b46f0882747ef7408dc2faf4a563a191",
+        "original_report_status": "PREVIEW_DIAGNOSTIC_COMPLETE_NOT_ACCEPTANCE",
+        "started_utc": "2026-11-11T17:35:21.299481+00:00",
+        "finished_utc": "2026-11-11T17:35:28.739343+00:00"
       }
     ],
-    "component_observations_not_full_invoice_acceptance": {
-      "native_downloads": [
-        {
-          "width": 1440,
-          "download_failure": null,
-          "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
-          "saved_file_byte_length": 470,
-          "completed_transfers": 1,
-          "cleanup_complete": true,
-          "receiver_errors": [],
-          "receiver_rejected": [],
-          "receiver_expired": false
-        },
-        {
-          "width": 390,
-          "download_failure": null,
-          "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
-          "saved_file_byte_length": 470,
-          "completed_transfers": 1,
-          "cleanup_complete": true,
-          "receiver_errors": [],
-          "receiver_rejected": [],
-          "receiver_expired": false
-        },
-        {
-          "width": 320,
-          "download_failure": null,
-          "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
-          "saved_file_byte_length": 470,
-          "completed_transfers": 1,
-          "cleanup_complete": true,
-          "receiver_errors": [],
-          "receiver_rejected": [],
-          "receiver_expired": false
-        }
-      ],
-      "remaining_failed_requests": [
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
-          "failure": "net::ERR_ABORTED"
-        }
-      ],
-      "full_invoice_browser_passed": false
-    },
     "manifest_sha256": {
-      "remaining-summary.json": "05ceb1d802840707df858eccc50b48d5263e863d7d1aa798d46ce94e1402a05b",
-      "scenario-exits.json": "2b2bc50facab8fa19778cf9938f116f2a40d50281e51ab47e002cd7981fc9a6c",
-      "harness-provenance.json": "6787f5b3f1525f9e5f2adc8771f7cdfa0bf808b551ccd857577712cb7da8e2e2",
-      "runtime-manifest.json": "b695845de2a1253c96009dadf58bddd3861280e761311f7985e105d32472c10b",
-      "source-identity.txt": "79c096f5cfdd17f1bea9413255aba883ad44ed803cb746e08b06c00b648e7bf5",
-      "invoice-experiment-context.json": "822d335395c2826cc4bad95d22de3f531f9290fb6561530b031a4753a0b725a2"
+      "preview-diagnostic-summary.json": "3866639e3ee18d337899b400c141c2e84ba426de0f80debd0883956325280941",
+      "scenario-exits.json": "a11c8420986015b85bce4947db17f5318155c6318bab09e7ece0e04620a70746",
+      "harness-provenance.json": "3d434dc10a886de57b8a94cc1a310876644a8e68ece9d536b424f4c964a5ae49",
+      "runtime-manifest.json": "3751ed21f923663314680c09f0b828be9c69e30e803eb3d367804942e000cdd8",
+      "source-identity.txt": "0a2dba374de134d6ab1a9d32f3c488c59fa01096b7bd4c54bb30afac6f6a90a4",
+      "invoice-preview-context.json": "41c2d34ed3df9a7fc5b1ee9e2e92f7ad6a2f7d2f5b841a04a55c9be29cd2db05"
     },
-    "previous_evidence_index_sha256": "340201a9e19ddcfdc8896fc2e6b612b095c1a3605e8f479d5edf9a27ef0a64d7",
+    "previous_evidence_index_sha256": "9c313472fcfe008ba25bbe49d43843c87fb064253dfcfc46c4d2af93e8d1fe30",
     "previous_evidence_reference": {
       "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
       "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
       "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-      "run_id": 43061389706,
+      "run_id": 43066261383,
       "run_attempt": 1,
-      "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43061389706",
-      "validation_commit": "9124fa74b8bb9eea7479ed556bbf9fac65302556",
-      "validation_tree": "1e554cc21a69a433c392f310415ddcc23ed71510",
+      "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43066261383",
+      "validation_commit": "5ab8b973df9ef762a48555ff374b04c5fd97c5cd",
+      "validation_tree": "30cb619f2b1b84ee2490f7eedec6326a0e3f6597",
       "overall_status": "FAILED_OR_INCOMPLETE",
       "source_unchanged": true,
-      "artifact_id": 13872389972,
-      "artifact_digest": "sha256:18be1a2d32611875c893a0ac82fc250784522d2d492020b0bd81676f48628534",
+      "artifact_id": 13876665717,
+      "artifact_digest": "sha256:65f6663bb490c2ff630297ac49d608c74768101d2f31e40d471c14ed12024cc3",
       "http_passed": 0,
-      "browser_passed": 1,
+      "browser_passed": 0,
       "scenarios": [
         {
           "id": "browser-connected-invoice",
@@ -456,44 +431,104 @@
           "passed": false,
           "exit_code": 1,
           "error_type": "AssertionError",
-          "report_sha256": "8d4c3ec14ccf065c8b1e77090da12b7c20d114c3cfc668a797fdb2cb79e6fe20",
+          "report_sha256": "f53d14410bc8aceef3c16d48b4ae84955434146354d7aa7303bd0bbbe176afb2",
           "original_report_status": "FAILED",
-          "started_utc": "2026-11-11T16:45:56.406231+00:00",
-          "finished_utc": "2026-11-11T16:46:02.786043+00:00"
-        },
-        {
-          "id": "browser-connected-confirmation_manufacturer",
-          "report": "connected-confirmation_manufacturer/browser-result.json",
-          "passed": true,
-          "exit_code": 0,
-          "report_status": "PASS",
-          "report_sha256": "9620cb3bfc9fa5a96ddc87c9b6c0e578fe41d62c5684c4685bc2d866dc67fd0f",
-          "original_report_status": "PASS",
-          "started_utc": "2026-11-11T16:46:02.831643+00:00",
-          "finished_utc": "2026-11-11T16:48:42.285241+00:00"
+          "started_utc": "2026-11-11T17:15:41.187504+00:00",
+          "finished_utc": "2026-11-11T17:16:12.782307+00:00"
         }
       ],
-      "manifest_sha256": {
-        "remaining-summary.json": "842a59be629bda0944b75fe72ee9d6b5e060f29d23644c317322d58449ff108c",
-        "scenario-exits.json": "99d7e8bd10a14abaae485aa6fabdc794918cc54b2e4a9207c98dd31b865c22fd",
-        "harness-provenance.json": "18941cea686eb3f48cd30923193f5939dd2fa375d3c055a6da337dba5a350e3f",
-        "runtime-manifest.json": "e991369fc5cfb04c0c17ba91a061720ff0b8faee957eb1e59afe539b6de4de42",
-        "source-identity.txt": "b62f19816d1b9a5129bf17c9208361012dcd003f6bf41887411ca56d7ab8bc72"
+      "component_observations_not_full_invoice_acceptance": {
+        "native_downloads": [
+          {
+            "width": 1440,
+            "download_failure": null,
+            "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
+            "saved_file_byte_length": 470,
+            "completed_transfers": 1,
+            "cleanup_complete": true,
+            "receiver_errors": [],
+            "receiver_rejected": [],
+            "receiver_expired": false
+          },
+          {
+            "width": 390,
+            "download_failure": null,
+            "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
+            "saved_file_byte_length": 470,
+            "completed_transfers": 1,
+            "cleanup_complete": true,
+            "receiver_errors": [],
+            "receiver_rejected": [],
+            "receiver_expired": false
+          },
+          {
+            "width": 320,
+            "download_failure": null,
+            "saved_file_sha256": "73902e831f587c16683a3dc30d6639324764bf9d90800b68213bebf61d9e936f",
+            "saved_file_byte_length": 470,
+            "completed_transfers": 1,
+            "cleanup_complete": true,
+            "receiver_errors": [],
+            "receiver_rejected": [],
+            "receiver_expired": false
+          }
+        ],
+        "remaining_failed_requests": [
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          },
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          },
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          },
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          },
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          },
+          {
+            "method": "GET",
+            "url": "http://127.0.0.1:8765/vehicle/karte/1/documents/be1f6730-7941-5874-8cdb-d4db6af8de4f/source",
+            "failure": "net::ERR_ABORTED"
+          }
+        ],
+        "full_invoice_browser_passed": false
       },
-      "previous_evidence_index_sha256": "5d11217430be095c2e35069e4ad63272aeebb9134fc25bfa8b46d9bec057a9a3",
+      "manifest_sha256": {
+        "remaining-summary.json": "05ceb1d802840707df858eccc50b48d5263e863d7d1aa798d46ce94e1402a05b",
+        "scenario-exits.json": "2b2bc50facab8fa19778cf9938f116f2a40d50281e51ab47e002cd7981fc9a6c",
+        "harness-provenance.json": "6787f5b3f1525f9e5f2adc8771f7cdfa0bf808b551ccd857577712cb7da8e2e2",
+        "runtime-manifest.json": "b695845de2a1253c96009dadf58bddd3861280e761311f7985e105d32472c10b",
+        "source-identity.txt": "79c096f5cfdd17f1bea9413255aba883ad44ed803cb746e08b06c00b648e7bf5",
+        "invoice-experiment-context.json": "822d335395c2826cc4bad95d22de3f531f9290fb6561530b031a4753a0b725a2"
+      },
+      "previous_evidence_index_sha256": "340201a9e19ddcfdc8896fc2e6b612b095c1a3605e8f479d5edf9a27ef0a64d7",
       "previous_evidence_reference": {
         "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
         "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
         "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-        "run_id": 43058463867,
+        "run_id": 43061389706,
         "run_attempt": 1,
-        "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43058463867",
-        "validation_commit": "43b03d244e5483aaa8a68f27bfe9c002c82877fa",
-        "validation_tree": "f2171c6d5206be6f954cec36d0fe1783d893bb6b",
+        "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43061389706",
+        "validation_commit": "9124fa74b8bb9eea7479ed556bbf9fac65302556",
+        "validation_tree": "1e554cc21a69a433c392f310415ddcc23ed71510",
         "overall_status": "FAILED_OR_INCOMPLETE",
         "source_unchanged": true,
-        "artifact_id": 13873565921,
-        "artifact_digest": "sha256:40c871f5329bb4a0c6343a8ec52afd541915368360bedee730b9d933f9cf03c7",
+        "artifact_id": 13872389972,
+        "artifact_digest": "sha256:18be1a2d32611875c893a0ac82fc250784522d2d492020b0bd81676f48628534",
         "http_passed": 0,
         "browser_passed": 1,
         "scenarios": [
@@ -503,200 +538,57 @@
             "passed": false,
             "exit_code": 1,
             "error_type": "AssertionError",
-            "report_sha256": "7d2534a71ae4a00fe06ba7eee11de409959e46f8905a1c531630e349e088b83d",
+            "report_sha256": "8d4c3ec14ccf065c8b1e77090da12b7c20d114c3cfc668a797fdb2cb79e6fe20",
             "original_report_status": "FAILED",
-            "started_utc": "2026-11-11T16:28:00.746530+00:00",
-            "finished_utc": "2026-11-11T16:28:08.259717+00:00"
+            "started_utc": "2026-11-11T16:45:56.406231+00:00",
+            "finished_utc": "2026-11-11T16:46:02.786043+00:00"
           },
           {
             "id": "browser-connected-confirmation_manufacturer",
             "report": "connected-confirmation_manufacturer/browser-result.json",
-            "passed": false,
-            "exit_code": 1,
-            "error_type": "AssertionError",
-            "report_sha256": "b9f6697ff75f179a8370a2a9440a890d9ba0deff34e753d9deaea69b03856aa8",
-            "original_report_status": "FAILED",
-            "started_utc": "2026-11-11T16:28:08.318011+00:00",
-            "finished_utc": "2026-11-11T16:29:17.664042+00:00"
-          },
-          {
-            "id": "browser-connected-confirmation_legal",
-            "report": "connected-confirmation_legal/browser-result.json",
             "passed": true,
             "exit_code": 0,
             "report_status": "PASS",
-            "report_sha256": "34016834b63fa154989a5ff8390780aa0c43ffb195f1fb50e4b75de9573d84c8",
+            "report_sha256": "9620cb3bfc9fa5a96ddc87c9b6c0e578fe41d62c5684c4685bc2d866dc67fd0f",
             "original_report_status": "PASS",
-            "started_utc": "2026-11-11T16:29:17.724530+00:00",
-            "finished_utc": "2026-11-11T16:31:59.391643+00:00"
+            "started_utc": "2026-11-11T16:46:02.831643+00:00",
+            "finished_utc": "2026-11-11T16:48:42.285241+00:00"
           }
         ],
         "manifest_sha256": {
-          "remaining-summary.json": "1190a2ade2d186a90d5c47337c282ffce0cec8af799745d1c6df284b9f4f844c",
-          "scenario-exits.json": "653b12ef62cd0a1baa70232aa469eba49a7d69ca56c090afa1e29a792621e374",
-          "harness-provenance.json": "f19a10fc2f4ef972b57818ff3745055e5a85740d557604b77c3a4e4d2379603e",
-          "runtime-manifest.json": "c70620b2b1c1b95ad7aabf97c1fed46dcc3175ca2d7a62369e28cd84eee7ee40",
-          "source-identity.txt": "1f0ec291c72c3f2a4d73572ab30eee9e5c66dba7e3e65848a992ca01f277d059"
+          "remaining-summary.json": "842a59be629bda0944b75fe72ee9d6b5e060f29d23644c317322d58449ff108c",
+          "scenario-exits.json": "99d7e8bd10a14abaae485aa6fabdc794918cc54b2e4a9207c98dd31b865c22fd",
+          "harness-provenance.json": "18941cea686eb3f48cd30923193f5939dd2fa375d3c055a6da337dba5a350e3f",
+          "runtime-manifest.json": "e991369fc5cfb04c0c17ba91a061720ff0b8faee957eb1e59afe539b6de4de42",
+          "source-identity.txt": "b62f19816d1b9a5129bf17c9208361012dcd003f6bf41887411ca56d7ab8bc72"
         },
-        "previous_evidence_index_sha256": "226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475",
+        "previous_evidence_index_sha256": "5d11217430be095c2e35069e4ad63272aeebb9134fc25bfa8b46d9bec057a9a3",
         "previous_evidence_reference": {
-          "evidence_kind": "immutable_previous_run_reference_not_current_run_results",
+          "evidence_kind": "hierarchical_immutable_previous_runs_not_current_run_results",
           "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
           "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
-          "run_id": 43053078956,
+          "run_id": 43058463867,
           "run_attempt": 1,
-          "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43053078956",
-          "validation_commit": "4c83b07efa9aeb8e9af4c41baa23034802d5df28",
-          "validation_tree": "9b13b3646bcbc0d23c51f15ddd4b513897a9e827",
+          "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43058463867",
+          "validation_commit": "43b03d244e5483aaa8a68f27bfe9c002c82877fa",
+          "validation_tree": "f2171c6d5206be6f954cec36d0fe1783d893bb6b",
           "overall_status": "FAILED_OR_INCOMPLETE",
           "source_unchanged": true,
-          "artifact_id": 13870588160,
-          "artifact_digest": "sha256:1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a",
-          "http_passed": 3,
-          "browser_passed": 10,
+          "artifact_id": 13873565921,
+          "artifact_digest": "sha256:40c871f5329bb4a0c6343a8ec52afd541915368360bedee730b9d933f9cf03c7",
+          "http_passed": 0,
+          "browser_passed": 1,
           "scenarios": [
-            {
-              "id": "http-confirmation_manufacturer",
-              "report": "connected-confirmation_manufacturer-preflight/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "report_sha256": "a27672c0498b5bc6a91106496438a2de1867f01404ebf55aebb1d366e3260810",
-              "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "started_utc": "2026-11-11T15:55:49.692089+00:00",
-              "finished_utc": "2026-11-11T15:56:13.148411+00:00"
-            },
-            {
-              "id": "http-confirmation_legal",
-              "report": "connected-confirmation_legal-preflight/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "report_sha256": "2850e093242991d3e0ee2782377c3ce8da4803cbc2cff6ebd23123cfad78d5e6",
-              "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "started_utc": "2026-11-11T15:56:13.221484+00:00",
-              "finished_utc": "2026-11-11T15:56:24.572411+00:00"
-            },
-            {
-              "id": "http-confirmation_progression",
-              "report": "connected-confirmation_progression-preflight/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "report_sha256": "8152246f328c01105f80bd364fc3200f2c516884bbe844a787a374be095ea10e",
-              "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
-              "started_utc": "2026-11-11T15:56:24.644784+00:00",
-              "finished_utc": "2026-11-11T15:56:34.551105+00:00"
-            },
-            {
-              "id": "browser-common",
-              "report": "browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "e0c7a4888ce15aa899882b91c7a3cbebc987faa46658de7e44d4fdf705461e9a",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:56:34.623565+00:00",
-              "finished_utc": "2026-11-11T15:56:55.649504+00:00"
-            },
-            {
-              "id": "browser-stage2-instruction",
-              "report": "instruction/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "440cd070a3b21ea453823fba86b6c114a8e13ab0810e6cd4538070d32247b1fd",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:56:55.721403+00:00",
-              "finished_utc": "2026-11-11T15:57:16.136727+00:00"
-            },
-            {
-              "id": "browser-stage2-recheck",
-              "report": "recheck/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "99a2a5c9a714978814c84b8c7f5d9690f1cc5cd07c62efefa4a01c8b59852cb0",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:57:16.209462+00:00",
-              "finished_utc": "2026-11-11T15:57:36.410688+00:00"
-            },
-            {
-              "id": "browser-stage2-timing",
-              "report": "timing/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "71a14e9367f989bb6450850a252416df1b3638410468957e0d68e6092232b2bf",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:57:36.484734+00:00",
-              "finished_utc": "2026-11-11T15:57:56.602467+00:00"
-            },
-            {
-              "id": "browser-connected-normal",
-              "report": "connected-normal/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "5fc65365a66333d83b3e532e8e1ff8e5dea78360e57f6be5383749075d246ace",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:57:56.675351+00:00",
-              "finished_utc": "2026-11-11T15:58:17.046358+00:00"
-            },
-            {
-              "id": "browser-connected-instruction",
-              "report": "connected-instruction/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "aac2c991484d902ef7f80d744b32fe9397b4b90fb59d2a7b95865e65ceb5f369",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:58:17.118323+00:00",
-              "finished_utc": "2026-11-11T15:58:44.504748+00:00"
-            },
-            {
-              "id": "browser-connected-recheck",
-              "report": "connected-recheck/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "305652ac7457d4ed8a118145c3a0ea398fd0a3fb008db909a00ce211a371d000",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:58:44.577603+00:00",
-              "finished_utc": "2026-11-11T15:59:12.101483+00:00"
-            },
             {
               "id": "browser-connected-invoice",
               "report": "connected-invoice/browser-result.json",
               "passed": false,
               "exit_code": 1,
               "error_type": "AssertionError",
-              "report_sha256": "033dee3207038a29b6157cef8c997390bad639e0292e3d58640fdef3d318f93d",
+              "report_sha256": "7d2534a71ae4a00fe06ba7eee11de409959e46f8905a1c531630e349e088b83d",
               "original_report_status": "FAILED",
-              "started_utc": "2026-11-11T15:59:12.174313+00:00",
-              "finished_utc": "2026-11-11T15:59:47.788217+00:00"
-            },
-            {
-              "id": "browser-connected-periodic_instruction",
-              "report": "connected-periodic_instruction/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "8f028f1fc7c0d7e432626f7156e8b6e1af7490bf51debbd2ac181e9ce3be1c4a",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:59:47.861397+00:00",
-              "finished_utc": "2026-11-11T15:59:59.568711+00:00"
-            },
-            {
-              "id": "browser-connected-periodic_timing",
-              "report": "connected-periodic_timing/browser-result.json",
-              "passed": true,
-              "exit_code": 0,
-              "report_status": "PASS",
-              "report_sha256": "ec4487986e0795ce91c861c7c83fbdb9d0abf276d43f76565e6e7c4072252d54",
-              "original_report_status": "PASS",
-              "started_utc": "2026-11-11T15:59:59.642266+00:00",
-              "finished_utc": "2026-11-11T16:00:11.090619+00:00"
+              "started_utc": "2026-11-11T16:28:00.746530+00:00",
+              "finished_utc": "2026-11-11T16:28:08.259717+00:00"
             },
             {
               "id": "browser-connected-confirmation_manufacturer",
@@ -704,77 +596,268 @@
               "passed": false,
               "exit_code": 1,
               "error_type": "AssertionError",
-              "report_sha256": "0306234fccbea30530500ffd5670d1dd623095b9344a1199735c289f55064b7d",
+              "report_sha256": "b9f6697ff75f179a8370a2a9440a890d9ba0deff34e753d9deaea69b03856aa8",
               "original_report_status": "FAILED",
-              "started_utc": "2026-11-11T16:00:11.164716+00:00",
-              "finished_utc": "2026-11-11T16:03:19.200233+00:00"
+              "started_utc": "2026-11-11T16:28:08.318011+00:00",
+              "finished_utc": "2026-11-11T16:29:17.664042+00:00"
             },
             {
               "id": "browser-connected-confirmation_legal",
               "report": "connected-confirmation_legal/browser-result.json",
-              "passed": false,
-              "exit_code": 1,
-              "error_type": "AssertionError",
-              "report_sha256": "2e9637597171b0104ac28601642deb96b48761b7025d97f5cdc4f7236924d474",
-              "original_report_status": "FAILED",
-              "started_utc": "2026-11-11T16:03:19.273478+00:00",
-              "finished_utc": "2026-11-11T16:05:52.125762+00:00"
-            },
-            {
-              "id": "browser-connected-confirmation_progression",
-              "report": "connected-confirmation_progression/browser-result.json",
               "passed": true,
               "exit_code": 0,
               "report_status": "PASS",
-              "report_sha256": "08bc2a60d839f1f804f2a8576dc66d779e2bf5b38aa9bf6a005a8eb45543a900",
+              "report_sha256": "34016834b63fa154989a5ff8390780aa0c43ffb195f1fb50e4b75de9573d84c8",
               "original_report_status": "PASS",
-              "started_utc": "2026-11-11T16:05:52.199105+00:00",
-              "finished_utc": "2026-11-11T16:07:54.561758+00:00"
+              "started_utc": "2026-11-11T16:29:17.724530+00:00",
+              "finished_utc": "2026-11-11T16:31:59.391643+00:00"
             }
           ],
           "manifest_sha256": {
-            "remaining-summary.json": "a6f4930fcf43b657d77ecf45a401307837681d81d5c54d1571ec6c38e9c7c9c5",
-            "scenario-exits.json": "360e24f4bf72bd8250e313e591994b624f407ed76e7c5360e5cbe884465b7bd6",
-            "harness-provenance.json": "472bf2758ba805fc2300772689975885d00983938931724744d97c86cf478bac",
-            "runtime-manifest.json": "d9b4c340c9026235fdd52c999bafc3f7582b30e11f1fb112bcdccf6d79289258",
-            "source-identity.txt": "da1ee3ceab4000f5025943ac24862eb6afdc38f6a52ce1fab7033e10425615e0"
+            "remaining-summary.json": "1190a2ade2d186a90d5c47337c282ffce0cec8af799745d1c6df284b9f4f844c",
+            "scenario-exits.json": "653b12ef62cd0a1baa70232aa469eba49a7d69ca56c090afa1e29a792621e374",
+            "harness-provenance.json": "f19a10fc2f4ef972b57818ff3745055e5a85740d557604b77c3a4e4d2379603e",
+            "runtime-manifest.json": "c70620b2b1c1b95ad7aabf97c1fed46dcc3175ca2d7a62369e28cd84eee7ee40",
+            "source-identity.txt": "1f0ec291c72c3f2a4d73572ab30eee9e5c66dba7e3e65848a992ca01f277d059"
           },
-          "earlier_node_comparison_dashboard": {
-            "run_id": 43043343085,
-            "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43043343085",
-            "validation_commit": "05d5e5f21efb9f3f3bba4be49a1a137efb545c10",
-            "overall_status": "failure",
-            "node_tests_passed": 41,
-            "comparison_cases_passed": 14,
-            "dashboard_widths_passed": 6,
-            "artifacts": [
+          "previous_evidence_index_sha256": "226dd630b9077a0e473ea790c63b3b00fdfeac62726f43df9443306e02eb0475",
+          "previous_evidence_reference": {
+            "evidence_kind": "immutable_previous_run_reference_not_current_run_results",
+            "application_commit": "30d4dfeee97f69bd00650c6bf56a5ce234f34437",
+            "application_tree": "31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea",
+            "run_id": 43053078956,
+            "run_attempt": 1,
+            "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43053078956",
+            "validation_commit": "4c83b07efa9aeb8e9af4c41baa23034802d5df28",
+            "validation_tree": "9b13b3646bcbc0d23c51f15ddd4b513897a9e827",
+            "overall_status": "FAILED_OR_INCOMPLETE",
+            "source_unchanged": true,
+            "artifact_id": 13870588160,
+            "artifact_digest": "sha256:1541a86ebfe0bbe06515f56a104d4f23553b9a93041683caa0aface6ed4ee83a",
+            "http_passed": 3,
+            "browser_passed": 10,
+            "scenarios": [
               {
-                "id": 13866322166,
-                "digest": "sha256:f74d618aaa2bc11cde34e7643d4105bd9d0d8a25c2e92f84a4b54a9215c4f4fd"
+                "id": "http-confirmation_manufacturer",
+                "report": "connected-confirmation_manufacturer-preflight/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "report_sha256": "a27672c0498b5bc6a91106496438a2de1867f01404ebf55aebb1d366e3260810",
+                "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "started_utc": "2026-11-11T15:55:49.692089+00:00",
+                "finished_utc": "2026-11-11T15:56:13.148411+00:00"
               },
               {
-                "id": 13865109256,
-                "digest": "sha256:a661361e19fa74cb9986d68897ce51b0fd6aa4c9d040f1e847954b0a63d519c9"
+                "id": "http-confirmation_legal",
+                "report": "connected-confirmation_legal-preflight/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "report_sha256": "2850e093242991d3e0ee2782377c3ce8da4803cbc2cff6ebd23123cfad78d5e6",
+                "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "started_utc": "2026-11-11T15:56:13.221484+00:00",
+                "finished_utc": "2026-11-11T15:56:24.572411+00:00"
               },
               {
-                "id": 13865104317,
-                "digest": "sha256:5f09548863045092d702db807df6a1b01046c62d0042a41549d9ab11147670a2"
+                "id": "http-confirmation_progression",
+                "report": "connected-confirmation_progression-preflight/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "report_sha256": "8152246f328c01105f80bd364fc3200f2c516884bbe844a787a374be095ea10e",
+                "original_report_status": "PREFLIGHT_PASS_BROWSER_NOT_RUN",
+                "started_utc": "2026-11-11T15:56:24.644784+00:00",
+                "finished_utc": "2026-11-11T15:56:34.551105+00:00"
+              },
+              {
+                "id": "browser-common",
+                "report": "browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "e0c7a4888ce15aa899882b91c7a3cbebc987faa46658de7e44d4fdf705461e9a",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:56:34.623565+00:00",
+                "finished_utc": "2026-11-11T15:56:55.649504+00:00"
+              },
+              {
+                "id": "browser-stage2-instruction",
+                "report": "instruction/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "440cd070a3b21ea453823fba86b6c114a8e13ab0810e6cd4538070d32247b1fd",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:56:55.721403+00:00",
+                "finished_utc": "2026-11-11T15:57:16.136727+00:00"
+              },
+              {
+                "id": "browser-stage2-recheck",
+                "report": "recheck/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "99a2a5c9a714978814c84b8c7f5d9690f1cc5cd07c62efefa4a01c8b59852cb0",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:57:16.209462+00:00",
+                "finished_utc": "2026-11-11T15:57:36.410688+00:00"
+              },
+              {
+                "id": "browser-stage2-timing",
+                "report": "timing/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "71a14e9367f989bb6450850a252416df1b3638410468957e0d68e6092232b2bf",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:57:36.484734+00:00",
+                "finished_utc": "2026-11-11T15:57:56.602467+00:00"
+              },
+              {
+                "id": "browser-connected-normal",
+                "report": "connected-normal/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "5fc65365a66333d83b3e532e8e1ff8e5dea78360e57f6be5383749075d246ace",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:57:56.675351+00:00",
+                "finished_utc": "2026-11-11T15:58:17.046358+00:00"
+              },
+              {
+                "id": "browser-connected-instruction",
+                "report": "connected-instruction/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "aac2c991484d902ef7f80d744b32fe9397b4b90fb59d2a7b95865e65ceb5f369",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:58:17.118323+00:00",
+                "finished_utc": "2026-11-11T15:58:44.504748+00:00"
+              },
+              {
+                "id": "browser-connected-recheck",
+                "report": "connected-recheck/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "305652ac7457d4ed8a118145c3a0ea398fd0a3fb008db909a00ce211a371d000",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:58:44.577603+00:00",
+                "finished_utc": "2026-11-11T15:59:12.101483+00:00"
+              },
+              {
+                "id": "browser-connected-invoice",
+                "report": "connected-invoice/browser-result.json",
+                "passed": false,
+                "exit_code": 1,
+                "error_type": "AssertionError",
+                "report_sha256": "033dee3207038a29b6157cef8c997390bad639e0292e3d58640fdef3d318f93d",
+                "original_report_status": "FAILED",
+                "started_utc": "2026-11-11T15:59:12.174313+00:00",
+                "finished_utc": "2026-11-11T15:59:47.788217+00:00"
+              },
+              {
+                "id": "browser-connected-periodic_instruction",
+                "report": "connected-periodic_instruction/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "8f028f1fc7c0d7e432626f7156e8b6e1af7490bf51debbd2ac181e9ce3be1c4a",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:59:47.861397+00:00",
+                "finished_utc": "2026-11-11T15:59:59.568711+00:00"
+              },
+              {
+                "id": "browser-connected-periodic_timing",
+                "report": "connected-periodic_timing/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "ec4487986e0795ce91c861c7c83fbdb9d0abf276d43f76565e6e7c4072252d54",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T15:59:59.642266+00:00",
+                "finished_utc": "2026-11-11T16:00:11.090619+00:00"
+              },
+              {
+                "id": "browser-connected-confirmation_manufacturer",
+                "report": "connected-confirmation_manufacturer/browser-result.json",
+                "passed": false,
+                "exit_code": 1,
+                "error_type": "AssertionError",
+                "report_sha256": "0306234fccbea30530500ffd5670d1dd623095b9344a1199735c289f55064b7d",
+                "original_report_status": "FAILED",
+                "started_utc": "2026-11-11T16:00:11.164716+00:00",
+                "finished_utc": "2026-11-11T16:03:19.200233+00:00"
+              },
+              {
+                "id": "browser-connected-confirmation_legal",
+                "report": "connected-confirmation_legal/browser-result.json",
+                "passed": false,
+                "exit_code": 1,
+                "error_type": "AssertionError",
+                "report_sha256": "2e9637597171b0104ac28601642deb96b48761b7025d97f5cdc4f7236924d474",
+                "original_report_status": "FAILED",
+                "started_utc": "2026-11-11T16:03:19.273478+00:00",
+                "finished_utc": "2026-11-11T16:05:52.125762+00:00"
+              },
+              {
+                "id": "browser-connected-confirmation_progression",
+                "report": "connected-confirmation_progression/browser-result.json",
+                "passed": true,
+                "exit_code": 0,
+                "report_status": "PASS",
+                "report_sha256": "08bc2a60d839f1f804f2a8576dc66d779e2bf5b38aa9bf6a005a8eb45543a900",
+                "original_report_status": "PASS",
+                "started_utc": "2026-11-11T16:05:52.199105+00:00",
+                "finished_utc": "2026-11-11T16:07:54.561758+00:00"
               }
-            ]
-          },
-          "original_pr_ci": {
-            "run_id": 43036556295,
-            "attempt": 2,
-            "status": "failed_dependency_installation_dns_not_rerun"
+            ],
+            "manifest_sha256": {
+              "remaining-summary.json": "a6f4930fcf43b657d77ecf45a401307837681d81d5c54d1571ec6c38e9c7c9c5",
+              "scenario-exits.json": "360e24f4bf72bd8250e313e591994b624f407ed76e7c5360e5cbe884465b7bd6",
+              "harness-provenance.json": "472bf2758ba805fc2300772689975885d00983938931724744d97c86cf478bac",
+              "runtime-manifest.json": "d9b4c340c9026235fdd52c999bafc3f7582b30e11f1fb112bcdccf6d79289258",
+              "source-identity.txt": "da1ee3ceab4000f5025943ac24862eb6afdc38f6a52ce1fab7033e10425615e0"
+            },
+            "earlier_node_comparison_dashboard": {
+              "run_id": 43043343085,
+              "run_url": "https://github.com/oxo-ops/dkss/actions/runs/43043343085",
+              "validation_commit": "05d5e5f21efb9f3f3bba4be49a1a137efb545c10",
+              "overall_status": "failure",
+              "node_tests_passed": 41,
+              "comparison_cases_passed": 14,
+              "dashboard_widths_passed": 6,
+              "artifacts": [
+                {
+                  "id": 13866322166,
+                  "digest": "sha256:f74d618aaa2bc11cde34e7643d4105bd9d0d8a25c2e92f84a4b54a9215c4f4fd"
+                },
+                {
+                  "id": 13865109256,
+                  "digest": "sha256:a661361e19fa74cb9986d68897ce51b0fd6aa4c9d040f1e847954b0a63d519c9"
+                },
+                {
+                  "id": 13865104317,
+                  "digest": "sha256:5f09548863045092d702db807df6a1b01046c62d0042a41549d9ab11147670a2"
+                }
+              ]
+            },
+            "original_pr_ci": {
+              "run_id": 43036556295,
+              "attempt": 2,
+              "status": "failed_dependency_installation_dns_not_rerun"
+            },
+            "rerun_successful_cases": false,
+            "previous_failures_preserved": true
           },
           "rerun_successful_cases": false,
           "previous_failures_preserved": true
         },
         "rerun_successful_cases": false,
         "previous_failures_preserved": true
-      },
-      "rerun_successful_cases": false,
-      "previous_failures_preserved": true
+      }
     }
   }
 }
