@@ -328,7 +328,7 @@ def main():
                             expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text(badge)
                             expect(drawer.locator('#ka-reference-drawer-title')).to_have_text(related_item['subject'])
                             original_link = drawer.locator('.ka-action-original-link')
-                            expect(original_link).to_have_attribute('href', related_source_url)
+                            expect(original_link).to_have_attribute('href', urljoin(ORIGIN, related_source_url))
                             with page.expect_popup() as opened:
                                 original_link.click()
                             original_page = opened.value

@@ -43,9 +43,14 @@ class ConnectedInspectionFlowTests(unittest.TestCase):
         bundle, saved = self._generate(kind, label)
         # Real projection must keep saved identities and consistently sort a mix
         # of computed and legacy proposals across all three normal surfaces.
+        source_id = f'inspection:{self.row.id}'
+        self.assertIn(source_id, bundle['sources'])
+        # Legacy labels lack a scoring ref, not their original record link.
         bundle['analysis']['recommendations'].extend([
-            dict(priority='低', category='整備・点検', target='保存済み別提案', title='通常記録の確認', action='記録を確認'),
-            dict(priority='高', category='整備・点検', target='保存済み高提案', title='別件の確認', action='担当者へ確認')])
+            dict(priority='低', category='整備・点検', target='保存済み別提案', title='通常記録の確認', action='記録を確認',
+                 source_ids=[source_id]),
+            dict(priority='高', category='整備・点検', target='保存済み高提案', title='別件の確認', action='担当者へ確認',
+                 source_ids=[source_id])])
         saved.result_json = json.dumps(bundle, ensure_ascii=False)
         self.db.session.commit()
         return bundle, saved

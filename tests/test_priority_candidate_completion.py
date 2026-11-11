@@ -180,6 +180,134 @@ class CandidateCompletionTests(unittest.TestCase):
         self.assertEqual(new_payload['_held_confirmed_priority_candidates'], [])
         self.assertEqual(new_sources, {})
 
+
+    def test_saved_carry_missing_citation_metadata_keeps_history_and_other_proposal(self):
+        from vehicle_risk_assessment import annotate_analysis
+        self.prepare_pair(); event_id, _ = self.confirm(); payload, old_sources = self.load()
+        old = finish({'recommendations': []}, payload)
+        previous = {'analysis': old, 'sources': old_sources, 'generated_at': '2026/11/11 09:00'}
+        self.change_original()
+        current_payload, sources = self.load()
+        prepare(self.vehicle, current_payload, sources, previous, as_of=self.day)
+        carried = reconcile(self.vehicle, {'recommendations': []}, current_payload, sources, as_of=self.day)
+        original_item = carried['recommendations'][0]
+        ordinary = self.ordinary(current_payload)
+        carried['recommendations'].append(ordinary)
+        missing = next(sid for sid in original_item['source_ids']
+            if not sid.startswith('priority_confirmation:') and sid not in ordinary['source_ids'])
+        audit_sid = f'priority_confirmation:{event_id}'
+        expected_history = deepcopy(sources[audit_sid]['priority_confirmation_display'])
+        for mutation in ('missing', 'no_url', 'blank_url'):
+            with self.subTest(mutation=mutation):
+                damaged = deepcopy(sources)
+                if mutation == 'missing':
+                    del damaged[missing]
+                elif mutation == 'no_url':
+                    damaged[missing].pop('url')
+                else:
+                    damaged[missing]['url'] = ' '
+                before = deepcopy((carried, damaged))
+                # Match the actual normal GET decoration sequence, not only
+                # the pure projection: read-time risk/feedback fields are not
+                # part of the original saved candidate revision.
+                identified = identify_priority_proposals(carried)
+                identified['recommendations'][0].update(feedback={}, evaluation={})
+                decorated = annotate_analysis(identified, damaged, self.vehicle.company_code, self.vehicle.id, False)
+                shown = project_registered_priorities(decorated, self.vehicle, damaged, as_of=self.day)
+                value = next(v for v in shown['recommendations'] if v.get('priority_candidate_carryover'))
+                assessment = value['priority_assessment']
+                self.assertEqual((assessment['label'], assessment['effective_score']), ('高', None))
+                self.assertEqual(assessment['historical_confirmation_details'], [expected_history])
+                self.assertEqual(assessment['historical_source_gaps']['source_ids'], [missing])
+                self.assertIn('出典リンクが一部残っていません', assessment['historical_source_gaps']['message'])
+                self.assertEqual(value['source_ids'], original_item['source_ids'])
+                self.assertEqual(len(shown['recommendations']), 2)
+                self.assertNotIn('historical_source_gaps',
+                    next(v for v in shown['recommendations'] if not v.get('priority_candidate_carryover'))['priority_assessment'])
+                self.assertEqual((carried, damaged), before)
+        damaged = deepcopy(sources); del damaged[missing]
+        self.cancel(event_id)
+        shown = self.view(carried, damaged)
+        self.assertEqual(len(shown['recommendations']), 1)
+        self.assertNotIn('priority_candidate_carryover', shown['recommendations'][0])
+        self.assertEqual(self.state()['defects'][-1]['status'], '対応待ち')
+
+    def test_missing_citation_exception_requires_exact_saved_carry_marker_and_scoped_proof(self):
+        self.prepare_pair(); event_id, _ = self.confirm(); payload, old_sources = self.load()
+        old = finish({'recommendations': []}, payload)
+        previous = {'analysis': old, 'sources': old_sources, 'generated_at': '2026/11/11 09:00'}
+        self.change_original(); current_payload, sources = self.load()
+        prepare(self.vehicle, current_payload, sources, previous, as_of=self.day)
+        carried = reconcile(self.vehicle, {'recommendations': []}, current_payload, sources, as_of=self.day)
+        sid = next(sid for sid in carried['recommendations'][0]['source_ids'] if not sid.startswith('priority_confirmation:'))
+        del sources[sid]
+        for kind in ('no_marker', 'revision', 'label', 'dates', 'target', 'foreign_proof', 'missing_proof', 'injected_response'):
+            with self.subTest(kind=kind):
+                value, evidence = deepcopy(carried), deepcopy(sources)
+                item = value['recommendations'][0]
+                if kind == 'no_marker':
+                    item.pop('priority_candidate_carryover')
+                elif kind == 'revision':
+                    item['priority_candidate_carryover']['original_revision'] = '0' * 64
+                elif kind == 'label':
+                    item['priority_candidate_carryover']['label'] = '低'
+                elif kind == 'dates':
+                    item['priority_candidate_carryover']['confirmed_at'] = ['2000-01-01T00:00:00+09:00']
+                elif kind == 'target':
+                    item['target'] = '異なる部品'
+                elif kind == 'foreign_proof':
+                    evidence[f'priority_confirmation:{event_id}']['priority_confirmation_proof']['company_code'] = 'OTHER'
+                elif kind == 'missing_proof':
+                    del evidence[f'priority_confirmation:{event_id}']
+                else:
+                    item.pop('priority_candidate_carryover')
+                    item['priority_assessment'] = {'historical_source_gaps': {
+                        'version': 'saved-confirmed-source-gaps-v1', 'source_ids': [sid], 'message': '偽の救済'}}
+                before = deepcopy((value, evidence))
+                shown = self.view(value, evidence)['recommendations'][0]['priority_assessment']
+                self.assertNotIn('historical_source_gaps', shown)
+                self.assertIsNone(shown['effective_score'])
+                self.assertEqual((value, evidence), before)
+        # A present unsafe URL is never interpreted as missing metadata.
+        unsafe = deepcopy(sources); unsafe[sid] = {'url': 'https://foreign.test/source'}
+        self.assertNotIn('historical_source_gaps', self.view(carried, unsafe)['recommendations'][0]['priority_assessment'])
+
+    def test_model_cannot_mint_saved_history_or_source_gap_exceptions(self):
+        from vehicle_priority_inputs import validate_priority_input
+        for field in ('priority_candidate_carryover', 'priority_historical_confirmations',
+                'priority_assessment', 'historical_source_gaps', 'priority_confirmation_refs',
+                'priority_candidate_origin', 'priority_base_candidates'):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, '^INVALID_PRIORITY_INPUT_PRIVATE_FIELD$'):
+                    validate_priority_input({'priority_input_ref': '', field: {}}, {})
+
+
+    def test_older_explicit_ref_only_carry_keeps_exact_original_revision_when_source_link_is_missing(self):
+        self.prepare_pair(); self.confirm(); payload, old_sources = self.load()
+        old = finish({'recommendations': []}, payload)
+        original = old['recommendations'][0]
+        original.pop('priority_confirmation_refs')
+        from dkss_app.analysis_feedback import vehicle_analysis_proposal_ids
+        original_revision = vehicle_analysis_proposal_ids(original)[1]
+        previous = {'analysis': old, 'sources': old_sources, 'generated_at': '2026/11/11 09:00'}
+        self.change_original(); current_payload, sources = self.load()
+        prepare(self.vehicle, current_payload, sources, previous, as_of=self.day)
+        carried = reconcile(self.vehicle, {'recommendations': []}, current_payload, sources, as_of=self.day)
+        item = carried['recommendations'][0]
+        self.assertEqual(item['priority_candidate_carryover']['original_revision'], original_revision)
+        self.assertEqual(item['priority_confirmation_refs'], [original['priority_input_ref']])
+        missing = next(sid for sid in item['source_ids'] if not sid.startswith('priority_confirmation:'))
+        del sources[missing]
+        before = deepcopy((carried, sources, previous))
+        value = self.view(carried, sources)['recommendations'][0]['priority_assessment']
+        self.assertEqual(value['historical_source_gaps']['source_ids'], [missing])
+        self.assertEqual((value['label'], value['effective_score']), ('高', None))
+        self.assertEqual((carried, sources, previous), before)
+        changed = deepcopy(carried)
+        changed['recommendations'][0]['action'] = '保存時とは異なる対処'
+        self.assertNotIn('historical_source_gaps',
+            self.view(changed, sources)['recommendations'][0]['priority_assessment'])
+
 import test_priority_manufacturer_evidence as maker
 import test_priority_manufacturer_workflow as maker_workflow
 

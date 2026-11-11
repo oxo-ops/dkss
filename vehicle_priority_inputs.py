@@ -76,6 +76,12 @@ def generation_priority_inputs(payload):
 
 def validate_priority_input(item, payload):
     """Preserve old output compatibility, reject invented/rebound explicit refs."""
+    # These are server persistence/projection fields, never model assertions.
+    if any(key in item for key in (
+            'priority_candidate_carryover', 'priority_historical_confirmations',
+            'priority_assessment', 'historical_source_gaps', 'priority_confirmation_refs',
+            'priority_candidate_origin', 'priority_base_candidates')):
+        raise ValueError('INVALID_PRIORITY_INPUT_PRIVATE_FIELD')
     ref = item.get('priority_input_ref', '')
     if not isinstance(ref, str):
         raise ValueError('INVALID_PRIORITY_INPUT_REFERENCE')

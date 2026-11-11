@@ -31,6 +31,25 @@
         return element;
     };
 
+    function historicalSourceGap(item, id) {
+        const value = priorityPresentation?.read(item);
+        const assessment = value?.assessment;
+        const gap = assessment?.historical_source_gaps;
+        // This response-only exception is minted by the scoped server adapter,
+        // never by a raw proposal/carry flag supplied by the model.
+        if (!value?.valid || !value.legacy || value.score !== null || !assessment
+            || !assessment.previous_result
+            || !Array.isArray(assessment.historical_confirmation_details)
+            || !assessment.historical_confirmation_details.length
+            || gap?.version !== "saved-confirmed-source-gaps-v1"
+            || typeof gap.message !== "string" || !gap.message.trim() || gap.message.length > 1000
+            || !Array.isArray(gap.source_ids) || !gap.source_ids.length
+            || new Set(gap.source_ids).size !== gap.source_ids.length
+            || !gap.source_ids.every(value => typeof value === "string" && value && item.source_ids?.includes(value))
+            || !gap.source_ids.includes(id)) return null;
+        return gap.message;
+    }
+
     let referenceMaintenanceRecords = [];
     let referenceFeedbackHistory = [];
 
@@ -849,7 +868,12 @@
 
                 for (const id of item.source_ids) {
                     const source = data.sources?.[id];
-                    if (!source || typeof source.url !== "string") {
+                    if (!source || typeof source.url !== "string" || !source.url.trim()) {
+                        const gap = historicalSourceGap(item, id);
+                        if (gap) {
+                            recordLinks.append(node("p", "ka-historical-source-gap", gap));
+                            continue;
+                        }
                         throw fail(
                             "提案の根拠となる履歴を確認できませんでした。"
                         );
@@ -1152,7 +1176,12 @@
 
             for (const id of item.source_ids) {
                 const source = data.sources?.[id];
-                if (!source || typeof source.url !== "string") {
+                if (!source || typeof source.url !== "string" || !source.url.trim()) {
+                    const gap = historicalSourceGap(item, id);
+                    if (gap) {
+                        links.append(node("p", "ka-historical-source-gap", gap));
+                        continue;
+                    }
                     throw fail("提案の根拠となる履歴を確認できませんでした。");
                 }
 

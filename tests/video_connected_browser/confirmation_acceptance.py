@@ -9,11 +9,14 @@ background helper may change only this vehicle's normal analysis state, which is
 re-protected after the job. Other business records and prior audit rows remain
 protected; only the target vehicle's input epoch/read cache are exempt. The
 manufacturer history branch explicitly revises/restores one original PDF field,
-verifies the complete database delta, and rebases only that owned row.
+verifies the complete database delta, and rebases only that owned row. After the
+real carry job, one saved source-map entry is deliberately removed with the same
+exact-field protection. No candidate, proof, score or gap response is seeded.
 
 These are prepared acceptance assertions, not a claim of browser execution.
 Existing GET-only scenarios do not import this module.
 """
+from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
 from io import BytesIO
@@ -22,7 +25,7 @@ from unittest.mock import patch
 import json
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
 
 KINDS = {'confirmation_manufacturer': 'manufacturer_immediate',
          'confirmation_legal': 'legal_deadline', 'confirmation_progression': 'progression'}
@@ -31,6 +34,8 @@ CONFIRM, WITHDRAW = '優先度根拠確認', '優先度根拠取消'
 # Normal screen bookkeeping only. Every business/source/analysis table and user
 # row remains protected. Event appends are inspected separately, never excluded.
 BOOKKEEPING = {'analysis_input_epoch', 'analysis_input_read_cache'}
+SOURCE_GAP_MESSAGE = ('前回保存時の出典リンクが一部残っていません。保存された区分・確認者・日時・原文だけを示しています。'
+                      '現在の条件成立や点数を示すものではありません。')
 
 
 def require(value, message):
@@ -72,11 +77,15 @@ class Fixture:
         self.started = self.setup = False
         self.background_confirmations = set()
         self.original_downloads = {}
+        self.background_items = {}
+        self.missing_source_id = None
 
     def start(self):
         c = self.case
         c.setUpClass(); self.started = True; c.setUp(); self.setup = True
-        if self.kind == 'manufacturer_immediate': c.use_original_instruction_only()
+        if self.kind == 'manufacturer_immediate':
+            c.use_original_instruction_only()
+            self.prepare_manufacturer_companion()
         if self.kind == 'progression':
             self.prepare_background_observations()
             c.prepare_pair(same_day=True)
@@ -131,6 +140,27 @@ class Fixture:
             controlled_generation_exception='Only this company/vehicle normal analysis state, during queue/job helper',
             background_confirmation_count=len(self.background_confirmations))
         return self
+
+    def prepare_manufacturer_companion(self):
+        """One independent current candidate, via real certificate/confirmation."""
+        from test_priority_certificate_sources import CertificateSourceTests
+        c = self.case
+        expiry = (c.day - timedelta(days=1)).isoformat()
+        c.vehicle.chassis_number = 'TEST-12345'
+        c.vehicle.inspection_expiry = expiry
+        c.db.session.commit()
+        document = CertificateSourceTests.add_document(c, expiry)
+        c.login('admin')
+        url = f'/vehicle/karte/{c.vehicle.id}/priority-confirmations'
+        preview = c.client.post(url + '/preview', json=dict(
+            kind='legal_deadline', selection={'document_id': document.id}))
+        require(preview.status_code == 200, 'Companion certificate preview failed')
+        saved = c.client.post(url, json=self.confirmation_body(preview.json))
+        require(saved.status_code == 200, 'Companion certificate confirmation failed')
+        self.background_confirmations.add(saved.json['event_id'])
+        self.report['manufacturer_companion'] = dict(kind='legal_deadline',
+            document_id=document.id, event_id=saved.json['event_id'],
+            setup='Synthetic source before baseline; real preview/save and normal job; no proposal JSON seed')
 
     def prepare_background_observations(self):
         """Five real distinct events, not seeded result JSON, for the top-five UI."""
@@ -362,13 +392,40 @@ class Fixture:
         for item in items:
             assessment = item['priority_assessment']
             require((assessment['label'], assessment['effective_score']) == ('高', score), 'Wrong completed common assessment')
-        if active_event is None: return None
+        if active_event is None:
+            self.assert_background(items)
+            return None
         selected = [item for item in items if any(value['event_id'] == active_event for value in
             item['priority_assessment'].get('confirmation_details_list', []) or
             [item['priority_assessment']['confirmation_details']])]
         require(len(selected) == 1, 'Saved confirmation does not identify exactly one completed candidate')
         require(selected[0]['priority_assessment']['confirmation_details']['kind'] == self.kind, 'Wrong confirmation source')
+        if self.kind == 'manufacturer_immediate':
+            others = [value for value in items if value['proposal_id'] != selected[0]['proposal_id']]
+            require(len(others) == 1, 'One independently generated companion required')
+            if not self.background_items:
+                self.background_items = {value['proposal_id']: deepcopy(value) for value in others}
+            self.assert_background(others)
         return selected[0]
+
+    def assert_background(self, items):
+        if self.kind != 'manufacturer_immediate':
+            return
+        require(self.background_items and {v['proposal_id'] for v in items} == set(self.background_items),
+                'Independent companion identity changed')
+        for value in items:
+            previous = self.background_items[value['proposal_id']]
+            for key in ('proposal_id', 'priority_input_ref', 'source_ids', 'target', 'title', 'action'):
+                require(value[key] == previous[key], 'Companion source/subject/action changed: ' + key)
+            assessment = value['priority_assessment']
+            require((assessment['label'], assessment['effective_score'], assessment['calculation_status']) ==
+                    ('高', 60, 'computed'), 'Companion lost its current legal assessment')
+            require(not assessment.get('historical_source_gaps') and not value.get('priority_candidate_carryover'),
+                    'Independent companion was converted into history')
+            details = assessment['confirmation_details']
+            require(details == previous['priority_assessment']['confirmation_details'] and
+                    details['kind'] == 'legal_deadline' and details['event_id'] in self.background_confirmations,
+                    'Companion original confirmation changed')
 
     def replace_manufacturer_original(self, replacement, phase):
         """Permit one explicit fixture PDF-field change, never a table exclusion."""
@@ -416,9 +473,11 @@ class Fixture:
         require(data['status'] == 'completed' and data['is_current'] is True,
                 'Historical display must come from the completed normal job')
         items = data['analysis']['recommendations']
-        require(len(items) == 1 and items[0]['proposal_id'] == previous_item['proposal_id'],
+        matching = [value for value in items if value['proposal_id'] == previous_item['proposal_id']]
+        require(len(matching) == 1 and len(items) == 1 + len(self.background_items),
                 'Historical candidate identity was lost or duplicated')
-        item = items[0]; assessment = item['priority_assessment']
+        self.assert_background([value for value in items if value['proposal_id'] != previous_item['proposal_id']])
+        item = matching[0]; assessment = item['priority_assessment']
         original = previous_item['priority_assessment']['confirmation_details']
         require((assessment['label'], assessment['effective_score']) == ('高', None),
                 'Historical class must not become a current numeric score')
@@ -432,8 +491,70 @@ class Fixture:
                 prior.get('confirmed_at') == [original['confirmed_at']] and
                 prior.get('previous_generated_at') == previous_generated_at,
                 'Historical attribution or saved-generation time missing')
+        if self.missing_source_id:
+            require(self.missing_source_id not in data['sources'], 'Missing source was silently fabricated')
+            require(assessment.get('historical_source_gaps') == dict(
+                version='saved-confirmed-source-gaps-v1', source_ids=[self.missing_source_id],
+                message=SOURCE_GAP_MESSAGE), 'Scoped historical source-gap response mismatch')
+        else:
+            require(not assessment.get('historical_source_gaps'), 'Unmodified carry acquired a source gap')
         self.protected()
         return item
+
+    def omit_saved_manufacturer_metadata(self, previous_item):
+        """Inject one missing link after the real carry job, not a fake result."""
+        require(self.kind == 'manufacturer_immediate' and self.missing_source_id is None,
+                'Source omission is a one-time manufacturer fixture action')
+        self.protected()
+        table = self.case.models.VehicleKarteAnalysis.__table__
+        columns = [column.name for column in table.columns]
+        owner, vehicle, result_at, id_at = (columns.index(name) for name in
+            ('company_code', 'vehicle_record_id', 'result_json', 'id'))
+        rows = list(self.saved[table.name])
+        matching = [i for i, row in enumerate(rows) if row[owner] == 'A' and row[vehicle] == self.vehicle_id]
+        require(len(matching) == 1, 'Source omission must identify one owned analysis row')
+        index = matching[0]; before = rows[index][result_at]
+        original = json.loads(before); changed = deepcopy(original)
+        sid = f'knowledge:{self.case.knowledge.id}'
+        require(isinstance(original['sources'].get(sid), dict) and original['sources'][sid].get('url'),
+                'The selected saved source metadata must exist before omission')
+        proposals = original['analysis']['recommendations']
+        selected = [v for v in proposals if v['priority_input_ref'] == previous_item['priority_input_ref']]
+        require(len(selected) == 1 and sid in selected[0]['source_ids'], 'Missing source is not on the saved manufacturer candidate')
+        carried = selected[0]; marker = carried.get('priority_candidate_carryover') or {}
+        require(marker.get('version') == 'previous-confirmed-priority-result-v1' and
+                marker.get('original_revision') == previous_item['proposal_revision'] and
+                carried.get('priority_historical_confirmations') ==
+                    [previous_item['priority_assessment']['confirmation_details']],
+                'Only an actual normally generated carry may lose this metadata')
+        require(all(f'priority_confirmation:{value["event_id"]}' in original['sources']
+                    for value in carried['priority_historical_confirmations']), 'Saved audit metadata missing')
+        removed = changed['sources'].pop(sid)
+        require({**changed['sources'], sid: removed} == original['sources'] and
+                {k: v for k, v in changed.items() if k != 'sources'} ==
+                {k: v for k, v in original.items() if k != 'sources'},
+                'Source omission changed another JSON field')
+        after = json.dumps(changed, ensure_ascii=False)
+        expected_rows = list(rows); replacement = list(rows[index]); replacement[result_at] = after
+        expected_rows[index] = tuple(replacement)
+        expected = dict(self.saved); expected[table.name] = expected_rows
+        updated = self.db.session.execute(table.update().where(
+            table.c.id == rows[index][id_at], table.c.company_code == 'A',
+            table.c.vehicle_record_id == self.vehicle_id).values(result_json=after))
+        require(updated.rowcount == 1, 'Source omission changed another analysis row')
+        self.db.session.commit()
+        require(self.snapshot() == expected, 'Source omission changed more than the owned result_json field')
+        require(self.events() == self.seen_events, 'Source omission changed confirmation audit')
+        self.saved[table.name][index] = expected_rows[index]
+        self.missing_source_id = sid
+        self.report['intentional_saved_source_omission'] = dict(
+            table=table.name, row_id=rows[index][id_at], field='result_json',
+            json_path=['sources', sid], operation='remove_one_existing_metadata_entry_after_real_carry_job',
+            before_sha256=hashlib.sha256(before.encode()).hexdigest(),
+            after_sha256=hashlib.sha256(after.encode()).hexdigest(),
+            proposals_audit_proofs_markers_and_all_other_json_unchanged=True,
+            all_other_database_rows_fields_and_audit_unchanged=True)
+        self.protected()
 
     def close(self):
         if self.setup: self.case.tearDown(); self.case.doCleanups()
@@ -468,8 +589,11 @@ def exercise_http(f):
     original_bytes = None
     if f.kind == 'manufacturer_immediate':
         original_bytes = f.revise_manufacturer_original()
-        f.assert_historical(f.generate(), item, generated['generated_at'])
-        f.report['cases'].append('Manufacturer original revised in one PDF field; real job preserves previous label, actor/time/original text without current points')
+        carried = f.generate()
+        f.assert_historical(carried, item, generated['generated_at'])
+        f.omit_saved_manufacturer_metadata(item)
+        f.assert_historical(f.read_result(), item, generated['generated_at'])
+        f.report['cases'].append('Manufacturer original revised in one PDF field; real carry job, then one saved source-metadata key deliberately removed; normal GET preserves previous label/actor/time/text without points, reports missing link, and retains independently confirmed current legal candidate')
     require(f.request('POST', f.url, body=f.confirmation_body(stale)).status_code == 409, 'Old preview accepted')
     cancel = {'token': next(v['cancel_token'] for v in f.history() if v['event_id'] == active_event)}
     require(f.request('POST', f.url, body=cancel).status_code == 200, 'Cancellation failed')
@@ -481,7 +605,7 @@ def exercise_http(f):
     prepared = f.preview()
     require(f.request('POST', f.url, body=f.confirmation_body(prepared)).status_code == 200, 'Cannot confirm after cancellation')
     f.assert_state(5, 1)
-    f.report['cases'].append('Real options/preview/CSRF/save/replay/correction/stale revision/cancel/new confirmation; real empty-response queue/job completion and cancellation GET/regeneration; protected records unchanged outside the explicit manufacturer revision/restore')
+    f.report['cases'].append('Real options/preview/CSRF/save/replay/correction/stale revision/cancel/new confirmation; real empty-response queue/job completion and cancellation GET/regeneration; protected records unchanged outside the explicit manufacturer revision/restore and one-key saved-source omission')
 
 
 def run_browser(args, f, report, out, origin):
@@ -690,32 +814,53 @@ def run_browser(args, f, report, out, origin):
                 f.protected()
 
         def historical_views(page, data, previous_item, previous_generated_at):
-            """Display actual saved history after one explicit source-PDF revision."""
+            """Display real carry plus current companion after one metadata omission."""
             original = previous_item['priority_assessment']['confirmation_details']
             historical_item = f.assert_historical(data, previous_item, previous_generated_at)
+            ids = data['analysis']['priority_order']
+            require(set(ids) == {historical_item['proposal_id'], *f.background_items}, 'Historical ordered identities changed')
+            companion_id = next(iter(f.background_items))
+            companion = next(v for v in data['analysis']['recommendations'] if v['proposal_id'] == companion_id)
+            expected_records = [urljoin(origin, data['sources'][sid]['url']) for sid in historical_item['source_ids']
+                if sid != f.missing_source_id and not sid.startswith('knowledge:')]
             for view_width, view_height in WIDTHS:
                 page.set_viewport_size(dict(width=view_width, height=view_height))
                 with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
                     page.goto(origin + f.overview, wait_until='networkidle')
                 f.assert_historical(fetched.value.json(), previous_item, previous_generated_at)
                 cards = page.locator('#ko-ai .ko-proposal')
-                expect(cards).to_have_count(1)
-                expect(cards).to_have_attribute('data-proposal-id', historical_item['proposal_id'])
-                expect(cards.locator('.ko-priority')).to_have_text('高')
-                require(cards.get_attribute('data-priority-score') is None, 'Historical overview exposed a current score')
-                expect(page.locator('[data-ko-summary-count]')).to_have_text('1件（前回評価を含む）')
+                expect(cards).to_have_count(2)
+                require(cards.evaluate_all('(xs)=>xs.map(x=>x.dataset.proposalId)') == ids, 'Historical coexistence order changed')
+                old_card = page.locator(f'#ko-ai .ko-proposal[data-proposal-id="{historical_item["proposal_id"]}"]')
+                current_card = page.locator(f'#ko-ai .ko-proposal[data-proposal-id="{companion_id}"]')
+                expect(old_card.locator('.ko-priority')).to_have_text('高')
+                require(old_card.get_attribute('data-priority-score') is None, 'Historical overview exposed a current score')
+                expect(current_card.locator('.ko-priority')).to_have_text('高 · 60点')
+                expect(current_card).to_have_attribute('data-priority-score', '60')
+                expect(page.locator('[data-ko-summary-count]')).to_have_text('2件（前回評価を含む）')
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical overview overflows')
                 page.screenshot(path=str(out / f'{args.case}-historical-overview-{view_width}.png'), full_page=True)
                 with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
-                    cards.locator('.ko-proposal-detail').click()
+                    old_card.locator('.ko-proposal-detail').click()
                 f.assert_historical(fetched.value.json(), previous_item, previous_generated_at)
                 rows = page.locator('.ka7-proposal-table tbody tr')
-                expect(rows).to_have_count(1)
-                expect(rows.locator('.ka7-priority')).to_have_text('高')
-                expect(page.locator('.ka7-count')).to_have_text('1件（前回評価を含む）')
+                expect(rows).to_have_count(2)
+                old_row = rows.nth(ids.index(historical_item['proposal_id']))
+                current_row = rows.nth(ids.index(companion_id))
+                expect(old_row.locator('.ka7-target > strong')).to_have_text(historical_item['target'])
+                expect(old_row.locator('.ka7-priority')).to_have_text('高')
+                expect(current_row.locator('.ka7-target > strong')).to_have_text(companion['target'])
+                expect(current_row.locator('.ka7-priority')).to_have_text('高 · 60点')
+                expect(page.locator('.ka7-count')).to_have_text('2件（前回評価を含む）')
                 drawer = page.locator('.ka-reference-drawer')
                 expect(drawer).to_be_visible()
+                expect(page).to_have_url(origin + f.analysis + '#proposal=' + historical_item['proposal_id'])
                 expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text('高')
+                expect(drawer.locator('p.ka-historical-source-gap')).to_have_count(1)
+                expect(drawer.locator('p.ka-historical-source-gap')).to_have_text(SOURCE_GAP_MESSAGE)
+                expect(drawer.locator('p.ka-historical-source-gap a')).to_have_count(0)
+                actual_records = drawer.locator('.ka-reference-source-links a').evaluate_all('(xs)=>xs.map(x=>x.href)')
+                require(actual_records == expected_records, 'Missing source gained a fabricated link or a real record link vanished')
                 details = drawer.locator('.priority-response-details')
                 details.locator('summary').click()
                 prior = details.locator('.priority-response-previous')
@@ -735,8 +880,33 @@ def run_browser(args, f, report, out, origin):
                 # here or weaken the completed-state original_downloads hashes.
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Historical drawer overflows')
                 page.screenshot(path=str(out / f'{args.case}-historical-detail-{view_width}.png'), full_page=True)
+                drawer.locator('.ka-drawer-close').click()
+                expect(drawer).to_be_hidden()
+                current_row.locator('.ka-reference-detail-button').click()
+                expect(drawer).to_be_visible()
+                # A row button opens the drawer without adding a deep-link hash.
+                expect(page).to_have_url(origin + f.analysis)
+                expect(drawer.locator('#ka-reference-drawer-title')).to_have_text(companion['target'])
+                expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text('高 · 60点')
+                expect(drawer.locator('.ka-historical-source-gap')).to_have_count(0)
+                current_details = drawer.locator('.priority-response-details')
+                current_details.locator('summary').click()
+                expect(current_details.locator('.priority-response-previous')).to_have_count(0)
+                current_confirmation = companion['priority_assessment']['confirmation_details']
+                current_section = current_details.locator('.priority-response-confirmation')
+                expect(current_section).to_have_count(1)
+                expect(current_section).to_contain_text(current_confirmation['actor_name'])
+                expect(current_section).to_contain_text(current_confirmation['confirmed_at'])
+                for statement in current_confirmation['statements']:
+                    expect(current_section).to_contain_text(statement)
+                for source in current_confirmation['display_sources']:
+                    expect(current_section).to_contain_text(source['text'])
+                    if source.get('url'):
+                        expect(current_section.locator('a[href="' + urljoin(origin, source['url']) + '"]').first).to_be_visible()
+                require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Current companion drawer overflows')
+                page.screenshot(path=str(out / f'{args.case}-historical-companion-{view_width}.png'), full_page=True)
                 f.protected()
-                report['cases'].append(f'Browser {view_width}: revised manufacturer original -> normal empty-response job -> same historical proposal, previous label without current points, exact former actor/time/statements/text')
+                report['cases'].append(f'Browser {view_width}: real manufacturer carry job, then explicit one-key saved-source omission; same historical proposal/actor/time/text, previous high without current points and missing-link explanation; independent current legal high60 remains visible with real source links and no gap')
 
         page = new_page()
         original_bytes = None
@@ -780,7 +950,10 @@ def run_browser(args, f, report, out, origin):
                     completed_views(page, generated, completed_item)
                     if f.kind == 'manufacturer_immediate':
                         original_bytes = f.revise_manufacturer_original()
-                        historical_views(page, f.generate(), completed_item, generated['generated_at'])
+                        carried = f.generate()
+                        f.assert_historical(carried, completed_item, generated['generated_at'])
+                        f.omit_saved_manufacturer_metadata(completed_item)
+                        historical_views(page, f.read_result(), completed_item, generated['generated_at'])
                     page.set_viewport_size(dict(width=width, height=height)); root = open_form(page)
 
                 before = len(captured)
@@ -815,7 +988,7 @@ def run_browser(args, f, report, out, origin):
                 expect(page.locator('#priority-evidence')).to_be_visible()
                 require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Optional page overflows')
                 f.assert_state(start_count + 4, 0)
-                report['cases'].append(f'Browser {width}: real selects/original preview/required checkboxes/double click/save/correction/stale second-tab 409/cancel/dismiss/replays/Escape/overview/Back; protected records unchanged outside the explicit manufacturer revision/restore')
+                report['cases'].append(f'Browser {width}: real selects/original preview/required checkboxes/double click/save/correction/stale second-tab 409/cancel/dismiss/replays/Escape/overview/Back; protected records unchanged outside the explicit manufacturer revision/restore and one-key saved-source omission')
             require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'], 'Browser script/request failure')
             report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
         except Exception:

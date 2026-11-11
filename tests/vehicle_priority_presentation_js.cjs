@@ -208,3 +208,86 @@ test('carried previous evaluation separates saved label and dates from current s
         assert.equal(view.read(copy).valid,false);
     }
 });
+
+
+function carriedWithMissingSource() {
+    const item=proposal('carry'), a=item.priority_assessment;
+    item.source_ids=['inspection:1','knowledge:missing'];item.knowledge_ids=['knowledge:missing'];
+    Object.assign(a,{calculation_status:'legacy_preserved',base_score:null,effective_score:null,floor_adjustment:null,
+        applied_floors:[],factors:a.factors.map(f=>({...f,points:null})),previous_result:{
+            version:'previous-confirmed-priority-result-v1',original_revision:'a'.repeat(64),label:item.priority,
+            previous_generated_at:'2026/11/10 12:00',confirmed_at:['2026-11-10T11:00:00+09:00'],reason:'原本を再検証できません。'},
+        historical_confirmation_details:[{kind:'manufacturer_immediate',event_id:42,confirmed_at:'2026-11-10T11:00:00+09:00',
+            actor_name:'当時の確認者',statements:['当時の条件を確認'],display_sources:[{label:'保存した原文',text:'旧版の条件本文'}]}],
+        historical_source_gaps:{version:'saved-confirmed-source-gaps-v1',source_ids:['knowledge:missing'],
+            message:'前回保存時の出典リンクが一部残っていません。現在の条件成立や点数を示すものではありません。'}});
+    return item;
+}
+function analysisSourceRenderer(legacy) {
+    // Execute both production citation-rendering blocks without emulating the
+    // rest of the application. Browser coverage remains a separate CI stage.
+    const code=fs.readFileSync('static/js/vehicle_karte_analysis_ai.js','utf8');
+    const helper=code.slice(code.indexOf('    function historicalSourceGap('),code.indexOf('    let referenceMaintenanceRecords'));
+    const scope=legacy?code.indexOf('    function renderLegacy('):code.indexOf('    function render(data)');
+    const start=code.indexOf('if (!Array.isArray(item.source_ids)',scope);
+    const end=code.indexOf(legacy?'            sourceRow.append(':'                detail.append(',start);
+    assert.ok(scope>=0 && start>scope && end>start);
+    const block=code.slice(start,end);
+    const render=new Function('item','data','priorityPresentation','node','window',
+        'const fail=message=>new Error(message);'+helper+
+        (legacy?'':'const recordLinks=node("div"),knowledgeLinks=node("div"),knowledgeIds=new Set(item.knowledge_ids||[]);')+
+        block+(legacy?'return [links];':'return [recordLinks,knowledgeLinks];'));
+    return (item,sources)=>render(item,{sources},view,(tag,cls,text)=>{
+        const value=el(tag);value.className=cls||'';if(text!==undefined)value.textContent=String(text);return value;
+    },{location:{origin:'https://dkss.test'}});
+}
+test('both analysis source renderers preserve a verified historical carry and a normal proposal',()=>{
+    const carry=carriedWithMissingSource(), normal=proposal('normal');normal.source_ids=['inspection:1'];
+    const sources={'inspection:1':{label:'残る元記録',url:'/vehicle/checklists/1'}};
+    const before=JSON.stringify({carry,normal,sources});
+    for(const legacy of [false,true]){
+        const render=analysisSourceRenderer(legacy), rows=[...render(carry,sources),...render(normal,sources)];
+        const root=el();root.append(...rows);const content=texts(root), all=walk(root);
+        assert.match(content,/前回保存時の出典リンクが一部残っていません/);
+        assert.equal(all.filter(e=>e.className==='ka-historical-source-gap').length,1);
+        assert.deepEqual(all.filter(e=>e.tag==='a').map(e=>e.href),
+            ['https://dkss.test/vehicle/checklists/1','https://dkss.test/vehicle/checklists/1']);
+        const history=texts(view.details(doc,carry,sources,'https://dkss.test'));
+        assert.match(history,/当時の確認者/);assert.match(history,/旧版の条件本文/);
+        assert.match(history,/前回の評価：中/);assert.doesNotMatch(history,/基本点 0|未評価/);
+        assert.equal(view.read(carry).score,null);
+    }
+    assert.equal(JSON.stringify({carry,normal,sources}),before);
+});
+test('historical source exception never relaxes ordinary, unverified, wrong-ID or unsafe-URL sources',()=>{
+    for(const legacy of [false,true]){
+        const render=analysisSourceRenderer(legacy), base=carriedWithMissingSource();
+        const sources={'inspection:1':{label:'元記録',url:'/vehicle/checklists/1'}};
+        for(const mutate of [
+            i=>delete i.priority_assessment.historical_source_gaps,
+            i=>delete i.priority_assessment.previous_result,
+            i=>delete i.priority_assessment.historical_confirmation_details,
+            i=>i.priority_assessment.historical_source_gaps.version='unknown',
+            i=>i.priority_assessment.historical_source_gaps.source_ids=['inspection:1'],
+            i=>i.priority_assessment.proposal_revision='other',
+            i=>i.priority_assessment.previous_result.original_revision='forged',
+            i=>{delete i.priority_assessment;i.priority_candidate_carryover={version:'previous-confirmed-priority-result-v1'};},
+            i=>{i.source_ids=[];},
+        ]){
+            const item=JSON.parse(JSON.stringify(base));mutate(item);
+            assert.throws(()=>render(item,sources),/提案の根拠となる履歴/);
+        }
+        const ordinary=proposal('ordinary');ordinary.source_ids=['knowledge:missing'];
+        assert.throws(()=>render(ordinary,sources),/提案の根拠となる履歴/);
+        for(const url of ['https://foreign.test/source','javascript:alert(1)']){
+            assert.throws(()=>render(base,{...sources,'knowledge:missing':{url}}),/履歴へのリンク/);
+        }
+        for(const missing of [{}, {url:''}, {url:' '}]){
+            assert.doesNotThrow(()=>render(base,{...sources,'knowledge:missing':missing}));
+        }
+        const malicious=JSON.parse(JSON.stringify(base));
+        malicious.priority_assessment.historical_source_gaps.message='<img src=x onerror=alert(1)>';
+        const tree=el();tree.append(...render(malicious,sources));
+        assert.match(texts(tree),/<img/);assert.equal(walk(tree).some(e=>e.tag==='img'),false);
+    }
+});

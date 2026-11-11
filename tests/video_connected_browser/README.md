@@ -376,7 +376,7 @@ empty input evidence, matching the actual generator source set and its exact
 normal no-source return, permits zero calls. Unexpected endpoints, methods,
 multiple calls, nonempty-source zero calls or a changed no-source result fail.
 The only replaced external response remains the synthetic urllib empty response
-when that endpoint is actually called. The normal cancelled-result zero count,
+when that endpoint is actually called. The scenario-specific cancelled-result count,
 current-result GET, unrelated proposal IDs and full database protection still
 apply. No feedback contract or product behavior is changed.
 
@@ -484,3 +484,75 @@ prepared test-transport correction; it is not a passing browser result.
 
 Relevant upstream behavior: [Playwright v1.62 Page.route](https://github.com/microsoft/playwright/blob/v1.62.0/docs/src/api/class-page.md#L3664)
 and [Chromium redirect interception](https://github.com/microsoft/playwright/blob/v1.62.0/packages/playwright-core/src/server/chromium/crNetworkManager.ts#L344-L355).
+
+### Source-bearing legacy proposal fixtures
+
+At head `8b2d399cf32b772d0594a95e09e5cc0ff0325be6`, official run `43031536990`
+passed all three confirmation HTTP preflights and the four existing browser cases.
+The normal case also completed the notification relay to its exact original
+inspection URL. It then stopped when the normal analysis page correctly rejected
+two synthetic legacy high/low proposals with missing `source_ids`. The fixture
+now gives those two proposals only the existing real inspection source ID from
+its saved source map. It does not add a scoring reference, points or a new source;
+legacy labels remain legacy and unscored. The product's required-source check is
+unchanged. This one shared fixture correction applies to normal, instruction and
+recheck together.
+
+A static pass over subsequent click expectations also found that the analysis
+renderer stores original-link hrefs as absolute same-origin URLs. The related
+notification cases now compare the original-link attribute with the exact same
+source URL resolved against the synthetic origin, retaining its full path and
+query. Source identity and popup navigation requirements are not relaxed. No
+product code is changed. These follow-up corrections have not yet been executed;
+the eight later connected cases were not run in the cited attempt.
+
+
+### Saved-source metadata gap beside a current proposal
+
+The manufacturer scenario now prepares one additional, independent legal-expiry
+confirmation before its protected baseline. It reuses the synthetic certificate
+PDF helper, real preview/save routes and an already-expired date. The ordinary
+queue/job with the same empty AI transport generates this companion; no result
+proposal, scoring ref, score or source map is fabricated. Manufacturer and legal
+confirmations refer to different original facts. The legal candidate must remain
+current high/60 with its own exact confirmation, source IDs, subject and action.
+
+After the existing manufacturer original-PDF revision and real carry job have
+completed, the fixture deliberately removes only the existing
+`sources["knowledge:<fixture knowledge id>"]` metadata entry from that one
+vehicle's saved `VehicleKarteAnalysis.result_json`. It first checks the actual
+carry marker, original revision and historical confirmation against the earlier
+real result. This tests a damaged **saved bundle after generation**; it does not
+assert that the real queue/job itself produced missing metadata.
+
+- The expected JSON differs by exactly that one removed source-map key. All
+  recommendations, carry markers, audit proof, saved original display text and
+  other top-level fields remain identical.
+- The expected complete database snapshot differs only in that owned row's
+  `result_json` field. Every audit row must remain identical. Only after both
+  exact comparisons succeed is that single row rebased. The result artifact's
+  `intentional_saved_source_omission` records row ID, JSON path and before/after
+  hashes. No analysis table is excluded and no other row is silently rebased.
+- The response-only `historical_source_gaps` value is obtained from the normal
+  result GET, never seeded. Its exact version, single missing ID and explanation
+  must match. The saved audit source and inspection source remain present.
+- At all five widths, the actual overview/analysis links and proposal IDs identify
+  the old manufacturer candidate separately from the current legal candidate.
+  The old candidate retains high/null current points and the exact former actor,
+  confirmation time, original text and generation attribution. Its normal source
+  area displays one missing-link explanation and exactly the surviving real
+  record links, with no link manufactured for the absent knowledge metadata.
+  Its historical confirmation may still show an original URL actually saved at
+  confirmation time; this is distinct from recreating missing link metadata.
+- The legal row/detail remains visible at high/60 without a historical source
+  warning. Cancelling the manufacturer confirmation leaves only the same legal
+  proposal through normal GET and normal regeneration. Existing immutable-source
+  download hashes, narrow browser POST allowlist and business/audit guards remain
+  unchanged.
+
+The new saved-metadata branch runs in the existing manufacturer HTTP preflight
+and browser case, not a new workflow/scenario. Five additional companion-detail
+images use `confirmation_manufacturer-historical-companion-<width>.png`.
+This extension has only been prepared and statically checked; its changed HTTP
+and browser assertions have not yet run on a final candidate. The earlier
+8b2d399c preflight pass does not cover this added boundary.

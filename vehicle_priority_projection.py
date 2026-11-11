@@ -369,6 +369,15 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
         matching = [sid for sid in set(refs or []) if sid in scoped] if valid_refs else []
         if not valid_identity or not valid_refs:
             reasons.append('元提案の識別子・版・根拠IDを確認要')
+            # Only the scoped server adapter can authorize historical display
+            # for a verified saved carry with missing citation metadata.
+            saved_result, saved_reason = (confirmed_results or {}).get(index, (None, None))
+            if (valid_identity and str(item.get('priority_input_ref') or '').startswith('confirmation:')
+                    and isinstance(saved_result, dict) and saved_result.get('historical_source_gaps')
+                    and (saved_result.get('held') is True or saved_result.get('suppressed') is True)):
+                result = saved_result
+                if saved_reason:
+                    reasons.append(saved_reason)
         elif unavailable_reason:
             pass
         elif item.get('category') == '記録確認':
@@ -409,6 +418,7 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
             continue
         if result is not None and result.get('dedupe_base_candidates'):
             dedupe_requests.append((index, item['target'], result['dedupe_base_candidates']))
+        source_gaps = result.get('historical_source_gaps') if result is not None and result.get('held') is True else None
         historical_details = result.get('historical_confirmation_details') if result is not None else None
         previous_result = result.get('previous_result') if result is not None and result.get('held') is True else None
         if result is not None and result.get('held') is True:
@@ -422,6 +432,8 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
                 historical_details = item.get('priority_historical_confirmations')
         if isinstance(historical_details, list):
             value['historical_confirmation_details'] = deepcopy(historical_details)
+        if isinstance(source_gaps, dict):
+            value['historical_source_gaps'] = deepcopy(source_gaps)
         if result is not None:
             value.update({key: result[key] for key in ('label', 'base_score', 'effective_score',
                 'floor_adjustment', 'applied_floors', 'evidence_status', 'missing_axes',

@@ -364,6 +364,45 @@ def saved_confirmed_priority_history(item, sources, vehicle):
         return []  # Missing historical proof cannot be rebuilt from current facts.
 
 
+def _saved_carry_source_gaps(item, candidate, sources):
+    """Response-only exception for an actual saved carry, not a model flag.
+
+    The original proposal digest, audit scope/proof and marker dates must agree.
+    Missing link metadata is reported; it is never recreated from today's data.
+    """
+    from .analysis_feedback import vehicle_analysis_proposal_ids
+    marker = item.get('priority_candidate_carryover')
+    if (not isinstance(marker, dict) or marker.get('version') != CARRY_VERSION
+            or marker.get('label') != item.get('priority')
+            or marker.get('confirmed_at') != [proof['confirmed_at'] for proof in candidate['proofs']]
+            or not isinstance(marker.get('previous_generated_at'), str)
+            or not isinstance(marker.get('reason'), str) or not marker['reason'].strip()
+            or re.fullmatch('[0-9a-f]{64}', str(marker.get('original_revision', ''))) is None):
+        return None
+    original = {key: deepcopy(value) for key, value in item.items() if key not in {
+        'priority_candidate_carryover', 'priority_historical_confirmations',
+        'proposal_id', 'proposal_revision', 'feedback', 'evaluation', 'priority_assessment', 'risk_assessment'}}
+    revisions = {vehicle_analysis_proposal_ids(original)[1]}
+    if original.get('priority_confirmation_refs') == [original.get('priority_input_ref')]:
+        # _carry adds the singleton list after hashing older explicit-ref-only
+        # items. Accept only that exact historical shape, not arbitrary omissions.
+        without_added_refs = {key: value for key, value in original.items() if key != 'priority_confirmation_refs'}
+        revisions.add(vehicle_analysis_proposal_ids(without_added_refs)[1])
+    if marker['original_revision'] not in revisions:
+        return None
+    ids = item.get('source_ids')
+    if (not isinstance(ids, list) or not ids or
+            any(not isinstance(sid, str) or not sid for sid in ids)):
+        return None
+    missing = list(dict.fromkeys(sid for sid in ids
+        if not isinstance(sources.get(sid), dict)
+        or not isinstance(sources[sid].get('url'), str) or not sources[sid]['url'].strip()))
+    if not missing:
+        return None
+    return {'version': 'saved-confirmed-source-gaps-v1', 'source_ids': missing,
+        'message': '前回保存時の出典リンクが一部残っていません。保存された区分・確認者・日時・原文だけを示しています。現在の条件成立や点数を示すものではありません。'}
+
+
 def _carry(candidate, previous_generated_at):
     from .analysis_feedback import vehicle_analysis_proposal_ids
     item = deepcopy(candidate['proposal'])
@@ -476,8 +515,10 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
         reason = '生成時の確認原本・本人・版と現在の確認を照合できないため保存区分を保持します'
         values[index] = (None, reason)
         previous = _saved_candidates({'recommendations': [item]}, sources, vehicle)
+        gaps = _saved_carry_source_gaps(item, previous[0], sources) if previous else None
         if previous:
             values[index] = ({'held': True,
+                **({'historical_source_gaps': gaps} if gaps else {}),
                 'historical_confirmation_details': _historical_details(previous[0]['proofs'], sources),
                 'previous_result': deepcopy(item.get('priority_candidate_carryover'))}, reason)
         try:
@@ -514,6 +555,7 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
             remaining = [entry for entry in checked if entry['status'] not in {'withdrawn', 'resolved'}]
             if not remaining:
                 values[index] = ({'suppressed': True,
+                    **({'historical_source_gaps': gaps} if gaps else {}),
                     'reason': 'この候補の事実確認が取り消されたか元指摘が真正に解消したため、確認候補のみを表示対象から外しました'}, None)
             elif all(entry['status'] == 'active' for entry in remaining) and not item.get('priority_candidate_carryover'):
                 result = _assessment_many(remaining, item['proposal_id'], as_of=as_of, is_current=is_current)
@@ -523,7 +565,7 @@ def project_registered_confirmed_priorities(analysis, vehicle, sources, *, as_of
                         result['missing_conditions'].append('取り消された確認根拠は算定から除外しています。元の点検状態・運行判断を変更するものではありません')
                 values[index] = (result, None if result is not None else 'この条件で新しい点数を付ける根拠が成立していないため、保存区分を保持します')
             else:
-                values[index] = ({'held': True, 'dedupe_base_candidates': _dedupe_candidates(item, base_refs), 'previous_result': deepcopy(item.get('priority_candidate_carryover')), 'historical_confirmation_details': _historical_details([_proof(entry) for entry in checked], sources)},
+                values[index] = ({'held': True, **({'historical_source_gaps': gaps} if gaps else {}), 'dedupe_base_candidates': _dedupe_candidates(item, base_refs), 'previous_result': deepcopy(item.get('priority_candidate_carryover')), 'historical_confirmation_details': _historical_details([_proof(entry) for entry in checked], sources)},
                     '確認後に元記録・適用日・原本が変わったため、前の区分を無点数で保持しています。元の根拠を再確認してください')
         except (ValueError, TypeError, KeyError):
             continue
