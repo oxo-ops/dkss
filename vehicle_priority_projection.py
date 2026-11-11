@@ -355,6 +355,7 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
               and v.vehicle_id == vehicle_id and v.captured_on == as_of}
     registered_fingerprint = _hash([vars(scoped[sid]) for sid in sorted(scoped)])
     suppressed_indices = set()
+    dedupe_requests = []
     resolved_proposals = []
     for index, item in enumerate(proposals):
         if not isinstance(item, dict):
@@ -406,6 +407,10 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
                 'proposal_id': item['proposal_id'], 'proposal_revision': item['proposal_revision'],
                 'source_ids': item['source_ids'], 'reason': result['reason']})
             continue
+        if result is not None and result.get('dedupe_base_candidates'):
+            dedupe_requests.append((index, item['target'], result['dedupe_base_candidates']))
+        if result is not None and result.get('held') is True:
+            result = None
         value = _legacy(item, as_of, reasons, fingerprint)
         if result is not None:
             value.update({key: result[key] for key in ('label', 'base_score', 'effective_score',
@@ -420,12 +425,23 @@ def project_priority(analysis, sources, inspections, *, company_code, vehicle_id
             if isinstance(result.get('scope'), dict) and isinstance(result['scope'].get('target'), str):
                 value['subject_label'] = result['scope']['target']
             for field in ('instruction_details', 'timing_reference', 'timing_origin_on',
-                          'timing_relation', 'timing_criteria', 'timing_rule_key', 'confirmation_details'):
+                          'timing_relation', 'timing_criteria', 'timing_rule_key', 'confirmation_details', 'confirmation_details_list'):
                 if result.get(field) is not None:
                     value[field] = result[field]
             item['priority'] = value['label']
         item['priority_assessment'] = value
+    deduplicated = []
+    for confirmed_index, target, candidates in dedupe_requests:
+        for index, item in enumerate(proposals):
+            if (index == confirmed_index or index in suppressed_indices or not isinstance(item, dict)
+                    or item.get('category') != '整備・点検' or item.get('target') != target
+                    or not any(all(item.get(key) == value[key] for key in value) for value in candidates)):
+                continue
+            suppressed_indices.add(index)
+            deduplicated.append({'proposal_id': item.get('proposal_id'), 'proposal_revision': item.get('proposal_revision'),
+                'represented_by': proposals[confirmed_index].get('proposal_id')})
     proposals = [item for index, item in enumerate(proposals) if index not in suppressed_indices]
+    output['priority_deduplicated_proposals'] = deduplicated
     output['recommendations'] = proposals
     output['priority_resolved_proposals'] = resolved_proposals
     output['priority_assessment_version'] = VERSION
