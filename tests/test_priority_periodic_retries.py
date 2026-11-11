@@ -62,3 +62,22 @@ class PeriodicPreservedRetryTests(unittest.TestCase):
         self.assertEqual(updated['result']['recommendations'][0]['priority_assessment']['effective_score'], 60)
         self.assertEqual(json.loads(job.result_json)['recommendations'], replacement['recommendations'])
         self.assertEqual(c.snapshot(), business)
+
+    def test_confirmation_limit_returns_specific_error_and_keeps_saved_result(self):
+        c = self.case; c.prepare(decision='運行不可')
+        _, _, _, job = c.execute_normal_job('registered_operation_instruction')
+        original = job.result_json
+        with patch('dkss_app.priority_confirmed_projection.attach_confirmed_priority_inputs',
+                side_effect=ValueError('CONFIRMED_PRIORITY_CANDIDATE_LIMIT')):
+            response = c.client.get(c.api)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['error'], 'confirmation_limit')
+        self.assertFalse(response.json['is_current'])
+        self.assertEqual(job.result_json, original)
+        self.assertEqual(response.json['result']['recommendations'][0]['priority'], '高')
+        self.assertIsNone(response.json['result']['recommendations'][0]['priority_assessment']['effective_score'])
+        with patch('dkss_app.analysis.get_vehicle_analysis_read_projection',
+                side_effect=ValueError('CONFIRMED_PRIORITY_CANDIDATE_LIMIT')):
+            normal = c.client.get(f'/vehicle/karte/{c.vehicle.id}/analysis/result')
+        self.assertEqual(normal.status_code, 200)
+        self.assertIn('一部だけに絞らず', normal.json['input_warning'])

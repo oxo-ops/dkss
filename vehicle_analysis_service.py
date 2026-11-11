@@ -131,7 +131,7 @@ class VehicleAnalysisQueueService:
 
 class VehicleAnalysisJobService:
     def __init__(self, *, repository, load_input, analyze, utc_now, new_token,
-                 input_context, logger, read_api_key):
+                 input_context, logger, read_api_key, prepare_confirmed=None, reconcile_confirmed=None):
         self.repository = repository
         self.load_input = load_input
         self.analyze = analyze
@@ -140,6 +140,8 @@ class VehicleAnalysisJobService:
         self.input_context = input_context
         self.logger = logger
         self.read_api_key = read_api_key
+        self.prepare_confirmed = prepare_confirmed
+        self.reconcile_confirmed = reconcile_confirmed
 
     def run(self, state_id):
         now = self.utc_now()
@@ -157,6 +159,12 @@ class VehicleAnalysisJobService:
                 return True
             with self.input_context():
                 payload, sources = self.load_input(vehicle)
+                if self.prepare_confirmed is not None:
+                    try:
+                        previous = json.loads(state.result_json or "{}")
+                    except (ValueError, TypeError):
+                        previous = {}
+                    self.prepare_confirmed(vehicle, payload, sources, previous)
             fingerprints = payload["_fingerprints"]
             signature = snapshot_hash(fingerprints)
             method = "ai" if fingerprints["has_important_history"] else "record_check"
@@ -169,6 +177,9 @@ class VehicleAnalysisJobService:
                     "overview": "AIの対応候補を作るための整備・不具合・点検指摘の履歴はありません。",
                     "recommendations": [],
                 }
+            if self.reconcile_confirmed is not None:
+                with self.input_context():
+                    analysis = self.reconcile_confirmed(vehicle, analysis, payload, sources)
             finished = self.utc_now()
             bundle = {
                 "analysis": analysis, "sources": sources, "coverage": payload["coverage"],

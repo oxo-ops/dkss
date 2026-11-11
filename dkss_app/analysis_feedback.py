@@ -157,6 +157,8 @@ def save_vehicle_analysis_feedback(vehicle_record_id):
             break
     if selected is None:
         return _dkss_common.jsonify(ok=False, message="提案が更新されています。最新の内容を確認してください。"), 409
+    if "priority_candidate_carryover" in selected:
+        return _dkss_common.jsonify(ok=False, message="前回の評価として保持している提案です。元の根拠を再確認し、現在の分析が成立してから回答してください。"), 409
     try:
         payload, _sources = _dkss_analysis.get_vehicle_karte_analysis_job_data(vehicle)
         current = state.status == "completed" and _dkss_analysis.vehicle_karte_analysis_matches_input(bundle, payload)
@@ -284,6 +286,8 @@ def save_vehicle_analysis_evaluation(vehicle_record_id):
             break
     if selected is None:
         return _dkss_common.jsonify(ok=False, message="提案が更新されています。最新の内容を確認してください。"), 409
+    if "priority_candidate_carryover" in selected:
+        return _dkss_common.jsonify(ok=False, message="前回の評価として保持している提案です。元の根拠を再確認し、現在の分析が成立してから回答してください。"), 409
 
     comment = comment.strip()
     previous = _dkss_models.VehicleAnalysisEvaluation.query.filter_by(

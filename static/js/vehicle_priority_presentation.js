@@ -48,6 +48,14 @@
     const validConfirmations = v => v == null || (Array.isArray(v) && v.length > 0 && v.length <= 100
         && v.every(entry => entry != null && validConfirmation(entry))
         && new Set(v.map(entry => entry.event_id)).size === v.length);
+    const validPrevious = v => v == null || (typeof v === "object" && !Array.isArray(v)
+        && v.version === "previous-confirmed-priority-result-v1" && LABELS.includes(v.label)
+        && typeof v.original_revision === "string" && /^[0-9a-f]{64}$/.test(v.original_revision)
+        && typeof v.previous_generated_at === "string" && v.previous_generated_at.length <= 100
+        && text(v.reason) && v.reason.length <= 4000 && Array.isArray(v.confirmed_at)
+        && v.confirmed_at.length > 0 && v.confirmed_at.length <= 100
+        && v.confirmed_at.every(value => text(value) && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+            && dateOnly(value.slice(0, 10)) && Number.isFinite(Date.parse(value))));
     const unavailable = () => ({valid: false, label: null, score: null, note: "優先度のデータを確認できません。元の提案を確認してください。"});
     function read(item) {
         if (!item || typeof item !== "object") return unavailable();
@@ -62,6 +70,9 @@
             || !validInstruction(p.instruction_details)
             || !validConfirmation(p.confirmation_details)
             || !validConfirmations(p.confirmation_details_list)
+            || !validConfirmations(p.historical_confirmation_details)
+            || !validPrevious(p.previous_result)
+            || (p.previous_result && (p.calculation_status !== "legacy_preserved" || p.previous_result.label !== p.label))
             || (p.earliest_due_on != null && !dateOnly(p.earliest_due_on))
             || (p.subject_label != null && !text(p.subject_label))
             || !validTimingReference(p.timing_reference)
@@ -142,6 +153,15 @@
         box.append(node(doc, "p", "priority-response-note", p.note));
         if (p.valid && p.assessment) {
             const a = p.assessment;
+            if (a.previous_result) {
+                const old = a.previous_result;
+                const history = node(doc, "section", "priority-response-previous");
+                history.append(node(doc, "strong", "", `前回の評価：${old.label}（現在の再計算値ではありません）`));
+                if (old.previous_generated_at) history.append(node(doc, "p", "", `前回分析：${old.previous_generated_at}`));
+                for (const stamp of old.confirmed_at) history.append(node(doc, "p", "", `元の事実確認：${stamp}`));
+                history.append(node(doc, "p", "", old.reason));
+                box.append(history);
+            }
             if (a.subject_label) box.append(node(doc, "p", "priority-response-subject", `算定の対象：${a.subject_label}`));
             if (a.timing_reference) {
                 const r = a.timing_reference;
@@ -168,9 +188,11 @@
                 origin.append(node(doc, "p", "priority-response-note", "個別部品が原因という判定ではありません。現在の適用範囲と解除は元記録から責任者に確認してください。"));
                 box.append(origin);
             }
-            for (const confirmation of a.confirmation_details_list || (a.confirmation_details ? [a.confirmation_details] : [])) {
+            const confirmations = (a.confirmation_details_list || (a.confirmation_details ? [a.confirmation_details] : [])).map(value => [value, false]);
+            const historical = (a.historical_confirmation_details || []).map(value => [value, true]);
+            for (const [confirmation, isHistorical] of [...confirmations, ...historical]) {
                 const section = node(doc, "section", "priority-response-confirmation");
-                section.append(node(doc, "strong", "", "元記録と根拠の確認"),
+                section.append(node(doc, "strong", "", isHistorical ? "前回保存時の根拠確認（現在の成立を示すものではありません）" : "元記録と根拠の確認"),
                     node(doc, "p", "", `${confirmation.confirmed_at} / ${confirmation.actor_name}`));
                 for (const statement of confirmation.statements) section.append(node(doc, "p", "", statement));
                 for (const source of confirmation.display_sources) {
@@ -217,7 +239,8 @@
         box.append(node(doc, "p", "priority-response-disclaimer", "点数・区分境界はシステムの試行値です。故障確率や運行可否ではありません。低も安全確認済みを意味しません。運行可否・既存指示の解除は責任者が判断してください。"));
         return box;
     }
-    const api = {VERSION, read, ordered, badge, details};
+    const includesPrevious = items => items.some(item => {const value = read(item); return value.valid && value.legacy;});
+    const api = {VERSION, read, ordered, badge, details, includesPrevious};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     root.VehiclePriorityPresentation = api;
 })(typeof window !== "undefined" ? window : globalThis);

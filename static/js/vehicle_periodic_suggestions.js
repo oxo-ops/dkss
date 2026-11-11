@@ -28,6 +28,7 @@
                     + (summary.invalid_count ? ` ／ 保存データ確認${summary.invalid_count}件` : '')));
             }
         }
+        if (priority?.includesPrevious(items)) status.append(document.createTextNode(' ／ 前回評価を含む'));
         if (order) order.style.display = items.length ? '' : 'none';
         items.forEach((item, index) => {
             const card = node('article', '', 'pf-proposal');
@@ -73,7 +74,7 @@
             }
             if (data.status === 'missing' && !canGenerate) {status.textContent = savedNote ? '分析の更新待ちです。' + savedNote : 'AI提案はまだありません。管理者がこの画面を開くと作成します。';return;}
             if (data.status === 'missing') {timer=setTimeout(()=>check(true),2000);return;}
-            status.textContent = (data.error === 'not_configured' ? 'AIの接続設定を確認してください。今回の更新は完了していません。' : 'AI提案を更新できませんでした。時間をおいて再確認してください。') + savedNote;
+            status.textContent = (data.error === 'confirmation_limit' ? '確認済み根拠が一度に照合できる件数を超えています。候補を一部だけに絞らず、分析更新を保留しています。' : data.error === 'not_configured' ? 'AIの接続設定を確認してください。今回の更新は完了していません。' : 'AI提案を更新できませんでした。時間をおいて再確認してください。') + savedNote;
             if (retry) retry.hidden=false;
         } catch (_) {status.textContent='AI提案の確認を続けられませんでした。時間をおいて再確認してください。';if(retry)retry.hidden=false;}
         finally { pending=false; }

@@ -45,6 +45,7 @@ test('periodic view uses shared score, literal legacy and exact server order wit
     assert.match(texts(ui.list.children[1]),/中 · 50点/);assert.match(texts(ui.list.children[0]),/保存版/);
     assert.equal(walk(ui.list.children[2]).filter(e=>e.dataset.priority).length,0);
     assert.match(texts(ui.status),/高1件・中1件・低0件.*保存データ確認1件/);
+    assert.match(texts(ui.status),/前回評価を含む/);
     assert.match(texts(ui.list),/根拠を確認要（0点の判定ではありません）/);
     assert.match(texts(ui.list),/故障確率や運行可否ではありません/);
     assert.equal(ui.calls.length,1);assert.equal(ui.calls[0].init.method,undefined);

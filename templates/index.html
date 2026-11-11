@@ -446,6 +446,9 @@
                     {{ title }}
                 {% endif %}
                 <span>{{ maintenance|length }}件</span>
+                {% set evaluation_scope = namespace(previous=false) %}
+                {% for item in maintenance %}{% if (item.get('priority_assessment') or {}).get('calculation_status') == 'legacy_preserved' %}{% set evaluation_scope.previous = true %}{% endif %}{% endfor %}
+                {% if evaluation_scope.previous %}<small class="dashboard-priority-note">前回評価を含む</small>{% endif %}
                 {% if maintenance|length > attention_preview_limit %}
                 <button type="button" class="dashboard-attention-view-all"
                         data-reference-target="#dashboard-attention-more-{{ key }}"

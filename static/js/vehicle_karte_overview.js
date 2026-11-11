@@ -57,7 +57,7 @@
                 item.category !== "記録確認" && !(item.feedback?.revision === item.proposal_revision &&
                 ["completed","dismissed"].includes(item.feedback?.status)))
                 .sort((a,b) => previewMode || priorityPresentation ? 0 : priorityRank(a.priority) - priorityRank(b.priority));
-            summary.textContent = `${items.length}件`;
+            summary.textContent = `${items.length}件` + (priorityPresentation?.includesPrevious(items) ? "（前回評価を含む）" : "");
             panel.dataset.current = String(current);
             for (const item of items.slice(0, visibleProposalLimit)) {
                 const url = new URL(panel.dataset.analysisUrl, window.location.origin);

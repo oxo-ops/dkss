@@ -187,3 +187,24 @@ test('merged confirmations show each original actor and source without blending 
         item.priority_assessment.confirmation_details_list=list;assert.equal(view.read(item).valid,false);
     }
 });
+
+test('carried previous evaluation separates saved label and dates from current scoring',()=>{
+    const item=proposal(),a=item.priority_assessment;
+    Object.assign(a,{calculation_status:'legacy_preserved',base_score:null,effective_score:null,floor_adjustment:null,
+        applied_floors:[],factors:a.factors.map(f=>({...f,points:null})),previous_result:{
+            version:'previous-confirmed-priority-result-v1',original_revision:'a'.repeat(64),label:item.priority,
+            previous_generated_at:'2026/11/10 12:00',confirmed_at:['2026-11-10T11:00:00+09:00'],reason:'原本が改訂され、現在の条件を再計算できません。'}});
+    assert.equal(view.read(item).score,null);
+    a.historical_confirmation_details=[{kind:'manufacturer_immediate',event_id:42,confirmed_at:'2026-11-10T11:00:00+09:00',
+        actor_name:'当時の確認者',statements:['当時の原文適用を確認'],display_sources:[{label:'保存した原文',text:'旧版の条件本文',url:'/vehicle/knowledge/1'}]}];
+    const tree=view.details(doc,item,{},'https://dkss.test'),content=texts(tree);
+    assert.match(content,/前回保存時の根拠確認（現在の成立を示すものではありません）/);
+    assert.match(content,/当時の確認者/);assert.match(content,/旧版の条件本文/);
+    assert.match(content,/前回の評価：中（現在の再計算値ではありません）/);
+    assert.match(content,/前回分析：2026\/11\/10/);assert.match(content,/元の事実確認：2026-11-10T11:00/);
+    assert.match(content,/原本が改訂/);assert.doesNotMatch(content,/基本点 0|未評価/);
+    for(const change of [{label:'未評価'},{confirmed_at:['2026-11-10']},{original_revision:'invalid'},{reason:''}]) {
+        const copy=JSON.parse(JSON.stringify(item));Object.assign(copy.priority_assessment.previous_result,change);
+        assert.equal(view.read(copy).valid,false);
+    }
+});

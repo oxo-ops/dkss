@@ -88,13 +88,16 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     is_current = None
     input_summary = None
     scheduled_comparison = None
+    input_warning = None
     try:
         projection, stable = get_vehicle_analysis_read_projection(vehicle)
         scheduled_comparison = projection.get('comparison')
         input_summary = projection['input_summary']
         if has_result and stable:
             is_current = vehicle_karte_analysis_matches_input(bundle, {'_fingerprints': projection['fingerprints']})
-    except Exception:
+    except Exception as error:
+        if isinstance(error, ValueError) and str(error) == 'CONFIRMED_PRIORITY_CANDIDATE_LIMIT':
+            input_warning = '確認済み根拠が一度に照合できる件数を超えています。候補を一部だけに絞らず、分析更新を保留しています。前回の評価を確認してください。'
         _dkss_runtime.app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 
     if status == "completed" and is_current is True:
@@ -133,6 +136,7 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         has_result=has_result,
         is_current=is_current,
         input_summary=input_summary,
+        input_warning=input_warning,
         scheduled_comparison=scheduled_comparison,
         message=message,
         analysis=decorated,
@@ -227,12 +231,15 @@ def get_vehicle_karte_analysis_job_data(vehicle):
 
 def run_vehicle_karte_analysis_job(state_id):
     """専用のバックグラウンド処理から呼び出す。"""
+    from .priority_confirmed_projection import prepare_held_confirmed_candidates, reconcile_confirmed_candidates_before_save
     repository = _dkss_common.VehicleAnalysisJobRepository(
         db=_dkss_common.db, state_model=_dkss_models.VehicleKarteAnalysis, vehicle_model=_dkss_models.Vehicle,
     )
     return _dkss_common.VehicleAnalysisJobService(
         repository=repository, load_input=get_vehicle_karte_analysis_job_data,
         analyze=_dkss_common.analyze_vehicle_karte,
+        prepare_confirmed=prepare_held_confirmed_candidates,
+        reconcile_confirmed=reconcile_confirmed_candidates_before_save,
         utc_now=lambda: _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC")),
         new_token=lambda: str(_dkss_common.uuid4()),
         input_context=lambda: _dkss_runtime.app.test_request_context("/"),

@@ -114,8 +114,8 @@
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-confirmed-2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-confirmed-3') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261111-common-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261111-confirmed-3') }}" defer></script>
 </div>
 {% endblock %}

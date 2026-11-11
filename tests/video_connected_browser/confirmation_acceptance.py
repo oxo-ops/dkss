@@ -5,6 +5,9 @@ PDFs are synthetic. Existing GET-only scenarios do not import this module.
 """
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
+from io import BytesIO
+import hashlib
+from unittest.mock import patch
 import json
 import os
 from pathlib import Path
@@ -56,12 +59,16 @@ class Fixture:
             self.case = ProgressionWorkflowTests()
         self.kind, self.report = KINDS[scenario], report
         self.started = self.setup = False
+        self.background_confirmations = set()
+        self.original_downloads = {}
 
     def start(self):
         c = self.case
         c.setUpClass(); self.started = True; c.setUp(); self.setup = True
         if self.kind == 'manufacturer_immediate': c.use_original_instruction_only()
-        if self.kind == 'progression': c.prepare_pair(same_day=True)
+        if self.kind == 'progression':
+            self.prepare_background_observations()
+            c.prepare_pair(same_day=True)
         if self.kind == 'legal_deadline':
             # Already expired: independent of interpretation of the expiry day.
             expiry = (c.day - timedelta(days=1)).isoformat()
@@ -102,10 +109,29 @@ class Fixture:
             data = self.options(self.selection)
             for key in ('condition_quote', 'action_quote'): self.selection[key] = self.option(data, key)
         self.report['fixture'] = dict(synthetic=True, csrf_enabled=True, source_readers_mocked=False,
-            ai_or_ocr_called=False, scoring_mocked=False, kind=self.kind,
+            external_ai_or_ocr_called=False, ai_transport_only_mocked=True, scoring_mocked=False, kind=self.kind,
             progression_same_day=self.kind == 'progression', permitted_post_paths=sorted(self.post_paths),
-            bookkeeping_exceptions=sorted(BOOKKEEPING))
+            bookkeeping_exceptions='Only this company/vehicle epoch and read-cache rows',
+            controlled_generation_exception='Only this company/vehicle normal analysis state, during queue/job helper',
+            background_confirmation_count=len(self.background_confirmations))
         return self
+
+    def prepare_background_observations(self):
+        """Five real distinct events, not seeded result JSON, for the top-five UI."""
+        c = self.case
+        old_day = c.day - timedelta(days=9)
+        baseline = c.begin(old_day)
+        c.repair(day=old_day)
+        c.repair(day=old_day, recheck='異常なし', hour=10, minute=30)
+        resolution = c.models.ChecklistEvent.query.filter_by(result_type='vehicle',
+            result_id=c.row.id, event_type='解消').one()
+        for offset in range(5):
+            current = c.begin(c.day - timedelta(days=8-offset))
+            c.selection = {'current_observation': current + '|reported',
+                'baseline_observation': baseline + f'|event:{resolution.id}', 'relation': 'recurrent'}
+            c.login('admin')
+            event_id, _ = c.confirm()
+            self.background_confirmations.add(event_id)
 
     @staticmethod
     def option(data, key):
@@ -115,17 +141,41 @@ class Fixture:
 
     def snapshot(self):
         self.db.session.expire_all()
-        return {t.name: [tuple(row) for row in self.db.session.execute(t.select().order_by(*t.primary_key.columns))]
-                for t in self.db.metadata.sorted_tables if t.name not in BOOKKEEPING | {'checklist_event'}}
+        result = {}
+        for table in self.db.metadata.sorted_tables:
+            if table.name == 'checklist_event': continue
+            rows = self.db.session.execute(table.select().order_by(*table.primary_key.columns)).mappings()
+            protected = []
+            for row in rows:
+                if table.name == 'analysis_input_epoch' and row['company_code'] == 'A' and row['bucket'] == f'vehicle:{self.case.vehicle.id}':
+                    continue
+                if table.name == 'analysis_input_read_cache' and row['company_code'] == 'A' and row['vehicle_record_id'] == self.case.vehicle.id:
+                    continue
+                protected.append(tuple(row.values()))
+            result[table.name] = protected
+        return result
+
+    def analysis_others(self, rows):
+        table = self.case.models.VehicleKarteAnalysis.__table__
+        keys = [column.name for column in table.columns]
+        owner, vehicle = keys.index('company_code'), keys.index('vehicle_record_id')
+        return [row for row in rows if not (row[owner] == 'A' and row[vehicle] == self.case.vehicle.id)]
 
     def events(self):
         table = self.case.models.ChecklistEvent.__table__
         require(table.name == 'checklist_event', 'Event protection table mismatch')
         return {row['id']: dict(row) for row in self.db.session.execute(table.select()).mappings()}
 
-    def protected(self, *, allow_append=False):
+    def protected(self, *, allow_append=False, allow_analysis=False):
         current = self.snapshot()
-        changed = sorted(k for k in set(current) | set(self.saved) if current.get(k) != self.saved.get(k))
+        analysis_table = self.case.models.VehicleKarteAnalysis.__table__.name
+        compared, baseline = dict(current), dict(self.saved)
+        if allow_analysis:
+            compared[analysis_table] = self.analysis_others(compared[analysis_table])
+            baseline[analysis_table] = self.analysis_others(baseline[analysis_table])
+            require(self.case.models.VehicleKarteAnalysis.query.filter_by(company_code='A',
+                vehicle_record_id=self.case.vehicle.id).count() == 1, 'Only one target analysis state may change')
+        changed = sorted(k for k in set(compared) | set(baseline) if compared.get(k) != baseline.get(k))
         require(not changed, 'Protected tables changed: ' + ', '.join(changed))
         events = self.events()
         require(all(events.get(key) == value for key, value in self.seen_events.items()), 'Existing event changed/deleted')
@@ -149,7 +199,11 @@ class Fixture:
             if raw is not None: kwargs.update(data=raw, content_type='application/json')
             else: kwargs['json'] = body
             response = self.case.client.post(path, **kwargs)
-        self.report['requests'].append(dict(method=method, path=urlsplit(path).path, status=response.status_code))
+        entry = dict(method=method, path=urlsplit(path).path, status=response.status_code)
+        if urlsplit(path).path in self.original_downloads:
+            entry['source_sha256'] = hashlib.sha256(response.get_data()).hexdigest()
+            require(entry['source_sha256'] == self.original_downloads[urlsplit(path).path], 'Original response bytes changed')
+        self.report['requests'].append(entry)
         self.protected(allow_append=method == 'POST' and path == self.url and response.status_code == 200)
         return response
 
@@ -178,8 +232,75 @@ class Fixture:
 
     def assert_state(self, count, active):
         require(self.count() == count, f'Expected {count} append-only events, got {self.count()}')
-        require(sum(row['status'] == 'active' for row in self.history()) == active, 'Wrong active confirmation count')
+        history = self.history()
+        require(sum(row['status'] == 'active' for row in history) == active + len(self.background_confirmations), 'Wrong active confirmation count')
+        require(self.background_confirmations <= {row['event_id'] for row in history if row['status'] == 'active'}, 'Unrelated confirmation changed')
         self.protected()
+
+    def generate(self):
+        """Drive the real background queue/job; never assign result_json here."""
+        from dkss_app import analysis as service
+        import vehicle_karte_analysis_ai as generator
+        self.protected()
+        with self.app.test_request_context('/'):
+            payload, _ = service.get_vehicle_karte_analysis_job_data(self.case.vehicle)
+            state = service.queue_vehicle_karte_analysis(self.case.vehicle, payload)
+        # Advance only the synthetic worker's due time, not its inputs/results.
+        state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        self.db.session.commit()
+        self.protected(allow_analysis=True)
+        calls = []
+        def empty_model(request, **kwargs):
+            wire = generator.expand_vehicle_karte_analysis_wire_payload(json.loads(json.loads(request.data)['input']))
+            require('_confirmed_priority_candidates' not in wire, 'Server candidates leaked into model transport')
+            calls.append(wire)
+            result = {'overview': '合成空応答。検証済み根拠の補完は実サーバー処理。', 'recommendations': []}
+            return BytesIO(json.dumps({'status': 'completed', 'output': [{'content': [
+                {'type': 'output_text', 'text': json.dumps(result)}]}]}).encode())
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
+                patch.object(generator.urllib.request, 'urlopen', side_effect=empty_model):
+            require(service.run_vehicle_karte_analysis_job(state.id), 'Normal analysis job failed')
+        self.db.session.refresh(state)
+        require(state.status == 'completed', 'Normal analysis job did not complete')
+        method = json.loads(state.result_json)['analysis_method']
+        expected_calls = int(method == 'ai')
+        require(len(calls) == expected_calls, f'Unexpected model transport calls: {len(calls)} for {method}')
+        self.protected(allow_analysis=True)
+        table = self.case.models.VehicleKarteAnalysis.__table__.name
+        # Re-protect the saved target result immediately after the controlled job.
+        # All unrelated rows were compared above and are never rebased silently.
+        self.saved[table] = self.snapshot()[table]
+        data = self.read_result()
+        require(data['is_current'] is True and data['status'] == 'completed', 'Normal GET is not current after job')
+        self.report.setdefault('generations', []).append(dict(state_id=state.id,
+            transport_calls=len(calls), analysis_method=method, model_recommendations=0,
+            saved_recommendations=len(json.loads(state.result_json)['analysis']['recommendations']),
+            result_sha256=hashlib.sha256(state.result_json.encode()).hexdigest()))
+        return data
+
+    def read_result(self):
+        response = self.request('GET', self.analysis + '/result')
+        require(response.status_code == 200 and response.json['ok'], 'Normal result GET failed')
+        return response.json
+
+    def assert_generated(self, data, active_event=None, previous_ids=None):
+        items = data['analysis']['recommendations']
+        expected = len(self.background_confirmations) + int(active_event is not None)
+        require(len(items) == expected, 'Verified candidate missing or duplicate')
+        ids = {item['proposal_id'] for item in items}
+        require(len(ids) == expected, 'Duplicate generated proposal IDs')
+        if previous_ids is not None: require(ids == previous_ids, 'Unrelated proposal disappeared after cancellation')
+        score = 65 if self.kind == 'progression' else 60
+        for item in items:
+            assessment = item['priority_assessment']
+            require((assessment['label'], assessment['effective_score']) == ('高', score), 'Wrong completed common assessment')
+        if active_event is None: return None
+        selected = [item for item in items if any(value['event_id'] == active_event for value in
+            item['priority_assessment'].get('confirmation_details_list', []) or
+            [item['priority_assessment']['confirmation_details']])]
+        require(len(selected) == 1, 'Saved confirmation does not identify exactly one completed candidate')
+        require(selected[0]['priority_assessment']['confirmation_details']['kind'] == self.kind, 'Wrong confirmation source')
+        return selected[0]
 
     def close(self):
         if self.setup: self.case.tearDown(); self.case.doCleanups()
@@ -206,17 +327,22 @@ def exercise_http(f):
     require(f.request('POST', f.url, body=save).status_code == 409, 'Replay accepted')
     stale = f.preview()
     corrected = f.preview(replace=event_id)
-    require(f.request('POST', f.url, body=f.confirmation_body(corrected)).status_code == 200, 'Correction failed')
-    f.assert_state(3, 1)
+    correction = f.request('POST', f.url, body=f.confirmation_body(corrected))
+    require(correction.status_code == 200, 'Correction failed')
+    active_event = correction.json['event_id']; f.assert_state(3, 1)
+    generated = f.generate(); item = f.assert_generated(generated, active_event)
+    remaining_ids = {v['proposal_id'] for v in generated['analysis']['recommendations']} - {item['proposal_id']}
     require(f.request('POST', f.url, body=f.confirmation_body(stale)).status_code == 409, 'Old preview accepted')
-    cancel = {'token': next(v['cancel_token'] for v in f.history() if v['status'] == 'active')}
+    cancel = {'token': next(v['cancel_token'] for v in f.history() if v['event_id'] == active_event)}
     require(f.request('POST', f.url, body=cancel).status_code == 200, 'Cancellation failed')
     f.assert_state(4, 0)
+    f.assert_generated(f.read_result(), previous_ids=remaining_ids)
+    f.assert_generated(f.generate(), previous_ids=remaining_ids)
     require(f.request('POST', f.url, body=cancel).status_code == 409, 'Cancellation replay accepted')
     prepared = f.preview()
     require(f.request('POST', f.url, body=f.confirmation_body(prepared)).status_code == 200, 'Cannot confirm after cancellation')
     f.assert_state(5, 1)
-    f.report['cases'].append('Real source options/preview/CSRF/save/replay/correction/stale revision/cancel/cancel replay/new confirmation; original records unchanged')
+    f.report['cases'].append('Real options/preview/CSRF/save/replay/correction/stale revision/cancel/new confirmation; real empty-response queue/job completion and cancellation GET/regeneration; original records unchanged')
 
 
 def run_browser(args, f, report, out, origin):
@@ -328,6 +454,93 @@ def run_browser(args, f, report, out, origin):
                 body:JSON.stringify(body)}); return r.status; }''', {'url': f.url, 'body': body})
             require(result == 409, 'Replay not rejected')
 
+        def completed_views(page, data, item=None, *, cancelled_id=None):
+            """Real GET/poll rendering after the controlled scheduled job."""
+            values = data['analysis']['recommendations']
+            indices = data['analysis'].get('priority_order_indices')
+            ordered = ([values[index] for index in indices] if indices is not None else
+                [{value['proposal_id']: value for value in values}[key] for key in data['analysis']['priority_order']])
+            order = [value['proposal_id'] for value in ordered]
+            require(len(order) == len(values) and len(set(order)) == len(values), 'Bad generated common order')
+            score = 65 if f.kind == 'progression' else 60
+            badge = f'高 · {score}点'
+            for view_width, view_height in WIDTHS:
+                page.set_viewport_size(dict(width=view_width, height=view_height))
+                with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
+                    page.goto(origin + f.overview, wait_until='networkidle')
+                shown = fetched.value.json()
+                require(shown['status'] == 'completed' and shown['is_current'] is True, 'Browser normal poll did not obtain current job result')
+                require({v['proposal_id'] for v in shown['analysis']['recommendations']} == set(order), 'Browser result differs from saved job')
+                cards = page.locator('#ko-ai .ko-proposal')
+                expect(cards).to_have_count(min(5, len(order)))
+                require(cards.evaluate_all('(xs)=>xs.map(x=>x.dataset.proposalId)') == order[:5], 'Overview top-five order is wrong')
+                for index in range(cards.count()): expect(cards.nth(index).locator('.ko-priority')).to_have_text(badge)
+                expect(page.locator('[data-ko-summary-count]')).to_have_text(f'{len(order)}件')
+                if cancelled_id:
+                    expect(page.locator(f'#ko-ai [data-proposal-id="{cancelled_id}"]')).to_have_count(0)
+                require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Completed overview overflows')
+                phase = 'cancelled' if cancelled_id else 'completed'
+                page.screenshot(path=str(out / f'{args.case}-{phase}-overview-{view_width}.png'), full_page=True)
+                if len(order) > 5:
+                    more = page.locator('#ko-ai .ko-action-button')
+                    expect(more).to_have_text(f'残り{len(order)-5}件を分析で確認 →')
+                    with page.expect_response(response_is(f.analysis + '/result', 'GET')):
+                        more.click()
+                    require(urlsplit(page.url).path == f.analysis, 'Remaining proposals link missed analysis')
+                elif item:
+                    with page.expect_response(response_is(f.analysis + '/result', 'GET')):
+                        page.locator(f'#ko-ai .ko-proposal[data-proposal-id="{item["proposal_id"]}"] .ko-proposal-detail').click()
+                else:
+                    with page.expect_response(response_is(f.analysis + '/result', 'GET')):
+                        page.goto(origin + f.analysis, wait_until='networkidle')
+                rows = page.locator('.ka7-proposal-table tbody tr')
+                expect(page.locator('.ka7-board')).to_be_visible()
+                expect(rows).to_have_count(len(order))
+                for index in range(rows.count()): expect(rows.nth(index).locator('.ka7-priority')).to_have_text(badge)
+                if item:
+                    drawer = page.locator('.ka-reference-drawer')
+                    if len(order) > 5:
+                        rows.nth(order.index(item['proposal_id'])).locator('.ka-reference-detail-button').click()
+                    expect(drawer).to_be_visible()
+                    expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text(badge)
+                    details = drawer.locator('.priority-response-details')
+                    details.locator('summary').click()
+                    expect(details.locator('.priority-response-confirmation')).to_be_visible()
+                    confirmation = item['priority_assessment']['confirmation_details']
+                    expect(details).to_contain_text(confirmation['actor_name'])
+                    for statement in confirmation['statements']: expect(details).to_contain_text(statement)
+                    internal = []
+                    for source in confirmation['display_sources']:
+                        expect(details).to_contain_text(source['text'])
+                        if source.get('url'):
+                            parsed = urlsplit(source['url'])
+                            target = source['url'] if parsed.netloc else origin + source['url']
+                            expect(details.locator(f'a.priority-response-confirmation-source[href="{target}"]').first).to_be_visible()
+                            if not parsed.netloc and parsed.path.startswith('/vehicle/'): internal.append(source['url'])
+                    require(internal, 'No real original-source link')
+                    # Choose the original PDF when present, otherwise the real
+                    # inspection page. This verifies the linked GET/bytes, not
+                    # Chromium PDF-viewer text extraction or external MLIT pages.
+                    source_url = next((url for url in internal if '/source' in url or '/original' in url), internal[0])
+                    parsed = urlsplit(source_url)
+                    source_path = parsed.path + ('?' + parsed.query if parsed.query else '')
+                    original = f.request('GET', source_path)
+                    require(original.status_code == 200, 'Generated original link unavailable')
+                    if original.mimetype == 'application/pdf':
+                        f.original_downloads[parsed.path] = hashlib.sha256(original.get_data()).hexdigest()
+                    require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Completed priority drawer overflows')
+                    page.screenshot(path=str(out / f'{args.case}-completed-detail-{view_width}.png'), full_page=True)
+                    with page.expect_response(response_is(parsed.path, 'GET')) as opened:
+                        details.locator(f'a.priority-response-confirmation-source[href="{origin + source_url}"]').first.click(no_wait_after=True)
+                    require(opened.value.status == 200, 'Rendered original link did not reach the source')
+                    if parsed.path in f.original_downloads:
+                        observed = next(value for value in reversed(report['requests']) if value['path'] == parsed.path)
+                        require(observed.get('source_sha256') == f.original_downloads[parsed.path], 'Browser original response bytes differ')
+                else:
+                    page.screenshot(path=str(out / f'{args.case}-cancelled-analysis-{view_width}.png'), full_page=True)
+                report['cases'].append(f'Browser {view_width}: {phase} normal job GET/poll, {len(order)} total proposals, top-five and remaining-analysis navigation, exact common scores and source details' + ('/original GET' if item else '; only cancelled candidate removed'))
+                f.protected()
+
         page = new_page()
         try:
             for width, height in WIDTHS:
@@ -353,27 +566,39 @@ def run_browser(args, f, report, out, origin):
                 _, stale_preview, stale_boxes = select_and_preview(stale_page, stale_root)
                 check_all(stale_boxes)
                 with page.expect_response(response_is(f.url, 'GET')):
-                    root.get_by_role('button', name='元記録を選び直して訂正', exact=True).click()
+                    root.get_by_role('button', name='元記録を選び直して訂正', exact=True).first.click()
                 expect(root.locator('[data-confirmation-replacing]')).to_be_visible()
                 _, preview, boxes = select_and_preview(page, root, select=False)
-                check_all(boxes); save(page, preview)
+                check_all(boxes); corrected = save(page, preview)
                 f.assert_state(start_count + 3, 1)
                 save(stale_page, stale_preview, expected=409)
                 f.assert_state(start_count + 3, 1); stale_page.close()
                 expect(root.locator('[data-confirmation-history]')).to_contain_text('取消済み')
                 page.screenshot(path=str(out / f'{args.case}-corrected-{width}.png'), full_page=True)
+                if width == WIDTHS[0][0]:
+                    generated = f.generate()
+                    completed_item = f.assert_generated(generated, corrected['event_id'])
+                    remaining_ids = {v['proposal_id'] for v in generated['analysis']['recommendations']} - {completed_item['proposal_id']}
+                    completed_views(page, generated, completed_item)
+                    page.set_viewport_size(dict(width=width, height=height)); root = open_form(page)
 
                 before = len(captured)
                 page.once('dialog', lambda d: d.dismiss())
-                root.get_by_role('button', name='この根拠確認を取り消す', exact=True).click()
+                root.get_by_role('button', name='この根拠確認を取り消す', exact=True).first.click()
                 require(len(captured) == before, 'Dismissed cancellation posted')
                 page.once('dialog', lambda d: d.accept())
                 with page.expect_response(response_is(f.url, 'POST')) as pending:
-                    root.get_by_role('button', name='この根拠確認を取り消す', exact=True).click()
+                    root.get_by_role('button', name='この根拠確認を取り消す', exact=True).first.click()
                 require(pending.value.status == 200, 'Browser cancellation failed')
-                expect(root.get_by_role('button', name='この根拠確認を取り消す', exact=True)).to_have_count(0)
+                expect(root.get_by_role('button', name='この根拠確認を取り消す', exact=True)).to_have_count(len(f.background_confirmations))
                 f.assert_state(start_count + 4, 0)
                 replay(page, captured[-1]['body']); f.assert_state(start_count + 4, 0)
+                if width == WIDTHS[0][0]:
+                    f.assert_generated(f.read_result(), previous_ids=remaining_ids)
+                    regenerated = f.generate()
+                    f.assert_generated(regenerated, previous_ids=remaining_ids)
+                    completed_views(page, regenerated, cancelled_id=completed_item['proposal_id'])
+                    page.set_viewport_size(dict(width=width, height=height)); root = open_form(page)
 
                 # Cancelled evidence is not a prerequisite for ordinary navigation.
                 root.locator('summary').focus(); page.keyboard.press('Escape')

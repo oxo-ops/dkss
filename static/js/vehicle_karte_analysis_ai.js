@@ -946,7 +946,7 @@
                         openReferenceDrawer(item, detail, button, data.sources);
                     });
                 }
-                if (item.proposal_id && data.is_current === true && data.status === "completed") {
+                if (item.proposal_id && !item.priority_candidate_carryover && data.is_current === true && data.status === "completed") {
                     const controls = feedbackControls(item);
                     controls.addEventListener("ka-feedback-saved", event => {
                         badge.textContent = labels[event.detail.status] || "未着手";
@@ -978,12 +978,15 @@
         const board = node("section", "ka7-board");
         const heading = node("header", "ka7-board-heading");
         heading.append(node("h3", "", "予防整備・対応候補"));
-        if (ordered.length) heading.append(node("span", "ka7-count", `${ordered.length}件`));
+        if (ordered.length) heading.append(node("span", "ka7-count", `${ordered.length}件` + (priorityPresentation?.includesPrevious(ordered) ? "（前回評価を含む）" : "")));
         if (data.generated_at) heading.append(node("span", "ka7-date", `AI分析 ${data.generated_at}`));
         const labels=[['daily_inspections','日常点検'],['periodic_inspections','定期点検'],['maintenance','整備'],['parts','部品']];
         const counts=labels.filter(([key])=>Number.isInteger(data.input_summary?.[key]) && data.input_summary[key]>0).map(([key,label])=>`${label}${data.input_summary[key]}件`);
         // Input record counts are internal diagnostics.
         heading.append(status);board.append(heading);
+        for (const notice of [data.analysis?.priority_generation_notice]) {
+            if (typeof notice === "string" && notice.trim()) board.append(node("p", "kc-muted", notice));
+        }
         if(current && !ordered.length) {
             const insight=node("section", "ka10-insight");
             const line=node("div", "ka10-insight-top");
@@ -1251,6 +1254,7 @@
             const statusLabels = {running: "分析中", pending: "更新待ち", error: "更新エラー", waiting: "準備中"};
             status.textContent = data.is_current === true && data.status === "completed"
                 ? "分析済み" : statusLabels[data.status] || (data.is_current === false ? "更新待ち" : "状態未確認");
+            if (typeof data.input_warning === "string" && data.input_warning.trim()) status.textContent += " · " + data.input_warning;
             status.hidden = false;
 
         } catch (error) {

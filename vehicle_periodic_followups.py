@@ -25,6 +25,11 @@ def generate_periodic_proposals(payload):
     for offer in generation_priority_inputs(payload).values():
         if offer.get('kind') == 'confirmed_priority':
             allowed.update(offer.get('source_ids', []))
+    # Only server-validated previous proofs can authorize citations retained
+    # across a held regeneration. These private candidates never reach AI.
+    for previous in payload.get('_held_confirmed_priority_candidates', []):
+        if isinstance(previous, dict) and isinstance(previous.get('sources'), dict):
+            allowed.update(key for key in previous['sources'] if isinstance(key, str))
     items = []
     for item in result.get('recommendations', []):
         refs = item.get('source_ids') or []
@@ -217,13 +222,30 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
     def proposal_worker(company, record_id, run_token, payload, priority_source_proof=None):
         with app.app_context():
             try:
+                from dkss_app.priority_consumers import (PERIODIC_PROOF_KEY, bind_periodic_priority_sources,
+                    capture_periodic_priority_sources)
+                from dkss_app.priority_confirmed_projection import (prepare_held_confirmed_candidates,
+                    reconcile_confirmed_candidates_before_save)
+                job = PeriodicInspectionProposal.query.filter_by(company_code=company,
+                    inspection_record_id=record_id, run_token=run_token).first()
+                record = Record.query.filter_by(company_code=company, id=record_id).first()
+                vehicle = Vehicle.query.filter_by(company_code=company, id=record.vehicle_record_id,
+                    deleted=False).first() if record else None
+                if job is None or vehicle is None:
+                    return
+                previous = json_dict(job.result_json)
+                previous_proof = previous.get(PERIODIC_PROOF_KEY)
+                sources = deepcopy((priority_source_proof or {}).get('sources', {}))
+                prepare_held_confirmed_candidates(vehicle, payload, sources,
+                    {'analysis': previous, 'sources': (previous_proof or {}).get('sources', {})})
                 result = generate_periodic_proposals(payload)
-                from dkss_app.priority_consumers import bind_periodic_priority_sources
-                result = bind_periodic_priority_sources(result, priority_source_proof)
+                result = reconcile_confirmed_candidates_before_save(vehicle, result, payload, sources)
+                proof = capture_periodic_priority_sources(company, vehicle.id, sources) if priority_source_proof else None
+                result = bind_periodic_priority_sources(result, proof)
                 updates = {'status': 'completed', 'result_json': json.dumps(result, ensure_ascii=False), 'error': None}
             except Exception as exc:
                 app.logger.warning('Periodic inspection proposal generation failed (%s)', type(exc).__name__)
-                updates = {'status': 'error', 'error': 'not_configured' if str(exc) == 'API_KEY_NOT_SET' else 'generation_failed'}
+                updates = {'status': 'error', 'error': 'not_configured' if str(exc) == 'API_KEY_NOT_SET' else 'confirmation_limit' if str(exc) == 'CONFIRMED_PRIORITY_CANDIDATE_LIMIT' else 'generation_failed'}
             try:
                 updates['updated_at'] = now().isoformat(timespec='seconds')
                 PeriodicInspectionProposal.query.filter_by(company_code=company, inspection_record_id=record_id, run_token=run_token).update(updates, synchronize_session=False)
@@ -237,8 +259,18 @@ def register_periodic_followups(app, db, Record, Vehicle, Company, User, Mainten
             actor()
             lock(session.get('company_code'))
         vehicle, record = target(vehicle_record_id, record_id)
-        payload, evidence, digest = proposal_input(vehicle, record)
         job = PeriodicInspectionProposal.query.filter_by(company_code=vehicle.company_code, inspection_record_id=record.id).first()
+        try:
+            payload, evidence, digest = proposal_input(vehicle, record)
+        except ValueError as error:
+            if str(error) != 'CONFIRMED_PRIORITY_CANDIDATE_LIMIT':
+                raise
+            result, evidence = None, {}
+            if job and isinstance(json_dict(job.result_json).get('recommendations'), list):
+                from dkss_app.priority_consumers import project_periodic_priorities
+                result, evidence = project_periodic_priorities(json_dict(job.result_json), vehicle, {}, is_current=False)
+            return jsonify(status='error', error='confirmation_limit', result=result,
+                evidence=evidence, is_current=False)
         if request.method == 'POST':
             if job and job.status == 'running':
                 if datetime.fromisoformat(job.updated_at) > now() - timedelta(minutes=15):

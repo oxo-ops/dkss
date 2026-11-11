@@ -177,7 +177,7 @@ test('data-state copy spans the missing badge column at every viewport and asset
     assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
     const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
     assert.match(template, /css\/vehicle_karte_overview\.css', v='20261110-priority-data-state-1'/);
-    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-common-2'/);
+    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-confirmed-3'/);
 });
 
 function computedProposal(id, floor=false) {
@@ -208,4 +208,11 @@ test('normal overview rejects a mismatched score without creating a fourth prior
     const ui=await mount([item],{presentation:true});
     assert.equal(ui.rows[0].dataset.priorityDataState,'invalid');
     assert.equal(ui.rows[0].children.some(child=>child.className==='ko-priority'),false);
+});
+
+test('summary count labels previous evaluations without adding a fourth priority',async()=>{
+    const ui=await mount([proposal('held','高')],{presentation:true});
+    assert.equal(ui.summary.textContent,'1件（前回評価を含む）');
+    assert.equal(ui.rows[0].children[0].textContent,'高');
+    assert.doesNotMatch(ui.summary.textContent,/未評価/);
 });

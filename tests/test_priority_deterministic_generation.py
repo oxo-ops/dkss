@@ -112,6 +112,42 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
             self.assertEqual(case.request('POST', api.replace('/result', '/feedback'), json=old_answer).status_code, 409)
             self.assertEqual(original_business, {name: [tuple(getattr(r, c.name) for c in getattr(case.models, name).__table__.columns)
                 for r in getattr(case.models, name).query.order_by(getattr(case.models, name).id)] for name in original_business})
+            # A successful empty response after source evidence becomes held
+            # must retain the actual previous evaluation, not silently erase it.
+            if kind == 'manufacturer_immediate':
+                case.public.available = False
+            elif kind == 'legal_deadline':
+                case.document.source_sha256 = 'a' * 64
+            else:
+                answers = json.loads(case.row.answers_json)
+                next(answer for answer in answers if answer.get('value') == '×')['comment'] = '原確認とは異なる現在回答'
+                case.row.answers_json = json.dumps(answers, ensure_ascii=False)
+            case.db.session.commit()
+            with case.app.test_request_context('/'):
+                held_payload, _ = service.get_vehicle_karte_analysis_job_data(case.vehicle)
+                state = service.queue_vehicle_karte_analysis(case.vehicle, held_payload)
+            state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            case.db.session.commit()
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
+                    patch.object(generator.urllib.request, 'urlopen', side_effect=empty_model):
+                self.assertTrue(service.run_vehicle_karte_analysis_job(state.id))
+            case.db.session.refresh(state)
+            held_raw = json.loads(state.result_json)['analysis']['recommendations']
+            self.assertEqual(len(held_raw), 1)
+            self.assertIn('priority_candidate_carryover', held_raw[0])
+            held_response = case.request('GET', api).json
+            self.assertTrue(held_response['is_current'])
+            held_value, = held_response['analysis']['recommendations']
+            self.assertEqual(held_value['priority'], '高')
+            self.assertEqual(held_value['proposal_id'], old_answer['proposal_id'])
+            self.assertIsNone(held_value['priority_assessment']['effective_score'])
+            self.assertTrue(held_value['priority_assessment']['previous_result']['reason'])
+            self.assertEqual(case.request('POST', api.replace('/result', '/feedback'), json=old_answer).status_code, 409)
+            current_answer = dict(old_answer, proposal_revision=held_value['proposal_revision'])
+            self.assertEqual(case.request('POST', api.replace('/result', '/feedback'), json=current_answer).status_code, 409)
+            self.assertEqual(case.request('POST', api.replace('/result', '/evaluation'), json=dict(
+                proposal_id=held_value['proposal_id'], proposal_revision=held_value['proposal_revision'],
+                verdict='appropriate', comment='')).status_code, 409)
 
     def test_manufacturer_empty_model_still_saves_60_and_failed_update_preserves_previous_result(self):
         self.exercise('manufacturer_immediate', 60)
@@ -131,6 +167,9 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
                 state = service.queue_vehicle_karte_analysis(case.vehicle, payload)
             state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
             case.db.session.commit()
+            from dkss_app.priority_confirmed_projection import finalize_confirmed_priority_candidates
+            proposed = finalize_confirmed_priority_candidates({'recommendations': []}, payload)['recommendations'][0]
+            key, revision = vehicle_analysis_proposal_ids(proposed)
             calls = []
             def cancel_before_response(request, **kwargs):
                 prefix = f'/vehicle/karte/{case.vehicle.id}/priority-confirmations'
@@ -146,8 +185,7 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
             self.assertEqual(calls, ['cancelled'])
             case.db.session.refresh(state)
             raw = state.result_json
-            item, = json.loads(raw)['analysis']['recommendations']
-            key, revision = vehicle_analysis_proposal_ids(item)
+            self.assertEqual(json.loads(raw)['analysis']['recommendations'], [])
             api = f'/vehicle/karte/{case.vehicle.id}/analysis/result'
             shown = case.request('GET', api).json
             self.assertFalse(shown['is_current'])
@@ -155,3 +193,56 @@ class DeterministicNormalGenerationTests(unittest.TestCase):
             self.assertEqual(case.request('POST', api.replace('/result', '/feedback'),
                 json=dict(proposal_id=key, proposal_revision=revision, status='accepted')).status_code, 409)
             self.assertEqual(state.result_json, raw)
+
+    def test_periodic_empty_generation_preserves_held_confirmation_until_explicit_cancellation(self):
+        from application_fixture import ApplicationFixture
+        from types import MethodType
+        import test_inspection_plans as plans
+        import test_workflow_regressions as workflows
+        with actual_confirmation('manufacturer_immediate') as (case, _event_id, _confirm):
+            case.m = ApplicationFixture(case.app)
+            case.upload_inspection = MethodType(workflows.WorkflowRegressionTests.upload_inspection, case)
+            case.inspection_form = MethodType(workflows.WorkflowRegressionTests.inspection_form, case)
+            record = plans.InspectionPlanTests.import_record(case)
+            service = case.app.extensions['dkss']['periodic_followups']
+            executor = case.app.extensions['periodic_proposal_executor']
+            api = f'/vehicle/karte/{case.vehicle.id}/periodic/{record.id}/suggestions'
+            def run(empty=True):
+                with patch.object(executor, 'submit') as submit:
+                    self.assertEqual(case.client.post(api, json={'retry': True}).status_code, 202)
+                fn, *args = submit.call_args.args
+                response = {'overview': '合成空応答', 'recommendations': []}
+                def transport(request, **kwargs):
+                    if not empty: raise OSError('synthetic periodic transport failure')
+                    return BytesIO(json.dumps({'status': 'completed', 'output': [{'content': [
+                        {'type': 'output_text', 'text': json.dumps(response)}]}]}).encode())
+                with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
+                        patch.object(generator.urllib.request, 'urlopen', side_effect=transport):
+                    fn(*args)
+                case.db.session.expire_all()
+                return case.client.get(api).json, service.Proposal.query.one()
+            shown, job = run()
+            self.assertEqual(shown['result']['recommendations'][0]['priority_assessment']['effective_score'], 60)
+            original = job.result_json
+            first = shown['result']['recommendations'][0]
+            case.public.available = False; case.db.session.commit()
+            held, job = run()
+            value, = held['result']['recommendations']
+            self.assertTrue(held['is_current'])
+            self.assertEqual(value['proposal_id'], first['proposal_id'])
+            self.assertEqual(value['priority'], '高'); self.assertIsNone(value['priority_assessment']['effective_score'])
+            self.assertTrue(value['priority_assessment']['previous_result']['reason'])
+            self.assertNotEqual(job.result_json, original)
+            held_json = job.result_json
+            record.content += ' 更新失敗を確認する合成原文訂正'; case.db.session.commit()
+            failed, job = run(empty=False)
+            self.assertEqual(failed['status'], 'error'); self.assertFalse(failed['is_current'])
+            self.assertEqual(job.result_json, held_json)
+            self.assertEqual(failed['result']['recommendations'][0]['proposal_id'], first['proposal_id'])
+            prefix = f'/vehicle/karte/{case.vehicle.id}/priority-confirmations'
+            history = case.client.get(prefix, query_string={'kind': 'manufacturer_immediate'}).json['history']
+            self.assertEqual(case.client.post(prefix, json={'token': history[0]['cancel_token']}).status_code, 200)
+            completed, job = run()
+            self.assertEqual(completed['status'], 'completed')
+            self.assertEqual(completed['result']['recommendations'], [])
+            self.assertEqual(json.loads(job.result_json)['recommendations'], [])
