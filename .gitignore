@@ -1,8 +1,0 @@
-instance/
-__pycache__/
-*.pyc
-.env
-.vscode/
-private_key.pem
-public_key.pem
-static/uploads/ITC/*

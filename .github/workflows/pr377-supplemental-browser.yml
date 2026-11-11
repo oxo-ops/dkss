@@ -1,0 +1,315 @@
+name: PR377 Supplemental Browser Validation
+
+on:
+  push:
+    branches:
+      - validation/pr377-browser-30d4dfe-container
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr377-supplemental-browser-30d4dfe
+  cancel-in-progress: false
+
+jobs:
+  pinned-container-browser:
+    if: github.repository == 'oxo-ops/dkss'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      # Official Microsoft Playwright Python v1.62.0-noble manifest-list digest.
+      image: mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d
+    defaults:
+      run:
+        shell: bash
+        working-directory: application
+    env:
+      EXPECTED_HEAD: 30d4dfeee97f69bd00650c6bf56a5ce234f34437
+      EXPECTED_TREE: 31bb88b2d7a1a93f4c52f5aeefd59e97a8c8d3ea
+      PYTHONDONTWRITEBYTECODE: '1'
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - name: Check out only the frozen application head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 from original run
+        with:
+          repository: oxo-ops/dkss
+          ref: 30d4dfeee97f69bd00650c6bf56a5ce234f34437
+          persist-credentials: false
+          fetch-depth: 1
+          path: application
+          clean: true
+          set-safe-directory: false
+
+      - name: Verify exact commit, tree and clean checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test "$(git hash-object requirements.txt)" = f29b6951157ecb12ef81490f42dfb5d57bdd9330
+          test "$(uname -m)" = x86_64
+          mkdir -p "$RUNNER_TEMP/common-priority-results"
+          printf 'application_commit=%s\napplication_tree=%s\nworkflow_commit=%s\n' \
+            "$EXPECTED_HEAD" "$EXPECTED_TREE" "$GITHUB_SHA" \
+            | tee "$RUNNER_TEMP/common-priority-results/source-identity.txt"
+
+      - name: Set up the original runner's Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.2'
+          check-latest: false
+          package-manager-cache: false
+
+      - name: Install exact application and Playwright packages without apt
+        run: |
+          set -euo pipefail
+          python -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
+          python -m virtualenv --no-download --no-periodic-update --no-setuptools "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip --isolated install \
+            --index-url https://pypi.org/simple \
+            --report "$RUNNER_TEMP/common-priority-results/pip-install-report.json" \
+            -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip check
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip freeze --all \
+            > "$RUNNER_TEMP/common-priority-results/pip-freeze.txt"
+          # Browsers and their OS libraries are already in the official image.
+          # Do not run apt, install-deps or playwright install in this workflow.
+
+      - name: Verify all requirements and record runtime identity
+        id: runtime
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          import hashlib
+          import importlib.metadata as metadata
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import subprocess
+          import sys
+          from packaging.requirements import Requirement
+          from playwright.sync_api import sync_playwright
+
+          requirements_path = Path("requirements.txt")
+          raw = requirements_path.read_bytes()
+          pins = []
+          for line in raw.decode().splitlines():
+              if not line.strip() or line.lstrip().startswith("#"):
+                  continue
+              requirement = Requirement(line)
+              specifications = list(requirement.specifier)
+              assert len(specifications) == 1 and specifications[0].operator == "==", line
+              expected = specifications[0].version
+              installed = metadata.version(requirement.name)
+              assert installed == expected, (requirement.name, expected, installed)
+              pins.append({"name": requirement.name, "expected": expected, "installed": installed})
+          assert len(pins) == 38, len(pins)
+          assert metadata.version("playwright") == "1.62.0"
+          assert sys.version_info[:2] == (3, 12), sys.version
+          node = subprocess.check_output(["node", "--version"], text=True).strip()
+          assert node == "v24.22.2", node
+          with sync_playwright() as playwright:
+              chromium = Path(playwright.chromium.executable_path).resolve()
+          assert chromium.is_relative_to("/ms-playwright"), chromium
+          assert chromium.is_file() and os.access(chromium, os.X_OK), chromium
+          chromium_version = subprocess.check_output([str(chromium), "--version"], text=True).strip()
+          report = {
+              "verification_kind": "supplemental_official_container_not_original_pr_ci",
+              "application_commit": os.environ["EXPECTED_HEAD"],
+              "application_tree": os.environ["EXPECTED_TREE"],
+              "workflow_commit": os.environ["GITHUB_SHA"],
+              "container": "mcr.microsoft.com/playwright/python@sha256:aa81288e738725378becba5b3e06cb0f3a7f012a610e87e8d767a090ea3f740d",
+              "container_tag_at_verification": "v1.62.0-noble",
+              "original_ci_run": 43036556295,
+              "original_ci_attempt": 2,
+              "original_ci_job": 130583582383,
+              "original_python": "3.12.16",
+              "python": sys.version,
+              "python_executable": sys.executable,
+              "node": node,
+              "playwright": metadata.version("playwright"),
+              "chromium": str(chromium),
+              "chromium_version": chromium_version,
+              "os_release": Path("/etc/os-release").read_text(),
+              "platform": platform.platform(),
+              "libc": platform.libc_ver(),
+              "requirements_sha256": hashlib.sha256(raw).hexdigest(),
+              "verified_requirement_count": len(pins),
+              "requirements": pins,
+              "installed_packages": sorted(
+                  [{"name": dist.metadata["Name"], "version": dist.version} for dist in metadata.distributions()],
+                  key=lambda item: item["name"].lower()),
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "common-priority-results" / "runtime-manifest.json"
+          output.write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Check priority presentation and confirmation controls
+        run: |
+          set -euo pipefail
+          node --test tests/vehicle_periodic_priority_js.cjs tests/vehicle_priority_confirmations_js.cjs tests/vehicle_priority_presentation_js.cjs tests/vehicle_karte_overview_js.cjs \
+            | tee "$RUNNER_TEMP/common-priority-results/node-contracts.txt"
+
+      - name: Check confirmation HTTP contracts without browser
+        run: |
+          set -euo pipefail
+          for scenario in confirmation_manufacturer confirmation_legal confirmation_progression; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/connected-$scenario-preflight" \
+              bash tests/video_connected_browser/run-isolated.sh \
+              "$GITHUB_WORKSPACE/application" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --preflight-only
+          done
+
+      - name: Verify exact head with all 13 original browser scenarios
+        run: |
+          set -euo pipefail
+          chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results" \
+            bash tests/common_priority_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE/application" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$chromium"
+          for scenario in instruction recheck timing; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/$scenario" \
+              bash tests/common_priority_browser/run-stage2-isolated.sh \
+              "$GITHUB_WORKSPACE/application" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
+          done
+          for scenario in normal instruction recheck invoice periodic_instruction periodic_timing confirmation_manufacturer confirmation_legal confirmation_progression; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/connected-$scenario" \
+              bash tests/video_connected_browser/run-isolated.sh \
+              "$GITHUB_WORKSPACE/application" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
+          done
+
+      - name: Check vehicle comparison with the original isolated harness
+        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          mkdir -p "$RUNNER_TEMP/ui5-results"
+          printf 'head=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" \
+            > "$RUNNER_TEMP/ui5-results/source-identity.txt"
+          chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )
+          bash tests/vehicle_comparison_browser/run-isolated.sh "$GITHUB_WORKSPACE/application" \
+            "$RUNNER_TEMP/browser-venv/bin/python" "$chromium" "$RUNNER_TEMP/ui5-results/browser" \
+            2>&1 | tee "$RUNNER_TEMP/ui5-results/browser.log"
+
+      - name: Check saved dashboard proposals with the original isolated harness
+        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          chromium=$("$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/dashboard-saved-proposals-results" \
+            bash tests/dashboard_saved_proposals_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE/application" "$RUNNER_TEMP/browser-venv/bin/python" \
+            --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$chromium"
+
+      - name: Require all original reports and unchanged source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          "$RUNNER_TEMP/browser-venv/bin/python" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "common-priority-results"
+          browser_paths = [root / "browser-result.json"]
+          browser_paths += [root / case / "browser-result.json" for case in ("instruction", "recheck", "timing")]
+          connected = ("normal", "instruction", "recheck", "invoice", "periodic_instruction", "periodic_timing",
+                       "confirmation_manufacturer", "confirmation_legal", "confirmation_progression")
+          browser_paths += [root / ("connected-" + case) / "browser-result.json" for case in connected]
+          preflight_paths = [
+              root / ("connected-" + case + "-preflight") / "browser-result.json"
+              for case in ("confirmation_manufacturer", "confirmation_legal", "confirmation_progression")
+          ]
+          assert len(browser_paths) == 13 and len(preflight_paths) == 3
+          for path in browser_paths + preflight_paths:
+              report = json.loads(path.read_text())
+              assert report["candidate_sha"] == os.environ["EXPECTED_HEAD"], path
+              assert report["candidate_tree"] == os.environ["EXPECTED_TREE"], path
+              assert report["fixture_only"] is True and report["production_accessed"] is False, path
+              if path in browser_paths:
+                  assert report["status"] == "PASS" and report["browser_acceptance_passed"] is True, path
+              else:
+                  assert report["status"] == "PREFLIGHT_PASS_BROWSER_NOT_RUN", path
+                  assert report["browser_started"] is False, path
+          comparison = json.loads((root.parent / "ui5-results/browser/browser-result.json").read_text())
+          assert comparison["source_head"] == os.environ["EXPECTED_HEAD"]
+          assert comparison["source_tree"] == os.environ["EXPECTED_TREE"]
+          assert comparison["status"] == "PASS" and comparison["synthetic_only"] is True
+          assert comparison["browser_started"] is True
+          dashboard = json.loads((root.parent / "dashboard-saved-proposals-results/browser-result.json").read_text())
+          assert dashboard["candidate_sha"] == os.environ["EXPECTED_HEAD"]
+          assert dashboard["candidate_tree"] == os.environ["EXPECTED_TREE"]
+          assert dashboard["status"] == "PASS" and dashboard["browser_acceptance_passed"] is True
+          assert dashboard["fixture_only"] is True and dashboard["production_accessed"] is False
+          summary = {
+              "verification_kind": "supplemental_official_container_not_original_pr_ci",
+              "application_commit": os.environ["EXPECTED_HEAD"],
+              "application_tree": os.environ["EXPECTED_TREE"],
+              "common_priority_browser_reports_passed": 13,
+              "vehicle_comparison_browser_passed": True,
+              "dashboard_saved_proposals_browser_passed": True,
+              "covered_original_browser_workflows": 3,
+              "all_original_workflows_replaced": False,
+              "http_preflights_passed": 3,
+              "source_unchanged": True,
+              "original_ci_still_requires_separate_status_reporting": True,
+              "native_http_redirect_browser_coverage": False,
+          }
+          (root / "supplemental-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Save supplemental evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7 from original run
+        with:
+          name: pr377-supplemental-container-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/common-priority-results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Save separate vehicle comparison evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7 from original run
+        with:
+          name: pr377-supplemental-comparison-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ui5-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Save separate dashboard evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7 from original run
+        with:
+          name: pr377-supplemental-dashboard-30d4dfe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dashboard-saved-proposals-results/
+          if-no-files-found: warn
+          retention-days: 14
