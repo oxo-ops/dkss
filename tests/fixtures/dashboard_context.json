@@ -287,8 +287,106 @@
         "category": "安全",
         "content": "ブレーキ",
         "count": 6,
+        "records": [
+          {
+            "checklist": "日常点検",
+            "date": "2026-10-11",
+            "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/1"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/2"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/3"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/4"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/6"
+          }
+        ],
         "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
       },
+      "issues": [
+        {
+          "category": "安全",
+          "content": "ブレーキ",
+          "count": 6,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/1"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/6"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        },
+        {
+          "category": "安全",
+          "content": "旧点検",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-10",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+        },
+        {
+          "category": "装置",
+          "content": "灯火",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        }
+      ],
       "record_count": 7
     },
     "dashboard_offices": [
@@ -520,7 +618,11 @@
         "name": "納入先マスタ",
         "url": "/master/delivery-places"
       }
-    ]
+    ],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   },
   "user": {
     "checklist_score_summaries": [
@@ -729,26 +831,84 @@
       }
     ],
     "dashboard_office_check_trend": {
-      "answer_count": 13,
+      "answer_count": 5,
       "categories": [
         {
-          "count": 7,
-          "maximum": 7,
+          "count": 3,
+          "maximum": 3,
           "name": "安全"
         },
         {
           "count": 1,
-          "maximum": 7,
+          "maximum": 3,
           "name": "装置"
         }
       ],
       "focus": {
         "category": "安全",
         "content": "ブレーキ",
-        "count": 6,
+        "count": 2,
+        "records": [
+          {
+            "checklist": "日常点検",
+            "date": "2026-10-11",
+            "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/1"
+          }
+        ],
         "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
       },
-      "record_count": 7
+      "issues": [
+        {
+          "category": "安全",
+          "content": "ブレーキ",
+          "count": 2,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/1"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        },
+        {
+          "category": "安全",
+          "content": "旧点検",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-10",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+        },
+        {
+          "category": "装置",
+          "content": "灯火",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        }
+      ],
+      "record_count": 3
     },
     "dashboard_offices": [
       {
@@ -963,7 +1123,11 @@
         "safe_start_date": "2026-01-01"
       }
     ],
-    "setup_tasks": []
+    "setup_tasks": [],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   },
   "itc": {
     "checklist_score_summaries": [
@@ -1253,8 +1417,106 @@
         "category": "安全",
         "content": "ブレーキ",
         "count": 6,
+        "records": [
+          {
+            "checklist": "日常点検",
+            "date": "2026-10-11",
+            "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/1"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/2"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/3"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/4"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/6"
+          }
+        ],
         "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
       },
+      "issues": [
+        {
+          "category": "安全",
+          "content": "ブレーキ",
+          "count": 6,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/1"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/6"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        },
+        {
+          "category": "安全",
+          "content": "旧点検",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-10",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+        },
+        {
+          "category": "装置",
+          "content": "灯火",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        }
+      ],
       "record_count": 7
     },
     "dashboard_offices": [
@@ -1470,7 +1732,11 @@
         "safe_start_date": "2026-01-01"
       }
     ],
-    "setup_tasks": []
+    "setup_tasks": [],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   },
   "missing_office": {
     "checklist_score_summaries": [
@@ -1519,6 +1785,7 @@
       "answer_count": 0,
       "categories": [],
       "focus": null,
+      "issues": [],
       "record_count": 0
     },
     "dashboard_offices": [
@@ -1688,7 +1955,11 @@
         "name": "納入先マスタ",
         "url": "/master/delivery-places"
       }
-    ]
+    ],
+    "dashboard_safety_attention": {
+      "available": false,
+      "items": []
+    }
   },
   "other_office": {
     "checklist_score_summaries": [
@@ -1873,8 +2144,43 @@
         "category": "安全",
         "content": "ブレーキ",
         "count": 1,
+        "records": [
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/5"
+          }
+        ],
         "url": "/safety/checklist-results/5"
       },
+      "issues": [
+        {
+          "category": "安全",
+          "content": "ブレーキ",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/5"
+            }
+          ],
+          "url": "/safety/checklist-results/5"
+        },
+        {
+          "category": "装置",
+          "content": "灯火",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-12",
+              "url": "/vehicle/checklists/1?vehicle_record_id=2&year=2026&month=10&active_day=12"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=2&year=2026&month=10&active_day=12"
+        }
+      ],
       "record_count": 2
     },
     "dashboard_offices": [
@@ -2085,7 +2391,11 @@
         "name": "納入先マスタ",
         "url": "/master/delivery-places"
       }
-    ]
+    ],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   },
   "short_period": {
     "checklist_score_summaries": [
@@ -2134,6 +2444,7 @@
       "answer_count": 0,
       "categories": [],
       "focus": null,
+      "issues": [],
       "record_count": 0
     },
     "dashboard_offices": [
@@ -2308,7 +2619,11 @@
         "name": "納入先マスタ",
         "url": "/master/delivery-places"
       }
-    ]
+    ],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   },
   "invalid_period": {
     "checklist_score_summaries": [
@@ -2598,8 +2913,106 @@
         "category": "安全",
         "content": "ブレーキ",
         "count": 6,
+        "records": [
+          {
+            "checklist": "日常点検",
+            "date": "2026-10-11",
+            "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/1"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/2"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/3"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/4"
+          },
+          {
+            "checklist": "安全",
+            "date": "2026-10-15",
+            "url": "/safety/checklist-results/6"
+          }
+        ],
         "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
       },
+      "issues": [
+        {
+          "category": "安全",
+          "content": "ブレーキ",
+          "count": 6,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/1"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/2"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/3"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/4"
+            },
+            {
+              "checklist": "安全",
+              "date": "2026-10-15",
+              "url": "/safety/checklist-results/6"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        },
+        {
+          "category": "安全",
+          "content": "旧点検",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-10",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=10"
+        },
+        {
+          "category": "装置",
+          "content": "灯火",
+          "count": 1,
+          "records": [
+            {
+              "checklist": "日常点検",
+              "date": "2026-10-11",
+              "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+            }
+          ],
+          "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&active_day=11"
+        }
+      ],
       "record_count": 7
     },
     "dashboard_offices": [
@@ -2831,6 +3244,10 @@
         "name": "納入先マスタ",
         "url": "/master/delivery-places"
       }
-    ]
+    ],
+    "dashboard_safety_attention": {
+      "available": true,
+      "items": []
+    }
   }
 }
