@@ -13,7 +13,7 @@ from unittest.mock import patch
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 
 class AnalysisRuntimeGunicornTests(unittest.TestCase):
@@ -130,7 +130,9 @@ class AnalysisRuntimeGunicornTests(unittest.TestCase):
     def state(self):
         with self.app.app_context():
             state = self.db.session.get(self.models.VehicleKarteAnalysis, self.state_id)
-            value = {'status': state.status, 'token': state.lease_token, 'result': state.result_json}
+            value = {'status': state.status, 'token': state.lease_token, 'result': state.result_json,
+                'lease_expires_at': state.lease_expires_at, 'retry_at': state.next_analysis_at,
+                'last_error': state.last_error}
             self.db.session.remove()
             return value
 
@@ -210,6 +212,122 @@ class AnalysisRuntimeGunicornTests(unittest.TestCase):
         self.assertEqual(len(self.calls()), 1); self.assertEqual(self.state()['result'], self.previous)
         self.release_ai(); self.expire_fixture_lease(); self.assert_completed()
         self.assertEqual(len(self.calls()), 2); self.assertNotEqual(self.calls()[1]['pid'], first_pid)
+        self.stop(process)
+
+    def events(self, filename):
+        path = self.case_root / filename
+        if not path.exists(): return []
+        data = path.read_text()
+        return [json.loads(line) for line in data[:data.rfind('\n')+1].splitlines()]
+
+    def assert_process_alive(self, pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            self.fail('The original OS worker must remain alive during DB-session loss')
+
+    def leader_backend(self):
+        # Only the session owning this exact two-int advisory tag in this
+        # already-verified synthetic database can qualify as the leader.
+        with self.app.app_context(), self.db.engine.connect() as connection:
+            rows = connection.execute(text("""
+                SELECT activity.pid, activity.application_name
+                FROM pg_locks locks JOIN pg_stat_activity activity ON activity.pid=locks.pid
+                WHERE locks.locktype='advisory' AND locks.granted
+                  AND locks.classid=CAST(1145787219 AS oid) AND locks.objid=CAST(1 AS oid)
+                  AND locks.objsubid=2
+                  AND locks.database=(SELECT oid FROM pg_database WHERE datname=current_database())
+                  AND activity.datname=current_database() AND activity.usename=current_user
+                  AND activity.backend_type='client backend'
+                  AND activity.pid<>pg_backend_pid()
+            """)).mappings().all()
+        self.assertLessEqual(len(rows), 1, 'Only one dedicated leader backend may exist')
+        return dict(rows[0]) if rows else None
+
+    def terminate_owned_leader_once(self, original_os_pid):
+        from analysis_runtime_ci_support import verify_owned_service
+        verify_owned_service(self.url, os.environ)
+        old = self.leader_backend()
+        self.assertIsNotNone(old)
+        expected_name = f'dkss-analysis-ci-{original_os_pid}'
+        self.assertEqual(old['application_name'], expected_name)
+        self.assert_process_alive(original_os_pid)
+        # Recheck the complete ownership/tag predicate in the terminating SQL.
+        # Issue exactly once. Any exception/uncertain outcome fails the case;
+        # subsequent polling is read-only and never resends termination.
+        with self.app.app_context(), self.db.engine.connect() as connection:
+            terminated = connection.execute(text("""
+                SELECT pg_terminate_backend(activity.pid)
+                FROM pg_locks locks JOIN pg_stat_activity activity ON activity.pid=locks.pid
+                WHERE locks.locktype='advisory' AND locks.granted
+                  AND locks.classid=CAST(1145787219 AS oid) AND locks.objid=CAST(1 AS oid)
+                  AND locks.objsubid=2
+                  AND locks.database=(SELECT oid FROM pg_database WHERE datname=current_database())
+                  AND activity.datname=current_database() AND activity.usename=current_user
+                  AND activity.backend_type='client backend' AND activity.pid<>pg_backend_pid()
+                  AND activity.pid=:pid AND activity.application_name=:name
+            """), {'pid': old['pid'], 'name': expected_name}).scalar_one_or_none()
+        self.assertIs(terminated, True)
+        (self.case_root/'terminated-leader.json').write_text(json.dumps({
+            'database_backend_pid': old['pid'], 'os_worker_pid': original_os_pid,
+            'advisory_namespace': 1145787219, 'advisory_key': 1, 'termination_requests': 1})+'\n')
+        def successor():
+            current = self.leader_backend()
+            return current if current and current['pid'] != old['pid'] else None
+        replacement = self.await_condition(successor, 'Standby did not acquire leadership after DB loss')
+        self.assertNotEqual(replacement['application_name'], expected_name)
+        self.assertTrue(replacement['application_name'].startswith('dkss-analysis-ci-'))
+        self.assert_process_alive(original_os_pid)
+        return replacement
+
+    def assert_original_token_still_valid(self, original_token):
+        value = self.state()
+        self.assertEqual((value['status'], value['token']), ('running', original_token))
+        self.assertIsNotNone(value['lease_expires_at'])
+        self.assertGreater(value['lease_expires_at'], datetime.now(timezone.utc))
+        self.assertEqual(value['result'], self.previous)
+        self.assertEqual(len(self.calls()), 1)
+
+    def assert_leadership_error_retains_previous_and_schedules_retry(self):
+        self.await_condition(lambda: self.state()['status'] == 'error', 'Lost ownership was not handled as an error')
+        value = self.state()
+        self.assertEqual(value['result'], self.previous)
+        self.assertIsNone(value['token']); self.assertIsNone(value['lease_expires_at'])
+        self.assertTrue(value['last_error'].startswith(('OperationalError:', 'RuntimeError:')))
+        now = datetime.now(timezone.utc)
+        self.assertGreater(value['retry_at'], now+timedelta(minutes=55))
+        self.assertLess(value['retry_at'], now+timedelta(minutes=65))
+        self.assertEqual(len(self.calls()), 1, 'Handled leadership loss must not trigger an immediate model retry')
+
+    def test_live_leader_db_loss_blocks_second_model_chunk(self):
+        process = self.start()
+        self.await_condition(lambda: len(self.events('chunks.jsonl')) == 1, 'First synthetic model chunk did not finish')
+        original_os_pid = self.calls()[0]['pid']
+        token = self.state()['token']; self.assertIsNotNone(token)
+        self.terminate_owned_leader_once(original_os_pid)
+        self.assert_original_token_still_valid(token)
+        (self.case_root/'release_next_chunk').write_text('release synthetic next-chunk boundary\n')
+        self.assert_leadership_error_retains_previous_and_schedules_retry()
+        self.assertEqual([row['stage'] for row in self.events('chunks.jsonl')], ['chunk1'])
+        self.assert_process_alive(original_os_pid)
+        self.stop(process)
+
+    def test_live_leader_db_loss_blocks_save_with_valid_original_token(self):
+        self.release_ai()
+        process = self.start()
+        self.await_condition(lambda: any(row['stage'] == 'after_reconcile' for row in self.events('fences.jsonl')),
+            'Real reconciliation did not finish before the final-save pause')
+        self.assertEqual([row['stage'] for row in self.events('fences.jsonl')],
+            ['last_progress_finished', 'after_reconcile'])
+        original_os_pid = self.calls()[0]['pid']
+        token = self.state()['token']; self.assertIsNotNone(token)
+        self.terminate_owned_leader_once(original_os_pid)
+        self.assert_original_token_still_valid(token)
+        (self.case_root/'release_save').write_text('release synthetic final-save boundary\n')
+        self.assert_leadership_error_retains_previous_and_schedules_retry()
+        self.assertEqual([row['stage'] for row in self.events('fences.jsonl')],
+            ['last_progress_finished', 'after_reconcile'])
+        self.assert_process_alive(original_os_pid)
         self.stop(process)
 
     def test_missing_analysis_schema_refuses_work_without_creating_table(self):

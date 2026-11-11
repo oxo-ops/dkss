@@ -100,7 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -d "$RUNNER_TEMP/analysis-runtime" ]]; then
-            find "$RUNNER_TEMP/analysis-runtime" -type f \( -name '*.log' -o -name 'calls.jsonl' -o -name 'acceptance.json' \) -exec cp --parents '{}' analysis-runtime-evidence/ \;
+            find "$RUNNER_TEMP/analysis-runtime" -type f \( -name '*.log' -o -name '*.jsonl' -o -name 'terminated-leader.json' -o -name 'acceptance.json' \) -exec cp --parents '{}' analysis-runtime-evidence/ \;
           fi
       - uses: actions/upload-artifact@v7
         if: always()

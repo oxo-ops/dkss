@@ -16,7 +16,7 @@ pins = [line.strip().split('==') for line in (repo/'requirements.txt').read_text
 assert all(metadata.version(name) == version for name, version in pins)
 modules = ['test_analysis_runtime_ci_guard', 'test_analysis_worker_postgres', 'test_analysis_runtime_gunicorn']
 suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
-expected = 14  # 2 guard/WSGI checks + 7 PostgreSQL + 5 real Gunicorn cases.
+expected = 16  # 2 guard/WSGI + 7 PostgreSQL + 7 real Gunicorn cases, including DB-session loss.
 assert suite.countTestCases() == expected, suite.countTestCases()
 result = unittest.TextTestRunner(verbosity=2).run(suite)
 report = {'expected': expected, 'run': result.testsRun, 'skipped': len(result.skipped),

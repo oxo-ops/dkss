@@ -141,7 +141,7 @@ not use repository/environment secrets, new packages, real AI, notifications,
 S3 or public-knowledge downloads. A failed guard or ownership marker fails closed.
 
 Seven PostgreSQL cases include observed `pg_stat_activity` lock blocking in both
-queue/claim interleavings, not merely thread start signals. Five process cases
+queue/claim interleavings, not merely thread start signals. Seven process cases
 run real Gunicorn with its existing startup/exit hooks and two web processes:
 one synthetic model call plus CLI coexistence and a responsive ordinary login GET, SIGTERM during
 model work, worker SIGKILL/respawn, HUP reload, and missing-schema refusal. Process
@@ -160,5 +160,24 @@ specific new head passes official CI.
 The WSGI harness has no extra health route or authentication bypass. A Flask
 test-client check verifies ordinary `/login` serves while protected analysis
 GET still redirects unauthenticated users. This check performs no model call,
-listener or external database access. Official acceptance requires 14 executed
-checks with zero skips: two guard/WSGI checks, seven PG and five process cases.
+listener or external database access. Official acceptance requires 16 executed
+checks with zero skips: two guard/WSGI checks, seven PG and seven process cases.
+
+
+Two additional process cases keep the original OS worker alive while terminating
+only its dedicated leadership DB session. The target must hold this exact
+advisory tag in the marked synthetic database, use the owned CI role and have
+the expected OS-worker application name. The complete predicate is rechecked in
+the terminating SQL. It is issued once; an uncertain result fails without resend.
+Read-only polling observes a different standby acquire leadership while the
+original token remains valid and unexpired.
+
+One case releases a paused first model chunk and requires the next progress
+callback to fail before any second synthetic transport marker. The other pauses
+after real reconciliation and the last model callback, keeping the original
+valid token, then requires the final ownership check to reject saving. Both must
+retain the previous result, enter the normal error state and schedule the existing
+one-hour retry, not claim immediate retry or token-expiry recovery. Synthetic
+chunk/fence markers and the exact backend-termination scope are uploaded as
+acceptance evidence. No product behavior or model provider is replaced outside
+the explicitly gated CI-only WSGI harness.
