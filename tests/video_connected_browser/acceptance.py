@@ -13,7 +13,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from urllib.parse import urlsplit
+from html import escape
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 ORIGIN = 'http://127.0.0.1:8765'
 
@@ -59,7 +60,11 @@ def main():
     report = dict(candidate_sha=sha, candidate_tree=tree, scenario=args.case,
         status='FAILED', fixture_only=True, production_accessed=False, browser_started=False,
         browser_acceptance_passed=False, page_errors=[], blocked_requests=[], failed_gets=[],
-        cases=[], started_utc=datetime.now(timezone.utc).isoformat())
+        cases=[], failed_requests=[], redirects=[], notification_navigations=[],
+        native_http_redirect_browser_covered=False,
+        redirect_transport='Only the verified notification GET uses a synthetic same-origin meta-refresh relay',
+        started_utc=datetime.now(timezone.utc).isoformat())
+    notice_open_path = notice_destination = None
     try:
         case.setUpClass(); started = True; case.setUp(); setup = True
         if args.case.startswith('periodic_'):
@@ -111,8 +116,29 @@ def main():
             # Mark only this synthetic notice read through the real GET target
             # before the protected baseline. Reopening it in-browser stays GET-only;
             # unread auto-mark POST behavior is not covered by this harness.
-            landing = case.client.get(f'/notifications/{notice.id}/open', follow_redirects=True)
+            notice_id = notice.id
+            notice_open_path = f'/notifications/{notice_id}/open'
+            landing = case.client.get(notice_open_path, follow_redirects=True)
             require(landing.status_code == 200 and notice.read, 'Notification target did not open')
+            require(len(landing.history) == 1 and landing.history[0].status_code == 302,
+                    'Notification must make one real redirect')
+            notice_location = landing.history[0].headers['Location']
+            notice_destination = urljoin(ORIGIN + notice_open_path, notice_location)
+            destination = urlsplit(notice_destination)
+            source_url = bundle['sources'][f'inspection:{case.row.id}']['url']
+            source = urlsplit(source_url)
+            source_query = parse_qs(source.query, keep_blank_values=True)
+            target_query = parse_qs(destination.query, keep_blank_values=True)
+            require(target_query.pop('_notification_id', None) == [str(notice_id)],
+                    'Notification redirect identity differs')
+            require(f'{destination.scheme}://{destination.netloc}' == ORIGIN and
+                    destination.path == source.path == landing.request.path and
+                    target_query == source_query and destination.path != notice_open_path,
+                    'Notification redirect differs from the exact inspection source')
+            report['notification_source'] = dict(notification_id=notice_id,
+                inspection_result_id=case.row.id, checklist_id=case.row.checklist_id,
+                vehicle_id=case.vehicle.id, source_url=source_url,
+                flask_location=notice_location, expected_url=notice_destination)
             notice_target = landing.request.path
             related_notice = related_item = related_source_url = None
             if args.case in ('instruction', 'recheck'):
@@ -175,8 +201,34 @@ def main():
                     response = get(parsed.path + ('?' + parsed.query if parsed.query else ''))
                     headers = {key: value for key, value in response.headers.items()
                                if key.lower() not in {'content-length', 'transfer-encoding', 'connection', 'set-cookie'}}
+                    if 300 <= response.status_code < 400:
+                        location = response.headers.get('Location', '')
+                        target = urljoin(request.url, location)
+                        destination = urlsplit(target)
+                        report['redirects'].append(dict(request_url=request.url,
+                            status=response.status_code, location=location, resolved_url=target,
+                            transport='synthetic_meta_refresh_not_native_http_redirect'))
+                        require(response.status_code == 302 and parsed.path == notice_open_path and
+                                request.is_navigation_request() and request.resource_type == 'document',
+                                'Unexpected redirect outside the single approved notification GET')
+                        require(location and f'{destination.scheme}://{destination.netloc}' == ORIGIN and
+                                target == notice_destination and destination.path != parsed.path,
+                                'Unsafe, looping or different notification redirect')
+                        # Playwright routes only the first URL of an HTTP redirect.
+                        # Relay this verified Location as a new same-origin navigation
+                        # without sockets, inline scripts, CSP relaxation or POSTs.
+                        headers = {key: value for key, value in headers.items()
+                                   if key.lower() not in {'location', 'content-type'}}
+                        headers['Content-Type'] = 'text/html; charset=utf-8'
+                        body = ('<!doctype html><meta charset="utf-8">'
+                                '<meta http-equiv="refresh" content="0;url=' + escape(target, quote=True) + '">'
+                                '<title>Synthetic notification redirect relay</title>')
+                        route.fulfill(status=200, headers=headers, body=body)
+                        return
                     route.fulfill(status=response.status_code, headers=headers, body=response.get_data())
                 context.route('**/*', bridge)
+                context.on('requestfailed', lambda request: report['failed_requests'].append(
+                    dict(method=request.method, url=request.url, failure=request.failure)))
                 page = context.new_page()
                 page.on('pageerror', lambda error: report['page_errors'].append(str(error)))
                 for width, height in ((1440, 900), (390, 780), (320, 640)):
@@ -243,11 +295,20 @@ def main():
                         page.goto(ORIGIN + '/notifications', wait_until='networkidle')
                         unsupported_row = page.locator(f'.notification-wrapper[data-notification-id="{notice.id}"]')
                         expect(unsupported_row.locator('.notification-related-priority')).to_have_count(0)
-                        page.locator(f'a.js-notification-open[href^="/notifications/{notice.id}/open"]').first.click()
+                        open_link = page.locator(f'a.js-notification-open[href^="{notice_open_path}"]').first
+                        actual_href = open_link.get_attribute('href')
+                        require(actual_href and urlsplit(urljoin(ORIGIN, actual_href)).path == notice_open_path,
+                                'Rendered notification href differs')
+                        navigation = dict(width=width, actual_href=actual_href,
+                            expected_url=notice_destination, inspection_result_id=case.row.id)
+                        report['notification_navigations'].append(navigation)
+                        open_link.click()
+                        expect(page).to_have_url(notice_destination)
                         page.wait_for_load_state('networkidle')
-                        require(urlsplit(page.url).path == notice_target, 'Notification opened a different source')
+                        navigation['arrived_url'] = page.url
+                        require(page.url == notice_destination, 'Notification opened a different source')
                         expect(page.locator('main')).to_contain_text('ブレーキ')
-                        report['cases'].append(f'Browser {width}: existing notification -> its real inspection target')
+                        report['cases'].append(f'Browser {width}: rendered notification click -> real Flask Location -> synthetic same-origin relay -> exact inspection target (not native HTTP redirect)')
                         if related_notice is not None:
                             case.login('checker')
                             page.goto(ORIGIN + '/notifications', wait_until='networkidle')
@@ -304,12 +365,14 @@ def main():
                         page.go_forward(wait_until='networkidle')
                         require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Priority page overflow')
                     report['cases'].append(f'Browser connected normal screens, width {width}, navigation and saved records')
-                require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'], 'Browser request or script failure')
+                require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser request or script failure')
                 require(snapshot() == before, 'Browser GET changed protected saved data')
                 report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
                 return 0
             except Exception:
-                if 'page' in locals() and not page.is_closed(): page.screenshot(path=str(out / 'failure.png'), full_page=True)
+                if 'page' in locals() and not page.is_closed():
+                    report['failure_url'] = page.url
+                    page.screenshot(path=str(out / 'failure.png'), full_page=True)
                 raise
             finally:
                 browser.close()

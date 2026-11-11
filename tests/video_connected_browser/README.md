@@ -118,12 +118,35 @@ from passing focused Flask tests.
 
 ### Browser boundary, specifically
 
-The browser follows the displayed notification's link to the original daily
-inspection, and the displayed history link to the same maintenance detail and
-its original-PDF download (SHA-256 compared with the preserved source). It also
-clicks the overview proposal link into analysis/details. The notice is already
-marked read using its real Flask target route before the protected browser
-baseline, so the browser does not exercise the unread-notice auto-mark POST.
+The browser clicks the displayed notification's link and the real Flask open
+route returns its real 302 Location. For this one approved notification document
+GET, the in-process bridge converts that verified Location into a script-free
+meta-refresh relay. Chromium/Playwright routes only the initial request in an
+HTTP redirect chain, so forwarding the 302 unchanged would leave the in-process
+bridge and attempt a TCP connection to the nonexistent local server. No server
+is started and CSP/security headers are retained; only the redirect response
+status/body and Location header are adapted for this synthetic transport.
+
+The Location must exactly equal the fixture's real one-hop Flask redirect. Its
+same origin (including scheme/port), source path, vehicle/date query values and
+notification ID are checked against the original inspection source. The rendered
+href is not rewritten. The browser must reach that full exact URL and render the
+same inspection. Only this notification's GET document request can use the relay;
+other redirects, other origins, schemes or ports, POSTs, self-loops and any second
+redirect are rejected. This also covers the identical approval-link path in the
+normal/instruction/recheck cases without widening the destination expectation.
+JSON records the actual href, original source ID, Flask Location, resolved and
+arrived URLs, relay use and any browser request failures. It explicitly reports
+`native_http_redirect_browser_covered=false`: this is not evidence that a native
+HTTP 302 chain completed in the browser.
+
+History still follows its displayed link to the same maintenance detail and
+original-PDF download (SHA-256 compared with the preserved source). Overview
+proposal links, checker notification detail/proposal/original links and periodic
+list links remain ordinary GET navigation without the relay. The notice is
+already marked read using its real Flask target route before the protected
+browser baseline, so the browser does not exercise the unread-notice auto-mark
+POST. Protected business/source records and saved analysis still must not change.
 
 The browser **does not** type/submit daily-inspection answers, completion,
 human operation judgments, repair/recheck forms, invoice upload/confirmation,
@@ -447,3 +470,17 @@ all 13 browser scenarios were not run in that attempt. The source observer above
 corrects that assumption without skipping the real generation or weakening source,
 result or database assertions. This follow-up candidate has not yet been run;
 the earlier run is not evidence that its browser assertions pass.
+
+### Integrated browser transport follow-up
+
+At head `f5e8b17581f3ce3221035889ecff63521e00df01`, official run `43028395398`
+passed all three confirmation HTTP preflights and the four existing common-priority
+browser cases. The first connected case, `normal`, stopped on its notification
+open link. Its failure image is Chromium `ERR_CONNECTION_REFUSED`, not an
+application error page. The route bridge had forwarded the real Flask 302,
+while Chromium's Playwright implementation does not intercept redirected requests.
+The other eight connected browser cases did not run. This relay change is a
+prepared test-transport correction; it is not a passing browser result.
+
+Relevant upstream behavior: [Playwright v1.62 Page.route](https://github.com/microsoft/playwright/blob/v1.62.0/docs/src/api/class-page.md#L3664)
+and [Chromium redirect interception](https://github.com/microsoft/playwright/blob/v1.62.0/packages/playwright-core/src/server/chromium/crNetworkManager.ts#L344-L355).
