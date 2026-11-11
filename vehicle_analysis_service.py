@@ -151,12 +151,13 @@ class VehicleAnalysisJobService:
         if state is None:
             return False
         claimed_hash = state.input_hash
+        company_code, vehicle_record_id = state.company_code, state.vehicle_record_id
         token = self.new_token()
         if not self.repository.claim(state_id, claimed_hash, token, now):
             return False
         signature = None
         try:
-            vehicle = self.repository.find_vehicle(state.company_code, state.vehicle_record_id)
+            vehicle = self.repository.find_vehicle(company_code, vehicle_record_id)
             if vehicle is None:
                 self.repository.skip(state_id, token)
                 return True
@@ -181,6 +182,10 @@ class VehicleAnalysisJobService:
                     "overview": "AIの対応候補を作るための整備・不具合・点検指摘の履歴はありません。",
                     "recommendations": [],
                 }
+            vehicle = self.repository.lock_vehicle_for_finish(company_code, vehicle_record_id)
+            if vehicle is None:
+                self.repository.skip(state_id, token)
+                return True
             if self.reconcile_confirmed is not None:
                 with self.input_context():
                     analysis = self.reconcile_confirmed(vehicle, analysis, payload, sources)

@@ -80,6 +80,11 @@ The [queued-generation save/failure fence](analysis_generation_fence.md) also
 preserves the previous result and newer reservation when the locked analysis row
 has moved to a different input hash. It does not claim that every source POST
 immediately updates that row or that all source writes are atomically serialized.
+The [final source gate](analysis_final_source_gate.md) additionally holds the
+existing scoped Vehicle row lock only after model work, through fresh confirmed
+candidate reconciliation and saving. This serializes the demonstrated normal
+daily-inspection repair/recheck and optional-confirmation writers, not unrelated
+source changes or all company data.
 
 The Gunicorn exit hook only sets a cooperative stop event and wakes idle waits.
 It does not join the daemon analysis thread. Normal SIGTERM/reload process exit
@@ -165,8 +170,11 @@ specific new head passes official CI.
 The WSGI harness has no extra health route or authentication bypass. A Flask
 test-client check verifies ordinary `/login` serves while protected analysis
 GET still redirects unauthenticated users. This check performs no model call,
-listener or external database access. Official acceptance requires 16 executed
-checks with zero skips: two guard/WSGI checks, seven PG and seven process cases.
+listener or external database access. The combined candidate requires 33 executed
+checks with zero skips: the original two guard/WSGI, seven PG and seven process
+cases, plus nine queued-generation SQLite checks, two queued-generation PG races,
+three logical/scope source-gate checks, two real-POST source-gate PG interleavings
+and one analysis-row-first/foreign-key lock compatibility case.
 
 
 Two additional process cases keep the original OS worker alive while terminating

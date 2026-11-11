@@ -16,9 +16,10 @@ pins = [line.strip().split('==') for line in (repo/'requirements.txt').read_text
 assert all(metadata.version(name) == version for name, version in pins)
 modules = ['test_analysis_runtime_ci_guard', 'test_analysis_worker_postgres', 'test_analysis_runtime_gunicorn',
     'test_analysis_generation_fence', 'test_analysis_generation_fence_postgres',
+    'test_analysis_source_gate', 'test_analysis_source_gate_postgres',
     'test_vehicle_analysis_service.AnalysisServiceDatabaseTests.test_input_changed_during_ai_retains_new_hash_and_requeues']
 suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
-expected = 27  # V5's 16 cases + 9 queued-generation SQLite cases + 2 real PostgreSQL row-lock cases.
+expected = 33  # V5's 16 + V7's 11 queued-generation cases + 3 logical/scope and 3 PG source-gate cases.
 assert suite.countTestCases() == expected, suite.countTestCases()
 result = unittest.TextTestRunner(verbosity=2).run(suite)
 report = {'expected': expected, 'run': result.testsRun, 'skipped': len(result.skipped),

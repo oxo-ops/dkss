@@ -90,6 +90,18 @@ class VehicleAnalysisJobRepository:
             id=vehicle_record_id, company_code=company_code, deleted=False,
         ).first()
 
+    def lock_vehicle_for_finish(self, company_code, vehicle_record_id):
+        # Normal daily-inspection repair/recheck and optional confirmation
+        # writers acquire this same scoped vehicle row before source writes.
+        # Claim already committed; lock only after model work, before fresh
+        # reconciliation, and retain it through the result commit.
+        self.db.session.expire_all()
+        # PostgreSQL FOR NO KEY UPDATE excludes normal source UPDATEs without
+        # blocking foreign-key KEY SHARE from an analysis-row-owning writer.
+        return self.Vehicle.query.filter_by(
+            company_code=company_code, id=vehicle_record_id, deleted=False,
+        ).populate_existing().with_for_update(key_share=True).first()
+
     def skip(self, state_id, token):
         self.State.query.filter_by(id=state_id, lease_token=token).update({
             "status": "skipped", "next_analysis_at": None, "lease_token": None,
