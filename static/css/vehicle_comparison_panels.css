@@ -22,3 +22,8 @@
 @media(max-width:480px){.ka5-comparison-grid .ka5-panel{padding:14px}.ka5-rate-row{grid-template-columns:66px minmax(28px,1fr) minmax(92px,40%);gap:8px}.ka5-rate-value{font-size:21px}.ka5-rate-label{font-size:12px}.ka5-table th,.ka5-table td{padding:10px 5px;font-size:12px}.ka5-panel>header h3{font-size:16px}}
 
 .ka5-panel-icon{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:#2d6bb3}.ka5-panel-icon svg{width:24px;height:24px}
+
+/* The existing AI renderer marks and moves referenced rows using this attribute. */
+.ka5-parts-table tr[data-analysis-related="true"]{background:#eaf6f1}
+.ka5-parts-table tr[data-analysis-related="true"] td:first-child{box-shadow:inset 3px 0 #3e9687}
+.ka5-parts-table tr[data-analysis-related="true"] a{font-weight:700}

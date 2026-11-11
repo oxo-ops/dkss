@@ -71,11 +71,12 @@ def main():
                     fills:[...root.querySelectorAll('.ka5-rate-track rect')].map(e=>({width:e.getBoundingClientRect().width,fill:getComputedStyle(e).fill})),
                     cols:getComputedStyle(root).gridTemplateColumns
                 })''')
+                page.locator('.ka5-comparison-grid').screenshot(path=str(output/f'checkpoint-{label}.png'))
+                report['cases'].append(dict(case=label,geometry=result))
                 require(not result['rootOverflow'] and not any(r['overflow'] for r in result['items']),f'Panel overflow: {label} {result}')
                 require(result['inline']==0,'Inline style bypassed CSP')
                 require(all(r['fill'] in ['rgb(45, 107, 179)','rgb(144, 170, 206)'] for r in result['fills']),'Bar colors not applied')
                 require(not page.evaluate('window.ui5Csp'),'CSP violation')
-                report['cases'].append(dict(case=label,geometry=result))
             for width in [1440,1024,768,390,320]:
                 page.set_viewport_size(dict(width=width,height=1000));visit()
                 require('6.00' in page.locator('[data-rate=current]').inner_text(),'Own rate missing')
@@ -83,6 +84,12 @@ def main():
                 require('0 km' in page.locator('.ka5-parts-table').inner_text(),'Measured zero missing')
                 geometry(f'facts-{width}')
                 page.locator('.ka5-comparison-grid').screenshot(path=str(output/f'facts-{width}.png'))
+            # Preserve the existing AI-selected row styling contract without new AI calls.
+            selected=page.locator('.ka5-parts-table tbody tr').first
+            selected.evaluate("e=>e.dataset.analysisRelated='true'")
+            highlight=selected.evaluate("e=>({background:getComputedStyle(e).backgroundColor,line:getComputedStyle(e.firstElementChild).boxShadow,weight:getComputedStyle(e.querySelector('a')).fontWeight})")
+            require(highlight['background']=='rgb(234, 246, 241)' and highlight['line']!='none' and highlight['weight']=='700','AI referenced part highlight lost')
+            report['cases'].append(dict(case='existing-ai-row-highlight-style-contract',computed=highlight))
             # Query, reload and browser history use actual GET form navigation.
             page.set_viewport_size(dict(width=390,height=1000));visit()
             page.locator('.ka5-peer-panel details summary').click()
@@ -105,9 +112,9 @@ def main():
             link=page.locator('.ka5-parts-table a').first
             href=link.get_attribute('href')
             with page.expect_popup() as opened: link.click()
-            popup=opened.value;popup.wait_for_load_state('networkidle')
+            popup=opened.value;popup.wait_for_load_state('domcontentloaded')
             require(urlsplit(popup.url).path==href,'Part record destination wrong')
-            require(popup.locator('body').is_visible(),'Part record not readable');popup.close()
+            require('【合成】確認済み請求書の実績' in popup.locator('main').inner_text(),'Part record not readable');popup.close()
             require(saved()==before,'Read flow mutated cost or parts')
             report['cases'].append('GET filters, reload, Back, part link, unchanged saved records')
             # Stress saved records, not hard-coded rendered values.

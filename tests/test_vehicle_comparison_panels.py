@@ -121,6 +121,7 @@ class VehicleComparisonRouteTests(unittest.TestCase):
                 distance=distance,arrival_meter=1200))
         parent = m.VehicleMaintenanceRecord(company_code='TEST',vehicle_record_id=self.vehicle.id,
             entry_date='2026-09-01',total_cost=0,status='入庫中',completion_date=None,
+            content='【合成】確認済み請求書の実績',
             invoice_details_json=json.dumps({'source':{'draft_id':'synthetic-confirmed-invoice'}}))
         m.db.session.add(parent); m.db.session.flush()
         self.parent = parent
