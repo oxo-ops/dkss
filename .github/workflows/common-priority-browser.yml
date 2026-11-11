@@ -9,6 +9,14 @@ on:
       - 'dkss_app/priority_projection.py'
       - 'dkss_app/priority_timing.py'
       - 'dkss_app/priority_consumers.py'
+      - 'dkss_app/priority_confirmations.py'
+      - 'dkss_app/priority_confirmed_projection.py'
+      - 'dkss_app/priority_observations.py'
+      - 'dkss_app/priority_progression.py'
+      - 'dkss_app/priority_manufacturer_evidence.py'
+      - 'dkss_app/priority_certificate_sources.py'
+      - 'dkss_app/routes.py'
+      - 'vehicle_priority_assessment.py'
       - 'dkss_app/notification_priority.py'
       - 'dkss_app/notifications.py'
       - 'vehicle_periodic_followups.py'
@@ -16,6 +24,9 @@ on:
       - 'dkss_app/analysis.py'
       - 'dkss_app/dashboard.py'
       - 'static/js/vehicle_priority_presentation.js'
+      - 'static/js/vehicle_priority_confirmations.js'
+      - 'static/css/vehicle_priority_confirmations.css'
+      - 'templates/vehicle_priority_confirmations.html'
       - 'static/js/vehicle_karte_analysis_ai.js'
       - 'static/js/vehicle_karte_overview.js'
       - 'static/js/vehicle_periodic_suggestions.js'
@@ -33,7 +44,13 @@ on:
       - 'tests/test_video_connected_flows.py'
       - 'tests/test_notification_priority.py'
       - 'tests/test_priority_periodic_consumers.py'
+      - 'tests/test_priority_confirmation*.py'
+      - 'tests/test_priority_manufacturer*.py'
+      - 'tests/test_priority_certificate_sources.py'
+      - 'tests/test_priority_progression_workflow.py'
+      - 'tests/test_priority_observation_sources.py'
       - 'tests/vehicle_periodic_priority_js.cjs'
+      - 'tests/vehicle_priority_confirmations_js.cjs'
       - 'tests/common_priority_browser/**'
       - 'tests/video_connected_browser/**'
       - '.github/workflows/common-priority-browser.yml'
@@ -66,8 +83,8 @@ jobs:
           python -m venv "$RUNNER_TEMP/browser-venv"
           "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
           "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
-      - name: Check shared periodic priority presentation
-        run: node --test tests/vehicle_periodic_priority_js.cjs
+      - name: Check priority presentation and confirmation controls
+        run: node --test tests/vehicle_periodic_priority_js.cjs tests/vehicle_priority_confirmations_js.cjs
       - name: Verify exact head with scoped priority facts
         shell: bash
         env:
@@ -90,7 +107,7 @@ jobs:
               "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
               --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
           done
-          for scenario in normal instruction recheck invoice periodic_instruction periodic_timing; do
+          for scenario in normal instruction recheck invoice periodic_instruction periodic_timing confirmation_manufacturer confirmation_legal confirmation_progression; do
             DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/connected-$scenario" \
               bash tests/video_connected_browser/run-isolated.sh \
               "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \

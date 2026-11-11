@@ -28,6 +28,11 @@
         if (!response.ok || !data.ok) throw new Error(data.message || '処理できませんでした。最新の画面を確認してください。');
         return data;
     }
+    function setBusy(value) {
+        busy = value;
+        root.setAttribute('aria-busy', String(value));
+        root.querySelectorAll('button, select, input').forEach(element => { element.disabled = value; });
+    }
     function clearPreview() { previewToken = null; previewForm.hidden = true; }
     function sources(target, entries) {
         target.replaceChildren();
@@ -41,7 +46,10 @@
         const run = ++sequence;
         clearPreview();
         try {
-            const query = new URLSearchParams({kind:kind.value, selection:JSON.stringify(selection)});
+            const querySelection = kind.value === 'manufacturer_immediate'
+                ? {observation_input_ref:selection.observation_input_ref, manufacturer_rule:selection.manufacturer_rule}
+                : selection;
+            const query = new URLSearchParams({kind:kind.value, selection:JSON.stringify(querySelection)});
             const data = await request(root.dataset.priorityConfirmations + '?' + query);
             if (run !== sequence) return;
             loaded = true; message.textContent = data.message;
@@ -78,9 +86,9 @@
                     const cancel = node('button', 'この根拠確認を取り消す'); cancel.type = 'button'; cancel.className = 'btn btn-outline';
                     cancel.addEventListener('click', async () => {
                         if (busy || !window.confirm('この根拠確認だけを取り消します。元の点検・整備・運行判断は変わりません。続けますか？')) return;
-                        busy = true;
+                        setBusy(true);
                         try { await request(root.dataset.saveUrl, {token:entry.cancel_token}); replacing = null; await load(); }
-                        catch (error) { message.textContent = error.message; } finally { busy = false; }
+                        catch (error) { message.textContent = error.message; } finally { setBusy(false); }
                     });
                     const correct = node('button', '元記録を選び直して訂正'); correct.type = 'button'; correct.className = 'btn btn-outline';
                     correct.addEventListener('click', () => { replacing = entry.event_id; kind.value = entry.kind; selection = {...entry.selection};
@@ -95,13 +103,15 @@
                 history.append(article);
             }
             if (!data.history.length) history.append(node('p', '根拠確認の登録はありません。未登録を低優先度や安全確認済みとは扱いません。'));
+            setBusy(busy);
         } catch (error) { message.textContent = error.message; }
     }
     kind.addEventListener('change', () => { selection = {}; replacing = null; load(); });
     form.addEventListener('submit', async event => {
-        event.preventDefault(); if (busy) return; busy = true; clearPreview();
+        event.preventDefault(); if (busy) return; clearPreview();
+        selection = Object.fromEntries(new FormData(form).entries());
+        setBusy(true);
         try {
-            selection = Object.fromEntries(new FormData(form).entries());
             const data = await request(root.dataset.previewUrl, {kind:kind.value, selection, replace_event_id:replacing});
             previewToken = data.token;
             find('[data-confirmation-subject]').textContent = data.preview.subject;
@@ -112,14 +122,16 @@
                 label.append(input, node('span', value.label)); statements.append(label);
             }
             previewForm.hidden = false; message.textContent = data.message;
-        } catch (error) { message.textContent = error.message; } finally { busy = false; }
+        } catch (error) { message.textContent = error.message; } finally { setBusy(false); }
     });
     previewForm.addEventListener('submit', async event => {
-        event.preventDefault(); if (busy || !previewToken) return; busy = true;
+        event.preventDefault(); if (busy || !previewToken) return;
+        const statements = new FormData(previewForm).getAll('statement');
+        setBusy(true);
         try {
-            const data = await request(root.dataset.saveUrl, {token:previewToken, statements:new FormData(previewForm).getAll('statement')});
+            const data = await request(root.dataset.saveUrl, {token:previewToken, statements});
             replacing = null; selection = {}; await load(); message.textContent = data.message;
-        } catch (error) { clearPreview(); message.textContent = error.message; } finally { busy = false; }
+        } catch (error) { clearPreview(); message.textContent = error.message; } finally { setBusy(false); }
     });
     root.addEventListener('keydown', event => { if (event.key === 'Escape' && !event.defaultPrevented) { root.open = false; root.querySelector('summary').focus(); } });
     root.addEventListener('toggle', () => { if (root.open && !loaded) load(); });

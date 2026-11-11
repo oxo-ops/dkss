@@ -3,6 +3,7 @@
 
 Fixture POSTs are real Flask requests. Browser access is same-origin GET-only,
 bridged in-process: it cannot send writes or connect to a live application.
+Only the separate confirmation_* cases allow their two explicit fixture POSTs.
 """
 import argparse
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ def main():
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--expected-sha', required=True)
-    parser.add_argument('--case', choices=('normal', 'instruction', 'recheck', 'invoice', 'periodic_instruction', 'periodic_timing'), required=True)
+    parser.add_argument('--case', choices=('normal', 'instruction', 'recheck', 'invoice', 'periodic_instruction', 'periodic_timing', 'confirmation_manufacturer', 'confirmation_legal', 'confirmation_progression'), required=True)
     parser.add_argument('--chromium', type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--preflight-only', action='store_true')
@@ -44,6 +45,9 @@ def main():
         require(args.chromium and args.chromium.is_file(), 'Authorized Chromium path required')
     os.chdir(repo); sys.path[:0] = [str(repo), str(repo / 'tests')]
     out.mkdir(parents=True, exist_ok=True)
+    if args.case.startswith('confirmation_'):
+        from confirmation_acceptance import run
+        return run(args, sha, tree, out, ORIGIN)
     import test_video_connected_flows as flows
     if args.case.startswith('periodic_'):
         import test_priority_periodic_consumers as periodic

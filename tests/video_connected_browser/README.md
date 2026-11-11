@@ -1,7 +1,10 @@
 # Connected normal-screen acceptance
 
 This is the connected acceptance for the fixed video scope, not a new product
-feature. Reuse the existing per-feature results and run the final candidate's
+feature. The fixed eight video scenes and completion boundaries are recorded in
+[the integration scope](../../docs/features/video-normal-flow-acceptance-20261111.md).
+The three optional-confirmation conditions alone do not complete the video scope.
+Reuse the existing per-feature results and run the final candidate's
 browser/full regression together. Do not retry Chromium in a host already known
 to lack the required OS support.
 
@@ -78,11 +81,13 @@ bash tests/video_connected_browser/run-isolated-tests.sh "$PWD" /absolute/venv/b
 ## Exact-candidate browser harness
 
 `acceptance.py` requires a clean worktree and exact expected SHA. It prepares each
-scenario with the real fixture POSTs above, then bridges the browser to Flask
-in-process using **same-origin GET-only** Playwright routes. It never launches a
-live Flask server. Python network access is denied and browser writes/external
-requests are aborted. This covers rendered GET navigation, not typing/submitting
-forms in a real browser; POST behavior is covered by the Flask tests.
+original scenario with the real fixture POSTs above, then bridges the browser to
+Flask in-process using **same-origin GET-only** Playwright routes. Only the new
+`confirmation_*` cases below permit two exact confirmation-form POST routes. It never launches a
+live Flask server. Python network access and all external browser requests are
+denied. The original six cases still abort all browser writes and cover rendered
+GET navigation, not typing/submitting their forms; their POST behavior is covered
+by the Flask tests. This distinction is unchanged by the new confirmation cases.
 
 Run only after the candidate is fixed, in the official CI/browser environment:
 
@@ -95,7 +100,8 @@ for scenario in normal instruction recheck invoice periodic_instruction periodic
 done
 ```
 
-Use `--preflight-only` without `--chromium` to verify fixture/GET preparation only.
+Use `--preflight-only` without `--chromium` to verify fixture/GET preparation for
+the original cases, or the explicitly described HTTP sequence for the new cases.
 It writes `PREFLIGHT_PASS_BROWSER_NOT_RUN`, never a browser pass. Browser cases
 check 1440/390/320px, priority order and points, dashboard safety coexistence,
 comparison/part coexistence, drawer Close/Escape and history navigation, or the
@@ -199,3 +205,83 @@ auto-generation POST; writes remain blocked and saved business rows unchanged.
 This extends rendered-read acceptance, not browser form/AI-generation acceptance.
 The existing CI job reuses the same pinned browser and also runs the four Node
 periodic presentation contracts. No second browser environment is introduced.
+
+
+## Optional source-confirmation forms: narrowly permitted browser POSTs
+
+`confirmation_acceptance.py` is dispatched only for `confirmation_manufacturer`,
+`confirmation_legal`, and `confirmation_progression`. The original six scenarios
+and their GET-only bridge are unchanged. The new scenarios use the same isolated
+wrapper, pinned browser, clean expected SHA, and artifact format. Invoke each:
+
+```sh
+for scenario in confirmation_manufacturer confirmation_legal confirmation_progression; do
+  DKSS_BROWSER_ARTIFACT_DIR="/absolute/artifacts/$scenario" \
+  bash tests/video_connected_browser/run-isolated.sh "$PWD" /absolute/venv/bin/python \
+    --expected-sha "$EXPECTED_HEAD" --case "$scenario" \
+    --run-browser --chromium /absolute/authorized/chromium
+done
+```
+
+For these three scenarios only, same-origin JSON POST is permitted to exactly
+`/vehicle/karte/<fixture_vehicle_id>/priority-confirmations/preview` and
+`/vehicle/karte/<fixture_vehicle_id>/priority-confirmations`, with no query string.
+Other writes, other vehicles' POSTs and external requests are rejected. There is
+no live Flask server or access to a real database. Browser requests forward the
+actual rendered CSRF token to Flask; CSRF is enabled after fixture seeding. Fixture
+authentication is synthetic and rate limiting is disabled. A missing-CSRF request
+is rejected in HTTP preflight. No source provider, parser, auth check, calculator,
+priority projection or model transport is mocked in these new cases. No AI/OCR
+generation is called or seeded to imply evidence that has not been verified.
+
+Sources are entirely fictional but read by real providers:
+
+- Manufacturer: `ManufacturerConfirmationWorkflowTests`, the nonperiodic
+  instruction-only original PDF. Select the current observation, actual rule,
+  condition quote and action quote from the normal API's options.
+- Legal: `CertificateSourceTests`, a synthetic Japanese PDF with vehicle identity
+  and a **previous-day expiry**, parsed from original bytes. This avoids depending
+  on interpretation of the expiry day itself. The public MLIT reference is
+  checked as a link attribute, never visited; the fixture is not a real legal
+  determination or a statement about actual extension eligibility.
+- Progression: `ProgressionWorkflowTests.prepare_pair(same_day=True)`, ordinary
+  HTTP inspection/repair/recheck/detail/completion/human-decision records. The
+  synthetic prior observation is resolved at 10:30 and a distinct later observed
+  comment is registered at 12:00. Only the fixture clock is controlled. Exact
+  current/baseline/relation option values are selected, not inferred by label.
+
+`--preflight-only` exercises real options, preview and original-source GET, CSRF
+rejection, required-statement rejection, confirmation, replay 409, atomic
+correction (withdrawal plus new confirmation), stale-preview 409, cancellation,
+cancel-replay 409 and a fresh confirmation after cancellation. It checks static
+non-nesting of the two forms. This is HTTP preflight, not a browser result.
+
+The prepared browser sequence runs at 1440/1024/768/390/320 pixels. It uses actual
+selects, original text/link previews, fixed required checkboxes and submit
+buttons. An unchecked statement must stop submission in the browser. A real
+double-click must produce one save, and a deliberate fetch replay of its captured
+synthetic body must return 409. Another browser tab holds an old preview while
+the first tab corrects the confirmation; the old tab's actual submit must fail
+with 409. Cancellation is first dismissed, then confirmed, and replayed (409).
+History must show withdrawals with no active confirmation after cancellation.
+Escape closes/focuses the optional details, and the ordinary overview link and
+Back remain usable without requiring confirmation. Forms must be separate, not
+nested in each other or the existing normal form, with no page overflow.
+
+After **every** bridged request, all business tables and existing audit rows are
+compared with the protected baseline, including original PDF bytes, source
+records, inspection answers, repairs, operation judgments, notifications, users
+and saved AI JSON. Only `analysis_input_epoch` and `analysis_input_read_cache`
+bookkeeping are exempt. Only a successful confirmation-save request may append
+new `ChecklistEvent` rows, scoped to this company/vehicle and the confirmation or
+withdrawal event types; every previously appended row remains immutable too.
+Correction must append two rows, cancellation one, and rejected requests none.
+No raw signed token is written to the result artifact.
+
+These are preparation assertions until the official browser run returns PASS.
+The new form acceptance does not convert the older inspection/invoice flows into
+full browser form coverage, establish real AI/OCR quality, or reconstruct driver
+or office transfer history from current vehicle attributes. Existing history
+coverage proves arrival at the original linked record. Full video completion
+requires all fixed scenes and the final integrated checks, not these three forms
+alone.

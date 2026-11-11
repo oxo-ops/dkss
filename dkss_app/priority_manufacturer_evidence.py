@@ -397,8 +397,9 @@ def manufacturer_confirmation_options(vehicle, observation_input_ref, *, as_of=N
 def _preview(bundle, selection):
     """Pure exact-range normalization; never interprets words as immediate facts."""
     observation = bundle['observation']
-    if observation['registered_status'] not in {'対応待ち', '整備中'}:
-        raise EvidenceUnavailable('この元観測は現在の未解消指摘ではありません。解消や再確認待ちを現在条件へ読み替えません')
+    if (observation['registered_status'] not in {'対応待ち', '整備中'}
+            or observation.get('registered_open_answer_matches') is not True):
+        raise EvidenceUnavailable('現在の承認済み原回答と同じ未解消指摘を確認できません。編集・未承認・解消・再確認待ちを現在条件へ読み替えません')
     rule = bundle['manufacturer']['rule']
     passages = [{'source_page': rule['source_page'], 'source_quote': rule['source_quote']},
         *[{key: entry[key] for key in ('source_page', 'source_quote')} for entry in rule['semantic_review']['evidence']]]

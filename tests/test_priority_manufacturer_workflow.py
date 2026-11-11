@@ -193,4 +193,28 @@ class ManufacturerConfirmationWorkflowTests(unittest.TestCase):
         self.assertEqual(self.state()['status'], '運行可')
 
 
+
+    def test_new_confirmation_requires_approved_unchanged_current_answer(self):
+        prepared = self.prepare()
+        self.confirm(prepared)
+        original_status, original_answers = self.row.status, self.row.answers_json
+        chosen = dict(prepared['preview']['selection'])
+        chosen['manufacturer_rule'] = json.dumps([chosen.pop('knowledge_source_id'), chosen.pop('rule_key')])
+        for status in ('入力中', '承認待ち', '差戻し'):
+            with self.subTest(status=status):
+                self.row.status = status; self.db.session.commit()
+                response = self.client.post(self.url + '/preview', json={'kind': 'manufacturer_immediate', 'selection': chosen})
+                self.assertEqual(response.status_code, 400, response.get_data(as_text=True))
+                self.assertEqual(confirmation_statuses(self.vehicle)[0]['status'], 'held')
+        self.row.status = original_status
+        answers = json.loads(original_answers)
+        selected = next(a for a in answers if str(a.get('item_no')) == str(self.state()['defects'][0]['item_no']))
+        selected['comment'] = '元報告とは別の新しい回答'
+        self.row.answers_json = json.dumps(answers); self.db.session.commit()
+        response = self.client.post(self.url + '/preview', json={'kind': 'manufacturer_immediate', 'selection': chosen})
+        self.assertEqual(response.status_code, 400, response.get_data(as_text=True))
+        self.assertEqual(confirmation_statuses(self.vehicle)[0]['status'], 'held')
+        self.assertEqual(self.models.ChecklistEvent.query.filter_by(result_type='vehicle_priority').count(), 1)
+
+
 if __name__ == '__main__': unittest.main()

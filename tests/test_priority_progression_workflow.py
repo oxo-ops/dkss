@@ -30,6 +30,11 @@ class ProgressionCoreOrderTests(unittest.TestCase):
                 sources['old'] = replace(sources['old'], observed_on=core.DAY + timedelta(days=delta))
                 result = core.evaluate(core.candidate(replace(base, comparison_order_verified=enabled)), sources)
                 self.assertEqual(result['base_score'], expected)
+        # Both dates may be valid historical dates: the flag still cannot
+        # turn a later baseline into an earlier observation.
+        reversed_sources = {'s1': core.source(observed_on=core.DAY - timedelta(days=1)),
+            'old': core.source('old', event_id='old', status='resolved')}
+        self.assertEqual(core.evaluate(core.candidate(replace(base, comparison_order_verified=True)), reversed_sources)['base_score'], 0)
         with self.assertRaises(core.InvalidInput):
             core.evaluate(core.candidate(replace(base, comparison_order_verified='true')), sources)
 
@@ -68,7 +73,7 @@ class ProgressionWorkflowTests(unittest.TestCase):
         with self.clock(day, hour):
             for no in range(len(self.fields)):
                 self.save(no, '×' if no == number else '✓')
-            self.row = self.models.VehicleChecklistResult.query.filter_by(company_code='A', day=str(day.day), month=str(day.month), year=str(day.year)).one()
+            self.row = self.models.VehicleChecklistResult.query.filter_by(company_code='A', day=str(day.day).zfill(2), month=str(day.month).zfill(2), year=str(day.year)).one()
             if finalize:
                 self.complete(); self.decide('運行可')
         return self.refs()[0]
