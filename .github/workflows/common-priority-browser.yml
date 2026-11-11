@@ -20,7 +20,9 @@ on:
       - 'tests/test_priority_common*.py'
       - 'tests/test_priority_stage2*.py'
       - 'tests/test_priority_adopted_timing.py'
+      - 'tests/test_video_connected_flows.py'
       - 'tests/common_priority_browser/**'
+      - 'tests/video_connected_browser/**'
       - '.github/workflows/common-priority-browser.yml'
 
 permissions:
@@ -70,6 +72,12 @@ jobs:
           for scenario in instruction recheck timing; do
             DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/$scenario" \
               bash tests/common_priority_browser/run-stage2-isolated.sh \
+              "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
+              --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
+          done
+          for scenario in normal instruction recheck invoice; do
+            DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/common-priority-results/connected-$scenario" \
+              bash tests/video_connected_browser/run-isolated.sh \
               "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" \
               --expected-sha "$EXPECTED_HEAD" --case "$scenario" --run-browser --chromium "$chromium"
           done
