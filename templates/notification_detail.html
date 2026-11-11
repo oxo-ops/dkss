@@ -135,6 +135,22 @@
             </details>
         {% endif %}
 
+        {% if notification.related_priority %}
+        <details class="nd-attachments notification-related-priority-detail" open>
+            <summary>関連する確認・対応優先度（{{ notification.related_priority.count }}件）</summary>
+            <p>{{ notification.related_priority.note }}</p>
+            <ul>
+                {% for item in notification.related_priority['items'] %}
+                <li>
+                    <a href="{{ item.url }}">{{ item.subject }}：<strong>{{ item.badge }}</strong></a>
+                    {% for reason in item.missing_conditions %}<p>{{ reason }}</p>{% endfor %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% if notification.related_priority.count > 5 %}<p>先頭5件を表示しています。提案のリンクから分析画面で全件を確認できます。</p>{% endif %}
+        </details>
+        {% endif %}
+
         {% if notification.link %}
             <a href="{% if notification.deleted_at %}{{ notification.link }}{% else %}{{ url_for('open_notification_target', index=notification.index, **list_state) }}{% endif %}"
                class="nd-primary">

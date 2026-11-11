@@ -7,6 +7,10 @@ AI, production DB, PostgreSQL concurrency or browser rendering is asserted here.
 The existing fixtures disable CSRF, rate limiting and external delivery.
 """
 from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+import os
+from unittest.mock import patch
 import json
 import unittest
 
@@ -281,6 +285,160 @@ class ConnectedInvoiceFlowTests(unittest.TestCase):
         self.assert_source(draft, source)
         self.assertEqual(self.upload(source, 'resent-late-invoice.pdf').status_code, 409)
         self.assert_connected(row, 33000)
+
+    def test_corrected_late_invoice_reaches_rendered_comparison_and_generation_transport(self):
+        """K61/K63: real displayed figures, real generator, only HTTP AI transport fake."""
+        from flask import template_rendered
+        import vehicle_karte_analysis_ai as generator
+        m = self.m
+        # A completed past month avoids future dates and cross-month numerator /
+        # denominator mismatches while preserving the application's definitions.
+        service_day = (today().replace(day=1) - timedelta(days=1)).replace(day=1)
+        operation_day = service_day + timedelta(days=1)
+        self.vehicle.model_code = 'VIDEO-COMPARISON'
+        self.vehicle.first_registration_date = '2021-06'
+        self.vehicle.deleted = False
+        m.db.session.add(m.VehicleOperationRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            report_number='CONNECTED-OWN', operation_date=operation_day.isoformat(),
+            arrival_at=operation_day.isoformat() + 'T18:00:00+09:00', distance=1000, arrival_meter=10250))
+        peers = []
+        for index, (cost, distance) in enumerate(((0, 100), (4000, 400), (None, None))):
+            peer = m.Vehicle(company_code='TEST', chassis_number=f'CONNECTED-PEER-{index}',
+                model_code=self.vehicle.model_code, first_registration_date='2021-02', deleted=False)
+            m.db.session.add(peer); m.db.session.flush(); peers.append(peer)
+            if distance is not None:
+                m.db.session.add(m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=peer.id,
+                    entry_date=service_day.isoformat(), status='完了', total_cost=cost))
+                m.db.session.add(m.VehicleOperationRecord(company_code='TEST', vehicle_record_id=peer.id,
+                    report_number=f'CONNECTED-PEER-{index}', operation_date=operation_day.isoformat(),
+                    distance=distance, arrival_meter=10000))
+        m.db.session.commit()
+
+        def confirmed(amount, target=None):
+            receipt = self.upload(self.source())
+            self.assertEqual(receipt.status_code, 202)
+            self.worker(amount)
+            draft = self.draft(receipt.json)
+            key = draft.id + '_0'
+            form = self.form(draft)
+            form.update({'date_' + key: service_day.isoformat(),
+                         'completion_date_' + key: service_day.isoformat(), 'mileage_' + key: '10000',
+                         'content_' + key: 'タイヤ交換'})
+            if target is not None:
+                choices = self.client.get(f'/vehicle/document-import/{draft.batch_id}/{draft.id}/0/maintenance-candidates',
+                    query_string={'vehicle_id': self.vehicle.id, 'record_date': service_day.isoformat()}).json['candidates']
+                form['service_match_' + key] = next(x['token'] for x in choices
+                    if x['kind'] == 'maintenance' and x['record_id'] == target.id)
+            response = self.client.post('/vehicle/data-import/' + draft.batch_id + '/confirm', data=form)
+            self.assertEqual(response.status_code, 302)
+            return draft
+
+        original = confirmed('163900')
+        row = m.VehicleMaintenanceRecord.query.filter_by(vehicle_record_id=self.vehicle.id).one()
+        part = m.VehiclePartReplacement.query.filter_by(vehicle_record_id=self.vehicle.id).one()
+        self.assertEqual((row.completion_date, part.replacement_date, part.mileage),
+                         (service_day.isoformat(), service_day.isoformat(), 10000))
+        url = f'/vehicle/karte/{self.vehicle.id}/analysis'
+
+        def rendered(amount):
+            captured = []
+            def receive(sender, template, context, **extra):
+                if template.name == 'vehicle_karte_analysis.html': captured.append(context)
+            template_rendered.connect(receive, m.app)
+            try:
+                response = self.client.get(url, query_string={'start_date': service_day.isoformat(),
+                    'end_date': operation_day.isoformat(), 'peer_registration': 'same_year'})
+            finally:
+                template_rendered.disconnect(receive, m.app)
+            self.assertEqual(response.status_code, 200)
+            ctx = captured[0]
+            # Assertions cover both the real context and the corresponding HTML,
+            # not an independently seeded result or a monkeypatched comparison.
+            self.assertEqual(ctx['analysis_summary']['total_cost'], Decimal(amount))
+            self.assertEqual(ctx['analysis_summary']['distance'], Decimal('1000'))
+            rates = ctx['analysis_cost_comparison']
+            self.assertEqual(rates['numerator'], Decimal(amount))
+            self.assertEqual(rates['denominator'], Decimal('1000'))
+            self.assertEqual([x['value'] for x in rates['rows']], [Decimal(amount) / 1000, Decimal('5')])
+            self.assertEqual(rates['sample_count'], 2)  # Known zero included; missing excluded.
+            self.assertEqual(ctx['analysis_comparison']['vehicle_count'], 3)
+            self.assertEqual(ctx['analysis_comparison']['comparison_scope']['cohort_vehicle_ids'], [p.id for p in peers])
+            entry, = ctx['analysis_part_history']
+            self.assertEqual((entry['source_id'], entry['replacement_date'], entry['mileage'], entry['distance_since']),
+                             (f'part:{part.id}', service_day.isoformat(), 10000, 250))
+            self.assertIn(f'/maintenance/{row.id}', entry['url'])
+            root = Document(response.get_data(as_text=True)).root
+            self.assertIn(f'{amount:,}', root.find(cls='ka10-cost')[0].text)
+            rate_rows = {e.attrs['data-rate']: e for e in root.find(cls='ka5-rate-row')}
+            self.assertIn(f'{Decimal(amount) / 1000:,.2f}', rate_rows['current'].text)
+            self.assertIn('5.00', rate_rows['average'].text)
+            scope_text = ' '.join(root.find(cls='ka5-peer-panel')[0].text.split())
+            self.assertIn('比較対象 3台', scope_text)
+            self.assertIn('円/km算出可能 2台', scope_text)
+            part_row = next(e for e in root.find(tag='tr') if e.attrs.get('data-part-source') == f'part:{part.id}')
+            visible = ' '.join(part_row.text.split())
+            for value in ('タイヤ', service_day.isoformat(), '250 km', '10,000 km'):
+                self.assertIn(value, visible)
+            self.assertEqual(m.VehicleMaintenanceRecord.query.filter_by(vehicle_record_id=self.vehicle.id).count(), 1)
+            self.assertEqual(m.VehiclePartReplacement.query.filter_by(vehicle_record_id=self.vehicle.id).count(), 1)
+
+        rendered(163900)
+        # Prime the real read cache before changes; no frozen projection is used.
+        self.assertEqual(self.client.get(url + '/result').status_code, 200)
+        self.assertEqual(self.edit(row, content='タイヤ交換（読取訂正）', total_cost='160000').status_code, 302)
+        rendered(160000)
+        late = confirmed('3000', row)
+        document = m.VehicleMaintenanceDocument.query.filter_by(source_draft_id=late.id).one()
+        self.assertEqual(document.financial_status, 'pending')
+        rendered(160000)  # Unreviewed later invoice must not alter displayed money.
+        self.assertEqual(self.review(document).status_code, 302)
+        rendered(163000)
+
+        # The registered analysis URL is GET-only. Exercise its actual scheduled
+        # queue/job service rather than inventing a manual POST generation route.
+        with m.app.test_request_context('/'):
+            payload, sources = m.get_vehicle_karte_analysis_job_data(self.vehicle)
+            state = m.queue_vehicle_karte_analysis(self.vehicle, payload)
+        state.next_analysis_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        m.db.session.commit()
+        sent = []
+        def fake_response(request, **kwargs):
+            body = json.loads(request.data)
+            wire = generator.expand_vehicle_karte_analysis_wire_payload(json.loads(body['input']))
+            sent.append(wire)
+            invoice = next(x for x in wire['records'] if x['source_id'] == f'maintenance:{row.id}')
+            self.assertEqual(Decimal(str(invoice['total_cost'])), Decimal('163000'))
+            self.assertEqual(invoice['content'], 'タイヤ交換（読取訂正）')
+            replacement = next(x for x in wire['records'] if x['source_id'] == f'part:{part.id}')
+            self.assertEqual(replacement['date'], service_day.isoformat())
+            proof = replacement['replacement_document_evidence']
+            self.assertEqual(proof['status'], 'verified_saved_source_line')
+            self.assertEqual(proof['document_source']['sha256'], original.source_sha256)
+            self.assertEqual(proof['document_source']['draft_id'], original.id)
+            self.assertEqual(wire['comparison']['vehicle_count'], 3)
+            # Empty generated advice is intentional: no seeded proposal can mask
+            # missing inputs, fabricate a score, or claim actual model quality.
+            output = {'overview': '合成応答。入力接続と保存だけの検証', 'recommendations': []}
+            return BytesIO(json.dumps({'status': 'completed', 'output': [{'content': [
+                {'type': 'output_text', 'text': json.dumps(output)}]}]}).encode())
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-local-test-only'}), \
+                patch.object(generator.urllib.request, 'urlopen', side_effect=fake_response):
+            self.assertTrue(m.run_vehicle_karte_analysis_job(state.id))
+        self.assertEqual(len(sent), 1)
+        m.db.session.refresh(state)
+        self.assertEqual(state.status, 'completed')
+        bundle = json.loads(state.result_json)
+        self.assertEqual(bundle['analysis_method'], 'ai')
+        self.assertEqual(bundle['analysis']['recommendations'], [])
+        self.assertEqual(bundle['fingerprints'], payload['_fingerprints'])
+        self.assertEqual(bundle['sources'], json.loads(json.dumps(sources, ensure_ascii=False, default=str)))
+        saved_proof = bundle['sources'][f'part:{part.id}']['snapshot']['replacement_document_evidence']
+        self.assertEqual(saved_proof['document_source']['sha256'], original.source_sha256)
+        result = self.client.get(url + '/result')
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json['is_current'])
+        self.assertEqual(result.json['sources'][f'part:{part.id}']['snapshot']['replacement_document_evidence'], saved_proof)
+        self.assertEqual(self.client.get('/vehicle/data-import/files/' + original.id).data, original.source_file)
 
     def test_invoice_confirm_correct_resend_and_late_cost_stay_one_actual(self):
         m = self.m

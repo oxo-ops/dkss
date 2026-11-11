@@ -376,6 +376,9 @@
                             {% endif %}
                             <div class="notification-message mention-display"
                                  data-value="{{ display_message }}"></div>
+                            {% if notification.related_priority %}
+                            <div class="notification-related-priority">{{ notification.related_priority.summary }}</div>
+                            {% endif %}
 
                             <div class="notification-row-states">
                                 <span class="notification-read-tag js-notification-read-label">

@@ -126,3 +126,37 @@ through the real Flask client with synthetic authenticated sessions and CSRF
 disabled. Passing this harness means rendered results and the specified real
 links work; it must not be described as all operations completed in a browser.
 Browser screenshots/acceptance remain unverified until official CI runs them.
+
+## Additional K61/K63 invoice-to-analysis acceptance
+
+`test_corrected_late_invoice_reaches_rendered_comparison_and_generation_transport`
+is a focused sixth Flask case, added after the connected checkpoint. It creates
+one invoice-backed maintenance through upload/worker/confirmation, corrects the
+amount, and explicitly attaches/reviews a later invoice. It reads the normal
+analysis route after each relevant state, without stubbing comparison, cache,
+summary, source gathering or priority projection.
+
+The assertions compare both real template context and rendered HTML with records:
+
+- Own maintenance cost: 163,900 -> 160,000 -> 163,000 yen. Pending later costs do
+  not count before review. Distance 1,000 km gives 163.90 -> 160.00 -> 163.00 yen/km.
+- One part remains attached to the same work, with the confirmed replacement
+  date and 10,000 km at replacement. The next day's registered 10,250 km yields
+  250 km since replacement, visibly shown in the part row.
+- Minimal same-company/model/year peers produce a cohort of three and two
+  calculable samples. Known 0 and 10 yen/km average to 5.00, not a pooled 8.00;
+  the third peer's absent data is excluded rather than treated as zero.
+- The analysis URL is registered GET-only, so there is no invented manual POST
+  generation path. The real scheduled queue/job, real input serialization,
+  generator validation and saved-result service run. Only urllib `urlopen` is
+  replaced with a deterministic response. The wire input contains the corrected
+  163,000 yen and part evidence tied to the original document's SHA-256. The job
+  saves the actual source snapshot/fingerprints; normal result GET reports it
+  current and returns the same saved source evidence.
+
+The fake model response deliberately has **no recommendations**. This proves
+input/transport/validation/persistence wiring, not model advice quality or a
+priority score inferred from an invoice. Session/CSRF/OCR boundaries above still
+apply. The existing browser invoice scenario is unchanged; these additional
+numeric/transport assertions are Flask/HTML acceptance, not browser-rendered
+acceptance or a claim of completing form submissions in a browser.
