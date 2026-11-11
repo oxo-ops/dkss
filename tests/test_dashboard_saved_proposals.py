@@ -150,6 +150,11 @@ class DashboardSavedProposalTests(unittest.TestCase):
         self.assertNotIn('<img src=x onerror=alert(1)>', html)
         self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
         self.assertNotIn('<script>bad</script>', html)
+        notes = root.find(cls='dashboard-priority-note')
+        self.assertEqual(len(notes), 6)
+        self.assertEqual(sum('保存版' in note.text for note in notes), 3)
+        self.assertEqual(sum('元データ' in note.text for note in notes), 3)
+        self.assertTrue(all('dashboard-reference-reason' not in note.attrs.get('class', '') for note in notes))
 
     def test_both_groups_have_independent_preview_limits_and_company_boundaries(self):
         self.configure()

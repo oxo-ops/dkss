@@ -62,7 +62,7 @@ def main():
         # These are explicitly legacy proposals with no invented new numeric score.
         bundle['analysis']['recommendations'] += [dict(deepcopy(original), target=f'保存対象{i}',
             title=f'保存提案{i}', priority=label, current_state='保存された状態', reason='保存された理由', timing='記録確認')
-            for i, label in enumerate(('高', '中', '低', '低', '低'))]
+            for i, label in enumerate(('高', '中', '低', '低', '低', ''))]
         bundle['analysis']['recommendations'][0].update(current_state='標準点検の具体的な異常回答', reason='元の点検を確認', timing='責任者に確認')
         state.result_json = json.dumps(bundle, ensure_ascii=False); m.db.session.commit()
         before = case.original_snapshot()
@@ -95,7 +95,7 @@ def main():
             require(items[0]['priority_assessment']['effective_score'] == 50, 'Real scoped ORM medium projection missing')
             computed_id = items[0]['proposal_id']
             expected = data['analysis']['priority_order']
-            require(len(expected) == 6, 'Fixture count')
+            require(len(expected) == 7, 'Fixture count')
             for path in ('/', f'/vehicle/karte/{case.vehicle.id}', f'/vehicle/karte/{case.vehicle.id}/analysis'):
                 require(request(path).status_code == 200, 'Normal route unavailable')
             validate(); report['cases'].append('PREFLIGHT: normal GET + dashboard + overview + analysis; source/answer/ID unchanged')
@@ -123,6 +123,11 @@ def main():
                         require(rows.evaluate_all('(rows)=>rows.map(r=>r.dataset.proposalId)') == expected[:5], 'Overview order differs')
                         computed = page.locator(f'#ko-ai .ko-proposal[data-proposal-id="{computed_id}"]')
                         expect(computed.locator('.ko-priority')).to_have_text('中 · 50点')
+                        require(computed.locator('.ko-priority').evaluate('''badge => {
+                            const range=document.createRange();range.selectNodeContents(badge);
+                            return range.getClientRects().length===1 && badge.scrollWidth<=badge.clientWidth+1;
+                        }'''), 'Computed overview badge wraps or overflows')
+                        require(computed.evaluate('row => row.children[0].getBoundingClientRect().right <= row.querySelector(".ko-proposal-copy").getBoundingClientRect().left'), 'Computed badge overlaps proposal text')
                         expect(rows.first.locator('.priority-response-note')).to_contain_text('保存版')
                         require(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Overview page overflow')
                         page.screenshot(path=str(out/f'overview-{width}.png'),full_page=True)
@@ -133,6 +138,12 @@ def main():
                         expect(details).to_contain_text('基本点 50点');expect(details).to_contain_text('0点の判定ではありません')
                         expect(details).to_contain_text('運行可否・既存指示の解除は責任者')
                         page.screenshot(path=str(out/f'detail-{width}.png'),full_page=True)
+                        source_link=details.locator('.priority-response-source').first
+                        source_link.scroll_into_view_if_needed();expect(source_link).to_be_in_viewport()
+                        require(source_link.get_attribute('href').startswith(ORIGIN+'/'), 'Source link is not same-origin')
+                        disclaimer=details.locator('.priority-response-disclaimer')
+                        disclaimer.scroll_into_view_if_needed();expect(disclaimer).to_be_in_viewport()
+                        page.screenshot(path=str(out/f'detail-bottom-{width}.png'),full_page=True)
                         page.keyboard.press('Escape');expect(drawer).to_be_hidden()
                         page.locator('.ka7-proposal-table tr').filter(has_text=target).locator('.ka-reference-detail-button').click()
                         expect(drawer).to_be_visible();drawer.get_by_role('button',name='提案の詳細を閉じる').click();expect(drawer).to_be_hidden()
@@ -141,6 +152,16 @@ def main():
                         panel=page.locator('.dashboard-attention-panel').first
                         expect(panel.locator('.dashboard-attention-preview tbody tr')).to_have_count(5)
                         expect(panel.locator('.dashboard-attention-priority').filter(has_text='中 · 50点')).to_have_count(1)
+                        preview=panel.locator('.dashboard-attention-preview')
+                        expect(preview.locator('.dashboard-priority-note').filter(has_text='要確認')).to_be_visible()
+                        legacy_notes=preview.locator('.dashboard-priority-note').filter(has_text='保存版・算定根拠を確認')
+                        expect(legacy_notes).to_have_count(4)
+                        for note in legacy_notes.all():expect(note).to_be_visible()
+                        panel.get_by_role('button',name='全件を見る').click()
+                        invalid=panel.locator('tr').filter(has_text='保存対象5')
+                        expect(invalid.locator('.dashboard-priority-note')).to_be_visible()
+                        expect(invalid.locator('.dashboard-priority-note')).to_have_text('優先度の元データを確認してください。')
+                        expect(invalid.locator('.dashboard-attention-priority')).to_have_count(0)
                         page.screenshot(path=str(out/f'dashboard-{width}.png'),full_page=True)
                         report['cases'].append(f'BROWSER {width}: common score/order, legacy no score, source details, repeated open/Escape/Close, contained page')
                     page.goto(ORIGIN+f'/vehicle/karte/{case.vehicle.id}',wait_until='networkidle')

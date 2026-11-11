@@ -68,6 +68,7 @@
                 if (previewMode) row.dataset.priorityPreview = "true";
                 if (item.proposal_id) row.dataset.proposalId = String(item.proposal_id);
                 const projected = !previewMode && priorityPresentation ? priorityPresentation.read(item) : null;
+                if (projected?.valid && projected.score !== null) row.dataset.priorityScore = String(projected.score);
                 const hasSavedPriority = projected ? Boolean(projected.label) : priorities.includes(item.priority);
                 const priority = previewMode ? preview.badge(document, item.priority_preview) :
                     priorityPresentation ? priorityPresentation.badge(document, item, "ko-priority") :

@@ -177,7 +177,7 @@ test('data-state copy spans the missing badge column at every viewport and asset
     assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
     const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
     assert.match(template, /css\/vehicle_karte_overview\.css', v='20261110-priority-data-state-1'/);
-    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-common-1'/);
+    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-common-2'/);
 });
 
 function computedProposal(id, floor=false) {
@@ -198,6 +198,8 @@ test('normal overview uses common server order and score, not the old risk matri
     assert.deepEqual(ui.rows.map(row=>row.dataset.proposalId),['b','a']);
     assert.equal(ui.rows[0].children[0].textContent,'高 · 60点');
     assert.equal(ui.rows[1].children[0].textContent,'中 · 50点');
+    assert.equal(ui.rows[0].dataset.priorityScore,'60');
+    assert.equal(ui.rows[1].dataset.priorityScore,'50');
     assert.equal(ui.rows[0].children[1].children.at(-1).textContent,'要確認');
     assert.equal(JSON.stringify(recommendations),before);
 });

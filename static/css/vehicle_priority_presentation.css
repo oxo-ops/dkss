@@ -6,3 +6,6 @@
 .priority-response-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:5px;font-weight:700;white-space:nowrap;background:#e6edf5;color:#45617a;}
 .priority-response-badge[data-priority="高"]{color:#a92a44;background:#ffe5ea;}
 .priority-response-badge[data-priority="中"]{color:#1b5fae;background:#e1edff;}
+#vehicle-karte-overview .ko-proposal[data-priority-score]{grid-template-columns:max-content minmax(0,1fr) auto;}
+#vehicle-karte-overview .ko-proposal[data-priority-score] .ko-priority{white-space:nowrap;}
+body .dashboard-page .dashboard-attention-table .dashboard-priority-note{display:block;font-size:11px;line-height:1.5;font-weight:400;color:#506179;white-space:normal;overflow-wrap:anywhere;}
