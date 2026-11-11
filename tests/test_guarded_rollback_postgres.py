@@ -378,15 +378,21 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
 
     def document_race(self, correction, periodic=False):
         draft = self.source()
+        # A proposal on the source being replaced is a legitimate shared-child
+        # refusal before final save. Use another same-vehicle source so this test
+        # reaches the final vehicle-wide saved-result guard instead.
+        proposal_record = self.other_periodic_parent(draft) if correction else self.m.VehiclePeriodicInspectionRecord.query.one()
+        proposal_record_id = proposal_record.id
         if correction:
             self.assertEqual(self.kind_post(draft, 'maintenance').status_code, 303)
             self.worker(invoice=True)
-            replacement = self.m.VehicleDocumentImportDraft.query.filter(self.m.VehicleDocumentImportDraft.id != draft.id).one()
+            replacement = self.m.VehicleDocumentImportDraft.query.filter_by(status='preview').one()
             replacement_id = replacement.id
             key = replacement_id + '_0'
             path = '/vehicle/data-import/' + replacement.batch_id + '/confirm'
             body = {'include': key, 'vehicle_' + key: str(self.vehicle.id), 'date_' + key: '2026-08-01',
-                    'content_' + key: '故障修理', 'confirm_kind_correction': 'yes'}
+                    'content_' + key: '故障修理', 'service_match_' + key: 'new',
+                    'confirm_kind_correction': 'yes'}
         else:
             path = f'/vehicle/karte/{self.vehicle.id}/documents/{draft.id}/delete'
             page = self.client.get(path)
@@ -400,8 +406,7 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
         self.m.db.session.commit()
         ident = state.id
         Proposal = self.m.periodic_followups.Proposal
-        record = self.m.VehiclePeriodicInspectionRecord.query.one()
-        proposal = Proposal(company_code='TEST', inspection_record_id=record.id, input_hash='old',
+        proposal = Proposal(company_code='TEST', inspection_record_id=proposal_record_id, input_hash='old',
             run_token='old-token', status='completed', result_json='{}', updated_at=retention.NOW.isoformat())
         self.m.db.session.add(proposal)
         self.m.db.session.commit()
@@ -429,6 +434,7 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
                 sql.append(statement)
         engine = self.m.db.engine
         event.listen(engine, 'before_cursor_execute', observe)
+        final_boundary = []
         try:
             if correction:
                 service = self.m.app.extensions['dkss']['document_deletion']
@@ -437,6 +443,8 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
                     def final_replace(*args, **kwargs):
                         # Validation locks were released by the preview commit.
                         # Exercise the final save after new business rows were flushed.
+                        self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 1)
+                        final_boundary.append(True)
                         gate()
                         return original_replace(*args, **kwargs)
                     with patch.dict(service, {'replace_source': final_replace}):
@@ -446,6 +454,8 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
                 status = self.protected_writer(State, ident, lambda: client.post(path, data=body).status_code, periodic=periodic)
         finally:
             event.remove(engine, 'before_cursor_execute', observe)
+        if correction:
+            self.assertEqual(final_boundary, [True])
         self.assertIn(status, (400, 409))
         self.assertEqual(before, snapshot())
         state_lock = max(i for i, s in enumerate(sql) if 'vehicle_karte_analysis' in s and 'FOR UPDATE' in s)
@@ -505,7 +515,8 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
             key = replacement_id + '_0'
             path = '/vehicle/data-import/' + replacement.batch_id + '/confirm'
             body = {'include':key, 'vehicle_' + key:str(self.vehicle.id), 'date_' + key:'2026-08-01',
-                    'content_' + key:'故障修理', 'confirm_kind_correction':'yes'}
+                    'content_' + key:'故障修理', 'service_match_' + key:'new',
+                    'confirm_kind_correction':'yes'}
         else:
             replacement_id = None
             path = f'/vehicle/karte/{self.vehicle.id}/documents/{draft.id}/delete'
@@ -528,8 +539,11 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
         ready, proceed = threading.Event(), threading.Event()
         service = self.m.app.extensions['dkss']['document_deletion']
         original_replace = service['replace_source']
+        final_boundary = []
         def boundary(*args, **kwargs):
             # Final correction already flushed new business rows/FK key-share.
+            self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 1)
+            final_boundary.append(True)
             ready.set()
             if not proceed.wait(10):
                 raise AssertionError('First-insert holder was not released')
@@ -565,6 +579,8 @@ class PostgresGuardDocumentTests(RaceTools, DisposablePostgres, unittest.TestCas
                                 tx.rollback()
                 finally:
                     proceed.set()
+        if correction:
+            self.assertEqual(final_boundary, [True])
         self.assertEqual(expected, self.rows(Model, inserted))
         self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 0)
 
