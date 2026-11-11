@@ -16,6 +16,7 @@ import sys
 from html import escape
 from urllib.parse import parse_qs, urljoin, urlsplit
 from native_pdf_navigation import NativePdfNavigation
+from exact_invoice_download import ExactInvoiceDownload
 
 ORIGIN = 'http://127.0.0.1:8765'
 
@@ -32,10 +33,15 @@ def main():
     parser.add_argument('--expected-sha', required=True)
     parser.add_argument('--case', choices=('normal', 'instruction', 'recheck', 'invoice', 'periodic_instruction', 'periodic_timing', 'confirmation_manufacturer', 'confirmation_legal', 'confirmation_progression'), required=True)
     parser.add_argument('--chromium', type=Path)
+    parser.add_argument('--native-invoice-download-http', action='store_true')
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--preflight-only', action='store_true')
     mode.add_argument('--run-browser', action='store_true')
     args = parser.parse_args()
+    require(not args.native_invoice_download_http or (args.run_browser and args.case == 'invoice'),
+            'Native HTTP experiment is restricted to the invoice browser case')
+    if args.run_browser and args.case == 'invoice':
+        require(args.native_invoice_download_http, 'Explicit official-CI native invoice HTTP experiment flag required')
     require(os.environ.get('DKSS_BROWSER_ACCEPTANCE_ISOLATED') == '1', 'Isolated wrapper required')
     require(os.environ.get('DATABASE_URL') == 'sqlite:///:memory:', 'Disposable DB required')
     repo, out = args.repo.resolve(), args.artifacts.resolve()
@@ -198,6 +204,8 @@ def main():
         if args.case == 'invoice':
             report['invoice_source_events'] = []
             report['invoice_downloads'] = []
+            report['invoice_http_transfers'] = []
+            report['native_invoice_http_experiment'] = True
 
         def observe_invoice_source(event, request, **details):
             if args.case != 'invoice' or request.url != ORIGIN + invoice_source_path:
@@ -344,6 +352,7 @@ def main():
                         invoice_phase = f'width:{width}/maintenance-tab'
                         maintenance_tab.click()
                         expect(page).to_have_url(ORIGIN + maintenance_path)
+                        page.wait_for_load_state('networkidle')
                         record_link = page.locator('.km-record-content a').filter(has_text='タイヤ交換（読取訂正）')
                         expect(record_link).to_have_count(1)
                         record_href = record_link.get_attribute('href')
@@ -354,6 +363,7 @@ def main():
                         invoice_phase = f'width:{width}/maintenance-record'
                         record_link.click()
                         expect(page).to_have_url(urljoin(ORIGIN, record_href))
+                        page.wait_for_load_state('networkidle')
                         detail = page.locator('.km-detail-panel')
                         expect(detail).to_contain_text('タイヤ交換（読取訂正）')
                         download_link = detail.locator('.km-file-card[download]')
@@ -362,17 +372,34 @@ def main():
                         invoice_phase = f'width:{width}/original-download'
                         download_href = download_link.get_attribute('href')
                         download_attribute = download_link.get_attribute('download')
-                        with page.expect_download() as transfer:
-                            download_link.click()
-                        downloaded = transfer.value
-                        download_failure = downloaded.failure()
-                        report['invoice_downloads'].append(dict(width=width, phase=invoice_phase,
-                            href=download_href, download_attribute=download_attribute,
-                            url=downloaded.url, suggested_filename=downloaded.suggested_filename,
-                            failure=download_failure,
-                            source_event_count=len(report['invoice_source_events'])))
-                        require(download_failure is None, f'Original download failed: {download_failure!r}')
-                        require(hashlib.sha256(Path(downloaded.path()).read_bytes()).hexdigest() == original_hash, 'Original download changed')
+                        # The normal bridge remains unchanged. This one-shot
+                        # response endpoint is solely for a native download GET
+                        # that does not reach Playwright's route callback.
+                        original_response = get(download_href)
+                        receiver = ExactInvoiceDownload(urljoin(ORIGIN, download_href),
+                            original_response.status_code, original_response.headers.to_wsgi_list(),
+                            original_response.get_data(), original_hash, width=width)
+                        report['invoice_http_transfers'].append(receiver.report)
+                        with receiver:
+                            with page.expect_download() as transfer:
+                                download_link.click()
+                            downloaded = transfer.value
+                            download_failure = downloaded.failure()
+                            download_result = dict(width=width, phase=invoice_phase,
+                                href=download_href, download_attribute=download_attribute,
+                                url=downloaded.url, suggested_filename=downloaded.suggested_filename,
+                                failure=download_failure,
+                                source_event_count=len(report['invoice_source_events']))
+                            report['invoice_downloads'].append(download_result)
+                            require(download_failure is None, f'Original download failed: {download_failure!r}')
+                            require(downloaded.url == urljoin(ORIGIN, download_href) and
+                                    downloaded.suggested_filename == download_attribute,
+                                    'Native download URL or filename differs from the rendered original')
+                            require(hashlib.sha256(Path(downloaded.path()).read_bytes()).hexdigest() == original_hash, 'Original download changed')
+                            saved_bytes = Path(downloaded.path()).read_bytes()
+                            download_result.update(saved_file_sha256=hashlib.sha256(saved_bytes).hexdigest(),
+                                saved_file_byte_length=len(saved_bytes))
+                        receiver.assert_complete()
                         report['cases'].append(f'Browser {width}: rendered history -> exact original PDF GET/hash -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
                         invoice_phase = f'width:{width}/connected-views'
                         for number, path in enumerate(paths):
