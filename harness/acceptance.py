@@ -55,6 +55,77 @@ PREVIEW_STATE = """() => {
 }"""
 
 
+def verified_preview_fetch(events, observation, *, source_url, source_hash, page_url,
+                           phase, scope_id, record_key, console_errors):
+    """Correlate one fully rendered fixture preview, never infer an abort caller.
+
+    Only the exact observed non-range GET/200/PDF response followed by either
+    completion or ERR_ABORTED qualifies. This is not a general PDF.js exception.
+    The caller separately ties any failure entry to the same Request object.
+    """
+    require(observation.get('width') in (1440, 390, 320) and
+            observation.get('stage') in ('maintenance-tab', 'maintenance-record') and
+            phase == f'width:{observation["width"]}/{observation["stage"]}' and
+            scope_id == phase and observation.get('phase') == phase and observation.get('scope_id') == scope_id and
+            observation.get('url') == page_url, 'Preview scope or page differs')
+    require(observation.get('ready') is True and observation.get('error') is False and
+            observation.get('present') is True and not observation.get('wait_error') and
+            observation.get('total') == observation.get('current') == '1' and
+            'スクロールでページ移動' in observation.get('status', '') and
+            observation.get('source_base') == urlsplit(source_url).path and
+            observation.get('record_key') == record_key and
+            observation.get('disclosure_open') is True and
+            observation.get('disclosure_closed') is True and
+            observation.get('canvas_in_viewport') is True,
+            'Preview did not complete its real visible one-page disclosure')
+    for key in ('dimensions', 'raster'):
+        values = observation.get(key, [])
+        require(len(values) == 1 and values[0].get('width', 0) > 0 and
+                values[0].get('height', 0) > 0, 'Preview lacks a positive one-page raster')
+    require(not console_errors, 'Invoice preview reported a console error')
+    require(len(events) == 4 and [e['event'] for e in events[:3]] ==
+            ['request', 'bridge_response', 'response'] and
+            events[-1]['event'] in ('requestfinished', 'requestfailed'),
+            'Preview source must have one complete, ordered request sequence')
+    request_id = events[0]['request_id']
+    sequences = [e['sequence'] for e in events]
+    require(sequences == sorted(set(sequences)) and sequences[-1] <= observation['source_event_end'],
+            'Preview source events are duplicated, reordered, or late')
+    for event in events:
+        require(event.get('request_id') == request_id and event.get('url') == source_url and
+                event.get('method') == 'GET' and event.get('resource_type') == 'fetch' and
+                event.get('is_navigation_request') is False and event.get('phase') == phase and
+                event.get('preview_scope_id') == scope_id and
+                event.get('same_preview_main_frame') is True and event.get('frame_url') == page_url,
+                'Preview source request identity, frame, or stage differs')
+        headers = event.get('request_headers', {})
+        require('range' in headers and 'if-range' in headers and
+                headers['range'] is None and headers['if-range'] is None,
+                'Range requests are outside this fixture preview classification')
+    bridge, response, terminal = events[1:]
+    require(bridge.get('response_headers') == response.get('response_headers'),
+            'Browser preview headers differ from the verified bridge response')
+    require(bridge.get('source_sha256') == source_hash and
+            bridge.get('mimetype') == 'application/pdf' and
+            0 < bridge.get('byte_length', 0) <= 2 * 65536,
+            'Preview response does not contain the exact small fixture PDF')
+    for event in (bridge, response):
+        headers = event.get('response_headers', {})
+        require(event.get('status') == 200 and headers.get('content-type') == 'application/pdf' and
+                headers.get('content-length') == str(bridge['byte_length']) and
+                headers.get('content-disposition', '').startswith('inline;') and
+                all(key in headers and headers[key] is None for key in
+                    ('content-range', 'accept-ranges', 'content-encoding')),
+                'Preview response status or complete non-range PDF headers differ')
+    require(terminal['event'] == 'requestfinished' or terminal.get('failure') == 'net::ERR_ABORTED',
+            'Unrecognized preview request failure')
+    return dict(request_id=request_id, scope_id=scope_id, phase=phase,
+        width=observation['width'], stage=observation['stage'], page_url=page_url,
+        source_url=source_url, source_sha256=source_hash, byte_length=bridge['byte_length'],
+        event_sequences=sequences, terminal_event=terminal['event'], failure=terminal.get('failure'),
+        classification='verified_rendered_preview_fetch', abort_caller_proven=False)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--repo', type=Path, required=True)
@@ -235,24 +306,35 @@ def main():
         pdf = NativePdfNavigation(report, ORIGIN)
         invoice_phase = 'setup'
         invoice_request_ids = {}
+        invoice_failed_requests = {}
+        invoice_preview_scope = None
         if args.case == 'invoice':
             report['invoice_source_events'] = []
             report['invoice_downloads'] = []
             report['invoice_http_transfers'] = []
             report['invoice_preview_observations'] = []
             report['invoice_preview_console_errors'] = []
+            report['verified_invoice_preview_fetches'] = []
+            report['verified_invoice_preview_cancellations'] = []
             report['native_invoice_http_experiment'] = bool(args.native_invoice_download_http)
+            if not args.invoice_preview_observe_only:
+                report.update(diagnostic_only=False, full_invoice_browser_executed=True,
+                    native_download_reexecuted=True)
 
         def observe_invoice_source(event, request, **details):
             if args.case != 'invoice' or request.url != ORIGIN + invoice_source_path:
                 return
             request_id = invoice_request_ids.setdefault(request, len(invoice_request_ids) + 1)
+            scope = invoice_preview_scope
             report['invoice_source_events'].append(dict(
                 sequence=len(report['invoice_source_events']) + 1, event=event,
                 phase=invoice_phase, request_id=request_id, url=request.url,
                 method=request.method, resource_type=request.resource_type,
                 is_navigation_request=request.is_navigation_request(),
-                request_headers=selected_headers(request.headers, SOURCE_REQUEST_HEADERS), **details))
+                request_headers=selected_headers(request.headers, SOURCE_REQUEST_HEADERS),
+                preview_scope_id=scope['id'] if scope else None,
+                same_preview_main_frame=bool(scope and request.frame == scope['frame'] and
+                    request.frame.page == scope['page']), frame_url=request.frame.url, **details))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True, executable_path=str(args.chromium.resolve()))
             report.update(browser_started=True, browser_version=browser.version)
@@ -316,8 +398,14 @@ def main():
                     context.on('requestfinished', lambda request: observe_invoice_source('requestfinished', request))
                     context.on('requestfailed', lambda request: observe_invoice_source(
                         'requestfailed', request, failure=request.failure))
-                context.on('requestfailed', lambda request: None if pdf.record_request_failed(request) else report['failed_requests'].append(
-                    dict(method=request.method, url=request.url, failure=request.failure)))
+                def record_failed_request(request):
+                    if pdf.record_request_failed(request):
+                        return
+                    entry = dict(method=request.method, url=request.url, failure=request.failure)
+                    report['failed_requests'].append(entry)
+                    if args.case == 'invoice' and request.url == ORIGIN + invoice_source_path:
+                        invoice_failed_requests[request] = entry
+                context.on('requestfailed', record_failed_request)
                 page = context.new_page()
                 page.on('pageerror', lambda error: report['page_errors'].append(str(error)))
 
@@ -333,11 +421,12 @@ def main():
                         except Exception as error:
                             entry['detail_unavailable'] = type(error).__name__
 
-                if args.invoice_preview_observe_only:
+                if args.case == 'invoice':
                     page.on('console', record_invoice_preview_error)
 
                 def observe_invoice_preview(width, stage):
-                    entry = dict(width=width, stage=stage, phase=invoice_phase, url=page.url)
+                    entry = dict(width=width, stage=stage, phase=invoice_phase, url=page.url,
+                        scope_id=invoice_preview_scope['id'] if invoice_preview_scope else None)
                     report['invoice_preview_observations'].append(entry)
                     viewer = page.locator('.km-detail-panel .invoice-pdf-viewer')
                     disclosure = page.locator('.km-detail-panel details.km-original')
@@ -355,9 +444,42 @@ def main():
                         entry.update(page.evaluate(PREVIEW_STATE))
                         page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}.png'), full_page=True)
                     if entry['ready']:
-                        expect(viewer.locator('.invoice-pdf-page canvas')).to_be_visible()
+                        canvas = viewer.locator('.invoice-pdf-page canvas')
+                        expect(canvas).to_be_visible()
+                        canvas.scroll_into_view_if_needed()
+                        expect(canvas).to_be_in_viewport(ratio=1)
+                        entry.update(page.evaluate(PREVIEW_STATE))
+                        entry['canvas_in_viewport'] = True
+                        page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}-visible.png'))
                     disclosure.locator('summary').click()
                     expect(disclosure).not_to_have_attribute('open', '')
+                    entry['disclosure_closed'] = True
+                    entry['source_event_end'] = len(report['invoice_source_events'])
+                    return entry
+
+                def accept_invoice_preview(width, stage):
+                    entry = observe_invoice_preview(width, stage)
+                    scope = invoice_preview_scope
+                    events = [event for event in report['invoice_source_events']
+                              if event.get('preview_scope_id') == scope['id']]
+                    proof = verified_preview_fetch(events, entry,
+                        source_url=ORIGIN + invoice_source_path, source_hash=original_hash,
+                        page_url=scope['url'], phase=invoice_phase, scope_id=scope['id'],
+                        record_key=f'maintenance_{invoice_record.id}',
+                        console_errors=report['invoice_preview_console_errors'])
+                    report['verified_invoice_preview_fetches'].append(proof)
+                    if proof['terminal_event'] == 'requestfailed':
+                        request = next(request for request, identity in invoice_request_ids.items()
+                                       if identity == proof['request_id'])
+                        failure = invoice_failed_requests.pop(request)
+                        require(failure['method'] == 'GET' and failure['url'] == proof['source_url'] and
+                                failure['failure'] == 'net::ERR_ABORTED' and
+                                sum(item is failure for item in report['failed_requests']) == 1,
+                                'Preview failure entry is not the same verified Request')
+                        report['verified_invoice_preview_cancellations'].append(dict(proof, raw_failure=failure))
+                        # Keep every source event and the exact raw failure in the
+                        # classified report. All other failures stay fatal.
+                        report['failed_requests'][:] = [item for item in report['failed_requests'] if item is not failure]
 
                 if args.invoice_preview_observe_only:
                     # Evidence collection only. Never call the native receiver,
@@ -463,9 +585,12 @@ def main():
                         maintenance_tab = page.locator('.vehicle-karte-tabs').get_by_role('link', name='整備・修理', exact=True)
                         expect(maintenance_tab).to_have_attribute('href', maintenance_path)
                         invoice_phase = f'width:{width}/maintenance-tab'
+                        invoice_preview_scope = dict(id=invoice_phase, url=ORIGIN + maintenance_path,
+                            page=page, frame=page.main_frame)
                         maintenance_tab.click()
                         expect(page).to_have_url(ORIGIN + maintenance_path)
                         page.wait_for_load_state('networkidle')
+                        accept_invoice_preview(width, 'maintenance-tab')
                         record_link = page.locator('.km-record-content a').filter(has_text='タイヤ交換（読取訂正）')
                         expect(record_link).to_have_count(1)
                         record_href = record_link.get_attribute('href')
@@ -474,9 +599,13 @@ def main():
                                 target.path == maintenance_path + f'/{invoice_record.id}' and
                                 target.fragment == 'maintenance_detail_panel', 'Rendered link targets a different maintenance record')
                         invoice_phase = f'width:{width}/maintenance-record'
+                        invoice_preview_scope = dict(id=invoice_phase, url=urljoin(ORIGIN, record_href),
+                            page=page, frame=page.main_frame)
                         record_link.click()
                         expect(page).to_have_url(urljoin(ORIGIN, record_href))
                         page.wait_for_load_state('networkidle')
+                        accept_invoice_preview(width, 'maintenance-record')
+                        invoice_preview_scope = None
                         detail = page.locator('.km-detail-panel')
                         expect(detail).to_contain_text('タイヤ交換（読取訂正）')
                         download_link = detail.locator('.km-file-card[download]')
@@ -604,6 +733,11 @@ def main():
                         page.go_forward(wait_until='networkidle')
                         require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Priority page overflow')
                     report['cases'].append(f'Browser connected normal screens, width {width}, navigation and saved records')
+                if args.case == 'invoice':
+                    require(len(report['invoice_preview_observations']) ==
+                            len(report['verified_invoice_preview_fetches']) == 6 and
+                            not report['invoice_preview_console_errors'],
+                            'All six invoice previews must finish visibly without console errors')
                 require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser request or script failure')
                 require(snapshot() == before, 'Browser GET changed protected saved data')
                 report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
