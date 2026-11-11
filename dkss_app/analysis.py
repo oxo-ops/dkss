@@ -1407,6 +1407,15 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
     fingerprints['has_important_history'] = fingerprints['has_important_history'] or bool(knowledge) or bool(feedback_context)
     from .priority_timing import attach_timing_priority_inputs
     attach_timing_priority_inputs(vehicle, payload, sources)
+    from .priority_confirmed_projection import attach_confirmed_priority_inputs
+    from .priority_confirmations import confirmation_input_state
+    attach_confirmed_priority_inputs(vehicle, payload, sources)
+    confirmation_state = confirmation_input_state(vehicle)
+    if confirmation_state['revision']:
+        fingerprints['important_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps(
+            {'history': fingerprints['important_hash'], 'confirmed_sources': confirmation_state},
+            sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
+        fingerprints['has_important_history'] = True
     return (payload, sources)
 
 

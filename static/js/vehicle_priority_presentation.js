@@ -175,7 +175,10 @@
                     if (source.url && origin) {
                         try {
                             const url = new URL(source.url, origin);
-                            if (url.origin === origin && !url.username && !url.password && url.pathname.startsWith("/vehicle/")) {
+                            const internal = url.origin === origin && url.pathname.startsWith("/vehicle/");
+                            const publicLegal = url.origin === "https://www.mlit.go.jp" && url.pathname === "/jidosha/content/001740686.pdf"
+                                && !url.search && (!url.hash || /^#page=\d+$/.test(url.hash));
+                            if ((internal || publicLegal) && !url.username && !url.password) {
                                 const link = node(doc, "a", "priority-response-confirmation-source", "元記録・原本を開く");
                                 link.href = url.href; section.append(link);
                             }

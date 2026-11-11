@@ -195,8 +195,11 @@ def _manufacturer_options(vehicle, *, as_of, selection=None):
     choices, quotes = [], []
     for bundle in values['bundles']:
         manufacturer = bundle['manufacturer']
-        choice = json.dumps([manufacturer['knowledge_source_id'], manufacturer['rule_key']], ensure_ascii=False)
-        choices.append(dict(value=choice, label=manufacturer['knowledge'].get('title') or manufacturer['rule_key']))
+        choice = json.dumps([manufacturer['knowledge_source_id'], manufacturer['rule_key']], ensure_ascii=False, separators=(',', ':'))
+        label = manufacturer['knowledge'].get('title') or manufacturer['rule_key']
+        if manufacturer.get('evidence_path') == 'original_instruction':
+            label += '（原本通達・任意確認）'
+        choices.append(dict(value=choice, label=label))
         if selection.get('manufacturer_rule') == choice:
             rule = manufacturer['rule']
             result['originals'].append(dict(label='メーカー原文', text=rule['source_quote'], url='/vehicle/knowledge-documents/' + manufacturer['document_id'] + '/source'))
@@ -312,7 +315,7 @@ def save_priority_confirmation(vehicle_record_id):
             raise ValueError('確認画面を開き直してください。')
         now = datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds')
         actor = dict(user_id=user.id, identity=user.account_identity, username=user.username,
-            name=f'{user.last_name or ""}{user.first_name or ""}', role=user.role)
+            name=f'{user.last_name or ""}{user.first_name or ""}' or user.username, role=user.role)
         def append(event_type, details):
             detail = dict(version=VERSION, company_code=vehicle.company_code, vehicle_id=vehicle.id,
                 actor=actor, confirmed_at=now, request_token=signed['request_token'], **details)
@@ -349,3 +352,13 @@ def priority_certificate_original(vehicle_record_id, document_id):
         abort(404)
     return send_file(BytesIO(value['data']), mimetype=value['mimetype'],
         download_name=value['filename'], as_attachment=False, max_age=0)
+
+
+def confirmation_input_state(vehicle, *, as_of=None):
+    """Small versioned input stamp includes withdrawals and held source bindings."""
+    entries = confirmation_statuses(vehicle, as_of=as_of)
+    rows = _rows(vehicle)
+    return {'version': VERSION, 'revision': rows[-1].id if rows else 0,
+        'confirmations': [dict(event_id=e['event_id'], kind=e['kind'], status=e['status'],
+            fingerprint=e['fingerprint'], current_fingerprint=(e.get('preview') or {}).get('fingerprint'),
+            terminal=e.get('terminal')) for e in entries]}

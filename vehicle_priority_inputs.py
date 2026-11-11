@@ -92,3 +92,12 @@ def validate_priority_input(item, payload):
         # Newly generated output only. Later read failures retain this known
         # instruction priority; existing saved JSON is never migrated.
         item['priority'] = '高'
+
+    if offered.get('kind') == 'confirmed_priority':
+        labels = ('低', '中', '高')
+        minimum = offered.get('minimum_saved_priority')
+        if minimum not in labels or item.get('priority') not in labels:
+            raise ValueError('INVALID_PRIORITY_INPUT_CONFIRMED_FLOOR')
+        # This label comes from the server core using the original confirmed
+        # proof, never a client/model score. New output only; no saved migration.
+        item['priority'] = labels[max(labels.index(item['priority']), labels.index(minimum))]

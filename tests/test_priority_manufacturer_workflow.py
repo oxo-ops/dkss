@@ -152,6 +152,11 @@ class ManufacturerConfirmationWorkflowTests(unittest.TestCase):
         self.assertEqual(assessment['confirmation_details']['kind'], 'manufacturer_immediate')
         self.assertEqual(len(assessment['confirmation_details']['display_sources']), 4)
         original_id = value['proposal_id']
+        old_feedback = dict(status='accepted', proposal_id=original_id,
+            proposal_revision=value['proposal_revision'])
+        feedback_url = url.replace('/result', '/feedback')
+        self.assertTrue(response.json['is_current'])
+        original_hash = payload['_fingerprints']['important_hash']
         self.assertEqual(self.state()['status'], '運行可')
         self.assertEqual(stored.result_json, original_json)
         # A changed original/public version holds the saved high classification
@@ -161,6 +166,13 @@ class ManufacturerConfirmationWorkflowTests(unittest.TestCase):
         value = next(item for item in response.json['analysis']['recommendations'] if item['priority_input_ref'] == confirmation['ref'])
         self.assertEqual((value['priority'], value['priority_assessment']['effective_score']), ('高', None))
         self.assertEqual(value['proposal_id'], original_id)
+        self.assertFalse(response.json['is_current'])
+        with self.app.test_request_context('/'):
+            held_payload, _ = get_vehicle_karte_analysis_job_data(self.vehicle)
+        held_hash = held_payload['_fingerprints']['important_hash']
+        self.assertNotEqual(held_hash, original_hash)
+        self.assertEqual(self.client.post(feedback_url, json=old_feedback).status_code, 409)
+        self.db.session.refresh(stored); self.assertEqual(stored.result_json, original_json)
         # Explicit cancellation removes only this confirmed subject; the normal
         # inspection offer remains independently present and the saved JSON stays.
         history = self.client.get(self.url, query_string={'kind': 'manufacturer_immediate'}).json['history']
@@ -170,6 +182,13 @@ class ManufacturerConfirmationWorkflowTests(unittest.TestCase):
         remaining = response.json['analysis']['recommendations']
         self.assertEqual([item['priority_input_ref'] for item in remaining], [observation['ref']])
         self.assertEqual(response.json['analysis']['priority_resolved_proposals'][0]['proposal_id'], original_id)
+        self.assertFalse(response.json['is_current'])
+        with self.app.test_request_context('/'):
+            cancelled_payload, _ = get_vehicle_karte_analysis_job_data(self.vehicle)
+        cancelled_hash = cancelled_payload['_fingerprints']['important_hash']
+        self.assertNotEqual(cancelled_hash, original_hash)
+        self.assertNotEqual(cancelled_hash, held_hash)
+        self.assertEqual(self.client.post(feedback_url, json=old_feedback).status_code, 409)
         self.db.session.refresh(stored); self.assertEqual(stored.result_json, original_json)
         self.assertEqual(self.state()['status'], '運行可')
 

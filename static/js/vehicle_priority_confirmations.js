@@ -11,7 +11,11 @@
     function link(parent, url, text) {
         try {
             const target = new URL(url, location.origin);
-            if (target.origin !== location.origin || !target.pathname.startsWith('/vehicle/')) return;
+            const internal = target.origin === location.origin && target.pathname.startsWith('/vehicle/');
+            const publicLegal = target.origin === 'https://www.mlit.go.jp'
+                && target.pathname === '/jidosha/content/001740686.pdf' && !target.search
+                && (!target.hash || /^#page=\d+$/.test(target.hash));
+            if ((!internal && !publicLegal) || target.username || target.password) return;
             const a = node('a', text); a.href = target.href; a.target = '_blank'; a.rel = 'noopener'; parent.append(a);
         } catch (_) {}
     }
@@ -117,6 +121,7 @@
             replacing = null; selection = {}; await load(); message.textContent = data.message;
         } catch (error) { clearPreview(); message.textContent = error.message; } finally { busy = false; }
     });
+    root.addEventListener('keydown', event => { if (event.key === 'Escape' && !event.defaultPrevented) { root.open = false; root.querySelector('summary').focus(); } });
     root.addEventListener('toggle', () => { if (root.open && !loaded) load(); });
     if (location.hash === '#priority-evidence') root.open = true;
 })();

@@ -149,3 +149,23 @@ class PriorityGenerationSchemaLimitsTests(unittest.TestCase):
         self.assert_input_preserved(payload)
         with self.assertRaisesRegex(ValueError, 'INVALID_PRIORITY_INPUT_REFERENCE'):
             self.capture(payload, [recommendation(offers[200])], once=True)
+
+
+    def test_only_confirmed_server_offers_add_exact_citations_and_minimum_saved_label(self):
+        payload = payload_with_refs(['confirmation:42:' + 'a' * 24])
+        offer = payload['records'][0]['priority_inputs'][0]
+        offer.update(kind='confirmed_priority', minimum_saved_priority='高',
+                     source_ids=['inspection:1', 'priority_confirmation:42', 'inspection_observation:original'])
+        item = recommendation(offer); item['priority'] = '低'
+        result = self.capture(payload, [item])
+        self.assertEqual(result['recommendations'][0]['priority'], '高')
+        self.assertEqual(result['recommendations'][0]['source_ids'], offer['source_ids'])
+        self.assert_input_preserved(payload)
+        with self.assertRaisesRegex(ValueError, 'INVALID_ANALYSIS_SOURCES'):
+            self.capture(payload, [{**item, 'source_ids': offer['source_ids'] + ['invented:1']}])
+        plain = deepcopy(payload); plain['records'][0]['priority_inputs'][0]['kind'] = 'inspection_defect'
+        with self.assertRaisesRegex(ValueError, 'INVALID_ANALYSIS_SOURCES'):
+            self.capture(plain, [item])
+        invalid = deepcopy(payload); invalid['records'][0]['priority_inputs'][0]['minimum_saved_priority'] = 60
+        with self.assertRaisesRegex(ValueError, 'INVALID_PRIORITY_INPUT_CONFIRMED_FLOOR'):
+            self.capture(invalid, [item])

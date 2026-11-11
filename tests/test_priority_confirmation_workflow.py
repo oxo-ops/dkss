@@ -183,6 +183,47 @@ class PriorityConfirmationWorkflowTests(unittest.TestCase):
         self.client.get(self.api)
         self.assertNotIn('reported_at_iso', self.state()['defects'][0])
 
+    def test_confirmation_and_cancellation_invalidate_normal_analysis_and_old_feedback(self):
+        from dkss_app.analysis import get_vehicle_karte_analysis_job_data
+        bundle, saved = flows.priority.PriorityStage2WorkflowTests.generate(self)
+        api = f'/vehicle/karte/{self.vehicle.id}/analysis/result'
+        response = self.client.get(api).json
+        self.assertTrue(response['is_current'])
+        item = response['analysis']['recommendations'][0]
+        original = saved.result_json
+        self.assertEqual(self.save_confirmation().status_code, 200)
+        changed = self.client.get(api).json
+        self.assertFalse(changed['is_current'])
+        self.assertEqual(saved.result_json, original)
+        answer = dict(status='accepted', proposal_id=item['proposal_id'], proposal_revision=item['proposal_revision'])
+        self.assertEqual(self.client.post(api.replace('/result', '/feedback'), json=answer).status_code, 409)
+        with self.app.test_request_context('/'):
+            after_confirmation, _ = get_vehicle_karte_analysis_job_data(self.vehicle)
+        self.assertNotEqual(bundle['fingerprints']['important_hash'], after_confirmation['_fingerprints']['important_hash'])
+        cancel = self.client.get(self.api).json['history'][0]['cancel_token']
+        self.assertEqual(self.client.post(self.api, json={'token': cancel}).status_code, 200)
+        with self.app.test_request_context('/'):
+            after_cancellation, _ = get_vehicle_karte_analysis_job_data(self.vehicle)
+        self.assertNotEqual(after_confirmation['_fingerprints']['important_hash'], after_cancellation['_fingerprints']['important_hash'])
+        self.assertEqual(saved.result_json, original)
+        self.assertEqual(self.client.post(api.replace('/result', '/feedback'), json=answer).status_code, 409)
+
+    def test_two_concurrent_submissions_create_only_one_confirmation(self):
+        from concurrent.futures import ThreadPoolExecutor
+        token = self.prepare_token()
+        with self.client.session_transaction() as stored:
+            identity = dict(stored)
+        def submit(_):
+            client = self.app.test_client()
+            with client.session_transaction() as stored:
+                stored.update(identity)
+            return client.post(self.api, json={'token': token, 'statements': ['same', 'actual']}).status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            statuses = list(pool.map(submit, range(2)))
+        self.assertEqual(sorted(statuses), [200, 409])
+        self.db.session.expire_all()
+        self.assertEqual(len(self.events()), 1)
+
     def test_existing_csrf_guard_rejects_missing_token_before_mutation(self):
         original = self.app.config['WTF_CSRF_ENABLED']
         self.app.config['WTF_CSRF_ENABLED'] = True

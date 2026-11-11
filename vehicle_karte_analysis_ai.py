@@ -461,6 +461,13 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
         for item in payload.get("maintenance_knowledge", [])
     }
     allowed_ids.update(knowledge_ids)
+    # Only server-issued confirmed offers can introduce their exact original
+    # observation/audit citations, including reviewed compressed-final input.
+    confirmed_source_ids = {sid for offer in generation_priority_inputs(payload).values()
+        if offer.get("kind") == "confirmed_priority" for sid in offer.get("source_ids", [])
+        if isinstance(sid, str)}
+    allowed_ids.update(confirmed_source_ids)
+    vehicle_evidence_ids.update(confirmed_source_ids - knowledge_ids)
 
     if not vehicle_evidence_ids:
         return {

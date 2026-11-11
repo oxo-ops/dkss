@@ -158,3 +158,14 @@ test('malformed confirmation metadata cannot present a computed priority',()=>{
         assert.equal(view.read(item).valid,false);
     }
 });
+
+
+test('legal confirmation opens only the fixed public legal reference outside the app',()=>{
+    const item=proposal();item.priority_assessment.confirmation_details={kind:'legal_deadline',event_id:42,
+        confirmed_at:'2026-11-11T12:00:00+09:00',actor_name:'管理者',statements:['原本と適用条件を確認'],display_sources:[
+            {label:'公的根拠',text:'有効期間に関する原文',url:'https://www.mlit.go.jp/jidosha/content/001740686.pdf#page=121'},
+            {label:'別URL',text:'別原文',url:'https://www.mlit.go.jp/other.pdf'},
+            {label:'不正認証',text:'別原文',url:'https://user@www.mlit.go.jp/jidosha/content/001740686.pdf'}]};
+    const tree=view.details(doc,item,{},'https://dkss.test');
+    assert.deepEqual(walk(tree).filter(e=>e.tag==='a').map(e=>e.href),['https://www.mlit.go.jp/jidosha/content/001740686.pdf#page=121']);
+});
