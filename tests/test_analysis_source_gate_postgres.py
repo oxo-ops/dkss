@@ -18,7 +18,7 @@ import traceback
 import unittest
 from unittest.mock import patch
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 import test_priority_candidate_completion as fixture
 
@@ -207,7 +207,7 @@ class AnalysisSourceGatePostgresTests(unittest.TestCase):
         self.db.session.execute(text("SELECT set_config('application_name', :name, true)"), {'name': name})
         return self.db.session.execute(text('SELECT pg_backend_pid(), txid_current()')).one()
 
-    def wait_for_blocked(self, waiter, blocker, name, sql_fragment):
+    def wait_for_blocked(self, waiter, blocker, name, sql_fragment, *, executed_sql=None):
         deadline = time.monotonic() + 3
         last = None
         while time.monotonic() < deadline:
@@ -218,9 +218,10 @@ class AnalysisSourceGatePostgresTests(unittest.TestCase):
                     WHERE datname=current_database() AND pid=:pid AND application_name=:name
                 """), {'pid': waiter, 'name': name}).mappings().first()
             if last and last['wait_event_type'] == 'Lock' and blocker in last['blockers']:
-                self.assertIn(sql_fragment, last['query'].lower())
-                self.assertIn('vehicle', last['query'].lower())
-                self.assertIn('company_code', last['query'].lower())
+                sql = (executed_sql() if executed_sql is not None else last['query']).lower()
+                self.assertIn(sql_fragment, sql)
+                self.assertIn('vehicle', sql)
+                self.assertIn('company_code', sql)
                 return dict(last)
             time.sleep(0.02)
         self.fail(f'Expected database row lock wait was not observed: {last!r}')
@@ -620,10 +621,25 @@ class AnalysisSourceGatePostgresTests(unittest.TestCase):
                     gate_acquired.set()
                     # Real finish takes the analysis row and commits the same
                     # transaction that owns the real final Vehicle gate.
-                    results.append(repo.finish(
-                        self.state_id, token, claimed_hash=self.original_hash,
-                        snapshot_hash=self.original_hash, bundle=final_bundle,
-                        finished=now, method='ai'))
+                    finish_connection = self.db.session.connection()
+                    gate_transaction = finish_connection.get_transaction()
+                    def capture_finish_sql(connection, cursor, statement, parameters, context, executemany):
+                        normalized = ' '.join(statement.lower().split())
+                        if normalized.startswith('select ') and 'from vehicle_karte_analysis ' in normalized:
+                            self.assertIs(connection, finish_connection)
+                            self.assertIs(connection.get_transaction(), gate_transaction)
+                            evidence['finish_sql'] = statement
+                    # pg_stat_activity.query may truncate before FOR UPDATE.
+                    # Capture the actual execute on this connection, without
+                    # issuing SQL or changing the statement/parameters.
+                    event.listen(finish_connection, 'before_cursor_execute', capture_finish_sql)
+                    try:
+                        results.append(repo.finish(
+                            self.state_id, token, claimed_hash=self.original_hash,
+                            snapshot_hash=self.original_hash, bundle=final_bundle,
+                            finished=now, method='ai'))
+                    finally:
+                        event.remove(finish_connection, 'before_cursor_execute', capture_finish_sql)
                 except Exception:
                     errors.append(traceback.format_exc())
                 finally:
@@ -641,16 +657,16 @@ class AnalysisSourceGatePostgresTests(unittest.TestCase):
                 self.assertTrue(gate_acquired.wait(3), errors)
                 evidence['lock_wait'] = self.wait_for_blocked(
                     evidence['saver_pid'], evidence['legacy_pid'], 'analysis_legacy_fk_saver',
-                    'from vehicle_karte_analysis')
-                self.assertIn('for update', evidence['lock_wait']['query'].lower())
-                self.assertIn('lease_token', evidence['lock_wait']['query'].lower())
+                    'from vehicle_karte_analysis', executed_sql=lambda: evidence['finish_sql'])
+                self.assertIn('for update', evidence['finish_sql'].lower())
+                self.assertIn('lease_token', evidence['finish_sql'].lower())
                 insert_allowed.set()
                 self.assertTrue(inserted.wait(2), errors)
                 # The actual INSERT completed before either transaction was
                 # released; the saver must still be blocked by this writer.
                 evidence['wait_after_insert'] = self.wait_for_blocked(
                     evidence['saver_pid'], evidence['legacy_pid'], 'analysis_legacy_fk_saver',
-                    'from vehicle_karte_analysis')
+                    'from vehicle_karte_analysis', executed_sql=lambda: evidence['finish_sql'])
                 self.assertFalse(saver_done.is_set())
                 with self.db.engine.connect() as connection:
                     writer_wait = connection.execute(text("""
