@@ -643,16 +643,16 @@ def redirect_form_errors(response):
         }
 
     elif _dkss_common.request.path == "/master/vehicles/new":
-        _dkss_common.session["vehicle_form_data"] = _dkss_common.request.form.to_dict(
-            flat=True
-        )
+        from .vehicle_master_selection import compact_form_data
+        _dkss_common.session["vehicle_form_data"] = compact_form_data(_dkss_common.request.form)
 
     elif (
         _dkss_common.request.path.startswith("/master/vehicles/")
         and _dkss_common.request.path.endswith("/edit")
     ):
-        _dkss_common.session["vehicle_edit_form_data"] = _dkss_common.request.form.to_dict(
-            flat=True
+        from .vehicle_master_selection import compact_form_data
+        _dkss_common.session["vehicle_edit_form_data"] = compact_form_data(
+            _dkss_common.request.form, (_dkss_common.request.view_args or {}).get("index")
         )
 
     elif _dkss_common.request.path == "/master/checklists/new":
