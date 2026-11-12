@@ -45,4 +45,4 @@ function project(result, resource) {
  const record={receipt_id:sha256(resource+'\0'+row.id),event,observed_at:row.timestamp,details,requires_review:review};const key=JSON.stringify(record);if(!seen.has(key)){records.push(record);seen.add(key);}}
  return {format:'q09-native-projection-candidate-v1',records,counts,page_has_more:page.hasMore,coverage_status:'unverified_single_page',read_checkpoint:null,scheduled:false,sent:false};
 }
-if(typeof module!=='undefined')module.exports={sha256,project};
+if(typeof module!=='undefined')module.exports={sha256,project,validTime};
