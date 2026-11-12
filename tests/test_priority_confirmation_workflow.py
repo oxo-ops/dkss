@@ -234,3 +234,48 @@ class PriorityConfirmationWorkflowTests(unittest.TestCase):
         response = self.client.post(self.api + '/preview', json={'kind': 'progression', 'selection': self.selection})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.events(), [])
+
+
+    def test_provider_internal_errors_do_not_reach_data_or_preview_response(self):
+        private = 'SYNTHETIC_PRIVATE /internal/config.py database-password'
+        for kind in (ValueError, TypeError):
+            with self.subTest(kind=kind.__name__, route='data'):
+                with patch.object(confirmations, '_rows', side_effect=kind(private)):
+                    response = self.client.get(self.api)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json['message'], '選択した元記録を表示できません。')
+                self.assertNotIn(private, response.get_data(as_text=True))
+        for kind in (ValueError, TypeError, KeyError):
+            with self.subTest(kind=kind.__name__, route='preview'):
+                with patch.object(confirmations, '_checked_preview', side_effect=kind(private)):
+                    response = self.client.post(self.api + '/preview', json=dict(kind='progression', selection=self.selection))
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json['message'], '元記録の選択を確認してください。')
+                self.assertNotIn(private, response.get_data(as_text=True))
+        self.assertEqual(self.events(), [])
+
+    def test_internal_save_error_is_private_and_rolls_back(self):
+        private = 'SYNTHETIC_PRIVATE database-password SELECT internal'
+        before = self.business()
+        for kind in (ValueError, TypeError, KeyError):
+            token = self.prepare_token()
+            with self.subTest(kind=kind.__name__):
+                with patch.object(confirmations, '_checked_preview', side_effect=kind(private)):
+                    response = self.save_confirmation(token)
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.json['message'], '確認画面の有効期限が切れました。開き直してください。')
+                self.assertNotIn(private, response.get_data(as_text=True))
+                self.assertEqual(self.events(), [])
+                self.assertEqual(self.business(), before)
+
+    def test_authored_validation_reason_remains_actionable(self):
+        message = '元記録の選択を確認してください。'
+        with patch.object(confirmations, '_checked_preview', side_effect=ValueError(message)):
+            response = self.client.post(self.api + '/preview', json=dict(kind='progression', selection=self.selection))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json['message'], message)
+        token = self.prepare_token()
+        response = self.client.post(self.api, json={'token': token, 'statements': []})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json['message'], '表示された事実確認をすべて確認してから登録してください。')
+        self.assertEqual(self.events(), [])

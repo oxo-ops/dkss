@@ -31,6 +31,97 @@ MESSAGE = ('確認内容は次回の通常分析の入力に使います。分�
            '元の点検・整備・運行判断は変わりません。運行可否は責任者が判断してください。')
 
 
+# Response text is selected from authored constants, never exception text.
+# Providers may also raise ValueError from parsers/storage. Those errors and
+# unknown future messages must remain private, even when they contain a known
+# message as a substring. Keep this catalog aligned with deliberate validation
+# reasons in this module and its three source providers.
+_PUBLIC_VALIDATION_MESSAGES = (
+    '根拠確認の履歴が読取上限を超えています。部分履歴では判定しません。',
+    '元記録の選択を確認してください。',
+    '元記録の根拠を確認できません。',
+    '確認する内容を表示できません。',
+    'メーカーの元資料を選んでください。',
+    '確認画面を開き直してください。',
+    '対象車両を確認できません。',
+    '確認記録が更新されたか、同じ内容が送信済みです。再読み込みしてください。',
+    '取消・訂正する記録が更新されています。',
+    '確認する根拠を選んでください。',
+    '訂正する確認記録を選び直してください。',
+    '表示された事実確認をすべて確認してから登録してください。',
+    '元記録・原本または適用条件が更新されています。根拠を確認し直してください。',
+    '比較する2つの観測と確認する関係を選択してください',
+    '同一の記録を前後両方に使わず、別の原観測を選択してください',
+    '現在の原回答と同じ未解消指摘を確認できません。解消した指摘へS25を継続しません',
+    '既存の停止指示の対象・解除範囲をこの比較確認で置き換えず、元の指示を確認してください',
+    '比較する対象項目・様式の版が一致していません。異なる部位へ点数を転用しません',
+    '原観測の日時で前後関係を確認できません。同日の順序は日付や申告だけから補いません',
+    '確認イベントの対象・版を確認要',
+    '選択した原観測の版と整備・再確認履歴を照合できません',
+    '再発の比較元は、修理後の異常なし再確認で解消した別の指摘を選択してください',
+    'メーカー原本と元観測の組を個別に指定してください',
+    'メーカー原本の保存bytesと版checksumが一致しません',
+    'メーカー規則の意味確認に用いた原文を確認要',
+    'メーカー規則または意味確認の引用を保存原本で再照合できません',
+    '採用済みメーカー規則の数値・単位を保存原本で再照合できません',
+    '選択したメーカー通達の引用を保存原本で再照合できません',
+    'メーカー原本・採用の既存readerを利用できません',
+    '同じ会社の指定メーカー原本を確認できません',
+    'メーカー規則の読取上限を超えるため部分資料では照合しません',
+    '指定した同じ会社・車両の元観測をすべて照合できません',
+    '現在の承認済み原回答と同じ未解消指摘を確認できません。編集・未承認・解消・再確認待ちを現在条件へ読み替えません',
+    'メーカー原本・元観測・原文範囲の選択を確認要',
+    '確認監査の本人識別・日時を確認要',
+    'メーカー即時条件の確認対象を確認要',
+    'メーカー即時条件の確認原文と保存版が一致しません',
+    '観測より前の確認日時を現車条件の証明にしません',
+    'メーカー原本と元観測の明示参照を確認要',
+    'メーカー原本・規則・元観測の参照形式を確認要',
+    '同じメーカー原本と元観測の組が重複しています',
+    'メーカー規則の意味確認原文・ページが保存されていません',
+    'メーカー原本の版を確認できません',
+    'メーカー原本・採用・車両条件・元観測の版が変わったため再確認してください',
+    'メーカー原本と観測の取得基準日を確認要',
+    '未保存変更があるためメーカー原本と元観測の照合を保留しています',
+    '確認対象の元観測を選択してください',
+    '未保存変更があるためメーカー原本の候補照合を保留しています',
+    '発動条件と即時対応の原文範囲をそれぞれ指定してください',
+    '指定した発動条件または即時対応が、照合済み原文の範囲に含まれていません',
+    '指定メーカー規則・通達と原文の一意な対応を確認できません',
+    'メーカー原本が欠落したか読取上限を超えるため照合しません',
+    'メーカー原本の保存内容を確認できません',
+    'メーカー原本の現在版・採用・対象車両への適用条件を確認できません',
+    '会社・車両の現在登録を確認できません',
+    'メーカー資料の候補が読取上限を超えています',
+    'この車両について確認可能なメーカー原本を確認できません。即時対応は推定しません',
+    '確認できるメーカー規則の候補数を超えています',
+    '選択原本の同一車両・満了日を照合できません',
+    '選択原本と現在登録の満了日が一致していません',
+    '他の保存原本に未照合・競合があるため、現在の原本を確定できません',
+    '更新履歴の実施・新満了日・対応原本の照合を確認してください',
+    '同じ実施日の車検更新が競合しています',
+    '後続の車検更新と選択原本の満了日が一致しません',
+    '異なる原本の満了日と更新履歴の対応を確認できません。最大日付やアップロード順では選びません',
+    '確認対象の原本を選択してください',
+    '法的期限の確認日・監査識別を確認してください',
+    '原本・更新・適用確認日が変わったため再確認してください',
+    '原本識別を確認できません',
+    '同じ会社・車両の原本を確認できません',
+    '車検更新の前後満了日が連続していません',
+    '選択原本と車検更新のつながりを確認できません',
+    '更新前の満了日を確認できません',
+    '原本の版が変わったため再確認してください',
+)
+
+
+def _public_validation_message(error, fallback):
+    if isinstance(error, ValueError) and len(error.args) == 1 and type(error.args[0]) is str:
+        for message in _PUBLIC_VALIDATION_MESSAGES:
+            if error.args[0] == message:
+                return message
+    return fallback
+
+
 def _day():
     return datetime.now(ZoneInfo('Asia/Tokyo')).date()
 
@@ -248,7 +339,7 @@ def priority_confirmation_data(vehicle_record_id):
         return jsonify(ok=True, can_confirm=user.role in {'admin', 'itc'}, kinds=KINDS,
             revision=revision, form=choices, history=history, message=MESSAGE)
     except (ValueError, TypeError, ImportError) as error:
-        return jsonify(ok=False, message=str(error) if isinstance(error, ValueError) and str(error) else '選択した元記録を表示できません。'), 400
+        return jsonify(ok=False, message=_public_validation_message(error, '選択した元記録を表示できません。')), 400
 
 
 def preview_priority_confirmation(vehicle_record_id):
@@ -270,7 +361,7 @@ def preview_priority_confirmation(vehicle_record_id):
             fingerprint=value['fingerprint'], preview_hash=fingerprint(value), replace_event_id=replace)
         return jsonify(ok=True, preview=value, token=token, message=MESSAGE)
     except (ValueError, TypeError, KeyError) as error:
-        return jsonify(ok=False, message=str(error) or '元記録の選択を確認してください。'), 400
+        return jsonify(ok=False, message=_public_validation_message(error, '元記録の選択を確認してください。')), 400
 
 
 def save_priority_confirmation(vehicle_record_id):
@@ -338,7 +429,7 @@ def save_priority_confirmation(vehicle_record_id):
         return jsonify(ok=True, event_id=saved.id if saved else None, message=MESSAGE)
     except (BadSignature, ValueError, TypeError, KeyError) as error:
         db.session.rollback()
-        return jsonify(ok=False, message=str(error) if isinstance(error, ValueError) and str(error) else '確認画面の有効期限が切れました。開き直してください。'), 409
+        return jsonify(ok=False, message=_public_validation_message(error, '確認画面の有効期限が切れました。開き直してください。')), 409
     except SQLAlchemyError:
         db.session.rollback()
         return jsonify(ok=False, message='保存が競合しました。最新の根拠確認を読み直してください。'), 409
@@ -365,3 +456,4 @@ def confirmation_input_state(vehicle, *, as_of=None):
         'confirmations': [dict(event_id=e['event_id'], kind=e['kind'], status=e['status'],
             fingerprint=e['fingerprint'], current_fingerprint=(e.get('preview') or {}).get('fingerprint'),
             terminal=e.get('terminal')) for e in entries]}
+
