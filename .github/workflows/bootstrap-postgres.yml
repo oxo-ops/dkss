@@ -5,6 +5,12 @@ on:
     branches: ['verify/bootstrap-init-db-20261104']
   pull_request:
     paths:
+      - 'tests/test_initial_company_admin.py'
+      - 'templates/itc_initial_admin.html'
+      - 'dkss_app/initial_admin.py'
+      - 'dkss_app/auth.py'
+      - 'dkss_app/routes.py'
+      - 'tests/test_initial_admin_postgres.py'
       - 'dkss_app/database.py'
       - 'dkss_app/__init__.py'
       - 'dkss_app/models.py'
@@ -72,7 +78,7 @@ jobs:
           set -euo pipefail
           mkdir -p bootstrap-evidence
           git rev-parse HEAD | tee bootstrap-evidence/commit.txt
-          python -m unittest -v test_bootstrap_postgres 2>&1 | tee bootstrap-evidence/tests.log
+          python -m unittest -v test_bootstrap_postgres test_initial_admin_postgres 2>&1 | tee bootstrap-evidence/tests.log
       - uses: actions/upload-artifact@v7
         if: always()
         with:

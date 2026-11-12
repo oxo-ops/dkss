@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}初回管理者登録{% endblock %}
+{% block content %}
+<div class="page-header"><h2>初回管理者登録</h2><a href="{{ url_for('itc_dashboard') }}" class="btn btn-back">ITC管理へ戻る</a></div>
+<div class="card">
+<p>{{ company.company_name }}（{{ company.company_code }}）の最初の管理者を作成します。既に利用者または乗務員がいる会社には登録できません。</p>
+<p>通常のログイン・パスワード期限・多要素認証が適用されます。登録によるメール送信はありません。</p>
+{% if mfa_enabled %}<p>多要素認証が有効なため、ログイン時に受信できるメールアドレスが必要です。</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% for key, label, limit in [('employee_id','ログインID',50),('last_name','姓',100),('first_name','名',100)] %}
+<label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" maxlength="{{ limit }}" value="{{ values.get(key,'') }}" {% if key != 'first_name' %}required{% endif %}>
+{% endfor %}
+<label for="email_address">メールアドレス{% if not mfa_enabled %}（任意）{% endif %}</label><input id="email_address" name="email_address" type="email" maxlength="255" value="{{ values.get('email_address','') }}" {% if mfa_enabled %}required{% endif %}>
+<label for="password">初期パスワード</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+<p>8〜128文字、英小文字・英大文字・数字・記号のうち3種類以上。</p>
+<button type="submit" class="btn">管理者を登録</button>
+</form></div>
+{% endblock %}
