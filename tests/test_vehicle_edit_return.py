@@ -62,6 +62,12 @@ class VehicleEditReturnTests(unittest.TestCase):
             render_template=render_template, db=self.db, VEHICLE_MAINTENANCE_ATTRIBUTE_FIELDS=[])
         self.scope = {
             '_dkss_common': common,
+            # This AST-only suite tests navigation, not selection-proof security.
+            '_vehicle_selection': SimpleNamespace(
+                validate=lambda *a: [],
+                compact_form_data=lambda data, *a: dict(data),
+                form_context=lambda vehicle=None, *a, **k: dict(
+                    vehicle=vehicle or {}, offices=[], vehicle_types=[], vehicle_master_selection='stub')),
             '_dkss_models': SimpleNamespace(Vehicle=SimpleNamespace(query=self.query,
                 company_code=MagicMock(), chassis_number=MagicMock(), id=MagicMock())),
             '_dkss_master_readers': SimpleNamespace(offices_for_current_company=lambda: []),
