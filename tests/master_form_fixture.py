@@ -9,6 +9,21 @@ from flask.testing import FlaskClient
 
 
 def fresh_master_data(client, path, data):
+    # Existing route tests model a freshly opened vehicle form. Security tests
+    # use plain FlaskClient and retain the exact rendered proof across changes.
+    if re.fullmatch(r'/master/vehicles/(?:new|\d+/edit)', path) and 'vehicle_master_selection' not in (data or {}):
+        try:
+            from dkss_app import vehicle_master_selection
+        except ImportError:
+            pass  # Historical checkouts have no vehicle selection contract.
+        else:
+            from html import unescape
+            response = client.get(path)
+            try:
+                match = re.search(r'name="vehicle_master_selection" value="([^"]*)"', response.get_data(as_text=True))
+                return dict(data or {}, vehicle_master_selection=unescape(match.group(1)) if match else '')
+            finally:
+                response.close()
     match = re.fullmatch(r'/master/(offices|vehicle-types|delivery-places|license-types|patrol-content-types)/(\d+)/(edit|delete)', path)
     if not match or 'master_token' in (data or {}):
         return data

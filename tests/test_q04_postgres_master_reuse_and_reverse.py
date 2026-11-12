@@ -19,7 +19,7 @@ class ReverseRelatedWriteTests(PrivatePostgresCase):
         results, waited = self.schedule(master, self.action(path, data),
             'office' if kind == 'offices' else 'vehicle_type')
         self.assertEqual(results[0].get('status'), 302, repr(results))
-        self.assertEqual(results[1].get('status'), 400, repr(results))
+        self.assertEqual(results[1].get('status'), 409 if writer.startswith('vehicle_') else 400, repr(results))
         self.assertTrue(waited)
         self.assertEqual(self.target_rows(writer), before, 'Rejected request left partial User/Driver/Vehicle changes')
         self.assertEqual(self.orphans(), [])
