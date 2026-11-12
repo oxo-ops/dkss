@@ -15,7 +15,7 @@ import tempfile
 import unittest
 
 STAGES = {'generate', 'guarded-active', 'guarded-held', 'guarded-pending',
-          'new-active', 'new-held', 'new-pending', 'retention', 'postgres', 'runner'}
+          'new-active', 'new-held', 'new-pending', 'retention', 'postgres', 'runner', 'selection'}
 
 
 def tree(root):
@@ -84,9 +84,10 @@ def child(stage):
             result.update(passed=True, database_unchanged=True, semantics_verified=True)
         else:
             loader = unittest.TestLoader()
-            module = 'test_guarded_independent_runner' if stage == 'runner' else 'test_guarded_rollback_' + stage
+            module = {'runner': 'test_guarded_independent_runner',
+                      'selection': 'test_q04_vehicle_master_selection'}.get(stage, 'test_guarded_rollback_' + stage)
             suite = loader.loadTestsFromName(module)
-            wanted = {'runner':5, 'retention':25, 'postgres':24}[stage]
+            wanted = {'runner':5, 'selection':36, 'retention':25, 'postgres':24}[stage]
             count = suite.countTestCases()
             if loader.errors or count != wanted:
                 raise RuntimeError('TEST_DISCOVERY_FAILED')
@@ -139,7 +140,7 @@ def main():
         # interpreter's installed package overlay and isolation audit guard.
         original_paths = os.environ.get('PYTHONPATH', '').split(os.pathsep)
         extras = [p for p in original_paths if p and not Path(p).resolve().is_relative_to(candidate)]
-        stages = ['runner', 'generate', 'retention']
+        stages = ['runner', 'selection', 'generate', 'retention']
         if args.postgres:
             stages.append('postgres')
         stages += ['guarded-active', 'guarded-held', 'guarded-pending',

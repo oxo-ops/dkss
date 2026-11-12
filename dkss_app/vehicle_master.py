@@ -1,5 +1,6 @@
 """Vehicle Master responsibilities; routes are registered by the application factory."""
 from . import import_owner as _dkss_import_owner
+from . import vehicle_master_selection as _vehicle_selection
 from .vehicle_capacity import reserved_vehicle_count, UNKNOWN_VEHICLE_STATE
 from . import audit as _dkss_audit, common as _dkss_common, http as _dkss_http, knowledge as _dkss_knowledge, master_readers as _dkss_master_readers, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, storage as _dkss_storage, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
@@ -1881,8 +1882,7 @@ def vehicle_certificate_register():
 def vehicle_registration_method():
     return _dkss_common.render_template(
         "vehicle_registration_method.html",
-        offices=_dkss_master_readers.offices_for_current_company(),
-        vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
+        **_vehicle_selection.form_context(),
     )
 
 
@@ -1890,11 +1890,12 @@ def vehicle_registration_method():
 def new_vehicle():
     if _dkss_common.request.method == "POST":
         if _dkss_common.request.form.get("vehicle_form_action") == "back":
+            selection_errors = _vehicle_selection.validate(_dkss_common.request.form)
+            if selection_errors:
+                return _dkss_http.return_form_errors(selection_errors, 409)
             return _dkss_common.render_template(
                 "vehicle_form.html",
-                vehicle=_dkss_common.request.form.to_dict(flat=True),
-                offices=_dkss_master_readers.offices_for_current_company(),
-                vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
+                **_vehicle_selection.form_context(_dkss_common.request.form),
                 mode="new"
             )
 
@@ -1970,13 +1971,9 @@ def new_vehicle():
             validate_vehicle_text_fields(_dkss_common.request.form)
         )
 
-        form_errors.extend(
-            validate_vehicle_master_values(
-                vehicle_type,
-                office,
-                company_code
-            )
-        )
+        selection_errors = _vehicle_selection.validate(_dkss_common.request.form)
+        if selection_errors:
+            return _dkss_http.return_form_errors(selection_errors, 409)
         weight_values, weight_errors = parse_vehicle_weights(
             _dkss_common.request.form
         )
@@ -1992,8 +1989,8 @@ def new_vehicle():
             return _dkss_common.jsonify(ok=True)
 
         if _dkss_common.request.form.get("vehicle_form_action") != "save":
-            confirmation_values = _dkss_common.request.form.to_dict(
-                flat=True
+            confirmation_values = _vehicle_selection.compact_form_data(
+                _dkss_common.request.form
             )
             confirmation_values.update({
                 "chassis_number": chassis_number,
@@ -2040,12 +2037,9 @@ def new_vehicle():
 
     return _dkss_common.render_template(
         "vehicle_form.html",
-        vehicle=_dkss_common.session.pop(
-            "vehicle_form_data",
-            None
+        **_vehicle_selection.form_context(
+            _dkss_common.session.pop("vehicle_form_data", None), restored=True
         ),
-        offices=_dkss_master_readers.offices_for_current_company(),
-        vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
         mode="new"
     )
 
@@ -2102,15 +2096,16 @@ def edit_vehicle(index):
 
     if _dkss_common.request.method == "POST":
         if _dkss_common.request.form.get("vehicle_form_action") == "back":
+            selection_errors = _vehicle_selection.validate(_dkss_common.request.form, vehicle.id)
+            if selection_errors:
+                return _dkss_http.return_form_errors(selection_errors, 409)
             form_values = _dkss_common.request.form.to_dict(flat=True)
             form_values["vehicle_record_id"] = vehicle.id
 
             return _dkss_common.render_template(
                 "vehicle_form.html",
-                vehicle=form_values,
                 index=vehicle.id,
-                offices=_dkss_master_readers.offices_for_current_company(),
-                vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
+                **_vehicle_selection.form_context(form_values, vehicle.id),
                 mode="edit",
                 vehicle_return_url=vehicle_return_url,
                 vehicle_return_label=vehicle_return_label
@@ -2179,13 +2174,9 @@ def edit_vehicle(index):
         )
 
 
-        form_errors.extend(
-            validate_vehicle_master_values(
-                vehicle_type,
-                office,
-                vehicle.company_code
-            )
-        )
+        selection_errors = _vehicle_selection.validate(_dkss_common.request.form, vehicle.id)
+        if selection_errors:
+            return _dkss_http.return_form_errors(selection_errors, 409)
         weight_values, weight_errors = parse_vehicle_weights(
             _dkss_common.request.form
         )
@@ -2201,8 +2192,8 @@ def edit_vehicle(index):
             return _dkss_http.return_form_errors(form_errors)
 
         if _dkss_common.request.form.get("vehicle_form_action") != "save":
-            confirmation_values = _dkss_common.request.form.to_dict(
-                flat=True
+            confirmation_values = _vehicle_selection.compact_form_data(
+                _dkss_common.request.form, vehicle.id
             )
             confirmation_values.update({
                 "chassis_number": chassis_number,
@@ -2312,10 +2303,10 @@ def edit_vehicle(index):
 
     return _dkss_common.render_template(
         "vehicle_form.html",
-        vehicle=vehicle_dict,
         index=vehicle.id,
-        offices=_dkss_master_readers.offices_for_current_company(),
-        vehicle_types=_dkss_vehicle_readers.vehicle_types_for_current_company(),
+        **_vehicle_selection.form_context(
+            vehicle_dict, vehicle.id, restored=bool(vehicle_edit_form_data)
+        ),
         mode="edit",
         vehicle_return_url=vehicle_return_url,
         vehicle_return_label=vehicle_return_label

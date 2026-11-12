@@ -1,6 +1,6 @@
 """Independent ephemeral certificate cases. Never export generated content.
 
-Producer: exact GitHub 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f.
+Producer: exact GitHub 692298445d7d57c9c611328792ef966d27b4ebe9.
 Public scenario: CertificateSourceTests legal_deadline confirmation; completed_at
 change from test_http_today_confirmation_becomes_held_tomorrow_or_when_evidence_changes.
 Pending reservation uses the published real-reconcile/queue interleaving in
@@ -14,8 +14,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-PRODUCER = '0f91f42e3fe2ac88b4697c8935a49ffd8c48710f'
-PRODUCER_TREE = '9afe16ebe79b895c557f9efa5c5290d0519a7a95'
+PRODUCER = '692298445d7d57c9c611328792ef966d27b4ebe9'
+PRODUCER_TREE = '4e1afcd727375d71ce1eb4cffce6dcf594db5dab'
 
 
 def directory():

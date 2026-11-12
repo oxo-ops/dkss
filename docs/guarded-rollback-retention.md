@@ -1,13 +1,19 @@
 # Limited rollback: retain incompatible saved analysis
 
-This candidate starts from old Live commit `e8a529e48be239e1acbebbab333fe6395fd061f3`
-(tree `1463cb2ae034d9847cfe090f1435a6be4d48eabd`). It is **not a deployment** and
+This candidate starts from current main commit `c6e378491096248463fd3c9f0ebfc2fbbbbf76d3`
+(tree `4dd4f37a1911156657c63bc7818529cced08d005`) and retains its complete vehicle
+master-selection protection from PR380. It applies the previously validated
+saved-result guard from `a406c56b68c8d3d11d54a8a3a975eb98b5034277` (tree
+`e051fef73c7898a94a74ab242c9bc1704790c17b`), originally based on e8a. The main16
+and guard30 changed paths do not overlap; neither product change is replaced.
+It is **not a deployment** and
 is not a backport of PR377. The pinned compatible PR377 candidate is
-`0f91f42e3fe2ac88b4697c8935a49ffd8c48710f` (tree
-`9afe16ebe79b895c557f9efa5c5290d0519a7a95`).
+`692298445d7d57c9c611328792ef966d27b4ebe9` (tree
+`4e1afcd727375d71ce1eb4cffce6dcf594db5dab`).
 This pin includes the newer-generation reservation fence and the final Vehicle
 FOR NO KEY UPDATE source gate. Pinning it does not claim its native PostgreSQL
-acceptance has run. The guarded product remains based only on old Live.
+acceptance has run for this combined head. The guarded product retains current main
+plus the established saved-result guard, without the new analysis feature.
 
 ## Why old Live alone is unsafe
 
@@ -16,7 +22,9 @@ page can automatically POST after a missing GET, without a button click.
 Submission failure and worker failure leave the saved result erased. Successful
 normal analysis also replaces the saved bundle. An audit trail alone cannot
 reconstruct a prior candidate whose original confirmation is no longer valid.
-Do not use Render's old-artifact rollback button for the unguarded e8a artifact.
+Do not use Render's old-artifact rollback button for an unguarded e8a or c6e378
+artifact after newer-format analysis has been persisted. Main's master-selection
+fix does not itself add saved-result retention.
 
 ## Retention boundary
 
@@ -79,6 +87,12 @@ low-risk result or an absence of proposals. Do not use old UI to review or amend
 new priority confirmations. The original daily/periodic/maintenance records and
 human operation decisions remain legacy functions; this guard does not claim
 those screens support new priority semantics.
+
+Master registration/edit forms retain main's signed company/actor/vehicle-bound
+selection proof, generation checks, confirmation recovery and final-save locks.
+Old or unsigned forms must be reloaded; rollback is not permission to accept a
+stale or recreated office/vehicle-type choice. Ordinary valid vehicle edits may
+still invalidate a newer confirmation's source facts, as described below.
 
 To preserve the exact confirmation state, leave the referenced original records,
 actor identity, confirmation/audit events and persisted result fields unchanged.
@@ -144,8 +158,8 @@ python tests/run_guarded_independent.py --producer /path/to/exact-v8
 rm -rf "$private_root"
 ```
 
-The producer must have tree 9afe16ebe79b895c557f9efa5c5290d0519a7a95, commit
-0f91f42e3fe2ac88b4697c8935a49ffd8c48710f. The runner checks the full source tree.
+The producer must have tree 4e1afcd727375d71ce1eb4cffce6dcf594db5dab, commit
+692298445d7d57c9c611328792ef966d27b4ebe9. The runner checks the full source tree.
 The dedicated CI additionally verifies both checkout HEADs. No saved JSON fixture,
 old snapshot, prior recipe or generated-data hash is an input or an export.
 
@@ -191,6 +205,13 @@ methods, zero skips, on the existing Q08 disposable localhost fixture. Twenty
 methods consume freshly generated protected legal results; four are independent
 of such results (normal/periodic stale token, duplicate legacy claim, and a new
 PeriodicRecord parent's insert). Passing those four alone is not acceptance of24.
+
+The existing main test_q04_vehicle_master_selection module also runs as a separate
+36-test selection stage under the same descriptor suppression and audit guard.
+It uses real Flask test-client forms, not a proof-refresh adapter, and emits only
+fixed test identifiers/counts/booleans. This checks that the rollback candidate
+retains main's HTTP selection contract. It is not browser or native PostgreSQL
+selection-lock evidence, and no raw form/proof/SQL artifacts are exported.
 
 Local SQLite proves the assertions and deterministic interleavings, not native
 PostgreSQL locking. Do not claim the20 native protected-data races pass until the

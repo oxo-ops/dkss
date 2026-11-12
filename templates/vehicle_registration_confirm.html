@@ -62,6 +62,8 @@
             value="{{ csrf_token() }}"
         >
 
+        <input type="hidden" name="vehicle_master_selection" value="{{ vehicle.get('vehicle_master_selection', '') }}">
+
         {% for field_key, field_label in fields %}
             <input
                 type="hidden"

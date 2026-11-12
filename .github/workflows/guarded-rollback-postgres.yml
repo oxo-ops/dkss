@@ -58,7 +58,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v7
         with:
-          ref: 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f
+          ref: 692298445d7d57c9c611328792ef966d27b4ebe9
           path: .producer-v8
           persist-credentials: false
       - name: Record exact code versions only
@@ -66,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-          test "$(git -C .producer-v8 rev-parse HEAD)" = 0f91f42e3fe2ac88b4697c8935a49ffd8c48710f
+          test "$(git -C .producer-v8 rev-parse HEAD)" = 692298445d7d57c9c611328792ef966d27b4ebe9
           mkdir -p guarded-safe-summary
           git rev-parse HEAD > guarded-safe-summary/commit.txt
           git rev-parse 'HEAD^{tree}' > guarded-safe-summary/tree.txt
