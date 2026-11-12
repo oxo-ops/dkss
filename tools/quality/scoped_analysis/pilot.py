@@ -9,6 +9,11 @@ import hashlib
 import json
 
 
+SOL_STANDARD_30M = 'gpt-6.1-sol-standard-30m-2026-11-12'
+SOL_RATE_SOURCE = 'https://developers.openai.com/api/docs/models/gpt-6.1-sol'
+SOL_SHORT_INPUT_LIMIT = 272000
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
         separators=(',', ':'), allow_nan=False).encode()).hexdigest()
@@ -45,6 +50,8 @@ class Policy:
     output_usd_per_million: str
     rate_source: str
     rate_as_of: str
+    pricing_profile: str = 'custom-unverified'
+    endpoint: str = 'unverified'
 
     def __post_init__(self):
         if (type(self.targets) is not tuple or not 1 <= len(self.targets) <= 5
@@ -62,6 +69,17 @@ class Policy:
             if not value.is_finite() or value <= 0:
                 raise ValueError('INVALID_RATE')
 
+        if self.pricing_profile == SOL_STANDARD_30M:
+            if (self.model != 'gpt-6.1-sol'
+                    or self.endpoint != 'https://api.openai.com/v1/responses'
+                    or self.input_usd_per_million != '2'
+                    or self.output_usd_per_million != '10'
+                    or self.rate_source != SOL_RATE_SOURCE
+                    or self.rate_as_of != '2026-11-12'):
+                raise ValueError('PRICING_PROFILE_MISMATCH')
+        elif self.pricing_profile != 'custom-unverified' or self.model == 'gpt-6.1-sol':
+            raise ValueError('PRICING_PROFILE_REQUIRED')
+
 
 @dataclass(frozen=True)
 class Request:
@@ -75,12 +93,20 @@ class Request:
 def estimate_microusd(policy, input_tokens, output_tokens):
     """USD per million tokens × tokens = microUSD. Round upwards once per call.
 
-    All input tokens are priced uncached. Output bound must include all billed
+    The verified Sol profile reserves all input at the 30m total write rate.
+    Custom rates remain unverified; they are not a provider billing guarantee. Output bound must include all billed
     output/reasoning tokens. Unknown counts must not be replaced by char counts.
     """
     if not positive_int(input_tokens) or not positive_int(output_tokens):
         raise ValueError('TOKEN_BOUND_REQUIRED')
-    return int((Decimal(policy.input_usd_per_million) * input_tokens +
+    input_rate = Decimal(policy.input_usd_per_million)
+    if policy.pricing_profile == SOL_STANDARD_30M:
+        # Deliberately reject the long-context price tier, rather than silently
+        # charging short rates. 272K is an input threshold, not input+output.
+        if input_tokens > SOL_SHORT_INPUT_LIMIT or output_tokens > 128000:
+            raise ValueError('PRICING_TOKEN_TIER_UNSUPPORTED')
+        input_rate = Decimal('2.50')
+    return int((input_rate * input_tokens +
                 Decimal(policy.output_usd_per_million) * output_tokens).to_integral_value(rounding=ROUND_CEILING))
 
 
@@ -112,6 +138,10 @@ class Trial:
         body = json.loads(raw)
         # This tool supports only the current text-only analysis transport shape.
         allowed = {'model', 'instructions', 'input', 'text', 'reasoning', 'max_output_tokens', 'store'}
+        if p.pricing_profile == SOL_STANDARD_30M:
+            allowed = allowed | {'service_tier'}
+            if not isinstance(body, dict) or body.get('service_tier') != 'default':
+                raise ValueError('EXPLICIT_STANDARD_TIER_REQUIRED')
         if (not isinstance(body, dict) or set(body) != allowed or body['model'] != p.model
                 or body['store'] is not False or body['reasoning'] != {'effort': 'low'}
                 or not isinstance(body['input'], str) or not isinstance(body['instructions'], str)

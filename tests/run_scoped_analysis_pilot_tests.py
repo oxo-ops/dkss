@@ -26,4 +26,4 @@ for probe in (lambda: socket.socket(), lambda: subprocess.Popen([sys.executable,
 sys.path.insert(0, str(ROOT / 'tests'))
 suite = unittest.defaultTestLoader.loadTestsFromNames(['test_scoped_analysis_pilot', 'test_scoped_analysis_adapter', 'test_scoped_analysis_ledger'])
 result = unittest.TextTestRunner(verbosity=2).run(suite)
-sys.exit(0 if result.wasSuccessful() and result.testsRun >= 24 and not result.skipped else 1)
+sys.exit(0 if result.wasSuccessful() and result.testsRun >= 27 and not result.skipped else 1)

@@ -2,7 +2,7 @@ import hashlib
 import json
 import unittest
 from dataclasses import replace
-from tools.quality.scoped_analysis.pilot import Policy, Request, Target, Trial, estimate_microusd
+from tools.quality.scoped_analysis.pilot import Policy, Request, Target, Trial, estimate_microusd, SOL_STANDARD_30M, SOL_RATE_SOURCE
 
 
 class PilotTests(unittest.TestCase):
@@ -98,6 +98,50 @@ class PilotTests(unittest.TestCase):
             with self.assertRaises(ValueError): replace(self.policy, max_calls=n)
         for rate in ('NaN', 'Infinity', '-1', '0'):
             with self.assertRaises(ValueError): replace(self.policy, input_usd_per_million=rate)
+
+    def sol_policy(self, **changes):
+        return replace(self.policy, model='gpt-6.1-sol',
+            pricing_profile=SOL_STANDARD_30M, endpoint='https://api.openai.com/v1/responses',
+            input_usd_per_million='2', output_usd_per_million='10',
+            rate_source=SOL_RATE_SOURCE, rate_as_of='2026-11-12', **changes)
+
+    def test_sol_cache_write_total_rate_and_rounding(self):
+        p = self.sol_policy()
+        self.assertEqual(estimate_microusd(p, 1000, 6000), 62500)
+        self.assertEqual(estimate_microusd(p, 1, 1), 13)
+        self.assertEqual(estimate_microusd(p, 272000, 6000), 740000)
+        self.assertEqual(estimate_microusd(p, 1, 128000), 1280003)
+        # The threshold is input only. Do not silently use the long tier.
+        with self.assertRaisesRegex(ValueError, 'TOKEN_TIER'):
+            estimate_microusd(p, 272001, 1)
+        with self.assertRaisesRegex(ValueError, 'TOKEN_TIER'):
+            estimate_microusd(p, 1, 128001)
+
+    def test_sol_profile_rejects_unverified_prices_model_and_endpoint(self):
+        with self.assertRaisesRegex(ValueError, 'PROFILE_REQUIRED'):
+            replace(self.policy, model='gpt-6.1-sol')
+        p = self.sol_policy()
+        for change in ({'model':'other'}, {'input_usd_per_million':'1'},
+                       {'output_usd_per_million':'5'}, {'rate_source':'unknown'},
+                       {'rate_as_of':'unknown'}, {'endpoint':'https://eu.api.openai.com/v1/responses'}):
+            with self.assertRaisesRegex(ValueError, 'PROFILE_MISMATCH'):
+                replace(p, **change)
+        with self.assertRaisesRegex(ValueError, 'PROFILE_REQUIRED'):
+            replace(p, pricing_profile='fast')
+
+    def test_sol_budget_and_explicit_standard_request(self):
+        p = self.sol_policy(budget_microusd=62500)
+        body = {**self.body, 'model':p.model, 'service_tier':'default'}
+        trial = Trial(p)
+        _, receipt = trial.prepare(self.request(body), observed_target=self.target)
+        self.assertEqual(receipt['reserved_microusd'], 62500)
+        self.denied(policy=replace(p, budget_microusd=62499), request=self.request(body))
+        for tier in (None, 'auto', 'fast', 'priority', 'flex', 'ultrafast'):
+            altered = {**body, 'service_tier':tier}
+            if tier is None: altered.pop('service_tier')
+            self.denied(policy=p, request=self.request(altered))
+        for options in ({'ttl':'12h'}, {'ttl':'30m'}):
+            self.denied(policy=p, request=self.request({**body, 'prompt_cache_options':options}))
 
 
 if __name__ == '__main__': unittest.main()

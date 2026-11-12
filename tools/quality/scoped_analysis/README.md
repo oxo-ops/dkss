@@ -14,7 +14,7 @@
 
 `input_usd_per_million` / `output_usd_per_million` は操作者が確認したモデルのUSD単価であり、出典・基準日を必須とする。入力トークン上限は、完全なrequestの instructions、input、schema、プロトコル分を含む確認済みカウントを将来のadapterが供給する。文字数・UTF-8バイト数をtoken数として代用しない。出力上限には課金対象reasoning/outputを含める必要がある。
 
-見積 microUSD = ceil(入力token上限 × 入力単価 + 最大出力token × 出力単価)。入力は割引無しで計算する。これは上限前提と単価が正しい場合の見積であり、税・為替・APIの請求方法・不明なprovider料金を保証しない。test値の単価やモデル名は架空で、本番見積ではない。
+見積 microUSD = ceil(入力token上限 × 入力単価 + 最大出力token × 出力単価)。custom-unverified の単価は未検証。公式profileは下記の保守的予約を使う。これは上限前提と単価が正しい場合の見積であり、税・為替・APIの請求方法・不明なprovider料金を保証しない。test値の単価やモデル名は架空で、本番見積ではない。
 
 1件の分析で複数回呼び出す場合はpartial/review/finalの**全呼出しごと**に予約が必要。入力変更後に前回カウントを流用しない。中途失敗でも利用料金が発生し得る。既存の1分1ジョブは金額上限ではない。
 
@@ -80,3 +80,16 @@
 **限定comparisonのpilot結果を、そのまま通常画面の完成結果として保存する機能は追加していない。** 上記保存試験は通常入力そのものと承認bodyが一致する場合の接続である。限定cohortで通常入力が変わるなら結果は別扱いにし、通常保存には同じ対象・入力・比較範囲の再検証が必要。今のreader→dry requestは読取受入用で、既存jobを本番で呼ぶ承認/入口ではない。
 
 実課金用transportは未搭載。実モデルに対応した正確なtoken上限・単価・対象/比較範囲・予算承認が揃って初めて実送信の配線を検討する。通知/OCRなど別の課金呼出しをこの台帳が一括抑止するものではない。実受入でも全体自動分析フラグは変更しない。
+
+
+## 2026-11-12 公式価格 profile（本番モデルの指定ではない）
+
+公式確認: [モデル](https://developers.openai.com/api/docs/models/gpt-6.1-sol)、[価格](https://developers.openai.com/api/docs/pricing)、[キャッシュ](https://developers.openai.com/api/docs/guides/prompt-caching)、[service_tier](https://developers.openai.com/api/reference/resources/responses/methods/create)。
+
+`SOL_STANDARD_30M` は gpt-6.1-sol / 通常 api.openai.com Responses endpoint / Standard / 既定30mに限定。入力$2・出力$10/百万tokenが基準だが、入力全体を30m書込総単価$2.50で予約する。$2への加算ではなく置換で、キャッシュ割引は予算に見込まない。1,000入力+6,000出力は62,500microUSD。実測請求ではない。
+
+入力272,000tokenまでは短context、272,001以上は拒否。公式長contextは全requestの入力/キャッシュ2倍・出力1.5倍だが今回は非対応。出力128,000超も拒否。12h、Fast、Flex/Batch、Ultrafast、地域/FedRAMP endpointはこのprofile非対応。地域/FedRAMP10%割増を黙って通常単価にしない。
+
+送信bodyのservice_tierは明示的なdefaultを要求し、未指定/autoは拒否（project既定がStandardとは限らない）。任意のprompt_cache_options追加も拒否し既定30mに固定。既存dry/通常生成bodyにはservice_tierがないため、このprofileでは現在のadapter出力は拒否される。通常生成を勝手に変更せず、将来の限定transportで明示tierを加えた最終bodyを再カウント・再hashして予約する必要がある。endpointフィールドは予定先の契約であり、実接続先の証明ではない。live transportは未搭載。
+
+単価は確認日のsnapshotで、将来価格や本番モデル/請求条件を自動保証しない。既存台帳はpolicy digestが変われば拒否する。台帳を新規作成し直して累積予算を消してはいけない。今回の変更はGitHub正式編集で保存しCI検証、ローカル実行環境は利用不可のためローカル合格とは報告しない。
