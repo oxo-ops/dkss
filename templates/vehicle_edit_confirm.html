@@ -85,6 +85,7 @@
             value="{{ csrf_token() }}"
         >
 
+        <input type="hidden" name="vehicle_master_selection" value="{{ vehicle.get('vehicle_master_selection', '') }}">
         <input type="hidden" name="return_to" value="{{ vehicle_return_url|default('/master/vehicles') }}">
 
         {% for field_key, field_label in fields %}

@@ -390,6 +390,9 @@
         };
 
         appendHidden("csrf_token", csrfToken.value);
+        appendHidden("vehicle_master_selection", uploadForm.querySelector(
+            'input[name="vehicle_master_selection"]'
+        )?.value || "");
 
         for (const field of fields) {
             appendHidden(field.name, field.value.trim());
