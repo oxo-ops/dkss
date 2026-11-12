@@ -7,6 +7,7 @@ on:
       - 'vehicle_karte_analysis_ai.py'
       - 'dkss_app/analysis.py'
       - 'tests/run_scoped_analysis_reader_ci.py'
+      - 'tests/run_scoped_analysis_ledger_ci.py'
       - 'vehicle_analysis_risk.py'
       - 'vehicle_priority_inputs.py'
       - 'tests/run_scoped_analysis_pilot_tests.py'
@@ -79,3 +80,17 @@ jobs:
             AWS_EC2_METADATA_DISABLED=true AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
             OPENAI_API_KEY='' SMTP_HOST='' S3_BUCKET_NAME='' VAPID_PRIVATE_KEY='' VAPID_PUBLIC_KEY='' \
             python tests/run_scoped_analysis_reader_ci.py
+      - name: Durable local reservation and existing save/UI integration, no network
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/scoped-ledger"
+          mkdir -p "$ROOT/home" "$ROOT/tmp"
+          env -i PATH="$PATH" HOME="$ROOT/home" LANG=C.UTF-8 \
+            PYTHONDONTWRITEBYTECODE=1 FLASK_SKIP_DOTENV=1 \
+            RUNNER_TEMP="$RUNNER_TEMP" DKSS_VALIDATION_TMP="$ROOT" TMPDIR="$ROOT/tmp" \
+            SECRET_KEY=synthetic-scoped-ledger RENDER='' RATELIMIT_STORAGE_URI=memory:// \
+            DATABASE_URL='sqlite:///:memory:' \
+            DOCUMENT_IMPORT_WORKER_ENABLED=0 VEHICLE_ANALYSIS_WORKER_ENABLED=0 PUBLIC_KNOWLEDGE_ENABLED=0 \
+            AWS_EC2_METADATA_DISABLED=true AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+            OPENAI_API_KEY='' SMTP_HOST='' S3_BUCKET_NAME='' VAPID_PRIVATE_KEY='' VAPID_PUBLIC_KEY='' \
+            python tests/run_scoped_analysis_ledger_ci.py

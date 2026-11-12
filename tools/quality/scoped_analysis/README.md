@@ -8,7 +8,7 @@
 
 ガードは1〜5車両の正確な会社・ID・版の組に限定し、未知モデル、request変更、画像・tools等の未対応body、出力/回数/見積超過をcallback前に拒否する。各呼出しの見積額を先に予約し、通信結果不明時は試行全体を停止、予約額を返さず再送しない。結果本文・対象ID・原文はreceiptに格納しない。
 
-メモリー内の単一所有者用であり、並列実行・プロセス再起動・電源断・複数PCからの再実行に耐える台帳ではない。実送信に使う前に、これらのケースを含めた永続予約と照合が必要。単にオブジェクトを作り直して再送してはいけない。
+初期の `Trial` はメモリー内の単一所有者用であり、並列実行・プロセス再起動・電源断・複数PCからの再実行に耐える台帳ではない。後述の `Ledger` は単機の永続予約を追加するが、実送信前の対象/費用/運用境界の照合は引き続き必要。単にオブジェクトを作り直して再送してはいけない。
 
 ## 費用の根拠と限界
 
@@ -18,7 +18,7 @@
 
 1件の分析で複数回呼び出す場合はpartial/review/finalの**全呼出しごと**に予約が必要。入力変更後に前回カウントを流用しない。中途失敗でも利用料金が発生し得る。既存の1分1ジョブは金額上限ではない。
 
-## 実受入までの最小接続手順（未実装・未承認実行）
+## 実受入までの最小接続手順（実送信は未搭載・未実行）
 
 1. 本人が利用できる認証経路で、対象会社・代表車両を限定し、現在の原記録を読み取り確認。未加工原文・資格情報をGitHubへ保存しない。
 2. 対象の入力payloadと正確な版を既存readerで取得。readerは対象以外を読まないという意味ではない。同型式比較は同一会社の比較対象データを使うため、送信する比較情報の範囲も確認する。ガードに渡す `observed_target` はrequestの自己申告ではなくreaderの検証結果でなければならない。body内容と対象の結びつきもadapterで照合する。
@@ -56,6 +56,27 @@
 5. 読み取ったVehicleの会社/IDとpayload digestをセットで受け取る。任意入力の自己申告を信頼済み読取の証明にしない。生payloadや原文をGitHub/標準出力に残さず、会社・車両数・各資料種別件数・hashのみ監査する。比較cohortも検証済み結果から構成する。
 6. 上記をfixture DBで統合し、別会社/別車両混入、比較範囲逸脱、同時更新、書込企図時の拒否を確認後に読取実行へ進む。今回は本番接続禁止のため実読取はしていない。既存の会社境界テストを再利用し、無関係な全体試験を追加しない。
 
-**残る具体的境界**：`reader.read_scoped_inputs(ReadScope(company, targets, comparison_ids))` にSQL transaction/cohort制約を実装。呼出し元が認証済みの会社権限を解決する必要がある（この関数は認証routeではない）。fresh session必須、PostgreSQL以外拒否、REPEATABLE READ/READ ONLY、commit/flush/transaction置換拒否、常にrollback。ORM criteriaで全会社列と車両参照列を対象+比較cohortへ制約する。会社共通知識は保持するため「全テーブルを5車両分しか読まない」という保証ではない。任意の悪意あるコードが別connectionでSQLを発行することを防ぐDB権限境界ではない。隔離PostgreSQLで実アプリ組立て・対象外ORM行の非取得・SQLSTATE25006・同時更新snapshotを検証する専用CIを追加した。実モデル向けtoken counterと実送信前の永続予約が残る。実行時の保存は既存claim/source再検証を外さず、初回は生成結果を保存せず閲覧する受入に限定できる。キャッシュや確認済み優先度の仕組みを別実装で置き換えない。
+**残る具体的境界**：`reader.read_scoped_inputs(ReadScope(company, targets, comparison_ids))` にSQL transaction/cohort制約を実装。呼出し元が認証済みの会社権限を解決する必要がある（この関数は認証routeではない）。fresh session必須、PostgreSQL以外拒否、REPEATABLE READ/READ ONLY、commit/flush/transaction置換拒否、常にrollback。ORM criteriaで全会社列と車両参照列を対象+比較cohortへ制約する。会社共通知識は保持するため「全テーブルを5車両分しか読まない」という保証ではない。任意の悪意あるコードが別connectionでSQLを発行することを防ぐDB権限境界ではない。隔離PostgreSQLで実アプリ組立て・対象外ORM行の非取得・SQLSTATE25006・同時更新snapshotを検証する専用CIを追加した。単機の永続予約は後述のLedgerに実装。実モデル向けtoken counterと実送信の配線が残る。実行時の保存は既存claim/source再検証を外さず、初回は生成結果を保存せず閲覧する受入に限定できる。キャッシュや確認済み優先度の仕組みを別実装で置き換えない。
 
 隔離CI以外のDBには未接続。ローカルで既存の宣言済み依存入り環境を利用できたため、先にFlask欠落で止まったprompt/schema影響試験9件もネットワーク禁止下で成功。ローカルにPostgreSQLサーバが無いためPG部分の成否は専用CIで判定する。
+
+## 送信前の永続予約と保存経路（非本番検証）
+
+既存 `VehicleAnalysisJobRepository` の lease/token、input hash、保存前の車両行ロック・確認済み根拠再照合は結果の所有権と鮮度を守る。一方、lease期限切れ後の再試行でAPI料金が二重発生しない保証はない。そこで**承認された単発受入だけ**のローカルSQLite台帳 `ledger.Ledger` を追加した。新しいRenderサービス、キュー、Redis、本番テーブルは不要。
+
+- `Ledger.create(path, policy)` は新規fileのみ（既存を上書きしない）。POSIXローカル永続ディスクに0600で作成し、SQLite FULL synchronous、directory fsyncを行う。現在Windows/network drive/multi-hostは検証外。
+- 再開は `Ledger(path, policy)` のみ。存在しない・壊れた・別policyのfileを自動再作成しない。同一object利用中のfile置換も拒否。新規instanceで同policyの空台帳に差し替えられた場合は検出できない。承認試行の台帳パスを固定して保全する必要がある。**環境消失時に別fileを作って再送しない**。台帳消失は照合が済むまで停止条件。
+- `reserve_exact_body(approved_request, actual_body_json, observed_target=...)` は承認済みの完全な送信JSONが変わっていないことを先に確認。入力計数も同じJSONに対応する必要がある。通常HTTPとdry adapterのシリアライズを一致させた。
+- scope/model/token/費用を既存Trialで検証し、BEGIN IMMEDIATE内で累積予約額・呼出し数・request重複を確認。予約COMMITが戻ってからだけtransportへ進む。同時に2所有者が試みても1予約だけ。
+- reservedのまま再開／uncertainは試行全体を停止。自動retry・予約返却はしない。returnedも利用額を減らさず、同requestを再送しない。台帳はraw本文・秘密値・応答本文を保存しない。
+- returnedは**応答が戻ったという記録だけ**で、モデル応答の妥当性・アプリ保存完了を意味しない。保存に失敗しても自動再生成せず、既存結果と台帳を照合する。ハードウェア電源断、悪意あるfile改ざん、別ホストや別台帳での二重実行、provider側の厳密な一回課金は保証しない。
+
+合成試験は永続化後callback、再open後の重複拒否、予約後未完了で再openした場合の全停止、timeout記録、2接続競合、累積上限、policy違い、file置換、完全body違いを確認する。実プロセスkill・停電試験ではなく、未完了予約を残した再openでcrash windowを模擬する。
+
+### 既存保存・通常画面の連携証拠と境界
+
+`test_scoped_analysis_saved_flow.py` は既存の実fixtureを利用し、進行確認POST→通常入力→既存job claim→完全bodyに対する永続予約→合成HTTP応答→既存保存→通常analysis APIの65点→dashboard同一proposal ID/65点→overview/analysis通常ページを検証。再jobを試みても台帳が二度目のtransport完了前に拒否し、保存済み結果はbyte一致で残る。既存のlease/source/入力世代の検証を置き換えていない。
+
+**限定comparisonのpilot結果を、そのまま通常画面の完成結果として保存する機能は追加していない。** 上記保存試験は通常入力そのものと承認bodyが一致する場合の接続である。限定cohortで通常入力が変わるなら結果は別扱いにし、通常保存には同じ対象・入力・比較範囲の再検証が必要。今のreader→dry requestは読取受入用で、既存jobを本番で呼ぶ承認/入口ではない。
+
+実課金用transportは未搭載。実モデルに対応した正確なtoken上限・単価・対象/比較範囲・予算承認が揃って初めて実送信の配線を検討する。通知/OCRなど別の課金呼出しをこの台帳が一括抑止するものではない。実受入でも全体自動分析フラグは変更しない。

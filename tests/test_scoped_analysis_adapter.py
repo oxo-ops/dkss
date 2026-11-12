@@ -28,6 +28,7 @@ class AdapterTests(unittest.TestCase):
             req = self.prepare()
         body, receipt = Trial(self.policy).prepare(req, observed_target=self.target)
         self.assertEqual(receipt['reserved_microusd'], 13000)
+        self.assertEqual(req.body_json, json.dumps(body))
         self.assertIn('schema', body['text']['format'])
         self.assertIn('maintenance:1', body['input'])
         self.assertGreater(len(body['instructions']), 1000)

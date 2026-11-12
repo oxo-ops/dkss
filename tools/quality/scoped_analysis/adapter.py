@@ -18,7 +18,7 @@ def prepare_scoped_request(policy, target, payload, *, observed_company,
             or digest(payload) != target.input_revision):
         raise ValueError('SCOPED_INPUT_CHANGED')
     body = prepare_vehicle_karte_analysis_request(payload, model=policy.model)
-    raw = json.dumps(body, ensure_ascii=False, allow_nan=False)
+    raw = json.dumps(body, allow_nan=False)  # Exact serializer used by normal HTTP transport.
     if len(raw.encode()) > policy.max_request_bytes:
         raise ValueError('REQUEST_OVERSIZE')
     # A local, model-correct counter must cover instructions, schema and protocol;
