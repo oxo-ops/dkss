@@ -4,7 +4,7 @@
 
 既存の全車両ワーカーを有効化せず、会社・車両ID・入力版・モデル・最大呼出し数・最大出力・見積予算を明示した単発受入のガードを合成データで確認する。ワーカー、DB、設定、UIは変更しない。既存分析モジュールに送信しない request 組立て入口を追加し、通常送信と同じ instructions/schema/圧縮を再利用する。
 
-**これは本番実行コマンドではない。** 実DB reader、実AI transport、保存adapterは搭載しない。`synthetic_call` は `SYNTHETIC_` 会社のみ受け付ける。文字列接頭辞は本番データ判定の証明ではなく、試験側の約束である。CI は全ネットワークと子プロセス起動を別途禁止する。外部呼出しのない契約試験を実際の情報隔離や課金抑止の証明に読み替えない。
+**これは本番実行コマンドではない。** 限定PostgreSQL readerを追加（隔離CI検証対象）。実AI transport、保存adapterは搭載しない。`synthetic_call` は `SYNTHETIC_` 会社のみ受け付ける。文字列接頭辞は本番データ判定の証明ではなく、試験側の約束である。CI は全ネットワークと子プロセス起動を別途禁止する。外部呼出しのない契約試験を実際の情報隔離や課金抑止の証明に読み替えない。
 
 ガードは1〜5車両の正確な会社・ID・版の組に限定し、未知モデル、request変更、画像・tools等の未対応body、出力/回数/見積超過をcallback前に拒否する。各呼出しの見積額を先に予約し、通信結果不明時は試行全体を停止、予約額を返さず再送しない。結果本文・対象ID・原文はreceiptに格納しない。
 
@@ -47,7 +47,7 @@
 - `build_vehicle_karte_analysis_payload` にも点検整備リンク・運転日報・点検結果・取込原本参照等の追加読取がある。最初のrepositoryのみをmock/置換しても全読取境界を証明できない。
 - 通常GETの `AnalysisReadProjectionService.read` はキャッシュ `put` を行い得る。読取専用試行では通常GETキャッシュ経路もジョブqueue/claim/save経路も流用しない。
 
-### 実データ読取を接続する最小変更案（未実行）
+### 実データ読取の接続手順（限定reader実装済み、本番未実行）
 
 1. `create_app(initialize_database=False)` を利用し、init-db/ワーカーCLIを起動しない。専用の新基盤ではなく既存アプリcontextと既存input serviceを使う。現在のコードでもこのfactory既定は初期化無し。ただし接続先やhookを確認せず本番で起動しない。
 2. 認証済み操作者の利用可能会社内で1〜5台を決め、Vehicle検索を会社+ID+非削除に限定。実行台数に加え、同一会社の比較cohortのID集合も明示する。比較無しを選ぶなら、比較不足を明示し、本番と同等の分析精度とは呼ばない。
@@ -56,4 +56,6 @@
 5. 読み取ったVehicleの会社/IDとpayload digestをセットで受け取る。任意入力の自己申告を信頼済み読取の証明にしない。生payloadや原文をGitHub/標準出力に残さず、会社・車両数・各資料種別件数・hashのみ監査する。比較cohortも検証済み結果から構成する。
 6. 上記をfixture DBで統合し、別会社/別車両混入、比較範囲逸脱、同時更新、書込企図時の拒否を確認後に読取実行へ進む。今回は本番接続禁止のため実読取はしていない。既存の会社境界テストを再利用し、無関係な全体試験を追加しない。
 
-**残る具体的境界**：このPRはSQL transaction/cohort制約を実装したDB readerではない。現在のアプリに対する限定読取adapterの上記変更・合成DB試験と、実モデル向けのtoken counter、実送信前の永続予約が残る。実行時の保存は既存claim/source再検証を外さず、初回は生成結果を保存せず閲覧する受入に限定できる。キャッシュや確認済み優先度の仕組みを別実装で置き換えない。
+**残る具体的境界**：`reader.read_scoped_inputs(ReadScope(company, targets, comparison_ids))` にSQL transaction/cohort制約を実装。呼出し元が認証済みの会社権限を解決する必要がある（この関数は認証routeではない）。fresh session必須、PostgreSQL以外拒否、REPEATABLE READ/READ ONLY、commit/flush/transaction置換拒否、常にrollback。ORM criteriaで全会社列と車両参照列を対象+比較cohortへ制約する。会社共通知識は保持するため「全テーブルを5車両分しか読まない」という保証ではない。任意の悪意あるコードが別connectionでSQLを発行することを防ぐDB権限境界ではない。隔離PostgreSQLで実アプリ組立て・対象外ORM行の非取得・SQLSTATE25006・同時更新snapshotを検証する専用CIを追加した。実モデル向けtoken counterと実送信前の永続予約が残る。実行時の保存は既存claim/source再検証を外さず、初回は生成結果を保存せず閲覧する受入に限定できる。キャッシュや確認済み優先度の仕組みを別実装で置き換えない。
+
+隔離CI以外のDBには未接続。ローカルで既存の宣言済み依存入り環境を利用できたため、先にFlask欠落で止まったprompt/schema影響試験9件もネットワーク禁止下で成功。ローカルにPostgreSQLサーバが無いためPG部分の成否は専用CIで判定する。

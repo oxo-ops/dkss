@@ -212,7 +212,7 @@ def get_vehicle_analysis_read_projection(vehicle):
         return legacy(), True
 
 
-def get_vehicle_karte_analysis_job_data(vehicle):
+def get_vehicle_karte_analysis_job_data(vehicle, *, comparison_vehicle_ids=None):
     repository = _dkss_common.VehicleAnalysisInputRepository(
         maintenance=_dkss_models.VehicleMaintenanceRecord, operations=_dkss_models.VehicleOperationRecord,
         parts=_dkss_models.VehiclePartReplacement, defects=_dkss_models.VehiclePatrol,
@@ -221,7 +221,9 @@ def get_vehicle_karte_analysis_job_data(vehicle):
     )
     return _dkss_common.VehicleAnalysisInputService(
         repository=repository, build_summary=build_vehicle_karte_analysis_summary,
-        read_comparison=get_vehicle_karte_peer_comparison,
+        read_comparison=(get_vehicle_karte_peer_comparison if comparison_vehicle_ids is None else
+            lambda *args, **kwargs: get_vehicle_karte_peer_comparison(
+                *args, **kwargs, allowed_vehicle_ids=comparison_vehicle_ids)),
         build_payload=build_vehicle_karte_analysis_payload,
         today=lambda: _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).date(),
         read_settings=lambda: _dkss_common.AnalysisComparisonSettings.from_environ(_dkss_common.os.environ),
@@ -1445,7 +1447,7 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
 
 
 
-def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope='auto', include_inactive=False):
+def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope='auto', include_inactive=False, *, allowed_vehicle_ids=None):
     model = (vehicle.model_code or '').strip().upper()
     registration = str(vehicle.first_registration_date or '').strip()
     year_match = _dkss_common.re.match('^((?:19|20)\\d{2})(?:[-/年]|$)', registration)
@@ -1468,7 +1470,14 @@ def get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope='auto
         result['note'] = '同じ初度登録年で比較する条件ですが、対象車両の初度登録年が不明なため比較できません。比較対象0台という意味ではありません。画面では「初度登録年を限定しない」で別条件の比較ができます。画面の条件変更だけでは保存済み自動AIの条件は変わりません。'
         return result
     year = year_match.group(1) if year_match else None
-    peers = [row for row in _dkss_models.Vehicle.query.filter_by(company_code=vehicle.company_code).all() if row.id != vehicle.id and (include_inactive or row.deleted is False) and ((row.model_code or '').strip().upper() == model) and (registration_scope == 'all_years' or _dkss_common.re.match('^' + year + '(?:[-/年]|$)', str(row.first_registration_date or '').strip()))]
+    peer_query = _dkss_models.Vehicle.query.filter_by(company_code=vehicle.company_code)
+    if allowed_vehicle_ids is not None:
+        if (type(allowed_vehicle_ids) is not tuple
+                or any(type(value) is not int or value <= 0 for value in allowed_vehicle_ids)):
+            raise ValueError('INVALID_COMPARISON_SCOPE')
+        peer_query = peer_query.filter(_dkss_models.Vehicle.id.in_(allowed_vehicle_ids))
+        result['comparison_scope']['acceptance_limited'] = True
+    peers = [row for row in peer_query.all() if row.id != vehicle.id and (include_inactive or row.deleted is False) and ((row.model_code or '').strip().upper() == model) and (registration_scope == 'all_years' or _dkss_common.re.match('^' + year + '(?:[-/年]|$)', str(row.first_registration_date or '').strip()))]
     year_note = f'同じ初度登録年（{year}年）' if registration_scope == 'same_year' else '初度登録年を限定しない'
     active_note = '無効車両を含む' if include_inactive else '有効車両のみ'
     result['note'] = ('初度登録年が不明のため、年を限定せず同型式で比較。' if requested_scope == 'auto' and (not year_match) else '') + f'同じ会社・同型式・{year_note}・{active_note}。対象車両は平均から除外。'
