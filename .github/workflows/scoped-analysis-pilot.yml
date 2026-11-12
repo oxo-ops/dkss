@@ -1,0 +1,23 @@
+name: Scoped analysis pilot offline contract
+on:
+  pull_request:
+    paths:
+      - 'tools/quality/scoped_analysis/**'
+      - 'tests/test_scoped_analysis_pilot.py'
+      - 'tests/run_scoped_analysis_pilot_tests.py'
+      - '.github/workflows/scoped-analysis-pilot.yml'
+permissions:
+  contents: read
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact source
+        run: git rev-parse HEAD HEAD^{tree}
+      - name: Synthetic network-denied contract
+        run: env -i PATH="$PATH" python3 tests/run_scoped_analysis_pilot_tests.py
