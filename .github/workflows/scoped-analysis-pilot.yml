@@ -3,7 +3,10 @@ on:
   pull_request:
     paths:
       - 'tools/quality/scoped_analysis/**'
-      - 'tests/test_scoped_analysis_pilot.py'
+      - 'tests/test_scoped_analysis_*.py'
+      - 'vehicle_karte_analysis_ai.py'
+      - 'vehicle_analysis_risk.py'
+      - 'vehicle_priority_inputs.py'
       - 'tests/run_scoped_analysis_pilot_tests.py'
       - '.github/workflows/scoped-analysis-pilot.yml'
 permissions:

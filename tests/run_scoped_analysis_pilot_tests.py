@@ -23,6 +23,6 @@ for probe in (lambda: socket.socket(), lambda: subprocess.Popen([sys.executable,
             raise
     else:
         raise RuntimeError('EXTERNAL_IO_GUARD_NOT_ACTIVE')
-suite = unittest.defaultTestLoader.discover(str(ROOT / 'tests'), pattern='test_scoped_analysis_pilot.py')
+suite = unittest.defaultTestLoader.discover(str(ROOT / 'tests'), pattern='test_scoped_analysis_*.py')
 result = unittest.TextTestRunner(verbosity=2).run(suite)
-sys.exit(0 if result.wasSuccessful() and result.testsRun >= 11 and not result.skipped else 1)
+sys.exit(0 if result.wasSuccessful() and result.testsRun >= 16 and not result.skipped else 1)

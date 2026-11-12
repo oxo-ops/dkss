@@ -2,7 +2,7 @@
 
 ## 今回の完成範囲
 
-既存の全車両ワーカーを有効化せず、会社・車両ID・入力版・モデル・最大呼出し数・最大出力・見積予算を明示した単発受入のガードを合成データで確認する。既存アプリ、ワーカー、DB、設定、UIは変更しない。
+既存の全車両ワーカーを有効化せず、会社・車両ID・入力版・モデル・最大呼出し数・最大出力・見積予算を明示した単発受入のガードを合成データで確認する。ワーカー、DB、設定、UIは変更しない。既存分析モジュールに送信しない request 組立て入口を追加し、通常送信と同じ instructions/schema/圧縮を再利用する。
 
 **これは本番実行コマンドではない。** 実DB reader、実AI transport、保存adapterは搭載しない。`synthetic_call` は `SYNTHETIC_` 会社のみ受け付ける。文字列接頭辞は本番データ判定の証明ではなく、試験側の約束である。CI は全ネットワークと子プロセス起動を別途禁止する。外部呼出しのない契約試験を実際の情報隔離や課金抑止の証明に読み替えない。
 
@@ -32,3 +32,28 @@
 `python tests/run_scoped_analysis_pilot_tests.py`
 
 テストはネットワーク・子プロセス起動を audit hook で拒否し、scope/版違い、body変更、モデル/tools/画像、未知token、出力/費用/回数上限、重複、不明結果停止を検証する。本番DB・実API・通知へは接続しない。通常ワーカーや既存合格試験の再実行は不要。
+
+
+## 追加済み：既存分析への adapter と限定読取の接続点
+
+`prepare_vehicle_karte_analysis_request(payload, model=...)` は既存の1呼出し用bodyを返す。APIキーやWindowsレジストリを読まず、URL送信もしない。2バッチ以上は一部だけ出して合格扱いにせず拒否する。根拠無しも拒否する。`adapter.prepare_scoped_request` は対象会社/車両と**payload全体のdigest**を確認後、そのbodyをローカルtoken counterへ渡し、既存Trialの見積ガードに接続する。queueのfingerprintとこの全体digestは別物である。
+
+合成統合試験では、同じpayloadで通常生成が送信直前に組み立てるbodyとdry bodyが完全一致することを確認（HTTP関数は捕捉して停止、実送信無し）。実プロンプト・JSON schema・引用根拠・wire圧縮を含む。16試験とネットワーク/プロセス禁止を確認したが、実モデルのtoken数、請求額、生成品質は未確認。
+
+### なぜ既存CLI/通常GETをそのまま限定読取に使わないか
+
+- `vehicle_analysis_repository.VehicleAnalysisInputRepository.load` は会社/車両で整備・運行・部品・不具合・定期点検を限定する。部品は親整備も同じ会社/車両で照合する。この既存readerを捨てて独自SQLを増やす必要はない。
+- ただし `dkss_app.analysis.get_vehicle_karte_analysis_job_data` は `get_vehicle_karte_peer_comparison` を呼ぶ。後者は同一会社の車両一覧を取得し、同型式/登録年の比較車両の運行・整備等を読む。実行対象5台と比較読取5台は同義ではない。対象だけを承認して既定比較を送信してはいけない。
+- `build_vehicle_karte_analysis_payload` にも点検整備リンク・運転日報・点検結果・取込原本参照等の追加読取がある。最初のrepositoryのみをmock/置換しても全読取境界を証明できない。
+- 通常GETの `AnalysisReadProjectionService.read` はキャッシュ `put` を行い得る。読取専用試行では通常GETキャッシュ経路もジョブqueue/claim/save経路も流用しない。
+
+### 実データ読取を接続する最小変更案（未実行）
+
+1. `create_app(initialize_database=False)` を利用し、init-db/ワーカーCLIを起動しない。専用の新基盤ではなく既存アプリcontextと既存input serviceを使う。現在のコードでもこのfactory既定は初期化無し。ただし接続先やhookを確認せず本番で起動しない。
+2. 認証済み操作者の利用可能会社内で1〜5台を決め、Vehicle検索を会社+ID+非削除に限定。実行台数に加え、同一会社の比較cohortのID集合も明示する。比較無しを選ぶなら、比較不足を明示し、本番と同等の分析精度とは呼ばない。
+3. `get_vehicle_karte_peer_comparison` に任意の限定cohortを受け取る入口を追加する場合、車両一覧の取得**前**にSQLのID条件を入れる。後から結果だけ削る実装は不可。既存VehicleAnalysisInputServiceのread_comparison依存へ渡し、payload builderの追加読取も同一transaction内に閉じる。必要なのはこの小さなapp adapterであり、全体ワーカーONや新しいworker/Redisではない。
+4. PostgreSQLの明示READ ONLY + REPEATABLE READ transactionで全組立てを行い、成功/失敗ともROLLBACK。キャッシュ更新や暗黙flushがあれば失敗として検出し、書込許可で回避しない。SQLite合成試験だけでPostgreSQL読取専用を保証しない。
+5. 読み取ったVehicleの会社/IDとpayload digestをセットで受け取る。任意入力の自己申告を信頼済み読取の証明にしない。生payloadや原文をGitHub/標準出力に残さず、会社・車両数・各資料種別件数・hashのみ監査する。比較cohortも検証済み結果から構成する。
+6. 上記をfixture DBで統合し、別会社/別車両混入、比較範囲逸脱、同時更新、書込企図時の拒否を確認後に読取実行へ進む。今回は本番接続禁止のため実読取はしていない。既存の会社境界テストを再利用し、無関係な全体試験を追加しない。
+
+**残る具体的境界**：このPRはSQL transaction/cohort制約を実装したDB readerではない。現在のアプリに対する限定読取adapterの上記変更・合成DB試験と、実モデル向けのtoken counter、実送信前の永続予約が残る。実行時の保存は既存claim/source再検証を外さず、初回は生成結果を保存せず閲覧する受入に限定できる。キャッシュや確認済み優先度の仕組みを別実装で置き換えない。

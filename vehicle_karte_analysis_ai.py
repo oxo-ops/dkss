@@ -414,33 +414,47 @@ def analyze_vehicle_karte(payload, on_progress=None):
     return finalize_confirmed_priority_candidates(result, payload)
 
 
-def _analyze_vehicle_karte_once(payload, on_progress=None):
+def prepare_vehicle_karte_analysis_request(payload, *, model):
+    """Build the existing one-call request without credentials, DB or transmission.
+
+    Limited pilot only: reject multi-batch input rather than hiding downstream
+    review/final calls. This is not generation, saving or a cost/token estimate.
+    """
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError("ANALYSIS_MODEL_REQUIRED")
+    if len(build_vehicle_karte_analysis_batches(payload)) != 1:
+        raise ValueError("PILOT_MULTI_BATCH_NOT_SUPPORTED")
+    return _analyze_vehicle_karte_once(payload, _request_only=True, _model=model)
+
+
+def _analyze_vehicle_karte_once(payload, on_progress=None, *, _request_only=False, _model=None):
     # VEHICLE_RISK_V4_INSTALLED
     from vehicle_analysis_risk import RISK_INSTRUCTIONS, risk_output_properties, validate_vehicle_risk, compose_vehicle_risk_data
 
     if on_progress is not None:
         on_progress()
 
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not _request_only:
+        key = os.environ.get("OPENAI_API_KEY", "").strip()
 
-    if os.name == "nt" and not key.startswith("sk-"):
-        import winreg
+        if os.name == "nt" and not key.startswith("sk-"):
+            import winreg
 
-        try:
-            with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Environment"
-            ) as registry:
-                saved_key = str(winreg.QueryValueEx(
-                    registry, "OPENAI_API_KEY"
-                )[0]).strip()
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, "Environment"
+                ) as registry:
+                    saved_key = str(winreg.QueryValueEx(
+                        registry, "OPENAI_API_KEY"
+                    )[0]).strip()
 
-            if saved_key.startswith("sk-"):
-                key = saved_key
+                if saved_key.startswith("sk-"):
+                    key = saved_key
 
-        except OSError:
-            pass
-    if not key:
-        raise ValueError("API_KEY_NOT_SET")
+            except OSError:
+                pass
+        if not key:
+            raise ValueError("API_KEY_NOT_SET")
 
     records = payload.get("records", [])
     allowed_ids = {
@@ -473,6 +487,8 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
     vehicle_evidence_ids.update(confirmed_source_ids - knowledge_ids)
 
     if not vehicle_evidence_ids:
+        if _request_only:
+            raise ValueError("PILOT_NO_EVIDENCE")
         return {
             "overview": "分析の根拠となる履歴がありません。",
             "recommendations": [],
@@ -838,7 +854,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         }, ensure_ascii=False)
         instructions += "\nperiodic:等のIDは記載どおりに使い、項目番号・ページ番号・送信用参照キーから新しいIDを作らないでください。根拠を示せない提案は出力しないでください。"
 
-    model = (
+    model = _model if _request_only else (
         os.environ.get("OPENAI_ANALYSIS_MODEL")
         or os.environ.get("OPENAI_MODEL")
         or "gpt-6.1-sol"
@@ -860,6 +876,9 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         "max_output_tokens": 6000,
         "store": False,
     }
+
+    if _request_only:
+        return body
 
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses",
