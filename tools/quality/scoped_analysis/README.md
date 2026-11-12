@@ -113,3 +113,34 @@ counting method before reserving. Live headers/authentication, actual endpoint
 configuration, audited provider-compatible token bounds and HTTP behavior
 (including no redirects/retries) remain unverified. No production enable switch
 or real API call was added.
+
+
+### Mock HTTP/count integration candidate
+
+`http_candidate.SyntheticHTTPTrial` now connects the existing final gate and
+ledger to a count-response parser and HTTP request/response serializer. It has
+no CLI, app hook, environment/credential reader or default network connection.
+The caller must inject a mock connection factory; tests deny all network and
+process creation. Literal synthetic authorization is not a usable credential.
+One synthetic target and one generation are allowed. The helper fixes hostname,
+paths, timeout and verified TLS context; non-200 (including redirect/429), bad
+count and oversized reply fail without redirect/retry. Generation failures leave
+the existing reservation uncertain. Count failure stops the object, but count
+attempts are not durably reserved across new objects; this is not live approval.
+
+The count request carries model, instructions, input, text/schema and reasoning
+from the final body, matching the [official count API](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count).
+The integer response is bound to final request bytes before the existing gate;
+mock count values are not measured production tokens or verified provider bills.
+A future real trial needs explicit permission for this additional count request's
+data disclosure as well as the generation. No real count API was called.
+
+The saved-flow test now exercises this same HTTP helper with the original
+claim/save/result API/dashboard flow and verifies a replay makes no more HTTP
+calls. That test uses the pre-existing synthetic company A/custom-price fixture;
+it does not prove the whole SyntheticHTTPTrial/final_gate to production save
+path. No scoped pilot result is installed as a complete ordinary analysis.
+Local network-denied tests cover HTTP/count (9) and existing final gate (8).
+The full saved-flow test is subject to the exact new-head CI result, not claimed
+from local syntax validation. Real target/cohort selection, model verification,
+credentials, count/generation authorization and live scoped job integration remain.

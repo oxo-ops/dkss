@@ -16,6 +16,7 @@ from test_priority_deterministic_generation import actual_confirmation
 from tools.quality.scoped_analysis.ledger import Ledger
 from tools.quality.scoped_analysis.pilot import Target,Policy,Request,digest
 import vehicle_karte_analysis_ai as generator
+from tools.quality.scoped_analysis.http_candidate import post_json_synthetic, COUNT_PATH
 
 
 class ScopedSavedFlowTests(unittest.TestCase):
@@ -34,15 +35,42 @@ class ScopedSavedFlowTests(unittest.TestCase):
             approved_raw=json.dumps(expected)
             approved=Request(target,approved_raw,hashlib.sha256(approved_raw.encode()).hexdigest(),10000,'synthetic bound')
             transmitted=[]
+            http_calls=[]
+            owner=self
+            class MockConnection:
+                def __init__(self,host,timeout,context):
+                    owner.assertEqual(host,'api.openai.com')
+                    owner.assertTrue(context.check_hostname)
+                def request(self,method,url_path,body,headers):
+                    self.path=url_path
+                    owner.assertEqual(method,'POST')
+                    http_calls.append(url_path)
+                    if url_path=='/v1/responses':
+                        owner.assertEqual(ledger.receipts()[0][3],'reserved')
+                        owner.assertEqual(body,approved_raw.encode())
+                def getresponse(self):
+                    self.status=200
+                    return self
+                def read(self,limit):
+                    if self.path==COUNT_PATH:
+                        return json.dumps({'object':'response.input_tokens','input_tokens':10000}).encode()
+                    reply={'overview':'synthetic empty model; confirmed facts retained','recommendations':[]}
+                    return json.dumps({'status':'completed','output':[{'content':[
+                        {'type':'output_text','text':json.dumps(reply)}]}]}).encode()
+                def close(self): pass
             def fake_transport(request,**kwargs):
                 raw=request.data.decode();self.assertEqual(json.loads(raw),expected)
+                if ledger.receipts():
+                    raise ValueError('PILOT_ALREADY_ATTEMPTED_NO_RETRY')
+                # Existing normal job/save flow with its synthetic company A.
+                count_body={key:expected[key] for key in ('model','instructions','input','text','reasoning')}
+                counted=post_json_synthetic(COUNT_PATH,json.dumps(count_body).encode(),connection_factory=MockConnection)
+                self.assertEqual(counted['input_tokens'],approved.input_token_upper_bound)
                 _,number=Ledger(path,policy).reserve_exact_body(approved,raw,observed_target=target)
-                self.assertEqual(Ledger(path,policy).receipts()[0][3],'reserved')
                 transmitted.append(number)
-                reply={'overview':'synthetic empty model; confirmed facts retained','recommendations':[]}
+                reply=post_json_synthetic('/v1/responses',raw.encode(),connection_factory=MockConnection)
                 ledger.record_outcome(number,'returned')
-                return BytesIO(json.dumps({'status':'completed','output':[{'content':[
-                    {'type':'output_text','text':json.dumps(reply)}]}]}).encode())
+                return BytesIO(json.dumps(reply).encode())
             def due():
                 state.status='pending';state.next_analysis_at=datetime.now(timezone.utc)-timedelta(seconds=1)
                 case.db.session.commit()
@@ -53,6 +81,7 @@ class ScopedSavedFlowTests(unittest.TestCase):
                 self.assertTrue(service.run_vehicle_karte_analysis_job(state.id))
             case.db.session.refresh(state);saved=state.result_json
             self.assertEqual(state.status,'completed');self.assertEqual(transmitted,[1])
+            self.assertEqual(http_calls,[COUNT_PATH,'/v1/responses'])
             result=case.request('GET',f'/vehicle/karte/{case.vehicle.id}/analysis/result').json
             self.assertTrue(result['is_current'])
             item,=result['analysis']['recommendations']
@@ -76,3 +105,5 @@ class ScopedSavedFlowTests(unittest.TestCase):
             case.db.session.refresh(state)
             self.assertEqual(state.result_json,saved)
             self.assertEqual(transmitted,[1]);self.assertEqual(len(ledger.receipts()),1)
+            self.assertEqual(http_calls,[COUNT_PATH,'/v1/responses'])
+
