@@ -33,6 +33,7 @@
 <div class="card form-card vehicle-master-entry-card">
     <form method="post" class="responsive-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="vehicle_master_selection" value="{{ vehicle_master_selection }}">
         {% if mode == "edit" %}
         <input type="hidden" name="return_to" value="{{ vehicle_return_url|default('/master/vehicles') }}">
         {% endif %}
@@ -200,9 +201,7 @@
         <div class="form-group">
             <label for="type">車種</label>
             <select name="type" id="type" {% if mode != 'edit' %}required{% endif %}>
-                {% if mode == 'edit' %}
-                    <option value="" {% if not vehicle or not vehicle.type %}selected{% endif %}>未設定</option>
-                {% endif %}
+                <option value="" {% if not vehicle or not vehicle.type %}selected{% endif %}>{{ '未設定' if mode == 'edit' else '選択してください' }}</option>
                 {% for vehicle_type in vehicle_types %}
                     <option
                         value="{{ vehicle_type.name }}"
@@ -217,9 +216,7 @@
         <div class="form-group">
             <label for="office">営業所</label>
             <select name="office" id="office" {% if mode != 'edit' %}required{% endif %}>
-                {% if mode == 'edit' %}
-                    <option value="" {% if not vehicle or not vehicle.office %}selected{% endif %}>未設定</option>
-                {% endif %}
+                <option value="" {% if not vehicle or not vehicle.office %}selected{% endif %}>{{ '未設定' if mode == 'edit' else '選択してください' }}</option>
                 {% for office in offices %}
                     <option
                         value="{{ office.name }}"

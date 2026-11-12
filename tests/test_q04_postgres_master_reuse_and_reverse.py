@@ -1,8 +1,26 @@
 """Previously uncovered commit order and same-name replacement for offices/types."""
+import hashlib
 import json
+import os
+from pathlib import Path
 
 import test_q04_postgres_related_writes as related
 from q04_pg_helpers import PrivatePostgresCase
+
+
+def expected_vehicle_reverse_status():
+    # This same test is copied into one frozen, name-only historical worktree.
+    # Never accept both statuses or infer a legacy contract from missing code.
+    baseline = os.environ.get('Q04_GAPS_BASELINE_REF')
+    if baseline is None:
+        return 409
+    if baseline != '6d7d8c9ccc7bd661cd86a6b5fa68b99da2a7c668':
+        raise AssertionError('Unknown Q04 historical vehicle-selection contract')
+    source = Path(__file__).resolve().parents[1] / 'dkss_app' / 'vehicle_master.py'
+    if hashlib.sha256(source.read_bytes()).hexdigest() != (
+            'add55dea6d053b64090ffc787c14f4ebcd5c6773526e883b6c29682276dc473c'):
+        raise AssertionError('Q04 historical vehicle source does not match the frozen baseline')
+    return 400
 
 
 class ReverseRelatedWriteTests(PrivatePostgresCase):
@@ -19,7 +37,7 @@ class ReverseRelatedWriteTests(PrivatePostgresCase):
         results, waited = self.schedule(master, self.action(path, data),
             'office' if kind == 'offices' else 'vehicle_type')
         self.assertEqual(results[0].get('status'), 302, repr(results))
-        self.assertEqual(results[1].get('status'), 400, repr(results))
+        self.assertEqual(results[1].get('status'), expected_vehicle_reverse_status() if writer.startswith('vehicle_') else 400, repr(results))
         self.assertTrue(waited)
         self.assertEqual(self.target_rows(writer), before, 'Rejected request left partial User/Driver/Vehicle changes')
         self.assertEqual(self.orphans(), [])

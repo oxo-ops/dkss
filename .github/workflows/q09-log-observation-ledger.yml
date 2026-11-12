@@ -44,9 +44,18 @@ jobs:
           env -i PATH="$PATH" HOME="$test_home" LANG=C.UTF-8 "$python_bin" -B -E -s - <<'PY'
           import unittest
           import test_log_ledger
+          import test_offline_monitor
 
-          suite = unittest.defaultTestLoader.loadTestsFromModule(test_log_ledger)
-          result = unittest.TextTestRunner(verbosity=2).run(suite)
-          valid = result.wasSuccessful() and result.testsRun == 54 and not result.skipped
-          raise SystemExit(0 if valid else 1)
+          for module, expected_count in (
+              (test_log_ledger, 54),
+              (test_offline_monitor, 41),
+          ):
+              suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+              if suite.countTestCases() != expected_count:
+                  raise SystemExit("UNEXPECTED_SYNTHETIC_TEST_COUNT")
+              result = unittest.TextTestRunner(verbosity=2).run(suite)
+              valid = (result.wasSuccessful() and
+                       result.testsRun == expected_count and not result.skipped)
+              if not valid:
+                  raise SystemExit(1)
           PY
