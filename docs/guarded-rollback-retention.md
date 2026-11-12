@@ -1,15 +1,17 @@
 # Limited rollback: retain incompatible saved analysis
 
-This candidate starts from current main commit `c6e378491096248463fd3c9f0ebfc2fbbbbf76d3`
-(tree `4dd4f37a1911156657c63bc7818529cced08d005`) and retains its complete vehicle
-master-selection protection from PR380. It applies the previously validated
+This candidate integrates current main commit `d67242646680053c8afe1d5c027e315a921d07a8`
+into the earlier guarded candidate `41285e7268f3653959e0bea85da61b9a72db97dd`.
+It retains both PR380 vehicle master-selection protection and PR378 daily
+reflection account-identity protection. The daily product/test files do not
+overlap the guarded-result changes; neither protection is replaced. It applies the previously validated
 saved-result guard from `a406c56b68c8d3d11d54a8a3a975eb98b5034277` (tree
 `e051fef73c7898a94a74ab242c9bc1704790c17b`), originally based on e8a. The main16
 and guard30 changed paths do not overlap; neither product change is replaced.
 It is **not a deployment** and
 is not a backport of PR377. The pinned compatible PR377 candidate is
-`692298445d7d57c9c611328792ef966d27b4ebe9` (tree
-`4e1afcd727375d71ce1eb4cffce6dcf594db5dab`).
+`39f10146447720f025445b9ff9f0ee10d959c89d` (tree
+`98202d4ec81b974e8fb41b49a007c7921e2996ee`).
 This pin includes the newer-generation reservation fence and the final Vehicle
 FOR NO KEY UPDATE source gate. Pinning it does not claim its native PostgreSQL
 acceptance has run for this combined head. The guarded product retains current main
@@ -158,8 +160,8 @@ python tests/run_guarded_independent.py --producer /path/to/exact-v8
 rm -rf "$private_root"
 ```
 
-The producer must have tree 4e1afcd727375d71ce1eb4cffce6dcf594db5dab, commit
-692298445d7d57c9c611328792ef966d27b4ebe9. The runner checks the full source tree.
+The producer must have tree 98202d4ec81b974e8fb41b49a007c7921e2996ee, commit
+39f10146447720f025445b9ff9f0ee10d959c89d. The runner checks the full source tree.
 The dedicated CI additionally verifies both checkout HEADs. No saved JSON fixture,
 old snapshot, prior recipe or generated-data hash is an input or an export.
 
@@ -246,7 +248,7 @@ only the fresh test container; production logging is never accessed or changed.
 Failure to verify either layer stops before generating data. No native PG result
 or logging-configuration success is claimed until the dedicated CI actually runs.
 
-The dedicated validation/guarded-rollback-independent-20261112 branch push runs
+The dedicated validation/guarded-rollback-daily-20261112 branch push runs
 this workflow. A separately opened PR can run other existing required workflows.
 The workflow's optional native PG flag uses the existing disposable test URL;
 it is not a production setting and is never enabled by product code.

@@ -235,6 +235,9 @@ def register_reflections(app, db, prepare, history):
 
     def context(rows, previous, filters, board, facts):
         user=User.query.filter_by(company_code=session['company_code'],username=session['username']).one()
+        account_identity=user.account_identity
+        if not isinstance(account_identity,str) or not account_identity or account_identity!=session.get('account_identity'):
+            abort(403)
         record_ids=sorted((r.id,version(r)) for r in rows+previous)
         # Grants are included even for admins: reassigning an account changes grouping.
         grants=driving_access.bindings(rows+previous)
@@ -245,13 +248,13 @@ def register_reflections(app, db, prepare, history):
         # A previously requested view may refresh after its records change. Bind
         # this subscription to the immutable account, role and exact filters;
         # never transfer one person's automatic refresh to another account.
-        refresh_scope=hashlib.sha256(json.dumps([user.company_code,user.id,user.role,user.username,dict(filters)],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+        refresh_scope=hashlib.sha256(json.dumps([user.company_code,user.id,account_identity,user.role,user.username,dict(filters)],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         document={'scope':board['scope_name'], 'period':board['period'], 'role':'self' if board.get('personal_view') or not driving_access.administrator() else 'manager',
                   'evidence':evidence[:200], 'candidate_count':len(evidence), 'included_count':min(200,len(evidence)),
                   'refresh_scope':refresh_scope,'registered_vehicle_conditions':board.get('registered_vehicle_conditions',[]),
                   'current_affiliations':board.get('current_affiliations',[])}
         vehicle_context=[(v['id'],v.get('context')) for v in vehicles]
-        identity=[user.company_code,user.id,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,sorted(f['row'].id for f in facts+board.get('personal_held_facts',[]) if f.get('personal_hold')),'reflection-v3-personal-holds']
+        identity=[user.company_code,user.id,account_identity,user.role,user.username,dict(filters),record_ids,bindings,maintenance,vehicle_context,document,sorted(f['row'].id for f in facts+board.get('personal_held_facts',[]) if f.get('personal_hold')),'reflection-v3-personal-holds']
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
         return cache_key,document
 
