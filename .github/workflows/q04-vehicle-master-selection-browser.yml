@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/q04-selection-browsers
       Q04_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       AWS_EC2_METADATA_DISABLED: 'true'
       AWS_ACCESS_KEY_ID: ''
@@ -63,7 +62,7 @@ jobs:
           set -euo pipefail
           python -m pip install -r requirements.txt
           npm install --no-save --prefix "$RUNNER_TEMP/q04-selection-node" playwright@1.62.1
-          node "$RUNNER_TEMP/q04-selection-node/node_modules/playwright/cli.js" install --with-deps chromium
+          PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/q04-selection-browsers" node "$RUNNER_TEMP/q04-selection-node/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Preflight synthetic SQLite fixture over real loopback HTTP
         timeout-minutes: 2
         shell: bash
@@ -81,7 +80,7 @@ jobs:
           set -euo pipefail
           timeout 270s env -i PATH="$PATH" LANG=C.UTF-8 HOME="$RUNNER_TEMP" \
             NODE_PATH="$RUNNER_TEMP/q04-selection-node/node_modules" \
-            PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
+            PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/q04-selection-browsers" \
             Q04_PYTHON="$(command -v python)" Q04_SOURCE_SHA="$Q04_SOURCE_SHA" \
             "$(command -v node)" tests/q04_vehicle_master_selection_browser.cjs \
             "$RUNNER_TEMP/q04-selection-browser" \
