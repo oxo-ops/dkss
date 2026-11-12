@@ -576,10 +576,15 @@ def main():
                     expect(disclosure).to_have_attribute('open', '')
                     try:
                         page.wait_for_function('() => { const state = (' + PREVIEW_STATE + ')(); return state.ready || state.error; }', timeout=10000)
+                        # The first ready raster can be removed by the viewer's
+                        # pending 120ms fit/ResizeObserver render. Observe the
+                        # same stable final state used below before branching;
+                        # a second one-shot sample can land in that canvas gap.
+                        settled_invoice_preview(entry)
                     except Exception as error:
                         entry['wait_error'] = type(error).__name__
-                    finally:
                         entry.update(page.evaluate(PREVIEW_STATE))
+                    finally:
                         page.screenshot(path=str(out / f'invoice-preview-{stage}-{width}.png'), full_page=True)
                     if entry['ready']:
                         canvas = viewer.locator('.invoice-pdf-page canvas')
