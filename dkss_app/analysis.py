@@ -88,13 +88,16 @@ def vehicle_karte_analysis_result(vehicle_record_id):
     is_current = None
     input_summary = None
     scheduled_comparison = None
+    input_warning = None
     try:
         projection, stable = get_vehicle_analysis_read_projection(vehicle)
         scheduled_comparison = projection.get('comparison')
         input_summary = projection['input_summary']
         if has_result and stable:
             is_current = vehicle_karte_analysis_matches_input(bundle, {'_fingerprints': projection['fingerprints']})
-    except Exception:
+    except Exception as error:
+        if isinstance(error, ValueError) and str(error) == 'CONFIRMED_PRIORITY_CANDIDATE_LIMIT':
+            input_warning = '確認済み根拠が一度に照合できる件数を超えています。候補を一部だけに絞らず、分析更新を保留しています。前回の評価を確認してください。'
         _dkss_runtime.app.logger.warning("車両分析の入力・更新状態を確認できませんでした。vehicle_id=%s", vehicle.id)
 
     if status == "completed" and is_current is True:
@@ -122,15 +125,21 @@ def vehicle_karte_analysis_result(vehicle_record_id):
         message += " 現在は前回の結果を表示しています。"
 
     from vehicle_risk_assessment import annotate_analysis  # VEHICLE_RISK_MATRIX_API_V1
+    from .priority_projection import project_registered_priorities
+    decorated = annotate_analysis(_dkss_analysis_feedback.analysis_with_vehicle_feedback(analysis, vehicle),
+        bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None
+    decorated = project_registered_priorities(decorated, vehicle, bundle.get("sources"),
+        is_current=is_current) if has_result else None
     response = _dkss_common.jsonify(
         ok=True,
         status=status,
         has_result=has_result,
         is_current=is_current,
         input_summary=input_summary,
+        input_warning=input_warning,
         scheduled_comparison=scheduled_comparison,
         message=message,
-        analysis=annotate_analysis(_dkss_analysis_feedback.analysis_with_vehicle_feedback(analysis, vehicle), bundle.get("sources"), vehicle.company_code, vehicle.id, is_current) if has_result else None,
+        analysis=decorated,
         sources=bundle.get("sources") if has_result else {},
         coverage=bundle.get("coverage") if has_result else {},
         comparison=(
@@ -220,14 +229,18 @@ def get_vehicle_karte_analysis_job_data(vehicle):
 
 
 
-def run_vehicle_karte_analysis_job(state_id):
+def run_vehicle_karte_analysis_job(state_id, *, ownership_check=None):
     """専用のバックグラウンド処理から呼び出す。"""
+    from .priority_confirmed_projection import prepare_held_confirmed_candidates, reconcile_confirmed_candidates_before_save
     repository = _dkss_common.VehicleAnalysisJobRepository(
         db=_dkss_common.db, state_model=_dkss_models.VehicleKarteAnalysis, vehicle_model=_dkss_models.Vehicle,
     )
     return _dkss_common.VehicleAnalysisJobService(
         repository=repository, load_input=get_vehicle_karte_analysis_job_data,
+        ownership_check=ownership_check,
         analyze=_dkss_common.analyze_vehicle_karte,
+        prepare_confirmed=prepare_held_confirmed_candidates,
+        reconcile_confirmed=reconcile_confirmed_candidates_before_save,
         utc_now=lambda: _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC")),
         new_token=lambda: str(_dkss_common.uuid4()),
         input_context=lambda: _dkss_runtime.app.test_request_context("/"),
@@ -274,7 +287,19 @@ def vehicle_karte_analysis_worker():
 
 
 def vehicle_karte_analysis_tick():
-    """公開資料と登録内容の変更を確認し、予約済み分析を実行する。"""
+    """Share the analysis leader gate with the opt-in web runtime."""
+    from flask import current_app
+    from .analysis_worker import leadership
+    _refresh_analysis_public_knowledge()
+    with leadership(current_app._get_current_object(), allow_local=True) as owner:
+        if owner is None:
+            print("ANALYSIS_WORKER_BUSY", flush=True)
+            return
+        return _vehicle_karte_analysis_tick_unlocked(ownership_check=owner.check)
+
+
+def _refresh_analysis_public_knowledge():
+    """Keep the pre-existing public-source CLI refresh independent of leadership."""
     try:
         public_result = _dkss_runtime.app.extensions["dkss"]['public_knowledge_tick']()
         if public_result:
@@ -285,6 +310,9 @@ def vehicle_karte_analysis_tick():
     finally:
         _dkss_common.db.session.remove()
 
+def _vehicle_karte_analysis_tick_unlocked(*, ownership_check=lambda: None):
+    """Explicit CLI scan; web execution uses bounded batches instead."""
+    ownership_check()
     targets = (
         _dkss_common.db.session.query(_dkss_models.Vehicle.id, _dkss_models.Vehicle.company_code)
         .join(
@@ -303,6 +331,7 @@ def vehicle_karte_analysis_tick():
     scan_errors = 0
 
     for vehicle_id, company_code in targets:
+        ownership_check()
         try:
             vehicle = _dkss_models.Vehicle.query.filter_by(
                 id=vehicle_id,
@@ -316,6 +345,7 @@ def vehicle_karte_analysis_tick():
             with _dkss_runtime.app.test_request_context("/"):
                 payload, _ = get_vehicle_karte_analysis_job_data(vehicle)
 
+            ownership_check()
             queue_vehicle_karte_analysis(vehicle, payload)
             _dkss_common.db.session.commit()
             scanned += 1
@@ -371,7 +401,7 @@ def vehicle_karte_analysis_tick():
 
     for (state_id,) in due_ids:
         try:
-            if run_vehicle_karte_analysis_job(state_id):
+            if run_vehicle_karte_analysis_job(state_id, ownership_check=ownership_check):
                 completed += 1
             else:
                 failed += 1
@@ -1286,6 +1316,12 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
                 repair = {}
             treatments.append({'defect_no': defect.get('defect_no'), 'maintenance_source_ids': links_by_defect.get((row.id, defect.get('defect_no')), []), 'recheck_result': short((defect.get('recheck') or {}).get('result')), 'recheck_date': short((defect.get('recheck') or {}).get('performed_at'), 30), 'recheck_note': str((defect.get('recheck') or {}).get('note') or '').strip(), 'item_no': defect.get('item_no'), 'status': short(defect.get('status')), 'repair_note': short(repair.get('note')), 'repair_date': short(repair.get('performed_at'), 30)})
         add('inspection', row, date_text, {'type': '日常点検・車両チェックリスト', 'content': short(snapshot.get('name') or '点検結果'), 'status': short(row.status), 'has_attention': attention, 'answer_count': len(answers), 'failure_count': sum((str(answer.get('value') or '').strip() == '×' for answer in answers)), 'finding_count': len(findings), 'findings': findings, 'treatments': treatments, 'registered_operation_judgment': short(judgment.get('status')), 'judgment_reason': short(judgment.get('reason'))}, _dkss_common.url_for('vehicle_checklist_results', index=row.checklist_id, vehicle_record_id=vehicle.id, year=row.year, month=row.month, active_day=row.day))
+        # Server-created provenance accompanies newly generated results. Old
+        # saved sources stay untouched; citations alone cannot bind a new event.
+        from .priority_projection import registered_inspection_provenance
+        sources[f'inspection:{row.id}']['priority_provenance'] = registered_inspection_provenance(vehicle, row)
+        from vehicle_priority_inputs import inspection_inputs
+        records[-1]['priority_inputs'] = inspection_inputs(sources[f'inspection:{row.id}']['priority_provenance'])
     periodic = _dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all()
     for row in periodic:
         excluded_inspection = periodic_inspection_synthetic_evidence(row)
@@ -1394,6 +1430,17 @@ def build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenan
     payload['feedback_context'] = feedback_context
     fingerprints['important_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps({'history': fingerprints['important_hash'], 'knowledge': knowledge_for_fingerprint, 'feedback': feedback_context}, sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
     fingerprints['has_important_history'] = fingerprints['has_important_history'] or bool(knowledge) or bool(feedback_context)
+    from .priority_timing import attach_timing_priority_inputs
+    attach_timing_priority_inputs(vehicle, payload, sources)
+    from .priority_confirmed_projection import attach_confirmed_priority_inputs
+    from .priority_confirmations import confirmation_input_state
+    attach_confirmed_priority_inputs(vehicle, payload, sources)
+    confirmation_state = confirmation_input_state(vehicle)
+    if confirmation_state['revision']:
+        fingerprints['important_hash'] = _dkss_common.hashlib.sha256(_dkss_common.json.dumps(
+            {'history': fingerprints['important_hash'], 'confirmed_sources': confirmation_state},
+            sort_keys=True, ensure_ascii=False, default=str).encode('utf-8')).hexdigest()
+        fingerprints['has_important_history'] = True
     return (payload, sources)
 
 
@@ -1550,9 +1597,9 @@ def build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start_dat
 
 
 
-def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date):
+def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date, end_date, *, mileage_reference=None):
     """Period-scoped saved registrations, independent of AI selection/freshness."""
-    from decimal import Decimal, InvalidOperation
+    from vehicle_comparison_presentation import finite_number, replacement_distance
 
     def day(value):
         try:
@@ -1568,8 +1615,10 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
                and row.vehicle_record_id == vehicle.id]
     children = [row for row in parts if row.company_code == vehicle.company_code
                 and row.vehicle_record_id == vehicle.id]
-    _, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    parents, children, _ = filter_vehicle_maintenance_factual_history(parents, children)
+    parents_by_id = {row.id: row for row in parents}
     candidates = []
+    daily_mileages = {}
     for part in children:
         replaced = day(part.replacement_date)
         if replaced is None or not start <= replaced <= end:
@@ -1578,22 +1627,22 @@ def build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start_date,
         if not name:
             continue
         candidates.append((replaced, int(part.id or 0), part))
+        key = (name, str(part.part_number or "").strip())
+        daily_mileages.setdefault((replaced, key), set()).add(finite_number(part.mileage, nonnegative=True))
     result, seen = [], set()
     for replaced, _, part in sorted(candidates, key=lambda value: value[:2], reverse=True):
         key = (str(part.part_name).strip(), str(part.part_number or "").strip())
         if key in seen:
             continue
         seen.add(key)
-        try:
-            mileage = Decimal(str(part.mileage))
-            if not mileage.is_finite() or mileage < 0:
-                mileage = None
-        except (InvalidOperation, ValueError, TypeError):
-            mileage = None
+        distance = replacement_distance(
+            part, parents_by_id[part.maintenance_record_id], mileage_reference,
+            ambiguous_mileage=len(daily_mileages[(replaced, key)]) > 1,
+        )
         result.append({
             "source_id": f"part:{part.id}", "part_name": key[0],
             "part_number": key[1], "replacement_date": replaced.isoformat(),
-            "mileage": mileage,
+            **distance,
             "url": _dkss_common.url_for("vehicle_karte_maintenance", vehicle_record_id=vehicle.id,
                            record_id=part.maintenance_record_id),
         })
@@ -1656,4 +1705,10 @@ def vehicle_karte_analysis(vehicle_record_id):
                     status = 502
                 return (_dkss_common.jsonify(ok=False, message=message), status)
         return _dkss_common.jsonify(ok=True, analysis=result, sources=sources, coverage=payload['coverage'], generated_at=_dkss_common.datetime.now(_dkss_common.ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M'))
-    return _dkss_common.render_template('vehicle_karte_analysis.html', priority_preview_mode=priority_preview_mode, karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat()), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=get_vehicle_karte_peer_comparison(vehicle, summary, registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'), include_inactive=_dkss_common.request.args.get('peer_inactive') == '1'), analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)
+    from vehicle_comparison_presentation import cost_comparison
+    comparison = get_vehicle_karte_peer_comparison(
+        vehicle, summary,
+        registration_scope=_dkss_common.request.args.get('peer_registration', 'auto'),
+        include_inactive=_dkss_common.request.args.get('peer_inactive') == '1',
+    )
+    return _dkss_common.render_template('vehicle_karte_analysis.html', analysis_cost_comparison=cost_comparison(summary, comparison), priority_preview_mode=priority_preview_mode, karte_driving_summary=_dkss_vehicle_operations.get_vehicle_driving_report_summary(vehicle.company_code, vehicle.id, start.isoformat(), end.isoformat()) if _dkss_access.require_master_admin() else None, vehicle=vehicle, vehicle_number=number, open_defects=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id), inspection_defect_progress=_dkss_checklists.get_vehicle_open_inspection_defects(vehicle.company_code, vehicle.id, include_resolved=True), analysis_summary=summary, analysis_cost_breakdown=build_vehicle_karte_dashboard_cost_breakdown(vehicle, maintenance, start.isoformat(), end.isoformat()), analysis_part_history=build_vehicle_karte_dashboard_parts(vehicle, maintenance, parts, start.isoformat(), end.isoformat(), mileage_reference=summary.get("mileage_reference")), analysis_progress=build_vehicle_karte_service_progress(maintenance, summary), analysis_comparison=comparison, analysis_today=today.isoformat(), format_analysis_number=_dkss_vehicle_karte.format_vehicle_maintenance_number)

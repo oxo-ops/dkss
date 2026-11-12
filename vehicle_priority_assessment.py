@@ -79,6 +79,8 @@ class Fact:
     reference_ids: tuple[str, ...] = ()
     baseline_source_ids: tuple[str, ...] = ()
     comparison_verified: bool = False
+    # A trusted adapter may attest precise same-day order; never reverses dates.
+    comparison_order_verified: bool = False
 
 
 @dataclass(frozen=True)
@@ -159,7 +161,7 @@ def _validate(candidate: Candidate, evidence: Mapping[str, Evidence],
         if any(type(flag) is not bool for flag in (reference.verified, reference.applicable, reference.immediate_action)):
             raise InvalidInput("reference flags must be booleans")
     for fact in candidate.facts:
-        if fact.code not in KNOWN_CODES or type(fact.verified) is not bool or type(fact.comparison_verified) is not bool:
+        if fact.code not in KNOWN_CODES or type(fact.verified) is not bool or type(fact.comparison_verified) is not bool or type(fact.comparison_order_verified) is not bool:
             raise InvalidInput("unknown fact code or invalid verification")
 
 
@@ -253,7 +255,10 @@ def assess_priority(candidate: Candidate, evidence: Mapping[str, Evidence],
             if valid:
                 current = [evidence[sid] for sid in fact.source_ids]
                 previous = [evidence[sid] for sid in fact.baseline_source_ids]
-                valid = (max(s.observed_on for s in previous) < min(s.observed_on for s in current)
+                previous_day = max(s.observed_on for s in previous)
+                current_day = min(s.observed_on for s in current)
+                valid = ((previous_day < current_day or
+                          (fact.comparison_order_verified is True and previous_day == current_day))
                          and not set(fact.source_ids) & set(fact.baseline_source_ids))
                 if code == "state_recurrent":
                     valid = (valid and all(s.status == "resolved" for s in previous)

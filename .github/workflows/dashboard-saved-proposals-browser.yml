@@ -5,6 +5,11 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'templates/index.html'
+      - 'templates/partials/dashboard_safety_attention.html'
+      - 'dkss_app/dashboard.py'
+      - 'dkss_app/dashboard_safety_attention.py'
+      - 'static/css/dashboard_safety_attention.css'
+      - 'tests/test_dashboard_safety_attention.py'
       - 'static/css/dashboard_attention.css'
       - 'tests/test_dashboard_saved_proposals.py'
       - 'tests/dashboard_saved_proposals_browser/**'

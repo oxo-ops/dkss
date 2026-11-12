@@ -56,7 +56,7 @@ class VehicleAnalysisJobRepository:
 
     def get_or_create(self, vehicle):
         scope = {"company_code": vehicle.company_code, "vehicle_record_id": vehicle.id}
-        state = self.State.query.filter_by(**scope).first()
+        state = self.State.query.filter_by(**scope).with_for_update().first()
         if state is None:
             try:
                 with self.db.session.begin_nested():
@@ -64,7 +64,7 @@ class VehicleAnalysisJobRepository:
                     self.db.session.add(state)
                     self.db.session.flush()
             except IntegrityError:
-                state = self.State.query.filter_by(**scope).one()
+                state = self.State.query.filter_by(**scope).with_for_update().one()
         return state
 
     def get(self, state_id):
@@ -89,6 +89,18 @@ class VehicleAnalysisJobRepository:
         return self.Vehicle.query.filter_by(
             id=vehicle_record_id, company_code=company_code, deleted=False,
         ).first()
+
+    def lock_vehicle_for_finish(self, company_code, vehicle_record_id):
+        # Normal daily-inspection repair/recheck and optional confirmation
+        # writers acquire this same scoped vehicle row before source writes.
+        # Claim already committed; lock only after model work, before fresh
+        # reconciliation, and retain it through the result commit.
+        self.db.session.expire_all()
+        # PostgreSQL FOR NO KEY UPDATE excludes normal source UPDATEs without
+        # blocking foreign-key KEY SHARE from an analysis-row-owning writer.
+        return self.Vehicle.query.filter_by(
+            company_code=company_code, id=vehicle_record_id, deleted=False,
+        ).populate_existing().with_for_update(key_share=True).first()
 
     def skip(self, state_id, token):
         self.State.query.filter_by(id=state_id, lease_token=token).update({
@@ -116,27 +128,50 @@ class VehicleAnalysisJobRepository:
             self.db.session.rollback()
             return False
         changed = state.input_hash not in {claimed_hash, snapshot_hash}
+        if changed:
+            # A newer queued generation owns its reservation. Do not replace
+            # the previously saved result with an obsolete model response.
+            state.status = "pending"
+            if state.next_analysis_at is None:
+                state.next_analysis_at = finished + timedelta(minutes=2)
+            state.lease_token = None
+            state.lease_expires_at = None
+            self.db.session.commit()
+            return False
         state.result_json = json.dumps(bundle, ensure_ascii=False, default=str)
         state.last_analyzed_at = finished if method == "ai" else None
         state.last_error = None
         state.lease_token = None
         state.lease_expires_at = None
-        if changed:
-            state.status = "pending"
-            state.next_analysis_at = finished + timedelta(minutes=2)
-        else:
-            state.status = "completed"
-            state.input_hash = snapshot_hash
-            state.next_analysis_at = None
+        state.status = "completed"
+        state.input_hash = snapshot_hash
+        state.next_analysis_at = None
         self.db.session.commit()
         return True
 
     def rollback(self):
         self.db.session.rollback()
 
-    def fail(self, state_id, token, code, retry_at):
-        self.State.query.filter_by(id=state_id, lease_token=token).update({
-            "status": "error", "last_error": code, "next_analysis_at": retry_at,
-            "lease_token": None, "lease_expires_at": None,
-        }, synchronize_session=False)
+    def fail(self, state_id, token, code, retry_at, *, claimed_hash, snapshot_hash=None):
+        self.db.session.expire_all()
+        state = self.State.query.filter_by(id=state_id, lease_token=token).with_for_update().first()
+        if state is None:
+            self.db.session.rollback()
+            return False
+        expected = {claimed_hash}
+        if snapshot_hash is not None:
+            expected.add(snapshot_hash)
+        if state.input_hash not in expected:
+            # An old attempt's failure must not bury newly queued input in the
+            # old one-hour retry. Keep its deadline, previous result and error.
+            state.status = "pending"
+            if state.next_analysis_at is None:
+                state.next_analysis_at = retry_at - timedelta(hours=1) + timedelta(minutes=2)
+        else:
+            state.status = "error"
+            state.last_error = code
+            state.next_analysis_at = retry_at
+        state.lease_token = None
+        state.lease_expires_at = None
         self.db.session.commit()
+        return True

@@ -123,7 +123,8 @@ class DashboardSavedProposalTests(unittest.TestCase):
                     self.assertIn(f'残り{count - 5}件', more[0].find(tag='summary')[0].text)
                     self.assertEqual(len(more[0].find(tag='tbody')[0].find(tag='tr')), count - 5)
                 self.assertEqual(len(panel.find(cls='dashboard-attention-view-all')), int(count > 5))
-                expected = sorted(items, key=lambda i: ({'高': 0, '中': 1, '低': 2}[i['priority']], i['title']))
+                # Shared response-priority order uses the stable proposal ID, not title.
+                expected = sorted(items, key=lambda i: ({'高': 0, '中': 1, '低': 2}[i['priority']], vehicle_analysis_proposal_ids(i)[0]))
                 all_rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
                 self.assertEqual(len(all_rows), count)
                 for row, item in zip(all_rows, expected):
@@ -145,10 +146,24 @@ class DashboardSavedProposalTests(unittest.TestCase):
         badges = root.find(cls='dashboard-attention-priority')
         self.assertEqual([b.text for b in badges], ['高', '中', '低'])
         self.assertEqual([b.attrs['aria-label'] for b in badges],
-                         ['保存済みの優先度：高', '保存済みの優先度：中', '保存済みの優先度：低'])
+                         ['対応優先度：高', '対応優先度：中', '対応優先度：低'])
         self.assertNotIn('<img src=x onerror=alert(1)>', html)
         self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
         self.assertNotIn('<script>bad</script>', html)
+        panel = root.find(cls='dashboard-attention-panel')[0]
+        rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
+        self.assertEqual(len(rows), 6)
+        self.assertEqual([len(row.find(cls='dashboard-priority-note')) for row in rows], [1] * 6)
+        notes = [note for row in rows for note in row.find(cls='dashboard-priority-note')]
+        self.assertEqual(sum('保存版' in note.text for note in notes), 3)
+        self.assertEqual(sum('元データ' in note.text for note in notes), 3)
+        self.assertTrue(all('dashboard-reference-reason' not in note.attrs.get('class', '') for note in notes))
+        # The count explanation is separate from each proposal's evidence note.
+        heading = panel.find(tag='h3')[0]
+        count_notes = heading.find(cls='dashboard-priority-note')
+        self.assertEqual([note.text.strip() for note in count_notes], ['前回評価を含む'])
+        self.assertIn('6件', heading.text)
+        self.assertEqual(root.find(cls='dashboard-priority-note'), count_notes + notes)
 
     def test_both_groups_have_independent_preview_limits_and_company_boundaries(self):
         self.configure()

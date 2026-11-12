@@ -4,6 +4,8 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_attention.css', v='20261110-saved-proposals-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_safety_attention.css', v='20261111-1') }}">
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
@@ -369,9 +371,14 @@
 
 {% endif %}
 
-{% if dashboard_settings.get("show_analysis", True) %}
-    <section class="dashboard-attention dashboard-attention-list" aria-label="車両の確認・対応候補">
-        <h3 class="dashboard-reference-title">確認・対応すること</h3>
+{% if dashboard_settings.get("show_analysis", True) or dashboard_settings.get("show_pending", True) %}
+    <section class="dashboard-attention dashboard-attention-list" aria-label="安全・車両の確認・対応">
+        <h3 class="dashboard-reference-title">安全・車両の確認・対応</h3>
+        {% if dashboard_settings.get("show_pending", True) %}
+        {% include "partials/dashboard_safety_attention.html" %}
+        {% endif %}
+        {% if dashboard_settings.get("show_analysis", True) %}
+        <h4 class="dashboard-vehicle-attention-heading">車両管理：AIの整備提案</h4>
         {% set attention_preview_limit = 5 %}
         {% macro attention_table(items, preview=false) %}
         <div class="dashboard-attention-table-wrap{% if preview %} dashboard-attention-preview{% endif %}">
@@ -392,7 +399,11 @@
                             <a href="{{ item.url }}">{{ item.vehicle_number }}</a>
                             <strong>
                                 {% if item.priority in ['高', '中', '低'] %}
-                                <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="保存済みの優先度：{{ item.priority }}">{{ item.priority }}</span>
+                                {% set assessment = item.get('priority_assessment') %}
+                                <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %}、{{ assessment.effective_score }}点{% endif %}">{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %} · {{ assessment.effective_score }}点{% endif %}</span>
+                                <small class="dashboard-priority-note">{% if assessment and assessment.calculation_status == 'computed' %}{% if item.priority == '高' %}責任者・整備担当者の判断を優先{% if assessment.missing_conditions %}／要確認{% endif %}{% else %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% endif %}{% else %}保存版・算定根拠を確認{% endif %}</small>
+                                {% else %}
+                                <small class="dashboard-priority-note">優先度の元データを確認してください。</small>
                                 {% endif %}
                                 {{ item.target or item.title }}
                             </strong>
@@ -435,6 +446,9 @@
                     {{ title }}
                 {% endif %}
                 <span>{{ maintenance|length }}件</span>
+                {% set evaluation_scope = namespace(previous=false) %}
+                {% for item in maintenance %}{% if (item.get('priority_assessment') or {}).get('calculation_status') == 'legacy_preserved' %}{% set evaluation_scope.previous = true %}{% endif %}{% endfor %}
+                {% if evaluation_scope.previous %}<small class="dashboard-priority-note">前回評価を含む</small>{% endif %}
                 {% if maintenance|length > attention_preview_limit %}
                 <button type="button" class="dashboard-attention-view-all"
                         data-reference-target="#dashboard-attention-more-{{ key }}"
@@ -498,6 +512,7 @@
             {% endif %}
         </div>
         {% endfor %}
+        {% endif %}
     </section>
     {% endif %}
 
@@ -770,20 +785,22 @@
                         <p class="dashboard-office-empty">集計対象の回答に、満点未満の項目はありません。</p>
                         {% endfor %}
 
-                        <p class="dashboard-office-trend-note">満点未満の回答数。対応済みの記録も含みます。</p>
+                        <p class="dashboard-office-trend-note">閲覧できる記録の満点未満の回答数。対応済みの記録も含みます。</p>
                     </div>
 
-                    {% if safety_trend.get('focus') %}
-                    {% set focus = safety_trend.focus %}
-                    <aside class="dashboard-office-focus">
-                        <span>多く見られた項目</span>
-                        <strong>{{ focus.content }}</strong>
-                        <small>{{ focus.category }}・期間内{{ focus.count }}件</small>
-                        {% if focus.url %}
-                        <a href="{{ focus.url }}">点検記録を確認 ›</a>
-                        {% else %}
-                        <small>詳しい記録は管理者に確認してください。</small>
-                        {% endif %}
+                    {% if safety_trend.get('issues') %}
+                    <aside class="dashboard-office-focus dashboard-trend-records">
+                        <h4>多く見られた項目と元記録</h4>
+                        {% for issue in safety_trend.issues %}
+                        <details class="dashboard-trend-issue">
+                            <summary>{{ issue.content }} <small>{{ issue.category }}・{{ issue.count }}件</small></summary>
+                            <ul>
+                                {% for record in issue.records %}
+                                <li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 ›</a></li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        {% endfor %}
                     </aside>
                     {% endif %}
                 </div>

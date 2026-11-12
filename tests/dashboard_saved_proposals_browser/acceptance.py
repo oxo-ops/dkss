@@ -40,9 +40,10 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     os.chdir(repo)
     sys.path[:0] = [str(repo), str(repo / 'tests')]
-    from test_dashboard_saved_proposals import DashboardSavedProposalTests, Document
+    from test_dashboard_saved_proposals import Document
+    from test_dashboard_safety_attention import DashboardSafetyAttentionTests
     from sqlalchemy import event
-    case = DashboardSavedProposalTests()
+    case = DashboardSafetyAttentionTests()
     report = dict(candidate_sha=sha, candidate_tree=tree, fixture_only=True,
                   production_accessed=False, browser_started=False, browser_acceptance_passed=False,
                   transport='in-process Flask GET bridge', cases=[], geometry=[],
@@ -63,6 +64,15 @@ def main():
         other = m.Vehicle(company_code='TEST', chassis_number='dashboard-second', office='試験営業所')
         m.db.session.add(other); m.db.session.flush()
         case.save(other, case.recommendations(8))
+        for i in range(5):
+            case.patrol(f'架空の安全確認{i}', countermeasure_due_date='2026-11-20')
+        trend_rows = case.seed_trend()
+        from zoneinfo import ZoneInfo
+        for row in trend_rows:
+            row.checked_date = datetime.now(ZoneInfo('Asia/Tokyo')).date().isoformat()
+        m.db.session.commit()
+        safety_before = [tuple(getattr(row, col.name) for col in m.PatrolResult.__table__.columns)
+                         for row in m.PatrolResult.query.order_by(m.PatrolResult.id)]
         def snapshot():
             return [(r.company_code, r.vehicle_record_id, r.status, r.result_json)
                     for r in m.VehicleKarteAnalysis.query.order_by(m.VehicleKarteAnalysis.id).all()]
@@ -73,6 +83,8 @@ def main():
         def validate_saved():
             m.db.session.expire_all()
             require(snapshot() == before, 'Saved recommendations changed')
+            require(safety_before == [tuple(getattr(row, col.name) for col in m.PatrolResult.__table__.columns)
+                         for row in m.PatrolResult.query.order_by(m.PatrolResult.id)], 'Safety records changed')
             require(m.VehicleAnalysisFeedback.query.count() == 0, 'Feedback was created')
             for write in report['database_mutations']:
                 allowed = (write['endpoint'] == dashboard_endpoint and
@@ -163,6 +175,36 @@ def main():
                         expect(details).to_have_attribute('open', '')
                         expect(all_button).to_have_attribute('aria-expanded', 'true')
                         details.locator('summary').click()
+                    safety = page.locator('.dashboard-attention-list .dashboard-safety-attention')
+                    expect(safety).to_have_count(1)
+                    expect(safety.locator('.dashboard-safety-content')).to_have_count(5)
+                    more = safety.locator('.dashboard-safety-more')
+                    expect(more).not_to_have_attribute('open', '')
+                    more.locator('summary').click()
+                    expect(more).to_have_attribute('open', '')
+                    more.locator('summary').click()
+                    more.locator('summary').focus(); page.keyboard.press('Enter')
+                    expect(more).to_have_attribute('open', '')
+                    more.locator('summary').click()
+                    source = safety.locator('.dashboard-safety-content a').first
+                    target = source.get_attribute('href')
+                    source.click(); expect(page).to_have_url(ORIGIN + target)
+                    page.go_back(wait_until='networkidle')
+                    expect(page.locator('.dashboard-safety-attention')).to_be_visible()
+                    trend = page.locator('.dashboard-trend-issue').filter(has_text='歩行経路を確認')
+                    trend.locator('summary').click()
+                    expect(trend.locator('a')).to_have_count(2)
+                    target = trend.locator('a').last.get_attribute('href')
+                    trend.locator('a').last.click(); expect(page).to_have_url(ORIGIN + target)
+                    page.go_back(wait_until='networkidle')
+                    page.go_forward(wait_until='networkidle'); expect(page).to_have_url(ORIGIN + target)
+                    page.go_back(wait_until='networkidle')
+                    expect(page.locator('.dashboard-safety-attention')).to_be_visible()
+                    page.locator('#dashboardTrendCostTab').click()
+                    expect(page.locator('#dashboardTrendSafety')).to_be_hidden()
+                    page.locator('#dashboardTrendSafetyTab').click()
+                    expect(page.locator('#dashboardTrendSafety')).to_be_visible()
+                    report['cases'].append(f'BROWSER {width}x{height}: safety and vehicle together, repeat safety expansion, source detail/back/forward, trend sources/tabs')
                     require(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Page horizontal overflow')
                     page.screenshot(path=str(output / f'dashboard-{width}x{height}.png'), full_page=True)
                     report['cases'].append(f'BROWSER {width}x{height}: five reachable rows, labels, repeated pointer/keyboard expansion, contained width')
@@ -180,6 +222,12 @@ def main():
                 details = nojs.locator('.dashboard-attention-more').first
                 details.locator('summary').click()
                 expect(details).to_have_attribute('open', '')
+                safety_more = nojs.locator('.dashboard-safety-more')
+                safety_more.locator('summary').click()
+                expect(safety_more).to_have_attribute('open', '')
+                trend = nojs.locator('.dashboard-trend-issue').filter(has_text='歩行経路を確認')
+                trend.locator('summary').click()
+                expect(trend.locator('a').last).to_be_visible()
                 plain.close()
                 validate_saved()
                 require(not report['page_errors'] and not report['blocked_requests'] and not report['failed_gets'], 'Unexpected request or script failure')

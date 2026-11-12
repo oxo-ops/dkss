@@ -23,6 +23,15 @@ def register_core_routes(app):
     view = app.route("/master/maintenance-knowledge", methods=["GET", "POST"])(view)
     view = knowledge.maintenance_knowledge_detail
     view = app.route("/vehicle/maintenance-knowledge/<int:knowledge_id>")(view)
+    from . import priority_confirmations
+    view = priority_confirmations.priority_confirmation_data
+    view = app.route("/vehicle/karte/<int:vehicle_record_id>/priority-confirmations", methods=["GET"])(view)
+    view = priority_confirmations.preview_priority_confirmation
+    view = app.route("/vehicle/karte/<int:vehicle_record_id>/priority-confirmations/preview", methods=["POST"])(view)
+    view = priority_confirmations.save_priority_confirmation
+    view = app.route("/vehicle/karte/<int:vehicle_record_id>/priority-confirmations", methods=["POST"])(view)
+    view = priority_confirmations.priority_certificate_original
+    view = app.route("/vehicle/karte/<int:vehicle_record_id>/priority-confirmations/certificates/<string:document_id>/source", methods=["GET"])(view)
     view = analysis_feedback.save_vehicle_analysis_feedback
     view = app.route("/vehicle/karte/<int:vehicle_record_id>/analysis/feedback", methods=["POST"])(view)
     view = analysis_feedback.save_vehicle_analysis_evaluation

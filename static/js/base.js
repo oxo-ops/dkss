@@ -2570,6 +2570,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 );
 
                 item.appendChild(message);
+                if (notification.related_priority?.summary) {
+                    appendText(item, "notification-related-priority",
+                        notification.related_priority.summary);
+                }
                 appendText(
                     item,
                     "notification-popover-meta",

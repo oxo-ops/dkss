@@ -1,6 +1,17 @@
 /* Notification hierarchy
    Notification-only visual hierarchy. Original layout, DOM, data and workflows retained.
    Blue: actions/selection; purple: pending work; teal: completed work. */
+.notification-related-priority {
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.notification-related-priority-detail { overflow-wrap: anywhere; }
+.notification-related-priority-detail ul { padding-left: 1.2rem; }
+.notification-related-priority-detail li { margin: .7rem 0; }
+.notification-related-priority-detail p { font-size: 12px; line-height: 1.6; }
 body .main-content .notifications-card:has(#notificationLayout) {
   color: #253247;
   background: #fff;

@@ -1,5 +1,6 @@
 """Notifications responsibilities; routes are registered by the application factory."""
 from .account_identity import notification_owner_clause, owns_notification
+from .notification_priority import related_notification_priority
 from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -1078,6 +1079,7 @@ def notification_recent():
             "workflow_status": workflow_state["workflow_status"],
             "requires_action": workflow_state["requires_action"],
             "target_info": target_info,
+            "related_priority": related_notification_priority(notification),
             "detail_url": _dkss_common.url_for(
                 "notification_detail",
                 index=notification.id,
@@ -1537,6 +1539,7 @@ def notifications():
             "created_at": notification.created_at,
             "deleted_at": notification.deleted_at,
             "target_info": target_info,
+            "related_priority": related_notification_priority(notification),
             **display_info,
             **workflow_state,
         })
@@ -1612,6 +1615,7 @@ def notification_detail(index):
         "read": True if should_mark_as_read else notification.read,
         "created_at": notification.created_at,
         "deleted_at": notification.deleted_at,
+        "related_priority": related_notification_priority(notification),
         **get_notification_display_info(notification),
         **get_notification_workflow_state(notification),
     }

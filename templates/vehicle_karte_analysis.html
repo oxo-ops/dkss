@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}車両カルテ・分析{% endblock %}
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_comparison_panels.css', v='20261111-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261023-detail-overlay-1') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
@@ -95,44 +97,9 @@
             {% endif %}
         </section>
         {% endif %}
-        {% if analysis_part_history %}<section class="ka7-panel ka8-parts-panel">
-            <header><h3><span class="ka10-panel-icon">{{ visual_icon("parts") }}</span>部品の交換実績 <small>{{ analysis_part_history|length }}種類</small></h3><a href="{{ url_for('vehicle_karte_parts', vehicle_record_id=vehicle.id) }}">部品一覧 ↗</a></header>
-            <div id="ka7-part-history" class="ka7-parts-scroll" tabindex="0" role="region" aria-label="登録部品の交換実績">
-                {% if analysis_part_history %}
-                <table class="ka7-parts-table"><thead><tr><th>部品</th><th>登録交換日</th><th>登録距離</th></tr></thead><tbody>
-                    {% for part in analysis_part_history %}<tr data-part-source="{{ part.source_id }}"><td><a href="{{ part.url }}" target="_blank" rel="noopener noreferrer" title="{{ part.part_number or part.part_name }}">{{ part.part_name }}</a></td><td>{{ part.replacement_date }}</td><td>{% if part.mileage is not none %}{{ part.mileage|distance_km }} km{% else %}—{% endif %}</td></tr>{% endfor %}
-                </tbody></table>
-                <p class="ka7-note">部品ごとの直近登録。提案で参照した部品を先頭に表示。構成部品の交換範囲は未確認。</p>
-                {% else %}<p class="ka7-no-data">対象期間の交換登録はありません</p>{% endif %}
-            </div>
-        </section>
-        {% endif %}
-        {% if vehicle.model_code %}<section class="ka7-panel ka7-peer-panel">
-            <header><h3><span class="ka10-panel-icon">{{ visual_icon("chart") }}</span>同型式車との比較</h3><span>同一会社内</span></header>
-            {% if not analysis_comparison.metrics %}<p class="ka9-peer-empty">{% if analysis_comparison.vehicle_count == 0 %}現在の条件に合う比較車両はありません。{% elif analysis_comparison.comparison_scope.status == 'missing_registration_year' %}初度登録年が未登録のため、同年式では比較できません。{% else %}比較に必要な記録がありません。{% endif %}</p><details class="ka9-peer-settings"><summary>比較条件を変更</summary>{% endif %}
-            <form method="get" id="ka-reference-peer-conditions" class="ka7-peer-conditions" action="{{ url_for('vehicle_karte_analysis', vehicle_record_id=vehicle.id) }}#ka-reference-peer-conditions">
-            {% if priority_preview_mode|default(false) %}<input type="hidden" name="priority_preview" value="1">{% endif %}
-                <input type="hidden" name="start_date" value="{{ data.start_date }}"><input type="hidden" name="end_date" value="{{ data.end_date }}">
-                <span>{{ vehicle.model_code or '型式未登録' }}</span>
-                <select name="peer_registration" aria-label="初度登録年の比較範囲">
-                    <option value="same_year"{% if analysis_comparison.registration_scope != 'all_years' %} selected{% endif %}>同じ初度登録年</option>
-                    <option value="all_years"{% if analysis_comparison.registration_scope == 'all_years' %} selected{% endif %}>初度登録年を限定しない</option>
-                </select>
-                <label><input type="checkbox" name="peer_inactive" value="1"{% if analysis_comparison.include_inactive %} checked{% endif %}>無効車両を含む</label><button type="submit">比較</button>
-            </form>
-            {% if not analysis_comparison.metrics %}</details>{% endif %}
-            {% if analysis_comparison.metrics and analysis_comparison.comparison_scope.year_scope_fallback %}<p class="ka7-note">初度登録年が不明のため、年を限定せず同型式で比較しています。</p>{% endif %}
-            {% if analysis_comparison.metrics %}<p class="ka7-peer-count">比較対象 {% if analysis_comparison.vehicle_count is number %}{{ analysis_comparison.vehicle_count }}台{% else %}未確定{% endif %}（この車両を除く）</p>{% endif %}
-            {% if analysis_comparison.metrics %}
-            <div class="table-scroll responsive-table-viewport"><table class="ka7-peer-table"><thead><tr><th>指標</th><th>この車両</th><th>他車平均</th></tr></thead><tbody>
-                {% for metric in analysis_comparison.metrics %}<tr><th>{{ "登録実績の費用/km" if metric.label == "1kmあたり整備費" else metric.label }}</th><td>{{ value(metric.current, metric.unit) }}</td><td>{{ value(metric.average, metric.unit) }}{% if metric.sample_count == 0 %}<small class="ka7-peer-missing">比較できる実績なし</small>{% elif metric.sample_count is number %}<small class="ka10-sample">実績 {{ metric.sample_count }}台</small>{% endif %}</td></tr>{% endfor %}
-            </tbody></table></div>
-            {% endif %}
-            {% if analysis_comparison.metrics %}<p class="ka7-note">{% if data.cost_per_km_status %}{{ data.cost_per_km_note }} {% endif %}登録0件は、実際の故障・交換がなかったことを示しません。</p>
-            <button type="button" class="ka-reference-link-button" data-analysis-comparison="1">比較条件・母数を確認 →</button>{% endif %}
-        </section>
-        {% endif %}
     </div>
+    {% if not priority_preview_mode %}{% include "vehicle_priority_confirmations.html" %}{% endif %}
+    {% include "vehicle_karte_comparison_panels.html" %}
     {% if has_metrics %}<details class="ka7-aggregate" id="ka-reference-aggregate"><summary>月別の数値・比較条件の詳細</summary>
         <p class="kc-data-note">期間内の整備記録 {{ data.maintenance_count }}件。全期間の登録済み費用 {{ value(data.all_time_cost, '円') }}。{% if data.missing_cost_count %}金額未入力 {{ data.missing_cost_count }}件は費用集計から除外。{% endif %}未取得の金額・距離は「—」で表示します。</p>
         <div class="kc-table-scroll"><table class="kc-table"><thead><tr><th>月</th><th>走行距離</th><th>整備費</th><th>故障登録</th></tr></thead><tbody>
@@ -147,7 +114,8 @@
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
 <script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-confirmed-3') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261110-priority-preview-3') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261111-confirmed-3') }}" defer></script>
 </div>
 {% endblock %}

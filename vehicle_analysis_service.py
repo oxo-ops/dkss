@@ -131,7 +131,7 @@ class VehicleAnalysisQueueService:
 
 class VehicleAnalysisJobService:
     def __init__(self, *, repository, load_input, analyze, utc_now, new_token,
-                 input_context, logger, read_api_key):
+                 input_context, logger, read_api_key, prepare_confirmed=None, reconcile_confirmed=None, ownership_check=None):
         self.repository = repository
         self.load_input = load_input
         self.analyze = analyze
@@ -140,28 +140,41 @@ class VehicleAnalysisJobService:
         self.input_context = input_context
         self.logger = logger
         self.read_api_key = read_api_key
+        self.prepare_confirmed = prepare_confirmed
+        self.reconcile_confirmed = reconcile_confirmed
+        self.ownership_check = ownership_check or (lambda: None)
 
     def run(self, state_id):
+        self.ownership_check()
         now = self.utc_now()
         state = self.repository.get(state_id)
         if state is None:
             return False
         claimed_hash = state.input_hash
+        company_code, vehicle_record_id = state.company_code, state.vehicle_record_id
         token = self.new_token()
         if not self.repository.claim(state_id, claimed_hash, token, now):
             return False
+        signature = None
         try:
-            vehicle = self.repository.find_vehicle(state.company_code, state.vehicle_record_id)
+            vehicle = self.repository.find_vehicle(company_code, vehicle_record_id)
             if vehicle is None:
                 self.repository.skip(state_id, token)
                 return True
             with self.input_context():
                 payload, sources = self.load_input(vehicle)
+                if self.prepare_confirmed is not None:
+                    try:
+                        previous = json.loads(state.result_json or "{}")
+                    except (ValueError, TypeError):
+                        previous = {}
+                    self.prepare_confirmed(vehicle, payload, sources, previous)
             fingerprints = payload["_fingerprints"]
             signature = snapshot_hash(fingerprints)
             method = "ai" if fingerprints["has_important_history"] else "record_check"
             if method == "ai":
                 def renew_analysis_lease():
+                    self.ownership_check()
                     self.repository.renew(state_id, token, self.utc_now())
                 analysis = self.analyze(payload, on_progress=renew_analysis_lease)
             else:
@@ -169,6 +182,13 @@ class VehicleAnalysisJobService:
                     "overview": "AIの対応候補を作るための整備・不具合・点検指摘の履歴はありません。",
                     "recommendations": [],
                 }
+            vehicle = self.repository.lock_vehicle_for_finish(company_code, vehicle_record_id)
+            if vehicle is None:
+                self.repository.skip(state_id, token)
+                return True
+            if self.reconcile_confirmed is not None:
+                with self.input_context():
+                    analysis = self.reconcile_confirmed(vehicle, analysis, payload, sources)
             finished = self.utc_now()
             bundle = {
                 "analysis": analysis, "sources": sources, "coverage": payload["coverage"],
@@ -176,6 +196,7 @@ class VehicleAnalysisJobService:
                 "analysis_method": method,
                 "generated_at": finished.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M"),
             }
+            self.ownership_check()
             return self.repository.finish(
                 state_id, token, claimed_hash=claimed_hash, snapshot_hash=signature,
                 bundle=bundle, finished=finished, method=method,
@@ -188,7 +209,8 @@ class VehicleAnalysisJobService:
                 code = code.replace(key, "[REDACTED]")
             code = code[:500]
             self.logger.warning("車両自動分析に失敗しました: %s", code)
-            self.repository.fail(state_id, token, code, self.utc_now() + timedelta(hours=1))
+            self.repository.fail(state_id, token, code, self.utc_now() + timedelta(hours=1),
+                claimed_hash=claimed_hash, snapshot_hash=signature)
             return False
 
 

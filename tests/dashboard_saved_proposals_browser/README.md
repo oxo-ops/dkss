@@ -27,3 +27,9 @@ read-only. No retries are performed after a failed or blocked browser run.
 Local preflight uses `run-isolated.sh ABSOLUTE_REPO ABSOLUTE_PYTHON
 --expected-sha FULL_SHA --preflight-only`. It does not start a browser and is not
 browser acceptance. The dedicated PR workflow runs Chromium on the exact head.
+
+The video-dashboard extension also seeds five fictional safety follow-ups and
+scoped safety-checklist results. At every viewport it checks the shared top
+region, repeated safety expansion, real detail links, Back/Forward, both trend
+tabs, and links to both source records for a repeated trend item. Safety rows
+must remain unchanged. Native safety and trend details are tested without JS.

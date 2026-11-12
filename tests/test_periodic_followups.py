@@ -189,11 +189,12 @@ class PeriodicFollowupTests(unittest.TestCase):
 
     def test_missing_api_key_does_not_fabricate_proposals(self):
         job=self.cached(status='running');payload,_,_=self.input()
+        previous = job.result_json
         with patch.object(proposals,'generate_periodic_proposals',side_effect=ValueError('API_KEY_NOT_SET')):
             self.service.worker('TEST',self.record.id,job.run_token,payload)
         self.m.db.session.expire_all()
         self.assertEqual((job.status,job.error),('error','not_configured'))
-        self.assertEqual(json.loads(job.result_json),{})
+        self.assertEqual(job.result_json, previous)
 
     def test_old_worker_cannot_overwrite_new_run(self):
         job=self.cached(status='running');payload,_,_=self.input()
