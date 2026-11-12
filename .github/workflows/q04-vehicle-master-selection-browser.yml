@@ -1,0 +1,106 @@
+name: Q04 Vehicle Master Selection Browser
+
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/vehicle_master_selection.py'
+      - 'dkss_app/vehicle_master.py'
+      - 'dkss_app/http.py'
+      - 'dkss_app/master_readers.py'
+      - 'dkss_app/vehicle_readers.py'
+      - 'templates/vehicle_form.html'
+      - 'templates/vehicle_edit_confirm.html'
+      - 'templates/vehicle_registration_confirm.html'
+      - 'templates/vehicle_registration_method.html'
+      - 'static/js/vehicle_certificate_register.js'
+      - 'tests/q04_vehicle_master_selection_browser*'
+      - '.github/workflows/q04-vehicle-master-selection-browser.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/q04-selection-browsers
+      Q04_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      AWS_SESSION_TOKEN: ''
+      DATABASE_URL: ''
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      SMTP_PASSWORD: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+      DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact requested commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$Q04_SOURCE_SHA"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install fixed application and browser test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r requirements.txt
+          npm install --no-save --prefix "$RUNNER_TEMP/q04-selection-node" playwright@1.62.1
+          node "$RUNNER_TEMP/q04-selection-node/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Preflight synthetic SQLite fixture over real loopback HTTP
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s env -i PATH="$PATH" LANG=C.UTF-8 HOME="$RUNNER_TEMP" \
+            PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+            "$(command -v python)" -B tests/q04_vehicle_master_selection_browser_server.py \
+            --work-dir "$RUNNER_TEMP/q04-selection-preflight" --preflight \
+            2>&1 | tee "$RUNNER_TEMP/q04-selection-preflight.log"
+      - name: Run six new Q04 browser acceptance scenarios
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 270s env -i PATH="$PATH" LANG=C.UTF-8 HOME="$RUNNER_TEMP" \
+            NODE_PATH="$RUNNER_TEMP/q04-selection-node/node_modules" \
+            PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
+            Q04_PYTHON="$(command -v python)" Q04_SOURCE_SHA="$Q04_SOURCE_SHA" \
+            "$(command -v node)" tests/q04_vehicle_master_selection_browser.cjs \
+            "$RUNNER_TEMP/q04-selection-browser" \
+            2>&1 | tee "$RUNNER_TEMP/q04-selection-browser.log"
+      - name: Preserve focused acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: q04-selection-browser-${{ github.event.pull_request.head.sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/q04-selection-preflight.log
+            ${{ runner.temp }}/q04-selection-preflight/preflight.json
+            ${{ runner.temp }}/q04-selection-preflight/safety-sql.json
+            ${{ runner.temp }}/q04-selection-browser.log
+            ${{ runner.temp }}/q04-selection-browser/summary.json
+            ${{ runner.temp }}/q04-selection-browser/0*/*.json
+            ${{ runner.temp }}/q04-selection-browser/0*/*.png
+            ${{ runner.temp }}/q04-selection-browser/0*/*.html
+            ${{ runner.temp }}/q04-selection-browser/0*/server.log
+            ${{ runner.temp }}/q04-selection-browser/0*/fixture/safety-sql.json
