@@ -76,6 +76,7 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if company.can_create_initial_admin %}<a href="/itc/companies/{{ company.id }}/initial-admin" class="btn-mini">初回管理者登録</a>{% endif %}
                     <a href="/itc/companies/{{ company.id }}/edit" class="btn-mini">
                         編集
                     </a>
@@ -139,6 +140,7 @@
                 </div>
 
                 <div class="mobile-card-actions">
+                    {% if company.can_create_initial_admin %}<a href="/itc/companies/{{ company.id }}/initial-admin" class="btn-small">初回管理者登録</a>{% endif %}
                     <a
                         href="/register?company_code={{ company.company_code }}"
                         target="_blank"

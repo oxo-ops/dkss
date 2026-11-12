@@ -265,6 +265,18 @@
       ""
     ],
     [
+      "/itc/companies/<int:index>/initial-admin",
+      "itc_initial_admin",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/itc/companies/new",
       "itc_new_company",
       [

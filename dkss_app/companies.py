@@ -3,6 +3,7 @@ from . import access as _dkss_access, audit as _dkss_audit, common as _dkss_comm
 
 
 def itc_dashboard():
+    from .initial_admin import eligible
     if not _dkss_access.require_itc():
         return _dkss_common.redirect("/")
 
@@ -25,6 +26,7 @@ def itc_dashboard():
 
         company_summaries.append({
             "id": company.id,
+            "can_create_initial_admin": eligible(company),
             "company_code": company.company_code,
             "company_name": company.company_name,
             "vehicle_limit": company.vehicle_limit,

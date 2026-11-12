@@ -782,9 +782,8 @@ def register():
             any(not c.isalnum() for c in password),
         ])
 
-        company = _dkss_models.Company.query.filter_by(
-            company_code=company_code
-        ).first()
+        from .initial_admin import lock_company
+        company = lock_company(company_code=company_code)
 
         if (
             not company_code
