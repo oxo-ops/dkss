@@ -93,3 +93,23 @@
 送信bodyのservice_tierは明示的なdefaultを要求し、未指定/autoは拒否（project既定がStandardとは限らない）。任意のprompt_cache_options追加も拒否し既定30mに固定。既存dry/通常生成bodyにはservice_tierがないため、このprofileでは現在のadapter出力は拒否される。通常生成を勝手に変更せず、将来の限定transportで明示tierを加えた最終bodyを再カウント・再hashして予約する必要がある。endpointフィールドは予定先の契約であり、実接続先の証明ではない。live transportは未搭載。
 
 単価は確認日のsnapshotで、将来価格や本番モデル/請求条件を自動保証しない。既存台帳はpolicy digestが変われば拒否する。台帳を新規作成し直して累積予算を消してはいけない。今回の変更はGitHub正式編集で保存しCI検証、ローカル実行環境は利用不可のためローカル合格とは報告しない。
+
+### Final wire boundary (synthetic only)
+
+`final_gate.synthetic_final_call` exercises the final serialized UTF-8 bytes,
+exact Responses URL, approved model / `service_tier=default`, output limit,
+body hash, full-body input recount and durable reservation in one path. The fake
+transport sees the same immutable `Envelope` only after reservation commits.
+Failures after that point remain uncertain and block retries. Endpoint variants,
+changed bytes, changed count source and a count above the approved bound are
+rejected before reservation. Real company targets are always rejected.
+
+This is not a live sender, tokenizer attestation, provider billing guarantee or
+normal full-analysis replacement. The injected counter and callback remain
+synthetic test seams. The existing offline builder deliberately does not add a
+service tier implicitly: a future authorized live pilot must explicitly prepare
+its final body, count/hash that body and bind the approved endpoint and token
+counting method before reserving. Live headers/authentication, actual endpoint
+configuration, audited provider-compatible token bounds and HTTP behavior
+(including no redirects/retries) remain unverified. No production enable switch
+or real API call was added.
