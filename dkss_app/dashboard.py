@@ -3,6 +3,7 @@ from .account_identity import notification_owner_clause
 from .dashboard_scope import DashboardScope
 from .dashboard_repository import DashboardRepository
 from .dashboard_service import DashboardService
+from .dashboard_safety_attention import safety_attention
 from . import safety_identity as _person_identity
 from . import analysis_feedback as _dkss_analysis_feedback, audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, master_readers as _dkss_master_readers, models as _dkss_models, notifications as _dkss_notifications, runtime as _dkss_runtime, safety_permissions as _dkss_safety_permissions, serialization as _dkss_serialization, vehicle_readers as _dkss_vehicle_readers
 
@@ -255,6 +256,7 @@ def dashboard():
         history=get_dashboard_checklist_history, url_for=_dkss_common.url_for)
     context, trend_groups = service.build()
     context.update(
+        dashboard_safety_attention=safety_attention(scope),
         dashboard_request_counts=get_dashboard_request_counts(),
         dashboard_periodic_schedule=get_dashboard_periodic_schedule(company_code, scope.office, scope.today),
         dashboard_office_check_trend=get_dashboard_office_check_trend(
@@ -276,6 +278,10 @@ def get_dashboard_office_check_trend(groups, score_value, start_date, end_date):
 
     for checklist_record, checklist, records in groups:
         for record in records:
+            if checklist_record.target != "車両管理" and not _dkss_safety_permissions.can_view_checklist_result(
+                _dkss_checklist_common.checklist_result_to_dict(record)
+            ):
+                continue
             checked_date = str(record.checked_date or "")[:10]
             if not start_date <= checked_date <= end_date:
                 continue
@@ -316,39 +322,42 @@ def get_dashboard_office_check_trend(groups, score_value, start_date, end_date):
                 categories[category] = categories.get(category, 0) + 1
                 key = (category, content)
 
-                if key not in issues:
-                    if checklist_record.target == "車両管理":
-                        if checklist.get("frequency_unit") == "year":
-                            active_day = record.year
-                        elif checklist.get("display_type") == "month":
-                            active_day = record.day
-                        else:
-                            active_day = record.month
-
-                        result_url = _dkss_common.url_for(
-                            "vehicle_checklist_results",
-                            index=checklist_record.id,
-                            vehicle_record_id=record.vehicle_record_id,
-                            year=record.year,
-                            month=record.month,
-                            active_day=active_day,
-                        )
-                    elif _dkss_safety_permissions.can_view_checklist_result(_dkss_checklist_common.checklist_result_to_dict(record)):
-                        result_url = _dkss_common.url_for(
-                            "checklist_result_detail",
-                            result_index=record.id,
-                        )
+                if checklist_record.target == "車両管理":
+                    if checklist.get("frequency_unit") == "year":
+                        active_day = record.year
+                    elif checklist.get("display_type") == "month":
+                        active_day = record.day
                     else:
-                        result_url = ""
+                        active_day = record.month
 
+                    result_url = _dkss_common.url_for(
+                        "vehicle_checklist_results",
+                        index=checklist_record.id,
+                        vehicle_record_id=record.vehicle_record_id,
+                        year=record.year,
+                        month=record.month,
+                        active_day=active_day,
+                    )
+                else:
+                    # Safety permission was checked before counting this record.
+                    result_url = _dkss_common.url_for(
+                        "checklist_result_detail",
+                        result_index=record.id,
+                    )
+
+                if key not in issues:
                     issues[key] = {
                         "category": category,
                         "content": content,
                         "count": 0,
                         "url": result_url,
+                        "records": [],
                     }
 
                 issues[key]["count"] += 1
+                source = {"date": checked_date, "checklist": checklist_record.name, "url": result_url}
+                if result_url and source not in issues[key]["records"]:
+                    issues[key]["records"].append(source)
 
             record_count += int(counted_record)
 
@@ -370,6 +379,7 @@ def get_dashboard_office_check_trend(groups, score_value, start_date, end_date):
             for name, count in ordered_categories[:3]
         ],
         "focus": ordered_issues[0] if ordered_issues else None,
+        "issues": ordered_issues,
     }
 
 

@@ -4,6 +4,7 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_attention.css', v='20261110-saved-proposals-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_safety_attention.css', v='20261111-1') }}">
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
@@ -369,9 +370,14 @@
 
 {% endif %}
 
-{% if dashboard_settings.get("show_analysis", True) %}
-    <section class="dashboard-attention dashboard-attention-list" aria-label="車両の確認・対応候補">
-        <h3 class="dashboard-reference-title">確認・対応すること</h3>
+{% if dashboard_settings.get("show_analysis", True) or dashboard_settings.get("show_pending", True) %}
+    <section class="dashboard-attention dashboard-attention-list" aria-label="安全・車両の確認・対応">
+        <h3 class="dashboard-reference-title">安全・車両の確認・対応</h3>
+        {% if dashboard_settings.get("show_pending", True) %}
+        {% include "partials/dashboard_safety_attention.html" %}
+        {% endif %}
+        {% if dashboard_settings.get("show_analysis", True) %}
+        <h4 class="dashboard-vehicle-attention-heading">車両管理：AIの整備提案</h4>
         {% set attention_preview_limit = 5 %}
         {% macro attention_table(items, preview=false) %}
         <div class="dashboard-attention-table-wrap{% if preview %} dashboard-attention-preview{% endif %}">
@@ -498,6 +504,7 @@
             {% endif %}
         </div>
         {% endfor %}
+        {% endif %}
     </section>
     {% endif %}
 
@@ -770,20 +777,22 @@
                         <p class="dashboard-office-empty">集計対象の回答に、満点未満の項目はありません。</p>
                         {% endfor %}
 
-                        <p class="dashboard-office-trend-note">満点未満の回答数。対応済みの記録も含みます。</p>
+                        <p class="dashboard-office-trend-note">閲覧できる記録の満点未満の回答数。対応済みの記録も含みます。</p>
                     </div>
 
-                    {% if safety_trend.get('focus') %}
-                    {% set focus = safety_trend.focus %}
-                    <aside class="dashboard-office-focus">
-                        <span>多く見られた項目</span>
-                        <strong>{{ focus.content }}</strong>
-                        <small>{{ focus.category }}・期間内{{ focus.count }}件</small>
-                        {% if focus.url %}
-                        <a href="{{ focus.url }}">点検記録を確認 ›</a>
-                        {% else %}
-                        <small>詳しい記録は管理者に確認してください。</small>
-                        {% endif %}
+                    {% if safety_trend.get('issues') %}
+                    <aside class="dashboard-office-focus dashboard-trend-records">
+                        <h4>多く見られた項目と元記録</h4>
+                        {% for issue in safety_trend.issues %}
+                        <details class="dashboard-trend-issue">
+                            <summary>{{ issue.content }} <small>{{ issue.category }}・{{ issue.count }}件</small></summary>
+                            <ul>
+                                {% for record in issue.records %}
+                                <li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 ›</a></li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        {% endfor %}
                     </aside>
                     {% endif %}
                 </div>

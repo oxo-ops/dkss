@@ -1,0 +1,53 @@
+/* The video pairs existing safety follow-ups with saved vehicle suggestions. */
+.dashboard-attention-list > .dashboard-safety-attention,
+.dashboard-attention-list > .dashboard-vehicle-attention-heading {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+.dashboard-safety-attention {
+    border: 1px solid #dce6f1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--dkss-surface, #fff);
+}
+.dashboard-safety-attention h4,
+.dashboard-vehicle-attention-heading {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: #17314f;
+}
+.dashboard-safety-attention h4 { background: #f0f4ff; }
+.dashboard-safety-attention h4 span { margin-left: 6px; font-size: 12px; }
+.dashboard-safety-scope,
+.dashboard-safety-empty { margin: 8px 12px; color: #52647e; font-size: 12px; }
+.dashboard-safety-items { list-style: none; margin: 0; padding: 0 12px; }
+.dashboard-safety-items > li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 0;
+    border-top: 1px solid #e1e9f3;
+}
+.dashboard-safety-state {
+    flex: 0 0 auto;
+    padding: 5px 7px;
+    background: #edf2f8;
+    color: #465d79;
+    border-radius: 6px;
+    font-size: 11px;
+}
+.dashboard-safety-content { min-width: 0; overflow-wrap: anywhere; }
+.dashboard-safety-content a { font-weight: 700; color: #173b66; text-decoration: underline; }
+.dashboard-safety-content p { margin: 4px 0; font-size: 12px; color: #425570; }
+.dashboard-safety-content small { color: #61748b; }
+.dashboard-safety-more > summary { padding: 10px 12px; cursor: pointer; }
+.dashboard-trend-issue { border-top: 1px solid #dce6f1; padding: 9px 0; }
+.dashboard-trend-issue > summary { cursor: pointer; font-weight: 700; overflow-wrap: anywhere; }
+.dashboard-trend-issue small { display: block; margin-top: 4px; font-weight: 400; }
+.dashboard-trend-issue ul { margin: 8px 0 0; padding-left: 18px; }
+.dashboard-trend-issue li { margin: 6px 0; overflow-wrap: anywhere; }
+.dashboard-safety-attention a:focus-visible,
+.dashboard-safety-attention summary:focus-visible,
+.dashboard-trend-issue a:focus-visible,
+.dashboard-trend-issue summary:focus-visible { outline: 3px solid #5146cc; outline-offset: 3px; }
