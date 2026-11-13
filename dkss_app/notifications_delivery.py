@@ -1,4 +1,6 @@
 """Notifications Delivery responsibilities; routes are registered by the application factory."""
+import ssl
+
 from .delivery_failure_logging import log_email_delivery_failure
 from .account_identity import current_identity
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime
@@ -363,7 +365,7 @@ def send_email_notification(
             timeout=20
         ) as server:
             smtp_stage = "starttls"
-            server.starttls()
+            server.starttls(context=ssl.create_default_context())
 
             if smtp_username:
                 smtp_stage = "authenticate"

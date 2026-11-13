@@ -1,4 +1,6 @@
 """Auth responsibilities; routes are registered by the application factory."""
+import ssl
+
 from .delivery_failure_logging import log_email_delivery_failure
 from . import audit as _dkss_audit, common as _dkss_common, master_readers as _dkss_master_readers, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, storage as _dkss_storage
 
@@ -126,7 +128,7 @@ def send_email_change_code_email(
             timeout=20
         ) as server:
             smtp_stage = "starttls"
-            server.starttls()
+            server.starttls(context=ssl.create_default_context())
 
             if smtp_username:
                 smtp_stage = "authenticate"

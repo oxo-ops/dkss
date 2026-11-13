@@ -68,7 +68,7 @@ jobs:
           with patch.object(socket, 'has_ipv6', False), patch.object(Engine, 'connect', side_effect=RuntimeError('DELIVERY_TEST_DATABASE_FORBIDDEN')) as connect:
               suite = unittest.TestLoader().discover('tests', pattern='test_notification_delivery_safe_logging.py')
               result = unittest.TextTestRunner(verbosity=2).run(suite)
-              valid = result.wasSuccessful() and result.testsRun == 27 and not result.skipped and not blocked and not connect.called
+              valid = result.wasSuccessful() and result.testsRun == 28 and not result.skipped and not blocked and not connect.called
               print(json.dumps({'status': 'PASS' if valid else 'FAIL', 'tests_run': result.testsRun,
                   'skipped': len(result.skipped), 'failures': len(result.failures), 'errors': len(result.errors),
                   'blocked_io_attempts': len(blocked), 'database_connect_attempts': connect.call_count,
