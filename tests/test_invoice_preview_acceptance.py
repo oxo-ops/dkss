@@ -310,6 +310,32 @@ const a=measure();overlay=true;const b=measure();process.stdout.write(JSON.strin
         self.assertGreaterEqual(sum(page.waits),450)
         self.assertEqual(result['stable_ms'],300)
 
+    def test_first_ready_resize_gap_is_settled_before_observer_branches(self):
+        # Regression for b91e4bd CI: first wait resolved, then fit removed the
+        # canvas before the observer's one-shot sample. No error or timeout.
+        class Page:
+            sample=0
+            waits=[]
+            def evaluate(self,script):
+                gap=self.sample in (1,2,3)
+                if script=='state':
+                    return dict(ready=not gap,error=False,
+                        raster=[] if gap else [dict(width=337,height=477)])
+                self.sample+=1
+                return None if gap else region_fixture(337,477,400)[0]
+            def wait_for_timeout(self,ms):self.waits.append(ms)
+        page=Page();namespace=dict(page=page,PREVIEW_STATE='state',PREVIEW_GEOMETRY='geometry')
+        exec(compile(ast.Module(body=[NODES['settled_invoice_preview']],type_ignores=[]),'<settler>','exec'),namespace)
+        entry={};result=namespace['settled_invoice_preview'](entry)
+        self.assertTrue(entry['ready'])
+        self.assertEqual(result['stable_samples'],7)
+        self.assertGreaterEqual(sum(page.waits),500)
+        observer=NODES['observe_invoice_preview']
+        wait_try=next(n for n in ast.walk(observer) if isinstance(n,ast.Try))
+        self.assertIn('settled_invoice_preview(entry)',ast.unparse(wait_try.body[-1]))
+        self.assertNotIn('entry.update',ast.unparse(ast.Module(body=wait_try.finalbody,type_ignores=[])))
+        self.assertIn("entry['wait_error']",ast.unparse(wait_try.handlers[0]))
+
     def test_flags_separate_selection_attempt_and_completed_acceptance(self):
         self.assertIn('full_invoice_browser_selected=True',TEXT)
         self.assertIn('full_invoice_browser_executed=False, native_download_attempted=False',TEXT)
@@ -404,7 +430,7 @@ class RootViewport(unittest.TestCase):
 
 RECORDED = [{'paper': {'left': 40, 'top': 274.703125, 'right': 350, 'bottom': 713.703125, 'width': 310, 'height': 439}, 'clip': {'left': 26, 'top': 262.703125, 'right': 364, 'bottom': -883}, 'region': {'left': 0, 'top': 0, 'right': 310, 'bottom': -1157.703125}, 'clipping': [{'x': True, 'y': True, 'left': 26, 'top': 262.703125, 'right': 364, 'bottom': 642.703125}, {'x': True, 'y': True, 'left': 26, 'top': 153.703125, 'right': 364, 'bottom': 671.703125}, {'x': True, 'y': True, 'left': 13, 'top': -394.484375, 'right': 377, 'bottom': 766.515625}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': -883}], 'viewport': {'width': 390, 'height': 780}, 'unobscured': False, 'raster': {'width': 310, 'height': 439}, 'scroll': {'top': 0, 'left': 0, 'width': 338, 'height': 380, 'extent_width': 338, 'extent_height': 463, 'overflow_y': 'auto'}, 'stable_samples': 7, 'stable_ms': 300, 'edge': 'top'}, {'paper': {'left': 40, 'top': 191.703125, 'right': 350, 'bottom': 630.703125, 'width': 310, 'height': 439}, 'clip': {'left': 26, 'top': 262.703125, 'right': 364, 'bottom': -883}, 'region': {'left': 0, 'top': 71, 'right': 310, 'bottom': -1074.703125}, 'clipping': [{'x': True, 'y': True, 'left': 26, 'top': 262.703125, 'right': 364, 'bottom': 642.703125}, {'x': True, 'y': True, 'left': 26, 'top': 153.703125, 'right': 364, 'bottom': 671.703125}, {'x': True, 'y': True, 'left': 13, 'top': -394.484375, 'right': 377, 'bottom': 766.515625}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': -883}], 'viewport': {'width': 390, 'height': 780}, 'unobscured': False, 'raster': {'width': 310, 'height': 439}, 'scroll': {'top': 83, 'left': 0, 'width': 338, 'height': 380, 'extent_width': 338, 'extent_height': 463, 'overflow_y': 'auto'}, 'stable_samples': 7, 'stable_ms': 300, 'edge': 'bottom'}]
 
-UNCHANGED_FUNCTION_HASHES = {'verified_preview_fetch': '361ef8cfefa4b8df8feea7aa5c008e8779e8f82db5231508dff3232051aa17f0', 'observe_invoice_source': 'ec5cfd5d1104c2dc8d657ec5eb1bdc4a53e201c6d09edc1beae07d8475e49b2e', 'record_failed_request': '7e738421df561c99cac0c9eeaf3636ff1c103de1a1cb55e5c9cd820dc1e3292d', 'accept_invoice_preview': '232002f99f57d640a38521b59717edcfd45f2ba5cd89bed6f5083d9e58e88b7a', 'settled_invoice_preview': '0d1ccf4bff73259cad4c9e7990a4f13b7c7815386fa0d7a295eb8f306b764e41', 'observe_invoice_preview': 'fb7832be5ce1f21d061aca732f18ac09fc283b14a8bb429bd9608e72f9c00f81', 'bridge': 'd79e7c27baf7b9cde62f72e1b04c5996f8d6289fee8530f148169fbea3752916', 'get': '3bd4e1449ad02e2ae13d05a4282060675db7e9c2edc8301171aa385963407c3d', 'snapshot': '960dd3cdf7a16c7f9e64e34e6dac50d2d07076af37d8b4f5ee6519f1d65e71d0'}
+UNCHANGED_FUNCTION_HASHES = {'verified_preview_fetch': '361ef8cfefa4b8df8feea7aa5c008e8779e8f82db5231508dff3232051aa17f0', 'observe_invoice_source': 'ec5cfd5d1104c2dc8d657ec5eb1bdc4a53e201c6d09edc1beae07d8475e49b2e', 'record_failed_request': '7e738421df561c99cac0c9eeaf3636ff1c103de1a1cb55e5c9cd820dc1e3292d', 'accept_invoice_preview': '232002f99f57d640a38521b59717edcfd45f2ba5cd89bed6f5083d9e58e88b7a', 'settled_invoice_preview': '0d1ccf4bff73259cad4c9e7990a4f13b7c7815386fa0d7a295eb8f306b764e41', 'observe_invoice_preview': 'd5e5e2d3ec20609273c3bdce56e0de0961fd7a2141d7e098c5211920be58012f', 'bridge': 'd79e7c27baf7b9cde62f72e1b04c5996f8d6289fee8530f148169fbea3752916', 'get': '3bd4e1449ad02e2ae13d05a4282060675db7e9c2edc8301171aa385963407c3d', 'snapshot': '960dd3cdf7a16c7f9e64e34e6dac50d2d07076af37d8b4f5ee6519f1d65e71d0'}
 
 
 if __name__ == '__main__':

@@ -1273,6 +1273,8 @@ class VehicleKarteAnalysis(db.Model):
         nullable=False,
         default="pending",
     )
+    # Durable operator hold independent of status/retry/input updates.
+    pilot_hold = db.Column(db.String(64), nullable=True)
     input_hash = db.Column(db.String(64))
     result_json = db.Column(
         db.Text,
