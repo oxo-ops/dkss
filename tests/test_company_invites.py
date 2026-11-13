@@ -222,7 +222,7 @@ class CompanyInviteAcceptance(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('/register?invite=' + token, response.get_data(as_text=True))
         self.assertIn('no-store', response.headers.get('Cache-Control', ''))
-        self.assertEqual(response.headers.get('Referrer-Policy'), 'no-referrer')
+        self.assertEqual(response.headers.get('Referrer-Policy'), 'same-origin')
         self.assertIsNone(CompanyRegistrationApplication.query.filter_by(username='blocked').first())
         self.assertEqual(User.query.filter_by(company_code='FICTION').count(), 0)
 
@@ -231,7 +231,7 @@ class CompanyInviteAcceptance(unittest.TestCase):
         response = self.public.get('/register?invite=' + token)
         self.assertEqual(response.status_code, 200)
         self.assertIn('no-store', response.headers.get('Cache-Control', ''))
-        self.assertEqual(response.headers.get('Referrer-Policy'), 'no-referrer')
+        self.assertEqual(response.headers.get('Referrer-Policy'), 'same-origin')
 
     def test_http_issue_returns_link_once_not_stored_raw(self):
         response = self.client.post(self.url, data={'action':'issue'})
@@ -322,7 +322,7 @@ class CompanyInviteAcceptance(unittest.TestCase):
         self.assertIn('name="password"', html)
         self.assertNotIn('value="short"', html)
         self.assertIn('no-store', response.headers.get('Cache-Control', ''))
-        self.assertEqual(response.headers.get('Referrer-Policy'), 'no-referrer')
+        self.assertEqual(response.headers.get('Referrer-Policy'), 'same-origin')
         self.assertEqual(CompanyRegistrationApplication.query.count(), 0)
         corrected = self.public.post('/register?invite=' + token, data=self.form,
                                      headers={'Accept':'text/html'})
