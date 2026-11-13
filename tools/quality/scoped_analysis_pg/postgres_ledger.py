@@ -40,6 +40,24 @@ class PostgresStore:
                 (trial_id,approval_hash,pricing_hash) VALUES (:t,:a,:p)'''),
                 {'t':TRIAL_ID,'a':digest(approval_reference),'p':digest(pricing_reference)})
 
+    def verify_unstarted(self, *, approval_reference, pricing_reference):
+        """Read-only continuation gate, caller MUST hold canonical leadership.
+
+        Existing marker is retained unchanged. Any phase/reservation forbids
+        continuation, including uncertain/reserved attempts. No implicit resume.
+        """
+        with self.writing() as db:
+            query = 'SELECT approval_hash,pricing_hash FROM public.dkss_scoped_pilot_trial WHERE trial_id=:t'
+            if self.engine.dialect.name == 'postgresql':
+                query += ' FOR UPDATE'
+            rows = db.execute(self.sql(query), {'t':TRIAL_ID}).all()
+            if len(rows) != 1 or tuple(rows[0]) != (digest(approval_reference),digest(pricing_reference)):
+                raise ValueError('CONTINUATION_MARKER_MISMATCH')
+            for suffix in ('phase','reservation'):
+                n = db.execute(self.sql('SELECT count(*) FROM public.dkss_scoped_pilot_'+suffix+' WHERE trial_id=:t'), {'t':TRIAL_ID}).scalar_one()
+                if n != 0:
+                    raise ValueError('CONTINUATION_HAS_PHASE_OR_RESERVATION')
+
     def create_phase(self, phase, policy_hash):
         if phase not in ('count', 'generation'):
             raise ValueError('PHASE_REJECTED')

@@ -40,6 +40,21 @@ class LedgerTests(unittest.TestCase):
         self.request=Request(self.target,raw,h(raw),76000,COUNT_SOURCE)
     def tearDown(self):
         self.engine.dispose();self.tmp.cleanup()
+    def test_continuation_preserves_original_marker_and_rejects_changed_evidence(self):
+        self.store.verify_unstarted(approval_reference='synthetic-approval',pricing_reference='synthetic-price')
+        with self.assertRaises(ValueError):
+            self.store.verify_unstarted(approval_reference='different',pricing_reference='synthetic-price')
+        with self.assertRaises(IntegrityError):
+            self.store.start(approval_reference='synthetic-approval',pricing_reference='synthetic-price')
+    def test_continuation_rejects_even_empty_phase(self):
+        PostgresCountLedger(self.store,self.cp)
+        with self.assertRaises(ValueError):
+            self.store.verify_unstarted(approval_reference='synthetic-approval',pricing_reference='synthetic-price')
+    def test_continuation_rejects_missing_marker(self):
+        with self.engine.begin() as db:
+            db.execute(text('DELETE FROM dkss_scoped_pilot_trial'))
+        with self.assertRaises(ValueError):
+            self.store.verify_unstarted(approval_reference='synthetic-approval',pricing_reference='synthetic-price')
     def test_dialect_rejected(self):
         with self.assertRaises(ValueError):PostgresStore(self.engine)
     def test_no_second_run_or_phase(self):

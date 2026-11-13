@@ -40,6 +40,19 @@ def _require(ok):
 
 
 def run_once(conditions, *, api_key):
+    return _invoke(conditions, api_key=api_key, continuation=False)
+
+
+def continue_before_send(conditions, *, api_key):
+    """Explicit reviewed continuation ONLY for untouched existing trial.
+
+    Retains original marker. Requires no phase, no reservation and no analysis
+    state, under canonical leadership. Not a retry of count or generation.
+    """
+    return _invoke(conditions, api_key=api_key, continuation=True)
+
+
+def _invoke(conditions, *, api_key, continuation):
     """Returns safe status only. No CLI, no credential lookup, no retry.
 
     After verified DB access, start consumes a fixed PostgreSQL trial marker. Never delete it. Earlier preflight failures make no DB changes.
@@ -59,19 +72,28 @@ def run_once(conditions, *, api_key):
     # Suppress library/application output, including SQL/exception/raw request logs.
     old_disable = logging.root.manager.disable
     logging.disable(logging.CRITICAL)
+    progress = {'stage': 'preflight'}
     try:
         with open(os.devnull, 'w') as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            result = _run(conditions, api_key)
+            result = _run(conditions, api_key, continuation=continuation, progress=progress)
         return result
-    except BaseException:
-        # Do not expose traceback, exception text, source payload, response, or key.
-        return {'status': 'stopped_no_retry', 'operator_reconciliation_required': True}
+    except BaseException as error:
+        # Fixed stage and allowlisted exception code only, never str(error).
+        names = {'RuntimeError','ValueError','IntegrityError','OperationalError','ProgrammingError','AssertionError','KeyError','TypeError'}
+        category = type(error).__name__
+        category = category if category in names else 'OTHER_EXCEPTION'
+        sqlstate = getattr(getattr(error, 'orig', None), 'pgcode', None)
+        if not (isinstance(sqlstate,str) and len(sqlstate)==5 and sqlstate.isascii() and sqlstate.isalnum()):
+            sqlstate = None
+        return {'status': 'stopped_no_retry', 'stage': progress['stage'],
+            'error_class': category, 'sqlstate': sqlstate, 'operator_reconciliation_required': True}
     finally:
         api_key = None
         logging.disable(old_disable)
 
 
-def _run(c, api_key):
+def _run(c, api_key, *, continuation=False, progress=None):
+    progress = progress if progress is not None else {}
     from urllib.parse import urlsplit, parse_qs
     # TLS must already be configured by the authorized operator. No weakening or
     # secret print; inspect only and fail closed before importing the application.
@@ -121,8 +143,13 @@ def _run(c, api_key):
         db.session.remove()
         store = PostgresStore(db.engine)
         # Transactional fixed trial marker consumed before queue, count or send.
-        store.start(approval_reference=c.approval_reference, pricing_reference=c.pricing_evidence_reference)
+        progress['stage'] = 'trial_gate'
+        if continuation:
+            store.verify_unstarted(approval_reference=c.approval_reference, pricing_reference=c.pricing_evidence_reference)
+        else:
+            store.start(approval_reference=c.approval_reference, pricing_reference=c.pricing_evidence_reference)
         repository = SanitizedRepository(db=db, state_model=VehicleKarteAnalysis, vehicle_model=Vehicle)
+        progress['stage'] = 'canonical_input_and_queue'
         # Canonical queue creation only, no direct state fabrication or due-time edits.
         _require(VehicleKarteAnalysis.query.filter_by(company_code=COMPANY, vehicle_record_id=VEHICLE).first() is None)
         vehicle = Vehicle.query.filter_by(id=VEHICLE, company_code=COMPANY, deleted=False).one()
@@ -132,9 +159,11 @@ def _run(c, api_key):
         db.session.flush()
         state_id, due = state.id, state.next_analysis_at
         _require(state.status == 'pending' and state.pilot_hold is None and due is not None)
+        progress['stage'] = 'important_history_gate'
         _require(payload.get('_fingerprints', {}).get('has_important_history') is True)
         owner.check()
         # Queue and hold commit atomically; crash cannot expose an unheld pending row.
+        progress['stage'] = 'queue_hold_commit'
         repository.install_pilot_hold(state_id, COMPANY, VEHICLE, HOLD, datetime.now(timezone.utc))
         db.session.remove()
         del payload, state, vehicle
@@ -144,6 +173,7 @@ def _run(c, api_key):
         if delay > 0:
             time.sleep(delay + 0.1)
         owner.check()
+        progress['stage'] = 'normal_readonly_snapshot'
         snapshot = read_normal_input(NormalReadScope(COMPANY, VEHICLE, state_id, ALLOWED, True))
         material = prepare_count_material(snapshot.payload, target=snapshot.target, model=MODEL)
         body = json.loads(material.generation_json)
@@ -152,6 +182,7 @@ def _run(c, api_key):
             digest(asdict(snapshot.target)), MODEL, c.approval_reference, 1, c.pricing_evidence_reference)
         count_ledger = PostgresCountLedger(store, count_policy)
         owner.check()
+        progress['stage'] = 'count_attempt'
         evidence = CountHTTPS(api_key).run(count_ledger, material)
         _require(evidence['transport_received'] is True and evidence['input_tokens'] <= 76000)
         # Conservative reservation: 76k*2.50 + 6k*10 = 250000 microUSD.
@@ -169,6 +200,7 @@ def _run(c, api_key):
         bridge.validate_state(repository.get(state_id))
         # Same canonical service/callbacks as #388 job wrapper; preserve already-held
         # repository rather than reacquiring/clearing the trial's persistent hold.
+        progress['stage'] = 'generation_and_save'
         completed = VehicleAnalysisJobService(
             repository=repository, load_input=bridge.load_input, analyze=bridge.analyze,
             ownership_check=owner.check,
@@ -181,6 +213,7 @@ def _run(c, api_key):
         db.session.remove()
         state = VehicleKarteAnalysis.query.filter_by(id=state_id, company_code=COMPANY, vehicle_record_id=VEHICLE).one()
         receipts = ledger.receipts()
+        progress['stage'] = 'saved_acceptance'
         _require(completed is True and state.status == 'completed' and state.pilot_hold == HOLD)
         _require(len(receipts) == 1 and receipts[0][3] == 'returned')
         db.session.remove()

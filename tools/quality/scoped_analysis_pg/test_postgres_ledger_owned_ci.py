@@ -63,6 +63,21 @@ class OwnedPostgresLedgerTests(unittest.TestCase):
             reopened.start(approval_reference='again',pricing_reference='again')
         with self.assertRaises(IntegrityError):
             reopened.reserve('count','a'*64,'b'*64,1)
+    def test_continuation_accepts_only_unstarted_original_marker(self):
+        with self.engine.begin() as db:
+            db.execute(text('DELETE FROM public.dkss_scoped_pilot_phase'))
+        self.store.verify_unstarted(approval_reference='synthetic',pricing_reference='synthetic')
+        with self.engine.connect() as db:
+            self.assertEqual(db.scalar(text('SELECT count(*) FROM public.dkss_scoped_pilot_trial')),1)
+            self.assertEqual(db.scalar(text('SELECT count(*) FROM public.dkss_scoped_pilot_phase')),0)
+        with self.assertRaises(ValueError):
+            self.store.verify_unstarted(approval_reference='changed',pricing_reference='synthetic')
+    def test_continuation_rejects_existing_phase_and_never_recreates_marker(self):
+        with self.assertRaises(ValueError):
+            self.store.verify_unstarted(approval_reference='synthetic',pricing_reference='synthetic')
+        # Existing phase remains untouched; a second trial start also fails.
+        with self.assertRaises(IntegrityError):
+            self.store.start(approval_reference='synthetic',pricing_reference='synthetic')
     def test_each_write_forces_synchronous_commit(self):
         with self.store.writing() as db:
             self.assertEqual(db.scalar(text('SHOW synchronous_commit')),'on')

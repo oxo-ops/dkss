@@ -26,3 +26,8 @@ Apply reviewed `002_postgres_pilot_ledger.sql` once on the verified current data
 All write transactions explicitly set `synchronous_commit=on` before mutation; SQL and migration table names are `public.`-qualified to avoid search_path dependence. Disposable SQLite model tests remain 7/7 PASS after these changes.
 
 `test_postgres_ledger_owned_ci.py` adds three PostgreSQL checks (concurrent reservation, connection reopen/replay rejection, synchronous_commit). It accepts only the existing repo's exact loopback GitHub Actions service with validated database ownership marker; arbitrary URLs and ambient PG overrides are rejected. Here it correctly skips because that owned CI service is not configured. It has not proved PostgreSQL runtime behavior yet.
+
+## Reviewed pre-send continuation
+The first live invocation committed only the trial marker, then stopped before any phase/reservation/analysis state. Read-only diagnosis found a valid normal payload with no important history. The existing 11/10 tyre-work note was an inspection-plan manual execution, not a canonical maintenance record. It must not be represented as lost maintenance data or silently force AI use.
+
+The new `continue_before_send` entry retains the same trial marker and verifies its approval/pricing hashes. It rejects any existing phase, reservation or target analysis state, under official leadership. It is not count/generation retry; either phase's reservation remains one-shot. The operator must first verify the authorized single canonical maintenance record and its provenance to the existing manual execution. No extra incident, cost or invoice is invented. New fixed-stage/allowlisted-class/SQLSTATE output avoids raw exception disclosure.
