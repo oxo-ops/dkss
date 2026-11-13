@@ -49,10 +49,11 @@ class VehicleAnalysisInputRepository:
 class VehicleAnalysisJobRepository:
     """Conditional claims and writes; each mutation retains its lease token."""
 
-    def __init__(self, *, db, state_model, vehicle_model):
+    def __init__(self, *, db, state_model, vehicle_model, pilot_hold=None):
         self.db = db
         self.State = state_model
         self.Vehicle = vehicle_model
+        self.pilot_hold = pilot_hold
 
     def get_or_create(self, vehicle):
         scope = {"company_code": vehicle.company_code, "vehicle_record_id": vehicle.id}
@@ -70,9 +71,29 @@ class VehicleAnalysisJobRepository:
     def get(self, state_id):
         return self.db.session.get(self.State, state_id)
 
+    def install_pilot_hold(self, state_id, company, vehicle_id, hold, now):
+        """Commit once before claim/send; never implicitly resume or clear.
+
+        Existing live leases prevent acquisition. Ordinary claim and this update
+        serialize on the same row, closing the check-then-claim race.
+        """
+        if not isinstance(hold, str) or len(hold) != 64 or any(c not in '0123456789abcdef' for c in hold):
+            raise ValueError("INVALID_PILOT_HOLD")
+        installed = self.State.query.filter(
+            self.State.id == state_id, self.State.company_code == company,
+            self.State.vehicle_record_id == vehicle_id,
+            self.State.pilot_hold.is_(None),
+            self.db.or_(self.State.lease_expires_at.is_(None), self.State.lease_expires_at <= now),
+        ).update({"pilot_hold": hold}, synchronize_session=False)
+        self.db.session.commit()
+        if installed != 1:
+            raise ValueError("PILOT_HOLD_OR_ACTIVE_LEASE")
+        self.pilot_hold = hold
+
     def claim(self, state_id, input_hash, token, now):
         claimed = self.State.query.filter(
             self.State.id == state_id,
+            self.State.pilot_hold == self.pilot_hold,
             self.State.input_hash == input_hash,
             self.State.status.in_({"pending", "error", "running"}),
             self.State.next_analysis_at <= now,

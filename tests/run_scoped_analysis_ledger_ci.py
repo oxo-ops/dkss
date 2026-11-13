@@ -33,6 +33,6 @@ for path in ('file:/outside?mode=rw','file:/outside?mode=ro','file://host/path?m
     try:guard('sqlite3.connect',(path,))
     except RuntimeError:pass
     else:raise AssertionError('SQLITE_BOUNDARY_NOT_ACTIVE')
-suite=unittest.defaultTestLoader.loadTestsFromNames(['test_scoped_analysis_ledger','test_scoped_analysis_saved_flow'])
+suite=unittest.defaultTestLoader.loadTestsFromNames(['test_scoped_analysis_ledger','test_scoped_analysis_saved_flow', 'test_scoped_analysis_job_bridge_saved'])
 result=unittest.TextTestRunner(verbosity=2).run(suite)
-sys.exit(0 if result.wasSuccessful() and result.testsRun>=9 and not result.skipped else 1)
+sys.exit(0 if result.wasSuccessful() and result.testsRun>=11 and not result.skipped else 1)

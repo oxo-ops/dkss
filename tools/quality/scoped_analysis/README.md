@@ -144,3 +144,44 @@ Local network-denied tests cover HTTP/count (9) and existing final gate (8).
 The full saved-flow test is subject to the exact new-head CI result, not claimed
 from local syntax validation. Real target/cohort selection, model verification,
 credentials, count/generation authorization and live scoped job integration remain.
+
+## Explicit job bridge candidate (not deployed or authorized to execute)
+`ScopedJobBridge` can be passed explicitly as `analysis_adapter` to one existing
+`run_vehicle_karte_analysis_job` invocation. No route, CLI, worker flag, environment
+switch, or startup call is added. The ordinary service still owns claim/lease,
+confirmation reconciliation and fenced save. The bridge checks state company/ID
+before claim, rebuilds the **ordinary complete** input, rejects changed revisions
+or acceptance-limited comparison, and matches final request bytes to the counted,
+approved request. It does not promote a limited peer result to a normal result.
+
+The single-call generator seam uses no global monkeypatch or credential lookup.
+It adds Standard tier only to this explicit bridge path; ordinary generation is
+unchanged. A durable reservation commits before the injected transport. An
+uncertain response consumes the reservation and must not be retried/refunded.
+`ResponsesHTTPS` supplies a fixed verified-TLS destination, one attempt, bounded
+response, no proxy/redirect/retry, no provider error-body logging, and no automatic
+credential acquisition. It is never called by the module or tests with real HTTP.
+
+Prerequisites remain **unfulfilled**: verified live model/settings; authorized
+company/vehicle and complete ordinary comparison input; actual full-input token
+count tied to the exact request; approved disclosure and budget; fixed single-host
+ledger and recovery owner. `COUNT_SOURCE` is an evidence label, not proof that
+counting or approval occurred. Token counting itself can disclose input and is
+not performed by this bridge. No production invocation is provided. The local
+ledger still is not provider exactly-once billing protection.
+
+### Persistent job hold (required schema migration; not applied)
+The bridge commits `vehicle_karte_analysis.pilot_hold` before claiming the job.
+A normal repository claim requires NULL; only that explicit pilot repository
+uses the matching hold. Worker selection also excludes held jobs. The hold is
+independent of status, retry time, lease and input hash: successful save, failure,
+process death/lease expiry, source deletion and requeue never clear it. A new
+pilot object cannot implicitly resume a held job. No automatic release function
+is provided. Reconcile provider billing, durable ledger and saved result, then
+obtain explicit operator release before clearing a specific hold.
+
+This adds a nullable column, so the additive SQL migration in `migrations/` must
+be reviewed/applied before this code is deployed. **Do not run a trial with old
+workers/code present**: stop/drain old execution first, migrate, deploy all job
+callers, then verify hold enforcement. Old binaries cannot enforce a new hold.
+No migration, deployment, hold, or release has been applied to production here.

@@ -231,16 +231,23 @@ def get_vehicle_karte_analysis_job_data(vehicle, *, comparison_vehicle_ids=None)
 
 
 
-def run_vehicle_karte_analysis_job(state_id, *, ownership_check=None):
+def run_vehicle_karte_analysis_job(state_id, *, ownership_check=None, analysis_adapter=None):
     """専用のバックグラウンド処理から呼び出す。"""
     from .priority_confirmed_projection import prepare_held_confirmed_candidates, reconcile_confirmed_candidates_before_save
     repository = _dkss_common.VehicleAnalysisJobRepository(
         db=_dkss_common.db, state_model=_dkss_models.VehicleKarteAnalysis, vehicle_model=_dkss_models.Vehicle,
     )
+    if analysis_adapter is not None:
+        analysis_adapter.validate_state(repository.get(state_id))
+        target = analysis_adapter.request.target
+        repository.install_pilot_hold(state_id, target.company, target.vehicle_id,
+            analysis_adapter.request.body_sha256,
+            _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC")))
     return _dkss_common.VehicleAnalysisJobService(
-        repository=repository, load_input=get_vehicle_karte_analysis_job_data,
+        repository=repository, load_input=(get_vehicle_karte_analysis_job_data if analysis_adapter is None
+            else analysis_adapter.load_input),
         ownership_check=ownership_check,
-        analyze=_dkss_common.analyze_vehicle_karte,
+        analyze=(_dkss_common.analyze_vehicle_karte if analysis_adapter is None else analysis_adapter.analyze),
         prepare_confirmed=prepare_held_confirmed_candidates,
         reconcile_confirmed=reconcile_confirmed_candidates_before_save,
         utc_now=lambda: _dkss_common.datetime.now(_dkss_common.ZoneInfo("UTC")),
@@ -380,6 +387,7 @@ def _vehicle_karte_analysis_tick_unlocked(*, ownership_check=lambda: None):
         .filter(
             _dkss_models.Vehicle.deleted.is_(False),
             _dkss_models.Company.active.is_(True),
+            _dkss_models.VehicleKarteAnalysis.pilot_hold.is_(None),
             _dkss_models.VehicleKarteAnalysis.status.in_(
                 {"pending", "error", "running"}
             ),
@@ -1690,6 +1698,13 @@ def vehicle_karte_analysis(vehicle_record_id):
     summary = build_vehicle_karte_analysis_summary(maintenance, operations, parts, defects, start.isoformat(), end.isoformat(), periodic_records=_dkss_models.VehiclePeriodicInspectionRecord.query.filter_by(company_code=vehicle.company_code, vehicle_record_id=vehicle.id).all())
     number = _dkss_vehicle_readers.vehicle_number({'plate_area': vehicle.plate_area or '', 'plate_class': vehicle.plate_class or '', 'plate_kana': vehicle.plate_kana or '', 'plate_number': vehicle.plate_number or ''})
     if _dkss_common.request.method == 'POST':
+        # Serialize manual generation with trial hold installation on the same
+        # existing state row. GET remains available; held trials require review.
+        held_state = _dkss_models.VehicleKarteAnalysis.query.filter_by(
+            company_code=vehicle.company_code, vehicle_record_id=vehicle.id,
+        ).populate_existing().with_for_update().first()
+        if held_state is not None and held_state.pilot_hold is not None:
+            abort(409, description='限定分析の確認待ちです。再実行せず管理者へ確認してください。')
         comparison = get_vehicle_karte_peer_comparison(vehicle, summary)
         payload, sources = build_vehicle_karte_analysis_payload(vehicle, summary, comparison, maintenance, parts, defects)
         if not payload['records']:
