@@ -1760,3 +1760,33 @@ class VehicleMaintenanceInspectionLink(db.Model):
 
 from .safety_identity import register_models as _register_safety_identities
 _register_safety_identities((ChecklistResult, VehicleChecklistResult, PatrolResult, ChecklistEvent))
+
+
+class CompanyRegistrationInvite(db.Model):
+    """Reusable company-scoped registration capability; never stores the URL token."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    revoked_at = db.Column(db.DateTime)
+    created_by = db.Column(db.String(36), nullable=False)
+
+
+class CompanyRegistrationApplication(db.Model):
+    """No login authority: accepted applicants become a separate User atomically."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(50), nullable=False, index=True)
+    invite_id = db.Column(db.Integer, db.ForeignKey('company_registration_invite.id'), nullable=False)
+    username = db.Column(db.String(50), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    first_name = db.Column(db.String(100))
+    email_address = db.Column(db.String(255))
+    office = db.Column(db.String(100))
+    password_hash = db.Column(db.String(255))
+    status = db.Column(db.String(20), nullable=False, default='pending', index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    decided_at = db.Column(db.DateTime)
+    decided_by = db.Column(db.String(36))
+    verification_reason = db.Column(db.String(500))
+    approved_role = db.Column(db.String(20))

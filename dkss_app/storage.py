@@ -808,7 +808,8 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
 
     response.headers["Referrer-Policy"] = (
-        "strict-origin-when-cross-origin"
+        "no-referrer" if _dkss_common.request.endpoint in {"register", "itc_registration", "company_registration"}
+        else "strict-origin-when-cross-origin"
     )
 
     response.headers["X-Frame-Options"] = "DENY"

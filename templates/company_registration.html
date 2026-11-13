@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}登録URL・申請{% endblock %}
+{% block content %}
+<div class="page-header"><h2>{{ company.company_name }} 登録URL・申請</h2></div>
+{% if error %}<p role="alert" class="alert danger">{{ error }}</p>{% endif %}
+<div class="card">
+<h3>みんなに配布する登録URL</h3>
+<p>有効期限は7日間（申請の承認も期限内に必要です）。同じURLを複数人に一度に配布できます。1人が申請しても他の人は引き続き申請できます。申請だけではログインや業務情報の閲覧はできません。</p>
+<p>再発行すると以前のURLは使えなくなります。未承認の申請も失効するため、新しいURLから再申請が必要です。承認済みアカウントは影響を受けません。URLは社内の配布先だけに共有してください。</p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="issue"><button class="btn" type="submit">登録URLを発行（7日間）</button></form>
+{% if generated_url %}
+<label for="registration-url">発行したURL（この画面でのみ表示）</label>
+<input id="registration-url" type="text" readonly value="{{ generated_url }}" aria-describedby="url-help">
+<p id="url-help">URLを選択してコピーしてください。画面を離れた後は再発行してください。</p>
+{% endif %}
+{% for invite in invites %}
+<p>発行 #{{ invite.id }} ／ 有効期限 {{ invite.expires_at }} UTC {% if invite.revoked_at %}（失効済み）{% endif %}</p>
+{% if not invite.revoked_at %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="revoke"><input type="hidden" name="invite_id" value="{{ invite.id }}"><button class="btn" type="submit">このURLを失効</button></form>{% endif %}
+{% endfor %}
+</div>
+<div class="card">
+<h3>利用登録申請</h3>
+{% if is_itc %}<p>初回管理者は、導入時に確認した顧客責任者の申請だけを承認してください。氏名やURL所持だけで判断せず、契約時の連絡先への電話など別経路で確認します。ITCは利用者のパスワードを入力・閲覧しません。</p><p>初回管理者の承認後は会社側で利用者承認・管理者追加を行います。</p>
+{% else %}<p>所属と本人を確認してから承認してください。「管理者」はこの会社の利用者承認とマスタ管理を行えます。複数人を管理者にできます。</p>{% endif %}
+{% for item in applications %}
+<section class="card"><h4>{{ item.last_name }} {{ item.first_name or '' }}（{{ item.username }}）</h4><p>営業所：{{ item.office or '未指定' }} ／ メール：{{ item.email_address or '未登録' }} ／ 状態：{{ item.status }}</p>
+{% if item.status == 'pending' and (not is_itc or not has_admin) %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="application_id" value="{{ item.id }}">
+{% if is_itc %}<input type="hidden" name="role" value="admin"><label for="verify-{{ item.id }}">初回責任者の確認記録（確認方法・日付、秘密情報は記載しない）</label><textarea id="verify-{{ item.id }}" name="verification_reason" minlength="10" maxlength="500" required></textarea>{% else %}<label for="role-{{ item.id }}">付与する権限</label><select id="role-{{ item.id }}" name="role"><option value="user">一般利用者</option><option value="admin">会社管理者</option></select>{% endif %}
+<button type="submit" class="btn">本人・所属を確認して承認</button></form>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject"><input type="hidden" name="application_id" value="{{ item.id }}"><button type="submit" class="btn">申請を却下</button></form>
+{% endif %}</section>
+{% else %}<p>申請はありません。</p>{% endfor %}
+{% if pagination %}<nav aria-label="申請一覧のページ">{% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}">前の50件</a>{% endif %} {{ pagination.page }} / {{ pagination.pages or 1 }} {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}">次の50件</a>{% endif %}</nav>{% endif %}
+<p>未処理申請を古い順に優先表示しています。承認・却下は再実行しても重複してアカウントを作成しません。</p>
+</div>
+{% endblock %}

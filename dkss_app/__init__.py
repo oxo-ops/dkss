@@ -82,6 +82,20 @@ def create_app(config=None, *, initialize_database=False):
         upgrade_read_cache()
         print("DATABASE_INITIALIZED")
 
+    @app.cli.command("upgrade-company-invites")
+    def upgrade_company_invites_command():
+        """Explicitly add invite/application tables; never reset existing data."""
+        from .company_invites import upgrade_invite_schema
+        upgrade_invite_schema()
+        print("COMPANY_INVITES_UPGRADED")
+
+    @app.cli.command("expire-company-registration-applications")
+    def expire_company_registration_applications_command():
+        """Erase expired pending password hashes; leave active accounts unchanged."""
+        from .company_invites import expire_pending_applications
+        count = expire_pending_applications()
+        print(f"COMPANY_APPLICATIONS_EXPIRED={count}")
+
     @app.cli.command("upgrade-account-identity")
     def upgrade_account_identity_command():
         """Add account-generation columns; quarantine ambiguous old ownership."""

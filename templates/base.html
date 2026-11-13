@@ -162,6 +162,9 @@
             </a>
             {% endif %}
 
+            {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('company_registration') }}" class="menu-item"><span class="menu-text">登録URL・申請</span></a>
+            {% endif %}
         </nav>
         {% endif %}
 

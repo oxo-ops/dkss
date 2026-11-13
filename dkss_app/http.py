@@ -40,6 +40,13 @@ def file_too_large(error):
 
 
 def handle_csrf_error(error):
+    if _dkss_common.request.endpoint == "register":
+        from .company_invite_views import _private_response
+        token = _dkss_common.request.args.get("invite", "")
+        retry_url = _dkss_common.url_for("register", invite=token) if 40 <= len(token) <= 100 else None
+        return _private_response(_dkss_common.render_template("registration_result.html",
+            message="送信内容を確認できませんでした。登録画面を開き直して申請してください。",
+            company_code=None, retry_url=retry_url), 400)
     if not _dkss_common.session.get("username"):
         return _dkss_common.redirect("/login")
 
@@ -487,6 +494,8 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 
 def redirect_form_errors(response):
+    if _dkss_common.request.endpoint in {"register", "itc_registration", "company_registration"}:
+        return response
     # Only the explicit checklist answer-version conflict keeps its 409 view.
     if (response.status_code == 409
             and _dkss_common.request.endpoint in {

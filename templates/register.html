@@ -5,7 +5,8 @@
 {% block content %}
 
 <div class="page-header">
-    <h2>初回登録</h2>
+    <h2>{{ company_name }} 利用登録申請</h2>
+<p>会社の承認後にログインできます。URLを持っているだけでは業務情報を閲覧できません。</p>
 
     <div class="header-actions">
         <a href="/login" class="btn btn-back">
@@ -17,7 +18,7 @@
 <div class="card form-card register-card">
     <form
         method="post"
-        action="{{ url_for('register', company_code=company_code) }}"
+        action="{{ url_for('register', invite=invite_token) }}"
         class="responsive-form register-form"
         novalidate
     >
@@ -55,7 +56,7 @@
         autocomplete="given-name"
     >
 
-    <label>メールアドレス（任意）</label>
+    <label>メールアドレス（多要素認証を利用する場合は必要）</label>
     <input
         type="email"
         name="email_address"

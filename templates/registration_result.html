@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}利用登録申請{% endblock %}
+{% block content %}<div class="card"><h2>利用登録申請</h2><p role="status">{{ message }}</p>{% if company_code %}<a href="{{ url_for('login', company_code=company_code) }}" class="btn">ログイン画面へ</a>{% else %}<p>会社の管理者から有効な登録URLを受け取ってください。</p>{% endif %}{% if retry_url %}<a href="{{ retry_url }}" class="btn">登録画面を開き直す</a>{% endif %}</div>{% endblock %}

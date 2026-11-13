@@ -156,6 +156,11 @@ def register_core_routes(app):
     view = companies.itc_new_company
     view = limiter.limit("5 per minute", methods=["POST"])(view)
     view = app.route("/itc/companies/new", methods=["GET", "POST"])(view)
+    from .company_invite_views import itc_registration, company_registration
+    view = limiter.limit("20 per minute", methods=["POST"])(itc_registration)
+    app.route("/itc/companies/<int:index>/registration", methods=["GET", "POST"])(view)
+    view = limiter.limit("20 per minute", methods=["POST"])(company_registration)
+    app.route("/master/registration", methods=["GET", "POST"])(view)
     view = companies.itc_edit_company
     view = limiter.limit("10 per minute", methods=["POST"])(view)
     view = app.route("/itc/companies/<int:index>/edit", methods=["GET", "POST"])(view)
