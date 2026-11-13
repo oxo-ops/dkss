@@ -24,6 +24,6 @@ for probe in (lambda: socket.socket(), lambda: subprocess.Popen([sys.executable,
     else:
         raise RuntimeError('EXTERNAL_IO_GUARD_NOT_ACTIVE')
 sys.path.insert(0, str(ROOT / 'tests'))
-suite = unittest.defaultTestLoader.loadTestsFromNames(['test_scoped_analysis_pilot', 'test_scoped_analysis_adapter', 'test_scoped_analysis_ledger', 'test_scoped_analysis_final_gate', 'test_scoped_analysis_http_candidate'])
+suite = unittest.defaultTestLoader.loadTestsFromNames(['test_scoped_analysis_pilot', 'test_scoped_analysis_adapter', 'test_scoped_analysis_ledger', 'test_scoped_analysis_final_gate', 'test_scoped_analysis_http_candidate', 'test_scoped_analysis_job_bridge'])
 result = unittest.TextTestRunner(verbosity=2).run(suite)
-sys.exit(0 if result.wasSuccessful() and result.testsRun >= 44 and not result.skipped else 1)
+sys.exit(0 if result.wasSuccessful() and result.testsRun >= 50 and not result.skipped else 1)
