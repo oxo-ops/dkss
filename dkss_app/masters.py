@@ -1504,6 +1504,8 @@ def new_driver():
     company_code = _dkss_common.session.get("company_code")
 
     if _dkss_common.request.method == "POST":
+        # Share the account-creation serialization boundary with invite approval.
+        _dkss_models.Company.query.filter_by(company_code=company_code).populate_existing().with_for_update().first()
         form_errors = []
 
         employee_id = _dkss_common.request.form.get(
@@ -1930,6 +1932,8 @@ def edit_driver(index):
         return _dkss_common.redirect("/master/drivers")
 
     if _dkss_common.request.method == "POST":
+        _dkss_models.Company.query.filter_by(company_code=driver.company_code).populate_existing().with_for_update().first()
+        _dkss_common.db.session.refresh(driver)
         form_errors = []
 
         company_code = driver.company_code

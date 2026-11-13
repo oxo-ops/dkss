@@ -33,7 +33,7 @@ erDiagram
     vehicle ||--o{ vehicle_periodic_inspection_record : "vehicle_record_id"
 ```
 
-Tables: 68
+Tables: 70
 
 ## analysis_input_epoch
 
@@ -148,6 +148,38 @@ Tables: 68
 | company_name | VARCHAR(100) | False | False |  |
 | vehicle_limit | INTEGER | True | False |  |
 | active | BOOLEAN | True | False |  |
+
+## company_registration_application
+
+| Column | Type | Nullable | Primary key | Foreign key |
+| --- | --- | --- | --- | --- |
+| id | INTEGER | False | True |  |
+| company_code | VARCHAR(50) | False | False |  |
+| invite_id | INTEGER | False | False | company_registration_invite.id |
+| username | VARCHAR(50) | False | False |  |
+| last_name | VARCHAR(100) | False | False |  |
+| first_name | VARCHAR(100) | True | False |  |
+| email_address | VARCHAR(255) | True | False |  |
+| office | VARCHAR(100) | True | False |  |
+| password_hash | VARCHAR(255) | True | False |  |
+| status | VARCHAR(20) | False | False |  |
+| created_at | DATETIME | False | False |  |
+| decided_at | DATETIME | True | False |  |
+| decided_by | VARCHAR(36) | True | False |  |
+| verification_reason | VARCHAR(500) | True | False |  |
+| approved_role | VARCHAR(20) | True | False |  |
+
+## company_registration_invite
+
+| Column | Type | Nullable | Primary key | Foreign key |
+| --- | --- | --- | --- | --- |
+| id | INTEGER | False | True |  |
+| company_code | VARCHAR(50) | False | False |  |
+| token_hash | VARCHAR(64) | False | False |  |
+| created_at | DATETIME | False | False |  |
+| expires_at | DATETIME | False | False |  |
+| revoked_at | DATETIME | True | False |  |
+| created_by | VARCHAR(36) | False | False |  |
 
 ## company_usage_summary
 

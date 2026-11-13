@@ -265,6 +265,18 @@
       ""
     ],
     [
+      "/itc/companies/<int:index>/registration",
+      "itc_registration",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
       "/itc/companies/new",
       "itc_new_company",
       [
@@ -734,6 +746,18 @@
     [
       "/master/patrol-content-types/new",
       "new_patrol_content_type",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "POST"
+      ],
+      true,
+      ""
+    ],
+    [
+      "/master/registration",
+      "company_registration",
       [
         "GET",
         "HEAD",
@@ -2350,6 +2374,8 @@
     "checklist_event": "\nCREATE TABLE checklist_event (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tresult_type VARCHAR(20) NOT NULL, \n\tresult_id INTEGER NOT NULL, \n\tevent_type VARCHAR(50) NOT NULL, \n\tactor_username VARCHAR(50), \n\tactor_user_id INTEGER, \n\tactor_identity VARCHAR(36), \n\tactor_name VARCHAR(100), \n\tdetail_json TEXT, \n\tcreated_at VARCHAR(40) NOT NULL, \n\tPRIMARY KEY (id)\n)\n\n",
     "checklist_result": "\nCREATE TABLE checklist_result (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tchecklist_id INTEGER NOT NULL, \n\ttarget_type VARCHAR(50), \n\ttarget_user VARCHAR(100), \n\ttarget_username VARCHAR(50), \n\ttarget_user_id INTEGER, \n\ttarget_identity VARCHAR(36), \n\ttarget_vehicle_record_id INTEGER, \n\ttarget_office VARCHAR(100), \n\tchecked_by VARCHAR(100), \n\tchecked_by_username VARCHAR(50), \n\tchecked_by_user_id INTEGER, \n\tchecked_by_identity VARCHAR(36), \n\tchecked_date VARCHAR(30), \n\tstatus VARCHAR(30), \n\tapproved_by VARCHAR(100), \n\tapproved_by_username VARCHAR(50), \n\tapproved_by_user_id INTEGER, \n\tapproved_by_identity VARCHAR(36), \n\tapproved_date VARCHAR(30), \n\treject_reason TEXT, \n\tapprovals_json TEXT, \n\tnotify_users_json TEXT, \n\tnotification_identities_json TEXT, \n\tanswers_json TEXT, \n\tchecklist_snapshot_json TEXT, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(target_vehicle_record_id) REFERENCES vehicle (id)\n)\n\n",
     "company": "\nCREATE TABLE company (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tcompany_name VARCHAR(100) NOT NULL, \n\tvehicle_limit INTEGER, \n\tactive BOOLEAN, \n\tPRIMARY KEY (id), \n\tUNIQUE (company_code)\n)\n\n",
+    "company_registration_application": "\nCREATE TABLE company_registration_application (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tinvite_id INTEGER NOT NULL, \n\tusername VARCHAR(50) NOT NULL, \n\tlast_name VARCHAR(100) NOT NULL, \n\tfirst_name VARCHAR(100), \n\temail_address VARCHAR(255), \n\toffice VARCHAR(100), \n\tpassword_hash VARCHAR(255), \n\tstatus VARCHAR(20) NOT NULL, \n\tcreated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, \n\tdecided_at TIMESTAMP WITHOUT TIME ZONE, \n\tdecided_by VARCHAR(36), \n\tverification_reason VARCHAR(500), \n\tapproved_role VARCHAR(20), \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(invite_id) REFERENCES company_registration_invite (id)\n)\n\n",
+    "company_registration_invite": "\nCREATE TABLE company_registration_invite (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\ttoken_hash VARCHAR(64) NOT NULL, \n\tcreated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, \n\texpires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, \n\trevoked_at TIMESTAMP WITHOUT TIME ZONE, \n\tcreated_by VARCHAR(36) NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (token_hash)\n)\n\n",
     "company_usage_summary": "\nCREATE TABLE company_usage_summary (\n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tuser_count INTEGER NOT NULL, \n\tvehicle_count INTEGER NOT NULL, \n\tlogin_count INTEGER NOT NULL, \n\tchecklist_result_count INTEGER NOT NULL, \n\tlast_used_at VARCHAR(20), \n\tupdated_at VARCHAR(20), \n\tPRIMARY KEY (id), \n\tUNIQUE (company_code)\n)\n\n",
     "delivery_place": "\nCREATE TABLE delivery_place (\n\tmaster_generation VARCHAR(36) NOT NULL, \n\tid SERIAL NOT NULL, \n\tcompany_code VARCHAR(50) NOT NULL, \n\tname VARCHAR(100) NOT NULL, \n\tPRIMARY KEY (id)\n)\n\n",
     "document_queue_schedule": "\nCREATE TABLE document_queue_schedule (\n\tid SERIAL NOT NULL, \n\tversion INTEGER NOT NULL, \n\tlast_company VARCHAR(50), \n\tPRIMARY KEY (id)\n)\n\n",
@@ -2414,6 +2440,9 @@
   },
   "indexes": [
     "CREATE INDEX ix_checklist_notify_account_setting ON vehicle_checklist_notify_account (company_code, setting_id, id)",
+    "CREATE INDEX ix_company_registration_application_company_code ON company_registration_application (company_code)",
+    "CREATE INDEX ix_company_registration_application_status ON company_registration_application (status)",
+    "CREATE INDEX ix_company_registration_invite_company_code ON company_registration_invite (company_code)",
     "CREATE INDEX ix_driving_reader_account_report ON driving_reader_account (company_code, report_id, id)",
     "CREATE INDEX ix_driving_reader_company_user ON driving_report_reader (company_code, user_id)",
     "CREATE INDEX ix_driving_report_reader_company_code ON driving_report_reader (company_code)",

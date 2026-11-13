@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import test_workflow_regressions as fixtures
 from test_q05_inspection_dates import clock_at
-from dkss_app import auth
+from dkss_app import company_invites
+from dkss_app.models import CompanyRegistrationApplication
 
 
 class RegistrationDateTests(unittest.TestCase):
@@ -14,7 +15,10 @@ class RegistrationDateTests(unittest.TestCase):
     tearDown = fixtures.WorkflowRegressionTests.tearDown
 
     def register(self, ident):
-        return self.client.post('/register?company_code=TEST', data=dict(
+        actor = self.m.User.query.filter_by(company_code='TEST', username='admin').one()
+        with self.m.app.test_request_context():
+            _, token = company_invites.issue_invite('TEST', actor)
+        return self.client.post('/register?invite=' + token, data=dict(
             last_name='架空', first_name='登録', employee_id=ident,
             password='Q05-Register-Only-742!', office=''))
 
@@ -27,9 +31,14 @@ class RegistrationDateTests(unittest.TestCase):
         )):
             ident = 'register-' + str(index)
             with self.subTest(instant=instant), patch.object(
-                auth._dkss_common, 'datetime', clock_at(instant)
+                company_invites, 'datetime', clock_at(instant)
             ):
-                self.assertEqual(self.register(ident).status_code, 302)
+                self.assertEqual(self.register(ident).status_code, 200)
+                self.assertIsNone(self.m.Driver.query.filter_by(employee_id=ident).first())
+                application = CompanyRegistrationApplication.query.filter_by(username=ident).one()
+                response = self.client.post('/master/registration', data=dict(
+                    action='approve', application_id=application.id, role='user'))
+                self.assertEqual(response.status_code, 303)
                 self.assertEqual(self.m.Driver.query.filter_by(employee_id=ident).one().safe_start_date, day)
 
     def test_existing_driver_date_and_unknown_precision_are_never_replaced_on_registration(self):
@@ -39,8 +48,9 @@ class RegistrationDateTests(unittest.TestCase):
                                    name='既存架空', safe_start_date=day)
             self.m.db.session.add(driver)
             self.m.db.session.commit()
-            with patch.object(auth._dkss_common, 'datetime', clock_at('2026-12-31T15:00:00+00:00')):
-                self.assertEqual(self.register(ident).status_code, 302)
+            with patch.object(company_invites, 'datetime', clock_at('2026-12-31T15:00:00+00:00')):
+                self.assertEqual(self.register(ident).status_code, 409)
+                self.assertIsNone(self.m.User.query.filter_by(company_code='TEST', username=ident).first())
             self.m.db.session.refresh(driver)
             self.assertEqual(driver.safe_start_date, day)
 

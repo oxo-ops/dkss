@@ -37,7 +37,7 @@
             <tr>
                 <th>会社コード</th>
                 <th>会社名</th>
-                <th>招待URL</th>
+                <th>登録URL・申請</th>
                 <th>車両上限</th>
                 <th>登録済み</th>
                 <th>残り</th>
@@ -55,8 +55,8 @@
                 <td>{{ company.company_name }}</td>
                 <td>
                     <a
-                        href="/register?company_code={{ company.company_code }}"
-                        target="_blank"
+                        href="/itc/companies/{{ company.id }}/registration"
+
                         class="btn-mini"
                     >
                         開く
@@ -140,11 +140,11 @@
 
                 <div class="mobile-card-actions">
                     <a
-                        href="/register?company_code={{ company.company_code }}"
-                        target="_blank"
+                        href="/itc/companies/{{ company.id }}/registration"
+
                         class="btn-small"
                     >
-                        招待URL
+                        登録URL・申請
                     </a>
 
                     <a
