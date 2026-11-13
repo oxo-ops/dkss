@@ -83,7 +83,11 @@ class MasterDisplayOrderTests(unittest.TestCase):
         with template_rendered.connected_to(capture, self.m.app):
             self.client.get('/master/drivers/new')
             self.assertEqual([r['id'] for r in contexts[-1]['offices']], ids[::-1])
-            self.client.get('/register?company_code=TEST')
+            from dkss_app.company_invites import issue_invite
+            actor = self.m.User.query.filter_by(company_code='TEST', username='admin').one()
+            with self.m.app.test_request_context():
+                _, token = issue_invite('TEST', actor)
+            self.client.get('/register?invite=' + token)
             self.assertEqual([r.id for r in contexts[-1]['offices']], ids[::-1])
             page = self.client.get('/vehicle/inspection-plans')
             self.assertEqual(page.status_code, 200)

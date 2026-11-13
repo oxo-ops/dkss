@@ -2,6 +2,7 @@
 from flask import abort, current_app, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 from .extensions import db
+from .master_readers import ordered_master_query
 from .models import Company, User, Office, CompanyRegistrationInvite, CompanyRegistrationApplication
 from . import company_invites as service
 
@@ -27,7 +28,7 @@ def public_registration():
             service.submit_application(token, request.form)
             return _private_response(render_template('registration_result.html',
                 message='登録申請を受け付けました。会社の管理者による確認・承認後、設定したログインIDとパスワードでログインしてください。', company_code=company.company_code))
-        offices = Office.query.filter_by(company_code=company.company_code).order_by(Office.id).all()
+        offices = ordered_master_query(Office, company.company_code).all()
         return _private_response(render_template('register.html', error=None,
             company_code=company.company_code, company_name=company.company_name,
             invite_token=token, offices=offices))
@@ -35,7 +36,7 @@ def public_registration():
         db.session.rollback()
         try:
             _, company = service.validate_invite(token)
-            offices = Office.query.filter_by(company_code=company.company_code).order_by(Office.id).all()
+            offices = ordered_master_query(Office, company.company_code).all()
             return _private_response(render_template('register.html', error=str(exc),
                 company_code=company.company_code, company_name=company.company_name,
                 invite_token=token, offices=offices), exc.status)
