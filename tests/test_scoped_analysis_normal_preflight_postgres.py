@@ -17,7 +17,12 @@ class NormalPreflightPostgresTests(unittest.TestCase):
         v.model_code='SYNTHETIC';v.first_registration_date='2020-01';v.deleted=False
         peer=self.models.Vehicle(company_code='TEST',model_code='SYNTHETIC',
             first_registration_date='2020-01',deleted=False)
-        self.db.session.add(peer);self.db.session.commit()
+        self.db.session.add(peer)
+        self.db.session.add(self.models.VehicleMaintenanceRecord(
+            company_code='TEST',vehicle_record_id=self.vehicle_id,
+            entry_date='2026-11-01',completion_date='2026-11-01',status='完了',
+            content='SYNTHETIC_PREFLIGHT_SOURCE',mileage=100))
+        self.db.session.commit()
         self.peer_id=peer.id;self.db.session.remove()
         self.scope=NormalReadScope('TEST',self.vehicle_id,self.state_id,(self.vehicle_id,self.peer_id),True)
 
