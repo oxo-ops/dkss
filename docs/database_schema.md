@@ -862,6 +862,7 @@ Tables: 70
 | company_code | VARCHAR(50) | False | False |  |
 | vehicle_record_id | INTEGER | False | False | vehicle.id |
 | status | VARCHAR(30) | False | False |  |
+| pilot_hold | VARCHAR(64) | True | False |  |
 | input_hash | VARCHAR(64) | True | False |  |
 | result_json | TEXT | False | False |  |
 | last_analyzed_at | DATETIME | True | False |  |

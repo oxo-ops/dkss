@@ -128,7 +128,7 @@ def run_due_job(app, *, ownership_check=lambda: None):
         Vehicle.id == State.vehicle_record_id, Vehicle.company_code == State.company_code,
     )).join(Company, Company.company_code == Vehicle.company_code).filter(
         Vehicle.deleted.is_(False), Company.active.is_(True),
-        State.status.in_({"pending", "error", "running"}), State.next_analysis_at <= now,
+        State.pilot_hold.is_(None), State.status.in_({"pending", "error", "running"}), State.next_analysis_at <= now,
         db.or_(State.lease_expires_at.is_(None), State.lease_expires_at <= now),
     ).order_by(State.next_analysis_at, State.id).limit(JOB_LIMIT).all()
     db.session.remove()

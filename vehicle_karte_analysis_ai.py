@@ -414,33 +414,63 @@ def analyze_vehicle_karte(payload, on_progress=None):
     return finalize_confirmed_priority_candidates(result, payload)
 
 
-def _analyze_vehicle_karte_once(payload, on_progress=None):
+def prepare_vehicle_karte_analysis_request(payload, *, model):
+    """Build the existing one-call request without credentials, DB or transmission.
+
+    Limited pilot only: reject multi-batch input rather than hiding downstream
+    review/final calls. This is not generation, saving or a cost/token estimate.
+    """
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError("ANALYSIS_MODEL_REQUIRED")
+    if len(build_vehicle_karte_analysis_batches(payload)) != 1:
+        raise ValueError("PILOT_MULTI_BATCH_NOT_SUPPORTED")
+    return _analyze_vehicle_karte_once(payload, _request_only=True, _model=model)
+
+
+def analyze_vehicle_karte_single_request(payload, *, model, transport, on_progress=None):
+    """Explicit one-call adapter. No credential lookup or global transport patch.
+
+    The adapter must authorize/count/reserve the exact body before transmitting.
+    Ordinary multi-stage generation remains unchanged and is not allowed here.
+    """
+    from dkss_app.priority_confirmed_projection import finalize_confirmed_priority_candidates
+    if not callable(transport) or not isinstance(model, str) or not model.strip():
+        raise ValueError("PILOT_TRANSPORT_AND_MODEL_REQUIRED")
+    if len(build_vehicle_karte_analysis_batches(payload)) != 1:
+        raise ValueError("PILOT_MULTI_BATCH_NOT_SUPPORTED")
+    result = _analyze_vehicle_karte_once(payload, on_progress=on_progress,
+        _model=model, _request_transport=transport)
+    return finalize_confirmed_priority_candidates(result, payload)
+
+
+def _analyze_vehicle_karte_once(payload, on_progress=None, *, _request_only=False, _model=None, _request_transport=None):
     # VEHICLE_RISK_V4_INSTALLED
     from vehicle_analysis_risk import RISK_INSTRUCTIONS, risk_output_properties, validate_vehicle_risk, compose_vehicle_risk_data
 
     if on_progress is not None:
         on_progress()
 
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not _request_only and _request_transport is None:
+        key = os.environ.get("OPENAI_API_KEY", "").strip()
 
-    if os.name == "nt" and not key.startswith("sk-"):
-        import winreg
+        if os.name == "nt" and not key.startswith("sk-"):
+            import winreg
 
-        try:
-            with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Environment"
-            ) as registry:
-                saved_key = str(winreg.QueryValueEx(
-                    registry, "OPENAI_API_KEY"
-                )[0]).strip()
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, "Environment"
+                ) as registry:
+                    saved_key = str(winreg.QueryValueEx(
+                        registry, "OPENAI_API_KEY"
+                    )[0]).strip()
 
-            if saved_key.startswith("sk-"):
-                key = saved_key
+                if saved_key.startswith("sk-"):
+                    key = saved_key
 
-        except OSError:
-            pass
-    if not key:
-        raise ValueError("API_KEY_NOT_SET")
+            except OSError:
+                pass
+        if not key:
+            raise ValueError("API_KEY_NOT_SET")
 
     records = payload.get("records", [])
     allowed_ids = {
@@ -473,6 +503,8 @@ def _analyze_vehicle_karte_once(payload, on_progress=None):
     vehicle_evidence_ids.update(confirmed_source_ids - knowledge_ids)
 
     if not vehicle_evidence_ids:
+        if _request_only:
+            raise ValueError("PILOT_NO_EVIDENCE")
         return {
             "overview": "分析の根拠となる履歴がありません。",
             "recommendations": [],
@@ -838,7 +870,7 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         }, ensure_ascii=False)
         instructions += "\nperiodic:等のIDは記載どおりに使い、項目番号・ページ番号・送信用参照キーから新しいIDを作らないでください。根拠を示せない提案は出力しないでください。"
 
-    model = (
+    model = _model if _request_only or _request_transport is not None else (
         os.environ.get("OPENAI_ANALYSIS_MODEL")
         or os.environ.get("OPENAI_MODEL")
         or "gpt-6.1-sol"
@@ -861,61 +893,68 @@ evidence_schemasは表の列名一覧です。{"$evidence_row":["s1",[値1,値2,
         "store": False,
     }
 
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": "Bearer " + key,
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    if _request_only:
+        return body
 
-    try:
-        with urllib.request.urlopen(
-            request, timeout=120
-        ) as response:
-            result = json.load(response)
-    except urllib.error.HTTPError as error:
-        detail = ""
+    if _request_transport is not None:
+        body["service_tier"] = "default"
+        result = _request_transport(body)
+    else:
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + key,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
         try:
-            response_error = json.loads(
-                error.read(65536).decode(
-                    "utf-8", errors="replace"
-                )
-            ).get("error", {})
+            with urllib.request.urlopen(
+                request, timeout=120
+            ) as response:
+                result = json.load(response)
+        except urllib.error.HTTPError as error:
+            detail = ""
+            try:
+                response_error = json.loads(
+                    error.read(65536).decode(
+                        "utf-8", errors="replace"
+                    )
+                ).get("error", {})
 
-            if isinstance(response_error, dict):
-                detail = " / ".join(
-                    f"{name}={response_error[name]}"
-                    for name in ("code", "param", "message")
-                    if response_error.get(name) is not None
-                )
-                detail = detail.replace(key, "[REDACTED]")
-                detail = " ".join(detail.split())[:600]
+                if isinstance(response_error, dict):
+                    detail = " / ".join(
+                        f"{name}={response_error[name]}"
+                        for name in ("code", "param", "message")
+                        if response_error.get(name) is not None
+                    )
+                    detail = detail.replace(key, "[REDACTED]")
+                    detail = " ".join(detail.split())[:600]
 
-        except (ValueError, AttributeError, OSError):
-            pass
+            except (ValueError, AttributeError, OSError):
+                pass
 
-        raise RuntimeError(
-            f"ANALYSIS_HTTP_{error.code}"
-            + (f": {detail}" if detail else "")
-        ) from None
-    except TimeoutError:
-        raise RuntimeError(
-            "ANALYSIS_TIMEOUT_120_SECONDS"
-        ) from None
-
-    except urllib.error.URLError as error:
-        if isinstance(error.reason, TimeoutError):
+            raise RuntimeError(
+                f"ANALYSIS_HTTP_{error.code}"
+                + (f": {detail}" if detail else "")
+            ) from None
+        except TimeoutError:
             raise RuntimeError(
                 "ANALYSIS_TIMEOUT_120_SECONDS"
             ) from None
 
-        raise RuntimeError(
-            "ANALYSIS_CONNECTION_ERROR: "
-            + type(error.reason).__name__
-        ) from None
+        except urllib.error.URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise RuntimeError(
+                    "ANALYSIS_TIMEOUT_120_SECONDS"
+                ) from None
+
+            raise RuntimeError(
+                "ANALYSIS_CONNECTION_ERROR: "
+                + type(error.reason).__name__
+            ) from None
 
     if result.get("status") != "completed":
         raise RuntimeError("ANALYSIS_NOT_COMPLETED")
