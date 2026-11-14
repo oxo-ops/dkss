@@ -73,12 +73,37 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
     def email(self):
         return delivery.send_email_notification(self.user, 'Synthetic title', CANARY, '/notifications')
 
+    def assert_verified_tls(self):
+        self.server.starttls.assert_called_once()
+        context = self.server.starttls.call_args.kwargs['context']
+        self.assertIsInstance(context, ssl.SSLContext)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+
+    def test_certificate_verification_failure_stops_all_mail_paths_before_auth(self):
+        paths = [self.email,
+                 lambda: auth.send_mfa_code_email(self.user, '123456'),
+                 lambda: auth.send_email_change_code_email('new@example.invalid', '456789')]
+        for send in paths:
+            with self.subTest(send=send):
+                self.smtp.reset_mock()
+                self.capture.records.clear()
+                self.server.starttls.side_effect = ssl.SSLCertVerificationError(CANARY)
+                self.assertFalse(send())
+                self.assert_verified_tls()
+                self.server.login.assert_not_called()
+                self.server.send_message.assert_not_called()
+                self.smtp.assert_called_once()
+                self.assertNotIn(CANARY, self.capture.output.getvalue())
+                self.assertEqual(len(self.capture.records), 1)
+                self.assertIn('stage=starttls error_type=tls', self.capture.records[0].getMessage())
+
     def test_smtp_authentication_error_logs_no_credentials_or_response(self):
         self.server.login.side_effect = smtplib.SMTPAuthenticationError(535, CANARY.encode())
         self.assertFalse(self.email())
         self.assert_log('EMAIL_DELIVERY_FAILED purpose=notification stage=authenticate error_type=authentication')
         self.smtp.assert_called_once_with('smtp.example.invalid', 587, timeout=20)
-        self.server.starttls.assert_called_once_with()
+        self.assert_verified_tls()
         self.server.login.assert_called_once_with('sender@example.invalid', CANARY)
         self.server.send_message.assert_not_called()
 
@@ -117,7 +142,8 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
 
     def test_email_success_preserves_tls_login_body_and_one_send(self):
         self.assertTrue(self.email())
-        self.assertEqual(self.server.method_calls, [call.starttls(), call.login('sender@example.invalid', CANARY), call.send_message(self.server.send_message.call_args.args[0])])
+        self.assertEqual(self.server.method_calls, [call.starttls(context=self.server.starttls.call_args.kwargs["context"]), call.login('sender@example.invalid', CANARY), call.send_message(self.server.send_message.call_args.args[0])])
+        self.assert_verified_tls()
         email = self.server.send_message.call_args.args[0]
         self.assertEqual(email['To'], 'recipient@example.invalid')
         self.assertEqual(email['Subject'], 'Synthetic title')
@@ -166,6 +192,7 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
 
     def test_email_change_success_preserves_message_and_tls(self):
         self.assertTrue(auth.send_email_change_code_email('new@example.invalid', '456789'))
+        self.assert_verified_tls()
         email = self.server.send_message.call_args.args[0]
         self.assertEqual(email['To'], 'new@example.invalid')
         self.assertIn('456789', email.get_content())
