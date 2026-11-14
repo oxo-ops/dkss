@@ -1,0 +1,47 @@
+name: SMTP Real TLS Contract
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'dkss_app/auth.py'
+      - 'dkss_app/notifications_delivery.py'
+      - 'tools/quality/smtp_tls_handshake/**'
+      - '.github/workflows/smtp-real-tls-contract.yml'
+permissions:
+  contents: read
+jobs:
+  loopback-tls:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Verify exact head and nine local TLS contracts
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          printf 'tested_head=%s\ntested_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})"
+          python_bin=$(command -v python)
+          env -i PATH=/usr/bin:/bin "$python_bin" -I -B - <<'PY'
+          import importlib.util, pathlib, unittest
+          path = pathlib.Path('tools/quality/smtp_tls_handshake/test_real_smtp_tls.py')
+          spec = importlib.util.spec_from_file_location('tls_probe', path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+          if suite.countTestCases() != 9:
+              raise SystemExit('UNEXPECTED_TLS_TEST_COUNT')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 9 and not result.skipped else 1)
+          PY
