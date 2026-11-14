@@ -1,0 +1,46 @@
+name: Q09 Fresh Process Persistence
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/quality/log_observation_ledger/**'
+      - '.github/workflows/q09-process-persistence.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-processes:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Verify exact head and run five isolated process tests
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          printf 'tested_head=%s\ntested_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})"
+          python_bin=$(command -v python)
+          cd tools/quality/log_observation_ledger
+          sha256sum --check SHA256SUMS
+          printf '%s  test_process_persistence.py\n' bee97bb446b421ffe83c77e9c8b6f10df7609ff92c95578c092e50aea8eafbfc | sha256sum --check
+          env -i "$python_bin" -I -B - <<'PY'
+          import pathlib, sys, unittest
+          sys.path.insert(0, str(pathlib.Path.cwd()))
+          import test_process_persistence
+          suite = unittest.defaultTestLoader.loadTestsFromModule(test_process_persistence)
+          if suite.countTestCases() != 5:
+              raise SystemExit('UNEXPECTED_PROCESS_TEST_COUNT')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 5 and not result.skipped else 1)
+          PY
