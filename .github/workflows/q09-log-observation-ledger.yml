@@ -1,0 +1,61 @@
+name: Q09 Offline Log Observation Ledger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/quality/log_observation_ledger/**'
+      - '.github/workflows/q09-log-observation-ledger.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: q09-log-observation-ledger-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-ledger:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Verify exact source and run offline synthetic tests
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          printf 'tested_head=%s\ntested_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})"
+          python_bin=$(command -v python)
+          test_home=$(mktemp -d)
+          cd tools/quality/log_observation_ledger
+          sha256sum --check SHA256SUMS
+          env -i PATH="$PATH" HOME="$test_home" LANG=C.UTF-8 "$python_bin" -B -E -s - <<'PY'
+          import unittest
+          import test_log_ledger
+          import test_offline_monitor
+
+          for module, expected_count in (
+              (test_log_ledger, 54),
+              (test_offline_monitor, 41),
+          ):
+              suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+              if suite.countTestCases() != expected_count:
+                  raise SystemExit("UNEXPECTED_SYNTHETIC_TEST_COUNT")
+              result = unittest.TextTestRunner(verbosity=2).run(suite)
+              valid = (result.wasSuccessful() and
+                       result.testsRun == expected_count and not result.skipped)
+              if not valid:
+                  raise SystemExit(1)
+          PY
