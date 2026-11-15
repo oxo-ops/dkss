@@ -20,7 +20,7 @@ from .extensions import db
 class CandidateSessionInterface(SecureCookieSessionInterface):
     """A losing replacement response must not overwrite a newer browser cookie."""
     def save_session(self, app, session, response):
-        if g.get('authority_replacement_conflict'):
+        if g.get('authority_replacement_conflict') or g.get('authority_api_rejected'):
             response.vary.add('Cookie')
             response.cache_control.no_store = True
             return
@@ -92,12 +92,14 @@ def begin_replacement():
         return False
     from .session_authority_model import SessionAuthority
     now = int(time.time())
-    result = db.session.execute(db.update(SessionAuthority).where(
-        SessionAuthority.token_hash == _hash(token),
-        SessionAuthority.account_identity == session.get('account_identity'),
-        SessionAuthority.revoked.is_(False),
-        SessionAuthority.idle_until > now,
-        SessionAuthority.absolute_until > now).values(revoked=True))
+    # Keep authority -> user lock order even if login dirtied User first.
+    with db.session.no_autoflush:
+        result = db.session.execute(db.update(SessionAuthority).where(
+            SessionAuthority.token_hash == _hash(token),
+            SessionAuthority.account_identity == session.get('account_identity'),
+            SessionAuthority.revoked.is_(False),
+            SessionAuthority.idle_until > now,
+            SessionAuthority.absolute_until > now).values(revoked=True))
     db.session.commit()
     return result.rowcount == 1
 
@@ -146,7 +148,62 @@ def require_authority():
     if row is None:
         session.clear()
         if request.path.startswith('/api/') or request.path == '/notifications/email-test':
+            # A late polling rejection must not delete a successor's cookie.
+            # Interactive /login retains the existing explicit reset flow.
+            g.authority_api_rejected = True
             return {'ok': False, 'message': 'ログインが必要です。'}, 401
         from flask import redirect
         return redirect('/login')
     return None
+
+
+def commit_vehicle_write(vehicle_id):
+    """Candidate-only commit fence for the vehicle analysis evaluation route.
+
+    Locks are retained through the domain commit. Not a global commit hook and
+    not a claim that external effects or all application writes are fenced.
+    """
+    if not enabled():
+        db.session.commit()
+        return
+    from flask import abort
+    from .session_authority_model import SessionAuthority
+    from .models import Company, User, Vehicle
+    token = session.get('authority_token')
+    try:
+        # Never autoflush the pending domain mutation before authorization.
+        with db.session.no_autoflush:
+            authority = None
+            if isinstance(token, str) and re.fullmatch(r'[0-9a-f]{64}', token):
+                authority = db.session.execute(db.select(SessionAuthority).where(
+                    SessionAuthority.token_hash == _hash(token)).with_for_update()
+                    .execution_options(populate_existing=True)).scalar_one_or_none()
+            company = db.session.execute(db.select(Company).where(
+                Company.company_code == session.get('company_code')).with_for_update()
+                .execution_options(populate_existing=True)).scalar_one_or_none()
+            user = db.session.execute(db.select(User).where(
+                User.company_code == session.get('company_code'),
+                User.username == session.get('username')).with_for_update()
+                .execution_options(populate_existing=True)).scalar_one_or_none()
+            vehicle = db.session.execute(db.select(Vehicle).where(
+                Vehicle.id == vehicle_id).with_for_update()
+                .execution_options(populate_existing=True)).scalar_one_or_none()
+            now = int(time.time())  # evaluate after any lock wait
+            valid = (authority is not None and not authority.revoked and
+                authority.idle_until > now and authority.absolute_until > now and
+                authority.account_identity == session.get('account_identity') and
+                user is not None and not user.login_locked and
+                user.account_identity == authority.account_identity and
+                user.password_changed_at == session.get('password_changed_at') and
+                user.role == session.get('role') and not session.get('password_expired') and
+                (user.role == 'itc' or (company is not None and company.active)) and
+                vehicle is not None and not vehicle.deleted and
+                vehicle.company_code == user.company_code)
+            if not valid:
+                db.session.rollback()
+                abort(401)
+        # Revocation UPDATE must wait for the authority lock until this commit.
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
