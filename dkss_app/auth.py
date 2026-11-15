@@ -370,6 +370,10 @@ def login():
 
             user.failed_login_count = 0
 
+            from .session_authority import begin_replacement, replacement_conflict_response
+            if not begin_replacement():
+                return replacement_conflict_response()
+
             password_expired = False
 
             if user.password_changed_at:
@@ -431,11 +435,14 @@ def login():
 
                 _dkss_common.db.session.commit()
 
+                from .session_authority import revoke_current, issue
+                revoke_current()
                 _dkss_common.session.clear()
                 _dkss_common.session.permanent = True
                 _dkss_common.session["company_code"] = user.company_code
                 _dkss_common.session["username"] = user.username
                 _dkss_common.session["account_identity"] = user.account_identity
+                issue(user)
                 _dkss_common.session["role"] = user.role
                 _dkss_common.session["name"] = (
                     f"{user.last_name or ''}"
@@ -480,6 +487,8 @@ def login():
                     )
                 )
 
+            from .session_authority import revoke_current
+            revoke_current()
             _dkss_common.session.clear()
             _dkss_common.session.permanent = True
             _dkss_common.session["mfa_pending_company_code"] = (
@@ -706,11 +715,14 @@ def mfa():
 
                 _dkss_common.db.session.commit()
 
+                from .session_authority import revoke_current, issue
+                revoke_current()
                 _dkss_common.session.clear()
                 _dkss_common.session.permanent = True
                 _dkss_common.session["company_code"] = user.company_code
                 _dkss_common.session["username"] = user.username
                 _dkss_common.session["account_identity"] = user.account_identity
+                issue(user)
                 _dkss_common.session["role"] = user.role
                 _dkss_common.session["name"] = (
                     f"{user.last_name or ''}"
@@ -747,6 +759,8 @@ def register():
 
 
 def logout():
+    from .session_authority import revoke_current
+    revoke_current()
     _dkss_audit.add_audit_log(
         action="logout",
         target_type="user",

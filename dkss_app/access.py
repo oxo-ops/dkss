@@ -3,6 +3,10 @@ from . import common as _dkss_common, models as _dkss_models, storage as _dkss_s
 
 
 def require_login():
+    from .session_authority import require_authority
+    authority_response = require_authority()
+    if authority_response is not None:
+        return authority_response
     # 保護対象のstaticファイル
     if (
         _dkss_common.request.path.startswith("/static/uploads/")

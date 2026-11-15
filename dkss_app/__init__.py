@@ -49,6 +49,8 @@ def create_app(config=None, *, initialize_database=False):
     from .display import format_distance_km
     app.jinja_env.filters["distance_km"] = format_distance_km
     db.init_app(app)
+    from .session_authority import configure as configure_session_authority
+    configure_session_authority(app)
     from . import account_identity
     from . import import_owner
     app.after_request(import_owner.private_response)
