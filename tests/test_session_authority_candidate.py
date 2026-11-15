@@ -167,6 +167,64 @@ class SessionAuthorityIntegration(unittest.TestCase):
         self.assertNotIn('second',response.get_data(as_text=True))
         self.assertEqual(self.client.get_cookie(name).value,cookie)
 
+    def csrf_request(self, method, path, **kwargs):
+        # A production request has fresh app-context g, unlike the DB-fixture
+        # context held by setUp. Do not reuse cached CSRF state across requests.
+        with self.app.app_context():
+            return getattr(self.client,method)(path,**kwargs)
+
+    def csrf_token(self):
+        response=self.csrf_request('get','/login/csrf-token',headers={'Accept':'application/json'})
+        self.assertEqual(response.status_code,200)
+        return response.get_json()['csrf_token']
+
+    def test_csrf_enabled_login_and_missing_token_cannot_issue_authority(self):
+        from dkss_app.session_authority_model import SessionAuthority
+        self.app.config['WTF_CSRF_ENABLED']=True
+        data={'company_code':'SYNTH','username':'operator','password':self.password}
+        rejected=self.csrf_request('post','/login',data=data)
+        self.assertEqual((rejected.status_code,rejected.location),(302,'/login'))
+        self.assertEqual(self.db.session.execute(self.db.select(self.db.func.count()).select_from(SessionAuthority)).scalar(),0)
+        data['csrf_token']=self.csrf_token()
+        self.assertEqual(self.csrf_request('post','/login',data=data).status_code,302)
+        self.assert_authority()
+
+    def test_csrf_previous_person_form_cannot_log_out_successor(self):
+        self.app.config['WTF_CSRF_ENABLED']=True
+        self.add_person('second')
+        first={'company_code':'SYNTH','username':'operator','password':self.password,'csrf_token':self.csrf_token()}
+        self.assertEqual(self.csrf_request('post','/login',data=first).status_code,302)
+        old_person_form=self.csrf_token()
+        second={'company_code':'SYNTH','username':'second','password':self.password,'csrf_token':old_person_form}
+        self.assertEqual(self.csrf_request('post','/login',data=second).status_code,302)
+        self.assertEqual(self.csrf_request('post','/logout',data={'csrf_token':old_person_form}).status_code,400)
+        self.assertEqual(self.csrf_request('get','/api/notifications/unread-count').status_code,200)
+        with self.client.session_transaction() as state: self.assertEqual(state['username'],'second')
+        valid_form=self.csrf_token()
+        self.assertEqual(self.csrf_request('post','/logout',data={'csrf_token':valid_form}).status_code,302)
+        self.assertEqual(self.csrf_request('get','/api/notifications/unread-count').status_code,401)
+
+    def test_csrf_mfa_transition_needs_new_form_token_and_real_challenge(self):
+        self.app.config.update(WTF_CSRF_ENABLED=True,MFA_ENABLED=True)
+        token=self.csrf_token();codes=[]
+        with patch.object(self.auth,'send_mfa_code_email',side_effect=lambda user,code: codes.append(code) or True):
+            result=self.csrf_request('post','/login',data={'company_code':'SYNTH','username':'operator',
+                'password':self.password,'csrf_token':token})
+        self.assertEqual((result.status_code,result.location),(302,'/mfa'))
+        rejected=self.csrf_request('post','/mfa',data={'code':codes[0],'csrf_token':token})
+        self.assertEqual((rejected.status_code,rejected.location),(302,'/login'))
+        with self.client.session_transaction() as state: self.assertNotIn('authority_token',state)
+        fresh=self.csrf_token()
+        wrong='000000' if codes[0]!='000000' else '999999'
+        self.assertEqual(self.csrf_request('post','/mfa',data={'code':wrong,'csrf_token':fresh}).status_code,200)
+        with self.client.session_transaction() as state:
+            self.assertNotIn('authority_token',state)
+            self.assertNotIn('username',state)
+        from dkss_app.session_authority_model import SessionAuthority
+        self.assertEqual(self.db.session.execute(self.db.select(self.db.func.count()).select_from(SessionAuthority)).scalar(),0)
+        self.assertEqual(self.csrf_request('post','/mfa',data={'code':codes[0],'csrf_token':fresh}).status_code,302)
+        self.assert_authority()
+
     def test_postgres_concurrent_user_changes_allow_only_one_successor(self):
         if not os.environ.get('SESSION_AUTHORITY_POSTGRES_TEST_URL'):
             self.skipTest('Real PostgreSQL concurrency belongs to the isolated PG job')
