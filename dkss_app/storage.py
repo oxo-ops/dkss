@@ -674,7 +674,10 @@ def uploaded_file(folder, filename):
                     max_age=0
                 )
 
-            except _dkss_common.ClientError:
+            except _dkss_common.ClientError as error:
+                code = str(error.response.get("Error", {}).get("Code", ""))
+                if code not in {"404", "NoSuchKey", "NotFound"}:
+                    return "File not found", 404
                 continue
 
         return "File not found", 404
@@ -743,7 +746,10 @@ def s3_uploads_file(filename):
 
                 return _dkss_common.redirect(url)
 
-            except _dkss_common.ClientError:
+            except _dkss_common.ClientError as error:
+                code = str(error.response.get("Error", {}).get("Code", ""))
+                if code not in {"404", "NoSuchKey", "NotFound"}:
+                    return "File not found", 404
                 continue
 
         return "File not found", 404

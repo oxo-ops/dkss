@@ -357,6 +357,7 @@ def send_email_notification(
 
     email.set_content(body)
 
+    smtp_accepted = False
     smtp_stage = "connect"
     try:
         with _dkss_common.smtplib.SMTP(
@@ -375,16 +376,20 @@ def send_email_notification(
                 )
 
             smtp_stage = "send"
-            server.send_message(email)
+            refused_recipients = server.send_message(email)
+            # Single recipient: success means SMTP acceptance, not inbox delivery.
+            smtp_accepted = not refused_recipients
             smtp_stage = "close"
 
-        return True
+        return smtp_accepted
 
     except Exception as error:
         log_email_delivery_failure(
             _dkss_runtime.app.logger, purpose="notification", stage=smtp_stage, error=error
         )
-        return False
+        # QUIT failure cannot undo an acknowledged DATA transaction.
+        # DATA exceptions remain uncertain and are never retried here.
+        return smtp_accepted
 
 
 
@@ -766,3 +771,4 @@ def notify_mentions(text, link="", *, pending=None):
                 **options
             )
             notified_usernames.add(username)
+
