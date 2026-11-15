@@ -62,13 +62,24 @@ class RegistryCapacity(unittest.TestCase):
 
     def test_pool_exhaustion_is_bounded_and_recovers(self):
         engine = self.db.engine
+        from sqlalchemy.exc import SQLAlchemyError
         holders = [engine.connect(), engine.connect()]
+        failures = []
+        original = self.db.session.connection
+        def observe_checkout(*args, **kwargs):
+            try:
+                return original(*args, **kwargs)
+            except SQLAlchemyError as exc:
+                failures.append(type(exc).__name__)
+                raise
         try:
-            code, elapsed, cookie_write = self.request_once('/api/notifications/unread-count')
+            self.assertEqual(engine.pool.checkedout(), 2)
+            with patch.object(self.db.session, 'connection', side_effect=observe_checkout):
+                code, elapsed, cookie_write = self.request_once('/api/notifications/unread-count')
         finally:
             for conn in holders: conn.close()
         self.assertEqual(code, 503); self.assertFalse(cookie_write)
-        self.assertGreaterEqual(elapsed, 150)
+        self.assertEqual(failures, ['TimeoutError'])
         self.assertLess(elapsed, 3000)  # bounded CI harness, not a production SLA
         self.assertEqual(self.request_once('/api/notifications/unread-count')[0], 200)
         print('REGISTRY_POOL_EXHAUSTION=' + json.dumps(dict(status=code, elapsed_ms=round(elapsed,2), recovery=200)))
