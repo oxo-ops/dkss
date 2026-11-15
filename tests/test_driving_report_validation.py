@@ -90,6 +90,30 @@ class CandidateRouteTests(unittest.TestCase):
         row=self.m.VehicleDrivingReportRecord.query.one();p=json.loads(row.details_json)
         self.assertIsNone(p['distance']);self.assertEqual(p['_ocr_raw_candidate']['distance'],'12.0 mi')
         self.assertEqual(p['operation_start_time'],'2026-09-22T05:21:34+09:00')
+    def test_exponent_expansion_candidate_remains_visible_after_confirmation(self):
+        from io import BytesIO
+        import test_workflow_regressions as workflow
+        raw='1e-1000000000'
+        source=pdf_bytes();data=extraction(source)
+        data['records'][0]['report_items'][0]['value']=raw
+        prepare_candidates(data,1,ai.TEXT_FIELDS,ai.ITEM_FIELDS,ai.COLLECTIONS)
+        ai._validate(data)
+        with patch.object(self.m,'extract_driving_reports',return_value=data):
+            response=self.client.post('/vehicle/data-import',data={'document_type':'driving_report','document_files':(BytesIO(source),'bounded.pdf')})
+        self.assertEqual(response.status_code,302)
+        draft=self.m.VehicleDocumentImportDraft.query.one()
+        page=self.client.get(response.location)
+        self.assertEqual(page.status_code,200)
+        self.assertIn(raw,page.get_data(as_text=True))
+        self.assertIn('読取時に要確認',page.get_data(as_text=True))
+        form=workflow.WorkflowRegressionTests.inspection_form(self,draft)
+        response=self.client.post(f'/vehicle/data-import/{draft.batch_id}/confirm',data=form)
+        self.assertEqual(response.status_code,302)
+        row=self.m.VehicleDrivingReportRecord.query.one();saved=json.loads(row.details_json)
+        self.assertIsNone(saved['report_items'][0]['value'])
+        self.assertEqual(saved['report_items'][0]['status'],'unknown')
+        self.assertEqual(saved['_ocr_raw_candidate']['report_items'][0]['value'],raw)
+
     def test_both_upload_paths_show_specific_failure_without_candidate_value(self):
         from io import BytesIO
         for suffix in ['', '/progress']:

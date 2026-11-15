@@ -27,6 +27,16 @@ def _number(raw, *, mileage=False):
     if mileage: text = re.sub(r'\s*(?:km|キロメートル)\s*$', '', text, flags=re.I).strip()
     if not re.fullmatch(r'[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?(?:[eE][+-]?\d+)?',text): raise ValueError()
     value = Decimal(text.replace(',',''))
+    # Check the fixed-point size before format() can expand a short exponent
+    # into an unbounded string. Match the existing typed-field text limits;
+    # rejected candidates are retained by prepare_candidates for human review.
+    if not value.is_finite(): raise ValueError()
+    sign, digits, exponent = value.as_tuple()
+    if exponent >= 0:
+        fixed_length = sign + (1 if value.is_zero() else len(digits) + exponent)
+    else:
+        fixed_length = sign + max(1, len(digits) + exponent) + 1 - exponent
+    if fixed_length > (50 if mileage else 100): raise ValueError()
     limit = Decimal('999999999999.99') if mileage else Decimal('999999999999999')
     if not value.is_finite() or abs(value)>limit or (mileage and (value<0 or value!=value.quantize(Decimal('.01')))): raise ValueError()
     return format(value,'f')
