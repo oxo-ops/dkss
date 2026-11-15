@@ -120,6 +120,22 @@ class InspectionPlanExcelTests(unittest.TestCase):
         for ws,addr in [(wb.worksheets[0],'A5'),(wb.worksheets[1],'I2')]:
             self.assertEqual(ws[addr].data_type,'s')
 
+    def test_control_characters_export_visibly_without_changing_source(self):
+        self.save([self.change(mon='2026-11')])
+        plan=self.m.VehicleInspectionPlan.query.one()
+        plan.factory='=工場\x0b名';plan.note='備考\x00\ufffe\uffff\t改行\n次行'
+        self.m.db.session.commit()
+        before=self.m.VehicleInspectionPlanEvent.query.count()
+        wb=self.workbook(self.export())
+        values=[c.value for ws in wb for row in ws for c in row if isinstance(c.value,str)]
+        self.assertIn('=工場[U+000B]名',values)
+        self.assertIn('備考[U+0000][U+FFFE][U+FFFF]\t改行\n次行',values)
+        self.assertTrue(all(c.data_type!='f' for ws in wb for row in ws for c in row))
+        self.m.db.session.expire_all()
+        self.assertEqual(plan.factory,'=工場\x0b名')
+        self.assertEqual(plan.note,'備考\x00\ufffe\uffff\t改行\n次行')
+        self.assertEqual(self.m.VehicleInspectionPlanEvent.query.count(),before)
+
     def test_export_link_is_visible_with_working_href_in_all_views_before_js(self):
         from html.parser import HTMLParser
         from urllib.parse import urlsplit, parse_qs
