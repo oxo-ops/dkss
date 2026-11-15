@@ -16,11 +16,12 @@ class RegistryCapacity(unittest.TestCase):
         from dkss_app import create_app
         def normal_app(config):
             options = dict(config['SQLALCHEMY_ENGINE_OPTIONS'])
-            options.update(pool_size=2, max_overflow=0, pool_timeout=0.2)
+            options.update(pool_size=2, max_overflow=0, pool_timeout=1)
             return create_app(dict(config, SESSION_AUTHORITY_CANDIDATE=False,
                                    SQLALCHEMY_ENGINE_OPTIONS=options))
         with patch('dkss_app.create_app', side_effect=normal_app):
             fixtures.SessionAuthorityIntegration.setUp(self)
+        self.assertEqual(self.db.engine.pool.timeout(), 1)
         self.login()
         self.cookie_name = self.app.config['SESSION_COOKIE_NAME']
         self.cookie = self.client.get_cookie(self.cookie_name).value
@@ -80,9 +81,10 @@ class RegistryCapacity(unittest.TestCase):
             for conn in holders: conn.close()
         self.assertEqual(code, 503); self.assertFalse(cookie_write)
         self.assertEqual(failures, ['TimeoutError'])
-        self.assertLess(elapsed, 3000)  # bounded CI harness, not a production SLA
+        self.assertGreaterEqual(elapsed, 800)
+        self.assertLess(elapsed, 5000)  # bounded CI harness, not a production SLA
         self.assertEqual(self.request_once('/api/notifications/unread-count')[0], 200)
-        print('REGISTRY_POOL_EXHAUSTION=' + json.dumps(dict(status=code, elapsed_ms=round(elapsed,2), recovery=200)))
+        print('REGISTRY_POOL_EXHAUSTION=' + json.dumps(dict(status=code, elapsed_ms=round(elapsed,2), effective_pool_timeout_s=engine.pool.timeout(), recovery=200)))
 
     def test_policy_statement_timeout_is_bounded_and_recovers(self):
         from sqlalchemy import text, event
