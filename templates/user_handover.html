@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}利用者を交代する{% endblock %}
+{% block content %}
+<h2>利用者を交代する</h2>
+{% if conflict %}
+<p role="alert">ログイン状態が変わったため、この操作では終了していません。</p>
+<p><a href="{{ url_for('switch_user') }}">現在の利用者を確認し直す</a></p>
+{% else %}
+<p>現在の利用者：{{ session.get('name') or session.get('username') }}（{{ session.get('company_code') }} / {{ session.get('username') }}）</p>
+<p>未保存の入力は保存してから交代してください。終了すると、次の方のログイン画面に移ります。</p>
+<p>次の方はご自身のアカウントでログインしてください。名前を選ぶだけでは交代できません。</p>
+<form method="post" action="{{ url_for('switch_user') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="handover_nonce" value="{{ session.get('handover_nonce') }}">
+<button type="submit">作業を終了して次の方へ</button>
+</form>
+{% endif %}
+<p><a href="/">交代せずに戻る</a></p>
+{% endblock %}
