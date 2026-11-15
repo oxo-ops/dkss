@@ -47,7 +47,12 @@ def require_login():
 
         parts = _dkss_common.request.path.strip("/").split("/")
 
-        if len(parts) < 3:
+        if len(parts) not in {3, 4}:
+            return "File not found", 404
+
+        # Company-scoped static URLs must match the authenticated tenant.
+        # Preserve the legacy flat path only after the normal ownership check.
+        if len(parts) == 4 and parts[2] != str(_dkss_common.session.get("company_code") or ""):
             return "File not found", 404
 
         folder = parts[1]
