@@ -948,6 +948,15 @@ async function urlBase64ToUint8Array(base64String) {
 }
 
 async function registerPushNotifications() {
+    if (document.body.dataset.sharedPushCandidate === "true"
+            && document.body.dataset.authenticated === "true") {
+        return window.DKSSSharedPushRecovery.run({
+            navigator, permission: Notification.permission, fetch,
+            expectedActor: document.body.dataset.sharedPushActor,
+            csrf: document.querySelector('meta[name="csrf-token"]')?.content || "",
+            keyBytes: urlBase64ToUint8Array
+        });
+    }
     if (document.body.dataset.authenticated !== "true") {
         return;
     }

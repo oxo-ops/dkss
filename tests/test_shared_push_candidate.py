@@ -18,6 +18,10 @@ class SharedPushCandidateTests(unittest.TestCase):
         self.user = self.models.User.query.filter_by(username='operator').one()
         self.data = {'endpoint':'https://push.example.invalid/synthetic',
             'keys':{'p256dh':'synthetic-key','auth':'synthetic-auth'}}
+        self.refresh_context()
+
+    def refresh_context(self):
+        self.data['sharedContext'] = self.client.get('/api/push/vapid-public-key').json.get('sharedContext')
 
     def subscribe(self):
         return self.client.post('/api/push/subscribe', json=self.data)
@@ -51,7 +55,13 @@ class SharedPushCandidateTests(unittest.TestCase):
         for field in ('idle_until', 'absolute_until'):
             with self.subTest(field=field):
                 if not hasattr(self, 'user'): self.prepare()
-                else: self.client.post('/logout'); self.login()
+                else:
+                    # Reset expired cookie explicitly, isolating request-local g.
+                    with self.app.app_context():
+                        self.client.get('/login')
+                    with self.app.app_context():
+                        self.login()
+                    self.refresh_context()
                 self.assertEqual(self.subscribe().status_code, 200)
                 self.db.session.execute(self.db.update(SessionAuthority).values(**{field: 0}))
                 self.db.session.commit()
@@ -70,6 +80,7 @@ class SharedPushCandidateTests(unittest.TestCase):
         self.prepare(); self.subscribe(); self.client.post('/logout'); self.login()
         result, transport = self.send()
         self.assertFalse(result); transport.assert_not_called()
+        self.refresh_context()
         self.assertEqual(self.subscribe().status_code, 200)
         self.assertTrue(self.send()[0])
 
@@ -127,6 +138,7 @@ class SharedPushCandidateTests(unittest.TestCase):
         self.assertEqual(self.client.post('/login', data={'company_code':'SYNTH',
             'username':'second', 'password':self.password}).status_code, 302)
         self.assertFalse(self.send()[0])
+        self.refresh_context()  # B's current context: reject endpoint ownership, not stale context.
         self.assertEqual(self.subscribe().status_code, 409)
         # The generic queued click destination resolves only the new viewer's rows.
         response = self.client.get('/api/notifications/recent')
@@ -136,6 +148,7 @@ class SharedPushCandidateTests(unittest.TestCase):
         self.assertNotIn('PERSONAL', queued)
         self.assertEqual(json.loads(queued)['link'], '/notifications')
         # A fresh browser subscription can be bound to B, no shared credentials.
+        self.refresh_context()
         self.data['endpoint'] += '-new'
         self.assertEqual(self.subscribe().status_code, 200)
         self.user = self.models.User.query.filter_by(username='second').one()
@@ -170,6 +183,27 @@ class SharedPushCandidateTests(unittest.TestCase):
         self.prepare(); self.app.config['TESTING'] = False
         self.assertEqual(self.subscribe().status_code, 500)
         self.assertEqual(self.models.PushSubscription.query.count(), 0)
+
+    def test_missing_or_stale_context_cannot_register(self):
+        self.prepare()
+        old_context = self.data.pop('sharedContext')
+        self.assertEqual(self.subscribe().status_code, 409)
+        self.client.post('/logout'); self.login()
+        self.data['sharedContext'] = old_context
+        self.assertEqual(self.subscribe().status_code, 409)
+        self.assertEqual(self.models.PushSubscription.query.count(), 0)
+        self.refresh_context()
+        self.assertEqual(self.subscribe().status_code, 200)
+
+    def test_recovery_script_only_in_candidate_pages(self):
+        self.prepare()
+        response = self.client.get('/notifications')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('shared_push_recovery_candidate.js', response.get_data(as_text=True))
+        self.app.config['SHARED_PUSH_CANDIDATE'] = False
+        response = self.client.get('/notifications')
+        self.assertNotIn('shared_push_recovery_candidate.js', response.get_data(as_text=True))
+        self.assertNotIn('data-shared-push-actor=', response.get_data(as_text=True))
 
     def test_candidate_table_not_in_normal_metadata(self):
         from dkss_app.shared_push_candidate import PushAuthorityBinding

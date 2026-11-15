@@ -17,6 +17,10 @@ on:
       - 'dkss_app/notifications_delivery.py'
       - 'dkss_app/shared_push_candidate.py'
       - 'tests/test_shared_push_candidate.py'
+      - 'tests/shared_push_recovery_js.cjs'
+      - 'static/js/shared_push_recovery_candidate.js'
+      - 'static/js/base.js'
+      - 'templates/base.html'
       - '.github/workflows/shared-push-candidate.yml'
   push:
     branches: [main]
@@ -35,6 +39,10 @@ on:
       - 'dkss_app/notifications_delivery.py'
       - 'dkss_app/shared_push_candidate.py'
       - 'tests/test_shared_push_candidate.py'
+      - 'tests/shared_push_recovery_js.cjs'
+      - 'static/js/shared_push_recovery_candidate.js'
+      - 'static/js/base.js'
+      - 'templates/base.html'
       - '.github/workflows/shared-push-candidate.yml'
   workflow_dispatch:
 
@@ -90,3 +98,5 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Verify real push routes with mocked delivery on PostgreSQL
         run: python -m unittest discover -s tests -p 'test_shared_push_candidate.py' -v
+      - name: Verify shared push recovery controller without browser or network
+        run: node --test tests/shared_push_recovery_js.cjs

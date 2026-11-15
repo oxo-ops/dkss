@@ -4,6 +4,7 @@ A queued push cannot be recalled. Candidate payloads therefore contain no
 person-specific text, counts, or destination, even when authority is current.
 """
 import hashlib
+import hmac
 import os
 import time
 from flask import current_app, session, has_app_context
@@ -88,3 +89,12 @@ def payload():
     # Safe for an older installed worker too: no reliance on a SW update race.
     return {'title': 'DKSS', 'message': 'お知らせがあります。ログインして確認してください。',
             'link': '/notifications', 'unread_count': 0}
+
+
+def context_id():
+    """Non-authorizing, purpose-separated page/session correlation value."""
+    token = session.get('authority_token')
+    if not isinstance(token, str):
+        return ''
+    key = str(current_app.secret_key).encode()
+    return hmac.new(key, ('shared-push-context:' + token).encode(), hashlib.sha256).hexdigest()

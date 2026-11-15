@@ -29,9 +29,12 @@ def push_vapid_public_key():
             "error": "VAPID public key is not configured."
         }, 503
 
-    return {
-        "publicKey": _dkss_runtime.app.config['VAPID_PUBLIC_KEY']
-    }
+    data = {"publicKey": _dkss_runtime.app.config['VAPID_PUBLIC_KEY']}
+    if shared_push_candidate.enabled():
+        data["sharedContext"] = shared_push_candidate.context_id()
+        data["sharedActor"] = current_identity()
+        return data, 200, {"Cache-Control": "no-store", "Vary": "Cookie"}
+    return data
 
 
 
@@ -44,6 +47,8 @@ def push_subscribe():
         return {"error": "Unauthorized"}, 401
 
     data = _dkss_common.request.get_json(silent=True) or {}
+    if candidate and data.get("sharedContext") != shared_push_candidate.context_id():
+        return {"error": "Shared session changed."}, 409
 
     endpoint = str(
         data.get("endpoint") or ""
