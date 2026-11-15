@@ -51,7 +51,11 @@ class SharedPushCandidateTests(unittest.TestCase):
         for field in ('idle_until', 'absolute_until'):
             with self.subTest(field=field):
                 if not hasattr(self, 'user'): self.prepare()
-                else: self.client.post('/logout'); self.login()
+                else:
+                    # Expired authority is reset only by explicit login, not a
+                    # late rejected logout/document response. Fresh g per request.
+                    with self.app.app_context(): self.client.get('/login')
+                    with self.app.app_context(): self.login()
                 self.assertEqual(self.subscribe().status_code, 200)
                 self.db.session.execute(self.db.update(SessionAuthority).values(**{field: 0}))
                 self.db.session.commit()

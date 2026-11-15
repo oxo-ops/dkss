@@ -18,7 +18,7 @@ from .extensions import db
 
 
 class CandidateSessionInterface(SecureCookieSessionInterface):
-    """A losing replacement response must not overwrite a newer browser cookie."""
+    """Rejected/losing responses must not overwrite a newer browser cookie."""
     def save_session(self, app, session, response):
         if g.get('authority_replacement_conflict') or g.get('authority_api_rejected'):
             response.vary.add('Cookie')
@@ -146,6 +146,10 @@ def require_authority():
             SessionAuthority.idle_until > now,
             SessionAuthority.absolute_until > now)).scalar_one_or_none()
     if row is None:
+        # Rejected document requests are just as capable of arriving late as
+        # polls. Only explicit login is allowed to reset a stale cookie.
+        if request.endpoint != 'login':
+            g.authority_api_rejected = True
         session.clear()
         if request.path.startswith('/api/') or request.path == '/notifications/email-test':
             # A late polling rejection must not delete a successor's cookie.
@@ -158,7 +162,7 @@ def require_authority():
 
 
 def commit_vehicle_write(vehicle_id):
-    """Candidate-only commit fence for the vehicle analysis evaluation route.
+    """Candidate-only commit fence for vehicle analysis feedback and evaluation routes.
 
     Locks are retained through the domain commit. Not a global commit hook and
     not a claim that external effects or all application writes are fenced.
