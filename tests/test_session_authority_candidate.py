@@ -278,6 +278,7 @@ class SessionAuthorityIntegration(unittest.TestCase):
             response = self.client.post(f'/vehicle/karte/{vehicle_id}/analysis/evaluation',
                 json=body, headers={'Accept':'application/json'})
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers.getlist('Set-Cookie'), [])
         self.assertEqual(self.models.VehicleAnalysisEvaluation.query.count(), 0)
 
     def test_real_evaluation_write_allowed_for_current_person(self):

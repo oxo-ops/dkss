@@ -201,6 +201,7 @@ def commit_vehicle_write(vehicle_id):
                 vehicle.company_code == user.company_code)
             if not valid:
                 db.session.rollback()
+                g.authority_api_rejected = True
                 abort(401)
         # Revocation UPDATE must wait for the authority lock until this commit.
         db.session.commit()
