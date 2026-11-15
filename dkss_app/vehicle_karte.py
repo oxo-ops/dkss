@@ -1,4 +1,5 @@
 """Vehicle Karte responsibilities; routes are registered by the application factory."""
+from parts_history_distance import replacement_interval
 from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, analysis as _dkss_analysis, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklists as _dkss_checklists, common as _dkss_common, maintenance as _dkss_maintenance, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_costs as _dkss_vehicle_costs, vehicle_imports as _dkss_vehicle_imports, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
@@ -1698,6 +1699,10 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapsho
     groups = {}
     history = []
     pending = []
+    recorded_meters = {}
+    for part, record in rows:
+        key = (part.part_name, part.part_number or "", part.replacement_date)
+        recorded_meters.setdefault(key, set()).add(part.mileage)
 
     for record in maintenance.values():
         for index, line in enumerate(line_map[record.id]):
@@ -1735,22 +1740,23 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapsho
         })
 
         if record.id not in group["events"]:
-            previous = (
-                group["latest"].mileage if group["events"] else None
-            )
-            distance = (
-                part.mileage - previous
-                if previous is not None
-                and part.mileage is not None
-                and part.mileage >= previous
-                else None
+            previous = group["latest"] if group["events"] else None
+            ambiguous_previous = previous is not None and len(recorded_meters.get(
+                (previous.part_name, previous.part_number or "", previous.replacement_date), set()
+            )) > 1
+            distance, distance_note = replacement_interval(
+                previous, part, ambiguous_previous=ambiguous_previous,
+                ambiguous_current=len(recorded_meters.get(
+                    (part.part_name, part.part_number or "", part.replacement_date), set()
+                )) > 1,
             )
             group["events"][record.id] = (
                 len(group["events"]) + 1,
                 distance,
+                distance_note,
             )
 
-        count, distance = group["events"][record.id]
+        count, distance, distance_note = group["events"][record.id]
         group.update(latest=part, category=category)
 
         history.append({
@@ -1759,6 +1765,7 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapsho
             "status": status,
             "replacement_count": count,
             "distance": distance,
+            "distance_note": distance_note,
         })
 
     priorities = (
