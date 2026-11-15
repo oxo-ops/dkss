@@ -248,6 +248,42 @@ class SessionAuthorityIntegration(unittest.TestCase):
         self.assertEqual(latest.get('/api/notifications/unread-count').status_code, 200)
         with latest.session_transaction() as state: self.assertEqual(state['username'], 'second')
 
+    def test_late_rejected_html_document_preserves_successor_cookie(self):
+        from http.cookies import SimpleCookie
+        self.login(); self.add_person('second')
+        name = self.app.config['SESSION_COOKIE_NAME']
+        old = self.app.test_client(); old.set_cookie(name, self.client.get_cookie(name).value)
+        winner = self.client.post('/login', data={'company_code':'SYNTH',
+            'username':'second','password':self.password})
+        with self.app.app_context():
+            late = old.get('/', headers={'Accept':'text/html',
+                'Sec-Fetch-Dest':'document','Sec-Fetch-Mode':'navigate'})
+        self.assertEqual((late.status_code, late.location), (302, '/login'))
+        self.assertEqual(late.headers.getlist('Set-Cookie'), [])
+        self.assertIn('no-store', late.headers['Cache-Control'])
+        jar = SimpleCookie()
+        for header in winner.headers.getlist('Set-Cookie') + late.headers.getlist('Set-Cookie'):
+            jar.load(header)
+        latest = self.app.test_client(); latest.set_cookie(name, jar[name].value)
+        with self.app.app_context():
+            self.assertEqual(latest.get('/api/notifications/unread-count').status_code, 200)
+        with latest.session_transaction() as state: self.assertEqual(state['username'], 'second')
+
+    def test_expired_html_redirect_resets_only_at_explicit_login(self):
+        from dkss_app.session_authority_model import SessionAuthority
+        self.login()
+        self.db.session.execute(self.db.update(SessionAuthority).values(idle_until=0))
+        self.db.session.commit()
+        first = self.csrf_request('get', '/')
+        self.assertEqual((first.status_code, first.location), (302, '/login'))
+        self.assertEqual(first.headers.getlist('Set-Cookie'), [])
+        reset = self.csrf_request('get', '/login')
+        self.assertEqual(reset.status_code, 302)
+        self.assertTrue(reset.headers.getlist('Set-Cookie'))
+        self.assertEqual(self.csrf_request('get', '/login').status_code, 200)
+        self.login()
+        self.assertEqual(self.csrf_request('get', '/api/notifications/unread-count').status_code, 200)
+
     def evaluation_fixture(self):
         import json
         from dkss_app.analysis_feedback import vehicle_analysis_proposal_ids
@@ -288,6 +324,47 @@ class SessionAuthorityIntegration(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.models.VehicleAnalysisEvaluation.query.count(), 1)
 
+    def feedback_fixture(self):
+        import json
+        from dkss_app.analysis import get_vehicle_karte_analysis_job_data
+        vehicle_id, body = self.evaluation_fixture()
+        vehicle = self.db.session.get(self.models.Vehicle, vehicle_id)
+        payload, _ = get_vehicle_karte_analysis_job_data(vehicle)
+        state = self.models.VehicleKarteAnalysis.query.filter_by(vehicle_record_id=vehicle_id).one()
+        bundle = json.loads(state.result_json)
+        bundle['fingerprints'] = payload['_fingerprints']
+        state.result_json = json.dumps(bundle)
+        self.db.session.commit()
+        return vehicle_id, {**body, 'status':'in_progress'}
+
+    def test_real_feedback_write_allowed_and_revoked_commit_rolled_back(self):
+        from dkss_app import session_authority
+        from dkss_app.session_authority_model import SessionAuthority
+        vehicle_id, body = self.feedback_fixture(); self.login()
+        url = f'/vehicle/karte/{vehicle_id}/analysis/feedback'
+        first = self.csrf_request('post', url, json=body, headers={'Accept':'application/json'})
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(self.models.VehicleAnalysisFeedback.query.count(), 1)
+        # The successful progress update changes real analysis inputs. Refresh
+        # synthetic stored fingerprints without weakening the route freshness check.
+        import json
+        from dkss_app.analysis import get_vehicle_karte_analysis_job_data
+        payload, _ = get_vehicle_karte_analysis_job_data(self.db.session.get(self.models.Vehicle, vehicle_id))
+        state = self.models.VehicleKarteAnalysis.query.filter_by(vehicle_record_id=vehicle_id).one()
+        bundle = json.loads(state.result_json); bundle['fingerprints'] = payload['_fingerprints']
+        state.result_json = json.dumps(bundle); self.db.session.commit()
+        original = session_authority.commit_vehicle_write
+        def revoke_then_commit(identifier):
+            with self.db.engine.begin() as conn:
+                conn.execute(self.db.update(SessionAuthority).values(revoked=True))
+            return original(identifier)
+        with patch.object(session_authority,'commit_vehicle_write',side_effect=revoke_then_commit):
+            denied = self.csrf_request('post', url, json={**body,'comment':'Second synthetic update'},
+                headers={'Accept':'application/json'})
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual(denied.headers.getlist('Set-Cookie'), [])
+        self.assertEqual(self.models.VehicleAnalysisFeedback.query.count(), 1)
+
     def test_expired_poll_then_interactive_relogin(self):
         from dkss_app.session_authority_model import SessionAuthority
         self.login()
@@ -321,6 +398,12 @@ class SessionAuthorityIntegration(unittest.TestCase):
         self.assertLess(authority_at, user_at)
 
     def test_postgres_write_lock_serializes_revocation_after_commit(self):
+        self.assert_postgres_write_lock('evaluation')
+
+    def test_postgres_feedback_lock_serializes_revocation_after_commit(self):
+        self.assert_postgres_write_lock('feedback')
+
+    def assert_postgres_write_lock(self, kind):
         if not os.environ.get('SESSION_AUTHORITY_POSTGRES_TEST_URL'):
             self.skipTest('Row locks require the isolated PostgreSQL job')
         import threading
@@ -328,20 +411,22 @@ class SessionAuthorityIntegration(unittest.TestCase):
         from sqlalchemy import event
         from sqlalchemy.orm import Session
         from dkss_app.session_authority_model import SessionAuthority
-        vehicle_id, body = self.evaluation_fixture(); self.login()
+        vehicle_id, body = self.feedback_fixture() if kind == 'feedback' else self.evaluation_fixture()
+        self.login()
+        model = self.models.VehicleAnalysisFeedback if kind == 'feedback' else self.models.VehicleAnalysisEvaluation
         name = self.app.config['SESSION_COOKIE_NAME']
         cookie = self.client.get_cookie(name).value
         engine = self.db.engine
         locked, release, revoke_started = threading.Event(), threading.Event(), threading.Event()
         pids = {}
         def before_commit(sqlsession):
-            if any(isinstance(obj, self.models.VehicleAnalysisEvaluation) for obj in sqlsession.new):
+            if any(isinstance(obj, model) for obj in sqlsession.new):
                 pids['writer'] = sqlsession.connection().exec_driver_sql('SELECT pg_backend_pid()').scalar()
                 locked.set()
                 if not release.wait(10): raise RuntimeError('Test fence release timed out')
         def write():
             client = self.app.test_client(); client.set_cookie(name, cookie)
-            return client.post(f'/vehicle/karte/{vehicle_id}/analysis/evaluation',
+            return client.post(f'/vehicle/karte/{vehicle_id}/analysis/{kind}',
                 json=body, headers={'Accept':'application/json'}).status_code
         def revoke():
             with engine.begin() as conn:
@@ -375,7 +460,7 @@ class SessionAuthorityIntegration(unittest.TestCase):
             release.set()
             event.remove(Session, 'before_commit', before_commit)
         self.db.session.expire_all()
-        self.assertEqual(self.models.VehicleAnalysisEvaluation.query.count(), 1)
+        self.assertEqual(model.query.count(), 1)
         self.assertTrue(self.db.session.execute(self.db.select(SessionAuthority.revoked)).scalar_one())
 
     def test_commit_fence_rechecks_account_company_and_expiry(self):

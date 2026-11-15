@@ -221,7 +221,8 @@ def save_vehicle_analysis_feedback(vehicle_record_id):
         }, ensure_ascii=False, default=str),
     )
     _dkss_common.db.session.add(row)
-    _dkss_common.db.session.commit()
+    from .session_authority import commit_vehicle_write
+    commit_vehicle_write(vehicle_record_id)
     return _dkss_common.jsonify(ok=True, feedback=vehicle_analysis_feedback_value(row))
 
 
