@@ -116,6 +116,73 @@ class SessionAuthorityIntegration(unittest.TestCase):
         with self.client.session_transaction() as s: s.pop('authority_token')
         self.assertEqual(self.client.get('/api/notifications/unread-count').status_code,401)
 
+    def add_person(self, name):
+        from werkzeug.security import generate_password_hash
+        user=self.models.User(company_code='SYNTH', username=name, role='user',
+            password=generate_password_hash(self.password), last_name='Synthetic',first_name=name,
+            password_changed_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            email_address=name+'@example.invalid')
+        self.db.session.add(user);self.db.session.commit()
+        return user.account_identity
+
+    def test_user_change_requires_personal_credentials_and_retires_previous_identity(self):
+        self.login();old=self.assert_authority();next_identity=self.add_person('second')
+        name=self.app.config['SESSION_COOKIE_NAME']
+        old_copy=self.app.test_client();old_copy.set_cookie(name,self.client.get_cookie(name).value)
+        bad=self.client.post('/login',data={'company_code':'SYNTH','username':'second','password':'wrong'})
+        self.assertEqual(bad.status_code,200)
+        self.db.session.expire_all();self.assertFalse(old.revoked)
+        good=self.client.post('/login',data={'company_code':'SYNTH','username':'second','password':self.password})
+        self.assertEqual(good.status_code,302)
+        with self.client.session_transaction() as s:
+            self.assertEqual(s['username'],'second')
+            self.assertEqual(s['account_identity'],next_identity)
+        self.db.session.expire_all();self.assertTrue(old.revoked)
+        self.assertEqual(old_copy.get('/api/notifications/unread-count').status_code,401)
+
+    def test_mfa_user_change_retires_old_person_before_pending_challenge(self):
+        self.login();old=self.assert_authority();self.add_person('second')
+        self.app.config['MFA_ENABLED']=True
+        with patch.object(self.auth,'send_mfa_code_email',return_value=True):
+            r=self.client.post('/login',data={'company_code':'SYNTH','username':'second','password':self.password})
+        self.assertEqual((r.status_code,r.location),(302,'/mfa'))
+        with self.client.session_transaction() as s:
+            self.assertNotIn('username',s)
+            self.assertNotIn('authority_token',s)
+            self.assertEqual(s['mfa_pending_username'],'second')
+        self.db.session.expire_all();self.assertTrue(old.revoked)
+
+    def test_postgres_concurrent_user_changes_allow_only_one_successor(self):
+        if not os.environ.get('SESSION_AUTHORITY_POSTGRES_TEST_URL'):
+            self.skipTest('Real PostgreSQL concurrency belongs to the isolated PG job')
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from dkss_app import session_authority
+        from dkss_app.session_authority_model import SessionAuthority
+        self.login();self.add_person('second');self.add_person('third')
+        name=self.app.config['SESSION_COOKIE_NAME'];cookie=self.client.get_cookie(name).value
+        clients=[self.app.test_client(),self.app.test_client()]
+        for client in clients: client.set_cookie(name,cookie)
+        barrier=threading.Barrier(2)
+        original=session_authority.begin_replacement
+        def simultaneous_claim():
+            barrier.wait(timeout=10)
+            return original()
+        def attempt(pair):
+            client,username=pair
+            response=client.post('/login',data={'company_code':'SYNTH','username':username,'password':self.password})
+            try: return response.status_code
+            finally: response.close()
+        # The barrier only aligns real requests. No SQL or authentication is mocked.
+        with patch.object(session_authority,'begin_replacement',side_effect=simultaneous_claim):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                statuses=list(pool.map(attempt,zip(clients,['second','third'])))
+        self.assertEqual(sorted(statuses),[302,409])
+        self.db.session.expire_all()
+        rows=self.db.session.execute(self.db.select(SessionAuthority)).scalars().all()
+        self.assertEqual(len(rows),2)
+        self.assertEqual(sum(not row.revoked for row in rows),1)
+
 
 class CandidateBoundaryTests(unittest.TestCase):
     def app(self):

@@ -61,6 +61,33 @@ def revoke_current():
         db.session.commit()
 
 
+def begin_replacement():
+    """One authenticated successor may replace a particular old authority.
+
+    This is a revocation CAS, not a device identity or a shared PIN. A failed
+    transition is fail-closed; callers must not issue another token. Identity
+    verification must already have succeeded before calling this function.
+    """
+    if not enabled():
+        return True
+    token = session.get('authority_token')
+    if token is None:
+        return True  # Initial login (or the existing validated MFA challenge).
+    if not (isinstance(token, str) and len(token) == 64 and
+            all(c in '0123456789abcdef' for c in token)):
+        return False
+    from .session_authority_model import SessionAuthority
+    now = int(time.time())
+    result = db.session.execute(db.update(SessionAuthority).where(
+        SessionAuthority.token_hash == _hash(token),
+        SessionAuthority.account_identity == session.get('account_identity'),
+        SessionAuthority.revoked.is_(False),
+        SessionAuthority.idle_until > now,
+        SessionAuthority.absolute_until > now).values(revoked=True))
+    db.session.commit()
+    return result.rowcount == 1
+
+
 def issue(user):
     if not enabled():
         return

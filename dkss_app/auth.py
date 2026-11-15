@@ -370,6 +370,10 @@ def login():
 
             user.failed_login_count = 0
 
+            from .session_authority import begin_replacement
+            if not begin_replacement():
+                return {"ok": False, "message": "利用者の切替状態が変わりました。ログイン画面からやり直してください。"}, 409
+
             password_expired = False
 
             if user.password_changed_at:
