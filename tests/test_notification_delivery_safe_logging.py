@@ -34,6 +34,7 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
         self.logger.addHandler(self.capture)
         self.smtp = MagicMock()
         self.server = self.smtp.return_value.__enter__.return_value
+        self.server.send_message.return_value = {}
         self.webpush = Mock()
         self.db = MagicMock()
         self.models = SimpleNamespace(PushSubscription=MagicMock(), Notification=MagicMock())
@@ -127,9 +128,9 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
         self.server.send_message.assert_not_called()
         self.smtp.assert_called_once()
 
-    def test_smtp_close_failure_remains_false_without_retry(self):
+    def test_smtp_close_failure_preserves_acceptance_without_retry(self):
         self.smtp.return_value.__exit__.side_effect = smtplib.SMTPServerDisconnected(CANARY)
-        self.assertFalse(self.email())
+        self.assertTrue(self.email())
         self.assert_log('EMAIL_DELIVERY_FAILED purpose=notification stage=close error_type=connection')
         self.server.send_message.assert_called_once()
         self.smtp.assert_called_once()
@@ -282,7 +283,7 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
                 self.capture.records.clear()
                 self.smtp.reset_mock()
                 target.side_effect = RuntimeError(CANARY)
-                self.assertFalse(auth.send_email_change_code_email('new@example.invalid', '456789'))
+                self.assertEqual(auth.send_email_change_code_email('new@example.invalid', '456789'), stage == 'close')
                 self.assert_log(f'EMAIL_DELIVERY_FAILED purpose=email_change stage={stage} error_type=unexpected')
                 self.smtp.assert_called_once()
                 target.side_effect = None
@@ -363,3 +364,4 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
