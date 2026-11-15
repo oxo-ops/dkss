@@ -116,6 +116,9 @@
         <section class="km-panel kc-metric">
             <h3 data-karte-icon="money">累計整備費 <small>全期間</small></h3>
             <p class="kc-metric-value">{{ money(cumulative.total_cost) }}</p>
+            {% if details.all_time_missing_amount_count %}
+            <p class="kc-muted">全期間の金額未入力 {{ details.all_time_missing_amount_count }}件を除いた集計です。</p>
+            {% endif %}
         </section>
 
         <section class="km-panel kc-metric">
@@ -134,6 +137,9 @@
             <p class="kc-muted">
                 {{ year - 1 }}年：{{ money(details.previous_total) }}
             </p>
+            {% if details.previous_missing_amount_count %}
+            <p class="kc-muted">前年の金額未入力 {{ details.previous_missing_amount_count }}件を除いた集計との比較です。</p>
+            {% endif %}
         </section>
 
         <section class="km-panel kc-breakdown-summary">
