@@ -6,7 +6,7 @@ stays separate: inspection of an assembly does not establish component replaceme
 import calendar
 import re
 import unicodedata
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from . import common as _dkss_common
@@ -387,6 +387,16 @@ class AdoptedMaintenanceTimingService:
                 entry["reason"] = "fractional_calendar_period"
             else:
                 try:
+                    # Bound the Decimal before converting it: an exponent-form
+                    # value can be compact in storage but enormous as an int.
+                    maximum = (
+                        (date.max - baseline_date).days
+                        if metric == "period_days"
+                        else (date.max.year - baseline_date.year) * 12
+                        + date.max.month - baseline_date.month
+                    )
+                    if threshold > maximum:
+                        raise ValueError("DATE_OUT_OF_RANGE")
                     amount = int(threshold)
                     if metric == "period_days":
                         due = baseline_date + timedelta(days=amount)
