@@ -188,6 +188,12 @@ def get_vehicle_maintenance_cost_details(maintenance_records, selected_year):
         "all_time_summary": summarize(records),
         "selected_summary": selected_summary,
         "previous_total": previous_total,
+        "previous_missing_amount_count": sum(
+            record.total_cost is None for record in previous_records
+        ),
+        "all_time_missing_amount_count": sum(
+            record.total_cost is None for record in records
+        ),
         "change_amount": change_amount,
         "change_percentage": change_percentage,
         "monthly_costs": monthly_costs,
