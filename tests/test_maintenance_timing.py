@@ -1,5 +1,8 @@
 """Recorded evidence and calendar boundaries for the shared timing policy."""
 from copy import deepcopy
+from datetime import date
+from decimal import Decimal
+from unittest.mock import patch
 import unittest
 
 from dkss_app.analysis import calculate_adopted_maintenance_rule_timing as calculate
@@ -41,6 +44,35 @@ class MaintenanceTimingTests(unittest.TestCase):
                 self.assertEqual(result['criteria'][0]['due_date'], '2026-02-28')
                 self.assertEqual(result['criteria'][0]['overdue_days'], 31)
                 self.assertEqual(result['source_ids'][0], 'part:1' if action == 'replace' else 'periodic:1')
+
+    def test_out_of_range_calendar_periods_do_not_expand_to_integers(self):
+        for action in ('replace', 'inspect'):
+            for metric in ('period_days', 'period_months'):
+                for value in (Decimal('1E+1000000'), 1e100):
+                    with self.subTest(action=action, metric=metric, value_type=type(value).__name__):
+                        # A spy proves rejection occurs before integer expansion;
+                        # never materialize the large integer even on regression.
+                        with patch('dkss_app.maintenance_timing.int',
+                                   side_effect=AssertionError('integer expansion attempted'),
+                                   create=True):
+                            result = self.run_case(self.case(action, metric, value))
+                        self.assertEqual(result['status'], 'unknown')
+                        self.assertFalse(result['calculation_permitted'])
+                        self.assertEqual(result['criteria'][0]['reason'], 'calendar_date_out_of_range')
+
+    def test_maximum_representable_calendar_period_and_one_beyond(self):
+        baseline = date(2026, 1, 31)
+        bounds = {'period_days': (date.max - baseline).days,
+                  'period_months': (9999 - 2026) * 12 + 11}
+        for action in ('replace', 'inspect'):
+            for metric, maximum in bounds.items():
+                with self.subTest(action=action, metric=metric):
+                    result = self.run_case(self.case(action, metric, maximum))
+                    self.assertEqual(result['criteria'][0]['due_date'], '9999-12-31')
+                    self.assertTrue(result['calculation_permitted'])
+                    result = self.run_case(self.case(action, metric, maximum + 1))
+                    self.assertEqual(result['criteria'][0]['reason'], 'calendar_date_out_of_range')
+                    self.assertFalse(result['calculation_permitted'])
 
     def test_inspection_retains_its_own_baseline_and_output_fields(self):
         result = self.run_case(self.case('inspect'))
