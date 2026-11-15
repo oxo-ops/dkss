@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 
 import click
 from flask import request, session
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import load_only
 
 from vehicle_inspection_plans import KINDS, UNCONFIRMED, normalize_kind, kind_values, add_months, iso_date, month
@@ -526,7 +526,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         except (IntegrityError, OperationalError):
             db.session.rollback()
             # A competing poll/tick will finish the same transaction safely.
-            return {**report, 'notifications': 0, 'plans': 0, 'retry': True}
+            return {**report, 'notifications': 0, 'plans': 0, 'expiry_candidates': 0, 'retry': True}
         except Exception:
             db.session.rollback()
             raise
@@ -568,7 +568,12 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         try:
             while True:
                 try:
-                    click.echo(json.dumps(run(), ensure_ascii=False))
+                    reports = run()
+                    click.echo(json.dumps(reports, ensure_ascii=False))
+                    if any(report.get('retry') for report in reports.values()):
+                        # A rolled-back company is incomplete, even if other
+                        # companies committed. Do not report CLI success.
+                        raise SQLAlchemyError('inspection alert tick incomplete')
                 except Exception as error:
                     db.session.rollback()
                     log_inspection_alert_failure(app.logger, mode='watch' if watch else 'command', error=error)
