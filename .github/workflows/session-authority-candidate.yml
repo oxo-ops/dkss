@@ -15,7 +15,11 @@ on:
       - 'requirements.txt'
       - 'tests/test_session_authority_candidate.py'
       - 'dkss_app/session_authority*.py'
+      - 'dkss_app/auth_session_registry.py'
+      - 'tests/test_auth_session_registry.py'
+      - 'tests/test_auth_registry_pg_capacity.py'
       - 'templates/session_switch_conflict.html'
+      - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
   push:
     branches: [main]
@@ -32,7 +36,11 @@ on:
       - 'requirements.txt'
       - 'tests/test_session_authority_candidate.py'
       - 'dkss_app/session_authority*.py'
+      - 'dkss_app/auth_session_registry.py'
+      - 'tests/test_auth_session_registry.py'
+      - 'tests/test_auth_registry_pg_capacity.py'
       - 'templates/session_switch_conflict.html'
+      - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
   workflow_dispatch:
 
@@ -87,4 +95,7 @@ jobs:
       - name: Install application dependencies
         run: python -m pip install -r requirements.txt
       - name: Verify real-app session authority on PostgreSQL
-        run: python -m unittest discover -s tests -p 'test_session_authority_candidate.py' -v
+        run: |
+          python -m unittest discover -s tests -p 'test_session_authority_candidate.py' -v
+          python -m unittest discover -s tests -p 'test_auth_session_registry.py' -v
+          python -m unittest discover -s tests -p 'test_auth_registry_pg_capacity.py' -v
