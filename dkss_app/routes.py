@@ -89,6 +89,9 @@ def register_core_routes(app):
     view = auth.register
     view = limiter.limit("5 per minute", methods=["POST"])(view)
     view = app.route("/register", methods=["GET", "POST"])(view)
+    if app.testing and app.config.get("USER_HANDOVER_PREVIEW"):
+        from .user_handover import switch_user
+        app.route("/switch-user", methods=["GET", "POST"])(switch_user)
     view = auth.logout
     view = app.route("/logout", methods=["POST"])(view)
     view = auth.settings

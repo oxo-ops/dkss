@@ -159,7 +159,8 @@ def require_login():
         _dkss_common.session.get("password_expired")
         and _dkss_common.request.endpoint not in {
             "settings",
-            "logout"
+            "logout",
+            "switch_user"
         }
     ):
         if (
