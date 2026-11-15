@@ -494,6 +494,11 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 
 def redirect_form_errors(response):
+    from flask import g
+    if (response.status_code == 409
+            and _dkss_common.request.endpoint == "login"
+            and g.get("authority_replacement_conflict")):
+        return response
     if _dkss_common.request.endpoint in {"register", "itc_registration", "company_registration"}:
         return response
     # Only the explicit checklist answer-version conflict keeps its 409 view.

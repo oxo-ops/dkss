@@ -43,10 +43,23 @@ credentials do not retire the current person. No name-only switch or shared PIN.
 
 This does not identify a physical tablet or authenticate by device ownership.
 Independent new-browser logins are not constrained by this predecessor CAS.
-Concurrent response/cookie ordering can still force re-login, and user-switch
+Non-transition request response/cookie ordering still requires review; user-switch
 UX, authenticator choice, activity extension and physical presence are pending.
 No production timeout, unlock method or MFA policy is selected here.
 
 The dedicated PostgreSQL test uses two real Flask requests and independent
 request sessions, aligning only the claim call with a barrier. SQLite skips this
 specific concurrency case; the required PG job must execute it, not skip it.
+
+## Late losing transition response
+A failed CAS response now renders a neutral 409 page, clears only request-local
+identity for rendering, and suppresses Flask session cookie persistence. It does
+not redirect automatically or delete a cookie. The user can open the current
+session explicitly to confirm who is logged in. This avoids the losing response
+replacing the winning tab's cookie. No names/passwords are reflected in this page.
+The response is no-store. CSRF and MFA behavior are unchanged.
+
+Only the conflict marker generated inside the authenticated replacement handler
+can suppress persistence. The test-only interface refuses to replace a custom
+session interface. Other in-flight request ordering and a full shared-device
+switch UX remain outside this narrow acceptance claim.

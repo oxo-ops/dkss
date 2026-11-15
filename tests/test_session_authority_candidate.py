@@ -152,6 +152,21 @@ class SessionAuthorityIntegration(unittest.TestCase):
             self.assertEqual(s['mfa_pending_username'],'second')
         self.db.session.expire_all();self.assertTrue(old.revoked)
 
+    def test_conflict_page_does_not_set_or_delete_the_browser_cookie(self):
+        from dkss_app import session_authority
+        self.login();self.add_person('second')
+        name=self.app.config['SESSION_COOKIE_NAME'];cookie=self.client.get_cookie(name).value
+        with patch.object(session_authority,'begin_replacement',return_value=False):
+            response=self.client.post('/login',data={'company_code':'SYNTH','username':'second','password':self.password},
+                headers={'Accept':'text/html','Sec-Fetch-Dest':'document','Sec-Fetch-Mode':'navigate'})
+        self.assertEqual(response.status_code,409)
+        self.assertNotIn('Location',response.headers)
+        self.assertEqual(response.headers.getlist('Set-Cookie'),[])
+        self.assertIn('no-store',response.headers['Cache-Control'])
+        self.assertIn('現在の利用者を確認する',response.get_data(as_text=True))
+        self.assertNotIn('second',response.get_data(as_text=True))
+        self.assertEqual(self.client.get_cookie(name).value,cookie)
+
     def test_postgres_concurrent_user_changes_allow_only_one_successor(self):
         if not os.environ.get('SESSION_AUTHORITY_POSTGRES_TEST_URL'):
             self.skipTest('Real PostgreSQL concurrency belongs to the isolated PG job')
@@ -170,14 +185,28 @@ class SessionAuthorityIntegration(unittest.TestCase):
             return original()
         def attempt(pair):
             client,username=pair
-            response=client.post('/login',data={'company_code':'SYNTH','username':username,'password':self.password})
-            try: return response.status_code
+            response=client.post('/login',data={'company_code':'SYNTH','username':username,'password':self.password},
+                headers={'Accept':'text/html','Sec-Fetch-Dest':'document','Sec-Fetch-Mode':'navigate'})
+            try: return response.status_code, response.headers.getlist("Set-Cookie")
             finally: response.close()
         # The barrier only aligns real requests. No SQL or authentication is mocked.
         with patch.object(session_authority,'begin_replacement',side_effect=simultaneous_claim):
             with ThreadPoolExecutor(max_workers=2) as pool:
-                statuses=list(pool.map(attempt,zip(clients,['second','third'])))
-        self.assertEqual(sorted(statuses),[302,409])
+                responses=list(pool.map(attempt,zip(clients,['second','third'])))
+        self.assertEqual(sorted(status for status, _ in responses),[302,409])
+        winner_headers=next(headers for status, headers in responses if status==302)
+        loser_headers=next(headers for status, headers in responses if status==409)
+        self.assertTrue(winner_headers)
+        self.assertEqual(loser_headers,[])
+        # Deliver winner first, loser last into one browser cookie jar.
+        from http.cookies import SimpleCookie
+        jar=SimpleCookie()
+        for header in winner_headers + loser_headers: jar.load(header)
+        latest=self.app.test_client();latest.set_cookie(name,jar[name].value)
+        self.assertEqual(latest.get('/api/notifications/unread-count').status_code,200)
+        winner_name=['second','third'][next(i for i,(status,_) in enumerate(responses) if status==302)]
+        with latest.session_transaction() as current:
+            self.assertEqual(current['username'],winner_name)
         self.db.session.expire_all()
         rows=self.db.session.execute(self.db.select(SessionAuthority)).scalars().all()
         self.assertEqual(len(rows),2)

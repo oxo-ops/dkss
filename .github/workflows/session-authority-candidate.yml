@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'dkss_app/auth.py'
+      - 'dkss_app/http.py'
       - 'dkss_app/access.py'
       - 'dkss_app/audit.py'
       - 'dkss_app/models.py'
@@ -13,11 +14,13 @@ on:
       - 'requirements.txt'
       - 'tests/test_session_authority_candidate.py'
       - 'dkss_app/session_authority*.py'
+      - 'templates/session_switch_conflict.html'
       - '.github/workflows/session-authority-candidate.yml'
   push:
     branches: [main]
     paths:
       - 'dkss_app/auth.py'
+      - 'dkss_app/http.py'
       - 'dkss_app/access.py'
       - 'dkss_app/audit.py'
       - 'dkss_app/models.py'
@@ -27,6 +30,7 @@ on:
       - 'requirements.txt'
       - 'tests/test_session_authority_candidate.py'
       - 'dkss_app/session_authority*.py'
+      - 'templates/session_switch_conflict.html'
       - '.github/workflows/session-authority-candidate.yml'
   workflow_dispatch:
 

@@ -10,10 +10,21 @@ import time
 import re
 import os
 
-from flask import current_app, request, session
+from flask import current_app, request, session, g
+from flask.sessions import SecureCookieSessionInterface
 from .extensions import db
 
 
+
+
+class CandidateSessionInterface(SecureCookieSessionInterface):
+    """A losing replacement response must not overwrite a newer browser cookie."""
+    def save_session(self, app, session, response):
+        if g.get('authority_replacement_conflict'):
+            response.vary.add('Cookie')
+            response.cache_control.no_store = True
+            return
+        return super().save_session(app, session, response)
 
 
 def enabled():
@@ -44,6 +55,9 @@ def configure(app):
             raise RuntimeError('Explicit positive test-only session limits required')
     if app.config['SESSION_AUTHORITY_IDLE_SECONDS'] > app.config['SESSION_AUTHORITY_ABSOLUTE_SECONDS']:
         raise RuntimeError('Idle lifetime must not exceed absolute lifetime')
+    if type(app.session_interface) is not SecureCookieSessionInterface:
+        raise RuntimeError('Candidate requires the default cookie session interface')
+    app.session_interface = CandidateSessionInterface()
 
 
 def _hash(token):
@@ -86,6 +100,18 @@ def begin_replacement():
         SessionAuthority.absolute_until > now).values(revoked=True))
     db.session.commit()
     return result.rowcount == 1
+
+
+def replacement_conflict_response():
+    # Do not redirect or delete/set a cookie: either can race the winning tab.
+    # Clearing only request-local state avoids rendering the prior person's UI.
+    from flask import make_response, render_template
+    g.authority_replacement_conflict = True
+    session.clear()
+    response = make_response(render_template('session_switch_conflict.html'), 409)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Session-Transition'] = 'conflict'
+    return response
 
 
 def issue(user):
