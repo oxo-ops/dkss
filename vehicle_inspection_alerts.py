@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 from inspection_alert_plan_reads import PlanReadHints
+from dkss_app.inspection_alert_failure_logging import log_inspection_alert_failure
 
 import hashlib
 import json
@@ -544,9 +545,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 and session.get('username') and session.get('company_code') and session.get('role') in {'admin', 'itc'}):
             try:
                 run(session['company_code'])
-            except Exception:
+            except Exception as error:
                 db.session.rollback()
-                app.logger.exception('点検予定の通知確認に失敗しました。')
+                log_inspection_alert_failure(app.logger, mode='poll', error=error)
 
     @app.get('/api/vehicle/inspection-plans/alerts/status')
     def inspection_alert_status():
@@ -568,11 +569,11 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
             while True:
                 try:
                     click.echo(json.dumps(run(), ensure_ascii=False))
-                except Exception:
+                except Exception as error:
                     db.session.rollback()
-                    app.logger.exception('点検通知の定期処理に失敗しました。')
+                    log_inspection_alert_failure(app.logger, mode='watch' if watch else 'command', error=error)
                     if not watch:
-                        raise
+                        raise click.ClickException('点検通知の処理に失敗しました。安全なエラーログを確認してください。') from None
                 finally:
                     db.session.remove()
                 if not watch:
