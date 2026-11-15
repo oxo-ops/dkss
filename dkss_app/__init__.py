@@ -84,6 +84,27 @@ def create_app(config=None, *, initialize_database=False):
         upgrade_read_cache()
         print("DATABASE_INITIALIZED")
 
+    @app.cli.command("prepare-auth-session-registry")
+    def prepare_auth_session_registry():
+        """Prepare additive revocation schema; does not activate it."""
+        from .auth_session_registry import prepare_schema
+        prepare_schema()
+        print("AUTH_SESSION_SCHEMA_PREPARED")
+
+    import click
+
+    @app.cli.command("activate-auth-session-registry")
+    @click.option("--confirm-relogin-all-users", is_flag=True, required=True)
+    def activate_auth_session_registry(confirm_relogin_all_users):
+        """One-way cutover, only after every serving worker is compatible."""
+        if not confirm_relogin_all_users:
+            raise click.UsageError("Explicit reauthentication acknowledgement required")
+        if app.config.get("SESSION_AUTHORITY_CANDIDATE"):
+            raise click.UsageError("Cannot activate registry with experimental authority")
+        from .auth_session_registry import activate
+        activate()
+        print("AUTH_SESSION_REVOCATION_ACTIVE")
+
     @app.cli.command("upgrade-company-invites")
     def upgrade_company_invites_command():
         """Explicitly add invite/application tables; never reset existing data."""

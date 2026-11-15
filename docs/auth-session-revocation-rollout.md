@@ -1,0 +1,38 @@
+# Durable logout revocation: shortest production path
+
+## Actual defect and bounded outcome
+
+A synthetic reproduction of the existing ordinary (candidate-disabled) application returned logout302, followed by200 from an authenticated API using a copy of the pre-logout signed cookie. Clearing a browser cookie does not revoke its copies. The existing experimental authority blocks this, but cannot be enabled in production.
+
+This increment supplies a normal-auth registry, not another shared-tablet preview flag. Its outcome is **new requests using a revoked login cookie are rejected after logout commits**. It does not terminate a request already authorized, fence every write, remove downloaded information, prevent all late successful HTML/cookie races, introduce idle/absolute timeouts, choose an authenticator, or complete shared-tablet acceptance.
+
+## Staged deployment contract (not executed here)
+
+1. **Prepare only.** Run `flask --app app prepare-auth-session-registry` during an approved schema window. Separate metadata adds only auth_session_policy and auth_session. Preparation sets version0 only when creating a new policy table; an existing table with a missing/invalid marker is rejected; reruns do not change version1. No DROP/reset or changes to existing user/operational rows. Normal init-db/create_all/factory/GET does not install this schema.
+2. **Deploy compatible code everywhere.** All Web workers/instances must run registry-aware code before activation. Keep existing MFA settings and signed-cookie configuration. Prepared version0 retains existing login/logout behavior. Neither a deployment nor preparation activates the feature. Verify private readback and normal login/MFA, without outputting secrets.
+3. **Explicit, one-way activation.** After change approval and notifying users that they will sign in again, run `flask --app app activate-auth-session-registry --confirm-relogin-all-users`. Activation validates required tables/columns and commits version1 under a row lock. No environment OFF switch exists. All legacy authenticated cookies without a registry token are then rejected; no server backfill that trusts legacy cookie holders. Concurrent legacy issuance at the boundary can be rejected on its next request, not silently upgraded.
+4. **Acceptance.** Exercise ordinary password and enabled MFA; one browser logout rejects its copied cookie; a separate login/device remains valid; disable/replace user/password/company still denies access; DB unavailability must not appear as successful login/logout; explicit login reset recovers revoked cookies. Verify across two serving instances and actual target browsers.
+5. **Rollback.** Roll back only to a registry-aware, enforcement-preserving build, retaining version1 and session rows. Do NOT set policy back to0, remove policy/token tables, or run an older binary that ignores the registry. Those operations would revive old signed cookies and are not a supported rollback. An incompatible rollback requires a separately approved forced invalidation/recovery plan. Do not disable enforcement merely to restore availability.
+
+No command above was executed against a live database, no configuration changed, and no deployment occurred in this work.
+
+## Runtime behavior and cost
+
+- No `AUTH_SESSION_REVOCATION_ENABLED` bypass setting. Normal authenticated requests and login transitions read the durable policy. Before installation, the absence of the policy table preserves legacy behavior. A present but missing/invalid singleton marker is an error, not a fallback.
+- This deliberately adds a schema/policy lookup to normal authentication even before activation, including authenticated static requests, and increases DB availability dependence. It is not zero-side-effect while unprepared. Zero new DB reads while OFF would make it impossible to discover a durable activation after a mistaken configuration rollback. It does not add request-time DDL or production factory DB access. Measure query overhead and multi-instance behavior before activation; do not claim production performance from synthetic tests.
+- The new 256-bit random token is only issued after password/MFA completion and a successful DB commit. Only its SHA256 digest is stored with company_code, username and immutable account_identity. Existing account, company, lock, role and password-generation checks remain authoritative.
+- Logout commits revocation before reporting success. DB errors/missing registry under enforcement return503 and do not persist partial authenticated state or delete a successor cookie. Rejected protected responses do not change the browser cookie; explicit `/login` retains the existing reset path.
+- Independent logins receive distinct tokens; logging out one device does not log out all devices. Rotation uses compare-and-set revocation of the old authenticated authority; it is not name-only impersonation or a shared PIN.
+- No token TTL or cleanup is added. Do not purge solely by issued_at: signed-cookie renewal can extend its lifetime. Retention/compaction requires an explicit expiry design and is a rollout concern, not a silent default.
+- The TESTING-only SESSION_AUTHORITY_CANDIDATE remains separate and cannot be enabled on Render. Its isolated test paths do not become a production switch. The activation CLI refuses that candidate mode.
+
+## Priorities after this bounded fix
+
+P0: independently review registry/schema/rollback, run isolated PostgreSQL and complete existing regression/CI. Produce a deployment checklist and load/read-cost evidence. No production activation until the staged contract is accepted.
+P1: solve owner/revision binding for already-running requests and success-response ordering; extend transaction fences for actual sensitive writes. These are required before claiming safe fast multi-user handover.
+P2: real-device authenticator and lock/unlock workflow. Dedicated-device session continuity and shared-tablet handover remain distinct. Passkeys/security keys/password+factor choices and durations stay assumptions until validated; do not force email codes on every screen.
+P3: integrate the accepted UX into normal navigation, then browser/PWA acceptance toward FY2026 app delivery. Packaging does not replace authentication or recovery controls.
+
+## Non-production verification record
+
+Normal-factory registry tests:13 passed5.568s; isolated-PG concurrent replacement is additionally defined and skipped locally because no local PostgreSQL server is available. The affected authority/Push/handover/registry integration set passed66 tests with4 PostgreSQL-only skips in21.609s. After request-local error-state clearing, three DB-failure tests passed1.829s. Independent read-only review caught and corrected preparation resetting a missing marker; it now fails closed. Full CI and actual PostgreSQL acceptance remain pending. No live activation is included in these results.

@@ -33,6 +33,10 @@ def enabled():
 
 def configure(app):
     if not app.config.get('SESSION_AUTHORITY_CANDIDATE'):
+        # Durable revocation can reject a late response in ordinary auth too.
+        if type(app.session_interface) is not SecureCookieSessionInterface:
+            raise RuntimeError('Authentication requires the default cookie session interface')
+        app.session_interface = CandidateSessionInterface()
         return
     if not app.testing or app.config.get('SESSION_COOKIE_SECURE') or os.environ.get('RENDER') == 'true':
         raise RuntimeError('Session authority candidate is restricted to isolated tests')
@@ -66,7 +70,8 @@ def _hash(token):
 
 def revoke_current():
     if not enabled():
-        return
+        from . import auth_session_registry
+        return auth_session_registry.revoke_current()
     from .session_authority_model import SessionAuthority
     token = session.get('authority_token')
     if isinstance(token, str) and len(token) == 64 and all(c in '0123456789abcdef' for c in token):
@@ -83,7 +88,8 @@ def begin_replacement():
     verification must already have succeeded before calling this function.
     """
     if not enabled():
-        return True
+        from . import auth_session_registry
+        return auth_session_registry.begin_replacement()
     token = session.get('authority_token')
     if token is None:
         return True  # Initial login (or the existing validated MFA challenge).
@@ -118,7 +124,8 @@ def replacement_conflict_response():
 
 def issue(user):
     if not enabled():
-        return
+        from . import auth_session_registry
+        return auth_session_registry.issue(user)
     from .session_authority_model import SessionAuthority
     revoke_current()
     token = secrets.token_hex(32)
@@ -132,7 +139,10 @@ def issue(user):
 
 
 def require_authority():
-    if not enabled() or not session.get('username'):
+    if not enabled():
+        from .auth_session_registry import require_session
+        return require_session()
+    if not session.get('username'):
         return None
     from .session_authority_model import SessionAuthority
     token = session.get('authority_token')
