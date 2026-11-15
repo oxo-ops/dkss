@@ -180,3 +180,46 @@ class RegistryIntegration(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn('完了したとは限りません', body)
         self.assertNotIn('operator', body)
+
+    def test_unprepared_and_version_zero_read_failure_is_visible_before_activation(self):
+        """Deployment itself adds availability dependence; not an activation-only gate."""
+        from dkss_app import auth_session_registry as registry
+        from sqlalchemy.exc import OperationalError
+        registry.RegistryBase.metadata.drop_all(self.db.engine)
+        self.login()
+        for prepared in (False, True):
+            with self.subTest(prepared=prepared):
+                if prepared:
+                    registry.prepare_schema()
+                for path, headers in (
+                    ('/api/notifications/unread-count', {}),
+                    ('/static/js/base.js', {}),
+                    ('/login', {'Accept':'text/html', 'Sec-Fetch-Mode':'navigate',
+                                'Sec-Fetch-Dest':'document'}),
+                ):
+                    with self.subTest(path=path):
+                        with patch.object(registry, 'inspect', side_effect=OperationalError(
+                            'synthetic', {}, Exception('synthetic'))):
+                            with self.app.app_context():
+                                response = self.client.get(path, headers=headers)
+                        self.assertEqual(response.status_code, 503)
+                        self.assertNotIn('Set-Cookie', response.headers)
+                        self.assertNotIn('Location', response.headers)
+                with self.app.app_context():
+                    recovered = self.client.get('/api/notifications/unread-count')
+                self.assertEqual(recovered.status_code, 200)
+
+    def test_unprepared_static_and_polling_each_consult_registry(self):
+        """Count real guard entry without pretending SQLite timing is a PG budget."""
+        from dkss_app import auth_session_registry as registry
+        registry.RegistryBase.metadata.drop_all(self.db.engine)
+        self.login()
+        for path in ('/static/js/base.js', '/api/notifications/unread-count'):
+            with self.subTest(path=path):
+                with patch.object(registry, 'inspect', wraps=registry.inspect) as lookups:
+                    for _ in range(3):
+                        with self.app.app_context():
+                            response = self.client.get(path)
+                        self.assertEqual(response.status_code, 200)
+                        response.close()
+                self.assertEqual(lookups.call_count, 3)

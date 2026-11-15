@@ -17,6 +17,7 @@ on:
       - 'dkss_app/session_authority*.py'
       - 'dkss_app/auth_session_registry.py'
       - 'tests/test_auth_session_registry.py'
+      - 'tests/test_auth_registry_pg_capacity.py'
       - 'templates/session_switch_conflict.html'
       - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
@@ -37,6 +38,7 @@ on:
       - 'dkss_app/session_authority*.py'
       - 'dkss_app/auth_session_registry.py'
       - 'tests/test_auth_session_registry.py'
+      - 'tests/test_auth_registry_pg_capacity.py'
       - 'templates/session_switch_conflict.html'
       - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
@@ -96,3 +98,4 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_session_authority_candidate.py' -v
           python -m unittest discover -s tests -p 'test_auth_session_registry.py' -v
+          python -m unittest discover -s tests -p 'test_auth_registry_pg_capacity.py' -v

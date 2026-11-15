@@ -58,7 +58,12 @@ def rank(row, today):
 
 def write_text(cell, value):
     # User-entered registration/factory/note must never become an Excel formula.
-    cell.value = str(value or '')
+    # XML 1.0 cannot represent these code points. Keep the stored source intact
+    # and expose each rejected character visibly in the exported text instead
+    # of failing the entire workbook or silently dropping part of a note.
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]',
+                  lambda match: f'[U+{ord(match.group()):04X}]', str(value or ''))
+    cell.value = text
     cell.data_type = 's'
 
 
