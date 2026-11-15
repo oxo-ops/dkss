@@ -216,7 +216,7 @@
                                     {% if row.distance is not none %}
                                     前回から {{ row.distance|distance_km }} km
                                     {% else %}
-                                    前回記録なし
+                                    {{ row.distance_note }}
                                     {% endif %}
                                 </span>
                             </td>
