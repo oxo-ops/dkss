@@ -40,6 +40,7 @@ def _failure():
     # Never persist partially authenticated state or delete a successor cookie.
     db.session.rollback()
     g.authority_api_rejected = True
+    g.auth_registry_failure = True
     session.clear()  # request-local only; no authenticated error-page context
     abort(503, description='認証状態を確認できません。時間をおいてお試しください。')
 

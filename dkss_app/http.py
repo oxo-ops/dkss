@@ -495,6 +495,8 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 def redirect_form_errors(response):
     from flask import g
+    if response.status_code == 503 and g.get("auth_registry_failure"):
+        return response
     if (response.status_code == 409
             and _dkss_common.request.endpoint == "login"
             and g.get("authority_replacement_conflict")):
@@ -726,6 +728,15 @@ def handle_upload_validation_error(error):
 
 
 def handle_http_error(error):
+    from flask import g
+    if error.code == 503 and g.get("auth_registry_failure"):
+        if is_html_document_request():
+            response = _dkss_runtime.app.make_response((
+                _dkss_common.render_template("auth_registry_unavailable.html"), 503))
+        else:
+            response = error.get_response()
+        response.headers["Cache-Control"] = "no-store"
+        return response
     from .import_flow import form_error_response
     import_messages = {403: 'この操作の権限またはログイン状態を確認してください。',
         404: '確認中の資料が見つかりません。登録済み・取消済みの可能性があります。元の画面で状況を確認してください。',

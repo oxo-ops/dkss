@@ -18,6 +18,7 @@ on:
       - 'dkss_app/auth_session_registry.py'
       - 'tests/test_auth_session_registry.py'
       - 'templates/session_switch_conflict.html'
+      - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
   push:
     branches: [main]
@@ -37,6 +38,7 @@ on:
       - 'dkss_app/auth_session_registry.py'
       - 'tests/test_auth_session_registry.py'
       - 'templates/session_switch_conflict.html'
+      - 'templates/auth_registry_unavailable.html'
       - '.github/workflows/session-authority-candidate.yml'
   workflow_dispatch:
 

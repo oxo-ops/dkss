@@ -165,3 +165,18 @@ class RegistryIntegration(unittest.TestCase):
         self.assertEqual(sorted(results), [(302, True), (409, False)])
         self.db.session.expire_all()
         self.assertEqual(self.db.session.query(registry.AuthSession).filter_by(revoked=False).count(), 1)
+
+    def test_browser_failure_keeps_503_without_redirect_loop(self):
+        from dkss_app.auth_session_registry import AuthSession
+        AuthSession.__table__.drop(self.db.engine)
+        with self.app.app_context():
+            response = self.client.post('/login', data={'company_code':'SYNTH',
+                'username':'operator', 'password':self.password}, headers={
+                'Accept':'text/html', 'Sec-Fetch-Mode':'navigate', 'Sec-Fetch-Dest':'document'})
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('Location', response.headers)
+        self.assertNotIn('Set-Cookie', response.headers)
+        self.assertTrue(response.cache_control.no_store)
+        body = response.get_data(as_text=True)
+        self.assertIn('完了したとは限りません', body)
+        self.assertNotIn('operator', body)
