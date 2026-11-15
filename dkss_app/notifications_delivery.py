@@ -1,6 +1,8 @@
 """Notifications Delivery responsibilities; routes are registered by the application factory."""
 import ssl
 
+from . import shared_push_candidate
+
 from .delivery_failure_logging import log_email_delivery_failure
 from .account_identity import current_identity
 from . import audit as _dkss_audit, auth as _dkss_auth, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime
@@ -34,6 +36,7 @@ def push_vapid_public_key():
 
 
 def push_subscribe():
+    candidate = shared_push_candidate.enabled()
     company_code = _dkss_common.session.get("company_code")
     username = _dkss_common.session.get("username")
 
@@ -74,6 +77,10 @@ def push_subscribe():
         endpoint=endpoint
     ).first()
 
+    if candidate and subscription and (subscription.owner_identity != current_identity()
+            or subscription.company_code != company_code):
+        return {"error": "Shared subscription requires an exact account owner."}, 409
+
     if subscription and subscription.owner_identity not in (None, current_identity()):
         return {"error": "Subscription belongs to another account generation."}, 409
 
@@ -98,6 +105,10 @@ def push_subscribe():
         )
 
         _dkss_common.db.session.add(subscription)
+
+    if candidate and not shared_push_candidate.bind(subscription):
+        _dkss_common.db.session.rollback()
+        return {"error": "Unauthorized"}, 401
 
     _dkss_common.db.session.commit()
 
@@ -130,6 +141,8 @@ def push_unsubscribe():
     ).first()
 
     if subscription:
+        if shared_push_candidate.enabled():
+            shared_push_candidate.unbind(subscription)
         _dkss_common.db.session.delete(subscription)
         _dkss_common.db.session.commit()
 
@@ -187,9 +200,15 @@ def send_web_push_notification(
         ensure_ascii=False
     )
 
+    candidate = shared_push_candidate.enabled()
+    if candidate:
+        payload = _dkss_common.json.dumps(shared_push_candidate.payload(), ensure_ascii=False)
+
     sent = False
 
     for subscription in subscriptions:
+        if candidate and not shared_push_candidate.eligible(subscription):
+            continue
         try:
             _dkss_common.webpush(
                 subscription_info={
@@ -225,6 +244,8 @@ def send_web_push_notification(
                 response is not None
                 and response.status_code in (404, 410)
             ):
+                if candidate:
+                    shared_push_candidate.unbind(subscription)
                 _dkss_common.db.session.delete(subscription)
                 _dkss_common.db.session.commit()
 
