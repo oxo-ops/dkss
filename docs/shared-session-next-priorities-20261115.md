@@ -17,3 +17,7 @@ The candidate still refuses non-TESTING and production/remote configurations and
 The HTML change only suppresses persistence for a request **already rejected** by the authority guard. It does not discard valid page state/flash updates globally, so existing normal workflows are not silently changed. `/login` is an explicit reset exception; its own late response ordering remains a known boundary. Shared-tablet authentication is not complete until those boundaries and physical-device tests pass.
 
 User involvement is not required for synthetic code/CI work. Request a real tablet/browser sign-in and user-switch walkthrough only when the bounded UX is ready for device acceptance. Explain the exact step then; do not ask them to babysit tests, disclose a password in chat, or repeatedly approve the already-authorized non-production work.
+
+## Verification notes
+
+Initial session PG18 CI:26/26 passed14.688s at a5e822cf (run43699115030/job132766081250). Shared-Push expiry-loop test exposed an obsolete assumption: an expired logout response used to clear the cookie, then a single POST/login sufficed. The test now explicitly visits /login to reset, then authenticates in fresh request app contexts. This keeps runtime guards intact and avoids fixture g reuse. Focused local test passed1/1 in1.512s; updated-head PG/aggregate CI remains to be verified.
