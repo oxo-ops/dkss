@@ -2,6 +2,7 @@
 import calendar
 import hashlib
 import json
+import re
 from functools import wraps
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -38,6 +39,25 @@ def iso_date(value):
 def month(value):
     value = str(value or '')
     return value if len(value) == 7 and iso_date(value + '-01') else None
+
+
+def request_integer(value, *, optional=False):
+    """IDs/versions are integers, never truncated floats or boolean aliases.
+
+    Bound before querying so malformed input cannot overflow DB drivers. Keep
+    digit strings for existing form/query clients and zero for absent links.
+    """
+    if optional and (value is None or value == ''):
+        return 0
+    if type(value) is int:
+        result = value
+    elif isinstance(value, str) and re.fullmatch(r'[0-9]{1,19}', value):
+        result = int(value)
+    else:
+        abort(400, '対象ID・版番号を確認してください。')
+    if not (0 if optional else 1) <= result <= 9223372036854775807:
+        abort(400, '対象ID・版番号を確認してください。')
+    return result
 
 
 def add_months(value, count):
@@ -536,7 +556,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         vehicle = None
         if args.get('vehicle_id'):
             try:
-                vehicle = Vehicle.query.filter_by(company_code=code, id=int(args['vehicle_id']), deleted=False).first_or_404()
+                vehicle = Vehicle.query.filter_by(company_code=code, id=request_integer(args['vehicle_id']), deleted=False).first_or_404()
             except (ValueError, TypeError):
                 abort(400, '車両を確認してください。')
         user = User.query.filter_by(company_code=code, username=session.get('username')).first()
@@ -731,7 +751,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         code = session['company_code']
         if request.args.get('detail'):
             try:
-                v = Vehicle.query.filter_by(company_code=code, id=int(request.args['vehicle_id'])).first_or_404()
+                v = Vehicle.query.filter_by(company_code=code, id=request_integer(request.args['vehicle_id'])).first_or_404()
             except (KeyError, ValueError):
                 abort(400)
             data = {'vehicle': {'id': v.id, 'number': number(v), 'office': v.office or ''}, 'plans': summary(code, v.id),
@@ -752,7 +772,9 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             if not isinstance(raw, dict):
                 abort(400)
             try:
-                vid, ident, version = int(raw['vehicle_record_id']), int(raw.get('id') or 0), int(raw.get('version') or 0)
+                vid = request_integer(raw['vehicle_record_id'])
+                ident = request_integer(raw.get('id'), optional=True)
+                version = request_integer(raw.get('version'), optional=True)
             except (KeyError, TypeError, ValueError):
                 abort(400)
             v = Vehicle.query.filter_by(company_code=code, id=vid, deleted=False).first_or_404()
@@ -981,7 +1003,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def vehicle_inspection_execution_source(execution_id):
         from io import BytesIO
         from flask import send_file
-        execution = Execution.query.filter_by(id=execution_id, company_code=session['company_code']).first_or_404()
+        execution = Execution.query.filter_by(id=request_integer(execution_id), company_code=session['company_code']).first_or_404()
         ev = db.session.get(Evidence, execution.id)
         v = Vehicle.query.filter_by(company_code=execution.company_code, id=execution.vehicle_record_id).first_or_404()
         if not ev or ev.document_id not in {d['id'] for d in certificate_documents(v, ev.document_id)}:
@@ -995,8 +1017,9 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         if not isinstance(payload, dict):
             abort(400)
         try:
-            vid, pid = int(payload['vehicle_record_id']), int(payload.get('plan_id') or 0)
-            version = int(payload.get('version') or 0)
+            vid = request_integer(payload['vehicle_record_id'])
+            pid = request_integer(payload.get('plan_id'), optional=True)
+            version = request_integer(payload.get('version'), optional=True)
         except (ValueError, TypeError, KeyError):
             abort(400)
         v = Vehicle.query.filter_by(company_code=code, id=vid, deleted=False).first_or_404()

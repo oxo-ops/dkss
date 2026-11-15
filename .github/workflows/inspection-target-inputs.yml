@@ -1,0 +1,52 @@
+name: Inspection target input validation
+
+on:
+  pull_request:
+    paths:
+      - 'vehicle_inspection_plans.py'
+      - 'tests/test_inspection_plan_integer*.py'
+      - '.github/workflows/inspection-target-inputs.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-dates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_inspection_ci
+          POSTGRES_USER: inspection
+          POSTGRES_PASSWORD: inspection-disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inspection -d dkss_inspection_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: .:tests
+      INSPECTION_POSTGRES_TEST_URL: postgresql+psycopg2://inspection:inspection-disposable-ci-only@127.0.0.1:5432/dkss_inspection_ci
+      INSPECTION_REQUIRE_POSTGRES: '1'
+      AWS_EC2_METADATA_DISABLED: 'true'
+      OPENAI_API_KEY: ''
+      SMTP_HOST: ''
+      S3_BUCKET_NAME: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_PUBLIC_KEY: ''
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Verify exact target inputs with real PostgreSQL integer columns
+        run: python -m unittest discover -s tests -p 'test_inspection_plan_integer_postgres.py' -v
