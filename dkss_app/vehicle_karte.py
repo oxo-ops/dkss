@@ -1,5 +1,6 @@
 """Vehicle Karte responsibilities; routes are registered by the application factory."""
 from parts_history_distance import replacement_interval
+from vehicle_comparison_presentation import replacement_distance
 from . import import_owner as _dkss_import_owner, operation_csv_owner as _csv_owner
 from . import access as _dkss_access, analysis as _dkss_analysis, audit as _dkss_audit, checklist_common as _dkss_checklist_common, checklists as _dkss_checklists, common as _dkss_common, maintenance as _dkss_maintenance, models as _dkss_models, notifications_delivery as _dkss_notifications_delivery, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_costs as _dkss_vehicle_costs, vehicle_imports as _dkss_vehicle_imports, vehicle_operations as _dkss_vehicle_operations, vehicle_readers as _dkss_vehicle_readers
 
@@ -1757,7 +1758,12 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapsho
             )
 
         count, distance, distance_note = group["events"][record.id]
-        group.update(latest=part, category=category)
+        group.update(
+            latest=part, latest_parent=record, category=category,
+            ambiguous_latest_mileage=len(recorded_meters.get(
+                (part.part_name, part.part_number or "", part.replacement_date), set()
+            )) > 1,
+        )
 
         history.append({
             "part": part,
@@ -1920,6 +1926,7 @@ def get_vehicle_karte_parts_context(vehicle, factual_only=False, *, read_snapsho
             last=min(first + per_page, total),
         ),
         "format_part_number": format_vehicle_maintenance_number,
+        "part_current_distance": replacement_distance,
     }
 
 
