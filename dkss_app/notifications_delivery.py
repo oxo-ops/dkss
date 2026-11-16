@@ -301,7 +301,9 @@ def send_email_notification(
     title,
     message,
     link="",
-    require_opt_in=True
+    require_opt_in=True,
+    *,
+    delivery_purpose="notification"
 ):
     if not user:
         return False
@@ -367,6 +369,8 @@ def send_email_notification(
     full_link = build_absolute_app_url(link)
 
     email = _dkss_common.EmailMessage()
+    if not _dkss_auth.set_email_origin_headers(email, smtp_from):
+        return False
 
     email["Subject"] = title
     email["From"] = smtp_from
@@ -411,7 +415,7 @@ def send_email_notification(
 
     except Exception as error:
         log_email_delivery_failure(
-            _dkss_runtime.app.logger, purpose="notification", stage=smtp_stage, error=error
+            _dkss_runtime.app.logger, purpose=delivery_purpose, stage=smtp_stage, error=error
         )
         # QUIT failure cannot undo an acknowledged DATA transaction.
         # DATA exceptions remain uncertain and are never retried here.

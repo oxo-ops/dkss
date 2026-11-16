@@ -3079,6 +3079,26 @@ def vehicle_checklist_results(index):
 
     input_days = list(display_days)
 
+    # Explicit selections must never silently become a different inspection day.
+    # An omitted selection may use the local day, bounded by the displayed month.
+    if display_mode == "day_list":
+        raw_active_day = _dkss_common.request.args.get("active_day", "").strip()
+        if not raw_active_day:
+            active_day = str(min(local_now.day, last_day)).zfill(2)
+        else:
+            try:
+                selected_day = int(raw_active_day)
+            except (TypeError, ValueError):
+                selected_day = 0
+            if selected_day not in display_days:
+                return _dkss_common.render_template(
+                    "vehicle_checklist_date_error.html",
+                    checklist_id=checklist_record.id,
+                    vehicle_record_id=vehicle_record_id,
+                    year=year, month=month, display_days=display_days,
+                ), 400
+            active_day = str(selected_day).zfill(2)
+
     checklist_periods = []
 
     if display_mode == "day_list":

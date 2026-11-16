@@ -1768,6 +1768,7 @@ class CompanyRegistrationInvite(db.Model):
     """Reusable company-scoped registration capability; never stores the URL token."""
     id = db.Column(db.Integer, primary_key=True)
     company_code = db.Column(db.String(50), nullable=False, index=True)
+    purpose = db.Column(db.String(20), nullable=False, default='legacy', server_default='legacy')
     token_hash = db.Column(db.String(64), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)

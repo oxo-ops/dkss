@@ -13,7 +13,7 @@ EVENT_FIELDS = {
     'UPLOAD_DELETE_FAILED': {
         'backend': {'s3', 'local'}, 'error_type': {'ClientError', 'OSError'}},
     'EMAIL_DELIVERY_FAILED': {
-        'purpose': {'notification', 'email_change', 'unknown'},
+        'purpose': {'notification', 'mfa', 'email_change', 'unknown'},
         'stage': {'connect', 'starttls', 'authenticate', 'send', 'close', 'unknown'},
         'error_type': {'authentication', 'recipient_refused', 'sender_refused',
             'data_rejected', 'tls', 'connection', 'smtp', 'unexpected'}},

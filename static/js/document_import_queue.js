@@ -1,6 +1,34 @@
 (function () {
     "use strict";
     const MAX_BATCH_BYTES = 200 * 1024 * 1024;
+    async function readReceiptStatus(href) {
+    // Bound both headers and body reads; a stalled request must not
+    // hold the accepted upload card forever. Aborting this GET does
+    // not cancel the durable server-side OCR job.
+    const controller = new AbortController();
+    let timeout;
+    let result;
+    try {
+        result = await Promise.race([
+            (async () => {
+                const response = await window.fetch(href, {
+                    headers:{Accept:"application/json"}, cache:"no-store", signal:controller.signal
+                });
+                const job = response.ok ? await response.json() : null;
+                return {response, job};
+            })(),
+            new Promise((_, reject) => {
+                timeout = window.setTimeout(() => {
+                    controller.abort();
+                    reject(new Error("status timeout"));
+                }, 20000);
+            })
+        ]);
+    } finally {
+        window.clearTimeout(timeout);
+    }
+        return result;
+    }
     function submit(form, showError) {
         if (form.dataset.loading === "1") return;
         const input = form.querySelector('input[type="file"]');
@@ -66,13 +94,38 @@
                 button.textContent = "読み取り中…";
                 status.textContent = "資料を受け付けました。読み取りを開始します。";
                 let failures = 0;
+                function showReceiptRecovery(message) {
+                    // The upload is already accepted. Keep the submission guard:
+                    // recovery must revisit this receipt, never create another upload.
+                    if (form.classList) form.classList.remove("ocr-queue-busy");
+                    status.textContent = message;
+                    const link = document.createElement("a");
+                    link.href = destination.href;
+                    link.textContent = "受付を確認する";
+                    link.className = "btn btn-outline";
+                    status.append(" ", link);
+                    button.textContent = "受付済み";
+                }
                 async function checkProgress() {
                     try {
-                        const response = await window.fetch(statusUrl.href, {headers:{Accept:"application/json"},cache:"no-store"});
+                        const {response, job} = await readReceiptStatus(statusUrl.href);
+                        if (response.status === 401 || response.status === 403) {
+                            showReceiptRecovery("資料は受付済みです。ログイン状態を確認してから受付を開いてください。再送信は不要です。");
+                            return;
+                        }
+                        if (response.status === 404) {
+                            // Not found can mean a deleted receipt or a changed account;
+                            // it is not evidence that the original upload failed.
+                            showReceiptRecovery("受付を表示できません。利用中の会社・利用者と受付一覧を確認してください。再送信はしないでください。");
+                            return;
+                        }
                         if (!response.ok) throw new Error("status");
-                        const job = await response.json();
-                        failures = 0;
-                        const files = Array.isArray(job.files) ? job.files : [];
+                        if (!job || typeof job !== "object" || Array.isArray(job) ||
+                            !Array.isArray(job.files) || job.files.some(file => !file || typeof file !== "object") ||
+                            !Number.isInteger(job.completed) || job.completed < 0 ||
+                            !Number.isInteger(job.total) || job.total < job.completed ||
+                            typeof job.finished !== "boolean") throw new Error("status shape");
+                        const files = job.files;
                         const current = files.find(file => file.status === "reading");
                         const summary = current ? " / " + current.filename + "：" +
                             (current.phase === "classifying" ? "資料の種類を確認中" :
@@ -103,8 +156,13 @@
                             button.textContent = originalButtonText;
                             return;
                         }
+                        failures = 0;
                     } catch (_) {
                         failures++;
+                        if (failures >= 3) {
+                            showReceiptRecovery("読取状況を確認できません。資料は受付済みです。通信が戻ったら受付を確認してください。再送信は不要です。");
+                            return;
+                        }
                         status.textContent = "読取状況を再確認しています。資料は受付済みです。";
                     }
                     window.setTimeout(checkProgress, failures ? 10000 : 2000);
@@ -248,11 +306,14 @@
             };
             async function check() {
                 try {
-                    const response = await window.fetch(url.href, {headers:{Accept:"application/json"},cache:"no-store"});
+                    const {response, job} = await readReceiptStatus(url.href);
                     if (!response.ok) throw new Error("status");
-                    const job = await response.json();
-                    errors = 0;
-                    const files = Array.isArray(job.files) ? job.files : [];
+                    if (!job || typeof job !== "object" || Array.isArray(job) ||
+                        !Array.isArray(job.files) || job.files.some(file => !file || typeof file !== "object") ||
+                        !Number.isInteger(job.completed) || job.completed < 0 ||
+                        !Number.isInteger(job.total) || job.total < job.completed ||
+                        typeof job.finished !== "boolean") throw new Error("status shape");
+                    const files = job.files;
                     status.textContent = (job.completed || 0) + " / " + (job.total || files.length) + " 資料処理済み";
                     if (!job.finished) {
                         status.textContent += "（読み取り中）";
@@ -270,6 +331,7 @@
                         status.append(" ", action);
                         return;
                     }
+                    errors = 0;
                 } catch (_) {
                     errors++;
                     status.textContent = "受付状況を再確認しています。";
@@ -328,10 +390,13 @@
     let failures = 0;
     async function poll() {
         try {
-            const response = await fetch(root.dataset.statusUrl, {headers:{Accept:"application/json"}, cache:"no-store"});
+            const {response, job} = await readReceiptStatus(root.dataset.statusUrl);
             if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/json")) throw new Error("status");
-            const job = await response.json();
-            failures = 0;
+            if (!job || typeof job !== "object" || Array.isArray(job) ||
+                !Array.isArray(job.files) || job.files.some(file => !file || typeof file !== "object") ||
+                !Number.isInteger(job.completed) || job.completed < 0 ||
+                !Number.isInteger(job.total) || job.total < job.completed ||
+                typeof job.finished !== "boolean") throw new Error("status shape");
             document.getElementById("jobSummary").textContent = job.completed + " / " + job.total + "資料処理済み（成功 " + job.succeeded + "・種類の確認 " + (job.needs_review || 0) + "・失敗 " + job.failed + "）";
             const progress = document.getElementById("jobProgress");
             progress.max = job.total;
@@ -368,9 +433,13 @@
                 }
             }
             if (job.finished) return;
+            failures = 0;
         } catch (_) {
             failures++;
-            document.getElementById("jobConnection").textContent = "状況を再確認しています。受付済みの資料は再送信せず、この画面を再読み込みしてください。";
+            document.getElementById("jobConnection").textContent = failures >= 3
+                ? "状況の自動確認を停止しました。通信・ログイン状態を確認し、資料は再送信せず、この画面を再読み込みしてください。"
+                : "状況を再確認しています。受付済みの資料は再送信せず、この画面を再読み込みしてください。";
+            if (failures >= 3) return;
         }
         window.setTimeout(poll, failures ? 10000 : 2000);
     }

@@ -7,7 +7,7 @@ def log_email_delivery_failure(logger, *, purpose, stage, error):
     # Both metadata values are internal constants, but fail closed if a future
     # caller passes request/provider data. Exception class names can themselves
     # be untrusted, so only fixed categories are retained.
-    purpose = purpose if type(purpose) is str and purpose in ('notification', 'email_change') else 'unknown'
+    purpose = purpose if type(purpose) is str and purpose in ('notification', 'mfa', 'email_change') else 'unknown'
     stage = stage if type(stage) is str and stage in ('connect', 'starttls', 'authenticate', 'send', 'close') else 'unknown'
     if isinstance(error, smtplib.SMTPAuthenticationError):
         category = 'authentication'

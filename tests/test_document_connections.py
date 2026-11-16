@@ -24,7 +24,7 @@ class DocumentConnectionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         return self.m.VehiclePeriodicInspectionRecord.query.one()
 
-    def invoice(self):
+    def invoice(self, *, queued=False):
         import maintenance_invoice_ai as ai
         from test_inspection_document_ai import pdf_bytes
         source = pdf_bytes(2)
@@ -39,10 +39,41 @@ class DocumentConnectionTests(unittest.TestCase):
                    tax_amount="14900", invoice_number="TEST-INV", content="タイヤ交換")
         extraction = {"schema_version": 1, "source_sha256": hashlib.sha256(source).hexdigest(),
                       "records": [row], "warnings": []}
-        with patch.object(self.m, "extract_maintenance_invoices", return_value=extraction):
-            response = self.client.post("/vehicle/data-import", data={"document_type": "maintenance",
-                "document_files": (BytesIO(source), "03_maintenance_invoice.pdf")})
-        self.assertEqual(response.status_code, 302)
+        if queued:
+            from dkss_app import document_import_queue as queue, vehicle_imports
+            # Exercise the normal durable receipt/worker path, not the legacy
+            # synchronous upload. Only document classification/OCR are mocked.
+            with patch.object(vehicle_imports, "vehicle_document_extractor",
+                              side_effect=AssertionError("OCR must not run in receipt HTTP")):
+                response = self.client.post("/vehicle/data-import/jobs", data={
+                    "document_type": "maintenance",
+                    "document_files": (BytesIO(source), "03_maintenance_invoice.pdf")},
+                    headers={"Accept": "application/json"})
+            self.assertEqual(response.status_code, 202)
+            receipt = response.get_json()
+            self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 0)
+            self.assertEqual(self.m.VehiclePartReplacement.query.count(), 0)
+            with patch.object(queue, "detect_document_types", return_value={
+                    "types": ["maintenance"], "certainty": "clear", "supported": True}), patch.object(
+                    vehicle_imports, "vehicle_document_extractor") as extractor:
+                extractor.return_value.return_value = extraction
+                self.assertTrue(queue.process_one(self.m.app))
+                self.assertFalse(queue.process_one(self.m.app))
+                extractor.assert_called_once_with("maintenance")
+                extractor.return_value.assert_called_once()
+            status = self.client.get(receipt["status_url"]).get_json()
+            self.assertEqual(status["succeeded"], 1)
+            self.assertEqual(status["failed"], 0)
+            self.assertTrue(status["preview_ready"])
+            self.assertEqual(self.client.get(status["preview_url"]).status_code, 200)
+            # Reading a successful OCR preview must not itself apply costs.
+            self.assertEqual(self.m.VehicleMaintenanceRecord.query.count(), 0)
+            self.assertEqual(self.m.VehiclePartReplacement.query.count(), 0)
+        else:
+            with patch.object(self.m, "extract_maintenance_invoices", return_value=extraction):
+                response = self.client.post("/vehicle/data-import", data={"document_type": "maintenance",
+                    "document_files": (BytesIO(source), "03_maintenance_invoice.pdf")})
+            self.assertEqual(response.status_code, 302)
         draft = self.m.VehicleDocumentImportDraft.query.filter_by(document_type="maintenance").one()
         key = draft.id + "_0"
         form = {"include": key, "vehicle_" + key: str(self.vehicle.id),
@@ -56,8 +87,14 @@ class DocumentConnectionTests(unittest.TestCase):
         ).get_json()["candidates"]
 
     def test_inspection_invoice_reaches_cost_parts_history_and_source_once(self):
+        self.assert_invoice_connection(queued=False)
+
+    def test_queued_invoice_reaches_cost_parts_history_and_source_once(self):
+        self.assert_invoice_connection(queued=True)
+
+    def assert_invoice_connection(self, *, queued):
         inspection = self.inspection()
-        draft, key, form = self.invoice()
+        draft, key, form = self.invoice(queued=queued)
         choices = self.candidates(draft)
         choice = next(row for row in choices if row["kind"] == "inspection")
         form["service_match_" + key] = choice["token"]
