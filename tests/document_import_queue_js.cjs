@@ -4,13 +4,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../static/js/document_import_queue.js'), 'utf8');
-function fixture() {
+function fixture({fetch} = {}) {
     const input = {files:[{name:'invoice.pdf',size:184053}], events:{}, addEventListener(name,callback){this.events[name]=callback;}};
     const button = {disabled:false,textContent:'読み込んで確認'};
-    const status = {textContent:''};
-    const form = {dataset:{},action:'https://test.example/vehicle/data-import/jobs',querySelector(selector){return selector.includes('input')?input:selector.includes('button')?button:status;}};
+    const status = {textContent:'', children:[], append(...items){this.children.push(...items);}};
+    const classes=new Set();
+    const form = {classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)},dataset:{},action:'https://test.example/vehicle/data-import/jobs',querySelector(selector){return selector.includes('input')?input:selector.includes('button')?button:status;}};
     let serial=0;
-    const calls=[], destinations=[], errors=[];
+    const calls=[], destinations=[], errors=[], timers=[];
     class Payload {constructor(){this.values={};}set(name,value){this.values[name]=value;}}
     class XHR {
         constructor(){this.events={};this.headers={};this.upload={addEventListener(){}};calls.push(this);}
@@ -19,11 +20,12 @@ function fixture() {
         addEventListener(name,callback){this.events[name]=callback;}
         send(payload){this.payload=payload;}
     }
-    const context={URL,FormData:Payload,XMLHttpRequest:XHR,crypto:{randomUUID:()=>String(++serial)},
-        document:{querySelectorAll:selector=>selector.startsWith("form[")?[form]:[],getElementById:()=>null},
-        location:{href:'https://test.example/vehicle/data-import',origin:'https://test.example',assign:url=>destinations.push(url)},window:{}};
+    const context={URL,AbortController,FormData:Payload,XMLHttpRequest:XHR,crypto:{randomUUID:()=>String(++serial)},
+        document:{createElement:tag=>({tag}),querySelectorAll:selector=>selector.startsWith("form[")?[form]:[],getElementById:()=>null},
+        location:{href:'https://test.example/vehicle/data-import',origin:'https://test.example',assign:url=>destinations.push(url)},window:{fetch,setTimeout:(callback,delay)=>{const timer={callback,delay};timers.push(timer);return timer;},
+            clearTimeout:timer=>{const index=timers.indexOf(timer);if(index>=0)timers.splice(index,1);}}};
     vm.runInNewContext(source,context);
-    return {form,input,button,status,calls,destinations,errors,submit:()=>context.window.DKSSDocumentImportQueue.submit(form,message=>errors.push(message))};
+    return {form,input,button,status,calls,destinations,errors,timers,classes,submit:()=>context.window.DKSSDocumentImportQueue.submit(form,message=>errors.push(message))};
 }
 test('uploads to the durable endpoint, then opens the receipt without waiting for OCR',()=>{
     const f=fixture();f.submit();
@@ -90,5 +92,97 @@ test('a busy or occupied destination never loses either set of selected files',(
 test('invalid type or changed selections cannot redirect unrelated files',()=>{
     for(const suggestion of [{document_type:'other'},{file_index:-1},{filename:'different.pdf'}]) {
         const f=kindTransferFixture();assert.equal(f.offer(suggestion),false);assert.equal(f.submitted,0);assert.equal(f.prompts,0);
+    }
+});
+
+async function acceptForPolling(f) {
+    f.submit();
+    f.calls[0].status = 202;
+    f.calls[0].responseText = JSON.stringify({page_url:'/vehicle/data-import/jobs/receipt',
+        status_url:'/vehicle/data-import/jobs/receipt/status'});
+    f.calls[0].events.load();
+    await new Promise(resolve => setImmediate(resolve));
+}
+test('accepted receipt stops polling on auth or missing receipt without resubmitting', async()=>{
+    for (const code of [401,403,404]) {
+        const f=fixture({fetch:async()=>({ok:false,status:code})});
+        await acceptForPolling(f);
+        assert.equal(f.timers.length,0);
+        assert.match(f.status.textContent,code===404?/受付を表示できません/:/ログイン状態/);
+        const link=f.status.children.find(item=>item.tag==='a');
+        assert.equal(link.href,'https://test.example/vehicle/data-import/jobs/receipt?open=1');
+        f.submit(); assert.equal(f.calls.length,1);
+        assert.equal(f.form.dataset.loading,'1');
+        assert.equal(f.classes.has('ocr-queue-busy'),false);
+    }
+});
+test('transient status failures retry twice then offer durable receipt without upload', async()=>{
+    const f=fixture({fetch:async()=>{throw new Error('network');}});
+    await acceptForPolling(f);
+    assert.equal(f.timers.length,1);
+    for(let i=0;i<2;i++) {
+        const timer=f.timers.shift();assert.equal(timer.delay,10000);
+        await timer.callback();
+    }
+    assert.equal(f.timers.length,0);
+    assert.match(f.status.textContent,/状況を確認できません/);
+    assert.ok(f.status.children.some(item=>item.tag==='a'));
+    f.submit();assert.equal(f.calls.length,1);
+});
+test('a recovered status request resets failures and completes through existing preview', async()=>{
+    const responses=[null,{ok:true,json:async()=>({completed:0,total:1,files:[],finished:false})},
+        null,{ok:true,json:async()=>({completed:1,total:1,files:[],finished:true,preview_ready:true,
+            preview_url:'/vehicle/data-import/receipt/preview'})}];
+    const f=fixture({fetch:async()=>{const r=responses.shift();if(!r)throw new Error('network');return r;}});
+    await acceptForPolling(f);
+    for(let i=0;i<3;i++)await f.timers.shift().callback();
+    assert.equal(f.timers.length,0);
+    assert.deepEqual(f.destinations,['https://test.example/vehicle/data-import/receipt/preview']);
+    assert.equal(f.calls.length,1);
+});
+
+test('server errors and unexpected login HTML are bounded without exposing response content', async()=>{
+    for(const response of [{ok:false,status:503},{ok:true,status:200,json:async()=>{throw new Error('private HTML');}}]) {
+        const f=fixture({fetch:async()=>response});
+        await acceptForPolling(f);
+        for(let i=0;i<2;i++)await f.timers.shift().callback();
+        assert.equal(f.timers.length,0);
+        assert.equal(f.calls.length,1);
+        assert.ok(!f.status.textContent.includes('private HTML'));
+        assert.equal(f.classes.has('ocr-queue-busy'),false);
+    }
+});
+
+test('malformed successful status payloads exhaust the failure budget', async()=>{
+    for(const job of [null, [], {}, {completed:0,total:1,finished:false,files:[null]}]) {
+        const f=fixture({fetch:async()=>({ok:true,json:async()=>job})});
+        await acceptForPolling(f);
+        for(let i=0;i<2;i++)await f.timers.shift().callback();
+        assert.equal(f.timers.length,0);
+        assert.ok(f.status.children.some(item=>item.tag==='a'));
+        f.submit(); assert.equal(f.calls.length,1);
+    }
+});
+test('stalled headers or body time out, abort GET only and preserve the accepted receipt', async()=>{
+    for(const stalledBody of [false,true]) {
+        const signals=[];
+        const f=fixture({fetch:async(_,options)=>{
+            signals.push(options.signal);
+            return stalledBody?{ok:true,json:()=>new Promise(()=>{})}:new Promise(()=>{});
+        }});
+        await acceptForPolling(f);
+        for(let i=0;i<3;i++) {
+            const deadline=f.timers.shift(); assert.equal(deadline.delay,20000); deadline.callback();
+            await new Promise(resolve=>setImmediate(resolve));
+            assert.equal(signals[i].aborted,true);
+            if(i<2) {
+                const retry=f.timers.shift(); assert.equal(retry.delay,10000); retry.callback();
+                await new Promise(resolve=>setImmediate(resolve));
+            }
+        }
+        assert.equal(f.timers.length,0);
+        assert.equal(f.classes.has('ocr-queue-busy'),false);
+        assert.ok(f.status.children.some(item=>item.tag==='a'));
+        f.submit(); assert.equal(f.calls.length,1);
     }
 });
