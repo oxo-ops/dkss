@@ -2455,6 +2455,27 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         except ValueError as error:
             errors.append((str(error), "inspection_defects"))
 
+        # Saving an already completed manual record keeps its completed status.
+        # Do not let that ordinary edit path introduce an unknown/future completion
+        # date. Preserve unchanged legacy dates and the separate invoice workflow.
+        if (
+            record is not None
+            and not record.is_invoice_actual
+            and record.status == "完了"
+            and intent in {"draft", "save"}
+            and values["completion_date"] != record.completion_date
+            and not any(field == "completion_date" for _, field in errors)
+        ):
+            if not values["completion_date"]:
+                errors.append(("完了済みの整備には完了日を入力してください。", "completion_date"))
+            else:
+                completed_on = _dkss_common.datetime.strptime(values["completion_date"], "%Y-%m-%d").date()
+                today = _dkss_checklist_common.get_user_local_now(
+                    vehicle.company_code, _dkss_common.session.get("username")
+                ).date()
+                if completed_on > today:
+                    errors.append(("整備完了日に未来の日付は指定できません。", "completion_date"))
+
         if record is not None:
             submitted_version = _dkss_common.request.form.get("record_version", "")
             if not _dkss_common.secrets.compare_digest(
@@ -2729,7 +2750,7 @@ def vehicle_karte_maintenance_form(vehicle_record_id, record_id):
         invoice_cost_context=invoice_context,
         invoice_cost_context_error=invoice_context_error,
         form_values=form_values,
-        form_errors=errors,
+        maintenance_errors=errors,
         record_version=record_version,
         inspection_choices=inspection_choices,
         periodic_issues=periodic_issues,

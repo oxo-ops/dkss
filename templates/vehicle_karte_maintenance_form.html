@@ -6,7 +6,7 @@
 
 {% block content %}
 {% set editing = maintenance_record is not none %}
-{% set error_fields = form_errors|map(attribute=1)|list %}
+{% set error_fields = maintenance_errors|map(attribute=1)|list %}
 {% set back_url = url_for(
     'vehicle_karte_maintenance',
     vehicle_record_id=vehicle.id,
@@ -61,7 +61,7 @@
 
     {% if name in error_fields %}
     <div id="error_{{ name }}" class="field-error-message">
-        {% for message, error_field in form_errors %}
+        {% for message, error_field in maintenance_errors %}
         {% if error_field == name %}
         <p>{{ message }}</p>
         {% endif %}
@@ -98,11 +98,11 @@
     </div>
 
     {% if invoice_actual %}<p class="help-text">請求書原本は変更せず、読取データのみ訂正します。</p>{% endif %}
-    {% if form_errors %}
+    {% if maintenance_errors %}
     <section class="error-summary" role="alert" aria-labelledby="maintenance_errors">
         <h2 id="maintenance_errors">入力内容を確認してください</h2>
         <ul>
-            {% for message, error_field in form_errors %}
+            {% for message, error_field in maintenance_errors %}
             <li>
                 {% if error_field and error_field != 'record_version' %}
                 <a href="#{{ error_field }}">{{ message }}</a>
@@ -146,7 +146,7 @@
             <p><a href="{{ choice.link }}">{{ choice.label }}</a>（{{ choice.status }}）</p>
             {% endfor %}
             {% endif %}
-            {% for message, error_field in form_errors %}
+            {% for message, error_field in maintenance_errors %}
             {% if error_field == 'inspection_defects' %}<p class="field-error-message">{{ message }}</p>{% endif %}
             {% endfor %}
         </section>
