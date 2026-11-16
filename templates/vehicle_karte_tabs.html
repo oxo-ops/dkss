@@ -1,3 +1,4 @@
+{% set intake_args = {"import_batch": import_context.batch_id} if import_context|default(none) else {} %}
 <nav class="vehicle-karte-tabs" aria-label="車両カルテの表示切替">
     {% if vehicle is defined and vehicle %}
         <a
@@ -55,7 +56,7 @@
 
     {% if vehicle is defined and vehicle %}
         <a
-            href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id) }}"
+            href="{{ url_for('vehicle_karte_maintenance', vehicle_record_id=vehicle.id, **intake_args) }}"
             class="vehicle-karte-tab"
             {% if request.endpoint == "vehicle_karte_maintenance" %}
                 aria-current="page"
@@ -95,7 +96,7 @@
 
     {% if vehicle is defined and vehicle %}
         <a
-            href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}"
+            href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, **intake_args) }}"
             class="vehicle-karte-tab"
             {% if request.endpoint == "vehicle_karte_costs" %}
                 aria-current="page"
