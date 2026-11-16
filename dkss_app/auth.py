@@ -800,10 +800,14 @@ def logout():
 
 
 def settings():
-    current_user = _dkss_models.User.query.filter_by(
+    user_query = _dkss_models.User.query.filter_by(
         company_code=_dkss_common.session.get("company_code"),
         username=_dkss_common.session.get("username")
-    ).first()
+    )
+    if (_dkss_common.request.method == "POST"
+            and _dkss_common.request.form.get("action") == "notifications"):
+        user_query = user_query.with_for_update().populate_existing()
+    current_user = user_query.first()
 
     if not current_user:
         _dkss_common.session.clear()
@@ -1098,10 +1102,13 @@ def settings():
 
 
 def verify_email_change():
-    current_user = _dkss_models.User.query.filter_by(
+    user_query = _dkss_models.User.query.filter_by(
         company_code=_dkss_common.session.get("company_code"),
         username=_dkss_common.session.get("username")
-    ).first()
+    )
+    if _dkss_common.request.method == "POST":
+        user_query = user_query.with_for_update().populate_existing()
+    current_user = user_query.first()
 
     if not current_user:
         _dkss_common.session.clear()
@@ -1155,8 +1162,24 @@ def verify_email_change():
                 code
             )
         ):
-            attempts = (
-                _dkss_common.session.get("email_change_attempts", 0) + 1
+            # The cookie is only a display cache, never the attempt authority.
+            challenge_key = _dkss_common.hashlib.sha256(
+                current_user.email_change_code_hash.encode("utf-8")
+            ).hexdigest()
+            prefix = f"Email change challenge {challenge_key}: "
+            attempts = _dkss_models.AuditLog.query.filter_by(
+                company_code=current_user.company_code,
+                username=current_user.username,
+                action="email_change_failed",
+                target_type="user",
+                target_id=current_user.username,
+            ).filter(_dkss_models.AuditLog.detail.startswith(prefix)).count() + 1
+            _dkss_audit.add_audit_log(
+                action="email_change_failed", target_type="user",
+                target_id=current_user.username,
+                detail=f"{prefix}メール変更確認失敗 {attempts}回目",
+                company_code=current_user.company_code,
+                username=current_user.username,
             )
 
             _dkss_common.session["email_change_attempts"] = attempts
@@ -1184,6 +1207,7 @@ def verify_email_change():
 
                 return _dkss_common.redirect("/settings")
 
+            _dkss_common.db.session.commit()
             error = (
                 "確認コードが違います。"
                 f"あと{5 - attempts}回入力できます。"
