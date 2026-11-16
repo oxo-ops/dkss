@@ -369,6 +369,8 @@ def send_email_notification(
     full_link = build_absolute_app_url(link)
 
     email = _dkss_common.EmailMessage()
+    if not _dkss_auth.set_email_origin_headers(email, smtp_from):
+        return False
 
     email["Subject"] = title
     email["From"] = smtp_from
