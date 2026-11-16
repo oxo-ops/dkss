@@ -136,3 +136,21 @@ class CompanyInvitePostgresRaces(unittest.TestCase):
             self.assertEqual(Driver.query.filter_by(company_code='FICTION', role='admin').count(), 1)
             self.assertEqual(Application.query.filter_by(status='approved', password_hash=None).count(), 1)
             self.assertEqual(Application.query.filter_by(status='revoked', password_hash=None).count(), 1)
+
+    def test_concurrent_different_purpose_issue_keeps_both_active(self):
+        def issue(purpose):
+            return service.issue_invite('FICTION', db.session.get(User, self.actor_id), purpose=purpose)
+        self.assertEqual(self.race(lambda: issue('admin'), lambda: issue('user')), (200, 200))
+        with self.app.app_context():
+            active = Invite.query.filter_by(company_code='FICTION', revoked_at=None).all()
+            self.assertEqual({x.purpose for x in active}, {'legacy', 'admin', 'user'})
+
+    def test_general_rotation_does_not_revoke_concurrent_admin_application(self):
+        with self.app.test_request_context('/'):
+            _, admin_token = service.issue_invite('FICTION', db.session.get(User, self.actor_id), purpose='admin')
+            service.issue_invite('FICTION', db.session.get(User, self.actor_id), purpose='user')
+        self.assertEqual(self.race(
+            lambda: service.issue_invite('FICTION', db.session.get(User, self.actor_id), purpose='user'),
+            lambda: service.submit_application(admin_token, self.form('admin_candidate'))), (200, 200))
+        with self.app.app_context():
+            self.assertEqual(Application.query.filter_by(username='admin_candidate', status='pending').count(), 1)
