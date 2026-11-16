@@ -140,7 +140,7 @@ def get_notification_actor_name(notification):
             ))
             and get_notification_summary(notification) != message
         ):
-            return message.splitlines()[5].partition("：")[2].strip()
+            return (_recheck_notification_fields(message) or {}).get("実施者", "")
         return ""
 
     event_id = context.get("event_id")
@@ -714,6 +714,44 @@ def get_notification_target_info(notification, lookup=None):
 
 
 
+def _recheck_notification_fields(message):
+    """Read generated notice headers, allowing the standard multiline item label."""
+    keys = (
+        "対象車両", "点検日", "項目", "対応状況",
+        "次にすること", "実施者", "実施日時",
+    )
+    lines = str(message or "").splitlines()
+    fields = {}
+    position = 0
+    for key in keys:
+        prefix = key + "："
+        if position >= len(lines) or not lines[position].startswith(prefix):
+            return None
+        value = lines[position][len(prefix):].strip()
+        position += 1
+        if key == "項目":
+            # Only this generated field contains standard template line breaks.
+            # Never consume another header as label text or infer missing fields.
+            while position < len(lines) and not lines[position].startswith("対応状況："):
+                if any(lines[position].startswith(header + "：") for header in (*keys, "内容")):
+                    return None
+                value += "\n" + lines[position]
+                position += 1
+        fields[key] = value
+    if position >= len(lines) or not lines[position].startswith("内容："):
+        return None
+    # Free text can contain a complete header-looking block. Do not guess
+    # whether it was an item continuation or the real generated headers.
+    # Preserve the original body rather than attributing actions to a spoofed actor.
+    if any(
+        line.startswith(header + "：")
+        for line in lines[position + 1:]
+        for header in keys
+    ):
+        return None
+    return fields
+
+
 def get_notification_summary(notification):
     message = str(notification.message or "")
     title = str(notification.title or "").strip()
@@ -773,20 +811,9 @@ def get_notification_summary(notification):
     if not separator or event not in events:
         return message
 
-    keys = (
-        "対象車両", "点検日", "項目", "対応状況",
-        "次にすること", "実施者", "実施日時",
-    )
-    lines = message.splitlines()
-    if len(lines) < 8 or not lines[7].startswith("内容："):
+    fields = _recheck_notification_fields(message)
+    if fields is None:
         return message
-
-    fields = {}
-    for key, line in zip(keys, lines[:7]):
-        prefix = key + "："
-        if not line.startswith(prefix):
-            return message
-        fields[key] = line[len(prefix):].strip()
 
     expected_status, description = events[event]
     if (

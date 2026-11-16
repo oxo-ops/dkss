@@ -11,7 +11,8 @@ class ResponsiveLayoutTests(unittest.TestCase):
 
     def test_shared_viewport_contract_on_application_pages(self):
         pages = [
-            '/', '/notifications', '/master/drivers', '/master/offices',
+            '/', '/notifications', '/pointouts', '/pointouts/new',
+            '/vehicle/checklists', '/safety/checklists', '/master/drivers', '/master/offices',
             '/master/vehicles', '/master/vehicle-types', '/master/license-types',
             '/master/delivery-places', '/master/checklists',
             '/master/patrol-content-types', '/vehicle/data-import',
@@ -22,7 +23,7 @@ class ResponsiveLayoutTests(unittest.TestCase):
                    '/maintenance', '/parts', '/costs', '/documents', '/analysis')]
         for path in pages:
             with self.subTest(path=path):
-                response = self.client.get(path)
+                response = self.client.get(path, follow_redirects=True)
                 self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:300])
                 html = response.get_data(as_text=True)
                 self.assertIn('data-responsive-shell', html)
@@ -35,6 +36,17 @@ class ResponsiveLayoutTests(unittest.TestCase):
                         self.assertEqual(html.count('css/' + asset), 1)
                         self.assertLess(html.index('css/' + asset), html.index('</head>'))
                 self.assertNotIn('user-scalable=no', html)
+
+    def test_phone_styles_cover_observed_overflow_and_touch_controls(self):
+        from pathlib import Path
+        css = (Path(__file__).resolve().parents[1] / 'static/css/responsive_layout.css').read_text()
+        for selector in ('.mention-rich-editor.free-answer-input:focus',
+                         '.vehicle-karte-documents .km-panel-heading',
+                         '.inspection-plans .ip-month-navigation .btn',
+                         '.ko-chart-months', '.kp-table-scroll .kp-table'):
+            self.assertIn(selector, css)
+        self.assertIn('grid-template-columns:repeat(12,minmax(44px,1fr))', css)
+        self.assertIn('overflow-x:clip; overflow-y:visible', css)
 
     def test_master_tables_have_a_scroll_viewport(self):
         for path in ('/master/offices', '/master/vehicle-types', '/master/license-types',

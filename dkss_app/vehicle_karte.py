@@ -3389,12 +3389,16 @@ def inject_vehicle_karte_choices():
                 and maintained_on is not None
                 and measured_on >= maintained_on
             ):
-                difference = (
-                    _dkss_common.Decimal(str(current_mileage))
-                    - _dkss_common.Decimal(str(latest_record.mileage))
-                )
-                if difference >= 0:
-                    maintenance_summary["distance_since"] = difference
+                current_meter = _dkss_common.Decimal(str(current_mileage))
+                maintenance_meter = _dkss_common.Decimal(str(latest_record.mileage))
+                if (
+                    current_meter.is_finite()
+                    and maintenance_meter.is_finite()
+                    and current_meter >= 0
+                    and maintenance_meter >= 0
+                    and current_meter >= maintenance_meter
+                ):
+                    maintenance_summary["distance_since"] = current_meter - maintenance_meter
 
     return {
         "karte_vehicle_choices": choices,

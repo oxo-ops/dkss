@@ -5,6 +5,7 @@
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 
+{% set intake_args = {"import_batch": import_context.batch_id} if import_context else {} %}
 {% set details = cost_details %}
 {% set year = details.selected_year %}
 {% set annual = details.selected_summary %}
@@ -18,7 +19,7 @@
     {% endif %}
 {%- endmacro %}
 
-{% macro history_table(records, mileage=false) -%}
+{% macro history_table(records, mileage=false, intake=false) -%}
 <div class="kc-table-scroll">
     <table class="kc-table">
         <thead>
@@ -41,7 +42,8 @@
                     <a href="{{ url_for(
                         'vehicle_karte_maintenance',
                         vehicle_record_id=vehicle.id,
-                        record_id=record.id
+                        record_id=record.id,
+                        **(intake_args if intake else {})
                     ) }}">
                         {{ record.content or '内容未登録' }}
                     </a>
@@ -76,9 +78,10 @@
         <form method="get"
               action="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}"
               class="kc-year-form">
+            {% if import_context %}<input type="hidden" name="import_batch" value="{{ import_context.batch_id }}">{% endif %}
             {% if year > 1900 %}
             <a class="kc-year-button"
-               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year-1) }}"
+               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year-1, **intake_args) }}"
                aria-label="前年を表示">‹</a>
             {% endif %}
 
@@ -95,11 +98,20 @@
 
             {% if year < cost_current_year + 1 %}
             <a class="kc-year-button"
-               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year+1) }}"
+               href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year+1, **intake_args) }}"
                aria-label="翌年を表示">›</a>
             {% endif %}
         </form>
     </header>
+
+    {% if import_context %}
+    <section class="kc-import-context" aria-labelledby="kc-import-heading">
+        <h3 id="kc-import-heading">今回取り込んだ整備の費用 <small>{{ imported_records|length }}件</small></h3>
+        <p>現在保存されている金額です。内容を選ぶと、整備履歴の詳細・原本を確認できます。年別集計とは対象範囲が異なります。</p>
+        {{ history_table(imported_records, intake=true) }}
+        <a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id, year=year) }}">通常の費用表示に戻る</a>
+    </section>
+    {% endif %}
 
     {% if details.undated_record_count or details.missing_amount_count %}
     <p class="kc-data-note">
@@ -288,4 +300,13 @@
     "showRing": cumulative.show_cost_ring
 }|tojson }}
 </script>
+{% endblock %}
+{% block page_styles %}
+{{ super() }}
+<style>
+.kc-import-context { margin: 1rem 0; padding: 1rem; border: 1px solid #a9c6df; border-radius: .75rem; background: #f0f7fd; }
+.kc-import-context h3 { margin: 0 0 .5rem; }
+.kc-import-context p { font-size: .9rem; }
+.kc-import-context > a { display: inline-block; margin-top: .75rem; }
+</style>
 {% endblock %}

@@ -3419,6 +3419,10 @@ async function loadSavedNotifyUsers() {
 
 
 async function loadSavedReminderNotifyUsers() {
+    // Read-only viewers use server-rendered recipients, with no edit controls.
+    if (!reminderSearch || !reminderSelected) {
+        return;
+    }
     for (
         const savedValue
         of savedReminderNotifyUsers

@@ -112,3 +112,85 @@
 @media screen and (max-width:900px) {
     body[data-responsive-shell] #notificationLayout {grid-template-columns:minmax(0,1fr);}
 }
+
+/* Phone readability: keep navigation in an opaque header, not over page text. */
+@media screen and (max-width:900px) {
+    body[data-responsive-shell] {overflow-x:clip; overflow-y:visible;}
+    body[data-responsive-shell] .main-content {padding-top:12px !important; overflow:visible;}
+    body[data-responsive-shell] .main-content > .top-bar {
+        margin:0 0 12px !important;
+        position:sticky !important; top:0 !important; z-index:900;
+        min-block-size:56px; padding-block:4px;
+        background:var(--dkss-bg, #f2f5ff);
+    }
+}
+@media screen and (max-width:600px) {
+    body[data-responsive-shell] .safety-results-title-row {
+        flex-wrap:wrap; align-items:flex-start; gap:8px;
+    }
+    body[data-responsive-shell] .safety-results-title-row > div {flex:1 1 100%;}
+    body[data-responsive-shell] .safety-results-page-head h2 {
+        display:block; margin:0; font-size:21px; line-height:1.4;
+        overflow:visible; word-break:normal; overflow-wrap:anywhere;
+    }
+    body[data-responsive-shell] .main-content a.btn.safety-results-new-button {
+        flex:0 0 auto; white-space:nowrap; margin:0 0 4px;
+        min-height:44px !important; padding:8px 14px !important; box-sizing:border-box;
+    }
+    body[data-responsive-shell] .driving-page.driving-designed .driving-key-metrics article {
+        min-height:0; align-content:start;
+    }
+    body[data-responsive-shell] .driving-page.driving-designed .driving-key-metrics .driving-metric-empty {
+        grid-template-columns:minmax(0,1fr) auto; padding:10px 12px;
+    }
+    body[data-responsive-shell] .driving-metric-empty > .driving-metric-select {margin:0; align-self:center;}
+    body[data-responsive-shell] .driving-metric-empty > small {margin-top:0;}
+}
+
+@media screen and (max-width:600px) {
+    /* Keep table labels readable; scroll the table, never the whole page. */
+    body[data-responsive-shell] .kp-table-scroll .kp-table {min-width:640px;}
+    body[data-responsive-shell] #vehicle-karte-overview .ko-chart-months {
+        grid-template-columns:repeat(12,minmax(44px,1fr)); overflow-x:auto;
+        overscroll-behavior-x:contain;
+    }
+    body[data-responsive-shell] #vehicle-karte-overview .ko-chart-value,
+    body[data-responsive-shell] #vehicle-karte-overview .ko-chart-label {font-size:11px;}
+}
+@media screen and (max-width:600px) {
+    body[data-responsive-shell] .vehicle-karte-documents .km-panel-heading {flex-wrap:wrap; gap:8px;}
+    body[data-responsive-shell] .vehicle-karte-documents .km-heading-label {flex:1 1 100%; min-width:0; flex-wrap:wrap;}
+    body[data-responsive-shell] .vehicle-karte-documents .km-heading-label h3 {flex-shrink:0; white-space:nowrap;}
+    body[data-responsive-shell] .vehicle-karte-documents .km-panel-heading > a.btn {flex:0 0 auto; white-space:nowrap; min-height:44px !important;}
+}
+@media screen and (max-width:600px) {
+    body[data-responsive-shell] .inspection-plans .ip-month-navigation {height:auto; min-height:44px;}
+    body[data-responsive-shell] .inspection-plans .ip-month-navigation .btn {
+        width:44px !important; height:44px !important; min-height:44px !important;
+    }
+    body[data-responsive-shell] .inspection-plans .ip-kinds {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%;}
+    body[data-responsive-shell] .inspection-plans .ip-kinds button {min-height:44px !important; white-space:nowrap; padding:6px 4px !important;}
+    body[data-responsive-shell] .import-workspace :is(.import-actions .btn,.import-receipt-actions a,.import-receipt-delete,.import-pick-button) {min-height:44px !important; box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center;}
+}
+@media screen and (max-width:600px) {
+    body[data-responsive-shell] .checklist-table .mention-rich-editor.free-answer-input,
+    body[data-responsive-shell] .checklist-table .mention-rich-editor.free-answer-input:focus {
+        width:100%; max-width:100%; min-width:0; box-sizing:border-box;
+        overflow-wrap:anywhere;
+    }
+}
+@media screen and (max-width:600px) {
+    body[data-responsive-shell] .inspection-plans .ip-filters {flex-wrap:wrap;}
+    body[data-responsive-shell] .inspection-plans .ip-filters > label {flex:1 1 100%; width:100%;}
+    body[data-responsive-shell] .inspection-plans .ip-filters > label :is(input,select) {width:100% !important; min-height:44px !important;}
+    body[data-responsive-shell] .inspection-plans .ip-filters > .ip-segment {width:100%; height:auto; min-height:46px;}
+    body[data-responsive-shell] .inspection-plans .ip-filters > .ip-segment button {flex:1; height:auto !important; min-height:44px !important;}
+    body[data-responsive-shell] .vehicle-karte-documents #document_filters {display:flex; flex-wrap:wrap;}
+    body[data-responsive-shell] .vehicle-karte-documents #document_filters > :is(input,select) {flex:1 1 100%; width:100%;}
+}
+
+/* Read-only recipients do not inherit the editable picker ordering/negative help margin. */
+@media screen {
+    body[data-responsive-shell] .notify-user-selector.reminder-readonly > .selected-vehicle-tags {order:0; margin:8px 0 0;}
+    body[data-responsive-shell] .notify-user-selector.reminder-readonly > .help-text {order:0; margin:8px 0 0; line-height:1.6;}
+}

@@ -980,6 +980,7 @@
             </div>
             {% endif %}
 
+            {% if session.get("role") in ["admin", "itc"] %}
             <div class="notify-user-selector">
                 <label for="reminder_notify_user_search">点検未実施通知先</label>
 
@@ -1016,6 +1017,19 @@
                     {% endfor %}
                 </div>
             </div>
+            {% else %}
+            <div class="notify-user-selector reminder-readonly">
+                <span>点検未実施通知先</span>
+                <div class="selected-vehicle-tags" data-reminder-readonly>
+                    {% for user_name in selected_reminder_notify_users %}
+                    <span class="selected-vehicle-tag">{{ user_name }}</span>
+                    {% else %}
+                    <span>未設定</span>
+                    {% endfor %}
+                </div>
+                <p class="help-text">通知先の変更は管理者に依頼してください。</p>
+            </div>
+            {% endif %}
 
         </div>
 
@@ -2147,7 +2161,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261029-q03-person-selection'
+        v='20261116-reminder-readonly'
     ) }}"
 ></script>
 
