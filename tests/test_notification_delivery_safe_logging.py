@@ -179,10 +179,20 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
         self.assertEqual(self.capture.records, [])
 
     def test_mfa_send_failure_logs_neither_code_nor_exception(self):
-        self.server.send_message.side_effect = smtplib.SMTPDataError(554, (CANARY+' 123456').encode())
-        self.assertFalse(auth.send_mfa_code_email(self.user, '123456'))
-        self.assert_log('EMAIL_DELIVERY_FAILED purpose=notification stage=send error_type=data_rejected')
-        self.assertNotIn('123456', self.capture.output.getvalue())
+        for stage, target in (
+            ('connect', self.smtp), ('starttls', self.server.starttls),
+            ('authenticate', self.server.login), ('send', self.server.send_message),
+            ('close', self.smtp.return_value.__exit__),
+        ):
+            with self.subTest(stage=stage):
+                self.capture.records.clear()
+                self.smtp.reset_mock()
+                target.side_effect = smtplib.SMTPDataError(554, (CANARY+' 123456').encode())
+                self.assertEqual(auth.send_mfa_code_email(self.user, '123456'), stage == 'close')
+                self.assert_log(f'EMAIL_DELIVERY_FAILED purpose=mfa stage={stage} error_type=data_rejected')
+                self.assertNotIn('123456', self.capture.output.getvalue())
+                self.assertLessEqual(self.server.send_message.call_count, 1)
+                target.side_effect = None
 
     def test_email_change_failure_logs_no_code_or_new_address(self):
         self.server.send_message.side_effect = smtplib.SMTPDataError(554, (CANARY+' 456789').encode())
@@ -314,6 +324,11 @@ class NotificationDeliveryLoggingTests(unittest.TestCase):
             self.capture.records.clear()
             log_email_delivery_failure(self.logger, purpose=value, stage=value, error=RuntimeError(CANARY))
             self.assert_log('EMAIL_DELIVERY_FAILED purpose=unknown stage=unknown error_type=unexpected')
+            self.capture.records.clear()
+            self.server.send_message.side_effect = RuntimeError(CANARY)
+            self.assertFalse(delivery.send_email_notification(
+                self.user, 'Synthetic', 'body', delivery_purpose=value))
+            self.assert_log('EMAIL_DELIVERY_FAILED purpose=unknown stage=send error_type=unexpected')
 
     def test_exception_string_and_repr_are_not_evaluated(self):
         class UnprintableError(Exception):
