@@ -1,6 +1,34 @@
 (function () {
     "use strict";
     const MAX_BATCH_BYTES = 200 * 1024 * 1024;
+    async function readReceiptStatus(href) {
+    // Bound both headers and body reads; a stalled request must not
+    // hold the accepted upload card forever. Aborting this GET does
+    // not cancel the durable server-side OCR job.
+    const controller = new AbortController();
+    let timeout;
+    let result;
+    try {
+        result = await Promise.race([
+            (async () => {
+                const response = await window.fetch(href, {
+                    headers:{Accept:"application/json"}, cache:"no-store", signal:controller.signal
+                });
+                const job = response.ok ? await response.json() : null;
+                return {response, job};
+            })(),
+            new Promise((_, reject) => {
+                timeout = window.setTimeout(() => {
+                    controller.abort();
+                    reject(new Error("status timeout"));
+                }, 20000);
+            })
+        ]);
+    } finally {
+        window.clearTimeout(timeout);
+    }
+        return result;
+    }
     function submit(form, showError) {
         if (form.dataset.loading === "1") return;
         const input = form.querySelector('input[type="file"]');
@@ -80,32 +108,7 @@
                 }
                 async function checkProgress() {
                     try {
-                        // Bound both headers and body reads; a stalled request must not
-                        // hold the accepted upload card forever. Aborting this GET does
-                        // not cancel the durable server-side OCR job.
-                        const controller = new AbortController();
-                        let timeout;
-                        let result;
-                        try {
-                            result = await Promise.race([
-                                (async () => {
-                                    const response = await window.fetch(statusUrl.href, {
-                                        headers:{Accept:"application/json"}, cache:"no-store", signal:controller.signal
-                                    });
-                                    const job = response.ok ? await response.json() : null;
-                                    return {response, job};
-                                })(),
-                                new Promise((_, reject) => {
-                                    timeout = window.setTimeout(() => {
-                                        controller.abort();
-                                        reject(new Error("status timeout"));
-                                    }, 20000);
-                                })
-                            ]);
-                        } finally {
-                            window.clearTimeout(timeout);
-                        }
-                        const {response, job} = result;
+                        const {response, job} = await readReceiptStatus(statusUrl.href);
                         if (response.status === 401 || response.status === 403) {
                             showReceiptRecovery("資料は受付済みです。ログイン状態を確認してから受付を開いてください。再送信は不要です。");
                             return;
@@ -303,11 +306,14 @@
             };
             async function check() {
                 try {
-                    const response = await window.fetch(url.href, {headers:{Accept:"application/json"},cache:"no-store"});
+                    const {response, job} = await readReceiptStatus(url.href);
                     if (!response.ok) throw new Error("status");
-                    const job = await response.json();
-                    errors = 0;
-                    const files = Array.isArray(job.files) ? job.files : [];
+                    if (!job || typeof job !== "object" || Array.isArray(job) ||
+                        !Array.isArray(job.files) || job.files.some(file => !file || typeof file !== "object") ||
+                        !Number.isInteger(job.completed) || job.completed < 0 ||
+                        !Number.isInteger(job.total) || job.total < job.completed ||
+                        typeof job.finished !== "boolean") throw new Error("status shape");
+                    const files = job.files;
                     status.textContent = (job.completed || 0) + " / " + (job.total || files.length) + " 資料処理済み";
                     if (!job.finished) {
                         status.textContent += "（読み取り中）";
@@ -325,6 +331,7 @@
                         status.append(" ", action);
                         return;
                     }
+                    errors = 0;
                 } catch (_) {
                     errors++;
                     status.textContent = "受付状況を再確認しています。";
