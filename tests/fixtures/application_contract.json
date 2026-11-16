@@ -2545,6 +2545,7 @@
   "hooks": {
     "before_request_funcs": {
       "None": [
+        "reject_retired_demo",
         "csrf_protect",
         "_check_request_limit",
         "require_login",

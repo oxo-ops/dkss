@@ -558,8 +558,9 @@ def register_core_routes(app):
     )(view)
     view = checklists.export_vehicle_checklist_result_excel
     view = app.route("/vehicle/checklist-results/<int:result_index>/excel")(view)
+    from .public_demo_workflow import input_rate_limit
     view = checklists.save_vehicle_checklist_one
-    view = limiter.limit("20 per minute")(view)
+    view = limiter.limit(input_rate_limit)(view)
     view = app.route("/vehicle/checklists/<int:index>/save-one", methods=["POST"])(view)
     view = checklists.save_vehicle_checklist_detail
     view = limiter.limit("20 per minute")(view)

@@ -576,6 +576,12 @@ document.addEventListener("DOMContentLoaded", function () {
         ".js-vehicle-operation-judgment, .js-vehicle-inspection-repair"
     ).forEach(function (form) {
         form.addEventListener("submit", async function (event) {
+            // Preserve the real server form path if shared UI helpers are unavailable.
+            // CSRF, tenant/role checks and validation still run in the same handler.
+            if (document.body.dataset.publicDemo === "true"
+                && (typeof clearCommonErrors !== "function" || typeof showCommonError !== "function")) {
+                return;
+            }
             event.preventDefault();
             if (form.dataset.submitting === "1") {
                 return;

@@ -13,7 +13,17 @@ jobs:
   regression:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      demo-redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     env:
+      PUBLIC_DEMO_TEST_REDIS_URL: "redis://127.0.0.1:6379/15"
+      PUBLIC_DEMO_TEST_REDIS_OWNED: "1"
+      PUBLIC_DEMO_REQUIRE_REDIS: "1"
       AWS_EC2_METADATA_DISABLED: "true"
       OPENAI_API_KEY: ""
       SMTP_HOST: ""

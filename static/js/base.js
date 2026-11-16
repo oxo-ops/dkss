@@ -948,6 +948,7 @@ async function urlBase64ToUint8Array(base64String) {
 }
 
 async function registerPushNotifications() {
+    if (document.body.dataset.publicDemo === "true") return;
     if (document.body.dataset.authenticated !== "true") {
         return;
     }
@@ -2099,7 +2100,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // The validated synthetic preview must not trigger notification maintenance.
     // Normal documents retain polling; the flag is server-rendered, not query-derived.
-    if (document.body.dataset.priorityPreview === "true") {
+    if (document.body.dataset.priorityPreview === "true" || document.body.dataset.publicDemo === "true") {
         return;
     }
 

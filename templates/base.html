@@ -56,6 +56,7 @@
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 </head>
 <body
+    data-public-demo="{{ 'true' if session.get('aonagi_readonly_demo') else 'false' }}"
     data-responsive-shell
     class="{{ 'sidebar-collapsed' if (request.endpoint == 'vehicle_checklist_results' or (request.path.startswith('/vehicle/data-import/') and request.path.rstrip('/').endswith('/preview'))) else '' }}{{ ' vehicle-list-ppt' if request.endpoint in ['vehicle_master', 'vehicle_import_pending_review', 'vehicle_maintenance_document_reviews', 'vehicle_inspection_plans', 'vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] else '' }}"
     data-authenticated="{{ 'true' if session.get('username') else 'false' }}"
@@ -72,6 +73,21 @@
    resolved endpoint so the same page keeps the same navigation selection. #}
 {% set is_vehicle_karte_page = request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
 
+{% if session.get("aonagi_readonly_demo") %}
+<div role="note" class="alert">
+{% if public_demo_workflow|default(false) %}
+青凪ロジスティクスの共有体験データです。他の利用者の入力・変更も同じ画面に反映されます。実メール・端末通知は送信しません。
+{% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
+<a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
+<form action="/demo/role" method="post" style="display:inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button name="role" value="driver">運転者役で見る</button>
+<button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者役で確認する</button>
+</form>
+{% for notice in public_demo_notices %}<a href="/notifications/{{ notice.id }}/open">{{ notice.title }}</a>{% endfor %}
+{% else %}青凪ロジスティクスの実画面を閲覧しています。体験版では登録・変更・通知送信は行えません。{% endif %}
+<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>体験を終了</button></form>
+</div>{% endif %}
 <div class="app-layout">
 
     <aside class="sidebar">

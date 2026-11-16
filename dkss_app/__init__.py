@@ -157,4 +157,6 @@ def create_app(config=None, *, initialize_database=False):
         with app.app_context():
             from .database import initialize_database as initialize
             initialize()
+    from .public_demo import install
+    install(app)
     return app

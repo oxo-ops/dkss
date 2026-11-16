@@ -111,6 +111,11 @@ def approval_candidates():
         _dkss_models.User.first_name.asc()
     ).all()
 
+    from .public_demo import is_demo
+    from .public_demo_shared import enabled as shared
+    if is_demo() and not shared():
+        from flask import current_app
+        users = [u for u in users if u.username == current_app.config.get('PUBLIC_DEMO_MANAGER')]
     return {
         "users": [
             {
@@ -139,6 +144,12 @@ def mention_users():
     user_query = _dkss_models.User.query.filter_by(
         company_code=_dkss_common.session.get("company_code")
     )
+
+    from .public_demo import is_demo
+    from .public_demo_shared import enabled as shared
+    if is_demo() and not shared():
+        from flask import current_app
+        user_query = user_query.filter(_dkss_models.User.username == current_app.config.get('PUBLIC_DEMO_MANAGER'))
 
     if _dkss_common.request.args.get("exact_username") == "1":
         user_query = user_query.filter(
@@ -205,6 +216,11 @@ def search_vehicles():
         company_code=company_code,
         deleted=False
     )
+    from .public_demo import is_demo
+    from .public_demo_shared import enabled as shared
+    if is_demo() and not shared():
+        from flask import current_app
+        query = query.filter(_dkss_models.Vehicle.id == current_app.config.get('PUBLIC_DEMO_VEHICLE_ID'))
     normalized = _dkss_common.normalize_vehicle_operation_plate(keyword)
     vehicles = []
     # Match the whole displayed registration as well as individual attributes.

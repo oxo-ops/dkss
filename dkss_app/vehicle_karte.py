@@ -32,7 +32,8 @@ def vehicle_karte(vehicle_record_id):
         username=_dkss_common.session.get("username")
     ).first()
 
-    if current_user is not None and not priority_preview_mode:
+    from .public_demo import is_demo
+    if current_user is not None and not priority_preview_mode and not is_demo():
         user_settings = _dkss_serialization.safe_json_dict(
             current_user.dashboard_settings_json
         )

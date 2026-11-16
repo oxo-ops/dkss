@@ -143,6 +143,12 @@ def send_web_push_notification(
     message,
     link=""
 ):
+    from flask import has_request_context
+    if has_request_context():
+        from .public_demo import is_demo
+        if is_demo():
+            return False
+
     if not user:
         return False
 
@@ -277,6 +283,12 @@ def send_email_notification(
     link="",
     require_opt_in=True
 ):
+    from flask import has_request_context
+    if has_request_context():
+        from .public_demo import is_demo
+        if is_demo():
+            return False
+
     if not user:
         return False
 
@@ -400,6 +412,12 @@ def dispatch_external_notification(
     link="",
     notification_id=None
 ):
+    from flask import has_request_context, current_app
+    from .public_demo import is_demo
+    if has_request_context() and is_demo():
+        return  # In-app records remain; no mail or Push for public-demo requests.
+    if current_app.config.get("PUBLIC_DEMO_WORKFLOW") and user and user.company_code == current_app.config.get("PUBLIC_DEMO_COMPANY") and user.username in {current_app.config.get("PUBLIC_DEMO_DRIVER"), current_app.config.get("PUBLIC_DEMO_MANAGER")}:
+        return  # Delayed delivery to dedicated demonstration principals is disabled too.
     if not user:
         return
 
