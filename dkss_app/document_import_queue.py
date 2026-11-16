@@ -117,6 +117,8 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
     total = 0
     accepted = 0
     ignored = []
+    repeated = []
+    seen_digests = set()
     from .import_flow import completed_document
     try:
         for position, file in enumerate(files):
@@ -134,6 +136,11 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
             if total > MAX_BATCH_BYTES:
                 raise ImportQueueError('1回の合計容量は200MB以下にしてください。', 413)
             digest = hashlib.sha256(source).hexdigest()
+            if digest in seen_digests:
+                repeated.append(filename)
+                del source
+                continue
+            seen_digests.add(digest)
             if completed_document(company_code, document_type, digest):
                 ignored.append(filename)
                 del source
@@ -151,10 +158,11 @@ def enqueue(files, document_type, company_code, username, upload_key=None):
             del row, source
         if not accepted:
             raise ImportQueueError('選択した資料は、同じ会社ですでに登録済みです。他の利用者による登録も含みます。同じ資料の再登録は不要です。', 409)
-        if ignored:
+        if ignored or repeated:
             first = lightweight_query().filter_by(batch_id=batch_id).filter(scope).first()
             data = metadata(first.result_json)
             data['ignored_files'] = ignored
+            data['repeated_files'] = repeated
             first.result_json = result(data)
         db.session.commit()
     except IntegrityError:
@@ -453,7 +461,7 @@ def batch_status(batch_id, company_code, username):
         entries.append({'id':row.id, 'filename':row.source_filename, 'status':row.status,
             'document_type':row.document_type,
             'phase':job.get('phase',row.status), 'message':job.get('message',''),
-            'received_lines':job.get('received_lines',0), 'ignored_files':job.get('ignored_files', [])})
+            'received_lines':job.get('received_lines',0), 'ignored_files':job.get('ignored_files', []), 'repeated_files':job.get('repeated_files', [])})
     succeeded = sum(row.status in {'preview','completed','skipped'} for row in rows)
     failed = sum(row.status == 'read_error' for row in rows)
     active = sum(row.status in ACTIVE for row in rows)
