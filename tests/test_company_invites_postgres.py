@@ -33,6 +33,24 @@ class CompanyInvitePostgresRaces(unittest.TestCase):
             self.invite_id = invite.id
         self.addCleanup(self.dispose)
 
+    def test_predeploy_old_schema_cli_and_snapshot_preservation(self):
+        # setUpClass verifies the owned disposable CI database before any DDL.
+        from sqlalchemy import text
+        from test_predeploy_company_invites import runner
+        with self.app.app_context():
+            with db.engine.begin() as connection:
+                connection.execute(text('ALTER TABLE company_registration_invite DROP COLUMN purpose'))
+            with db.engine.connect() as connection:
+                before = runner.snapshot(connection)
+            self.assertFalse(before[0])
+            for _ in range(2):
+                result = self.app.test_cli_runner().invoke(args=['upgrade-company-invites'])
+                self.assertEqual(result.exit_code, 0)
+                with db.engine.connect() as connection:
+                    after = runner.snapshot(connection)
+                self.assertTrue(after[0])
+                self.assertEqual(before[1:], after[1:])
+
     def dispose(self):
         with self.app.app_context():
             db.session.remove()
