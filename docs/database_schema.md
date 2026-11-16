@@ -175,6 +175,7 @@ Tables: 70
 | --- | --- | --- | --- | --- |
 | id | INTEGER | False | True |  |
 | company_code | VARCHAR(50) | False | False |  |
+| purpose | VARCHAR(20) | False | False |  |
 | token_hash | VARCHAR(64) | False | False |  |
 | created_at | DATETIME | False | False |  |
 | expires_at | DATETIME | False | False |  |
