@@ -1,0 +1,4 @@
+/* Conceal a departing authenticated document before a history snapshot. */
+html body.auth-history-concealed { display: none !important; }
+
+.auth-history-notice { position: fixed; inset: 20% 10% auto; background: white; color: #222; padding: 2rem; z-index: 2147483647; border: 2px solid #555; }
