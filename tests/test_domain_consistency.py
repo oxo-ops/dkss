@@ -69,7 +69,7 @@ class DomainConsistencyTests(unittest.TestCase):
 
         return queue.enqueue(
             [
-                FileStorage(stream=BytesIO(pdf_bytes()), filename=f"{i}.pdf")
+                FileStorage(stream=BytesIO(pdf_bytes() + (b"\n% fixture " + str(i).encode() if i else b"")), filename=f"{i}.pdf")
                 for i in range(count)
             ],
             "inspection",
@@ -190,7 +190,11 @@ class DomainConsistencyTests(unittest.TestCase):
         self.assertEqual(self.total(self.trend("当時の営業所")), Decimal("163900"))
 
     def test_source_is_shared_only_within_one_company(self):
-        self.enqueue(count=2)
+        # Separate receipts still share source storage; a single request now
+        # removes byte-identical duplicate selections before creating drafts.
+        self.enqueue()
+        self.enqueue()
+        self.assertEqual(Draft.query.count(), 2)
         self.assertEqual(Source.query.count(), 1)
         self.assertTrue(
             all(

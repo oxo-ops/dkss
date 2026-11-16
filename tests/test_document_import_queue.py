@@ -28,7 +28,7 @@ class DocumentImportQueueTests(unittest.TestCase):
     def send(self, count=1, key=None, kind='inspection', source=None):
         # Multi-file workload fixtures must represent distinct originals.
         # Explicit source is intentionally reused for duplicate-selection cases.
-        sources = [source if source is not None else pdf_bytes() + b"\n% fixture " + str(i).encode()
+        sources = [source if source is not None else pdf_bytes() + (b"\n% fixture " + str(i).encode() if i else b"")
                    for i in range(count)]
         return self.client.post('/vehicle/data-import/jobs', data={
             'document_type':kind, 'upload_key':key or str(uuid4()),

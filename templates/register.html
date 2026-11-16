@@ -3,6 +3,8 @@
 {% block title %}初回登録{% endblock %}
 
 {% block content %}
+{% if invite_purpose in ('admin', 'user') %}<p>{{ '管理者候補' if invite_purpose == 'admin' else '一般利用者' }}の登録申請です。確認・承認されるまでログインできません。</p>{% endif %}
+
 
 <div class="page-header">
     <h2>{{ company_name }} 利用登録申請</h2>
