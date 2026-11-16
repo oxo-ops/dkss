@@ -186,3 +186,44 @@ test('stalled headers or body time out, abort GET only and preserve the accepted
         f.submit(); assert.equal(f.calls.length,1);
     }
 });
+
+function resumeFixture(fetch) {
+    const timers=[], signals=[];
+    const classes=new Set();
+    const status={textContent:'',children:[],append(...items){this.children.push(...items);}};
+    const read={disabled:false};
+    const form={classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)},querySelector:()=>read};
+    const card={scrollIntoView(){},querySelector:s=>s==='.import-form'?form:status};
+    const link={dataset:{receiptKind:'maintenance',receiptStatusUrl:'/status'},href:'https://test.example/receipt',
+        addEventListener(_,fn){this.click=fn;},setAttribute(){},removeAttribute(){}};
+    const context={URL,AbortController,location:{href:'https://test.example/import',origin:'https://test.example'},
+        document:{createElement:tag=>({tag}),querySelectorAll:s=>s==='.import-receipt-read[data-receipt-kind]'?[link]:[],
+            getElementById:id=>id==='import-maintenance'?card:null},
+        window:{fetch:async(url,options)=>{signals.push(options.signal);return fetch(url,options);},
+            setTimeout:(callback,delay)=>{const t={callback,delay};timers.push(t);return t;},
+            clearTimeout:t=>{const i=timers.indexOf(t);if(i>=0)timers.splice(i,1);}}};
+    vm.runInNewContext(source,context);
+    return {timers,signals,status,link,read,classes,start:async()=>{await link.click({preventDefault(){}});await new Promise(r=>setImmediate(r));}};
+}
+test('receipt-list resume rejects invalid successful bodies without endless polling',async()=>{
+    const f=resumeFixture(async()=>({ok:true,json:async()=>null}));await f.start();
+    for(let i=0;i<2;i++)await f.timers.shift().callback();
+    assert.equal(f.timers.length,0);assert.equal(f.read.disabled,false);
+    assert.equal(f.link.dataset.loading,undefined);assert.equal(f.classes.has('ocr-queue-busy'),false);
+    assert.equal(f.status.children.find(x=>x.tag==='a').href,'https://test.example/receipt');
+});
+test('receipt-list resume bounds stalled body reads and retains normal completion',async()=>{
+    for(const body of [false,true]) {
+        const f=resumeFixture(async()=>body?{ok:true,json:()=>new Promise(()=>{})}:new Promise(()=>{}));await f.start();
+        for(let i=0;i<3;i++) {
+            const t=f.timers.shift();assert.equal(t.delay,20000);t.callback();await new Promise(r=>setImmediate(r));
+            assert.equal(f.signals[i].aborted,true);
+            if(i<2){f.timers.shift().callback();await new Promise(r=>setImmediate(r));}
+        }
+        assert.equal(f.timers.length,0);assert.equal(f.read.disabled,false);
+        assert.equal(f.status.children.find(x=>x.tag==='a').href,'https://test.example/receipt');
+    }
+    const f=resumeFixture(async()=>({ok:true,json:async()=>({files:[],completed:1,total:1,finished:true,preview_ready:true,preview_url:'/preview'})}));
+    await f.start();assert.equal(f.timers.length,0);assert.equal(f.read.disabled,false);
+    assert.equal(f.status.children.find(x=>x.tag==='a').href,'https://test.example/preview');
+});
