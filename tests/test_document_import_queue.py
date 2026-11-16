@@ -26,11 +26,63 @@ class DocumentImportQueueTests(unittest.TestCase):
     inspection_form = workflow.WorkflowRegressionTests.inspection_form
 
     def send(self, count=1, key=None, kind='inspection', source=None):
-        source = source or pdf_bytes()
+        # Multi-file workload fixtures must represent distinct originals.
+        # Explicit source is intentionally reused for duplicate-selection cases.
+        sources = [source if source is not None else pdf_bytes() + b"\n% fixture " + str(i).encode()
+                   for i in range(count)]
         return self.client.post('/vehicle/data-import/jobs', data={
             'document_type':kind, 'upload_key':key or str(uuid4()),
-            'document_files':[(BytesIO(source),f'document-{i}.pdf') for i in range(count)]},
+            'document_files':[(BytesIO(data),f'document-{i}.pdf') for i, data in enumerate(sources)]},
             headers={'Accept':'application/json'})
+
+    def test_identical_sources_in_one_batch_share_one_ocr_job(self):
+        response = self.send(2, source=pdf_bytes())
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(Draft.query.count(), 1)
+        self.assertEqual(response.json['files'][0]['repeated_files'], ['document-1.pdf'])
+        self.assertEqual(response.json['files'][0]['ignored_files'], [])
+        page = self.client.get(response.json['page_url']).get_data(as_text=True)
+        self.assertIn('今回重複して選択された原本は重複分を読み取り対象から外しました', page)
+        self.assertTrue(self.worker())
+        self.assertFalse(self.worker())
+        self.assertEqual(self.status(response.json)['succeeded'], 1)
+        self.assertEqual(self.status(response.json)['files'][0]['repeated_files'], ['document-1.pdf'])
+
+    def test_mixed_duplicate_selection_keeps_each_distinct_original(self):
+        source = pdf_bytes()
+        response = self.client.post('/vehicle/data-import/jobs', data={
+            'document_type': 'inspection', 'upload_key': str(uuid4()),
+            'document_files': [(BytesIO(source), 'first.pdf'), (BytesIO(source), 'copy.pdf'),
+                               (BytesIO(source + b"\n% distinct"), 'different.pdf')]},
+            headers={'Accept': 'application/json'})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json['total'], 2)
+        self.assertEqual({row.source_filename for row in Draft.query.all()}, {'first.pdf', 'different.pdf'})
+        self.assertEqual([name for item in response.json['files'] for name in item['repeated_files']], ['copy.pdf'])
+
+    def test_registered_repeated_and_new_sources_have_accurate_notices(self):
+        source = pdf_bytes()
+        first = self.send(source=source).json
+        self.worker()
+        row = Draft.query.filter_by(batch_id=first['batch_id']).one()
+        confirmed = self.client.post('/vehicle/data-import/' + first['batch_id'] + '/confirm',
+                                     data=self.inspection_form(row))
+        self.assertEqual(confirmed.status_code, 302)
+        response = self.client.post('/vehicle/data-import/jobs', data={
+            'document_type': 'inspection', 'upload_key': str(uuid4()),
+            'document_files': [(BytesIO(source), 'registered.pdf'), (BytesIO(source), 'copy.pdf'),
+                               (BytesIO(source + b"\n% new original"), 'new.pdf')]},
+            headers={'Accept': 'application/json'})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json['total'], 1)
+        item = response.json['files'][0]
+        self.assertEqual(item['filename'], 'new.pdf')
+        self.assertEqual(item['ignored_files'], ['registered.pdf'])
+        self.assertEqual(item['repeated_files'], ['copy.pdf'])
+        page = self.client.get(response.json['page_url']).get_data(as_text=True)
+        self.assertIn('登録済みの資料は読み取り対象から外しました', page)
+        self.assertIn('重複分を読み取り対象から外しました', page)
+        self.assertNotIn('1回だけ読み取ります', page)
 
     def worker(self, failure=None):
         def extract(source, filename=None, progress_callback=None):
@@ -197,6 +249,12 @@ class DocumentImportQueueTests(unittest.TestCase):
 
     def test_retry_after_successful_registration_only_registers_newly_ready_file(self):
         receipt=self.send(2).json
+        # Legacy receipts can contain duplicate originals from before enqueue
+        # de-duplication. Preserve the worker's completed-source safeguard.
+        rows = Draft.query.filter_by(batch_id=receipt['batch_id']).all()
+        rows[1].source_file = rows[0].source_file
+        rows[1].source_sha256 = rows[0].source_sha256
+        db.session.commit()
         self.worker(failure=ValueError('NO_INSPECTION_FOUND'));self.worker()
         ready=Draft.query.filter_by(status='preview').one()
         response=self.client.post('/vehicle/data-import/'+receipt['batch_id']+'/confirm',data=self.inspection_form(ready))

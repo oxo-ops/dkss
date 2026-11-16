@@ -12,6 +12,9 @@
         {% for file in job.files %}{% if file.ignored_files %}
         <div class="help-text" role="status">登録済みの資料は読み取り対象から外しました：{{ file.ignored_files|join('、') }}。未登録の資料だけ処理しています。</div>
         {% endif %}{% endfor %}
+        {% for file in job.files %}{% if file.repeated_files %}
+        <div class="help-text" role="status">今回重複して選択された原本は重複分を読み取り対象から外しました：{{ file.repeated_files|join('、') }}。</div>
+        {% endif %}{% endfor %}
         <p id="jobConnection" role="status"></p>
         <div class="import-form-actions">
             <a class="btn btn-outline" href="{{ url_for('vehicle_data_import') }}">別の資料を取り込む</a>
