@@ -80,12 +80,12 @@
         {% if analysis_cost_breakdown.record_count or data.missing_cost_count or recurring %}
         <section class="ka7-panel ka8-cost-panel">
             <header><h3><span class="ka10-panel-icon">{{ visual_icon("cost") }}</span>整備費の内訳</h3><a href="{{ url_for('vehicle_karte_costs', vehicle_record_id=vehicle.id) }}">費用を見る ↗</a></header>
-            {% set share = namespace(total=0) %}{% for entry in analysis_cost_breakdown.rows %}{% set category, amount = entry.label, entry.amount %}{% if amount > 0 %}{% set share.total = share.total + amount %}{% endif %}{% endfor %}
-            {% if share.total > 0 %}<svg class="ka10-cost-composition" viewBox="0 0 1000 18" preserveAspectRatio="none" role="img" aria-label="登録済み整備費の構成比。各費目と金額は下の一覧に表示。"><title>整備費の構成比</title>{% set position = namespace(x=0) %}{% for entry in analysis_cost_breakdown.rows %}{% if entry.amount > 0 %}{% set width = (entry.amount / share.total * 1000)|float %}<rect x="{{ position.x }}" y="0" width="{{ width }}" height="18" class="ka10-cost-{{ loop.index0 }}"/><title>{{ entry.label }} {{ format_analysis_number(entry.amount) }}円</title>{% set position.x = position.x + width %}{% endif %}{% endfor %}</svg>{% endif %}
+            {% set share = namespace(total=0, has_negative=false) %}{% for entry in analysis_cost_breakdown.rows %}{% set category, amount = entry.label, entry.amount %}{% if amount < 0 %}{% set share.has_negative = true %}{% endif %}{% if amount > 0 %}{% set share.total = share.total + amount %}{% endif %}{% endfor %}
+            {% if share.total > 0 and not share.has_negative %}<svg class="ka10-cost-composition" viewBox="0 0 1000 18" preserveAspectRatio="none" role="img" aria-label="登録済み整備費の構成比。各費目と金額は下の一覧に表示。"><title>整備費の構成比</title>{% set position = namespace(x=0) %}{% for entry in analysis_cost_breakdown.rows %}{% if entry.amount > 0 %}{% set width = (entry.amount / share.total * 1000)|float %}<rect x="{{ position.x }}" y="0" width="{{ width }}" height="18" class="ka10-cost-{{ loop.index0 }}"/><title>{{ entry.label }} {{ format_analysis_number(entry.amount) }}円</title>{% set position.x = position.x + width %}{% endif %}{% endfor %}</svg>{% endif %}
             <div class="ka7-cost-breakdown">
                 {% for entry in analysis_cost_breakdown.rows %}{% set category, amount = entry.label, entry.amount %}
                 <div class="ka10-cost-{{ loop.index0 }}"><span><i class="ka10-cost-key" aria-hidden="true"></i>{{ category }}</span><strong>{{ value(amount, '円') }}</strong>
-                    {% if share.total > 0 and amount >= 0 %}<span class="ka10-cost-percentage">{{ '%.1f'|format(amount / share.total * 100) }}%</span>{% endif %}
+                    {% if share.total > 0 and not share.has_negative and amount >= 0 %}<span class="ka10-cost-percentage">{{ '%.1f'|format(amount / share.total * 100) }}%</span>{% endif %}
                 </div>
                 {% else %}
                 {% if analysis_cost_breakdown.record_count %}<p class="ka7-note">登録済み費用の合計は {{ value(analysis_cost_breakdown.total, '円') }}です。差引額が0円以外となる内訳はありません。未入力の費目を0円と確定するものではありません。</p>
@@ -94,6 +94,7 @@
                 {% endfor %}
             </div>
             {% if data.missing_cost_count %}<p class="ka7-note">金額未入力 {{ data.missing_cost_count }}件は、上の内訳・構成比から除外しています。0円として集計していません。</p>{% endif %}
+            {% if share.has_negative %}<p class="ka7-note">負の金額を含むため構成比は表示していません。各費目は登録額の差引合計です。金額の根拠は費用記録で確認してください。</p>{% endif %}
             {% if analysis_cost_breakdown.incomplete_count %}<p class="ka7-note">内訳未確定は、保存された費目と合計との差額です。税額と推定していません。</p>{% endif %}
             {% set recurring = data.repeated_failure_contents|selectattr('1', 'gt', 1)|list %}
             {% if recurring %}
