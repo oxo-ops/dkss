@@ -28,6 +28,7 @@ const server=http.createServer((req,res)=>{
  user='A';await page.goto(base+'/protected');const previous=await page.locator('body').getAttribute('data-render');await page.getByRole('link').click();user=next;
  await page.goBack();await fresh(previous);console.log('FIXTURE_CASE',next||'logout',JSON.stringify(requests.slice(-5)));await page.getByRole('heading',{name:next?'Person '+next:'Login required',exact:true}).waitFor();
  assert(await page.getByRole('heading').isVisible());
+ console.log('BFCACHE_DIAGNOSTIC',await page.evaluate(()=>JSON.stringify(performance.getEntriesByType('navigation').map(n=>({type:n.type,reasons:n.notRestoredReasons?.toJSON?.()??n.notRestoredReasons??null})))));
  }
  assert(restored>0,'Actual BFCache restoration required; ordinary reload is insufficient');
  user='A';await page.goto(base+'/protected');await page.getByRole('textbox').fill('Synthetic unsaved text');
