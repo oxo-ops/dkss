@@ -70,6 +70,27 @@ def is_valid_email_address(value):
 
 
 
+def set_email_origin_headers(email, sender):
+    """Add origin headers without exposing local host/process or recipient data."""
+    import re
+    from email.utils import formatdate
+    from uuid import uuid4
+
+    try:
+        domain = str(sender).strip().rsplit("@", 1)[1].encode("idna").decode("ascii").lower()
+    except (IndexError, UnicodeError):
+        return False
+    # Only a DNS name is used as id-right; never copy arbitrary header syntax.
+    if len(domain) > 253 or not all(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in domain.split(".")
+    ):
+        return False
+    email["Date"] = formatdate(usegmt=True)
+    email["Message-ID"] = f"<{uuid4().hex}@{domain}>"
+    return True
+
+
 def send_email_change_code_email(
     email_address,
     code
@@ -109,6 +130,8 @@ def send_email_change_code_email(
         return False
 
     email = _dkss_common.EmailMessage()
+    if not set_email_origin_headers(email, smtp_from):
+        return False
 
     email["Subject"] = "メールアドレス変更確認コード"
     email["From"] = smtp_from
