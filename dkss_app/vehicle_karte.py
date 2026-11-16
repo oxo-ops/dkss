@@ -94,7 +94,8 @@ def vehicle_karte_note(vehicle_record_id):
         return "他の人がメモを更新しました。画面を更新して内容を確認してください。", 409
     except _dkss_common.SQLAlchemyError:
         _dkss_common.db.session.rollback()
-        _dkss_runtime.app.logger.exception("車両メモを保存できませんでした。")
+        # SQLAlchemy exceptions may contain the private note and SQL parameters.
+        _dkss_runtime.app.logger.error("VEHICLE_NOTE_SAVE_FAILED error_type=database")
         return "メモを保存できませんでした。もう一度お試しください。", 500
     _dkss_common.flash("車両メモを保存しました。", "success")
     return _dkss_common.redirect(_dkss_common.url_for("vehicle_karte", vehicle_record_id=vehicle.id, _anchor="vehicle-note"))
