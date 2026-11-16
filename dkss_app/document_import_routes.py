@@ -82,18 +82,29 @@ def delete_document_import(batch_id):
 def recent_imports():
     if not access.require_master_admin():
         return []
-    rows = queue.lightweight_query().filter(import_owner.owner_clause(Draft),
-        Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error', 'type_review'))).order_by(Draft.created_at.desc()).limit(100).all()
-    batches = OrderedDict()
+    scope = import_owner.owner_clause(Draft)
+    eligible = (Draft.status.in_((*queue.ACTIVE, 'preview', 'read_error', 'type_review')),
+                Draft.document_type.in_({'maintenance', 'inspection', 'driving_report'}))
+
+    def visible(row):
+        return not queue.receipt_hidden(row.result_json) and (
+            queue.metadata(row.result_json) or row.status in (*queue.ACTIVE, 'preview'))
+
+    # Preserve the bounded discovery window and legacy visibility rules. Expand
+    # selected receipts afterward so the 100-row boundary cannot truncate one.
+    candidates = (queue.lightweight_query().filter(scope, *eligible)
+                  .order_by(Draft.created_at.desc(), Draft.id).limit(100).all())
+    batch_ids = list(dict.fromkeys(row.batch_id for row in candidates if visible(row)))[:12]
+    rows = (queue.lightweight_query().filter(scope, *eligible, Draft.batch_id.in_(batch_ids))
+            .order_by(Draft.created_at.desc(), Draft.id).all()) if batch_ids else []
+    batches = OrderedDict((batch_id, []) for batch_id in batch_ids)
     for row in rows:
-        if row.document_type not in {'maintenance', 'inspection', 'driving_report'} or row.status not in {*queue.ACTIVE, 'preview', 'read_error', 'type_review'}:
-            continue
-        if row.status == 'deleted' or queue.receipt_hidden(row.result_json):
-            continue
-        if queue.metadata(row.result_json) or row.status in (*queue.ACTIVE, 'preview', 'completed', 'skipped'):
-            batches.setdefault(row.batch_id, []).append(row)
+        if visible(row):
+            batches[row.batch_id].append(row)
     result = []
-    for batch_id, files in list(batches.items())[:12]:
+    for batch_id, files in batches.items():
+        if not files:
+            continue
         statuses = {row.status for row in files}
         if statuses.intersection(queue.ACTIVE):
             state, label = 'reading', '読み取り中'

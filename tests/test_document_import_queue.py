@@ -26,11 +26,63 @@ class DocumentImportQueueTests(unittest.TestCase):
     inspection_form = workflow.WorkflowRegressionTests.inspection_form
 
     def send(self, count=1, key=None, kind='inspection', source=None):
-        source = source or pdf_bytes()
+        # Multi-file workload fixtures must represent distinct originals.
+        # Explicit source is intentionally reused for duplicate-selection cases.
+        sources = [source if source is not None else pdf_bytes() + (b"\n% fixture " + str(i).encode() if i else b"")
+                   for i in range(count)]
         return self.client.post('/vehicle/data-import/jobs', data={
             'document_type':kind, 'upload_key':key or str(uuid4()),
-            'document_files':[(BytesIO(source),f'document-{i}.pdf') for i in range(count)]},
+            'document_files':[(BytesIO(data),f'document-{i}.pdf') for i, data in enumerate(sources)]},
             headers={'Accept':'application/json'})
+
+    def test_identical_sources_in_one_batch_share_one_ocr_job(self):
+        response = self.send(2, source=pdf_bytes())
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(Draft.query.count(), 1)
+        self.assertEqual(response.json['files'][0]['repeated_files'], ['document-1.pdf'])
+        self.assertEqual(response.json['files'][0]['ignored_files'], [])
+        page = self.client.get(response.json['page_url']).get_data(as_text=True)
+        self.assertIn('今回重複して選択された原本は重複分を読み取り対象から外しました', page)
+        self.assertTrue(self.worker())
+        self.assertFalse(self.worker())
+        self.assertEqual(self.status(response.json)['succeeded'], 1)
+        self.assertEqual(self.status(response.json)['files'][0]['repeated_files'], ['document-1.pdf'])
+
+    def test_mixed_duplicate_selection_keeps_each_distinct_original(self):
+        source = pdf_bytes()
+        response = self.client.post('/vehicle/data-import/jobs', data={
+            'document_type': 'inspection', 'upload_key': str(uuid4()),
+            'document_files': [(BytesIO(source), 'first.pdf'), (BytesIO(source), 'copy.pdf'),
+                               (BytesIO(source + b"\n% distinct"), 'different.pdf')]},
+            headers={'Accept': 'application/json'})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json['total'], 2)
+        self.assertEqual({row.source_filename for row in Draft.query.all()}, {'first.pdf', 'different.pdf'})
+        self.assertEqual([name for item in response.json['files'] for name in item['repeated_files']], ['copy.pdf'])
+
+    def test_registered_repeated_and_new_sources_have_accurate_notices(self):
+        source = pdf_bytes()
+        first = self.send(source=source).json
+        self.worker()
+        row = Draft.query.filter_by(batch_id=first['batch_id']).one()
+        confirmed = self.client.post('/vehicle/data-import/' + first['batch_id'] + '/confirm',
+                                     data=self.inspection_form(row))
+        self.assertEqual(confirmed.status_code, 302)
+        response = self.client.post('/vehicle/data-import/jobs', data={
+            'document_type': 'inspection', 'upload_key': str(uuid4()),
+            'document_files': [(BytesIO(source), 'registered.pdf'), (BytesIO(source), 'copy.pdf'),
+                               (BytesIO(source + b"\n% new original"), 'new.pdf')]},
+            headers={'Accept': 'application/json'})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json['total'], 1)
+        item = response.json['files'][0]
+        self.assertEqual(item['filename'], 'new.pdf')
+        self.assertEqual(item['ignored_files'], ['registered.pdf'])
+        self.assertEqual(item['repeated_files'], ['copy.pdf'])
+        page = self.client.get(response.json['page_url']).get_data(as_text=True)
+        self.assertIn('登録済みの資料は読み取り対象から外しました', page)
+        self.assertIn('重複分を読み取り対象から外しました', page)
+        self.assertNotIn('1回だけ読み取ります', page)
 
     def worker(self, failure=None):
         def extract(source, filename=None, progress_callback=None):
@@ -57,6 +109,71 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.assertTrue(self.worker())
         self.assertEqual(self.status(receipt)['succeeded'],1)
         self.assertIn(receipt['batch_id'],self.client.get('/vehicle/data-import').get_data(as_text=True))
+
+    def test_recent_receipts_do_not_truncate_a_batch_at_one_hundred_rows(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        batches = {}
+        for count in (50, 50, 2):
+            response = self.send(count)
+            self.assertEqual(response.status_code, 202)
+            batch_id = response.json['batch_id']
+            batches[batch_id] = count
+            Draft.query.filter_by(batch_id=batch_id).update({'status': 'preview'})
+            db.session.commit()
+        oldest_batch = next(iter(batches))
+        oldest_file = Draft.query.filter_by(batch_id=oldest_batch).order_by(Draft.created_at).first()
+        oldest_file.status = 'read_error'
+        db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual({item['batch_id']: item['count'] for item in receipts}, batches)
+        self.assertEqual(next(item['state'] for item in receipts if item['batch_id'] == oldest_batch), 'error')
+
+    def test_recent_receipts_keep_twelve_batch_limit_and_actor_scope(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        own_batches = []
+        for index in range(13):
+            response = self.send()
+            self.assertEqual(response.status_code, 202)
+            own_batches.append(response.json['batch_id'])
+        for company, owner in [('OTHER', identity_for('TEST', 'admin', app=self.m.app)),
+                               ('TEST', str(uuid4()))]:
+            db.session.add(Draft(id=str(uuid4()), batch_id=str(uuid4()), company_code=company,
+                created_by_username='other-admin', owner_identity=owner, document_type='inspection',
+                source_filename='other.pdf', source_file=b'fixture', source_sha256='0' * 64,
+                status='queued', preview_json='{}', result_json=queue.result({'phase': 'queued'})))
+        db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual(len(receipts), 12)
+        self.assertEqual([item['batch_id'] for item in receipts], list(reversed(own_batches[1:])))
+
+    def test_recent_receipts_excluded_candidates_do_not_consume_display_slots(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        normal = self.send().json['batch_id']
+        for index in range(12):
+            response = self.send()
+            row = Draft.query.filter_by(batch_id=response.json['batch_id']).one()
+            row.status = 'read_error' if index % 2 else 'type_review'
+            row.result_json = '{}' if index % 3 else queue.encode({
+                'receipt_hidden': True, 'ocr_job': {'phase': 'read_error'}})
+            db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual([item['batch_id'] for item in receipts], [normal])
+        self.assertEqual(receipts[0]['count'], 1)
 
     def test_fifty_files_run_serially_and_reach_review(self):
         receipt=self.send(50).json
@@ -197,6 +314,12 @@ class DocumentImportQueueTests(unittest.TestCase):
 
     def test_retry_after_successful_registration_only_registers_newly_ready_file(self):
         receipt=self.send(2).json
+        # Legacy receipts can contain duplicate originals from before enqueue
+        # de-duplication. Preserve the worker's completed-source safeguard.
+        rows = Draft.query.filter_by(batch_id=receipt['batch_id']).all()
+        rows[1].source_file = rows[0].source_file
+        rows[1].source_sha256 = rows[0].source_sha256
+        db.session.commit()
         self.worker(failure=ValueError('NO_INSPECTION_FOUND'));self.worker()
         ready=Draft.query.filter_by(status='preview').one()
         response=self.client.post('/vehicle/data-import/'+receipt['batch_id']+'/confirm',data=self.inspection_form(ready))
