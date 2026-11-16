@@ -1,0 +1,37 @@
+name: Auth History Browser Acceptance
+on:
+  pull_request:
+    paths:
+      - 'static/js/auth-history.js'
+      - 'static/css/auth-history.css'
+      - 'templates/base.html'
+      - 'tests/auth_history*'
+      - '.github/workflows/auth-history-browser.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-history:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Exact candidate and isolated browser dependencies
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain)"
+          printf 'head=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})"
+          npm install --prefix "$RUNNER_TEMP/auth-history" playwright@1.62.0
+          "$RUNNER_TEMP/auth-history/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Synthetic unit and actual history restoration
+        run: |
+          node tests/auth_history_js.cjs
+          NODE_PATH="$RUNNER_TEMP/auth-history/node_modules" node tests/auth_history_browser.cjs
