@@ -6,13 +6,16 @@ let user='A',requests=[],render=0;
 const server=http.createServer((req,res)=>{
  requests.push({method:req.method,path:req.url});res.setHeader('Content-Type','text/html');
  if(req.url==='/other'){res.end('<body>Public second document</body>');return;}
+ // Match the existing application response policy, not a cacheable toy page.
+ res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
  res.end(`<style>${css}</style><body data-render="${++render}" data-authenticated="${user?'true':'false'}"><h1>${user?'Person '+user:'Login required'}</h1><textarea aria-label="entry"></textarea><select aria-label="scope"><option value="first">First</option><option value="second">Second</option></select><a href="/other">Leave</a><script>${script}</script></body>`);
 });
 (async()=>{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
- const browser=await chromium.launch({headless:true,ignoreDefaultArgs:['--disable-back-forward-cache']});
+ const browser=await chromium.launch({channel:'chromium',headless:true,ignoreDefaultArgs:['--disable-back-forward-cache']});
+ let restored=0;
  try {
- const page=await browser.newPage();let restored=0;
+ const page=await browser.newPage();
  page.on('console',m=>{if(m.text()==='RESTORED')restored++;});
  await page.addInitScript(()=>window.addEventListener('pageshow',e=>{if(e.persisted)console.log('RESTORED');}));
  const base=`http://127.0.0.1:${server.address().port}`;
@@ -47,6 +50,6 @@ const server=http.createServer((req,res)=>{
  await page.context().setOffline(false);await retry.click();await page.getByRole('heading',{name:'Person A'}).waitFor();
  assert(requests.every(r=>['GET','HEAD'].includes(r.method)),'Never resubmit POST');
  console.log(JSON.stringify({result:'PASS',actual_bfcache_restores:restored,cases:['same-user','logout','user-switch','explicit-unsaved-discard','offline-retry','implicit-select','changed-select-discard']}));
- } catch(error) {console.log('FIXTURE_REQUESTS',JSON.stringify(requests));throw error;
+ } catch(error) {console.log('FIXTURE_REQUESTS',JSON.stringify(requests),'restored='+restored);throw error;
  } finally {await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
