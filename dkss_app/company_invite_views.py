@@ -32,15 +32,15 @@ def public_registration():
         offices = ordered_master_query(Office, company.company_code).all()
         return _private_response(render_template('register.html', error=None,
             company_code=company.company_code, company_name=company.company_name,
-            invite_token=token, offices=offices))
+            invite_token=token, offices=offices, invite_purpose=invite.purpose))
     except service.InviteError as exc:
         db.session.rollback()
         try:
-            _, company = service.validate_invite(token)
+            invite, company = service.validate_invite(token)
             offices = ordered_master_query(Office, company.company_code).all()
             return _private_response(render_template('register.html', error=str(exc),
                 company_code=company.company_code, company_name=company.company_name,
-                invite_token=token, offices=offices), exc.status)
+                invite_token=token, offices=offices, invite_purpose=invite.purpose), exc.status)
         except service.InviteError:
             return _private_response(render_template('registration_result.html', message=str(exc), company_code=None), exc.status)
     except SQLAlchemyError:
@@ -73,7 +73,9 @@ def _manage(company, actor):
         if request.method == 'POST':
             action = request.form.get('action')
             if action == 'issue':
-                invite, token = service.issue_invite(company.company_code, actor, days=7)
+                if request.form.get('purpose', 'user') not in ('admin', 'user'):
+                    raise service.InviteError('登録URLの種類が不正です。')
+                invite, token = service.issue_invite(company.company_code, actor, days=7, purpose=request.form.get('purpose', 'user'))
                 # Display only once; never store the bearer URL in a cookie/flash.
                 generated_url = url_for('register', invite=token, _external=True)
             elif action == 'revoke':
@@ -98,6 +100,7 @@ def _manage(company, actor):
             (CompanyRegistrationApplication.status == 'pending').desc(), CompanyRegistrationApplication.id.asc()
         ).paginate(page=max(1, page), per_page=50, error_out=False)
         applications = pagination.items
+        application_purposes = {item.id: db.session.get(CompanyRegistrationInvite, item.invite_id).purpose for item in applications}
         has_admin = User.query.filter_by(company_code=company.company_code, role='admin').first() is not None
     except (service.InviteError, SQLAlchemyError) as exc:
         db.session.rollback()
@@ -106,4 +109,4 @@ def _manage(company, actor):
         invites, applications, has_admin, pagination = [], [], False, None
     return _private_response(render_template('company_registration.html', company=company,
         invites=invites, applications=applications, generated_url=generated_url,
-        error=error, has_admin=has_admin, pagination=pagination, is_itc=actor.role == 'itc'), status)
+        error=error, has_admin=has_admin, pagination=pagination, application_purposes=locals().get('application_purposes', {}), is_itc=actor.role == 'itc'), status)

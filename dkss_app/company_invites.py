@@ -11,6 +11,7 @@ import secrets
 from zoneinfo import ZoneInfo
 
 from flask import current_app
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash
 
@@ -105,18 +106,20 @@ def expire_pending_applications():
 
 
 @_transaction
-def issue_invite(company_code, actor, days=7):
+def issue_invite(company_code, actor, days=7, purpose='legacy'):
     company = lock_company(company_code)
     actor = _manager(company, actor)
     if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 30:
         raise InviteError('有効期限は1〜30日で指定してください。')
-    old = Invite.query.filter_by(company_code=company_code, revoked_at=None).all()
+    if purpose not in ('admin', 'user', 'legacy'):
+        raise InviteError('登録URLの種類が不正です。')
+    old = Invite.query.filter_by(company_code=company_code, purpose=purpose, revoked_at=None).all()
     now = datetime.utcnow()
     for invite in old:
         invite.revoked_at = now
     _purge_pending([row.id for row in old], 'revoked')
     token = secrets.token_urlsafe(32)
-    invite = Invite(company_code=company_code, token_hash=sha256(token.encode()).hexdigest(),
+    invite = Invite(company_code=company_code, purpose=purpose, token_hash=sha256(token.encode()).hexdigest(),
                     created_at=now, expires_at=now + timedelta(days=days), created_by=actor.account_identity)
     db.session.add(invite)
     db.session.flush()
@@ -222,6 +225,10 @@ def approve_application(application_id, actor, role='user', verification_reason=
     invite = db.session.get(Invite, row.invite_id)
     if not invite or invite.company_code != code or invite.revoked_at or invite.expires_at <= datetime.utcnow():
         raise InviteError('申請元の登録URLは失効しています。新しいURLから申請してください。', 409)
+    if invite.purpose not in ('admin', 'user', 'legacy'):
+        raise InviteError('登録URLの種類が不正です。', 409)
+    if invite.purpose != 'legacy' and role != invite.purpose:
+        raise InviteError('登録URLの種類と承認する権限が一致しません。', 403)
     from .auth import is_valid_email_address
     if current_app.config.get('MFA_ENABLED') and (not row.email_address or not is_valid_email_address(row.email_address)):
         raise InviteError('多要素認証に必要なメールアドレスがありません。再申請してください。', 409)
@@ -271,3 +278,6 @@ def upgrade_invite_schema():
     with db.engine.begin() as connection:
         Invite.__table__.create(bind=connection, checkfirst=True)
         Application.__table__.create(bind=connection, checkfirst=True)
+        columns = {column['name'] for column in inspect(connection).get_columns(Invite.__tablename__)}
+        if 'purpose' not in columns:
+            connection.execute(text("ALTER TABLE company_registration_invite ADD COLUMN purpose VARCHAR(20) NOT NULL DEFAULT 'legacy'"))
