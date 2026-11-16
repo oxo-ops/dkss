@@ -50,20 +50,26 @@ class EmailChangePostgresTests(unittest.TestCase):
 
     def test_issuance_lock_serializes_old_verification(self):
         """Hold issuance at mocked SMTP; the second backend must wait on its row."""
+        import hashlib
         import threading
+        import time
         from concurrent.futures import ThreadPoolExecutor
         from unittest.mock import patch
-        from sqlalchemy import event
+        from sqlalchemy import event, text
         company=self.companies[0]
         client,old_code=self.prepare(company)
         held=threading.Event(); attempted=threading.Event(); release=threading.Event()
         new_codes=[]
+        pids={}
+        replacement = (int(old_code) + 1) % 1000000
         def delivery(address, code):
+            pids['issuer']=self.db.session.execute(text('SELECT pg_backend_pid()')).scalar_one()
             new_codes.append(code); held.set()
             if not release.wait(15): raise AssertionError('release timeout')
             return True
         def observe(conn,cursor,statement,parameters,context,many):
             if threading.current_thread().name.endswith('verify') and 'FOR UPDATE' in statement:
+                pids['verifier']=cursor.connection.get_backend_pid()
                 attempted.set()
         def issue():
             response=self.clone(client).post('/settings',data={
@@ -73,22 +79,41 @@ class EmailChangePostgresTests(unittest.TestCase):
             finally: response.close()
         def verify():
             threading.current_thread().name='email-verify'
-            return self.submit(self.clone(client),'wrong')
+            return self.submit(self.clone(client),old_code)
         event.listen(self.engine,'before_cursor_execute',observe)
         try:
-            with patch.object(self.auth,'send_email_change_code_email',side_effect=delivery):
+            with patch.object(self.auth,'send_email_change_code_email',side_effect=delivery), \
+                    patch.object(self.auth._dkss_common.secrets,'randbelow',return_value=replacement):
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     issuance=pool.submit(issue)
                     try:
                         self.assertTrue(held.wait(15))
                         verification=pool.submit(verify)
                         self.assertTrue(attempted.wait(15))
+                        blocked=False
+                        deadline=time.monotonic()+10
+                        with self.admin_engine.connect() as observer:
+                            while time.monotonic()<deadline and not verification.done():
+                                blocked=bool(observer.scalar(text("""
+                                    SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+                                    WHERE pid=:verifier AND wait_event_type='Lock'
+                                    AND :issuer=ANY(pg_blocking_pids(pid)))
+                                """),pids))
+                                if blocked: break
+                                time.sleep(0.02)
+                        self.assertTrue(blocked, 'Verifier must actually wait on issuer backend lock')
                         self.assertFalse(verification.done())
                     finally: release.set()
                     self.assertEqual(issuance.result(timeout=20),302)
                     self.assertIn(verification.result(timeout=20)[0],(200,302))
         finally: event.remove(self.engine,'before_cursor_execute',observe)
         self.assertEqual(self.user(company).pending_email_address,'newer@example.invalid')
-        self.assertEqual(len(self.logs(company,'email_change_failed')),1)
+        current_hash=self.user(company).email_change_code_hash
+        prefix='Email change challenge '+hashlib.sha256(current_hash.encode('utf-8')).hexdigest()+': '
+        failures=self.logs(company,'email_change_failed')
+        self.assertEqual(len(failures),1)
+        self.assertTrue(failures[0].detail.startswith(prefix))
+        self.assertEqual(self.user(company).email_address,'q02@example.invalid')
+        self.assertNotEqual(new_codes[0],old_code)
         self.submit(self.clone(client),new_codes[0])
         self.assertEqual(self.user(company).email_address,'newer@example.invalid')
