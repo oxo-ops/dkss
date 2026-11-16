@@ -110,6 +110,71 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.assertEqual(self.status(receipt)['succeeded'],1)
         self.assertIn(receipt['batch_id'],self.client.get('/vehicle/data-import').get_data(as_text=True))
 
+    def test_recent_receipts_do_not_truncate_a_batch_at_one_hundred_rows(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        batches = {}
+        for count in (50, 50, 2):
+            response = self.send(count)
+            self.assertEqual(response.status_code, 202)
+            batch_id = response.json['batch_id']
+            batches[batch_id] = count
+            Draft.query.filter_by(batch_id=batch_id).update({'status': 'preview'})
+            db.session.commit()
+        oldest_batch = next(iter(batches))
+        oldest_file = Draft.query.filter_by(batch_id=oldest_batch).order_by(Draft.created_at).first()
+        oldest_file.status = 'read_error'
+        db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual({item['batch_id']: item['count'] for item in receipts}, batches)
+        self.assertEqual(next(item['state'] for item in receipts if item['batch_id'] == oldest_batch), 'error')
+
+    def test_recent_receipts_keep_twelve_batch_limit_and_actor_scope(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        own_batches = []
+        for index in range(13):
+            response = self.send()
+            self.assertEqual(response.status_code, 202)
+            own_batches.append(response.json['batch_id'])
+        for company, owner in [('OTHER', identity_for('TEST', 'admin', app=self.m.app)),
+                               ('TEST', str(uuid4()))]:
+            db.session.add(Draft(id=str(uuid4()), batch_id=str(uuid4()), company_code=company,
+                created_by_username='other-admin', owner_identity=owner, document_type='inspection',
+                source_filename='other.pdf', source_file=b'fixture', source_sha256='0' * 64,
+                status='queued', preview_json='{}', result_json=queue.result({'phase': 'queued'})))
+        db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual(len(receipts), 12)
+        self.assertEqual([item['batch_id'] for item in receipts], list(reversed(own_batches[1:])))
+
+    def test_recent_receipts_excluded_candidates_do_not_consume_display_slots(self):
+        from flask import session
+        from dkss_app.document_import_routes import recent_imports
+        normal = self.send().json['batch_id']
+        for index in range(12):
+            response = self.send()
+            row = Draft.query.filter_by(batch_id=response.json['batch_id']).one()
+            row.status = 'read_error' if index % 2 else 'type_review'
+            row.result_json = '{}' if index % 3 else queue.encode({
+                'receipt_hidden': True, 'ocr_job': {'phase': 'read_error'}})
+            db.session.commit()
+        with self.client.session_transaction() as saved:
+            actor = dict(saved)
+        with self.m.app.test_request_context('/vehicle/data-import'):
+            session.update(actor)
+            receipts = recent_imports()
+        self.assertEqual([item['batch_id'] for item in receipts], [normal])
+        self.assertEqual(receipts[0]['count'], 1)
+
     def test_fifty_files_run_serially_and_reach_review(self):
         receipt=self.send(50).json
         for i in range(50):self.assertTrue(self.worker())
