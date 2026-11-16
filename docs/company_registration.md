@@ -43,11 +43,11 @@
 
 本番配備前に利用者へ新URLへの切替を案内し、管理者に操作を説明する。旧URLをそのまま有効に保つ案は非推奨。期限限定の互換受付を望む場合も旧入口をpending化する別設計が必要。切替・配備・DB変更は別途承認を得て行う。
 
-明示移行: `flask --app app upgrade-company-invites` は新規2表のみ追加し既存データを消去しない。Web読取・import時に移行を自動実行しない。新規DB bootstrapでは通常create_all対象になる。
+明示移行: `flask --app app upgrade-company-invites` は招待・申請の2表と、今回のpurpose列を不足時のみ追加し既存データを消去しない。Web読取・import時に移行を自動実行しない。新規DB bootstrapでは通常create_all対象になる。
 
 清掃: `flask --app app expire-company-registration-applications` は期限切れ未承認申請をexpiredにしPWハッシュを消去する。既存Userは変更しない。
 
-HTTPS CSRF修正はレスポンスヘッダーと回帰試験のみで、追加DB移行・MFA設定変更・通知送信を伴わない。
+以前のHTTPS CSRF修正単体はレスポンスヘッダーと回帰試験のみで、追加DB移行・MFA設定変更・通知送信を伴わなかった。今回の2種類方式には下記purpose列の移行が必要。
 
 ## 2種類方式への移行と受入
 
