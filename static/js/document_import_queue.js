@@ -390,10 +390,13 @@
     let failures = 0;
     async function poll() {
         try {
-            const response = await fetch(root.dataset.statusUrl, {headers:{Accept:"application/json"}, cache:"no-store"});
+            const {response, job} = await readReceiptStatus(root.dataset.statusUrl);
             if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/json")) throw new Error("status");
-            const job = await response.json();
-            failures = 0;
+            if (!job || typeof job !== "object" || Array.isArray(job) ||
+                !Array.isArray(job.files) || job.files.some(file => !file || typeof file !== "object") ||
+                !Number.isInteger(job.completed) || job.completed < 0 ||
+                !Number.isInteger(job.total) || job.total < job.completed ||
+                typeof job.finished !== "boolean") throw new Error("status shape");
             document.getElementById("jobSummary").textContent = job.completed + " / " + job.total + "資料処理済み（成功 " + job.succeeded + "・種類の確認 " + (job.needs_review || 0) + "・失敗 " + job.failed + "）";
             const progress = document.getElementById("jobProgress");
             progress.max = job.total;
@@ -430,9 +433,13 @@
                 }
             }
             if (job.finished) return;
+            failures = 0;
         } catch (_) {
             failures++;
-            document.getElementById("jobConnection").textContent = "状況を再確認しています。受付済みの資料は再送信せず、この画面を再読み込みしてください。";
+            document.getElementById("jobConnection").textContent = failures >= 3
+                ? "状況の自動確認を停止しました。通信・ログイン状態を確認し、資料は再送信せず、この画面を再読み込みしてください。"
+                : "状況を再確認しています。受付済みの資料は再送信せず、この画面を再読み込みしてください。";
+            if (failures >= 3) return;
         }
         window.setTimeout(poll, failures ? 10000 : 2000);
     }

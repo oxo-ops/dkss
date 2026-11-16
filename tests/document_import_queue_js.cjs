@@ -227,3 +227,46 @@ test('receipt-list resume bounds stalled body reads and retains normal completio
     await f.start();assert.equal(f.timers.length,0);assert.equal(f.read.disabled,false);
     assert.equal(f.status.children.find(x=>x.tag==='a').href,'https://test.example/preview');
 });
+
+function receiptPageFixture(fetch) {
+    const timers=[], signals=[];
+    const root={dataset:{statusUrl:'/status'}};
+    const elements=Object.fromEntries(['jobSummary','jobProgress','jobConnection','jobRetry','jobPreview','jobFiles'].map(id=>[id,{textContent:'',replaceChildren(){}}]));
+    const context={URL,AbortController,location:{href:'https://test.example/receipt',origin:'https://test.example'},fetch,
+        document:{querySelectorAll:()=>[],getElementById:id=>id==='documentImportJob'?root:elements[id],createElement:tag=>({tag,append(){}})},
+        window:{fetch:async(url,options)=>{signals.push(options.signal);return fetch(url,options);},
+            setTimeout:(callback,delay)=>{const t={callback,delay};timers.push(t);return t;},
+            clearTimeout:t=>{const i=timers.indexOf(t);if(i>=0)timers.splice(i,1);}}};
+    vm.runInNewContext(source,context);
+    return {timers,signals,elements,settle:()=>new Promise(r=>setImmediate(r))};
+}
+test('receipt detail stops after three invalid status bodies with reload guidance',async()=>{
+    const f=receiptPageFixture(async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>null}));
+    await f.settle();for(let i=0;i<2;i++)await f.timers.shift().callback();
+    assert.equal(f.timers.length,0);assert.match(f.elements.jobConnection.textContent,/再読み込み/);
+});
+test('receipt detail bounds pending body and still displays a completed result',async()=>{
+    const f=receiptPageFixture(async()=>({ok:true,headers:{get:()=> 'application/json'},json:()=>new Promise(()=>{})}));
+    await f.settle();for(let i=0;i<3;i++) {
+        const t=f.timers.shift();assert.equal(t.delay,20000);t.callback();await f.settle();
+        assert.equal(f.signals[i].aborted,true);
+        if(i<2){f.timers.shift().callback();await f.settle();}
+    }
+    assert.equal(f.timers.length,0);assert.match(f.elements.jobConnection.textContent,/再読み込み/);
+    const normal=receiptPageFixture(async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({completed:1,total:1,succeeded:1,failed:0,files:[],finished:true,preview_ready:true,preview_url:'/preview'})}));
+    await normal.settle();assert.equal(normal.timers.length,0);
+    assert.equal(normal.elements.jobPreview.href,'https://test.example/preview');
+});
+test('receipt detail inaccessible status does not redirect or resubmit and transient recovery resets its budget',async()=>{
+    for(const status of [401,403,404]) {
+        const f=receiptPageFixture(async()=>({ok:false,status}));await f.settle();
+        for(let i=0;i<2;i++)await f.timers.shift().callback();
+        assert.equal(f.timers.length,0);assert.match(f.elements.jobConnection.textContent,/自動確認を停止/);
+    }
+    let count=0;
+    const f=receiptPageFixture(async()=>{
+        count++;if(count===1 || count===3)throw new Error('network');
+        return {ok:true,headers:{get:()=> 'application/json'},json:async()=>({completed:0,total:1,succeeded:0,failed:0,files:[],finished:count===4})};
+    });await f.settle();for(let i=0;i<3;i++)await f.timers.shift().callback();
+    assert.equal(f.timers.length,0);assert.equal(f.elements.jobConnection.textContent,'');
+});
