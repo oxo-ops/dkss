@@ -28,6 +28,21 @@ def vehicle_karte_costs(vehicle_record_id):
         vehicle_record_id=vehicle.id,
     ).all()
 
+    import_batch = _dkss_common.request.args.get("import_batch", "").strip()
+    import_context = (
+        _dkss_vehicle_karte.get_vehicle_maintenance_import_context(import_batch)
+        if import_batch else None
+    )
+    imported_records = []
+    if import_context:
+        target = next((item for item in import_context["vehicles"]
+                       if item["id"] == vehicle.id), None)
+        if target is None:
+            abort(404)
+        record_map = {record.id: record for record in records}
+        imported_records = [record_map[record_id] for record_id in target["record_ids"]
+                            if record_id in record_map]
+
     details = get_vehicle_maintenance_cost_details(
         records, selected_year
     )
@@ -52,6 +67,8 @@ def vehicle_karte_costs(vehicle_record_id):
             vehicle.id,
         ),
         cost_details=details,
+        import_context=import_context,
+        imported_records=imported_records,
         format_cost_number=_dkss_vehicle_karte.format_vehicle_maintenance_number,
         cost_current_year=current_year,
     )
