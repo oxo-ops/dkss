@@ -37,6 +37,7 @@ def send_mfa_code_email(user, code):
             "このコードの有効期限は10分です。"
         ),
         require_opt_in=False,
+        delivery_purpose="mfa",
     )
 
 
