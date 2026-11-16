@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 from inspection_alert_plan_reads import PlanReadHints
+from dkss_app.inspection_alert_failure_logging import log_inspection_alert_failure
 
 import hashlib
 import json
@@ -15,7 +16,7 @@ from urllib.parse import urlencode
 
 import click
 from flask import request, session
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import load_only
 
 from vehicle_inspection_plans import KINDS, UNCONFIRMED, normalize_kind, kind_values, add_months, iso_date, month
@@ -525,7 +526,7 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         except (IntegrityError, OperationalError):
             db.session.rollback()
             # A competing poll/tick will finish the same transaction safely.
-            return {**report, 'notifications': 0, 'plans': 0, 'retry': True}
+            return {**report, 'notifications': 0, 'plans': 0, 'expiry_candidates': 0, 'retry': True}
         except Exception:
             db.session.rollback()
             raise
@@ -544,9 +545,9 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
                 and session.get('username') and session.get('company_code') and session.get('role') in {'admin', 'itc'}):
             try:
                 run(session['company_code'])
-            except Exception:
+            except Exception as error:
                 db.session.rollback()
-                app.logger.exception('点検予定の通知確認に失敗しました。')
+                log_inspection_alert_failure(app.logger, mode='poll', error=error)
 
     @app.get('/api/vehicle/inspection-plans/alerts/status')
     def inspection_alert_status():
@@ -567,12 +568,17 @@ def register_inspection_alerts(app, db, Plan, PlanEvent, Execution, Record, Vehi
         try:
             while True:
                 try:
-                    click.echo(json.dumps(run(), ensure_ascii=False))
-                except Exception:
+                    reports = run()
+                    click.echo(json.dumps(reports, ensure_ascii=False))
+                    if any(report.get('retry') for report in reports.values()):
+                        # A rolled-back company is incomplete, even if other
+                        # companies committed. Do not report CLI success.
+                        raise SQLAlchemyError('inspection alert tick incomplete')
+                except Exception as error:
                     db.session.rollback()
-                    app.logger.exception('点検通知の定期処理に失敗しました。')
+                    log_inspection_alert_failure(app.logger, mode='watch' if watch else 'command', error=error)
                     if not watch:
-                        raise
+                        raise click.ClickException('点検通知の処理に失敗しました。安全なエラーログを確認してください。') from None
                 finally:
                     db.session.remove()
                 if not watch:
