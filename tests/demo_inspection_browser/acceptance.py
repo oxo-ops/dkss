@@ -17,7 +17,7 @@ if not a.preflight_only:
 sys.path[:0]=[str(repo),str(repo/'tests')]
 from test_demo_inspection_compact import CompactDemoTests
 case=CompactDemoTests();case.setUpClass()
-report={'head':a.expected_sha,'fixture_only':True,'live_access':False,'browser_started':False,'cases':[],'blocked':[]}
+report={'head':a.expected_sha,'fixture_only':True,'live_access':False,'browser_started':False,'transport':'loopback-only HTTP; native redirects; synthetic Flask client session','cases':[],'blocked':[]}
 ORIGIN='https://fixture.invalid'
 def snapshot():
  return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
@@ -35,6 +35,13 @@ try:
     assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
+    from threading import Thread
+    threaded=[]
+    def check_thread():
+     try:threaded.append(case.client.get(target).status_code)
+     except BaseException as error:threaded.append(type(error).__name__)
+    thread=Thread(target=check_thread);thread.start();thread.join(timeout=10)
+    assert threaded==[200],threaded
     report['cases'].append({'role':role,'status':'preflight-passed'})
    finally:cleanup()
  else:
@@ -47,37 +54,58 @@ try:
     for width in (320,390,768,1316):
      for role in ('driver','manager'):
       target=setup();before=snapshot();ctx=browser.new_context(viewport={'width':width,'height':800},service_workers='block');requests=[];post_count=[0];errors=[]
+      # Use a bound loopback server so Chromium follows real HTTP 302s.
+      # Route interception alone does not intercept redirected requests.
+      from http.server import HTTPServer,BaseHTTPRequestHandler
+      from threading import Thread
+      class BridgeHandler(BaseHTTPRequestHandler):
+       def log_message(self,*args):pass
+       def do_GET(self):self.handle_fixture('GET')
+       def do_POST(self):self.handle_fixture('POST')
+       def handle_fixture(self,method):
+        try:
+         u=urlsplit(self.path);path=u.path;query=('?'+u.query if u.query else '')
+         assert not u.scheme and not u.netloc and '..' not in path.split('/')
+         if method=='POST':
+          length=int(self.headers.get('Content-Length','0'));assert 0<length<8192
+          assert self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded')
+          data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
+          assert path=='/demo/role' and set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
+          post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
+          assert res.status_code==302 and res.location=='/'
+         elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
+          if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
+          res=case.client.get(path+query)
+         else:raise AssertionError('GET outside synthetic allowlist')
+         if 300<=res.status_code<400:assert res.status_code==302 and res.location=='/'
+         requests.append({'method':method,'path':path,'status':res.status_code})
+         self.send_response(res.status_code)
+         for k,v in res.headers.items():
+          if k.lower() not in ('set-cookie','content-length','content-encoding','connection'):self.send_header(k,v)
+         self.send_header('Content-Length',str(len(res.data)));self.end_headers();self.wfile.write(res.data)
+        except BaseException as error:
+         report['blocked'].append(type(error).__name__+':'+str(error));self.send_response(500);self.end_headers()
+      server=HTTPServer(('127.0.0.1',0),BridgeHandler);server_thread=Thread(target=server.serve_forever,daemon=True);server_thread.start()
+      origin=f'http://127.0.0.1:{server.server_port}'
       def bridge(route):
-       req=route.request;u=urlsplit(req.url);path=u.path;query=('?'+u.query if u.query else '')
-       if u.scheme+'://'+u.netloc!=ORIGIN:
-        report['blocked'].append('external');route.abort();return
-       if req.method=='POST':
-        data=parse_qs(req.post_data or '',keep_blank_values=True)
-        if path!='/demo/role' or set(data)!={'role','csrf_token'} or data['role']!=[role] or len(data['csrf_token'])!=1 or post_count[0]:
-         report['blocked'].append('unexpected-post');route.abort();return
-        post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
-       elif req.method=='GET' and (path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/static/manifest.webmanifest') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/'))):
-        if path==urlsplit(target).path and parse_qs(u.query).get('vehicle_record_id')!=[str(case.vehicle_id)]:
-         report['blocked'].append('wrong-vehicle');route.abort();return
-        res=case.client.get(path+query)
-       else:
-        report['blocked'].append('unexpected-request');route.abort();return
-       requests.append({'method':req.method,'path':path,'status':res.status_code})
-       route.fulfill(status=res.status_code,headers={k:v for k,v in res.headers.items() if k.lower() not in ('set-cookie','content-length','content-encoding')},body=res.data)
+       u=urlsplit(route.request.url)
+       if u.scheme+'://'+u.netloc!=origin or route.request.method not in ('GET','POST'):
+        report['blocked'].append('external-or-method');route.abort();return
+       route.continue_()
       ctx.route('**/*',bridge)
       def reject_ws(ws):report['blocked'].append('websocket');ws.close()
       ctx.route_web_socket('**/*',reject_ws);page=ctx.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
       record={'width':width,'role':role,'status':'running'};report['cases'].append(record)
       try:
-       page.goto(ORIGIN+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
+       page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
        assert page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')==target
        page.screenshot(path=str(out/f'{width}-{role}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
-       page.wait_for_url(ORIGIN+'/');page.wait_for_load_state('networkidle')
+       page.wait_for_url(origin+'/');page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
        page.screenshot(path=str(out/f'{width}-{role}-home.png'),full_page=True)
-       page.goto(ORIGIN+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
+       page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
@@ -112,7 +140,7 @@ try:
        page.screenshot(path=str(out/f'{width}-{role}-detail.png'),full_page=True)
        page.locator('#detailModal .js-close-detail-modal').click();assert not page.locator('#detailModal').is_visible()
        assert snapshot()==before,'inspection data changed'
-       page.goto(ORIGIN+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
+       page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
        assert not errors,errors;assert not report['blocked'],report['blocked']
        record.update(status='passed',requests=requests,inspection_unchanged=True)
       except BaseException as error:
@@ -120,7 +148,7 @@ try:
        try:page.screenshot(path=str(out/f'{width}-{role}-FAILED.png'),full_page=True)
        except BaseException as capture:record['capture_error']=type(capture).__name__
        raise
-      finally:ctx.close();cleanup()
+      finally:ctx.close();server.shutdown();server.server_close();server_thread.join(timeout=5);cleanup()
    finally:browser.close()
 finally:
  case.tearDownClass();(out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
