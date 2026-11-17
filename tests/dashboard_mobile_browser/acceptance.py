@@ -59,7 +59,7 @@ try:
   report['browser_started']=True
   for role in ['checker','admin']:
    case.login(role)
-   for width,scale in [(w,1) for w in [320,390,600,601,768,1316]]+[(320,2),(390,2)]:
+   for width,scale in [(w,1) for w in [320,390,600,601,768,1250,1251,1316]]+[(320,2),(390,2)]:
     ctx=browser.new_context(viewport={'width':width,'height':568 if scale==2 else 740},service_workers='block')
     def bridge(route):
      req=route.request;u=urlsplit(req.url)
@@ -95,17 +95,31 @@ try:
       assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
      assert row.locator('.dashboard-reference-reason').inner_text().strip()
 
-    measure=page.evaluate('''()=>({overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
+    measure=page.evaluate('''()=>({safetyHeight:document.querySelector('.dashboard-safety-attention').getBoundingClientRect().height, overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
     if width>=1251:
      full=page.locator('.dashboard-home-layout').bounding_box();attention=page.locator('.dashboard-attention-list').bounding_box()
      assert attention['width']>=full['width']-2,(full,attention)
+     safety_rect=page.locator('.dashboard-safety-attention').bounding_box()
+     assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
     if width<=600:assert measure['direction']=='column',measure
+    for card in page.locator('.dashboard-safety-content').all():
+     if not card.is_visible():continue
+     context=card.locator(':scope > p');office=card.locator(':scope > small')
+     assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
+     assert '2026-11-19' in context.inner_text()
+     assert '写真と対策内容を確認' in context.inner_text()
+     assert '架空中央営業所' in office.inner_text()
+     if width>=1251:
+      title=card.locator('.dashboard-safety-opening').bounding_box();meta=office.bounding_box()
+      assert title['x']+title['width']<=meta['x']+1,('overlapping desktop safety metadata',title,meta)
     for disclosure in page.locator('.dashboard-safety-items > li .dashboard-safety-story').all():
      if not disclosure.is_visible():continue
      summary=disclosure.locator('summary');summary.focus();page.keyboard.press('Enter')
      assert disclosure.get_attribute('open') is not None
      assert disclosure.locator('a').is_visible()
+     assert '接触・負傷なし。' in disclosure.locator('a').inner_text()
+     card=disclosure.locator('..');assert card.locator(':scope > p').is_visible() and card.locator(':scope > small').is_visible()
     for loc in ['.public-demo-notice a','.public-demo-notice button','.dashboard-safety-items:first-of-type .dashboard-safety-content a','.dashboard-attention-table td a']:
      for e in page.locator(loc).all():
       if not e.is_visible():continue

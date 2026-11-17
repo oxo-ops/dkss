@@ -341,3 +341,55 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
         grid-column: 1 / -1;
     }
 }
+
+/* Desktop: two information rows instead of five stacked lines. Keep every
+   field and native full-text control; expand the full text across the row. */
+@media screen and (min-width: 1251px) {
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li {
+        padding: 8px 0;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-content {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(150px, 220px);
+        column-gap: 14px;
+        row-gap: 0;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-opening {
+        grid-column: 1;
+        grid-row: 1;
+        min-height: 32px;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story-toggle {
+        display: inline;
+        margin: 0 0 0 8px;
+        font-size: 11px;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-content > p {
+        grid-column: 1;
+        grid-row: 2;
+        margin: 0;
+        align-self: center;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-content > small {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: center;
+        text-align: right;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story {
+        grid-column: 2;
+        grid-row: 2;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story > summary {
+        min-height: 28px;
+        padding: 0;
+        line-height: 28px;
+        text-align: right;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story[open] {
+        grid-column: 1 / -1;
+        grid-row: 3;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story[open] > summary { text-align: left; }
+}
