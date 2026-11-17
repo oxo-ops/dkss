@@ -3,7 +3,7 @@
   "files": {
     ".github/workflows/demo-previous-day-browser.yml": "8048df16bb0a916871c4e56f248dc99b227f404a682e9c29b1f95763c3d519ff",
     "tests/demo_previous_day_browser/test_demo_seed_share.py": "6067e9e730a82a2f369d72d2c1ed590ec559c0f66c95f717bba4816f70091d5b",
-    "tests/demo_previous_day_browser/acceptance.py": "9a0722375c49d8a68881b83bde66fb52bfc31be07eb407626542d5f425210320",
+    "tests/demo_previous_day_browser/acceptance.py": "f6bb6eeb630cd32bf629f4cff683c1af79c9f4b737dc5b0992e6ae235ae5862e",
     "tests/demo_previous_day_browser/preflight.py": "ac857960892ef46dd6c66d70cd0eb845c53f7e49cc9e79607435846483c32437",
     "tests/demo_previous_day_browser/README.md": "0fa254750d37bd998d8a91857d03d3c97e1faf573cefddb95b7f1809e3fa6d1a",
     "tests/demo_previous_day_browser/candidate.patch": "84d5221355206330159d49f77200d888cefc96304fb18780c5efaa8215f59eee",

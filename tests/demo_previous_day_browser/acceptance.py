@@ -18,11 +18,13 @@ from test_demo_seed_share import SeedShare
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
 c=SeedShare();c.setUpClass();c.setUp();c.clock=datetime.now(ZoneInfo('Asia/Tokyo'))
-c.app.config['PUBLIC_DEMO_UNTIL']=int(time.time())+86400*100
+c.app.config['PUBLIC_DEMO_UNTIL']=int(time.time())+86400*370
+from unittest.mock import patch
+view_clock=patch('dkss_app.checklist_common.get_user_local_now',side_effect=lambda *args,**kwargs:c.clock);view_clock.start()
 
 report={'overall':'incomplete','tested_head':a.expected_sha,'synthetic_only':True,'browser_started':False,'blocked':[],'posts':[],'checks':[]}
 try:
- target=f'/vehicle/checklists/{c.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}?vehicle_record_id={c.vehicle_id}&year={c.clock.year}&month={c.clock.month}&active_day={c.clock.day}&__aonagi_entry=1'
+ target=f'/vehicle/checklists/{c.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}?vehicle_record_id={c.vehicle_id}&year={c.clock.year}&month={c.clock.month}&active_day={c.clock.day:02}&__aonagi_entry=1'
  before=[(x.id,x.answers_json,x.operation_judgment_json) for x in c.models.VehicleChecklistResult.query.all()]
  def snapshot():return [(x.id,x.answers_json,x.operation_judgment_json) for x in c.models.VehicleChecklistResult.query.all()]
  # A cookie managed by an unrelated visitor must never replace ordinary identity.
@@ -83,7 +85,7 @@ try:
      year_first=current.replace(year=current.year+1,month=1,day=1)
      for scenario,clock in [('ordinary',current),('month-first',month_first),('year-first',year_first)]:
       c.clock=clock;previous=(clock-timedelta(days=1)).date()
-      target=f'/vehicle/checklists/{c.target.checklist}?vehicle_record_id={c.target.vehicle}&year={clock.year}&month={clock.month}&active_day={clock.day}&__aonagi_entry=1'
+      target=f'/vehicle/checklists/{c.target.checklist}?vehicle_record_id={c.target.vehicle}&year={clock.year}&month={clock.month}&active_day={clock.day:02}&__aonagi_entry=1'
       for width in (320,390,768,1280):
        one=browser.new_context(viewport={'width':width,'height':844},service_workers='block');two=browser.new_context(viewport={'width':width,'height':844},service_workers='block');contexts.extend([one,two])
        def reject_ws(ws):report['blocked'].append('websocket');ws.close()
@@ -141,4 +143,4 @@ try:
 except BaseException as error:
  report['overall']='failed';report['failure_class']=type(error).__name__;raise
 finally:
- c.tearDown();c.doCleanups();c.tearDownClass();(out/'report.json').write_text(json.dumps(report,indent=2,ensure_ascii=False))
+ view_clock.stop();c.tearDown();c.doCleanups();c.tearDownClass();(out/'report.json').write_text(json.dumps(report,indent=2,ensure_ascii=False))
