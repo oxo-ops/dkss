@@ -73,7 +73,14 @@ class PG(Base):
     token=html.unescape(re.search(r'name="csrf_token" value="([^"]+)"',page.get_data(as_text=True))[1])
     pid=self.db.session.execute(text('SELECT pg_backend_pid()')).scalar();barrier.wait(timeout=30)
     response=client.post(f'/vehicle/checklists/{self.target.checklist}/save-one',data={**params,'day':f'{day.day:02}','item_no':'0','value':'×','csrf_token':token})
-    try:self.assertEqual(response.status_code,200);return pid
+    try:
+     self.assertEqual(response.status_code,302)
+     from urllib.parse import urlsplit,parse_qs
+     destination=urlsplit(response.headers.get('Location',''))
+     self.assertEqual(destination.path,f'/vehicle/checklists/{self.target.checklist}')
+     self.assertFalse(destination.netloc)
+     self.assertEqual(parse_qs(destination.query),{'vehicle_record_id':[str(self.target.vehicle)],'year':[str(day.year)],'month':[f'{day.month:02}'],'active_day':[f'{day.day:02}']})
+     return pid
     finally:self.db.session.remove()
   try:
    with ThreadPoolExecutor(max_workers=2) as pool:
