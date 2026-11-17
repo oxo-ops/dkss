@@ -48,7 +48,7 @@ try:
   assert html.count('class="dashboard-safety-content"')==4
   assert 'dashboard_mobile_refinement.css?v=20261117-mobile-cards-1' in html
   assert '架空部品5' in html
-  assert '実在する人の個人情報や実際の業務資料は入れないでください' in html
+  assert '個人情報や実際の業務資料は入力しないでください' in html
  if args.preflight_only:
   report['preflight_passed']=True
   sys.exit(0)
