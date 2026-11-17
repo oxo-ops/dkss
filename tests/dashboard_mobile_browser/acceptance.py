@@ -90,6 +90,11 @@ try:
     page.locator('.dashboard-attention-panel').first.scroll_into_view_if_needed();page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-proposals.png'))
     assert page.locator('.dashboard-attention-preview tbody tr').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
+    for row in page.locator('.dashboard-attention-preview tbody tr').all():
+     for selector in ['.dashboard-reference-reason','td:nth-child(3)','td:nth-child(4)']:
+      assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
+     assert row.locator('.dashboard-reference-reason').inner_text().strip()
+
     measure=page.evaluate('''()=>({overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
     if width<=600:assert measure['direction']=='column',measure
