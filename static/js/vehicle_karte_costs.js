@@ -23,8 +23,20 @@
     };
 
     const format = (value) => value.toLocaleString("ja-JP", {
-        maximumFractionDigits: 0
+        maximumFractionDigits: 2
     });
+
+    // Keep full amounts in aria labels and the adjacent numeric tables.
+    // Only labels that exceed their available drawing area use approximate units.
+    function fittedAmount(context, value, maxWidth) {
+        const full = format(value);
+        if (context.measureText(full).width <= maxWidth) return full;
+        const compact = "約" + value.toLocaleString("ja-JP", {
+            notation: "compact", maximumFractionDigits: 2
+        });
+        if (context.measureText(compact).width <= maxWidth) return compact;
+        return "約" + value.toExponential(1);
+    }
 
     function prepare(canvas, width, height) {
         const context = canvas.getContext("2d");
@@ -78,9 +90,10 @@
         const span = maximum - minimum || 1;
         const rawStep = span / 4;
         const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-        const step = Math.ceil(rawStep / magnitude) * magnitude;
+        const tinyCurrencySpan = span < 0.04;
+        const step = tinyCurrencySpan ? 0.01 : Math.ceil(rawStep / magnitude) * magnitude;
         const low = Math.floor(minimum / step) * step;
-        const high = Math.max(low + step, Math.ceil(maximum / step) * step);
+        const high = Math.max(low + (tinyCurrencySpan ? 4 : 1) * step, Math.ceil(maximum / step) * step);
         const y = (value) => bottom - (value - low) / (high - low) * (bottom - top);
         const zero = y(0);
 
@@ -98,7 +111,7 @@
             context.stroke();
 
             context.fillStyle = "#64748b";
-            context.fillText(format(value), left - 6, position);
+            context.fillText(fittedAmount(context, value, left - 10), left - 6, position);
         }
 
         context.textAlign = "left";
@@ -135,7 +148,7 @@
                 context.fillStyle = "#36557c";
                 context.textBaseline = value < 0 ? "top" : "bottom";
                 context.fillText(
-                    format(value),
+                    fittedAmount(context, value, Math.max(24, slot - 6)),
                     center,
                     value < 0 ? position + 4 : position - 4
                 );
@@ -180,7 +193,7 @@
         context.fillText("累計", 55, 45);
         context.fillStyle = "#203b60";
         context.font = "bold 12px sans-serif";
-        context.fillText(format(total), 55, 61);
+        context.fillText(fittedAmount(context, total, 60), 55, 61);
         context.font = "10px sans-serif";
         context.fillText("円", 55, 75);
         canvas.setAttribute("aria-label", `累計整備費 ${format(total)}円`);

@@ -378,19 +378,24 @@ def register_driving_reports(app, db, g):
     @app.route('/safety/driving-reports/<int:record_id>/review',methods=['POST'])
     def driving_report_review(record_id):
         row=target(record_id,True);old_json=row.details_json
-        if request.form.get('version')!=version(row):abort(409,'記録が更新されました。再表示してください。')
+        def rejected(status,message):
+            fields=(('state','確認状況'),('assignee','確認担当'),('next_date','次回確認日'),('outcome','前後比較の確認結果'),('comparison_note','比較条件と根拠'),('note','確認・指導内容'),('action','改善する行動'),('driver_explanation','乗務員の説明'))
+            submitted={key:request.form.get(key,'') for key,label in fields}
+            return render_template('driving_review_rejected.html',message=message,fields=fields,submitted=submitted,saved=payload(row).get('review') or {},detail_url=url_for('driving_report_detail',record_id=row.id)),status,{'Cache-Control':'no-store'}
+        if request.form.get('version')!=version(row):return rejected(409,'別の保存により記録が更新されています。この送信は保存していません。')
         state=request.form.get('state','');note=request.form.get('note','').strip();next_date=request.form.get('next_date','');assignee=request.form.get('assignee','')
         review=payload(row).get('review') or {}
         action=request.form.get('action',review.get('action','')).strip()
         explanation=request.form.get('driver_explanation',review.get('driver_explanation','')).strip()
         outcome=request.form.get('outcome',review.get('outcome','')).strip()
         comparison_note=request.form.get('comparison_note',review.get('comparison_note','')).strip()
-        if state not in STATES or outcome not in OUTCOMES or max(len(note),len(action),len(explanation),len(comparison_note))>5000:abort(400)
-        if outcome=='improved' and not comparison_note:abort(400,'改善を確認した比較条件と根拠を入力してください。')
+        if state not in STATES or outcome not in OUTCOMES or max(len(note),len(action),len(explanation),len(comparison_note))>5000:return rejected(400,'入力内容を確認してください。日付・選択肢・文字数に誤りがあります。')
+        if outcome=='improved' and not comparison_note:return rejected(400,'改善を確認した比較条件と根拠を入力してください。')
         if next_date:
             try:date.fromisoformat(next_date)
-            except ValueError:abort(400)
-        if assignee and not g['User'].query.filter_by(company_code=row.company_code,username=assignee,role='admin').first():abort(400)
+            except ValueError:return rejected(400,'入力内容を確認してください。日付・選択肢・文字数に誤りがあります。')
+        if assignee and not g['User'].query.filter_by(company_code=row.company_code,username=assignee,role='admin').first():return rejected(400,'入力内容を確認してください。日付・選択肢・文字数に誤りがあります。')
+        if len(payload(row).get('audit',[]))>=1000:return rejected(409,'変更履歴の保存上限です。管理者へ確認してください。')
         p=change(row,'review',{'before':payload(row).get('review'), 'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation,'outcome':outcome,'comparison_note':comparison_note})
         previous=p.get('review') or {};p['review']={'state':state,'note':note,'next_date':next_date,'assignee':assignee,'action':action,'driver_explanation':explanation,'outcome':outcome,'comparison_note':comparison_note,'by':session['username'],'at':p['audit'][-1]['at']}
         # A deliberate assignment requests review of a past report; repeated saves do not re-notify.
@@ -398,7 +403,16 @@ def register_driving_reports(app, db, g):
             user=g['User'].query.filter_by(company_code=row.company_code,username=assignee).one()
             db.session.add(g['Notification'](company_code=row.company_code,target_user=(str(user.last_name or '')+str(user.first_name or '')) or assignee,target_username=assignee,title='取り込んだ運転日報の確認依頼',message=(row.operation_date or '日付不明')+'の過去日報を確認してください。',link=url_for('driving_report_detail',record_id=row.id),created_at=datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')))
         row.details_json=json.dumps(p,ensure_ascii=False)
-        persist(row,old_json);return redirect(url_for('driving_report_detail',record_id=row.id,return_to=report_return()))
+        from werkzeug.exceptions import Conflict
+        try:
+            persist(row,old_json)
+        except Conflict:
+            row=target(record_id,True)
+            return rejected(409,'別の保存により記録が更新されています。この送信は保存していません。')
+        destination=url_for('driving_report_detail',record_id=row.id,return_to=report_return())
+        if request.headers.get('X-DKSS-Review-Inplace') == '1':
+            return {'saved':True,'detail_url':destination},200,{'Cache-Control':'no-store','X-DKSS-Review-Saved':'1'}
+        return redirect(destination)
     @app.route('/safety/driving-reports/<int:record_id>/reconcile',methods=['POST'])
     def driving_report_reconcile(record_id):
         row=target(record_id,True);old_json=row.details_json

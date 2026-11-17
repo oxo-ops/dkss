@@ -1,0 +1,57 @@
+name: Driving Review Inplace Synthetic Browser
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'driving_report_management.py'
+      - 'templates/driving_report_detail.html'
+      - 'templates/driving_review_rejected.html'
+      - 'static/js/driving_report_detail.js'
+      - 'tests/driving_review_browser/**'
+      - 'static/js/base.js'
+      - 'templates/base.html'
+      - 'tests/history_presentation_browser/guard/**'
+      - 'tests/test_driving_report_management.py'
+      - 'tests/test_workflow_regressions.py'
+      - 'tests/application_fixture.py'
+      - 'tests/identity_fixture.py'
+      - 'driving_report_data.py'
+      - 'dkss_app/http.py'
+      - 'dkss_app/access.py'
+      - 'requirements.txt'
+      - '.github/workflows/driving-review-inplace-browser.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-browser:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install isolated pinned browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Run only synthetic read/write fixture
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/browser-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          bash tests/driving_review_browser/fixture/run-browser-isolated.sh \
+            "$GITHUB_WORKSPACE" "$PY" "$EXPECTED_HEAD" "$CHROMIUM" "$RUNNER_TEMP/driving-review-results"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: driving-review-synthetic-results
+          path: ${{ runner.temp }}/driving-review-results/
+          retention-days: 7
