@@ -21,10 +21,21 @@ def click_target(page, control, label):
       const pad=Math.min(3,r.width/4,r.height/4);
       const points=[[r.x+r.width/2,r.y+r.height/2],[r.left+pad,r.top+pad],
         [r.right-pad,r.top+pad],[r.left+pad,r.bottom-pad],[r.right-pad,r.bottom-pad]];
+      const describe=h=>h?{tag:h.tagName,id:h.id,cls:h.className,text:h.textContent.slice(0,120)}:null;
+      const hit=([x,y])=>{const h=document.elementFromPoint(x,y);return {x,y,target:e===h||e.contains(h),hit:describe(h)}};
+      const rect=q=>({x:q.x,y:q.y,width:q.width,height:q.height});
       return {inside:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,
-        hits:points.map(([x,y])=>{const h=document.elementFromPoint(x,y);return e===h||e.contains(h)}),
-        rect:{x:r.x,y:r.y,width:r.width,height:r.height}}}""")
-    require(geometry['inside'] and all(geometry['hits']), f'obscured/outside {label}: {geometry}')
+        hits:points.map(p=>hit(p).target),hitDetails:points.map(hit),
+        clientRects:Array.from(e.getClientRects()).map(rect),
+        fragmentCenters:Array.from(e.getClientRects()).map(q=>hit([q.x+q.width/2,q.y+q.height/2])),
+        rect:rect(r),display:getComputedStyle(e).display}}""")
+    if not (geometry['inside'] and all(geometry['hits'])):
+        # Keep original acceptance gate. First collect evidence; no blind weakening.
+        out=Path(os.environ['DKSS_BROWSER_ARTIFACT_DIR'])
+        page.screenshot(path=str(out/'failure.png'),full_page=False)
+        (out/'failure.json').write_text(json.dumps(dict(label=label,url=page.url,
+            viewport=page.viewport_size,geometry=geometry),ensure_ascii=False,indent=2))
+        raise AssertionError(f'obscured/outside {label}: {geometry}')
     count=page.evaluate('window.__demoClickCount||0')
     control.click(timeout=3000)
     require(page.evaluate('window.__demoClick') == label, f'wrong click: {label}')
@@ -63,6 +74,7 @@ def main():
     require(sha == args.expected_sha, 'wrong exact head')
     require(not subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain'], text=True).strip(), 'dirty source')
     out.mkdir(parents=True, exist_ok=True)
+    os.environ["DKSS_BROWSER_ARTIFACT_DIR"]=str(out)
     os.chdir(repo)
     sys.path[:0] = [str(repo), str(repo / 'tests')]
     from test_public_demo_workflow import DemoWorkflowTests
