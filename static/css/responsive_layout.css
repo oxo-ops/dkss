@@ -194,3 +194,12 @@
     body[data-responsive-shell] .notify-user-selector.reminder-readonly > .selected-vehicle-tags {order:0; margin:8px 0 0;}
     body[data-responsive-shell] .notify-user-selector.reminder-readonly > .help-text {order:0; margin:8px 0 0; line-height:1.6;}
 }
+
+/* Shared demo controls follow the header on desktop too. Ordinary sessions keep
+   their page-specific absolute header; mobile retains the sticky header above. */
+@media screen and (min-width:901px) {
+    body[data-responsive-shell] .main-content:has(> .public-demo-notice) > .top-bar {
+        position:relative !important; top:auto !important; right:auto !important;
+        margin:0 0 12px !important; min-block-size:56px;
+    }
+}
