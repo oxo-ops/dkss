@@ -53,6 +53,26 @@ class DemoWorkflowTests(Base):
         self.db.session.refresh(self.row)
         self.assertEqual(self.row.status,'承認待ち')
         return self.row
+    def test_shared_demo_notice_is_concise_and_consistent_on_existing_pages(self):
+        from test_dashboard_saved_proposals import Document
+        self.app.config['PUBLIC_DEMO_SHARED_COMPANY'] = True
+        self.addCleanup(self.app.config.pop, 'PUBLIC_DEMO_SHARED_COMPANY', None)
+        self.login('checker')
+        notes = []
+        for path in ('/', '/vehicle/checklists', '/safety/driving-reports'):
+            response = self.request('GET', path, follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+            root = Document(response.get_data(as_text=True)).root
+            notice = root.find(cls='public-demo-notice')[0].text
+            self.assertNotIn('架空', notice)
+            for text in ['他の利用者にも見えます', '個人情報や実際の業務資料は入力しない', '外部送信されません']:
+                self.assertIn(text, notice)
+            notes.append(notice)
+        self.assertEqual(len(set(notes)), 1)
+        self.demo_active = False;self.login('checker')
+        root = Document(self.request('GET', '/').get_data(as_text=True)).root
+        self.assertFalse(root.find(cls='public-demo-notice'))
+
     def test_demo_actions_follow_mobile_navigation_inside_main(self):
         # The menu is fixed at the viewport top. The demo notice must not
         # precede the shell: only content below its opaque sticky top bar

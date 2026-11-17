@@ -64,7 +64,7 @@ def bell_roundtrip(page):
 
 def notice_text_visibility(page):
     """Read every rendered line of the exact direct banner text, not its controls."""
-    expected = '青凪ロジスティクスの架空データを使う共有体験です。入力は架空の内容だけにし、実在する人の個人情報や実際の業務資料は入れないでください。入力・変更は他の利用者にも見えます。実メール・端末通知は送信しません。'
+    expected = '共有のお試し画面です。入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。'
     notice = page.locator('.public-demo-notice')
     locate = """(e, expected) => {
       const matches=Array.from(e.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim()===expected);
