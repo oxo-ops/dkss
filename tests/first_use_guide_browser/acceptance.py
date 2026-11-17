@@ -38,6 +38,7 @@ with sync_playwright() as p:
    assert page.locator('#draft').input_value()=='未保存の入力'
    if role=='admin':assert page.locator('[data-guide-title]').inner_text()=='ほかの画面へ'
    def bounds():
+    page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
     b=panel.bounding_box();assert b and b['x']>=0 and b['y']>=0 and b['x']+b['width']<=page.viewport_size['width']+1
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
    bounds();page.screenshot(path=str(OUT/f'{role}-{width}-initial.png'),full_page=False)
@@ -46,7 +47,7 @@ with sync_playwright() as p:
    page.locator('[data-guide-open]').click();assert page.locator('[data-guide-close]').evaluate('(e)=>e===document.activeElement')
    page.keyboard.press('Escape');assert not panel.is_visible();assert page.locator('[data-guide-open]').evaluate('(e)=>e===document.activeElement')
    page.locator('[data-guide-open]').click();page.set_viewport_size({'width':844,'height':390});bounds()
-   page.evaluate('window.scrollTo(0,100)');bounds()
+   page.evaluate('window.scrollTo(0,100)');page.screenshot(path=str(OUT/f'{role}-{width}-landscape-scroll.png'));bounds()
    page.locator('[data-guide-close]').click();page.set_viewport_size({'width':width,'height':844})
    page.goto('https://fixture.invalid/?page=vehicle_checklist_results');panel.wait_for(state='visible')
    page.locator('[data-guide-next]').click();assert '詳細' in page.locator('[data-guide-title]').inner_text()

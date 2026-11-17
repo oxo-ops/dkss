@@ -46,7 +46,8 @@
     if(!visible(active)){close(false);return;}
     const r=active.getBoundingClientRect(), h=panel.offsetHeight, w=panel.offsetWidth;
     const above=r.top-h-12, below=r.bottom+12;
-    const top=below+h<=innerHeight-12?below:above>=12?above:Math.max(12,innerHeight-h-12);
+    const preferred=below>=12 && below+h<=innerHeight-12?below:above>=12?above:innerHeight-h-12;
+    const top=Math.max(12,Math.min(Math.max(12,innerHeight-h-12),preferred));
     panel.style.top=top+'px';panel.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left))+'px';
   }
   function show(){
