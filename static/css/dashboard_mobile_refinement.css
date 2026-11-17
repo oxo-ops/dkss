@@ -393,3 +393,76 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
     }
     body .dashboard-page.dashboard-design-v2 .dashboard-safety-story[open] > summary { text-align: left; }
 }
+
+/* Home is a scan list, with complete source and evidence on existing detail routes. */
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-content {
+    display: block;
+    flex: 1;
+}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li { padding: 10px 0; }
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-opening {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-story-title,
+body .dashboard-page.dashboard-design-v2 .dashboard-reference-target,
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-action {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.5;
+}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-content > small {
+    display: block;
+    text-align: left;
+    font-size: 11px;
+    color: #61748b;
+}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-next { margin: 2px 0; }
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-next time { white-space: nowrap; }
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-priority-note {
+    display: inline;
+    margin-left: 4px;
+    font-size: 10px;
+    font-weight: 400;
+}
+@media screen and (max-width:600px) {
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-state { padding: 4px 5px; font-size:10px; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li { gap:7px; flex-direction:row; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-story-title { font-size:14px; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-safety-next { font-size:11px; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:first-child > a { min-height:44px; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:last-child { grid-column:2; grid-row:3; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:nth-child(4) { grid-column:1; grid-row:4; }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:last-child > a { min-height:44px; }
+}
+
+/* Keep the two existing home controls on one row, without changing their form. */
+@media screen and (max-width:768px) {
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm:not([hidden]) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: end;
+        gap: 8px;
+        width: 100%;
+        min-width: 0;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm .dashboard-filter-fields,
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm .dashboard-filter-field {
+        min-width: 0;
+        width: 100%;
+        flex-shrink: 1;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm .dashboard-filter-select,
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm .dashboard-display-trigger {
+        min-width: 0;
+        width: 100%;
+        min-height: 44px;
+        box-sizing: border-box;
+        font-size: 1rem;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-header #dashboardFilterForm .dashboard-display-control { min-width:0; }
+}

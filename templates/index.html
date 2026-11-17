@@ -9,7 +9,7 @@
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-mobile-cards-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-home-succinct-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -387,7 +387,7 @@
                 <thead>
                     <tr>
                         <th scope="col">車両・箇所</th>
-                        <th scope="col">次の対応・理由</th>
+                        <th scope="col">次の対応</th>
                         <th scope="col">目安</th>
                         <th scope="col">状態</th>
                         <th scope="col"><span class="dashboard-attention-detail-heading">詳細</span></th>
@@ -402,16 +402,15 @@
                                 {% if item.priority in ['高', '中', '低'] %}
                                 {% set assessment = item.get('priority_assessment') %}
                                 <span class="dashboard-attention-priority" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %}、{{ assessment.effective_score }}点{% endif %}">{{ item.priority }}{% if assessment and assessment.calculation_status == 'computed' %} · {{ assessment.effective_score }}点{% endif %}</span>
-                                <small class="dashboard-priority-note">{% if assessment and assessment.calculation_status == 'computed' %}{% if item.priority == '高' %}責任者・整備担当者の判断を優先{% if assessment.missing_conditions %}／要確認{% endif %}{% else %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% endif %}{% else %}保存版・算定根拠を確認{% endif %}</small>
+                                <small class="dashboard-priority-note">{% if assessment and assessment.calculation_status == 'computed' %}{% if item.priority == '高' %}責任者・整備担当者の判断を優先{% if assessment.missing_conditions %}／要確認{% endif %}{% else %}{{ '要確認' if assessment.missing_conditions else '試行値' }}{% endif %}{% else %}{{ '前回評価' if assessment and assessment.calculation_status == 'legacy_preserved' else '保存結果' }}{% endif %}</small>
                                 {% else %}
-                                <small class="dashboard-priority-note">優先度の元データを確認してください。</small>
+                                <small class="dashboard-priority-note">優先度未確認</small>
                                 {% endif %}
-                                {{ item.target or item.title }}
+                                <span class="dashboard-reference-target">{{ item.target or item.title }}</span>
                             </strong>
                         </td>
                         <td>
                             <strong class="dashboard-reference-action" title="{{ item.action }}">{{ item.action }}</strong>
-                            <small class="dashboard-reference-reason" title="{{ item.reason }}">{{ item.reason }}</small>
                         </td>
                         <td>
                             <p>{{ item.timing or '時期の判断材料不足' }}</p>
@@ -423,7 +422,7 @@
                             </span>
                         </td>
                         <td>
-                            <a href="{{ item.url }}{% if item.get('proposal_id') %}#proposal={{ item.proposal_id }}{% endif %}" aria-label="{{ item.vehicle_number }}：{{ item.action }}の根拠・対応">根拠・対応</a>
+                            <a href="{{ item.url }}{% if item.get('proposal_id') %}#proposal={{ item.proposal_id }}{% endif %}" aria-label="{{ item.vehicle_number }}：{{ item.action }}の根拠・対応">詳細</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -449,7 +448,6 @@
                 <span>{{ maintenance|length }}件</span>
                 {% set evaluation_scope = namespace(previous=false) %}
                 {% for item in maintenance %}{% if (item.get('priority_assessment') or {}).get('calculation_status') == 'legacy_preserved' %}{% set evaluation_scope.previous = true %}{% endif %}{% endfor %}
-                {% if evaluation_scope.previous %}<small class="dashboard-priority-note">前回評価を含む</small>{% endif %}
                 {% if maintenance|length > attention_preview_limit %}
                 <button type="button" class="dashboard-attention-view-all"
                         data-reference-target="#dashboard-attention-more-{{ key }}"
@@ -491,7 +489,7 @@
 
             {% if checks or group.missing or group.insufficient %}
             <details class="dashboard-attention-records">
-                <summary>記録の確認・分析状況を見る</summary>
+                <summary>分析状況</summary>
                 {% for item in checks %}
                 <article class="dashboard-attention-item">
                     <a href="{{ item.url }}">{{ item.vehicle_number }} · {{ item.title }}</a>

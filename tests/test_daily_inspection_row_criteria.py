@@ -49,7 +49,7 @@ class CriteriaTests(unittest.TestCase):
  def test_raw_saved_criteria_stays_separate(self):
   template=(ROOT/'templates/vehicle_checklist_results.html').read_text()
   self.env.get_template('vehicle_checklist_results.html')
-  self.assertEqual(template.count("data-criteria=\"{{ (item.criteria or '')|e }}\""),3)
+  self.assertEqual(template.count("data-criteria=\"{{ (item.criteria or '')|e }}\""),2)
   script=(ROOT/'static/js/vehicle_checklist_results.js').read_text()
   self.assertIn('criteriaDisplay || "未設定"',script)
   self.assertRegex(script,r'detailCriteria"\s*\)\.value\s*=\s*criteria')

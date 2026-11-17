@@ -52,7 +52,7 @@ class DashboardSafetyAttentionTests(unittest.TestCase):
         self.assertIn('車両管理：AIの整備提案', region.text)
         self.assertIn('対策確認待ち', region.text)
         self.assertIn('2026-11-20', region.text)
-        self.assertIn('全期間', region.text)  # Old unresolved records must not vanish.
+        self.assertIn('写真と対策の確認対象', region.text)  # Unresolved record remains visible without scope prose.
         href = region.find(cls='dashboard-safety-content')[0].find(tag='a')[0].attrs['href']
         self.assertEqual(href, f'/pointouts/{row.id}')
         detail = self.client.get(href)

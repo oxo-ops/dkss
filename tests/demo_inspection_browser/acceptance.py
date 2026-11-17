@@ -35,6 +35,30 @@ try:
     assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
+    from html.parser import HTMLParser
+    class Controls(HTMLParser):
+     def __init__(self):super().__init__();self.stack=[];self.buttons=[];self.files=[];self.forms=[]
+     def handle_starttag(self,tag,attrs):
+      at=dict(attrs);cl=at.get('class','').split()
+      assert not {'mobile-detail-cell','mobile-detail-header','desktop-detail-button'}.intersection(cl)
+      if 'inspection-item-detail' in cl:
+       assert tag=='button' and at['type']=='button' and at['aria-controls']=='detailModal'
+       assert not any(t=='form' for t,_ in self.stack)
+       assert self.stack[-1][0]=='td' and self.stack[-1][1].get('class')=='fixed-item'
+       assert at.get('data-day');self.buttons.append(at)
+      if tag=='form':self.forms.append(at)
+      if tag=='input' and at.get('type')=='file':self.files.append(at)
+      if tag not in {'input','br','img','meta','link','hr','source','wbr'}:self.stack.append((tag,at))
+     def handle_endtag(self,tag):
+      for index in range(len(self.stack)-1,-1,-1):
+       if self.stack[index][0]==tag:self.stack=self.stack[:index];break
+    parsed=Controls();parsed.feed(text)
+    assert len(parsed.buttons)==29
+    assert any(f.get('enctype')=='multipart/form-data' and f.get('action','').endswith('/save-detail') for f in parsed.forms)
+    assert any(f.get('capture')=='environment' for f in parsed.files)
+    assert any('multiple' in f for f in parsed.files)
+    assert '<label>写真・ファイル</label>' not in text
+    assert 'file-upload-button-camera' in text and 'file-upload-button-secondary' in text
     from threading import Thread
     threaded=[]
     def check_thread():
@@ -124,19 +148,37 @@ try:
        if width<=768:
         cells=table.locator('.fixed-item');visible=[c for c in cells.all() if c.is_visible()];assert visible
         row=next(c.locator('..') for c in visible if 'エンジンのかかり具合' in c.inner_text())
-        boxes={k:row.locator(sel).bounding_box() for k,sel in [('item','.fixed-item'),('category','.fixed-category'),('current','.mobile-current-date'),('detail','.mobile-detail-cell')]}
+        boxes={k:row.locator(sel).bounding_box() for k,sel in [('item','.fixed-item'),('category','.fixed-category'),('current','.mobile-current-date')]}
         assert boxes['item']['width']>boxes['current']['width'],boxes
         choices=row.locator('.mobile-current-date .check-choice-button');assert choices.count()==2
         for control in choices.all():
          b=control.bounding_box();assert b['width']>=35.5 and b['height']>=43.5,b
-        detail=row.locator('.mobile-detail-cell .js-open-detail')
+        detail=row.locator('.inspection-item-detail')
         assert all(b['width']>=43.5 and b['height']>=43.5 for b in [detail.bounding_box()])
         for d in table.locator('th.mobile-current-date .mobile-date-label').all():
-         if d.is_visible():assert d.inner_text().strip().isdigit(),d.inner_text()
+         if d.is_visible():assert d.inner_text().strip().endswith('日') and d.inner_text().strip()[:-1].isdigit(),d.inner_text()
         record['columns']=boxes
-       else:detail=next(x for x in table.locator('.desktop-detail-button').all() if x.is_visible())
+       else:detail=next(x for x in table.locator('.inspection-item-detail').all() if x.is_visible())
        page.screenshot(path=str(out/f'{width}-{role}-inspection.png'),full_page=True)
+       assert table.locator('.mobile-detail-cell, .mobile-detail-header, .desktop-detail-button').count()==0
+       assert detail.get_attribute('type')=='button' and detail.locator('xpath=ancestor::form').count()==0
+       assert detail.evaluate('(e)=>getComputedStyle(e).textDecorationLine').find('underline')>=0
+       detail.focus();detail.press('Enter');assert page.locator('#detailModal').is_visible()
+       page.locator('#detailModal .js-close-detail-modal').click()
+       detail.focus();detail.press('Space');assert page.locator('#detailModal').is_visible()
+       page.locator('#detailModal .js-close-detail-modal').click()
        detail.click();assert page.locator('#detailModal').is_visible();assert page.locator('#detailTitle').inner_text().strip()
+       modal=page.locator('#detailModal')
+       save=modal.get_by_role('button',name='保存',exact=True);close=modal.get_by_role('button',name='閉じる',exact=True)
+       sb=save.bounding_box();cb=close.bounding_box()
+       assert abs(sb['width']-cb['width'])<1 and abs(sb['height']-cb['height'])<1 and sb['height']>=44,(sb,cb)
+       for control in modal.locator('.file-upload-button').all():
+        box=control.bounding_box();assert box['height']>=44
+        assert control.evaluate('(e)=>getComputedStyle(e).borderRadius')==save.evaluate('(e)=>getComputedStyle(e).borderRadius')
+       assert save.is_enabled()
+       assert modal.locator('input[type=file][capture=environment]').count()==1
+       assert modal.locator('input[type=file][multiple]').count()==1
+       assert modal.locator('form').get_attribute('action').endswith('/save-detail')
        page.screenshot(path=str(out/f'{width}-{role}-detail.png'),full_page=True)
        page.locator('#detailModal .js-close-detail-modal').click();assert not page.locator('#detailModal').is_visible()
        expected_conditions={

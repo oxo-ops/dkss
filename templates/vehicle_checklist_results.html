@@ -3,7 +3,7 @@
 {% block title %}車両チェック結果{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-3') }}">
 {% endblock %}
 
 {% block content %}
@@ -377,11 +377,11 @@
                     {% if day_text == active_day %}mobile-current-date{% endif %}"
                     data-day="{{ day_text }}"
                 >
-                    <span class="desktop-date-label">{{ d }}</span>
+                    <span class="desktop-date-label">{{ d }}{{ '日' if display_mode == 'day_list' else '' }}</span>
 
-                    <span class="mobile-date-label"{% if display_mode == "day_list" %} aria-label="{{ year }}年{{ month|int }}月{{ d }}"{% endif %}>
+                    <span class="mobile-date-label"{% if display_mode == "day_list" %} aria-label="{{ year }}年{{ month|int }}月{{ d }}日"{% endif %}>
                         {% if display_mode == "day_list" %}
-                            {{ d }}
+                            {{ d }}日
                         {% elif display_mode == "month_list" %}
                             {{ d }}月
                         {% else %}
@@ -391,7 +391,7 @@
                 </th>
                 {% endfor %}
 
-                <th class="mobile-detail-header"></th>
+                
             </tr>
 
             <tr class="mobile-secondary-header-row">
@@ -415,9 +415,7 @@
                 </th>
                 {% endfor %}
 
-                <th class="mobile-detail-header">
-                    詳細
-                </th>
+                
             </tr>
 
             {% set approval_ns = namespace(index=-1) %}
@@ -450,16 +448,6 @@
                     {% endif %}
                 </td>
 
-                <td class="fixed-item">
-                    {% if item.item_type == "inspector" %}
-                    {{ item.get("content") or "実施者" }}
-                    {% elif item.item_type == "approval" %}
-                    {{ item.approval_label or "承認欄" }}
-                    {% else %}
-                    {{ item.content|e|replace('\n', '<br>'|safe) }}
-                    {% endif %}
-                </td>
-
                 {% set detail_ns = namespace(
                     comment_text="",
                     has_comment=false,
@@ -467,6 +455,7 @@
                     files_text=""
                 ) %}
 
+                {% set inspection_day_cells %}
                 {% for d in table_days %}
                 {% if display_mode == "year_list" %}
                 {% set day_text = d|string %}
@@ -722,21 +711,7 @@
                             maxlength="50" class="js-inline-check-input">
                         {% endif %}
 
-                        <button
-                            type="button"
-                            class="btn-mini js-open-detail desktop-detail-button {% if ns.has_comment or ns.has_files %}comment-cell{% endif %}"
-                            data-content="{{ item.content|e }}"
-                            data-category="{{ (item.category or '')|e }}"
-                            data-criteria="{{ (item.criteria or '')|e }}"
-                        data-criteria-display="{{ row_criteria_display|e }}"
-                            data-day="{{ d }}"
-                            data-item-no="{{ item_no }}"
-                            data-comment="{{ ns.comment_text|e }}"
-                            data-files="{{ ns.files_text|e }}"
-                            data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
-                        >
-                            詳細
-                        </button>
+
 
                     </form>
 
@@ -787,11 +762,20 @@
                 </td>
                 {% endfor %}
 
-                <td class="mobile-detail-cell">
-                    {% if item.item_type not in ["inspector", "approval", "operation_judgment"] %}
+                {% endset %}
+                <td class="fixed-item">
+                    {% if item.item_type == "inspector" %}
+                    {{ item.get("content") or "実施者" }}
+                    {% elif item.item_type == "approval" %}
+                    {{ item.approval_label or "承認欄" }}
+                    {% else %}
+                    {% if item.item_type not in ["operation_judgment"] %}
                     <button
                         type="button"
-                        class="btn-mini js-open-detail {% if detail_ns.has_comment or detail_ns.has_files %}comment-cell{% endif %}"
+                        aria-haspopup="dialog"
+                        aria-controls="detailModal"
+                        aria-label="{{ item.content|e }}の詳細"
+                        class="inspection-item-detail js-open-detail {% if detail_ns.has_comment or detail_ns.has_files %}comment-cell{% endif %}"
                         data-content="{{ item.content|e }}"
                         data-category="{{ (item.category or '')|e }}"
                         data-criteria="{{ (item.criteria or '')|e }}"
@@ -802,12 +786,16 @@
                         data-files="{{ detail_ns.files_text|e }}"
                         data-criteria-files="{{ item.get('criteria_files', [])|join(',')|e }}"
                     >
-                        詳細
+                        {{ item.content|e|replace('\n', '<br>'|safe) }}
                     </button>
                     {% else %}
-                    -
+                    {{ item.content|e|replace('\n', '<br>'|safe) }}
+                    {% endif %}
                     {% endif %}
                 </td>
+
+                {{ inspection_day_cells }}
+
             </tr>
             {% endif %}
             {% endfor %}
@@ -2040,8 +2028,6 @@
                     data-placeholder="コメントを入力"
                 ></div>
             </div>
-
-            <label>写真・ファイル</label>
 
             <div class="file-upload-cell vehicle-detail-file-upload">
                 <label class="file-upload-button file-upload-button-camera">

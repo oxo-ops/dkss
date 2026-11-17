@@ -43,3 +43,94 @@
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table tr:first-child th.mobile-current-date::before { content: none; }
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table .mobile-date-label { font-size: 12px; white-space: nowrap; }
 }
+
+/* One touch-control family, scoped to the existing inspection detail modal. */
+#detailModal .action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+}
+#detailModal .action-row > .btn,
+#detailModal .vehicle-detail-file-upload > .file-upload-button {
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+  min-width: 0;
+  padding: 10px 16px;
+  margin: 0;
+  border: 1px solid var(--dkss-action-blue);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: none;
+}
+#detailModal .action-row > .btn:not([hidden]),
+#detailModal .vehicle-detail-file-upload > .file-upload-button:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#detailModal .action-row > .btn { width: 100%; }
+#detailModal .vehicle-detail-file-upload > .file-upload-button { min-width: 88px; }
+#detailModal .action-row > button[type="submit"],
+#detailModal .file-upload-button-camera {
+  background: var(--dkss-action-blue);
+  color: var(--dkss-surface);
+}
+#detailModal .action-row > .btn-back,
+#detailModal .file-upload-button-secondary {
+  background: var(--dkss-surface);
+  color: var(--dkss-action-blue);
+}
+#detailModal .action-row > button[type="submit"]:hover:not(:disabled),
+#detailModal .file-upload-button-camera:hover { background: #1d4ed8; }
+#detailModal .action-row > .btn-back:hover,
+#detailModal .file-upload-button-secondary:hover { background: #eff6ff; }
+#detailModal .action-row > .btn:disabled {
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5e1;
+  opacity: 1;
+  cursor: not-allowed;
+}
+#detailModal .action-row > .btn:focus-visible,
+#detailModal .file-upload-button:focus-within {
+  outline: 2px solid var(--dkss-action-blue);
+  outline-offset: 2px;
+}
+/* Never override permission-driven native hidden states. */
+#detailModal .action-row > .btn[hidden],
+#detailModal .vehicle-detail-file-upload > .file-upload-button[hidden] { display: none; }
+
+/* Native button: same full item text, click/Enter/Space opens existing details. */
+.monthly-check-table .inspection-item-detail {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dkss-action-blue);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: none;
+}
+.monthly-check-table .inspection-item-detail:hover { background: var(--dkss-control-hover); }
+.monthly-check-table .inspection-item-detail:focus-visible {
+  outline: 2px solid var(--dkss-action-blue);
+  outline-offset: -2px;
+}
+
+.monthly-check-table .inspection-item-detail.comment-cell { background: #dbeafe; color: #111827; font-weight: 700; }

@@ -46,7 +46,7 @@ try:
   html=response.get_data(as_text=True)
   if html.count('class="dashboard-safety-content"')!=4:(out/f'fixture-{role}.html').write_text(html)
   assert html.count('class="dashboard-safety-content"')==4
-  assert 'dashboard_mobile_refinement.css?v=20261117-mobile-cards-1' in html
+  assert 'dashboard_mobile_refinement.css?v=20261117-home-succinct-1' in html
   assert '架空部品5' in html
   assert '個人情報や実際の業務資料は入力しないでください' in html
  if args.preflight_only:
@@ -92,9 +92,11 @@ try:
     assert page.locator('.dashboard-attention-preview tbody tr').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview tbody tr').all():
-     for selector in ['.dashboard-reference-reason','td:nth-child(3)','td:nth-child(4)']:
+     for selector in ['.dashboard-reference-action','td:nth-child(3)','td:nth-child(4)']:
       assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
-     assert row.locator('.dashboard-reference-reason').inner_text().strip()
+     assert row.locator('.dashboard-reference-action').inner_text().strip()
+     assert row.locator('td:last-child a').get_attribute('href')
+     assert row.locator('.dashboard-reference-reason').count()==0
 
     measure=page.evaluate('''()=>({safetyHeight:document.querySelector('.dashboard-safety-attention').getBoundingClientRect().height, overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
@@ -103,24 +105,26 @@ try:
      assert attention['width']>=full['width']-2,(full,attention)
      safety_rect=page.locator('.dashboard-safety-attention').bounding_box()
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
-    if width<=600:assert measure['direction']=='column',measure
+    if width<=600:assert measure['direction']=='row',measure
     for card in page.locator('.dashboard-safety-content').all():
      if not card.is_visible():continue
      context=card.locator(':scope > p');office=card.locator(':scope > small')
      assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
      assert '2026-11-19' in context.inner_text()
      assert '写真と対策内容を確認' in context.inner_text()
-     assert '架空中央営業所' in office.inner_text()
-     if width>=1251:
-      title=card.locator('.dashboard-safety-opening').bounding_box();meta=office.bounding_box()
-      assert title['x']+title['width']<=meta['x']+1,('overlapping desktop safety metadata',title,meta)
-    for disclosure in page.locator('.dashboard-safety-items > li .dashboard-safety-story').all():
-     if not disclosure.is_visible():continue
-     summary=disclosure.locator('summary');summary.focus();page.keyboard.press('Enter')
-     assert disclosure.get_attribute('open') is not None
-     assert disclosure.locator('a').is_visible()
-     assert '接触・負傷なし。' in disclosure.locator('a').inner_text()
-     card=disclosure.locator('..');assert card.locator(':scope > p').is_visible() and card.locator(':scope > small').is_visible()
+     assert '架空構内' in office.inner_text()
+     opening=card.locator('.dashboard-safety-opening')
+     assert opening.get_attribute('href').startswith('/pointouts/')
+     assert '接触・負傷なし。' in opening.inner_text()
+     assert card.locator('.dashboard-safety-story').count()==0
+    controls=page.locator('#dashboardFilterForm')
+    period=controls.locator('select[name=period]');custom=controls.locator('#dashboardCustomizeButton')
+    pr=period.bounding_box();cr=custom.bounding_box()
+    if width<=768:
+     assert abs((pr['y']+pr['height'])-(cr['y']+cr['height']))<=2,(pr,cr)
+     assert pr['x']+pr['width']<=cr['x']+1,(pr,cr)
+     assert min(pr['height'],cr['height'])>=43,(pr,cr)
+    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible();custom.click()
     for loc in ['.public-demo-notice a','.public-demo-notice button','.dashboard-safety-items:first-of-type .dashboard-safety-content a','.dashboard-attention-table td a']:
      for e in page.locator(loc).all():
       if not e.is_visible():continue
@@ -133,9 +137,7 @@ try:
   case.login('checker')
   ctx=browser.new_context(viewport={'width':390,'height':740},java_script_enabled=False,service_workers='block')
   ctx.route('**/*',bridge);page=ctx.new_page();page.goto('http://127.0.0.1:8765/',wait_until='networkidle')
-  disclosure=page.locator('.dashboard-safety-story').first
-  disclosure.locator('summary').click()
-  assert disclosure.locator('.dashboard-safety-story-full').is_visible()
+  assert page.locator('.dashboard-safety-story').count()==0
   opening=page.locator('.dashboard-safety-opening').first
   href=opening.get_attribute('href');opening.click();page.wait_for_load_state('networkidle')
   assert urlsplit(page.url).path==href
