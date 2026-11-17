@@ -1,0 +1,75 @@
+name: Scoped Pilot PostgreSQL Ledger
+on:
+  pull_request:
+    paths:
+      - 'tools/quality/scoped_analysis_pg/**'
+      - '.github/workflows/scoped-pilot-postgres-ledger.yml'
+permissions:
+  contents: read
+concurrency:
+  group: scoped-pilot-pg-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  owned-postgres-ledger:
+    if: github.repository == 'oxo-ops/dkss' && github.event.pull_request.head.repo.full_name == 'oxo-ops/dkss'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_analysis_runtime_ci
+          POSTGRES_USER: analysis_runtime_ci
+          POSTGRES_PASSWORD: analysis-runtime-disposable-ci-only
+          POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256'
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U analysis_runtime_ci -d dkss_analysis_runtime_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install declared dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Mark only owned PostgreSQL
+        env:
+          POSTGRES_SERVICE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test -n "$POSTGRES_SERVICE_CONTAINER"
+          docker exec "$POSTGRES_SERVICE_CONTAINER" psql -U analysis_runtime_ci -d dkss_analysis_runtime_ci -v ON_ERROR_STOP=1 -c "COMMENT ON DATABASE dkss_analysis_runtime_ci IS 'DKSS_ANALYSIS_RUNTIME_SYNTHETIC_ONLY'"
+      - name: Exact-source guarded ledger tests
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          ROOT="$RUNNER_TEMP/scoped-pilot-pg"
+          mkdir -p "$ROOT/home" "$ROOT/tmp" ledger-evidence
+          git rev-parse HEAD > ledger-evidence/commit.txt
+          for TEST in test_postgres_ledger_offline.py test_postgres_ledger_owned_ci.py; do
+            env -i PATH="$PATH" HOME="$ROOT/home" LANG=C.UTF-8 \
+              PYTHONPATH="$PWD/tests/analysis_runtime_ci_guard:$PWD:$PWD/tests" \
+              PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 FLASK_SKIP_DOTENV=1 \
+              RUNNER_TEMP="$RUNNER_TEMP" DKSS_VALIDATION_TMP="$ROOT" TMPDIR="$ROOT/tmp" \
+              GITHUB_ACTIONS=true GITHUB_REPOSITORY=oxo-ops/dkss \
+              ANALYSIS_RUNTIME_POSTGRES_TEST_URL='postgresql+psycopg2://analysis_runtime_ci:analysis-runtime-disposable-ci-only@127.0.0.1:5432/dkss_analysis_runtime_ci' \
+              ANALYSIS_RUNTIME_REQUIRE_POSTGRES=1 \
+              DOCUMENT_IMPORT_WORKER_ENABLED=0 VEHICLE_ANALYSIS_WORKER_ENABLED=0 \
+              OPENAI_API_KEY='' SMTP_HOST='' S3_BUCKET_NAME='' \
+              python "tools/quality/scoped_analysis_pg/$TEST" -v 2>&1 | tee "ledger-evidence/$TEST.log"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: scoped-pilot-pg-${{ github.event.pull_request.head.sha }}
+          path: ledger-evidence/
+          if-no-files-found: error
+          retention-days: 14
