@@ -92,6 +92,8 @@
         <td>
             {% if result.status == "承認済み" %}
                 <span class="status-badge status-approved">承認済み</span>
+            {% elif result.status == "点検完了" %}
+                <span class="status-badge status-approved">点検完了</span>
             {% elif result.status == "差し戻し" %}
                 <span class="status-badge status-rejected">差し戻し</span>
             {% else %}
@@ -214,6 +216,8 @@
 
                     {% if result.status == "承認済み" %}
                         <span class="status-badge status-approved">承認済み</span>
+                    {% elif result.status == "点検完了" %}
+                        <span class="status-badge status-approved">点検完了</span>
                     {% elif result.status == "差し戻し" %}
                         <span class="status-badge status-rejected">差し戻し</span>
                     {% else %}

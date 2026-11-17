@@ -66,11 +66,51 @@
                 button.textContent = "読み取り中…";
                 status.textContent = "資料を受け付けました。読み取りを開始します。";
                 let failures = 0;
-                async function checkProgress() {
+                let checks = 0;
+                const stopProgress = () => {
+                    if (form.classList) form.classList.remove("ocr-queue-busy");
+                    delete form.dataset.loading;
+                    button.disabled = false;
+                    input.disabled = false;
+                    if (clear) clear.disabled = false;
+                    button.textContent = originalButtonText;
+                    status.textContent = "自動確認を終了しました。資料は受付済みです。受付状況から確認できます。";
+                    const link = document.createElement("a");
+                    link.href = destination.href;
+                    link.textContent = "受付状況を開く";
+                    link.className = "btn btn-outline";
+                    status.append(" ", link);
+                };
+                async function readStatus() {
+                    const controller = typeof AbortController === "function" ? new AbortController() : null;
+                    let timer;
                     try {
-                        const response = await window.fetch(statusUrl.href, {headers:{Accept:"application/json"},cache:"no-store"});
-                        if (!response.ok) throw new Error("status");
-                        const job = await response.json();
+                        return await Promise.race([
+                            (async () => {
+                                const options = {headers:{Accept:"application/json"},cache:"no-store"};
+                                if (controller) options.signal = controller.signal;
+                                const response = await window.fetch(statusUrl.href, options);
+                                if (!response.ok) throw new Error("status");
+                                const job = await response.json();
+                                if (!job || typeof job !== "object" || Array.isArray(job)
+                                        || typeof job.finished !== "boolean") throw new Error("shape");
+                                return job;
+                            })(),
+                            new Promise((_, reject) => {
+                                timer = window.setTimeout(() => {
+                                    reject(new Error("timeout"));
+                                    if (controller) controller.abort();
+                                }, 10000);
+                            })
+                        ]);
+                    } finally {
+                        window.clearTimeout(timer);
+                    }
+                }
+                async function checkProgress() {
+                    checks++;
+                    try {
+                        const job = await readStatus();
                         failures = 0;
                         const files = Array.isArray(job.files) ? job.files : [];
                         const current = files.find(file => file.status === "reading");
@@ -106,6 +146,10 @@
                     } catch (_) {
                         failures++;
                         status.textContent = "読取状況を再確認しています。資料は受付済みです。";
+                    }
+                    if (failures >= 3 || checks >= 60) {
+                        stopProgress();
+                        return;
                     }
                     window.setTimeout(checkProgress, failures ? 10000 : 2000);
                 }
@@ -232,6 +276,7 @@
             const form = card.querySelector(".import-form");
             const status = card.querySelector(".import-file-status");
             const read = form && form.querySelector(".import-read");
+            if (!status) return;
             const url = new URL(link.dataset.receiptStatusUrl, location.href);
             if (url.origin !== location.origin) return;
             link.dataset.loading = "1";
@@ -240,17 +285,51 @@
             if (form) form.classList.add("ocr-queue-busy");
             if (read) read.disabled = true;
             let errors = 0;
+            let checks = 0;
             const finish = () => {
                 delete link.dataset.loading;
                 link.removeAttribute("aria-disabled");
                 if (form) form.classList.remove("ocr-queue-busy");
                 if (read) read.disabled = false;
             };
-            async function check() {
+            const stop = message => {
+                finish();
+                status.textContent = message;
+                const fallback = document.createElement("a");
+                fallback.href = link.href;
+                fallback.textContent = "受付状況を開く";
+                status.append(" ", fallback);
+            };
+            async function readStatus() {
+                const controller = typeof AbortController === "function" ? new AbortController() : null;
+                let timer;
                 try {
-                    const response = await window.fetch(url.href, {headers:{Accept:"application/json"},cache:"no-store"});
-                    if (!response.ok) throw new Error("status");
-                    const job = await response.json();
+                    return await Promise.race([
+                        (async () => {
+                            const options = {headers:{Accept:"application/json"},cache:"no-store"};
+                            if (controller) options.signal = controller.signal;
+                            const response = await window.fetch(url.href, options);
+                            if (!response.ok) throw new Error("status");
+                            const job = await response.json();
+                            if (!job || typeof job !== "object" || Array.isArray(job)
+                                    || typeof job.finished !== "boolean") throw new Error("shape");
+                            return job;
+                        })(),
+                        new Promise((_, reject) => {
+                            timer = window.setTimeout(() => {
+                                reject(new Error("timeout"));
+                                if (controller) controller.abort();
+                            }, 10000);
+                        })
+                    ]);
+                } finally {
+                    window.clearTimeout(timer);
+                }
+            }
+            async function check() {
+                checks++;
+                try {
+                    const job = await readStatus();
                     errors = 0;
                     const files = Array.isArray(job.files) ? job.files : [];
                     status.textContent = (job.completed || 0) + " / " + (job.total || files.length) + " 資料処理済み";
@@ -274,13 +353,13 @@
                     errors++;
                     status.textContent = "受付状況を再確認しています。";
                     if (errors >= 3) {
-                        finish();
-                        const fallback = document.createElement("a");
-                        fallback.href = link.href;
-                        fallback.textContent = "受付状況を開く";
-                        status.append(" ", fallback);
+                        stop("受付状況を取得できませんでした。もう一度確認できます。");
                         return;
                     }
+                }
+                if (checks >= 60) {
+                    stop("自動確認を終了しました。処理は続行中の場合があります。もう一度確認できます。");
+                    return;
                 }
                 window.setTimeout(check, errors ? 10000 : 2000);
             }

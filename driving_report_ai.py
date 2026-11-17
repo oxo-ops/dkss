@@ -70,6 +70,10 @@ report_itemsは評価・集計指標、eventsは日時を持つ個別事象、du
 すべての明細にcategory,item_name,raw_result,score,result_text,notes,source_pageを保持する。
 valueは明記された数値だけ、unitは原単位、numerator/denominator/denominator_unitは明記された分子分母。
 definition/threshold/road_typeは記載された指標定義・検知条件・道路区分。不明ならnullとし同名項目を勝手に同義化しない。
+definitionは「何を計測・集計する指標か」の原文、thresholdは「どの値・条件で検知するか」の原文へ分ける。原文で分離できる検知条件文をdefinitionに重複させない。
+例えば原文「定義：当該運行の急減速検知回数。架空設定：減速度0.3g以上を検知。」はdefinition="当該運行の急減速検知回数。"、threshold="架空設定：減速度0.3g以上を検知。"とする。
+検知条件文は見出し・数値・単位・比較演算（以上/超/以下/未満）・持続時間・対象条件を省略・言い換えせず、一文全体を保持する。0.3gと0.4g、以上と超を同じ条件にしない。
+定義と検知条件を原文から明確に分離できない場合は原文をdefinitionに保持し、thresholdはnull、warningsに分離できない旨を残す。別の日報・同名指標・一般知識から補完しない。
 statusはcandidate/illegible/not_recorded/not_applicable/unknownのいずれか。明記0はvalue='0'として空欄と区別する。
 start_at/end_at/placeは原文の日付時刻・場所、driver_code/registration_numberは当該区間の対象、speakerはauto/driver/manager/unknown。
 未使用の明細フィールドはnull。独自項目を省略しない。乗務交替はdutiesで保持し、車両変更は車両別の運行レコードへ分離する。
