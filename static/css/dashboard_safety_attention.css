@@ -51,3 +51,30 @@
 .dashboard-safety-attention summary:focus-visible,
 .dashboard-trend-issue a:focus-visible,
 .dashboard-trend-issue summary:focus-visible { outline: 3px solid #5146cc; outline-offset: 3px; }
+
+/* Full records remain reachable without JavaScript; action and deadline stay
+   outside the disclosure. Preserve the existing authorized record URL. */
+.dashboard-safety-story > summary {
+    cursor: pointer;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 4px 0;
+    color: #173b66;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+.dashboard-safety-story-title { font-weight: 600; }
+.dashboard-safety-story-toggle {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #5140a3;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.dashboard-safety-story[open] > summary .dashboard-safety-story-toggle { display: none; }
+.dashboard-safety-story-full { padding: 10px 0 4px; }
+.dashboard-safety-story-hint { display: block; margin-top: 7px; font-size: 11px; color: #596780; }
+.dashboard-safety-opening { display: block; min-height: 44px; }
+.dashboard-safety-story > summary { color: #5140a3; font-size: 12px; }

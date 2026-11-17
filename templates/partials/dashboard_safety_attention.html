@@ -3,11 +3,30 @@
 <ul class="dashboard-safety-items">
     {% for item in items %}
     <li>
+        {% set display_content = item.content[8:] if item.content.startswith('【体験用・架空】') else item.content %}
         <span class="dashboard-safety-state">{{ item.state }}</span>
         <div class="dashboard-safety-content">
-            <a href="{{ item.url }}">{{ item.content }}</a>
+            {% if item.content|length > 64 %}
+            {% set opening = display_content.split('。', 1)[0] ~ '。' %}
+            {% set has_opening = '。' in display_content and opening|length <= 120 and opening.count('「') == opening.count('」') and opening.count('（') == opening.count('）') %}
+            <a class="dashboard-safety-opening" href="{{ item.url }}">
+                <span class="dashboard-safety-story-title">{% if has_opening %}{{ opening }}{% else %}記録の内容・確認事項{% endif %}</span>
+                <span class="dashboard-safety-story-toggle">{% if has_opening %}冒頭の文を表示 · {% endif %}記録の詳細へ</span>
+            </a>
+            {% else %}
+            <a class="dashboard-safety-opening" href="{{ item.url }}">{{ display_content }}</a>
+            {% endif %}
             <p>{{ item.location }} · {{ item.action }}{% if item.due_date %} · 期限 {{ item.due_date }}{% endif %}</p>
             <small>{{ item.office }}{% if item.date %} · 記録日 {{ item.date }}{% endif %}</small>
+            {% if item.content|length > 64 %}
+            <details class="dashboard-safety-story">
+                <summary>全文をこの画面で読む</summary>
+                <div class="dashboard-safety-story-full">
+                    <a href="{{ item.url }}">{{ item.content }}</a>
+                    <span class="dashboard-safety-story-hint">上の文章から記録の詳細を開けます</span>
+                </div>
+            </details>
+            {% endif %}
         </div>
     </li>
     {% endfor %}

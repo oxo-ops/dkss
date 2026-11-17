@@ -5,10 +5,11 @@
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_attention.css', v='20261110-saved-proposals-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_safety_attention.css', v='20261111-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_safety_attention.css', v='20261117-safety-disclosure-1') }}">
 {% if my_safe_start_label %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-mobile-cards-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -475,7 +476,6 @@
                 </details>
                 {% endif %}
             {% else %}
-            {{ attention_table([]) }}
             <p class="dashboard-attention-empty">
                 {% if not group.vehicles %}
                     {% if key == 'office' and not dashboard_scope_office %}

@@ -1,0 +1,62 @@
+name: Dashboard Mobile Cards Browser
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'templates/base.html'
+      - 'static/css/style.css'
+      - 'static/js/base.js'
+      - 'static/js/responsive_layout.js'
+      - 'templates/index.html'
+      - 'templates/partials/dashboard_safety_attention.html'
+      - 'static/css/dashboard_safety_attention.css'
+      - 'static/css/dashboard_mobile_refinement.css'
+      - 'tests/test_dashboard_mobile_disclosure.py'
+      - 'tests/demo_header_browser/**'
+      - 'templates/vehicle_checklist*.html'
+      - 'templates/driving_report*.html'
+      - 'dkss_app/**'
+      - 'requirements.txt'
+      - 'tests/test_public_demo_workflow.py'
+      - 'tests/test_q02_daily_inspection_flow.py'
+      - 'tests/test_responsive_layout.py'
+      - 'tests/identity_fixture.py'
+      - 'tests/history_presentation_browser/guard/**'
+      - 'static/css/responsive_layout.css'
+      - 'tests/dashboard_mobile_browser/**'
+      - '.github/workflows/dashboard-mobile-browser.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-dashboard:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned isolated browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Verify exact head, header geometry and click targets
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/browser-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/dashboard-mobile-results" bash tests/dashboard_mobile_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$PY" --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$CHROMIUM"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dashboard-mobile-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dashboard-mobile-results/
+          retention-days: 14

@@ -1,0 +1,311 @@
+/* Mobile dashboard refinement: preserve data, links, forms and full safety text.
+   Deliberately scoped to small screens; desktop and non-dashboard pages retain
+   their current layout. No line clamping or hidden safety instructions. */
+@media screen and (max-width: 600px) {
+    .main-content > .public-demo-notice {
+        margin: 10px 0 18px;
+        padding: 14px;
+        border: 1px solid #dcd9f2;
+        border-left: 3px solid #687dc1;
+        border-radius: 8px;
+        background: #f3f6fc;
+        color: #394665;
+        font-size: 13px;
+        line-height: 1.75;
+        overflow-wrap: anywhere;
+        box-shadow: none;
+    }
+    .public-demo-notice > a {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        width: fit-content;
+        max-width: 100%;
+        margin-top: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #5140a3;
+        text-underline-offset: 3px;
+    }
+    .public-demo-notice > form[action="/demo/role"] {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 8px 0 0;
+    }
+    .public-demo-notice > form[action="/demo/role"] > input { display: none; }
+    .public-demo-notice > form[action="/logout"] {
+        display: block !important;
+        margin: 4px 0 0;
+        text-align: right;
+    }
+    .public-demo-notice button {
+        min-height: 44px;
+        min-width: 0;
+        max-width: 100%;
+        margin: 0;
+        padding: 9px 10px;
+        border: 1px solid #c9c3e6;
+        border-radius: 10px;
+        background: #fff;
+        color: #5140a3;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.5;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        box-shadow: 0 2px 5px #44336908;
+    }
+    .public-demo-notice form[action="/logout"] button {
+        border-color: transparent;
+        background: transparent;
+        color: #59657c;
+        font-size: 12px;
+        font-weight: 400;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        box-shadow: none;
+    }
+    .public-demo-notice button:disabled { opacity: .55; cursor: not-allowed; }
+    .public-demo-notice :is(a, button):focus-visible {
+        outline: 3px solid #5140a3;
+        outline-offset: 3px;
+    }
+    .dashboard-page.dashboard-design-v2 { gap: 16px; }
+    .main-content > .dashboard-page.dashboard-design-v2 .dashboard-header h2 {
+        font-size: 22px;
+        line-height: 1.4;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-header > div {
+        align-items: baseline;
+        gap: 4px 12px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-reference-office {
+        font-size: 12px;
+        color: #596780;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-vehicles-section {
+        padding: 14px;
+        border: 1px solid #e1e2f2;
+        border-radius: 10px;
+        box-shadow: none;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-vehicles-header {
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-attention {
+        border: 1px solid #dce2ef;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: none;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-attention h4 {
+        padding: 10px 12px;
+        background: #f0f4fb;
+        color: #293f61;
+        font-size: 15px;
+        line-height: 1.5;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-scope {
+        margin: 8px 12px;
+        color: #5b6a81;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-items {
+        padding: 0 12px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 0;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-state {
+        align-self: flex-start;
+        border: 1px solid #e1e8f1;
+        border-radius: 7px;
+        padding: 3px 7px;
+        background: #edf2f8;
+        color: #465d79;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-content {
+        width: 100%;
+        min-width: 0;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-content a {
+        display: block;
+        min-height: 44px;
+        color: #244c76;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.7;
+        text-decoration-thickness: 1px;
+        text-decoration-color: #a2b6d2;
+        text-underline-offset: 3px;
+        overflow-wrap: anywhere;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-content p {
+        margin: 4px 0;
+        padding: 0;
+        border-left: 0;
+        border-radius: 0 7px 7px 0;
+        background: transparent;
+        color: #465575;
+        font-size: 12px;
+        line-height: 1.7;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-content small {
+        display: block;
+        font-size: 11px;
+        line-height: 1.7;
+        color: #5e6f83;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-more > summary {
+        min-height: 44px;
+        box-sizing: border-box;
+        padding: 12px 14px;
+        color: #5140a3;
+        font-size: 13px;
+        line-height: 1.6;
+        background: #faf9fe;
+    }
+}
+@media screen and (max-width: 600px) {
+    .public-demo-notice > a:first-of-type {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+        padding: 10px 14px;
+        border: 1px solid #6152b2;
+        border-radius: 11px;
+        color: #fff;
+        background: linear-gradient(105deg, #6552b6, #486ba9);
+        text-decoration: none;
+        box-shadow: 0 4px 10px #5543a722;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-story > summary {
+        font-size: 12px;
+        color: #42628a;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-story-full {
+        margin-top: 8px;
+        padding: 10px;
+        border: 1px solid #e1e7f0;
+        border-radius: 10px;
+        background: #fbfcff;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-safety-story-full a {
+        font-size: 13px;
+        font-weight: 400;
+    }
+}
+
+/* Match the introduction video's white rows and pale blue dividers.
+   Keep real state, timing and calculation notes; never copy its mock values. */
+.dashboard-page.dashboard-design-v2 .dashboard-safety-opening {
+    position: relative;
+    padding-right: 20px;
+    text-decoration: none;
+}
+.dashboard-safety-opening::after {
+    content: "›";
+    position: absolute;
+    right: 2px;
+    top: 8px;
+    color: #4f789e;
+    font-size: 22px;
+}
+.dashboard-safety-opening:hover .dashboard-safety-story-title { text-decoration: underline; }
+@media screen and (max-width: 600px) {
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-panel {
+        padding: 0;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: none;
+        overflow: hidden;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-panel > h3 {
+        padding: 10px 12px;
+        margin: 0;
+        background: #f0f4fb;
+        font-size: 14px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-empty,
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-update {
+        margin: 0;
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.65;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-records { padding: 0 12px; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-records > summary {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table {
+        min-width: 0;
+        width: 100%;
+        table-layout: auto;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table tbody { display: block; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        padding: 10px 12px;
+        gap: 4px 8px;
+        border-top: 1px solid #e1e9f3;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        font-size: 12px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:nth-child(-n+2) { grid-column: 1 / -1; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:nth-child(3)::before { content: "目安："; color: #61748b; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:nth-child(5) { grid-column: 1 / -1; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:first-child > a {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        font-size: 12px;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:first-child > strong { font-size: 15px; color: #17314f; font-weight: 600; }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table :is(.dashboard-reference-action,.dashboard-reference-reason) {
+        display: block;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        -webkit-line-clamp: unset;
+        font-size: 12px;
+        line-height: 1.65;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:last-child > a {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 44px;
+        white-space: normal;
+        padding: 0;
+        background: transparent;
+        border: 0;
+    }
+    .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:last-child > a::after { content: "›"; margin-left: 8px; }
+}
