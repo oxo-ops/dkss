@@ -1,0 +1,12 @@
+{% if session.get('username') and request.endpoint in ['dashboard', 'vehicle_checklist_results'] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/first_use_guide.css', v='20261117-1') }}">
+<section id="firstUseGuide" data-page="{{ request.endpoint }}" data-mode="{{ 'demo' if session.get('aonagi_readonly_demo') else 'normal' }}" aria-label="操作ガイド">
+  <button type="button" class="first-guide-launch" data-guide-open aria-controls="firstGuidePanel">操作ガイド</button>
+  <div id="firstGuidePanel" class="first-guide-panel" role="region" aria-label="はじめての操作" hidden>
+    <div class="first-guide-top"><span data-guide-count></span><button type="button" data-guide-close aria-label="操作ガイドを閉じる">閉じる</button></div>
+    <div aria-live="polite"><strong data-guide-title></strong><p data-guide-text></p></div>
+    <button type="button" data-guide-next>次へ</button>
+  </div>
+</section>
+<script defer src="{{ url_for('static', filename='js/first_use_guide.js', v='20261117-1') }}"></script>
+{% endif %}
