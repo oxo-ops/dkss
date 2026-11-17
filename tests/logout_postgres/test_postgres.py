@@ -1,6 +1,7 @@
 """Requires disposable loopback PG. No skip-as-success; never loads production env."""
 import os,sys,unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from preflight import validate
 os.environ['Q02_POSTGRES_TEST_URL']=validate(os.environ.get('Q02_POSTGRES_TEST_URL',''))
 os.environ['Q02_REQUIRE_POSTGRES']='1'
@@ -25,7 +26,11 @@ class LogoutPG(Base):
    results=list(pool.map(lambda x:x.get('/api/notifications/unread-count').status_code,copies))
   self.assertEqual(results,[401]*16)
  def test_two_authenticated_sessions_logout_is_not_global(self):
-  a=self.authenticated();b=self.authenticated();old=self.clone(a)
+  a=self.authenticated()
+  # Synthetic fixture only: respect the existing 60-second MFA resend cooldown.
+  self.user(self.companies[0]).mfa_code_sent_at=(datetime.now()-timedelta(seconds=61)).strftime('%Y-%m-%d %H:%M:%S')
+  self.db.session.commit()
+  b=self.authenticated();old=self.clone(a)
   self.assertEqual(a.post('/logout').status_code,302)
   self.assertEqual(old.get('/api/notifications/unread-count').status_code,401)
   self.assertEqual(b.get('/api/notifications/unread-count').status_code,200)
