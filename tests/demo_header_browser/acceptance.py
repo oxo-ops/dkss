@@ -116,6 +116,7 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path=str(args.chromium), headless=True)
             report['browser_started'] = True
+            baseline_css=False
             try:
                 for role in ('checker', 'admin'):
                     case.login(role)
@@ -130,7 +131,12 @@ def main():
                             response = case.request('GET', url.path + ('?' + url.query if url.query else ''), follow_redirects=True)
                             # Flask's fixture client owns the synthetic session. No browser cookies or real server.
                             headers = {k: v for k, v in response.headers.items() if k.lower() not in ('set-cookie', 'content-length', 'content-encoding')}
-                            route.fulfill(status=response.status_code, headers=headers, body=response.data)
+                            body=response.data
+                            if baseline_css and url.path=='/static/css/responsive_layout.css':
+                                marker=b'/* Shared demo controls follow the header on desktop too.'
+                                require(body.count(marker)==1,'baseline CSS boundary missing')
+                                body=body.split(marker)[0]
+                            route.fulfill(status=response.status_code, headers=headers, body=body)
                         context.route('**/*', bridge)
                         page = context.new_page()
                         # Capture actual mouse-targeted controls without submitting forms or leaving fixture page.
@@ -177,7 +183,14 @@ def main():
                             page.goto(ORIGIN+path,wait_until='networkidle')
                             require(page.locator('.public-demo-notice').count()==0,'ordinary session has demo banner')
                             position=page.locator('main > .top-bar').evaluate('e=>getComputedStyle(e).position')
-                            require(position==('sticky' if width<=900 else 'absolute'),'ordinary header changed')
+                            # Page-specific desktop headers are not all absolute. Compare against
+                            # the same stylesheet before this candidate's appended scoped rule.
+                            baseline_css=True
+                            page.reload(wait_until='networkidle')
+                            baseline_position=page.locator('main > .top-bar').evaluate('e=>getComputedStyle(e).position')
+                            require(position==baseline_position,f'ordinary header changed {width} {path}: {position} vs {baseline_position}')
+                            baseline_css=False
+                            page.reload(wait_until='networkidle')
                             bell_roundtrip(page)
                             report['cases'].append(dict(role='ordinary-admin',width=width,path=path,position=position))
                     finally:context.close()
