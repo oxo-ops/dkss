@@ -1,0 +1,12 @@
+{
+  "base": "24e5d814e3cf564bfedfa0a3c1c8ae9e85fd647e",
+  "files": {
+    ".github/workflows/demo-previous-day-postgres.yml": "bca890e7e731a25313c508d6abf5ab27f9f8f10519f19085d6b4e55906d1b84f",
+    "tests/demo_previous_day_pg/service_candidate.py": "ddec9ff9bb21471cf59dbd04d2cb70ce91507672b563320d8b7311ef5fc85b22",
+    "tests/demo_previous_day_pg/preflight.py": "4573e3b646c92b2a55eab1f232c97118daa64eeaff5b25e951b6412728759f26",
+    "tests/demo_previous_day_pg/README.md": "74c6d4be57067dadbca962925d2f256803c18d43566b5e36fdde9f0007c8f3af",
+    "tests/demo_previous_day_pg/run.sh": "a405e2a60c86cc19d86197eba785815329b3d2e14dcd9a584ee717bdbc4d15a8",
+    "tests/demo_previous_day_pg/test_pg.py": "1b4b3b110d78d0d46ab5bdfc44f2d3535a75f5f32d8d26c42553207ba7a5afbc",
+    "tests/demo_previous_day_pg/guard/sitecustomize.py": "1ac55206ee0a4535d0f02cba57d978db46fb842bcc87c127d7cf7a3ad81e77a0"
+  }
+}

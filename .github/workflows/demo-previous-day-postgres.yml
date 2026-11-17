@@ -1,0 +1,36 @@
+name: Demo previous-day isolated PostgreSQL
+on:
+  pull_request:
+    paths: ['tests/demo_previous_day_pg/**', '.github/workflows/demo-previous-day-postgres.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: seed_fixture
+          POSTGRES_USER: seed_fixture
+          POSTGRES_PASSWORD: synthetic_only
+        ports: ['55433:5432']
+        options: >-
+          --health-cmd "pg_isready -U seed_fixture -d seed_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Run disposable database candidate tests only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tests/demo_previous_day_pg/run.sh
