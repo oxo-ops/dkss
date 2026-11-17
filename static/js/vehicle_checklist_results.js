@@ -2015,6 +2015,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const criteria =
             button.dataset.criteria || "";
 
+        const criteriaDisplay = button.hasAttribute("data-criteria-display")
+            ? button.dataset.criteriaDisplay
+            : criteria;
+
         const day =
             button.dataset.day || "";
 
@@ -2049,7 +2053,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById(
             "detailCriteriaText"
         ).textContent =
-            criteria || "未設定";
+            criteriaDisplay || "未設定";
 
         const detailYear =
             document.getElementById(

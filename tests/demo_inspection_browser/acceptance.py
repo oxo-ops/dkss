@@ -118,8 +118,8 @@ try:
        assert all(value in rendered for value in original+footer),'original detail text lost'
        record['original_item_count']=len(original)
        record['footer_item_count']=len(footer)
-       assert page.locator('.criteria-line-pre').count()>0
-       assert not page.locator('.criteria-box[hidden]').count()
+       assert page.locator('.criteria-box').count()==page.locator('#detailModal .criteria-box').count()==1,'standard common notes still above table or modal criteria missing'
+       assert page.locator('#detailCriteriaText').count()==1
        assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
        if width<=768:
         cells=table.locator('.fixed-item');visible=[c for c in cells.all() if c.is_visible()];assert visible
@@ -139,6 +139,32 @@ try:
        detail.click();assert page.locator('#detailModal').is_visible();assert page.locator('#detailTitle').inner_text().strip()
        page.screenshot(path=str(out/f'{width}-{role}-detail.png'),full_page=True)
        page.locator('#detailModal .js-close-detail-modal').click();assert not page.locator('#detailModal').is_visible()
+       expected_conditions={
+        'daily_02': (),
+        'daily_17': ('走行距離・運行時の状態などに応じた適切な時期に点検。',),
+        'daily_01': ('走行距離・運行時の状態などに応じた適切な時期に点検。',),
+        'daily_04': ('エアブレーキ装着車が対象。',),
+        'daily_18': ('車両総重量8t以上、または乗車定員30人以上の車両が対象。',),
+        'daily_20': ('走行距離・運行時の状態などに応じた適切な時期に点検。','エアブレーキ装着車が対象。')}
+       record['row_criteria']=[]
+       for code,conditions in expected_conditions.items():
+        item=next(i for i in all_items if i.get('item_code')==code)
+        buttons=table.locator('.js-open-detail').all()
+        button=next(b for b in buttons if b.is_visible() and b.get_attribute('data-content')==item['content'])
+        expected='\n'.join(('✓ 正常 / × 異常',)+conditions)
+        assert button.get_attribute('data-criteria')==item['criteria'],'raw criteria attribute changed'
+        assert button.get_attribute('data-criteria-display')==expected,(code,button.get_attribute('data-criteria-display'))
+        button.click();modal=page.locator('#detailModal');assert modal.is_visible()
+        assert page.locator('#detailTitle').text_content().strip()==item['content'].strip()
+        assert page.locator('#detailCriteriaText').inner_text()==expected
+        assert page.locator('#detailCriteria').input_value()==item['criteria'],'raw criteria submitted field changed'
+        editor=page.locator('#detailCommentEditor');assert editor.is_visible() and editor.get_attribute('contenteditable')=='true'
+        assert modal.locator('input[type=file][name=files]').count()==2
+        assert modal.get_by_role('button',name='保存',exact=True).is_visible()
+        box=modal.locator('.modal-box').bounding_box();assert box and box['x']>=0 and box['x']+box['width']<=width+1
+        page.screenshot(path=str(out/f'{width}-{role}-{code}.png'),full_page=True)
+        page.locator('#detailModal .js-close-detail-modal').click();assert not modal.is_visible()
+        record['row_criteria'].append({'code':code,'display':expected,'raw_preserved':True})
        assert snapshot()==before,'inspection data changed'
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
        assert not errors,errors;assert not report['blocked'],report['blocked']

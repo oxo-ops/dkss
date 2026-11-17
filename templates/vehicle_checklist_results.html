@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block content %}
+{% from "partials/daily_inspection_row_criteria.html" import criteria_for_item, is_standard_item %}
 {% set vehicle_compact_ready = selected_vehicle and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer" %}
 
 {% set vehicle_response_ready =
@@ -316,7 +317,7 @@
         {% set criteria_files_text = item.get("criteria_files", [])|join(",") %}
         {% set criteria_key = criteria_text ~ "|" ~ criteria_files_text %}
 
-        {% if criteria_key != "|" and criteria_key not in criteria_keys %}
+        {% if criteria_key != "|" and criteria_key not in criteria_keys and not is_standard_item(item, table_checklist.get("fixed_template_code")) %}
         {% set _ = criteria_keys.append(criteria_key) %}
 
         <div class="criteria-box">
@@ -428,6 +429,7 @@
             {% endif %}
 
             {% set item_no = check_ns.index %}
+            {% set row_criteria_display = criteria_for_item(item, table_checklist.get("fixed_template_code")) %}
 
             {% if item.item_type == "approval" %}
             {% set approval_ns.index = approval_ns.index + 1 %}
@@ -726,6 +728,7 @@
                             data-content="{{ item.content|e }}"
                             data-category="{{ (item.category or '')|e }}"
                             data-criteria="{{ (item.criteria or '')|e }}"
+                        data-criteria-display="{{ row_criteria_display|e }}"
                             data-day="{{ d }}"
                             data-item-no="{{ item_no }}"
                             data-comment="{{ ns.comment_text|e }}"
@@ -748,6 +751,7 @@
                         data-content="{{ item.content|e }}"
                         data-category="{{ (item.category or '')|e }}"
                         data-criteria="{{ (item.criteria or '')|e }}"
+                        data-criteria-display="{{ row_criteria_display|e }}"
                         data-day="{{ d }}"
                         data-item-no="{{ item_no }}"
                         data-comment="{{ ns.comment_text|e }}"
@@ -791,6 +795,7 @@
                         data-content="{{ item.content|e }}"
                         data-category="{{ (item.category or '')|e }}"
                         data-criteria="{{ (item.criteria or '')|e }}"
+                        data-criteria-display="{{ row_criteria_display|e }}"
                         data-day="{{ active_day }}"
                         data-item-no="{{ item_no }}"
                         data-comment="{{ detail_ns.comment_text|e }}"
@@ -2000,7 +2005,7 @@
 
         <div class="criteria-box">
             <strong>評価基準</strong>
-            <div id="detailCriteriaText" class="criteria-line"></div>
+            <div id="detailCriteriaText" class="criteria-line criteria-line-pre"></div>
             <div id="criteriaFilesArea"></div>
         </div>
 
@@ -2153,7 +2158,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261116-reminder-readonly'
+        v='20261117-row-criteria-1'
     ) }}"
 ></script>
 

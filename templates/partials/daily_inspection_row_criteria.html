@@ -1,0 +1,178 @@
+{# Display-only presentation of the unchanged standard daily checklist criteria. #}
+{% set standard_criteria = "【注1】点検の結果、点検良は「レ」印を、点検否は「×」印を記入する。\n【注2】着色部位の点検は、走行距離、運行時の状態等から判断した適切な時期に行うことで足りる。\n【注3】斜体文字（★印）部位の点検は、車両総重量8トン以上又は乗車定員30人以上の自動車に限る。\n【注4】太文字部位は、トラック・バスなどのエア・ブレーキが装着されている自動車の点検項目及び点検内容を示す。\n【おことわり】この点検表は自主点検項目が加味されております。" %}
+{% set standard_rows = {
+  "daily_01": {
+    "content": "エンジンのかかり具合、異音\n低速、加速の状態",
+    "category": "運転者席",
+    "shaded": true
+  },
+  "daily_02": {
+    "content": "ブレーキ・ペダルの踏みしろ、効き具合",
+    "category": "運転者席",
+    "shaded": false
+  },
+  "daily_03": {
+    "content": "駐車ブレーキ・レバーの引きしろ（踏みしろ）",
+    "category": "運転者席",
+    "shaded": false
+  },
+  "daily_04": {
+    "content": "空気圧力計の上がり具合",
+    "category": "運転者席",
+    "shaded": false
+  },
+  "daily_05": {
+    "content": "ブレーキ・バルブの排気音",
+    "category": "運転者席",
+    "shaded": false
+  },
+  "daily_06": {
+    "content": "方向指示器の点滅具合",
+    "category": "運転者席",
+    "shaded": false
+  },
+  "daily_07": {
+    "content": "ウインド・ウォッシャの液量、噴射状態",
+    "category": "運転者席",
+    "shaded": true
+  },
+  "daily_08": {
+    "content": "ワイパーの拭き取り状態",
+    "category": "運転者席",
+    "shaded": true
+  },
+  "daily_09": {
+    "content": "ラジエータの冷却水の量",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_10": {
+    "content": "ファン・ベルトの張り具合、損傷",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_11": {
+    "content": "エンジン・オイルの液量、液漏れ",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_12": {
+    "content": "バッテリの液量",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_13": {
+    "content": "前照灯、方向指示器、車幅灯、非常点滅灯、\nその他灯火の点灯、点滅具合",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_14": {
+    "content": "灯火類のレンズ、反射器の\n汚れ、変色、損傷状況",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_15": {
+    "content": "タイヤの空気圧、異状摩耗、亀裂、損傷",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_16": {
+    "content": "タイヤの溝の深さ",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_17": {
+    "content": "冬用タイヤのプラットホームの露出の有無",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_18": {
+    "content": "★ ディスク・ホイールの取付け状態\nホイール・ボルトの折損・不揃いホイール・ナット\nの緩み・脱落ホイール・ボルト付近のサビ汁",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_19": {
+    "content": "エア・タンク内の凝水",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_20": {
+    "content": "（ブレーキ・ペダルの踏みしろ、効き具合）\nブレーキ・チャンバのロッドのストローク\nドラムとライニングのすき間",
+    "category": "車両の周り",
+    "shaded": true
+  },
+  "daily_21": {
+    "content": "番号灯、方向指示器、尾灯、制動灯、\n後退灯、非常点滅灯、その他灯火の\n点灯、点滅具合",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_22": {
+    "content": "灯火類のレンズ、反射器の\n汚れ、変色、損傷状況",
+    "category": "車両の周り",
+    "shaded": false
+  },
+  "daily_23": {
+    "content": "ジャンパ・ケーブル・ソケットの連結具合\nエア・ホース、カップリングの取付、漏れ、\n損傷状況\nカプラ、ピントルフック、ルネット・アイなどの\n損傷、連結具合",
+    "category": "連結部",
+    "shaded": false
+  },
+  "daily_24": {
+    "content": "座席（シートベルト）の装着状況",
+    "category": "その他",
+    "shaded": false
+  },
+  "daily_25": {
+    "content": "工具、スペア・タイヤの固定状況",
+    "category": "その他",
+    "shaded": false
+  },
+  "daily_26": {
+    "content": "非常信号用具、停止表示器材、車検証、\n自賠責保険証、点検整備記録簿等の車載状況",
+    "category": "その他",
+    "shaded": false
+  },
+  "daily_27": {
+    "content": "チャート紙の装着状況",
+    "category": "その他",
+    "shaded": false
+  },
+  "footer_28": {
+    "content": "前日における異状箇所の処置状況の確認",
+    "category": "",
+    "shaded": false
+  },
+  "footer_29": {
+    "content": "当日の不具合箇所の処置状況の確認",
+    "category": "",
+    "shaded": false
+  }
+} %}
+{% macro is_standard_item(item, template_code) -%}
+{%- set source = standard_rows.get(item.get('item_code', '')) -%}
+{%- if template_code == 'daily_inspection_truck_trailer'
+    and source and item.item_type == 'check'
+    and item.content == source.content and item.category == source.category
+    and item.criteria == standard_criteria
+    and not item.get('criteria_files', [])
+    and item.get('choices', []) == ['✓', '×']
+    and item.get('shaded', false) == source.shaded -%}
+1{%- endif -%}{%- endmacro %}
+{% macro criteria_for_item(item, template_code) -%}
+{%- if is_standard_item(item, template_code) -%}
+{%- set source = standard_rows.get(item.get('item_code', '')) -%}
+    {%- set lines = ['✓ 正常 / × 異常'] -%}
+    {%- if source.shaded -%}
+        {%- set _ = lines.append('走行距離・運行時の状態などに応じた適切な時期に点検。') -%}
+    {%- endif -%}
+    {%- if item.item_code == 'daily_18' -%}
+        {%- set _ = lines.append('車両総重量8t以上、または乗車定員30人以上の車両が対象。') -%}
+    {%- endif -%}
+    {%- if item.item_code in ['daily_04', 'daily_05', 'daily_19', 'daily_20'] -%}
+        {%- set _ = lines.append('エアブレーキ装着車が対象。') -%}
+    {%- endif -%}
+    {{- lines|join('
+') -}}
+{%- else -%}
+    {{- item.criteria or '' -}}
+{%- endif -%}
+{%- endmacro %}

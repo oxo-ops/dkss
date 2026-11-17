@@ -53,14 +53,14 @@ class ResponsiveLayoutTests(unittest.TestCase):
         css = (Path(__file__).resolve().parents[1] / 'static/css/responsive_layout.css').read_text()
         rule = css.split('/* Shared demo controls follow the header on desktop too.', 1)[1]
         self.assertIn('@media screen and (min-width:901px)', rule)
-        self.assertIn('body[data-responsive-shell] .main-content:has(> .public-demo-notice) > .top-bar', rule)
+        self.assertIn('body[data-responsive-shell][data-public-demo="true"] .main-content > .top-bar', rule)
         self.assertIn('position:relative !important; top:auto !important; right:auto !important;', rule)
         self.assertIn('margin:0 0 12px !important; min-block-size:56px;', rule)
         # The new override must not replace the phone's opaque sticky header.
         self.assertNotIn('max-width', rule)
         self.assertIn('position:sticky !important; top:0 !important; z-index:900;', css)
         template = (Path(__file__).resolve().parents[1] / 'templates/base.html').read_text()
-        self.assertIn("v='20261117-demo-header-flow-1'", template)
+        self.assertIn("v='20261117-role-entry-flow-1'", template)
 
     def test_master_tables_have_a_scroll_viewport(self):
         for path in ('/master/offices', '/master/vehicle-types', '/master/license-types',
