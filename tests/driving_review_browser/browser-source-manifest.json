@@ -1,0 +1,10 @@
+{
+  "driving_report_management.py": "0fc9e6a7ed3113881d6f28ae34203e01e7fe49bb41bc6c2cf6733296dd59793e",
+  "templates/driving_review_rejected.html": "44e08cc9a139043044d61c6fc7036c5777275f2bb74505364a01849e8a0c1867",
+  "templates/driving_report_detail.html": "1ccc4e09c40cc97adf5a41eee6240d4820869de0cd87f1aa4c2a72ff35461a2e",
+  "static/js/driving_report_detail.js": "50975f7937e641f7051eaa69b9a08dfd21199c8b6370407aa212568f3730828e",
+  "static/js/base.js": "10caebf52eb16a0028c2617eb0cebd6006937c829ef5d22f49b515de677397ac",
+  "templates/base.html": "ec44e92d4231eaf77628896b8210757cd20bbea771b8944733ab224be655cb35",
+  "dkss_app/http.py": "1975b8e3e17f9f9791c4e30f7aab1ef58ef2ce11102db041f2e785e6052806a2",
+  "dkss_app/access.py": "c2a1daf4f7b75e19dfce1c283128853ab0e2ab5cd696f3e053369bd09036cb3b"
+}

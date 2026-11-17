@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block content %}<section class="card"><h2>確認・指導内容を保存できませんでした</h2><p>{{ message }}</p><p>入力した内容を下に残しています。必要な文章を控えてから、最新の記録を確認してください。この画面から自動再送はしません。</p><a href="{{ detail_url }}">最新の記録を確認</a>{% for key,label in fields %}<section><h3>{{ label }}</h3><label>今回の入力<textarea readonly rows="4" style="width:100%;box-sizing:border-box">
+{{ submitted[key] }}</textarea></label><p>現在保存されている内容</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ saved.get(key,'') }}</pre></section>{% endfor %}</section>{% endblock %}
