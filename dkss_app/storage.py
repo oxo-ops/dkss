@@ -351,6 +351,16 @@ def file_belongs_to_current_company(filename, folder="uploads"):
 
     filename = _dkss_common.os.path.basename(filename)
 
+    # マニュアル
+    if folder == "manuals":
+        return _dkss_models.Manual.query.filter_by(
+            company_code=company_code,
+            filename=filename
+        ).first() is not None
+
+    if folder != "uploads":
+        return False
+
     # プロフィール画像
     current_user = _dkss_models.User.query.filter_by(
         company_code=company_code,
@@ -362,13 +372,6 @@ def file_belongs_to_current_company(filename, folder="uploads"):
         and current_user.profile_image == filename
     ):
         return True
-
-    # マニュアル
-    if folder == "manuals":
-        return _dkss_models.Manual.query.filter_by(
-            company_code=company_code,
-            filename=filename
-        ).first() is not None
 
     # お知らせ
     news_records = _dkss_models.News.query.filter_by(
