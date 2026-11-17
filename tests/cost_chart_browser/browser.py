@@ -28,7 +28,7 @@ with sync_playwright() as pw:
     def reject_ws(ws):
      blocked.append('websocket');ws.close()
     ctx.route('**/*',route);ctx.route_web_socket('**/*',reject_ws);page=ctx.new_page()
-    page.add_init_script('''window.__costText=[];const orig=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...rest){const m=this.measureText(text);window.__costText.push({canvas:this.canvas.id,text:String(text),x,y,align:this.textAlign,left:x-m.actualBoundingBoxLeft,right:x+m.actualBoundingBoxRight,top:y-m.actualBoundingBoxAscent,bottom:y+m.actualBoundingBoxDescent});return orig.call(this,text,x,y,...rest)};''')
+    page.add_init_script('''window.__costText=[];const orig=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...rest){const m=this.measureText(text),t=this.getTransform();window.__costText.push({canvas:this.canvas.id,text:String(text),x,y,align:this.textAlign,logicalWidth:this.canvas.width/t.a,logicalHeight:this.canvas.height/t.d,left:x-m.actualBoundingBoxLeft,right:x+m.actualBoundingBoxRight,top:y-m.actualBoundingBoxAscent,bottom:y+m.actualBoundingBoxDescent});return orig.call(this,text,x,y,...rest)};''')
     try:
      page.goto(ORIGIN+'/case',wait_until='load');page.evaluate('document.fonts.ready');assert scripts and not blocked
      labels=page.locator('canvas').evaluate_all('(es)=>Object.fromEntries(es.map(e=>[e.id,e.getAttribute("aria-label")]))')
@@ -44,12 +44,20 @@ with sync_playwright() as pw:
      if scenario in ('tiny_only','tiny_negative'):
       for cid in ('kc-monthly-chart','kc-yearly-chart'):
        ticks=[x['text'] for x in text if x['canvas']==cid and x['align']=='right'];assert ticks and len(set(ticks))==5
-     overflow=[t for t in text if t['canvas'] in bounds and (t['left'] < -1 or t['right']>bounds[t['canvas']]['width']+1 or t['top'] < -1 or t['bottom']>bounds[t['canvas']]['height']+1)]
+     # Glyph coordinates are logical canvas units, not CSS client pixels.
+     # Normalize both glyph and backing/transform bounds to CSS units.
+     for t in text:
+      b=bounds[t['canvas']];sx=b['width']/t['logicalWidth'];sy=b['height']/t['logicalHeight']
+      t['css_bounds']={k:t[k]*(sx if k in ('left','right') else sy) for k in ('left','right','top','bottom')}
+     overflow=[t for t in text if t['css_bounds']['left'] < -1 or t['css_bounds']['right']>bounds[t['canvas']]['width']+1 or t['css_bounds']['top'] < -1 or t['css_bounds']['bottom']>bounds[t['canvas']]['height']+1]
+     # The ring's text must fit its inner circle (43 - 16/2 = 35),
+     # not merely the full square canvas. Use all four glyph-box corners.
+     ring_overlap=[t for t in text if t['canvas']=='kc-category-chart' and any((x-55)**2+(y-55)**2>35**2 for x in (t['left'],t['right']) for y in (t['top'],t['bottom']))]
      assert not blocked
-     if overflow:
-      reports.append(dict(head=head,width=width,scenario=scenario,status='failed',error_type='CanvasTextOverflow',aria=labels,text=text,bounds=bounds,text_overflow=overflow,script_urls=scripts))
-      raise AssertionError('CanvasTextOverflow')
-     reports.append(dict(head=head,width=width,scenario=scenario,status='passed',aria=labels,text=text,bounds=bounds,text_overflow=overflow,script_urls=scripts))
+     if overflow or ring_overlap:
+      reports.append(dict(head=head,width=width,scenario=scenario,status='failed',error_type='CanvasTextOverflow' if overflow else 'RingTextOverlap',aria=labels,text=text,bounds=bounds,text_overflow=overflow,ring_overlap=ring_overlap,script_urls=scripts))
+      raise AssertionError('CanvasTextOverflow' if overflow else 'RingTextOverlap')
+     reports.append(dict(head=head,width=width,scenario=scenario,status='passed',aria=labels,text=text,bounds=bounds,text_overflow=overflow,ring_overlap=ring_overlap,script_urls=scripts))
      page.screenshot(path=str(a.artifacts/f'{width}-{scenario}.png'),full_page=True)
     except BaseException as error:
      diagnostic={'head':head,'width':width,'scenario':scenario,'status':'failed','error_type':type(error).__name__,'blocked_count':len(blocked)}
@@ -66,5 +74,6 @@ with sync_playwright() as pw:
  finally:browser.close();(a.artifacts/'report.json').write_text(json.dumps(reports,ensure_ascii=False,indent=2))
 assert len(reports)==40
 assert all(r['status']=='passed' for r in reports)
+assert not any(r['ring_overlap'] for r in reports), 'Ring text overlaps colored arc'
 assert not any(r['text_overflow'] for r in reports),'Canvas text overflow: inspect images; do not hide known or new failures'
 print('PASS 40 conditions; visual image review and real device acceptance remain')

@@ -3,7 +3,7 @@ from pathlib import Path
 from decimal import Decimal
 import json,hashlib
 from jinja2 import Environment,ChoiceLoader,DictLoader,FileSystemLoader
-R=Path(__file__).resolve().parent;ROOT=R.parents[1];VERSION='20261117-cost-decimals-axis-1'
+R=Path(__file__).resolve().parent;ROOT=R.parents[1];VERSION='20261117-cost-decimals-axis-2'
 SCENARIOS={'tiny':['0.01','0.50','0'],'tiny_only':['0.01','0','0'],'tiny_negative':['-0.01','0','0'],'zero':['0','0','0'],'ordinary':['500.01','1000.10','0'],'negative':['-50.01','100','0'],'unknown':[None,None,None],'missing':[None,None,None],'mixed':['0',None,'0.01'],'large':['999999999999.99','1000000.01','0']}
 shell='''<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/css/style.css"><link rel="stylesheet" href="/static/css/responsive_layout.css"><body><main>{% block content %}{% endblock %}</main></body></html>'''
 env=Environment(loader=ChoiceLoader([DictLoader({'base.html':shell,'vehicle_karte_header.html':'','vehicle_karte_tabs.html':''}),FileSystemLoader(str(ROOT/'templates'))]),autoescape=True)
