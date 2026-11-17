@@ -29,7 +29,7 @@ class Token(HTMLParser):
 class Fixture(Base):pass
 from urllib.parse import urlsplit
 import hashlib,subprocess,re
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 case=Fixture();case.setUpClass();results=[];blocked=[]
 try:
  with sync_playwright() as pw:
@@ -89,7 +89,7 @@ try:
        with case.client.session_transaction() as session:session.clear()
       form.evaluate('(f)=>{f.requestSubmit();f.requestSubmit()}')
       if scene=='success':
-       page.wait_for_function('document.querySelector("form[data-review-inplace] textarea[name=note]")?.value === "架空指導文 <>& コピー対象"')
+       expect(page.locator('form[data-review-inplace] textarea[name=note]')).to_have_value(expected.strip())
        assert urlsplit(page.url).path==path and counts['get']>=2
       else:
        page.locator('[data-review-recovery]').wait_for(state='visible')
