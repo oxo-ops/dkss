@@ -53,6 +53,29 @@ class DemoWorkflowTests(Base):
         self.db.session.refresh(self.row)
         self.assertEqual(self.row.status,'承認待ち')
         return self.row
+    def test_demo_actions_follow_mobile_navigation_inside_main(self):
+        # The menu is fixed at the viewport top. The demo notice must not
+        # precede the shell: only content below its opaque sticky top bar
+        # is protected from the menu, including during document scrolling.
+        self.app.config['PUBLIC_DEMO_SHARED_COMPANY'] = True
+        self.addCleanup(self.app.config.pop, 'PUBLIC_DEMO_SHARED_COMPANY', None)
+        self.login('admin')
+        for path in ('/', '/safety/driving-reports', '/vehicle/checklists'):
+            with self.subTest(path=path):
+                page = self.request('GET', path, follow_redirects=True)
+                self.assertEqual(page.status_code, 200)
+                html = page.get_data(as_text=True)
+                main = html.index('<main class="main-content">')
+                top_bar = html.index('<div class="top-bar', main)
+                notice = html.index('class="alert public-demo-notice"')
+                self.assertLess(main, top_bar)
+                self.assertLess(top_bar, notice)
+                self.assertLess(notice, html.index('</main>', main))
+                self.assertEqual(html.count('class="alert public-demo-notice"'), 1)
+                self.assertEqual(html.count('action="/demo/role"'), 1)
+                self.assertIn('運転者役で見る', html[notice:])
+                self.assertIn('管理者役で確認する', html[notice:])
+
     def test_demo_real_input_to_judgment_no_external_delivery(self):
         from dkss_app.extensions import limiter
         limiter.enabled=True;limiter.reset()

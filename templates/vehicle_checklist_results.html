@@ -240,9 +240,9 @@
     {% endif %}
 
     {% if other_vehicle_inspection_defects %}
-    <p>同じ車両の別の日に、未解消の不具合が {{ other_vehicle_inspection_defects|length }} 件あります。今日の点検とは別に、元の点検日で対応を続けてください。</p>
+    <p>この車両には、表示中の点検日とは別の日に記録された、現在未解消の不具合が {{ other_vehicle_inspection_defects|length }} 件あります。これは表示中の点検日時点の状態ではありません。各不具合の点検日を確認し、元の点検日で対応を続けてください。</p>
     <a class="btn btn-outline" href="#vehicle-other-day-defects">
-        別の日の未対応を確認（{{ other_vehicle_inspection_defects|length }}件）
+        別の日の現在の未解消を確認（{{ other_vehicle_inspection_defects|length }}件）
     </a>
     {% endif %}
 </div>
@@ -1054,7 +1054,7 @@
 
 {% if other_vehicle_inspection_defects and not vehicle_response_ready %}
 <div id="vehicle-other-day-defects" class="card form-card vehicle-approval-card">
-    <h3>この車両の未解消不具合（ほかの点検日）</h3>
+    <h3>この車両の現在の未解消不具合（ほかの点検日）</h3>
 
     <div class="checklist-history-list">
         {% for entry in other_vehicle_inspection_defects %}
@@ -1175,9 +1175,11 @@
 <div class="vehicle-inspection-layout vehicle-response-layout">
     <aside class="vehicle-flow-panel vehicle-issue-panel" aria-label="不具合一覧">
         <div class="vehicle-issue-panel-heading">
-            <h3>不具合</h3>
+            <h3>現在の未解消不具合</h3>
             <span>未解消 {{ flow.repair + flow.recheck }}件</span>
         </div>
+
+        <p>現在の対応状況です。表示中の点検日時点の状態ではありません。各不具合の点検日を確認してください。</p>
 
         <ul class="vehicle-flow-steps vehicle-issue-list">
             {% for defect in judgment.get("defects", []) %}
@@ -1479,10 +1481,12 @@
     <section id="vehicle-operation-panel" aria-label="運行判断">
     <div class="vehicle-operation-workspace">
         <aside class="vehicle-operation-context" aria-label="判断前の確認">
-            <h4>不具合の対応状況</h4>
+            <h4>現在の未解消不具合の対応状況</h4>
             <p class="vehicle-operation-context-count">
                 未解消 {{ flow.repair + flow.recheck }}件
             </p>
+
+            <p>現在の対応状況です。表示中の点検日時点の状態ではありません。各不具合の点検日を確認してください。</p>
 
             <ul class="vehicle-operation-context-list">
                 {% for defect in judgment.get("defects", []) %}
