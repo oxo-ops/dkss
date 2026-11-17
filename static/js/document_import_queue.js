@@ -405,11 +405,55 @@
     if (!root) return;
     const labels = {queued:"順番待ち", reading:"読み取り中", preview:"確認できます", read_error:"読み取り失敗", completed:"登録済み", skipped:"確認済み"};
     let failures = 0;
-    async function poll() {
-        try {
-            const response = await fetch(root.dataset.statusUrl, {headers:{Accept:"application/json"}, cache:"no-store"});
-            if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/json")) throw new Error("status");
+    let checking = false;
+    let automaticOpenAllowed = true;
+    const originalStatusUrl = root.dataset.statusUrl;
+    const retryButtonStates = new Map();
+    const reconnect = document.createElement('button');
+    reconnect.type = 'button';
+    reconnect.textContent = 'この受付の状況を再確認';
+    reconnect.hidden = true;
+    document.getElementById('jobConnection').after(reconnect);
+    reconnect.addEventListener('click', () => { if (!checking) poll(); });
+    async function readReceiptStatus() {
+        const statusUrl = new URL(originalStatusUrl, location.href);
+        const match = statusUrl.pathname.match(/^\/vehicle\/data-import\/jobs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/status$/);
+        if (statusUrl.origin !== location.origin || statusUrl.username || statusUrl.password
+            || statusUrl.search || statusUrl.hash || !match
+            || ![statusUrl.pathname, statusUrl.href].includes(originalStatusUrl)) throw new Error('status origin or canonical receipt');
+        const controller = new AbortController();
+        let timer;
+        const operation = (async () => {
+            const response = await fetch(statusUrl.href, {
+                method: 'GET', headers:{Accept:'application/json'}, cache:'no-store', signal:controller.signal
+            });
+            if (response.redirected || !response.ok || !(response.headers.get('Content-Type') || '').includes('application/json')) throw new Error('status');
             const job = await response.json();
+            if (!job || !Array.isArray(job.files)
+                || !['completed','total','succeeded','failed'].every(key => Number.isInteger(job[key]) && job[key] >= 0)
+                || ['completed','succeeded','failed'].some(key => job[key] > job.total)) throw new Error('status body');
+            if (job.batch_id !== match[1] || job.files.length !== job.total
+                || !job.files.every(file => file && ['queued','reading','type_review','preview','read_error','completed','skipped'].includes(file.status))) throw new Error('receipt mismatch');
+            const count = states => job.files.filter(file => states.includes(file.status)).length;
+            const active = count(['queued', 'reading']);
+            if (job.succeeded !== count(['preview', 'completed', 'skipped'])
+                || job.failed !== count(['read_error']) || job.needs_review !== count(['type_review'])
+                || job.completed !== job.total - active || job.finished !== (active === 0)
+                || job.preview_ready !== (active === 0 && count(['preview']) > 0)) throw new Error('inconsistent receipt counts');
+            return job;
+        })();
+        try {
+            return await Promise.race([operation, new Promise((_, reject) => {
+                timer = window.setTimeout(() => { controller.abort(); reject(new Error('status timeout')); }, 15000);
+            })]);
+        } finally { window.clearTimeout(timer); }
+    }
+    async function poll() {
+        if (checking) return;
+        checking = true;
+        reconnect.disabled = true;
+        try {
+            const job = await readReceiptStatus();
             failures = 0;
             document.getElementById("jobSummary").textContent = job.completed + " / " + job.total + "資料処理済み（成功 " + job.succeeded + "・種類の確認 " + (job.needs_review || 0) + "・失敗 " + job.failed + "）";
             const progress = document.getElementById("jobProgress");
@@ -436,22 +480,38 @@
             });
             document.getElementById("jobFiles").replaceChildren(...items);
             document.getElementById("jobConnection").textContent = "";
+            reconnect.hidden = true;
+            retryButtonStates.forEach((disabled, button) => { button.disabled = disabled; });
+            retryButtonStates.clear();
             document.getElementById("jobRetry").hidden = !(job.failed > 0);
             const preview = document.getElementById("jobPreview");
-            preview.hidden = !job.preview_ready;
-            if (job.preview_url) {
+            preview.hidden = true;
+            if (job.preview_ready && job.preview_url) {
                 const destination = new URL(job.preview_url, location.href);
-                if (destination.origin === location.origin) {
+                const expectedPreviewPath = '/vehicle/data-import/' + job.batch_id + '/preview';
+                if (destination.origin === location.origin && !destination.username && !destination.password
+                    && !destination.search && !destination.hash && destination.pathname === expectedPreviewPath
+                    && [destination.pathname, destination.href].includes(job.preview_url)) {
                     preview.href = destination.href;
-                    if (root.dataset.autoOpen === "1" && job.failed === 0 && !job.needs_review) { location.replace(destination.href); return; }
+                    preview.hidden = false;
+                    if (automaticOpenAllowed && root.dataset.autoOpen === "1" && job.failed === 0 && !job.needs_review) { location.replace(destination.href); return; }
                 }
             }
             if (job.finished) return;
         } catch (_) {
             failures++;
-            document.getElementById("jobConnection").textContent = "状況を再確認しています。受付済みの資料は再送信せず、この画面を再読み込みしてください。";
+            automaticOpenAllowed = false;
+            document.getElementById("jobConnection").textContent = "受付の状況を確認できていません。処理が続いている可能性があります。資料を再送信せず「この受付の状況を再確認」を押してください。";
+            document.getElementById("jobRetry").hidden = true;
+            document.getElementById("jobRetry").querySelectorAll('button[type="submit"]').forEach(button => { if (!retryButtonStates.has(button)) retryButtonStates.set(button, button.disabled); button.disabled = true; });
+            document.getElementById("jobPreview").hidden = true;
+            reconnect.hidden = false;
+            return; // Stop automatic polling; manual retry is GET for the original receipt only.
+        } finally {
+            checking = false;
+            reconnect.disabled = false;
         }
-        window.setTimeout(poll, failures ? 10000 : 2000);
+        window.setTimeout(poll, 2000);
     }
     poll();
 })();

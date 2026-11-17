@@ -1,0 +1,43 @@
+name: Receipt Detail Product Integration Browser
+on:
+  pull_request:
+    paths:
+      - 'tests/receipt_detail_browser/**'
+      - 'static/js/document_import_queue.js'
+      - 'templates/document_import_job.html'
+      - 'templates/vehicle_data_import.html'
+      - '.github/workflows/receipt-detail-candidate-browser.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-receipt:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install test-only browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/receipt-venv"
+          "$RUNNER_TEMP/receipt-venv/bin/pip" install Jinja2==3.1.6 playwright==1.62.0
+          "$RUNNER_TEMP/receipt-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Check isolated candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          DKSS_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/receipt-results
+        run: |
+          PY="$RUNNER_TEMP/receipt-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          bash tests/receipt_detail_browser/run-isolated.sh "$PY" "$CHROMIUM"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: receipt-detail-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/receipt-results/
+          retention-days: 7
