@@ -1,0 +1,43 @@
+name: Cost Chart Product Integration Browser
+on:
+  pull_request:
+    paths:
+      - 'tests/cost_chart_browser/**'
+      - 'static/js/vehicle_karte_costs.js'
+      - 'templates/vehicle_karte_costs.html'
+      - 'static/css/style.css'
+      - 'static/css/responsive_layout.css'
+      - '.github/workflows/cost-chart-browser.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-cost-chart:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install isolated test dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/cost-venv"
+          "$RUNNER_TEMP/cost-venv/bin/pip" install Jinja2==3.1.6 playwright==1.62.0
+          "$RUNNER_TEMP/cost-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Test product costs with synthetic inputs
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          PY="$RUNNER_TEMP/cost-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          bash tests/cost_chart_browser/run-isolated.sh "$PY" "$CHROMIUM" "$RUNNER_TEMP/cost-results"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cost-chart-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/cost-results/
+          retention-days: 7

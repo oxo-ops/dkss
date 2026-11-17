@@ -23,7 +23,7 @@
     };
 
     const format = (value) => value.toLocaleString("ja-JP", {
-        maximumFractionDigits: 0
+        maximumFractionDigits: 2
     });
 
     function prepare(canvas, width, height) {
@@ -78,9 +78,10 @@
         const span = maximum - minimum || 1;
         const rawStep = span / 4;
         const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-        const step = Math.ceil(rawStep / magnitude) * magnitude;
+        const tinyCurrencySpan = span < 0.04;
+        const step = tinyCurrencySpan ? 0.01 : Math.ceil(rawStep / magnitude) * magnitude;
         const low = Math.floor(minimum / step) * step;
-        const high = Math.max(low + step, Math.ceil(maximum / step) * step);
+        const high = Math.max(low + (tinyCurrencySpan ? 4 : 1) * step, Math.ceil(maximum / step) * step);
         const y = (value) => bottom - (value - low) / (high - low) * (bottom - top);
         const zero = y(0);
 
