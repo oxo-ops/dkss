@@ -86,8 +86,8 @@ try:
     bell_roundtrip(page)
     page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-top.png'))
-    page.locator('.dashboard-safety-attention').scroll_into_view_if_needed();page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
-    page.locator('.dashboard-attention-panel').first.scroll_into_view_if_needed();page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-proposals.png'))
+    page.locator('.dashboard-safety-attention').evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
+    page.locator('.dashboard-attention-panel').first.evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-proposals.png'))
     assert page.locator('.dashboard-attention-preview tbody tr').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview tbody tr').all():
@@ -97,6 +97,9 @@ try:
 
     measure=page.evaluate('''()=>({overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
+    if width>=1251:
+     full=page.locator('.dashboard-home-layout').bounding_box();attention=page.locator('.dashboard-attention-list').bounding_box()
+     assert attention['width']>=full['width']-2,(full,attention)
     if width<=600:assert measure['direction']=='column',measure
     for disclosure in page.locator('.dashboard-safety-items > li .dashboard-safety-story').all():
      if not disclosure.is_visible():continue
