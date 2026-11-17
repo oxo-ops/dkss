@@ -3,7 +3,7 @@
 {% block title %}車両チェック結果{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-5') }}">
 {% endblock %}
 
 {% block content %}
@@ -1107,11 +1107,11 @@
     </button>
 </div>
 
-<nav class="vehicle-response-switch vehicle-process-path" aria-label="日常点検の流れ">
-    <a class="vehicle-process-step is-complete"
+<nav class="vehicle-response-switch vehicle-process-path" aria-label="点検・不具合・運行判断の状態">
+    <a class="vehicle-process-step{{ ' is-complete' if point_done else '' }}"
         href="#vehicle-inspection-record"
         data-vehicle-record-link>
-        <span class="vehicle-process-number" aria-hidden="true">01</span>
+        <span class="vehicle-process-number" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{% if point_done %}<path d="m5 12 4 4L19 6" />{% else %}<path d="M7 3h10v18H7zM10 8h4M10 12h4M10 16h4" />{% endif %}</svg></span>
         <span class="vehicle-process-label">
             <strong>点検記録</strong>
             <small>{{ "完了" if point_done else "入力中" }}</small>
@@ -1123,7 +1123,7 @@
         data-vehicle-response-view="defects"
         aria-pressed="false"
         aria-controls="vehicle-flow-overview">
-        <span class="vehicle-process-number" aria-hidden="true">02</span>
+        <span class="vehicle-process-number" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg></span>
         <span class="vehicle-process-label">
             <strong>不具合対応</strong>
             <small>
@@ -1145,7 +1145,7 @@
         data-vehicle-response-view="operation"
         aria-pressed="false"
         aria-controls="vehicle-operation-panel">
-        <span class="vehicle-process-number" aria-hidden="true">03</span>
+        <span class="vehicle-process-number" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg></span>
         <span class="vehicle-process-label">
             <strong>運行判断</strong>
             <small>{{ "判断保留" if decision == "判定保留" else decision }}</small>

@@ -161,3 +161,54 @@
   #vehicle-operation-panel button,
   #vehicle-inspection-response summary { min-height: 44px; }
 }
+
+/* Three independent states, not a prerequisite chain. Reuse the site's brand token. */
+.vehicle-process-path {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0;
+  overflow: visible;
+}
+.vehicle-process-path > .vehicle-process-step,
+.vehicle-process-path > .vehicle-process-step:first-child {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 100px;
+  padding: 10px 6px;
+  clip-path: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dkss-text-strong);
+  text-align: center;
+}
+.vehicle-process-path > .vehicle-process-step::before { content: none; }
+.vehicle-process-path .vehicle-process-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--dkss-blue-brand);
+  border-radius: 50%;
+  color: var(--dkss-blue-brand);
+  background: var(--dkss-surface);
+}
+.vehicle-process-path .vehicle-process-number svg { width: 24px; height: 24px; }
+.vehicle-process-path > .is-complete .vehicle-process-number { background: var(--dkss-blue-brand); color: var(--dkss-surface); }
+.vehicle-process-path > .vehicle-process-step[aria-pressed="true"] { border-color: var(--dkss-blue-brand); background: var(--dkss-surface); color: var(--dkss-text-strong); }
+.vehicle-process-path > .vehicle-process-step:hover { background: var(--dkss-surface); }
+.vehicle-process-path > .vehicle-process-step:focus-visible { outline: 2px solid var(--dkss-blue-brand); outline-offset: 2px; }
+.vehicle-process-path .vehicle-process-label { gap: 4px; align-items: center; }
+.vehicle-process-path .vehicle-process-label > strong { font-size: 14px; }
+.vehicle-process-path .vehicle-process-label > small { font-size: 12px; color: var(--dkss-text-tertiary); }
+@media (max-width: 600px) {
+  .vehicle-process-path { gap: 6px; }
+  .vehicle-process-path > .vehicle-process-step,
+  .vehicle-process-path > .vehicle-process-step:first-child { padding: 8px 2px; }
+  .vehicle-process-path .vehicle-process-label > strong { font-size: 13px; }
+}

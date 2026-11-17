@@ -20,17 +20,20 @@ case=CompactDemoTests();case.setUpClass()
 report={'head':a.expected_sha,'fixture_only':True,'live_access':False,'browser_started':False,'transport':'loopback-only HTTP; native redirects; synthetic Flask client session','cases':[],'blocked':[]}
 ORIGIN='https://fixture.invalid'
 def snapshot():
- return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
+ return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json,r.status,r.operation_judgment_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
 def setup():
  case.setUp();case.begin(defect=True)
- state=json.loads(case.row.operation_judgment_json);state['requested_usernames']=[]
+ state=json.loads(case.row.operation_judgment_json);state['requested_usernames']=[] if scenario=='未判定' else ['admin']
+ state['status']=scenario
+ if scenario!='未判定':
+  state.update(judged_at='2026-10-23 10:00:00',judged_by='合成管理者',judged_by_username='admin',reason='合成表示確認',checks_evidence='合成根拠');case.row.status='承認済み'
  case.row.operation_judgment_json=json.dumps(state,ensure_ascii=False);case.db.session.commit()
  return f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}?vehicle_record_id={case.vehicle_id}&year=2026&month=10&active_day=23' 
 def cleanup():
  case.tearDown();case.doCleanups()
 try:
  if a.preflight_only:
-  for role in ('driver','manager'):
+  for role,scenario in ((r,s) for r in ('driver','manager') for s in ('未判定','運行可','運行不可','判定保留')):
    target=setup()
    try:
     token,html=case.enter();before=snapshot()
@@ -39,7 +42,9 @@ try:
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
     assert 'vehicle-operation-panel' in text and '現在の未解消不具合の対応状況' in text
-    assert '整備管理者が未設定です。' in text and '整備管理者を選択' in text
+    if scenario=='未判定':assert '整備管理者が未設定です。' in text and '整備管理者を選択' in text
+    else:assert ('判断保留' if scenario=='判定保留' else scenario) in text
+    assert 'vehicle-process-number' in text and 'aria-label="点検・不具合・運行判断の状態"' in text
     assert '整備管理者：未設定' not in text
     assert 'vehicle-operation-context-list' in text
     from threading import Thread
@@ -49,7 +54,7 @@ try:
      except BaseException as error:threaded.append(type(error).__name__)
     thread=Thread(target=check_thread);thread.start();thread.join(timeout=10)
     assert threaded==[200],threaded
-    report['cases'].append({'role':role,'status':'preflight-passed'})
+    report['cases'].append({'role':role,'scenario':scenario,'status':'preflight-passed'})
    finally:cleanup()
  else:
   assert a.run_browser and a.chromium
@@ -59,7 +64,7 @@ try:
    report['browser_started']=True
    try:
     for width in (320,390,768,1316):
-     for role in ('driver','manager'):
+     for role,scenario in ((r,s) for r in ('driver','manager') for s in ('未判定','運行可','運行不可','判定保留')):
       target=setup();before=snapshot();ctx=browser.new_context(viewport={'width':width,'height':800},service_workers='block');requests=[];post_count=[0];errors=[]
       # Use a bound loopback server so Chromium follows real HTTP 302s.
       # Route interception alone does not intercept redirected requests.
@@ -102,16 +107,16 @@ try:
       ctx.route('**/*',bridge)
       def reject_ws(ws):report['blocked'].append('websocket');ws.close()
       ctx.route_web_socket('**/*',reject_ws);page=ctx.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
-      record={'width':width,'role':role,'status':'running'};report['cases'].append(record)
+      record={'width':width,'role':role,'scenario':scenario,'status':'running'};report['cases'].append(record)
       try:
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
        assert page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')==target.split('&year=')[0]
-       page.screenshot(path=str(out/f'{width}-{role}-entry.png'),full_page=True)
+       page.screenshot(path=str(out/f'{width}-{role}-{scenario}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
        page.wait_for_url(origin+'/');page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
-       page.screenshot(path=str(out/f'{width}-{role}-home.png'),full_page=True)
+       page.screenshot(path=str(out/f'{width}-{role}-{scenario}-home.png'),full_page=True)
        page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
@@ -119,30 +124,36 @@ try:
        assert header.is_visible() and '品川' in header.inner_text()
        date=page.locator('#vehicle_workspace_date');assert date.input_value()=='2026-10-23'
        assert date.bounding_box()['height']>=44
-       page.screenshot(path=str(out/f'{width}-{role}-saved-top.png'),full_page=True)
-       operation=page.locator('[data-vehicle-response-view="operation"]');operation.click()
+       page.screenshot(path=str(out/f'{width}-{role}-{scenario}-saved-top.png'),full_page=True)
+       operation=page.locator('[data-vehicle-response-view="operation"]');assert operation.is_enabled()
+       assert ('判断保留' if scenario=='判定保留' else scenario) in operation.inner_text()
+       assert page.locator('.vehicle-process-number svg').count()==3
+       assert page.locator('.vehicle-process-step').first.evaluate('(e)=>getComputedStyle(e).clipPath')=='none'
+       operation.click()
        panel=page.locator('#vehicle-operation-panel');assert panel.is_visible()
-       assert '整備管理者が未設定です。' in panel.inner_text()
+       if scenario=='未判定':assert '整備管理者が未設定です。' in panel.inner_text()
        assert '現在の未解消不具合の対応状況' in panel.inner_text()
        assert '整備管理者：未設定' not in panel.inner_text()
        select=panel.locator('select[name="manager_username"]')
-       assert select.count()==1 and select.is_visible()
-       select.scroll_into_view_if_needed();assert select.bounding_box()['height']>=44
-       assert panel.get_by_role('button',name='整備管理者を設定',exact=True).is_enabled()
+       if scenario=='未判定':
+        assert select.count()==1 and select.is_visible()
+        select.scroll_into_view_if_needed();assert select.bounding_box()['height']>=44
+        assert panel.get_by_role('button',name='整備管理者を設定',exact=True).is_enabled()
+       else:assert select.count()==0
        if width<=900:
         assert header.evaluate('(e)=>getComputedStyle(e).position')=='static'
         page.evaluate('window.scrollTo(0,Math.min(document.documentElement.scrollHeight-innerHeight,600))')
         page.wait_for_timeout(100)
         assert header.bounding_box()['y']+header.bounding_box()['height']<0,'header still covers scrolled content'
        assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
-       page.screenshot(path=str(out/f'{width}-{role}-saved-operation.png'),full_page=True)
+       page.screenshot(path=str(out/f'{width}-{role}-{scenario}-saved-operation.png'),full_page=True)
        assert snapshot()==before,'inspection data changed'
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
        assert not errors,errors;assert not report['blocked'],report['blocked']
        record.update(status='passed',requests=requests,inspection_unchanged=True)
       except BaseException as error:
        record.update(status='failed',error_type=type(error).__name__,error=str(error),requests=requests,page_errors=errors)
-       try:page.screenshot(path=str(out/f'{width}-{role}-FAILED.png'),full_page=True)
+       try:page.screenshot(path=str(out/f'{width}-{role}-{scenario}-FAILED.png'),full_page=True)
        except BaseException as capture:record['capture_error']=type(capture).__name__
        raise
       finally:ctx.close();server.shutdown();server.server_close();server_thread.join(timeout=5);cleanup()
