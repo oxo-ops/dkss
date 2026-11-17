@@ -52,7 +52,7 @@
     {% if request.endpoint in ['vehicle_inspection_plans', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261029-stable-filters-1') }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261117-demo-header-flow-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261117-role-entry-flow-1') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 </head>
 <body
@@ -364,20 +364,20 @@
         {% endif %}
 
         {# Keep demo actions below the opaque mobile navigation header. #}
-{% if session.get("aonagi_readonly_demo") %}
+{% if session.get("aonagi_readonly_demo") and not (public_demo_shared|default(false) and session.get("demo_role_selected")) %}
 <div role="note" class="alert public-demo-notice">
 {% if public_demo_workflow|default(false) %}
-共有のお試し画面です。入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。
+入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。
 {% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
 <a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
 <form action="/demo/role" method="post" style="display:inline">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<button name="role" value="driver">運転者役で見る</button>
-<button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者役で確認する</button>
+<button name="role" value="driver">運転者</button>
+<button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者</button>
 </form>
 {% for notice in public_demo_notices %}<a href="/notifications/{{ notice.id }}/open">{{ notice.title }}</a>{% endfor %}
 {% else %}青凪ロジスティクスの実画面を閲覧しています。体験版では登録・変更・通知送信は行えません。{% endif %}
-<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>体験を終了</button></form>
+
 </div>{% endif %}
 
         {% set flash_messages = get_flashed_messages(with_categories=true) %}

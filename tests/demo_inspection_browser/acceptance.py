@@ -1,0 +1,127 @@
+"""Synthetic Flask bridge; only role POST permitted, never inspection writes."""
+import argparse,os,sys,json,subprocess,hashlib
+from pathlib import Path
+from urllib.parse import urlsplit,parse_qs
+p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--expected-sha');p.add_argument('--chromium');p.add_argument('--preflight-only',action='store_true');p.add_argument('--run-browser',action='store_true');a=p.parse_args()
+repo=a.repo.resolve();out=a.artifacts.resolve();out.mkdir(parents=True,exist_ok=True)
+assert os.environ.get('DKSS_BROWSER_ACCEPTANCE_ISOLATED')=='1'
+import sitecustomize
+assert sitecustomize.ROOT==Path(os.environ['DKSS_VALIDATION_TMP']).resolve()
+for event,arg in [('socket.connect',(None,('fixture.invalid',443))),('sqlite3.connect',('/not-fixture.db',))]:
+ try:sys.audit(event,*arg)
+ except RuntimeError:pass
+ else:raise AssertionError('isolation guard inactive')
+if not a.preflight_only:
+ assert a.expected_sha and subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()==a.expected_sha
+ assert not subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=all'],text=True).strip()
+sys.path[:0]=[str(repo),str(repo/'tests')]
+from test_demo_inspection_compact import CompactDemoTests
+case=CompactDemoTests();case.setUpClass()
+report={'head':a.expected_sha,'fixture_only':True,'live_access':False,'browser_started':False,'cases':[],'blocked':[]}
+ORIGIN='https://fixture.invalid'
+def snapshot():
+ return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
+def setup():
+ case.setUp();return f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}?vehicle_record_id={case.vehicle_id}'
+def cleanup():
+ case.tearDown();case.doCleanups()
+try:
+ if a.preflight_only:
+  for role in ('driver','manager'):
+   target=setup()
+   try:
+    token,html=case.enter();before=snapshot();assert target in html
+    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
+    assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
+    assert snapshot()==before
+    report['cases'].append({'role':role,'status':'preflight-passed'})
+   finally:cleanup()
+ else:
+  assert a.run_browser and a.chromium
+  from playwright.sync_api import sync_playwright
+  with sync_playwright() as pw:
+   browser=pw.chromium.launch(executable_path=a.chromium,headless=True)
+   report['browser_started']=True
+   try:
+    for width in (320,390,768,1316):
+     for role in ('driver','manager'):
+      target=setup();before=snapshot();ctx=browser.new_context(viewport={'width':width,'height':800},service_workers='block');requests=[];post_count=[0];errors=[]
+      def bridge(route):
+       req=route.request;u=urlsplit(req.url);path=u.path;query=('?'+u.query if u.query else '')
+       if u.scheme+'://'+u.netloc!=ORIGIN:
+        report['blocked'].append('external');route.abort();return
+       if req.method=='POST':
+        data=parse_qs(req.post_data or '',keep_blank_values=True)
+        if path!='/demo/role' or set(data)!={'role','csrf_token'} or data['role']!=[role] or len(data['csrf_token'])!=1 or post_count[0]:
+         report['blocked'].append('unexpected-post');route.abort();return
+        post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
+       elif req.method=='GET' and (path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/static/manifest.webmanifest') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/'))):
+        if path==urlsplit(target).path and parse_qs(u.query).get('vehicle_record_id')!=[str(case.vehicle_id)]:
+         report['blocked'].append('wrong-vehicle');route.abort();return
+        res=case.client.get(path+query)
+       else:
+        report['blocked'].append('unexpected-request');route.abort();return
+       requests.append({'method':req.method,'path':path,'status':res.status_code})
+       route.fulfill(status=res.status_code,headers={k:v for k,v in res.headers.items() if k.lower() not in ('set-cookie','content-length','content-encoding')},body=res.data)
+      ctx.route('**/*',bridge)
+      def reject_ws(ws):report['blocked'].append('websocket');ws.close()
+      ctx.route_web_socket('**/*',reject_ws);page=ctx.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
+      record={'width':width,'role':role,'status':'running'};report['cases'].append(record)
+      try:
+       page.goto(ORIGIN+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
+       assert page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')==target
+       page.screenshot(path=str(out/f'{width}-{role}-entry.png'),full_page=True)
+       page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
+       page.wait_for_url(ORIGIN+'/');page.wait_for_load_state('networkidle')
+       assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
+       with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
+       page.screenshot(path=str(out/f'{width}-{role}-home.png'),full_page=True)
+       page.goto(ORIGIN+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
+       assert page.locator('.public-demo-notice').count()==0
+       assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
+       table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
+       assert table.is_visible();assert 'エンジンのかかり具合、異音' in table.inner_text()
+       all_items=json.loads(before['items'][0][1])
+       original=[i['content'] for i in all_items if i.get('item_type')=='check' and str(i.get('item_code','')).startswith('daily_')]
+       footer=[i['content'] for i in all_items if i.get('item_type')=='check' and not str(i.get('item_code','')).startswith('daily_')]
+       assert len(original)==27,len(original)
+       rendered=table.locator('.js-open-detail').evaluate_all('(es)=>es.map(e=>e.dataset.content)')
+       assert all(value in rendered for value in original+footer),'original detail text lost'
+       record['original_item_count']=len(original)
+       record['footer_item_count']=len(footer)
+       assert page.locator('.criteria-line-pre').count()>0
+       assert not page.locator('.criteria-box[hidden]').count()
+       assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
+       if width<=768:
+        cells=table.locator('.fixed-item');visible=[c for c in cells.all() if c.is_visible()];assert visible
+        row=next(c.locator('..') for c in visible if 'エンジンのかかり具合' in c.inner_text())
+        boxes={k:row.locator(sel).bounding_box() for k,sel in [('item','.fixed-item'),('category','.fixed-category'),('current','.mobile-current-date'),('detail','.mobile-detail-cell')]}
+        assert boxes['item']['width']>boxes['current']['width'],boxes
+        choices=row.locator('.mobile-current-date .check-choice-button');assert choices.count()==2
+        for control in choices.all():
+         b=control.bounding_box();assert b['width']>=35.5 and b['height']>=43.5,b
+        detail=row.locator('.mobile-detail-cell .js-open-detail')
+        assert all(b['width']>=43.5 and b['height']>=43.5 for b in [detail.bounding_box()])
+        for d in table.locator('th.mobile-current-date .mobile-date-label').all():
+         if d.is_visible():assert d.inner_text().strip().isdigit(),d.inner_text()
+        record['columns']=boxes
+       else:detail=next(x for x in table.locator('.desktop-detail-button').all() if x.is_visible())
+       page.screenshot(path=str(out/f'{width}-{role}-inspection.png'),full_page=True)
+       detail.click();assert page.locator('#detailModal').is_visible();assert page.locator('#detailTitle').inner_text().strip()
+       page.screenshot(path=str(out/f'{width}-{role}-detail.png'),full_page=True)
+       page.locator('#detailModal .js-close-detail-modal').click();assert not page.locator('#detailModal').is_visible()
+       assert snapshot()==before,'inspection data changed'
+       page.goto(ORIGIN+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
+       assert not errors,errors;assert not report['blocked'],report['blocked']
+       record.update(status='passed',requests=requests,inspection_unchanged=True)
+      except BaseException as error:
+       record.update(status='failed',error_type=type(error).__name__,error=str(error),requests=requests,page_errors=errors)
+       try:page.screenshot(path=str(out/f'{width}-{role}-FAILED.png'),full_page=True)
+       except BaseException as capture:record['capture_error']=type(capture).__name__
+       raise
+      finally:ctx.close();cleanup()
+   finally:browser.close()
+finally:
+ case.tearDownClass();(out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+print('PASS',len(report['cases']),'synthetic cases; real device and visual acceptance remain')

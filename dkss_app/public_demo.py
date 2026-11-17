@@ -111,6 +111,7 @@ def install(app):
             if enabled() and not shared():
                 bind_shared_result()
             if shared():
+                session.pop('demo_role_selected', None)
                 return redirect('/')
             return redirect('/vehicle/karte/' + str(vehicle.id))
         if not is_demo():

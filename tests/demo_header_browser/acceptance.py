@@ -64,7 +64,7 @@ def bell_roundtrip(page):
 
 def notice_text_visibility(page):
     """Read every rendered line of the exact direct banner text, not its controls."""
-    expected = '共有のお試し画面です。入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。'
+    expected = '入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。'
     notice = page.locator('.public-demo-notice')
     locate = """(e, expected) => {
       const matches=Array.from(e.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim()===expected);
@@ -190,10 +190,11 @@ def main():
                             for n, path in enumerate(PAGES):
                                 page.goto(ORIGIN + path, wait_until='networkidle')
                                 page.locator('.public-demo-notice').wait_for()
+                                require(page.locator('.public-demo-notice form[action="/logout"]').count()==0,'removed demo exit returned')
                                 notice_geometry = notice_text_visibility(page)
                                 if width <= 900:
                                     require(not page.locator('body').evaluate("e=>e.classList.contains('sidebar-open')"), 'drawer should start closed')
-                                for label in ('日常点検を開く', '運転者役で見る', '管理者役で確認する'):
+                                for label in ('日常点検を開く', '運転者', '管理者'):
                                     control = page.get_by_text(label, exact=True)
                                     click_target(page,control,label)
                                     require(not page.locator('#notificationBell').get_attribute('aria-expanded') == 'true', 'demo click opened notification bell')
@@ -207,6 +208,24 @@ def main():
                                 click_target(page,page.get_by_text('日常点検を開く',exact=True),'日常点検を開く')
                                 page.screenshot(path=str(out / f'{role}-{width}-{n}.png'), full_page=False)
                                 report['cases'].append(dict(role=role,width=width,path=path,position=position,notice=notice_geometry))
+                            # Real synthetic Flask POST, not a DOM-only hide. Keep browser bridge GET-only.
+                            token=page.locator('.public-demo-notice form[action="/demo/role"] input[name="csrf_token"]').input_value()
+                            selected=case.request('POST','/demo/role',data={'role':'manager' if role=='admin' else 'driver','csrf_token':token})
+                            require(selected.status_code==302 and selected.headers['Location']=='/','role must return home')
+                            for n,path in enumerate(PAGES):
+                                page.goto(ORIGIN+path,wait_until='networkidle')
+                                require(page.locator('.public-demo-notice').count()==0,'selected role retained demo notice')
+                                header=page.locator('main > .top-bar')
+                                position=header.evaluate('e=>getComputedStyle(e).position')
+                                require(position==('sticky' if width<=900 else 'relative'),'selected header flow regressed')
+                                require(not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),'selected horizontal overflow')
+                                bell_roundtrip(page)
+                                page.screenshot(path=str(out/f'{role}-{width}-{n}-selected.png'),full_page=False)
+                            page.goto(ORIGIN+'/demo',wait_until='networkidle')
+                            require(page.locator('.public-demo-notice form[action="/demo/role"]').count()==1,'reentry must restore role selection')
+                            require(page.get_by_text('日常点検を開く',exact=True).is_visible(),'initial independent inspection action missing')
+                            require(page.locator('.public-demo-notice form[action="/logout"]').count()==0,'exit must remain absent')
+                            report['cases'].append(dict(role=role,width=width,role_selected_hidden=True,reentry_restored=True))
                         finally:
                             context.close()
                 # Ordinary sessions do not receive the scoped override.

@@ -93,8 +93,8 @@ class DemoWorkflowTests(Base):
                 self.assertLess(notice, html.index('</main>', main))
                 self.assertEqual(html.count('class="alert public-demo-notice"'), 1)
                 self.assertEqual(html.count('action="/demo/role"'), 1)
-                self.assertIn('運転者役で見る', html[notice:])
-                self.assertIn('管理者役で確認する', html[notice:])
+                self.assertIn('運転者', html[notice:])
+                self.assertIn('管理者', html[notice:])
 
     def test_demo_real_input_to_judgment_no_external_delivery(self):
         from dkss_app.extensions import limiter

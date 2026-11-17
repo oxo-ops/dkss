@@ -78,8 +78,9 @@ try:
     assert page.locator('.dashboard-safety-content').count()==4,'fixture safety records absent'
     if scale==2:
      page.evaluate("""()=>{const values=Array.from(document.querySelectorAll('.public-demo-notice,.public-demo-notice *,.dashboard-page,.dashboard-page *')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)*2]);for(const [e,size] of values)e.style.setProperty('font-size',size+'px','important')}""")
+    assert page.locator('.public-demo-notice form[action="/logout"]').count()==0
     notice_text_visibility(page)
-    for label in ['日常点検を開く','運転者役で見る','管理者役で確認する','体験を終了']:
+    for label in ['日常点検を開く','運転者','管理者']:
      control=page.get_by_text(label,exact=True)
      click_target(page,control,label)
      control.focus();page.keyboard.press('Tab')

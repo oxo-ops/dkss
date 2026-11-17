@@ -22,10 +22,36 @@ def day_parts():
     return value.year, value.month, value.day
 
 
+def shared_entry_link():
+    """Resolve the existing synthetic 101 and daily form without provisioning."""
+    import json
+    from .models import Vehicle, Checklist
+    company = current_app.config.get('PUBLIC_DEMO_COMPANY')
+    fallback = '/vehicle/checklists'
+    if not company or session.get('company_code') != company:
+        return fallback
+    vehicles = Vehicle.query.filter_by(company_code=company, plate_area='品川',
+        plate_class='100', plate_kana='か', plate_number='101', deleted=False).limit(2).all()
+    if len(vehicles) != 1:
+        return fallback
+    candidates = []
+    for row in Checklist.query.filter_by(company_code=company, target='車両管理').all():
+        try:
+            items = json.loads(row.items_json or '[]')
+        except (TypeError, ValueError):
+            continue
+        if (isinstance(items, list) and items and isinstance(items[0], dict)
+                and items[0].get('fixed_template_code') == 'daily_inspection_truck_trailer'):
+            candidates.append(row)
+    if len(candidates) != 1:
+        return fallback
+    return f'/vehicle/checklists/{candidates[0].id}?vehicle_record_id={vehicles[0].id}'
+
+
 def link():
     from .public_demo_shared import enabled as shared
     if shared():
-        return '/vehicle/checklists'
+        return shared_entry_link()
     y, m, d = day_parts()
     return f"/vehicle/checklists/{current_app.config['PUBLIC_DEMO_CHECKLIST_ID']}?vehicle_record_id={current_app.config['PUBLIC_DEMO_VEHICLE_ID']}&year={y}&month={m}&active_day={d}"
 
@@ -74,10 +100,10 @@ def guard():
             key = 'MANAGER' if role == 'manager' else 'DRIVER'
             if user.account_identity != current_app.config['PUBLIC_DEMO_'+key+'_IDENTITY']:
                 abort(404)
-        session.update(demo_role=role, username=user.username, account_identity=user.account_identity,
+        session.update(demo_role_selected=True, demo_role=role, username=user.username, account_identity=user.account_identity,
             role=user.role, name=(user.last_name or '')+(user.first_name or ''), office=user.office,
             password_changed_at=user.password_changed_at, password_expired=False)
-        return True, redirect(link())
+        return True, redirect('/' if shared() else link())
     if request.endpoint in {'approval_candidates', 'mention_users', 'search_vehicles'}:
         if request.method not in {'GET', 'HEAD'}:
             abort(403)
