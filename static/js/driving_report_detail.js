@@ -22,6 +22,7 @@
   const status = form.querySelector('[data-review-status]');
   const recovery = form.querySelector('[data-review-recovery]');
   if (!status || !recovery) return;
+  const submitUrl = new URL(form.getAttribute('action'), window.location.href);
   let attempted = false, dirty = false;
   form.addEventListener('input', () => { dirty = true; });
   form.addEventListener('change', () => { dirty = true; });
@@ -42,14 +43,14 @@
    const controller = new AbortController();
    const timer = window.setTimeout(() => controller.abort(), 120000);
    try {
-    const response = await window.fetch(form.action, {
+    const response = await window.fetch(submitUrl.href, {
      method: 'POST', body, credentials: 'same-origin', redirect: 'error',
      headers: {'X-DKSS-Review-Inplace': '1'}, signal: controller.signal
     });
     if (response.ok && response.headers.get('X-DKSS-Review-Saved') === '1') {
      const result = await response.json();
      const target = new URL(result.detail_url, window.location.href);
-     const expected = new URL(form.action, window.location.href).pathname.replace(/\/review$/, '');
+     const expected = submitUrl.pathname.replace(/\/review$/, '');
      if (result.saved === true && target.origin === window.location.origin && target.pathname === expected) {
       dirty = false; window.location.assign(target.href); return;
      }

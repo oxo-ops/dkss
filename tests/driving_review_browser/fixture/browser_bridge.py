@@ -47,7 +47,7 @@ try:
       context=browser.new_context(viewport={'width':width,'height':850},service_workers='block')
       def bridge(route):
        req=route.request;u=urlsplit(req.url)
-       def deny(reason):blocked.append({'scene':scene,'reason':reason});route.abort()
+       def deny(reason):blocked.append({'scene':scene,'reason':reason,'method':req.method,'path':u.path,'post_count':counts['post']});route.abort()
        if u.scheme!='http' or u.netloc!='localhost:8765':return deny('external origin')
        if req.method=='POST':
         if u.path!=path+'/review' or u.query or counts['post']:return deny('unexpected/repeated POST')
