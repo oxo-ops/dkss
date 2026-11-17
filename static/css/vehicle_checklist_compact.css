@@ -75,7 +75,8 @@
   justify-content: center;
 }
 #detailModal .action-row > .btn { width: 100%; }
-#detailModal .vehicle-detail-file-upload > .file-upload-button { min-width: 88px; }
+#detailModal .vehicle-detail-file-upload { width: 100%; min-width: 0; gap: 8px; }
+#detailModal .vehicle-detail-file-upload > .file-upload-button { width: 96px; min-width: 96px; }
 #detailModal .action-row > button[type="submit"],
 #detailModal .file-upload-button-camera {
   background: var(--dkss-action-blue);
@@ -134,3 +135,29 @@
 }
 
 .monthly-check-table .inspection-item-detail.comment-cell { background: #dbeafe; color: #111827; font-weight: 700; }
+
+/* The inspection toolbar must not cover saved results on small screens. */
+@media (max-width: 900px) {
+  .page-header.vehicle-workspace-header {
+    position: static;
+    top: auto;
+    z-index: auto;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-top: 0;
+  }
+  .vehicle-workspace-heading > h2 { margin-bottom: 6px; font-size: 22px; }
+  .vehicle-workspace-subtitle { gap: 6px 10px; }
+  .vehicle-workspace-header .header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vehicle-workspace-header .header-actions > .btn { width: auto; min-height: 44px; }
+  #vehicle-inspection-response.card { padding: 16px; }
+  #vehicle-operation-panel .vehicle-operation-workspace { gap: 12px; }
+  #vehicle-operation-panel .vehicle-operation-context { padding: 12px; }
+  #vehicle-operation-panel .vehicle-operation-context-list a { padding: 10px; gap: 6px; min-height: 44px; }
+  #vehicle-operation-panel .vehicle-operation-context-count { margin-bottom: 10px; }
+  #vehicle-operation-panel .vehicle-judgment-heading { margin-top: 12px; margin-bottom: 12px; }
+  #vehicle-operation-panel .vehicle-judgment-heading p { margin: 6px 0; }
+  #vehicle-operation-panel select,
+  #vehicle-operation-panel button,
+  #vehicle-inspection-response summary { min-height: 44px; }
+}

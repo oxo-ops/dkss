@@ -60,6 +60,15 @@ jobs:
           CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
           DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/demo-inspection-results" bash tests/demo_inspection_browser/run-isolated.sh \
             "$GITHUB_WORKSPACE" "$PY" --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$CHROMIUM"
+      - name: Verify saved inspection small-screen workspace
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/browser-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/demo-inspection-results/saved" bash tests/demo_inspection_browser/run-saved-isolated.sh \
+            "$GITHUB_WORKSPACE" "$PY" --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$CHROMIUM"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

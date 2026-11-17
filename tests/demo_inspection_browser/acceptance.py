@@ -175,6 +175,8 @@ try:
        for control in modal.locator('.file-upload-button').all():
         box=control.bounding_box();assert box['height']>=44
         assert control.evaluate('(e)=>getComputedStyle(e).borderRadius')==save.evaluate('(e)=>getComputedStyle(e).borderRadius')
+       upload_boxes=[x.bounding_box() for x in modal.locator('.file-upload-button').all()]
+       assert len(upload_boxes)==2 and abs(upload_boxes[0]['y']-upload_boxes[1]['y'])<1 and abs(upload_boxes[0]['width']-upload_boxes[1]['width'])<1,upload_boxes
        assert save.is_enabled()
        assert modal.locator('input[type=file][capture=environment]').count()==1
        assert modal.locator('input[type=file][multiple]').count()==1

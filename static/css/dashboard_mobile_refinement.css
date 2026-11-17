@@ -397,9 +397,9 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
 /* Home is a scan list, with complete source and evidence on existing detail routes. */
 body .dashboard-page.dashboard-design-v2 .dashboard-safety-content {
     display: block;
-    flex: 1;
+    flex: 1 1 140px;
 }
-body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li { padding: 10px 0; }
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li { padding: 10px 0; flex-wrap: wrap; }
 body .dashboard-page.dashboard-design-v2 .dashboard-safety-opening {
     min-height: 44px;
     display: flex;

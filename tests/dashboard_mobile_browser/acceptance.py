@@ -111,6 +111,8 @@ try:
      context=card.locator(':scope > p');office=card.locator(':scope > small')
      assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
      assert '2026-11-19' in context.inner_text()
+     due=card.locator('time');dr=due.bounding_box();bounds=card.bounding_box()
+     assert dr['x']>=bounds['x']-1 and dr['x']+dr['width']<=bounds['x']+bounds['width']+1,('deadline clipped',dr,bounds)
      assert '写真と対策内容を確認' in context.inner_text()
      assert '架空構内' in office.inner_text()
      opening=card.locator('.dashboard-safety-opening')

@@ -3,7 +3,7 @@
 {% block title %}車両チェック結果{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261117-compact-4') }}">
 {% endblock %}
 
 {% block content %}
@@ -1209,11 +1209,6 @@
     class="card form-card vehicle-approval-card"
     tabindex="-1"
 >
-    {% if not (judgment.get("status") in ["運行可", "運行不可", "判定保留"] and judgment.get("judged_at")) %}
-    <p>
-        <span class="status-badge status-none">未判定</span>
-    </p>
-    {% endif %}
 
     {% if judgment.get("status") == "運行可" and judgment.get("checks_evidence") %}
     <div class="checklist-history-detail">
@@ -1503,9 +1498,11 @@
         </aside>
 
         <div class="vehicle-operation-main">
+    {% if vehicle_judgment_names %}
     <div class="vehicle-judgment-heading">
-        <p>整備管理者：{{ vehicle_judgment_names|join('、') or '未設定' }}</p>
+        <p>整備管理者：{{ vehicle_judgment_names|join('、') }}</p>
     </div>
+    {% endif %}
 
     {% if checklist.active
         and active_result.status in ["承認待ち", "承認済み", "点検完了"]
