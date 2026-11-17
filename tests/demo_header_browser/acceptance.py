@@ -21,18 +21,20 @@ def click_target(page, control, label):
       const pad=Math.min(3,r.width/4,r.height/4);
       // Inline links may wrap into disjoint line boxes; whitespace in their union is not clickable.
       const fragments=Array.from(e.getClientRects()).filter(q=>q.width>0&&q.height>0);
-      const points=fragments.flatMap(q=>{const d=Math.min(3,q.width/4,q.height/4);
+      const style=getComputedStyle(e);
+      const radius=Math.max(...['borderTopLeftRadius','borderTopRightRadius','borderBottomLeftRadius','borderBottomRightRadius'].map(k=>parseFloat(style[k])||0));
+      const points=fragments.flatMap(q=>{const d=Math.min(Math.max(3,radius),q.width/4,q.height/4);
         return [[q.x+q.width/2,q.y+q.height/2],[q.left+d,q.top+d],
           [q.right-d,q.top+d],[q.left+d,q.bottom-d],[q.right-d,q.bottom-d]]});
       const describe=h=>h?{tag:h.tagName,id:h.id,cls:h.className,text:h.textContent.slice(0,120)}:null;
       const hit=([x,y])=>{const h=document.elementFromPoint(x,y);return {x,y,target:e===h||e.contains(h),hit:describe(h)}};
       const rect=q=>({x:q.x,y:q.y,width:q.width,height:q.height});
       return {inside:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,
-        hits:points.map(p=>hit(p).target),hitDetails:points.map(hit),
+        hits:points.map(p=>hit(p).target),fragmentCount:fragments.length,radius,hitDetails:points.map(hit),
         clientRects:Array.from(e.getClientRects()).map(rect),
         fragmentCenters:Array.from(e.getClientRects()).map(q=>hit([q.x+q.width/2,q.y+q.height/2])),
         rect:rect(r),display:getComputedStyle(e).display}}""")
-    if not (geometry['inside'] and all(geometry['hits'])):
+    if not (geometry['inside'] and geometry['fragmentCount']>0 and all(geometry['hits'])):
         # Preserve viewport and all real-fragment hit gates; capture evidence before failing.
         out=Path(os.environ['DKSS_BROWSER_ARTIFACT_DIR'])
         page.screenshot(path=str(out/'failure.png'),full_page=False)
