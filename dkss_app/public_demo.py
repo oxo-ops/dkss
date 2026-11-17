@@ -7,6 +7,8 @@ import time
 from flask import abort, current_app, g, redirect, request, session
 
 MARKER = 'aonagi_readonly_demo'
+SHARE_QUERY = '__aonagi_entry'
+SHARE_ENDPOINTS = {'dashboard': frozenset(), 'vehicle_checklist_results': frozenset({'vehicle_record_id', 'year', 'month', 'active_day', 'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day'})}
 READ_ENDPOINTS = frozenset({
     'vehicle_karte', 'vehicle_karte_list', 'vehicle_karte_history',
     'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_documents',
@@ -23,6 +25,8 @@ def install(app):
     load(app)
     if not app.config.get('PUBLIC_DEMO_CANDIDATE'):
         def reject_retired_demo():
+            if SHARE_QUERY in request.args:
+                abort(404)
             if is_demo():
                 session.clear()
                 abort(410)
@@ -45,37 +49,54 @@ def install(app):
         from .public_demo_workflow import enabled, username
         return username() if enabled() else current_app.config['PUBLIC_DEMO_USERNAME']
 
-    def target_user():
+    def target_user(force_driver=False):
         from .models import User, Company
         company = Company.query.filter_by(company_code=current_app.config['PUBLIC_DEMO_COMPANY'], active=True).first()
         user = User.query.filter_by(company_code=current_app.config['PUBLIC_DEMO_COMPANY'],
-                                   username=expected_username()).first()
+                                   username=(current_app.config.get('PUBLIC_DEMO_DRIVER', current_app.config['PUBLIC_DEMO_USERNAME']) if force_driver else expected_username())).first()
         # The deployment must provision a separate display-only principal, never an ITC account.
         if not company or not user or user.role not in {'user', 'admin'} or user.login_locked or not user.account_identity:
             abort(404)
         if current_app.config.get('PUBLIC_DEMO_RELEASE'):
-            key = 'MANAGER' if session.get('demo_role') == 'manager' else 'DRIVER'
+            key = 'MANAGER' if not force_driver and session.get('demo_role') == 'manager' else 'DRIVER'
             expected_role = 'admin' if key == 'MANAGER' else 'user'
             if user.role != expected_role or user.account_identity != current_app.config['PUBLIC_DEMO_'+key+'_IDENTITY']:
                 abort(404)
         return user
 
     def guard():
+        marked = SHARE_QUERY in request.args
+        if marked:
+            if request.method != 'GET':
+                abort(405)
+            allowed = SHARE_ENDPOINTS.get(request.endpoint)
+            if allowed is None or not current_app.config.get('PUBLIC_DEMO_SHARED_COMPANY'):
+                abort(404)
+            if request.args.getlist(SHARE_QUERY) != ['1'] or any(
+                key != SHARE_QUERY and (key not in allowed or len(request.args.getlist(key)) != 1)
+                for key in request.args
+            ):
+                abort(400)
+            if not is_demo() and (session.get('username') or any(key.startswith('mfa_') for key in session)):
+                abort(409)
+            # Never turn a retired, invalid or partial demo cookie into a fresh identity.
+            if not is_demo() and any(key in session for key in (MARKER, 'public_demo_token', 'demo_epoch')):
+                abort(410)
         if not current_app.config.get('PUBLIC_DEMO_CANDIDATE'):
             if is_demo():
                 session.clear()
                 abort(410)
-            if request.path == '/demo':
+            if request.path == '/demo' or marked:
                 abort(404)
             return None
-        if request.path == '/demo':
+        if request.path == '/demo' or (marked and not is_demo()):
             from .extensions import limiter
             if limiter.enabled:
                 with limiter.limit('30 per minute', scope='public_demo_entry'):
                     pass
             if request.method != 'GET':
                 abort(405)
-            if request.args:
+            if request.args and not marked:
                 abort(400)  # No user/company/role/redirect overrides from callers.
             if int(time.time()) < current_app.config.get('PUBLIC_DEMO_FROM',0):
                 abort(404)
@@ -84,7 +105,7 @@ def install(app):
                 abort(410)
             if session.get('username') and not is_demo():
                 abort(409)  # Do not replace an ordinary authenticated session.
-            user = target_user()
+            user = target_user(force_driver=marked)
             from .public_demo_shared import enabled as shared
             if not shared():
                 from .models import Vehicle
@@ -98,6 +119,8 @@ def install(app):
                                account_identity=user.account_identity, role=user.role,
                                name=(user.last_name or '')+(user.first_name or ''), office=user.office,
                                password_changed_at=user.password_changed_at, password_expired=False)
+                if marked:
+                    state['demo_role'] = 'driver'
                 state[MARKER] = True
                 issue(state)
                 session.clear()
@@ -110,6 +133,9 @@ def install(app):
             from .public_demo_shared import enabled as shared
             if enabled() and not shared():
                 bind_shared_result()
+            if marked:
+                # Redirect to the same reviewed URL, then run the complete normal guard.
+                return redirect(request.full_path.rstrip('?'))
             if shared():
                 session.pop('demo_role_selected', None)
                 return redirect('/')
@@ -170,7 +196,7 @@ def install(app):
         # durable session revocation and company state after this guard.
 
     def no_cache(response):
-        if is_demo() or request.path == '/demo':
+        if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args:
             response.headers['Cache-Control'] = 'private, no-store'
             response.headers['Referrer-Policy'] = 'no-referrer'
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
@@ -179,7 +205,8 @@ def install(app):
     app.add_url_rule('/demo', 'public_demo_entry', lambda: abort(404), methods=['GET'])
     app.add_url_rule('/demo/role', 'public_demo_role', lambda: abort(404), methods=['POST'])
     app.before_request_funcs.setdefault(None, []).insert(0, guard)
-    app.after_request(no_cache)
+    # Run last so general security headers cannot weaken demo sharing privacy.
+    app.after_request_funcs.setdefault(None, []).insert(0, no_cache)
     from .public_demo_workflow import capture_result
     app.after_request(capture_result)
     from .public_demo_workflow import template_context
