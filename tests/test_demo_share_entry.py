@@ -61,6 +61,10 @@ class ShareEntryTests(Base):
   with c.session_transaction() as s:s['mfa_pending_username']='admin';s['mfa_pending_company_code']='B'
   self.assertEqual(c.get(self.path).status_code,409)
   with c.session_transaction() as s:self.assertEqual(s['mfa_pending_company_code'],'B');self.assertNotIn('public_demo_token',s)
+ def test_completed_hint_preserved_but_unknown_feedback_rejected(self):
+  c=self.app.test_client();url=self.path+'&vehicle_saved=complete'
+  self.assertEqual(c.get(url).location,url);self.assertEqual(c.get(url).status_code,200)
+  self.assertEqual(c.get(self.path+'&vehicle_saved=anything').status_code,400)
 
 def load_tests(loader,tests,pattern):
  return unittest.TestSuite(ShareEntryTests(x) for x in ShareEntryTests.__dict__ if x.startswith('test_'))

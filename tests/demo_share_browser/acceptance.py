@@ -103,6 +103,14 @@ try:
       assert decode(savedvisitor)['demo_role']=='driver' and decode(savedvisitor)['public_demo_token']!=first['public_demo_token']
       assert savedpage.evaluate('location.hash')==page.evaluate('location.hash')
       savedpage.screenshot(path=str(out/f'{width}-saved-copy-driver.png'),full_page=True)
+      completed_url=origin+target.replace('&__aonagi_entry=1','')+'&vehicle_saved=complete#vehicle-flow-completed'
+      page.goto(completed_url,wait_until='networkidle');assert 'vehicle_saved=complete' in page.url and '__aonagi_entry=1' in page.url
+      assert page.evaluate('location.hash')=='#vehicle-flow-completed'
+      completevisitor=browser.new_context(viewport={'width':width,'height':844},service_workers='block');contexts.append(completevisitor);completevisitor.route('**/*',guard)
+      completepage=completevisitor.new_page();assert completepage.goto(page.url,wait_until='networkidle').status==200
+      assert decode(completevisitor)['demo_role']=='driver' and completepage.evaluate('location.hash')=='#vehicle-flow-completed'
+      assert completepage.locator('#vehicle-flow-completed').is_visible()
+      completepage.screenshot(path=str(out/f'{width}-completed-copy-driver.png'),full_page=True)
       fresh.goto(copied,wait_until='networkidle')
 
       for name,pg in [('source-manager',page),('fresh-driver',fresh)]:pg.screenshot(path=str(out/f'{width}-{name}.png'),full_page=True)

@@ -8,7 +8,7 @@ from flask import abort, current_app, g, redirect, request, session
 
 MARKER = 'aonagi_readonly_demo'
 SHARE_QUERY = '__aonagi_entry'
-SHARE_ENDPOINTS = {'dashboard': frozenset(), 'vehicle_checklist_results': frozenset({'vehicle_record_id', 'year', 'month', 'active_day', 'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day'})}
+SHARE_ENDPOINTS = {'dashboard': frozenset(), 'vehicle_checklist_results': frozenset({'vehicle_record_id', 'year', 'month', 'active_day', 'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day', 'vehicle_saved'})}
 READ_ENDPOINTS = frozenset({
     'vehicle_karte', 'vehicle_karte_list', 'vehicle_karte_history',
     'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_documents',
@@ -76,6 +76,8 @@ def install(app):
                 key != SHARE_QUERY and (key not in allowed or len(request.args.getlist(key)) != 1)
                 for key in request.args
             ):
+                abort(400)
+            if request.args.get('vehicle_saved') not in (None, 'complete'):
                 abort(400)
             if not is_demo() and (session.get('username') or any(key.startswith('mfa_') for key in session)):
                 abort(409)

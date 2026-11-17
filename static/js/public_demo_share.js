@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const marker='__aonagi_entry';
-  const fields=['vehicle_record_id','year','month','active_day','vehicle_return_year','vehicle_return_month','vehicle_return_day'];
+  const fields=['vehicle_record_id','year','month','active_day','vehicle_return_year','vehicle_return_month','vehicle_return_day','vehicle_saved'];
   function eligible(url) {return url.origin===location.origin && (url.pathname==='/' || /^\/vehicle\/checklists\/\d+$/.test(url.pathname));}
   function shared(url) {
     if(!eligible(url))return null;
@@ -11,7 +11,8 @@
     // Unknown/private text remains in the existing app flow, without automatic sharing.
     for(const [key,value] of url.searchParams){
       if(key===marker){if(value!=='1'||url.searchParams.getAll(key).length!==1)return null;continue;}
-      if(!allowed.includes(key)||!/^\d{1,10}$/.test(value)||url.searchParams.getAll(key).length!==1)return null;
+      const valid=key==='vehicle_saved'?value==='complete':/^\d{1,10}$/.test(value);
+      if(!allowed.includes(key)||!valid||url.searchParams.getAll(key).length!==1)return null;
     }
     if(url.hash && !/^#(?:vehicle-flow-(?:judgment|completed|defect-\d+-\d+)|vehicle-inspection-(?:record|response))$/.test(url.hash))return null;
     url.searchParams.set(marker,'1');return url;
