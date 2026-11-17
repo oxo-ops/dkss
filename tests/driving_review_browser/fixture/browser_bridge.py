@@ -44,6 +44,7 @@ try:
       row=case.imported();assert row.company_code=='TEST' and case.vehicle.chassis_number=='TEST-001'
       path=f'/safety/driving-reports/{row.id}';before=row.details_json;expected='\n架空指導文 <>& コピー対象';counts={'post':0,'get':0};assets=set()
       case.m.app.config['WTF_CSRF_ENABLED']=True
+      values={'note':expected,'action':'架空の改善行動','driver_explanation':'架空の本人説明','comparison_note':'架空の比較条件','state':'followup','outcome':'improved','assignee':'','next_date':'2026-11-20'}
       context=browser.new_context(viewport={'width':width,'height':850},service_workers='block')
       def bridge(route):
        req=route.request;u=urlsplit(req.url)
@@ -58,6 +59,7 @@ try:
         allowed={'state','assignee','next_date','outcome','comparison_note','note','action','driver_explanation','csrf_token','version','return_to'}
         if parsed.files or not set(parsed.form)<=allowed or any(len(parsed.form.getlist(k))!=1 for k in parsed.form):return deny('fields')
         if parsed.form.get('note','').replace('\r\n','\n')!=expected or parsed.form.get('state')!='followup' or parsed.form.get('assignee'):return deny('non-synthetic')
+        if any(parsed.form.get(k,'').replace('\r\n','\n')!=v for k,v in values.items()):return deny('synthetic field mismatch')
         if req.headers.get('x-dkss-review-inplace')!='1':return deny('missing receipt request')
         if scene=='network-before':route.abort();return
         res=case.client.open(path+'/review',method='POST',data=raw,content_type=ctype,headers={'X-DKSS-Review-Inplace':'1'},follow_redirects=False)
@@ -82,7 +84,12 @@ try:
       context.route_web_socket('**/*',block_ws)
       context.route('**/*',bridge);page=context.new_page();page.goto('http://localhost:8765'+path,wait_until='networkidle')
       page.locator('#report-review').evaluate('(el)=>el.open=true')
-      form=page.locator('form[data-review-inplace]');form.locator('[name=note]').fill(expected);form.locator('[name=state]').select_option('followup')
+      form=page.locator('form[data-review-inplace]')
+      assert form.evaluate('(f)=>f.action instanceof HTMLTextAreaElement')
+      for key,value in values.items():
+       field=form.locator(f'[name={key}]')
+       if key in ['state','outcome','assignee']:field.select_option(value)
+       else:field.fill(value)
       if scene=='conflict':form.locator('[name=version]').evaluate('(el)=>el.value="stale"')
       if scene=='csrf':form.locator('[name=csrf_token]').evaluate('(el)=>el.value="invalid-synthetic"')
       if scene=='expired':
@@ -94,7 +101,7 @@ try:
       else:
        page.locator('[data-review-recovery]').wait_for(state='visible')
        assert urlsplit(page.url).path==path
-       assert form.locator('[name=note]').input_value()==expected
+       for key,value in values.items():assert form.locator(f'[name={key}]').input_value()==value
        assert form.locator('[name=note]').evaluate('(e)=>!e.readOnly')
        assert form.locator('[name=state]').is_enabled()
        assert form.locator('button[type=submit]').is_disabled()
@@ -104,6 +111,8 @@ try:
       assert counts['post']==1 and not blocked
       case.m.db.session.refresh(row);saved=scene in ['success','network-after','wrong-record'];assert (payload(row).get('review',{}).get('note')==expected.strip())==saved
       if not saved:assert row.details_json==before
+      else:
+       for key,value in values.items():assert payload(row)['review'][key]==value.strip()
       assert '/static/js/base.js' in assets and '/static/js/driving_report_detail.js' in assets
       assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')
       page.screenshot(path=str(out/f'{width}-{scene}.png'),full_page=True)
