@@ -361,8 +361,8 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
         min-height: 32px;
     }
     body .dashboard-page.dashboard-design-v2 .dashboard-safety-story-toggle {
-        display: inline;
-        margin: 0 0 0 8px;
+        display: block;
+        margin: 0;
         font-size: 11px;
     }
     body .dashboard-page.dashboard-design-v2 .dashboard-safety-content > p {
