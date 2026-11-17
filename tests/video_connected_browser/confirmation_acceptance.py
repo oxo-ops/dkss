@@ -1041,12 +1041,21 @@ def run(args, sha, tree, out, origin):
         page_errors=[], blocked_requests=[], failed_gets=[], failed_requests=[], requests=[], cases=[],
         started_utc=datetime.now(timezone.utc).isoformat())
     fixture = Fixture(args.case, report)
+    # Single-business-date acceptance must not race Tokyo midnight between a
+    # completed job and its GET. Production correctly marks yesterday stale.
+    # Only this isolated synthetic runner uses a frozen wall clock; monotonic
+    # browser timeouts still run normally. Explicit day-crossing is tested apart.
+    from time_machine import travel
+    fixture_clock = datetime.now(timezone.utc)
+    report['synthetic_business_clock_utc'] = fixture_clock.isoformat()
+    report['business_clock_frozen'] = True
     try:
-        fixture.start()
-        if args.preflight_only:
-            exercise_http(fixture)
-            report.update(status='PREFLIGHT_PASS_BROWSER_NOT_RUN', protected_records_unchanged=True)
-        else: run_browser(args, fixture, report, out, origin)
+        with travel(fixture_clock, tick=False):
+            fixture.start()
+            if args.preflight_only:
+                exercise_http(fixture)
+                report.update(status='PREFLIGHT_PASS_BROWSER_NOT_RUN', protected_records_unchanged=True)
+            else: run_browser(args, fixture, report, out, origin)
         return 0
     finally:
         report['finished_utc'] = datetime.now(timezone.utc).isoformat()

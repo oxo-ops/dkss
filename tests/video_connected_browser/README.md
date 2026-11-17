@@ -607,3 +607,24 @@ at once. Its top/bottom coverage contract replaces the earlier whole-canvas
 viewport-ratio requirement; the blank synthetic page is expected. Diagnostic/full
 mode selection, native-download attempt and completed acceptance are reported
 separately. New scroll-region assertions remain pending actual fixed-candidate CI.
+
+### Confirmation scenario business clock
+
+The three `confirmation_*` scenarios require the test-only dependency
+`time-machine==3.6.0` (installed by Common Priority Browser CI). Their isolated
+runner freezes the Python wall clock at scenario start, including fixture setup,
+HTTP actions and controlled normal analysis jobs. Browser timeout/monotonic clocks
+remain live; actual report start/finish UTC timestamps are outside the freeze.
+The report explicitly records `business_clock_frozen` and
+`synthetic_business_clock_utc`. No runtime flag or production module is changed.
+
+This flow asserts a current result immediately after a completed job. In
+production a Tokyo date transition can correctly make the saved analysis stale:
+its input fingerprint includes the evaluation date. CI run 43727289355 crossed
+Tokyo midnight in this window; a controlled isolated day-transition reproduces
+the failure. Do not relax the production freshness comparison or blindly retry.
+
+The separate `video_connected_browser.clock_contract` test completes the real
+manufacturer HTTP flow with a frozen single date, then advances across Tokyo
+midnight and requires `completed` with `is_current=false`. This calendar boundary
+is intentionally distinct from the ordinary same-date browser acceptance.
