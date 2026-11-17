@@ -97,8 +97,10 @@ try:
        assert row.status=='入力中' and len(json.loads(row.answers_json))==27
        stable=snapshot();fresh.reload(wait_until='networkidle');assert snapshot()==stable
        assert c.models.Notification.query.count()==0 and c.models.VehicleKarteAnalysis.query.count()==0
+       fresh.screenshot(path=str(out/f'{scenario}-{width}-arrival.png'),full_page=True)
        record=fresh.locator('#vehicle-inspection-record')
-       if record.get_attribute('open') is None:record.locator('summary').first.click()
+       if record.count() and record.get_attribute('open') is None:record.locator('summary').first.click()
+       assert fresh.locator('.vehicle-standard-daily-table').first.is_visible()
        if clock.day==1:
         values=fresh.locator(f'td.prior-month-projection[data-date="{previous.isoformat()}"]')
         assert sum(v.strip()=='✓' for v in values.all_text_contents())==27
