@@ -1,0 +1,19 @@
+{
+  "base": "145694c078f3fb2ff2ff6af33e2ad3e2b6f15183",
+  "files": {
+    ".github/workflows/demo-previous-day-browser.yml": "8048df16bb0a916871c4e56f248dc99b227f404a682e9c29b1f95763c3d519ff",
+    "tests/demo_previous_day_browser/test_demo_seed_share.py": "6067e9e730a82a2f369d72d2c1ed590ec559c0f66c95f717bba4816f70091d5b",
+    "tests/demo_previous_day_browser/acceptance.py": "f6bb6eeb630cd32bf629f4cff683c1af79c9f4b737dc5b0992e6ae235ae5862e",
+    "tests/demo_previous_day_browser/preflight.py": "ac857960892ef46dd6c66d70cd0eb845c53f7e49cc9e79607435846483c32437",
+    "tests/demo_previous_day_browser/README.md": "0fa254750d37bd998d8a91857d03d3c97e1faf573cefddb95b7f1809e3fa6d1a",
+    "tests/demo_previous_day_browser/candidate.patch": "84d5221355206330159d49f77200d888cefc96304fb18780c5efaa8215f59eee",
+    "tests/demo_previous_day_browser/run.sh": "c5fe610b0e4bffdc493008be10bd25aadfc31d0b7fe5c179adb2738feedf0b2e"
+  },
+  "products": {
+    "dkss_app/public_demo.py": "3464672b9714aeeddc8f50e96b7fbaa37a9e0494af78069ebed3f88180dba349",
+    "dkss_app/demo_previous_day.py": "b7665958a67c0c03f7ab56ede4a8ea7f1eabdfa085a0265cd1b8d618c3424e96",
+    "dkss_app/previous_month_projection.py": "7f93d694766024dfac02ad90528aa2895c91a5cb807717c39dfee4b5473ec637",
+    "templates/vehicle_checklist_results.html": "b73412a60a1a19112bd45d5f575148ad72e3a7d5dacc157e0fe8cfcad7163d9e",
+    "static/css/vehicle_checklist_compact.css": "7fe43ad7786a7a5725765c01ffe6998d502fdbce109a408308cad8c4c18a11f3"
+  }
+}
