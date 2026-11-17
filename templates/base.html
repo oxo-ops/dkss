@@ -367,7 +367,7 @@
 {% if session.get("aonagi_readonly_demo") %}
 <div role="note" class="alert public-demo-notice">
 {% if public_demo_workflow|default(false) %}
-青凪ロジスティクスの共有体験データです。他の利用者の入力・変更も同じ画面に反映されます。実メール・端末通知は送信しません。
+青凪ロジスティクスの架空データを使う共有体験です。入力は架空の内容だけにし、実在する人の個人情報や実際の業務資料は入れないでください。入力・変更は他の利用者にも見えます。実メール・端末通知は送信しません。
 {% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
 <a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
 <form action="/demo/role" method="post" style="display:inline">

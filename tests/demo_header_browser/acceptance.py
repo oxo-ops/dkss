@@ -62,6 +62,46 @@ def bell_roundtrip(page):
     close.click()
     require(page.locator('#notificationBell').get_attribute('aria-expanded')=='false','bell did not close')
 
+def notice_text_visibility(page):
+    """Read every rendered line of the exact direct banner text, not its controls."""
+    expected = '青凪ロジスティクスの架空データを使う共有体験です。入力は架空の内容だけにし、実在する人の個人情報や実際の業務資料は入れないでください。入力・変更は他の利用者にも見えます。実メール・端末通知は送信しません。'
+    notice = page.locator('.public-demo-notice')
+    locate = """(e, expected) => {
+      const matches=Array.from(e.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim()===expected);
+      if(matches.length!==1)throw new Error('exact full notice text missing/duplicated');
+      const n=matches[0],start=n.textContent.indexOf(expected),r=document.createRange();
+      r.setStart(n,start);r.setEnd(n,start+expected.length);return r;
+    }"""
+    # Report each line individually: a tall banner need not fit in one viewport,
+    # but all of its text must be reachable without horizontal scrolling.
+    count = notice.evaluate('(e,x)=>{const r=('+locate+')(e,x);return r.getClientRects().length}',expected)
+    require(count > 0, 'notice has no rendered text lines')
+    lines=[]
+    for index in range(count):
+        notice.evaluate('''(e,a)=>{
+          const r=('''+locate+''')(e,a.expected).getClientRects()[a.index];
+          window.scrollBy({top:r.top+r.height/2-innerHeight/2,behavior:'instant'});
+        }''',dict(expected=expected,index=index))
+        state=notice.evaluate('''(e,a)=>{
+          const range=('''+locate+''')(e,a.expected),r=range.getClientRects()[a.index];
+          const clipping=[];let visible=true;
+          for(let p=e;p;p=p.parentElement){const s=getComputedStyle(p),b=p.getBoundingClientRect();
+            if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0)visible=false;
+            if(p!==document.body&&p!==document.documentElement){
+              const x=['hidden','clip','auto','scroll'].includes(s.overflowX),y=['hidden','clip','auto','scroll'].includes(s.overflowY);
+              if((x&&(r.left<b.left-1||r.right>b.right+1))||(y&&(r.top<b.top-1||r.bottom>b.bottom+1)))clipping.push(p.tagName);
+            }}
+          const points=[r.left+Math.min(2,r.width/4),r.left+r.width/2,r.right-Math.min(2,r.width/4)];
+          return {index:a.index,rect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom},visible,clipping,
+            inside:r.width>0&&r.height>0&&r.left>=-1&&r.right<=innerWidth+1&&r.top>=-1&&r.bottom<=innerHeight+1,
+            unobscured:points.every(x=>document.elementFromPoint(x,r.top+r.height/2)===e),
+            noHorizontalScroll:e.scrollWidth<=e.clientWidth+1};
+        }''',dict(expected=expected,index=index))
+        require(state['visible'] and state['inside'] and state['unobscured'] and state['noHorizontalScroll'] and not state['clipping'],f'notice text clipped/obscured: {state}')
+        lines.append(state)
+    page.evaluate('window.scrollTo(0,0)')
+    return dict(full_text_matched=True,line_count=count,lines=lines)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--repo', type=Path, required=True)
@@ -150,6 +190,7 @@ def main():
                             for n, path in enumerate(PAGES):
                                 page.goto(ORIGIN + path, wait_until='networkidle')
                                 page.locator('.public-demo-notice').wait_for()
+                                notice_geometry = notice_text_visibility(page)
                                 if width <= 900:
                                     require(not page.locator('body').evaluate("e=>e.classList.contains('sidebar-open')"), 'drawer should start closed')
                                 for label in ('日常点検を開く', '運転者役で見る', '管理者役で確認する'):
@@ -165,7 +206,7 @@ def main():
                                 require(position == ('sticky' if width <= 900 else 'relative'), f'wrong header positioning {width}: {position}')
                                 click_target(page,page.get_by_text('日常点検を開く',exact=True),'日常点検を開く')
                                 page.screenshot(path=str(out / f'{role}-{width}-{n}.png'), full_page=False)
-                                report['cases'].append(dict(role=role,width=width,path=path,position=position))
+                                report['cases'].append(dict(role=role,width=width,path=path,position=position,notice=notice_geometry))
                         finally:
                             context.close()
                 # Ordinary sessions do not receive the scoped override.
