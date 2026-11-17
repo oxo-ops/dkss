@@ -124,7 +124,12 @@ try:
      assert abs((pr['y']+pr['height'])-(cr['y']+cr['height']))<=2,(pr,cr)
      assert pr['x']+pr['width']<=cr['x']+1,(pr,cr)
      assert min(pr['height'],cr['height'])>=43,(pr,cr)
-    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible();custom.click()
+    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
+    page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-display.png'))
+    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
+    assert custom.get_attribute('aria-expanded')=='false'
+    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
+    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
     for loc in ['.public-demo-notice a','.public-demo-notice button','.dashboard-safety-items:first-of-type .dashboard-safety-content a','.dashboard-attention-table td a']:
      for e in page.locator(loc).all():
       if not e.is_visible():continue
