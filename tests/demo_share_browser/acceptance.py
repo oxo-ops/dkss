@@ -33,8 +33,9 @@ try:
   report['checks'].append('real-cookie bridge thread preflight passed')
  else:
   assert a.chromium
-  from http.server import HTTPServer,BaseHTTPRequestHandler
-  from threading import Thread
+  from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
+  from threading import Thread,Lock
+  request_lock=Lock()
   from playwright.sync_api import sync_playwright
   class Bridge(BaseHTTPRequestHandler):
    def log_message(self,*args):pass
@@ -52,7 +53,8 @@ try:
       data=parse_qs(self.rfile.read(n).decode(),keep_blank_values=True);assert set(data)=={'role','csrf_token'} and data['role']==['manager'] and len(data['csrf_token'])==1
       data={k:v[0] for k,v in data.items()};report['posts'].append('role-only')
      client=c.app.test_client(use_cookies=False)
-     res=client.open(self.path,method=method,headers={'Cookie':self.headers.get('Cookie','')},data=data)
+     with request_lock:
+      res=client.open(self.path,method=method,headers={'Cookie':self.headers.get('Cookie','')},data=data)
      if 300<=res.status_code<400:assert res.status_code==302 and res.location.startswith('/') and not res.location.startswith('//')
      self.send_response(res.status_code)
      for k,v in res.headers.items():
@@ -60,7 +62,7 @@ try:
      self.send_header('Content-Length',str(len(res.data)));self.end_headers();self.wfile.write(res.data)
     except BaseException as error:
      report['blocked'].append(type(error).__name__);self.send_response(500);self.end_headers()
-  server=HTTPServer(('127.0.0.1',0),Bridge);thread=Thread(target=server.serve_forever,daemon=True);thread.start();origin=f'http://127.0.0.1:{server.server_port}'
+  server=ThreadingHTTPServer(('127.0.0.1',0),Bridge);thread=Thread(target=server.serve_forever,daemon=True);thread.start();origin=f'http://127.0.0.1:{server.server_port}'
   def guard(route):
    if urlsplit(route.request.url).netloc!=urlsplit(origin).netloc:report['blocked'].append('external');route.abort()
    else:route.continue_()
@@ -82,6 +84,8 @@ try:
       assert response.headers['referrer-policy']=='no-referrer' and 'no-store' in response.headers['cache-control']
       assert fresh.locator('#vehicle_workspace_date').is_visible();assert '__aonagi_entry=1' in fresh.url
       token=second['public_demo_token'];fresh.reload(wait_until='networkidle');assert decode(two)['public_demo_token']==token
+      fresh.screenshot(path=str(out/f'{width}-fresh-initial.png'),full_page=True)
+      page.screenshot(path=str(out/f'{width}-source-initial.png'),full_page=True)
       # Existing GET form stays a GET and carries only the public hint.
       form=fresh.locator('#vehicle_check_filter');assert form.locator('input[name="__aonagi_entry"]').count()==1
       form.evaluate('(f)=>f.requestSubmit()');fresh.wait_for_load_state('networkidle');assert '__aonagi_entry=1' in fresh.url
