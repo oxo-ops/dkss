@@ -7,7 +7,7 @@
     "tests/demo_previous_day_browser/preflight.py": "ac857960892ef46dd6c66d70cd0eb845c53f7e49cc9e79607435846483c32437",
     "tests/demo_previous_day_browser/README.md": "0fa254750d37bd998d8a91857d03d3c97e1faf573cefddb95b7f1809e3fa6d1a",
     "tests/demo_previous_day_browser/candidate.patch": "84d5221355206330159d49f77200d888cefc96304fb18780c5efaa8215f59eee",
-    "tests/demo_previous_day_browser/run.sh": "e9a3e98c630abbe01d577bdb0bff731ff22806efbe8094d1c05ba4f7dff79480"
+    "tests/demo_previous_day_browser/run.sh": "c5fe610b0e4bffdc493008be10bd25aadfc31d0b7fe5c179adb2738feedf0b2e"
   },
   "products": {
     "dkss_app/public_demo.py": "3464672b9714aeeddc8f50e96b7fbaa37a9e0494af78069ebed3f88180dba349",
