@@ -1,0 +1,12 @@
+{
+  "base": "cc35daea223de542611d985f5f9816033078c9f7",
+  "files": {
+    "__init__.py": "7e2957658bd97eaf3609cd2505d9c2e42042e910c707c3dfa7b341577aa649d5",
+    "access.py": "13e83eed2390e72a652ef6fdfc3f21623c4aa5156e5bc485fe51971649b7b021",
+    "auth.py": "2eeb77882158aac78055d86175283112fc99afd40177f2e335bc8da4723aae01",
+    "http.py": "5916859a1af5c3408ab28d6ec413bec5d543203b33f9351ce15238bce68f4e4a",
+    "public_demo.py": "0b42a9690b49fe2dfb50bd5cc3a6687998e72dd31eb7848765d8e6e9b0dc08a6",
+    "auth_session_registry.py": "7f92d62efb1298e0a62d5c9eb87981610bb8c99bf289f57e3cdae14789141884",
+    "normal_session_revocation.py": "a445b8a204188e68058f4bbe78abb893132860cba926772ef665ee4f7ecdb58a"
+  }
+}

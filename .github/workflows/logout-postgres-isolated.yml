@@ -1,0 +1,35 @@
+name: Logout isolated PostgreSQL candidate
+on:
+  pull_request:
+    paths: ['tests/logout_postgres/**', '.github/workflows/logout-postgres-isolated.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: dkss_q02_ci
+          POSTGRES_USER: dkss_logout_ci
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dkss_logout_ci -d dkss_q02_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Run isolated candidate only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tests/logout_postgres/run.sh
