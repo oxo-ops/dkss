@@ -1,0 +1,272 @@
+[
+  {
+    "states": [
+      "queued",
+      "queued"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 0,
+      "failed": 0,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "queued"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "queued"
+        }
+      ],
+      "finished": false,
+      "needs_review": 0,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": false,
+      "preview_url": null,
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 0,
+      "total": 2
+    }
+  },
+  {
+    "states": [
+      "reading",
+      "queued"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 0,
+      "failed": 0,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "reading"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "queued"
+        }
+      ],
+      "finished": false,
+      "needs_review": 0,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": false,
+      "preview_url": null,
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 0,
+      "total": 2
+    }
+  },
+  {
+    "states": [
+      "type_review",
+      "preview"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 2,
+      "failed": 0,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "type_review"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "preview"
+        }
+      ],
+      "finished": true,
+      "needs_review": 1,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": true,
+      "preview_url": "/vehicle/data-import/670285cf-855f-4865-84bf-00401b89b048/preview",
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 1,
+      "total": 2
+    }
+  },
+  {
+    "states": [
+      "read_error",
+      "preview"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 2,
+      "failed": 1,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "read_error"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "preview"
+        }
+      ],
+      "finished": true,
+      "needs_review": 0,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": true,
+      "preview_url": "/vehicle/data-import/670285cf-855f-4865-84bf-00401b89b048/preview",
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 1,
+      "total": 2
+    }
+  },
+  {
+    "states": [
+      "preview",
+      "preview"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 2,
+      "failed": 0,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "preview"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "preview"
+        }
+      ],
+      "finished": true,
+      "needs_review": 0,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": true,
+      "preview_url": "/vehicle/data-import/670285cf-855f-4865-84bf-00401b89b048/preview",
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 2,
+      "total": 2
+    }
+  },
+  {
+    "states": [
+      "completed",
+      "skipped"
+    ],
+    "job": {
+      "batch_id": "670285cf-855f-4865-84bf-00401b89b048",
+      "completed": 2,
+      "failed": 0,
+      "files": [
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-0.pdf",
+          "id": "80b5f8e5-101f-59b3-a686-274b7f4a4b9c",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/80b5f8e5-101f-59b3-a686-274b7f4a4b9c/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "completed"
+        },
+        {
+          "document_type": "inspection",
+          "filename": "synthetic-1.pdf",
+          "id": "6704ace1-c085-5142-83ad-bf209689c27b",
+          "ignored_files": [],
+          "kind_url": "/vehicle/data-import/6704ace1-c085-5142-83ad-bf209689c27b/kind",
+          "message": "",
+          "phase": "queued",
+          "received_lines": 0,
+          "repeated_files": [],
+          "status": "skipped"
+        }
+      ],
+      "finished": true,
+      "needs_review": 0,
+      "page_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048",
+      "preview_ready": false,
+      "preview_url": null,
+      "status_url": "/vehicle/data-import/jobs/670285cf-855f-4865-84bf-00401b89b048/status",
+      "succeeded": 2,
+      "total": 2
+    }
+  }
+]
