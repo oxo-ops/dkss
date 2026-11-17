@@ -34,6 +34,12 @@
       }
     });
   }
+  // Existing inspection code consumes save flags asynchronously when it adds
+  // feedback. Observe only that signal; do not replace history APIs or timers.
+  new MutationObserver(records=>{
+    if(records.some(record=>[...record.addedNodes].some(node=>node.nodeType===1 &&
+      (node.matches('.vehicle-save-feedback') || node.querySelector('.vehicle-save-feedback')))))prepare();
+  }).observe(document.body,{childList:true,subtree:true});
   // Existing inspection DOMContentLoaded handlers consume saved/notice flags first.
   if(document.readyState==='complete')prepare();
   else {
