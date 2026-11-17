@@ -60,8 +60,6 @@ async function visibleBox(locator) {
 let browser;
 const results=[], screenshots=[], errors=[];
 (async()=>{
-  // Keep DB-derived comparison digests in memory, outside persisted artifacts.
-  const initial=await (await fetch(base+'/__q05_snapshot')).json();
   browser=await chromium.launch({headless:true, executablePath:process.env.Q05_BROWSER_EXECUTABLE || undefined,
     args:['--disable-background-networking','--no-proxy-server','--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1']});
   const version=browser.version();
@@ -132,9 +130,9 @@ const results=[], screenshots=[], errors=[];
         assert(listingBox.scrollWidth<=listingBox.clientWidth+1&&listingBox.scrollHeight<=listingBox.clientHeight+1,name+' clipped listing');
         if(capture) {const file=stem+'-listing.png';await row.screenshot({path:path.join(out,file),animations:'disabled'});screenshots.push(file);}
         const current=await (await context.request.get(base+'/__q05_snapshot')).json();
-        assert.equal(current.dates_sha256,initial.dates_sha256,name+' saved start dates');
-        assert.equal(current.timezones_sha256,initial.timezones_sha256,name+' saved user timezones');
-        assert.equal(current.history_sha256,initial.history_sha256,name+' raw history and ownership');
+        assert.deepEqual(current.drivers,fixture.initial.drivers,name+' saved start dates');
+        assert.deepEqual(current.user_timezones,fixture.initial.user_timezones,name+' saved user timezones');
+        assert.equal(current.history_sha256,fixture.initial.history_sha256,name+' raw history');
         assert.deepEqual(current.usage,[{company:'TEST',users:fixture.expected_users,vehicles:1,login:0}]);
         results.push({profile,zone,name,instant,actor,clock,personal:want.personal,listing:want.listing,
           ranked:ranked.length,geometry,titleGeometry,listingBox,saved_dates_unchanged:true,history_unchanged:true,user_timezones_unchanged:true});
