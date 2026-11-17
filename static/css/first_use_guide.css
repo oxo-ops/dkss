@@ -3,5 +3,6 @@
 .first-guide-panel[hidden]{display:none}.first-guide-panel strong{display:block;font-size:18px}.first-guide-panel p{margin:8px 0 12px}.first-guide-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .first-guide-panel button,.first-guide-launch{min-height:44px;min-width:44px;border:1px solid #b4b1e5;border-radius:10px;background:#f4f3ff;color:#353080;font:inherit;padding:8px 12px;cursor:pointer}
 .first-guide-panel button:focus-visible,.first-guide-launch:focus-visible{outline:3px solid #5147cc;outline-offset:3px}
-.first-guide-launch{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:900;font-size:13px;background:#fff}
+#firstUseGuide{margin:12px 16px;padding-bottom:env(safe-area-inset-bottom)}
+.first-guide-launch{position:static;font-size:13px;background:#fff}
 @media(prefers-reduced-motion:reduce){.first-guide-panel{scroll-behavior:auto}}
