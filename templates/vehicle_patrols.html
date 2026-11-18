@@ -2,6 +2,11 @@
 
 {% block title %}車両整備記録一覧{% endblock %}
 
+{% block page_styles %}{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header">
