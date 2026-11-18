@@ -246,3 +246,12 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-responsive-shell] .notification-bell {width:44px;height:44px;min-width:44px;min-height:44px;box-sizing:border-box;}
  body[data-responsive-shell] .top-bar-user {padding-inline:0;width:44px;min-width:44px;height:44px;box-sizing:border-box;justify-content:center;}
 }
+/* Driving results share the compact plan workspace convention on phones only. */
+@media screen and (max-width:767px) {
+ body[data-page-endpoint="driving_reports"] .top-bar > .notification-menu,
+ body[data-page-endpoint="driving_reports"] .top-bar > .top-bar-user-menu,
+ body[data-page-endpoint="driving_reports"] .top-bar > .top-bar-user {display:none!important;}
+ body[data-page-endpoint="driving_reports"] .main-content > .top-bar {padding-inline-start:52px;gap:4px;}
+ body[data-page-endpoint="driving_reports"] .driving-page-title {min-width:0;flex:1 1 auto;}
+ body[data-page-endpoint="driving_reports"] .driving-page-title h2 {font-size:18px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;margin:0;}
+}
