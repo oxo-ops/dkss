@@ -1489,6 +1489,17 @@
       ""
     ],
     [
+      "/safety/driving-reports/office-summary",
+      "driving_office_summary",
+      [
+        "GET",
+        "HEAD",
+        "OPTIONS"
+      ],
+      true,
+      ""
+    ],
+    [
       "/safety/driving-reports/readers",
       "driving_report_readers",
       [

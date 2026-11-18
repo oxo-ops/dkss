@@ -19,6 +19,8 @@ class SidebarMenuAlignmentTests(unittest.TestCase):
     def test_direct_link_labels_have_no_vertical_nudge(self):
         css = (ROOT / 'static/css/style.css').read_text()
         self.assertNotIn('.sidebar-nav > a.menu-item .menu-text {', css)
+        self.assertNotIn('.sidebar nav a {', css)
+        self.assertIn('.sidebar nav a:not(.menu-item) {', css)
 
     def test_existing_responsive_and_collapsed_rules_remain(self):
         css = (ROOT / 'static/css/style.css').read_text()
@@ -28,7 +30,7 @@ class SidebarMenuAlignmentTests(unittest.TestCase):
 
     def test_asset_version_and_navigation_semantics(self):
         html = (ROOT / 'templates/base.html').read_text()
-        self.assertIn("v='20261118-sidebar-alignment-1'", html)
+        self.assertIn("v='20261118-sidebar-alignment-2'", html)
         self.assertIn('<a href="/" class="menu-item', html)
         self.assertIn('<button type="button" class="menu-item sidebar-parent">', html)
 

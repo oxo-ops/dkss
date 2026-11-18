@@ -1,0 +1,27 @@
+{% macro history_symbol(kind) -%}
+<span class="vehicle-history-kind" data-kind="{{ kind }}">
+                                    <svg
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        aria-hidden="true"
+                                        focusable="false"
+                                    >
+                                        {% if kind in ["異常・指摘", "故障"] %}
+                                    <path d="M10.3 3.8 2.4 17.5A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.5L13.7 3.8a2 2 0 0 0-3.4 0Z"></path>
+                                    <path d="M12 9v4"></path>
+                                    <path d="M12 16h.01"></path>
+                                {% elif kind in ["整備", "修理"] %}
+                                            <path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4Z"></path>
+                                        {% else %}
+                                            <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+                                            <path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"></path>
+                                        {% endif %}
+                                    </svg>
+
+                                    <span>{{ kind }}</span>
+                                </span>
+{%- endmacro %}

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
+{% from 'vehicle_history_symbol.html' import history_symbol %}
 {% block title %}車両カルテ・履歴{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_history.css', v='20261110-short-viewport-5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_history.css', v='20261118-compact-history-2') }}">
 {% endblock %}
 
 {% block content %}
@@ -127,43 +128,21 @@
                         <tr>
                             <td data-label="日付" class="vehicle-history-date">
                                 <span class="vehicle-history-date-text">
-                                    {{ entry.date | replace("-", "/") if entry.date else "—" }}
+                                    <span class="vehicle-history-desktop-date">{{ entry.date | replace("-", "/") if entry.date else "—" }}</span>
+                                    <span class="vehicle-history-mobile-date">{% if entry.date and entry.date|length == 10 %}{{ (entry.date[5:] if entry.date[:4] == history_current_year|string else entry.date[2:])|replace('-', '/') }}{% else %}{{ entry.date or '—' }}{% endif %}</span>
                                 </span>
                             </td>
 
                             <td data-label="種別">
-                                <span class="vehicle-history-kind" data-kind="{{ entry.kind }}">
-                                    <svg
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1.8"
-                                        aria-hidden="true"
-                                        focusable="false"
-                                    >
-                                        {% if entry.kind in ["異常・指摘", "故障"] %}
-                                    <path d="M10.3 3.8 2.4 17.5A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.5L13.7 3.8a2 2 0 0 0-3.4 0Z"></path>
-                                    <path d="M12 9v4"></path>
-                                    <path d="M12 16h.01"></path>
-                                {% elif entry.kind in ["整備", "修理"] %}
-                                            <path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4Z"></path>
-                                        {% else %}
-                                            <rect x="5" y="4" width="14" height="17" rx="2"></rect>
-                                            <path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"></path>
-                                        {% endif %}
-                                    </svg>
-
-                                    <span>{{ entry.kind }}</span>
-                                </span>
+                                {{ history_symbol(entry.kind) }}
                             </td>
 
                             <td data-label="内容" class="vehicle-history-content">
-                                {{ entry.content or "—" }}
+                                <span class="vehicle-history-desktop-content">{{ entry.content or "—" }}</span>
+                                <span class="vehicle-history-mobile-content">{% if entry.link %}<a href="{{ entry.link }}">{{ entry.content or "—" }}</a>{% else %}{{ entry.content or "—" }}{% endif %}</span>
                             </td>
 
-                            <td data-label="走行距離">
+                            <td data-label="走行距離" class="vehicle-history-mileage{% if entry.mileage is none %} vehicle-history-empty{% endif %}">
                                 {% if entry.mileage is not none %}
                                     {{ entry.mileage|distance_km }} km
                                 {% else %}
@@ -171,7 +150,7 @@
                                 {% endif %}
                             </td>
 
-                            <td data-label="費用">
+                            <td data-label="費用" class="vehicle-history-cost{% if entry.cost is none %} vehicle-history-empty{% endif %}">
                                 {% if entry.cost is not none %}
                                     {{ "{:,.0f}".format(entry.cost) }}円
                                 {% else %}
@@ -179,7 +158,7 @@
                                 {% endif %}
                             </td>
 
-                            <td data-label="状態">
+                            <td data-label="状態" class="vehicle-history-state{% if not entry.status %} vehicle-history-empty{% endif %}">
                                 {% if entry.status %}
                                     <span class="vehicle-history-status" data-status="{{ entry.status }}">
                                         {{ entry.status }}
@@ -189,11 +168,11 @@
                                 {% endif %}
                             </td>
 
-                            <td data-label="担当者／整備会社">
+                            <td data-label="担当者／整備会社" class="vehicle-history-actor{% if not entry.actor %} vehicle-history-empty{% endif %}">
                                 {{ entry.actor or "—" }}
                             </td>
 
-                            <td data-label="関連資料">
+                            <td data-label="関連資料" class="vehicle-history-links{% if not entry.link and not entry.get("files", []) %} vehicle-history-empty{% endif %}">
                                 <div class="vehicle-history-materials">
                                     {% for filename in entry.get("files", []) %}
                                         {% set extension = filename.rsplit(".", 1)[-1] | lower %}

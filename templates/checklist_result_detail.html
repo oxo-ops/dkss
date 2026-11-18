@@ -525,7 +525,7 @@
 
                 <div class="approval-flow-content">
                     <strong>
-                        {{ approval.label or "承認" }}
+                        {{ display_approval_label(approval.label) or "承認" }}
                     </strong>
 
                     {% if approval.get("approved_by") or approval.get("approved_by_username") %}

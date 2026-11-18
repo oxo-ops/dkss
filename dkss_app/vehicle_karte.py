@@ -1033,6 +1033,9 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
     for change, plan in plan_events:
         snapshot = _dkss_serialization.safe_json_dict(change.detail_json)
         after = snapshot.get("after") or {}
+        from .demo_label_display import plan_factory
+        factory_display = plan_factory(after.get("factory"), company=company_code,
+                                       vehicle_id=vehicle_record_id, plan_id=plan.id, event_id=change.id)
         kind_label = READ_KINDS.get(_dkss_runtime.app.extensions["dkss"]["inspection_plans"].plan_kind(plan), "点検")
         action_label = {"cancelled": "取消", "completed": "実施記録と連動", "completed_manual": "実施先行登録", "document_attached": "点検簿を関連付け", "created_from_document": "点検簿から作成"}.get(change.action, "登録・変更")
         entries.append({
@@ -1040,7 +1043,7 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
             "history_category": "maintenance" if plan.kind == "ad_hoc" else "inspection",
             "date": normalize_date(change.created_at),
             "kind": "点検予定",
-            "content": f"{kind_label} {action_label} / 予定月 {after.get('planned_month', '')} / 予約日 {after.get('reservation_date') or '未定'} / {after.get('factory') or '実施先未定'}",
+            "content": f"{kind_label} {action_label} / 予定月 {after.get('planned_month', '')} / 予約日 {after.get('reservation_date') or '未定'} / {factory_display or '実施先未定'}",
             "files": [], "mileage": None, "cost": None,
             "status": {"planned": "予定", "completed": "実施済み", "cancelled": "取消"}.get(after.get("status"), ""),
             "actor": change.created_by,
@@ -3160,6 +3163,7 @@ def vehicle_karte_history(vehicle_record_id):
 
     return _dkss_common.render_template(
         "vehicle_karte_history.html",
+        history_current_year=_dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).year,
         vehicle=vehicle,
         vehicle_number=number,
         history_page=history_page,

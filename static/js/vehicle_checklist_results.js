@@ -2035,6 +2035,29 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     });
 
+    // Remember only the current detail opener; never change form values or submit.
+    let detailFocusOpener = null;
+
+    function focusDetailHeading(button) {
+        detailFocusOpener = button;
+        const heading = document.getElementById("detailTitle");
+        if (heading) {
+            heading.setAttribute("tabindex", "-1");
+            heading.focus({ preventScroll: true });
+        }
+    }
+
+    function restoreDetailFocus() {
+        const opener = detailFocusOpener;
+        detailFocusOpener = null;
+        if (opener && opener.isConnected && !opener.disabled
+            && opener.getClientRects().length
+            && getComputedStyle(opener).visibility !== "hidden"
+            && !opener.closest("[hidden], [inert]")) {
+            opener.focus({ preventScroll: true });
+        }
+    }
+
     function openDetailModal(button) {
         const content =
             button.dataset.content || "";
@@ -2237,6 +2260,7 @@ document.addEventListener("DOMContentLoaded", function () {
             detailModal.classList.add(
                 "is-open"
             );
+            focusDetailHeading(button);
         }
     }
 
@@ -2246,6 +2270,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        const wasOpen = detailModal.classList.contains("is-open");
         clearCommonErrors();
 
         detailModal.classList.remove(
@@ -2255,6 +2280,7 @@ document.addEventListener("DOMContentLoaded", function () {
         detailModal.classList.add(
             "is-hidden"
         );
+        if (wasOpen) restoreDetailFocus();
     }
 
 

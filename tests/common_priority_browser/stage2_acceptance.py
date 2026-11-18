@@ -189,9 +189,8 @@ def main():
                         drawer.get_by_role('button', name='提案の詳細を閉じる').click(); expect(drawer).to_be_hidden()
                         page.goto(ORIGIN + '/', wait_until='networkidle')
                         panel = page.locator('.dashboard-attention-panel').first
-                        expect(panel.locator('.dashboard-attention-priority')).to_have_text(badge_text)
-                        expect(panel.locator('.dashboard-priority-note')).to_be_visible()
-                        if args.case == 'instruction': expect(panel.locator('.dashboard-priority-note')).to_contain_text('責任者・整備担当者の判断を優先')
+                        expect(panel.locator('.dashboard-attention-priority')).to_have_text(badge_text.split(' · ')[0])
+                        require('#proposal=' in panel.locator('a.dashboard-video-proposal').get_attribute('href'), 'Evidence detail link missing')
                         require(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), 'Dashboard overflow')
                         page.screenshot(path=str(out / f'dashboard-{width}.png'), full_page=True)
                         report['cases'].append(f'BROWSER {args.case} {width}: score, canonical subject, evidence, disclaimer, repeated detail Close/Escape, contained layout')

@@ -33,7 +33,8 @@ class AnalysisNavigationTests(unittest.TestCase):
             self.assertNotEqual(node['tag'],'details')
             self.assertFalse(any(p['tag']=='details' or 'hidden' in p['attrs'] for p in node['parents']))
         self.assertLess(html.index('id="driving-metrics"'),html.index('id="driver-comparison"'))
-        self.assertIn('所属ドライバー',html);self.assertIn('分析を見る →',html)
+        self.assertIn('所属ドライバー',html);self.assertIn('分析を見る',html)
+        self.assertNotIn('分析を見る →',html)
         self.assertNotIn('driving-metric-select" href=',html)
 
     def test_company_offices_have_named_analysis_actions_and_keep_scope(self):

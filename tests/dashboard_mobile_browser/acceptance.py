@@ -59,7 +59,7 @@ try:
   report['browser_started']=True
   for role in ['checker','admin']:
    case.login(role)
-   for width,scale in [(w,1) for w in [320,390,600,601,768,1250,1251,1316]]+[(320,2),(390,2)]:
+   for width,scale in [(w,1) for w in [320,390,400,600,601,768,1250,1251,1316]]+[(320,2),(390,2)]:
     ctx=browser.new_context(viewport={'width':width,'height':568 if scale==2 else 740},service_workers='block')
     def bridge(route):
      req=route.request;u=urlsplit(req.url)
@@ -85,18 +85,43 @@ try:
      click_target(page,control,label)
      control.focus();page.keyboard.press('Tab')
     bell_roundtrip(page)
+    # Compare real rendered direct-link and parent-button alignment; preserve initial state.
+    toggle=page.locator('#sidebarToggle')
+    expanded="()=>innerWidth<=900?document.body.classList.contains('sidebar-open'):!document.body.classList.contains('sidebar-collapsed')"
+    was_expanded=page.evaluate(expanded)
+    if not was_expanded:toggle.click()
+    page.wait_for_function(expanded)
+    dashboard=page.locator('.sidebar-nav > a.menu-item').filter(has_text='ダッシュボード')
+    parent_menu=page.locator('.sidebar-group > .sidebar-parent').first
+    assert dashboard.is_visible() and parent_menu.is_visible()
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
+    sidebar_alignment={}
+    for part in ['.menu-icon','.menu-text']:
+     dr=dashboard.locator(part).bounding_box();pr=parent_menu.locator(part).bounding_box()
+     assert dr and pr and abs(dr['x']-pr['x'])<=1,('sidebar horizontal alignment',width,role,part,dr,pr)
+     sidebar_alignment[part]={'dashboard_x':dr['x'],'parent_x':pr['x']}
+    assert urlsplit(dashboard.get_attribute('href')).path=='/'
+    page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-expanded.png'))
+    toggle.click();page.wait_for_function('()=>!('+expanded+')()')
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
+    if width<=768:
+     assert page.locator('.sidebar-overlay').evaluate("e=>getComputedStyle(e).visibility==='hidden' && getComputedStyle(e).pointerEvents==='none'"), 'sidebar overlay remains after close'
+    page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-collapsed.png'))
+    toggle.click();page.wait_for_function(expanded)
+    assert dashboard.is_visible()
+    if not was_expanded:toggle.click()
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
     page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-top.png'))
     page.locator('.dashboard-safety-attention').evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
     page.locator('.dashboard-attention-panel').first.evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-proposals.png'))
-    assert page.locator('.dashboard-attention-preview tbody tr').count()==5
+    assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
-    for row in page.locator('.dashboard-attention-preview tbody tr').all():
-     for selector in ['.dashboard-reference-action','td:nth-child(3)','td:nth-child(4)']:
-      assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
-     assert row.locator('.dashboard-reference-action').inner_text().strip()
-     assert row.locator('td:last-child a').get_attribute('href')
-     assert row.locator('.dashboard-reference-reason').count()==0
+    for row in page.locator('.dashboard-attention-preview > li').all():
+     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state','.dashboard-video-vehicle']:
+      assert row.locator(selector).is_visible(),f'hidden proposal title/action/vehicle: {selector}'
+      assert row.locator(selector).inner_text().strip()
+     assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
     measure=page.evaluate('''()=>({safetyHeight:document.querySelector('.dashboard-safety-attention').getBoundingClientRect().height, overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
@@ -119,19 +144,10 @@ try:
      assert opening.get_attribute('href').startswith('/pointouts/')
      assert '接触・負傷なし。' in opening.inner_text()
      assert card.locator('.dashboard-safety-story').count()==0
-    controls=page.locator('#dashboardFilterForm')
-    period=controls.locator('select[name=period]');custom=controls.locator('#dashboardCustomizeButton')
-    pr=period.bounding_box();cr=custom.bounding_box()
-    if width<=768:
-     assert abs((pr['y']+pr['height'])-(cr['y']+cr['height']))<=2,(pr,cr)
-     assert pr['x']+pr['width']<=cr['x']+1,(pr,cr)
-     assert min(pr['height'],cr['height'])>=43,(pr,cr)
-    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
+    assert page.locator('#dashboardFilterForm').count()==0
+    assert page.locator('#dashboardCustomizeButton').count()==0
+    assert page.locator('#dashboardCustomizePanel').count()==0
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-display.png'))
-    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
-    assert custom.get_attribute('aria-expanded')=='false'
-    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
-    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
     for loc in ['.public-demo-notice a','.public-demo-notice button','.dashboard-safety-items:first-of-type .dashboard-safety-content a','.dashboard-attention-table td a']:
      for e in page.locator(loc).all():
       if not e.is_visible():continue
@@ -140,7 +156,7 @@ try:
     summary=page.locator('.dashboard-safety-more>summary');summary.focus();page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is not None
     assert page.locator('.dashboard-safety-content').last.is_visible()
     page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is None
-    report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,**measure});ctx.close()
+    report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,'sidebar_alignment':sidebar_alignment,**measure});ctx.close()
   case.login('checker')
   ctx=browser.new_context(viewport={'width':390,'height':740},java_script_enabled=False,service_workers='block')
   ctx.route('**/*',bridge);page=ctx.new_page();page.goto('http://127.0.0.1:8765/',wait_until='networkidle')

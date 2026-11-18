@@ -27,3 +27,12 @@
    Crop empty fixture margins through presentation only; preserve source pixels. */
 .first-guide-after-picture{position:relative;width:180px;max-width:100%;aspect-ratio:366/466;margin:10px auto;padding:0;overflow:hidden;border:0;background:#fff;border-radius:8px}
 .first-guide-after-picture img{position:absolute;max-width:none;width:106.557377%;height:auto;left:-3.278689%;top:-40.55794%}
+
+/* Native DPR3 modal crop: no CSS offset/downsampled full-screen image. */
+.first-guide-after-picture{width:min(260px,100%);aspect-ratio:auto;overflow:visible}
+.first-guide-after-picture img{position:static;width:100%;max-width:100%;height:auto;left:auto;top:auto}
+
+[data-guide-ai-picture] img{width:100%;max-height:180px;object-fit:contain}
+
+/* Keep the forward/end action at the trailing edge on every viewport. */
+.first-guide-panel > [data-guide-next]{display:block;margin-left:auto}

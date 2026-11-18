@@ -39,9 +39,10 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-1') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261111-priority-1') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-dark-display-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/safety_video_refinement.css', v='20261118-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261118-header-row-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-csp-filter-2') }}">
     {% if import_flow %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
     {% endif %}
@@ -118,7 +119,7 @@
                     </a>
 
                     {% if session.get('role') in ['user','admin','itc'] %}
-                    <a href="{{ url_for('driving_reports') }}" class="menu-item submenu-item {% if path.startswith('/safety/driving-reports') %}active{% endif %}"><span class="menu-text">運転実績</span></a>
+                    <a href="{{ url_for('driving_reports', scope='self') }}" class="menu-item submenu-item {% if path.startswith('/safety/driving-reports') %}active{% endif %}"><span class="menu-text">運転実績</span></a>
                     {% endif %}
                     <a href="/safety/checklists" class="menu-item submenu-item {% if path.startswith('/safety/checklists') %}active{% endif %}">
                         <span class="menu-text">チェックリスト</span>
@@ -166,7 +167,7 @@
             </a>
             {% endif %}
 
-            {% if session.get("role") == "admin" %}
+            {% if session.get("role") == "admin" and not (session.get('aonagi_readonly_demo') and public_demo_shared|default(false)) %}
             <a href="{{ url_for('company_registration') }}" class="menu-item"><span class="menu-text">登録URL・申請</span></a>
             {% endif %}
         </nav>
@@ -374,7 +375,7 @@
 入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。
 {% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
 <a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
-<form action="/demo/role" method="post" style="display:inline">{% if public_demo_shared|default(false) and request.endpoint == 'vehicle_checklist_results' %}<input type="hidden" name="checklist_return" value="{{ request.full_path.rstrip('?') }}">{% endif %}
+<form action="/demo/role" method="post" style="display:inline">{% if public_demo_shared|default(false) and request.endpoint in ('vehicle_checklist_results', 'vehicle_inspection_plans') %}<input type="hidden" name="checklist_return" value="{{ request.full_path.rstrip('?') }}">{% endif %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <button name="role" value="driver">運転者</button>
 <button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者</button>

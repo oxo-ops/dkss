@@ -62,7 +62,7 @@
         panel.querySelector('[data-plan-vehicle-label]').textContent = targetRows ? targetRows.length + '台を一括登録' : v.number;
         panel.querySelector('[data-plan-office-label]').textContent = v.office || '営業所未設定';
         panel.querySelector('[data-plan-month-label]').textContent = row.source === 'maintenance' ? '実施月' : '次回予定月';
-        ['planned_month', 'reservation_date', 'factory', 'note', 'kind_confirmation'].forEach(key => {
+        ['planned_month', 'reservation_date', 'factory', 'note'].forEach(key => {
             form.elements[key].value = row[key] || ''; form.elements[key].disabled = !editable;
         });
         panel.querySelector('[data-plan-source]').textContent = row.kind==='vehicle_inspection'&&row.status==='candidate'&&row.expiry_date ? '車検証満了日：'+row.expiry_date+' ／ 予定未登録（予約はまだ登録されていません）' : (sourceLabels[row.source] || '') + (row.document_date ? ' ／ 原本記載日 ' + row.document_date : '');
@@ -134,6 +134,17 @@
         if (dirty() && !window.confirm('未保存の変更があります。保存せずに年間計画へ移りますか？')) return;
         location.href = annualURL(b.dataset.planScope);
     }));
+    async function saveChangesHere(changes) {
+        const value = await api('/preview', { changes });
+        await api('/save', { changes, token: value.token });
+    }
+    async function finishPlanSave() {
+        initial = ''; panel.close();
+        if (planner) {
+            try { await load(); }
+            catch (_) { error(planner, '[data-planner-error]', '保存しました。最新の表示を取得できません。再登録せず画面を更新してください。'); }
+        } else location.reload();
+    }
     async function showReview(changes) {
         const value = await api('/preview', { changes });
         pending = { changes, token: value.token };
@@ -152,12 +163,13 @@
     form.addEventListener('submit', async e => {
         e.preventDefault();
         if (!form.reportValidity()) return;
-        const button = form.querySelector('[data-plan-save]'); button.disabled = true;
+        const button = form.querySelector('[data-plan-save]'); if(button.disabled)return; button.disabled = true;
         try {
             const values = Object.fromEntries(new FormData(form));
             const changes = (batchTargets || [current]).map(target => ({ ...target, ...values,
                 status: 'planned', period_key: target.id ? target.period_key : values.planned_month }));
-            await showReview(changes);
+            await saveChangesHere(changes);
+            await finishPlanSave();
         } catch (e) { error(panel, '[data-plan-error]', e.message); }
         finally { button.disabled = false; }
     });
@@ -337,6 +349,37 @@
         button.title=(due?deadlineLabels[due]+' ／ ':'')+entry.day+' '+eventLabels[entry.type]+' '+v.number+' '+labels[entry.p.kind]+' ／ '+states[entry.p.display_state]+(entry.p.factory?' ／ '+entry.p.factory:'');
         button.addEventListener('click',()=>{const dialog=document.querySelector('#inspection-plan-events');if(dialog?.open)dialog.close();edit(entry.p,v);});return button;
     }
+    let yearFocusKey = '';
+    function drawYearCalendar(rows, months) {
+        const root=planner.querySelector('[data-plan-year-calendar]');
+        const previousLeft=root.firstElementChild?.scrollLeft||0,previousTop=root.firstElementChild?.scrollTop||0;
+        root.replaceChildren();
+        const scroll=node('div',undefined,'ip-year-days-scroll');scroll.tabIndex=0;
+        scroll.setAttribute('role','region');scroll.setAttribute('aria-label','月別・日別の点検計画');
+        const grid=node('div',undefined,'ip-year-days-grid');
+        const byMonth=months.map(mon=>calendarEntries(rows,mon));
+        grid.append(node('div','日','ip-year-day-label ip-year-head'));
+        months.forEach(mon=>{const h=node('h3',Number(mon.slice(5))+'月','ip-year-month-head');h.dataset.month=mon;h.title=mon;h.append(node('small',mon.slice(0,4)+'年'));if(mon===localMonth())h.classList.add('is-current');grid.append(h);});
+        for(let day=1;day<=31;day++) {
+            grid.append(node('div',day+'日','ip-year-day-label'));
+            months.forEach((mon,index)=>{
+                const [year,month]=mon.split('-').map(Number),cell=node('div',undefined,'ip-year-day-cell');
+                const valid=day<=new Date(year,month,0).getDate();
+                if(!valid){cell.classList.add('is-outside');cell.setAttribute('aria-label',mon+'には'+day+'日はありません');grid.append(cell);return;}
+                const date=mon+'-'+String(day).padStart(2,'0');cell.dataset.date=date;cell.setAttribute('aria-label',date);
+                if(date===data.today){cell.classList.add('is-today');cell.setAttribute('aria-current','date');}
+                const entries=byMonth[index].filter(e=>e.day===date);
+                entries.slice(0,entries.length>3?2:3).forEach(e=>cell.append(calendarEvent(e,true)));
+                if(entries.length>3){const more=node('button','＋'+(entries.length-2)+'件','ip-cal-more');more.type='button';more.setAttribute('aria-label',date+'の予定をすべて表示');more.addEventListener('click',()=>openEntries(date+' の予定・実績',entries));cell.append(more);}
+                grid.append(cell);
+            });
+        }
+        grid.append(node('div','日付未定','ip-year-day-label'));
+        months.forEach(mon=>{const cell=node('div',undefined,'ip-year-day-cell');rows.filter(p=>p.planned_month===mon&&!p.reservation_date&&p.status!=='completed').forEach(p=>{const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),button=node('button',v.number+' '+shortKinds[p.kind],'ip-chip');button.type='button';button.setAttribute('aria-label',mon+' 日付未定 '+v.number+' '+labels[p.kind]);button.addEventListener('click',()=>edit(p,v));cell.append(button);});grid.append(cell);});
+        scroll.append(grid);root.append(scroll);scroll.scrollLeft=previousLeft;scroll.scrollTop=previousTop;
+        const key=months.join(',');
+        if(yearFocusKey!==key){yearFocusKey=key;requestAnimationFrame(()=>{if(view!=='year'||!scroll.isConnected)return;const current=grid.querySelector('.ip-year-month-head.is-current');scroll.scrollLeft=current?Math.max(0,current.offsetLeft-grid.offsetLeft-44):0;});}
+    }
     function drawCalendar(rows) {
         const root=planner.querySelector('[data-plan-calendar]');root.replaceChildren();
         const mon=filters.elements.month.value,entries=calendarEntries(rows,mon),[year,m]=mon.split('-').map(Number);
@@ -356,7 +399,7 @@
                 b.setAttribute('aria-label',b.title);b.addEventListener('click',()=>edit(p,v));cards.append(b);
             });pending.append(cards);
         }else pending.append(node('p','予約日が未定の予定はありません。'));
-        root.append(pending,periodControl);
+        root.append(periodControl);
         const grid=node('div',undefined,'ip-cal-grid'),offset=(new Date(year,m-1,1).getDay()+6)%7,days=new Date(year,m,0).getDate();
         grid.setAttribute('aria-label',mon+' 日別の予定');grid.style.setProperty('--ip-weeks',Math.ceil((days+offset)/7));
         for(const [index,weekday] of ['月','火','水','木','金','土','日'].entries()){const label=node('div',weekday,'ip-cal-weekday');label.dataset.weekday=String((index+1)%7);grid.append(label);}
@@ -372,7 +415,7 @@
             cell.append(node('span',day+'（'+['日','月','火','水','木','金','土'][new Date(year,m-1,n).getDay()]+'）','ip-cal-mobile-date'));
             const items=node('div',undefined,'ip-cal-items');cell.append(items);calendarDays.set(cell,events);events.forEach(e=>items.append(calendarEvent(e)));grid.append(cell);
         }
-        root.append(grid);
+        root.append(grid,pending);
         requestAnimationFrame(fitCalendar);
         if(!entries.length)root.append(node('p','この月の日付付きの予定・実績はありません。','ip-cal-empty'));
     }
@@ -387,9 +430,9 @@
         for(const cell of grid.querySelectorAll('[data-date]')) {
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();
             const head=cell.querySelector('.ip-cal-day-head');
-            const available=mobile?entries.length:Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
-            const limit=mobile?entries.length:entries.length>available?Math.max(0,available-1):available;
-            entries.slice(0,limit).forEach(entry=>items.append(calendarEvent(entry,!mobile)));
+            const available=mobile?3:Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
+            const limit=entries.length>available?Math.max(0,available-1):available;
+            entries.slice(0,limit).forEach(entry=>items.append(calendarEvent(entry,true)));
             if(entries.length>limit){const more=node('button','＋'+(entries.length-limit)+'件','ip-cal-more');more.type='button';more.setAttribute('aria-label',cell.dataset.date+'の予定をすべて表示');more.addEventListener('click',()=>openEntries(cell.dataset.date+' の予定・実績',entries));items.append(more);}
         }
     }
@@ -429,6 +472,7 @@
     }
     function draw() {
         if (!data) return;
+        if(view!=='year')yearFocusKey='';
         planner.dataset.view=view;
         periodHome.append(periodControl);
         const selectedMonth=filters.elements.month.value;
@@ -461,11 +505,18 @@
         const targetVehicles=view==='year'?vehicles:vehicles.filter(v=>visibleIds.has(v.id));
         all.checked=!!targetVehicles.length&&targetVehicles.every(v=>selected.has(v.id));
         all.addEventListener('change',()=>{selected=all.checked?new Set(targetVehicles.map(v=>v.id)):new Set();draw();});allCell.append(all);hr.append(allCell);
-        const columns=view==='year'?['車両・営業所',...months.map(m=>Number(m.slice(5))+'月')]:['車両・営業所','点検種別','期限・予定月','入庫予定','実施先','状態','実施日','操作'];
+        const columns=view==='year'?['車両・営業所',...months.map(m=>Number(m.slice(5))+'月')]:['ナンバープレート','予定・実績'];
         columns.forEach((label,i)=>{const th=node('th',label);if(view==='year'&&months[i-1]===localMonth())th.classList.add('ip-current-month');hr.append(th);});head.append(hr);
         planner.querySelector('.ip-grid-scroll').hidden=view==='calendar';
         planner.querySelector('[data-plan-calendar]').hidden=view!=='calendar';
         if(view==='calendar')drawCalendar(rows);
+        const yearRoot=planner.querySelector('[data-plan-year-calendar]');yearRoot.hidden=view!=='year';
+        const tableDetails=planner.querySelector('[data-plan-vehicle-table]');
+        const tableSummary=planner.querySelector('[data-plan-vehicle-summary]');
+        tableSummary.hidden=view!=='year';
+        if(view!=='year')tableDetails.open=true;
+        else {if(!yearFocusKey)tableDetails.open=false;drawYearCalendar(rows,months);}
+
         planner.querySelector('.ip-grid').classList.toggle('ip-month-table',view==='month');
         planner.querySelector('.ip-grid').classList.toggle('ip-year-table',view==='year');
         if(view==='year') {
@@ -489,10 +540,20 @@
             }
         } else {
             for(const p of rows.sort(comparePlans)) {
-                const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),tr=node('tr');tr.append(checkbox(v),vehicleCell(v),node('td',labels[p.kind]));
-                const due=node('td');if(p.expiry_date)due.append(node('span',(p.status==='completed'?'当時の満了日 ':'車検証満了日 ')+p.expiry_date));due.append(node('small',(p.source==='maintenance'?'実施月 ':p.status==='candidate'?'候補月 ':'予定月 ')+p.planned_month));tr.append(due,node('td',p.reservation_date||'未定'),node('td',p.factory||'—'));
-                const status=node('td');status.append(badge(p));if(p.status==='completed')status.append(node('small','書類'+(p.document_status||'未確認')));tr.append(status,node('td',p.performed_date||'—'));
-                const action=node('td'),b=p.invoice_summary?invoiceLink({summary:p.invoice_summary,source_url:p.record_url,sources:p.invoice_sources}):node('button',p.status==='completed'?'実施内容':p.display_state==='awaiting'?'実施を確認':p.status==='candidate'?'予定に登録':!p.reservation_date?'予約日を登録':'予約を確認','btn btn-outline');b.type='button';if(!p.invoice_summary)b.addEventListener('click',()=>edit(p,v));action.append(b);tr.append(action);body.append(tr);
+                const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),tr=node('tr');tr.append(checkbox(v),vehicleCell(v));
+                const cell=node('td',undefined,'ip-plan-summary-cell');
+                const actual=p.status==='completed',date=actual?p.performed_date:p.reservation_date;
+                const content=actual&&p.source==='maintenance'&&p.note?p.note:labels[p.kind];
+                const when=date?shortDate(date):p.planned_month;
+                const label=(stateMarks[p.display_state]||'')+' '+when+' '+content;
+                const b=p.invoice_summary?invoiceLink({summary:p.invoice_summary,source_url:p.record_url,sources:p.invoice_sources}):node('button',label,'ip-chip ip-plan-summary');
+                if(!p.invoice_summary){b.type='button';b.dataset.status=p.status;b.dataset.state=p.display_state;
+                    b.title=label+' ／ '+(states[p.display_state]||'確認が必要')+(p.factory?' ／ '+p.factory:'')+(actual?' ／ 書類'+(p.document_status||'未確認'):'');
+                    b.setAttribute('aria-label',v.number+' '+b.title+' 詳細');b.addEventListener('click',()=>edit(p,v));}
+                cell.append(b);
+                const due=deadlineState(p);if(due)cell.append(node('span',deadlineLabels[due],'ip-deadline-label'));
+                if(!actual&&!p.reservation_date)cell.append(node('small',p.status==='candidate'?'予定未登録':'予約日未定'));
+                tr.append(cell);body.append(tr);
                 Array.from(tr.children).forEach((td,i)=>{td.dataset.label=['選択',...columns][i];});
             }
         }
@@ -522,6 +583,7 @@
         const office=filters.elements.office.value;url.searchParams.set('scope',office==='__company'?'company':'office');if(office&&office!=='__company')url.searchParams.set('office',office);
         for(const [k,v] of Object.entries({month:filters.elements.month.value,view,kind,state,q:filters.elements.search.value,vehicle_id:focus||''}))if(v)url.searchParams.set(k,v);
         history.replaceState(null,'',url);
+        document.querySelectorAll('form[action="/demo/role"] input[name="checklist_return"]').forEach(input=>{input.value=url.pathname+url.search;});
         const exportLink=planner.querySelector('[data-plan-export]');
         const exportURL=new URL('/vehicle/inspection-plans/export.xlsx',location.origin);
         exportURL.search=url.search;
@@ -581,6 +643,9 @@
             const office = v?.office || (data.office || newData.vehicles.find(v=>v.id===Number(select.value))?.office);
             if (office) offices.value = office;
             newForm.elements.kind.value = kind || '3month'; newForm.elements.month.value = mon;
+            newForm.elements.reservation_date.value=day;
+            for(const key of ['factory','note'])newForm.elements[key].value='';
+            error(newDialog,'[data-new-error]');
             refreshNewTargets(); newDialog.showModal();
         } catch (e) { window.alert(e.message); }
         finally { newLoading = false; }
@@ -614,16 +679,15 @@
                 return existing || {id:null,version:0,kind:k,vehicle_record_id:v.id,planned_month:mon,
                     period_key:mon,reservation_date:newForm.dataset.reservation?.slice(0,7)===mon?newForm.dataset.reservation:'',source:'manual',status:'candidate'};
             };
-            if(newScope==='vehicle'){
-                if(!targets.length)throw new Error('対象車両の情報が変わりました。開き直してください。');
-                const row=rowFor(targets[0]);newDialog.close();openEditor(row,targets[0],data.can_edit&&row.status!=='completed');return;
-            }
-            const changes = targets.map(rowFor).filter(p=>!['planned','completed'].includes(p.status));
-            if(!changes.length)throw new Error('対象車両にはこの月の予定・実施が登録済みです。');
+            if(!targets.length)throw new Error('対象車両の情報が変わりました。開き直してください。');
+            const existingRows=targets.map(rowFor).filter(p=>!['planned','completed'].includes(p.status));
+            if(!existingRows.length)throw new Error('登録済みの予定・実績があります。一覧の該当する予定から変更してください。');
+            const values=Object.fromEntries(new FormData(newForm));
+            const changes=existingRows.map(p=>({...p,status:'planned',reservation_date:values.reservation_date||p.reservation_date||'',factory:values.factory||'',note:values.note||''}));
             if(changes.length>1000)throw new Error('一括登録は1000台までです。営業所単位で登録してください。');
-            newDialog.close();
-            openEditor(changes[0],{...targets[0],number:changes.length+'台',office:newScope==='company'?'会社全体':newForm.elements.office.value},data.can_edit,changes);
-        } catch(e){window.alert(e.message);}
+            await saveChangesHere(changes);
+            newDialog.close();await finishPlanSave();
+        } catch(e){error(newDialog,'[data-new-error]',e.message);}
         finally { submitButton.disabled = false; }
     });
     planner.querySelector('[data-plan-generate]').addEventListener('click',async()=>{

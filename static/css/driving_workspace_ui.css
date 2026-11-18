@@ -295,3 +295,50 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
 .driving-page.driving-designed :is(a.btn,button.btn){min-height:42px!important;padding:9px 12px!important;font-size:13px!important}
 .driving-page.driving-designed a.driving-open-analysis{background:#235c9d!important;border-color:#235c9d!important;color:#fff!important}
 .driving-designed .driving-finding summary,.driving-designed .driving-vehicle-suggestion summary{display:inline-flex;align-items:center;min-height:38px;padding:6px 10px;border:1px solid #d4dfeb;border-radius:6px;background:#fff;font-size:13px}
+
+/* Constrain native date controls and keep comparison text readable. */
+.driving-page.driving-designed .driving-extra-filters .driving-filters > label { min-width:0; }
+.driving-page.driving-designed .driving-extra-filters .driving-filters :is(input,select) { box-sizing:border-box; width:100%; min-width:0; max-width:100%; }
+.driving-page.driving-designed .driving-extra-filters input[type="date"] { min-inline-size:0; }
+@media(max-width:640px) {
+ .driving-page.driving-designed .driving-extra-filters .driving-comparison-filter { grid-column:1 / -1; }
+}
+
+/* Driver cards share the existing shell typography/control tokens. Presentation only. */
+.driving-designed .driving-directory-table .driving-person-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.driving-designed .driving-directory-table .driving-person-metric{min-width:0;padding:10px;border:1px solid var(--dkss-border-input);border-radius:10px;background:var(--dkss-surface);overflow-wrap:anywhere}
+.driving-designed .driving-directory-table .driving-person-metric h4{font-family:inherit;font-size:14px;line-height:1.5;margin:0 0 6px;font-weight:600}
+.driving-designed .driving-directory-table .driving-person-metric>strong{display:block;font-size:20px;line-height:1.5}
+.driving-designed .driving-directory-table .driving-person-metric small{font-size:12px;line-height:1.6}
+.driving-designed .driving-directory-table .driving-person-metric>strong small{display:inline;font-size:12px;font-weight:400}
+.driving-page.driving-designed .driving-directory-table a.driving-open-analysis{font-family:inherit;background:var(--dkss-surface)!important;color:var(--dkss-action-blue)!important;border:1px solid var(--dkss-border-input)!important;border-radius:10px;min-height:44px!important;font-size:14px!important;line-height:1.5;white-space:normal}
+.driving-page.driving-designed .driving-directory-table a.driving-open-analysis:hover{background:#dfe7f6!important}
+@media(min-width:901px){.driving-designed .driving-directory-table .driving-person-metrics{grid-template-columns:1fr}}
+@media(max-width:650px){
+ .driving-page.driving-designed .driving-directory-table>tbody>tr{display:grid!important;grid-template-columns:minmax(0,1fr);border-radius:10px}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td{grid-column:1/-1;font-size:14px;padding:10px 12px}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(1){grid-row:1}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(3){grid-row:2}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(2){grid-row:3}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(4){grid-row:4}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(5){grid-row:5}
+ .driving-page.driving-designed .driving-directory-table td:not(:nth-child(4))::before{display:none}
+ .driving-designed .driving-directory-table .driving-person-link{font-family:inherit;font-size:16px;font-weight:600}
+ .driving-designed .driving-directory-table .driving-person-trip-count,.driving-designed .driving-directory-table .driving-person-distance{display:inline-block;font-size:16px;font-weight:600;margin:0 12px 0 0}
+ .driving-designed .driving-directory-table td:last-child .btn{width:100%;box-sizing:border-box}
+}
+
+/* Reference IMG_2106: existing body #dfe7f6/main #f4f7fc, not a new purple palette. */
+.driving-page.driving-designed .driving-driver-directory{background:#f4f7fc;border-color:var(--dkss-border-input)}
+.driving-designed .driving-directory-table .driving-person-metric{background:var(--dkss-surface);border-color:var(--dkss-border-input)}
+.driving-designed .driving-directory-table a:focus-visible{outline-color:var(--dkss-action-blue)}
+.driving-designed .driving-directory-table .driving-person-link{color:var(--dkss-action-blue)}
+
+.driving-designed .driving-person-review-entry{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.6}
+.driving-designed .driving-person-review-entry p{margin:4px 0 8px}
+.driving-designed .driving-person-review-entry time{font-size:12px;color:var(--dkss-text-muted)}
+@media(max-width:650px){.driving-page.driving-designed .driving-directory-table td.driving-person-review.is-empty{display:none}}
+
+.driving-designed .driving-change-direction{color:var(--dkss-action-blue);font-weight:600;margin-left:4px}
+
+.driving-page.driving-designed .driving-directory-table td.driving-person-review::before{display:none}

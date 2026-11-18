@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}{{ office or '営業所' }}の運転実績{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static',filename='css/driving_workspace_ui.css',v='20261118-people-blue-grid-3') }}">
+{% endblock %}
+{% block content %}
+<section class="card driving-designed"><h2>{{ office or '営業所' }}の運転実績</h2>
+<nav class="driving-view-switch" aria-label="運転実績の表示"><a href="{{ url_for('driving_reports',scope='self') }}">自分の実績</a><a href="{{ url_for('driving_office_summary') }}" aria-current="page">営業所の実績</a></nav>
+{% if not summary.available %}<p>所属営業所未設定</p>{% else %}
+<h3>月別の運行実績</h3><table class="checklist-table"><thead><tr><th>年月</th><th>運行件数</th><th>走行距離</th></tr></thead><tbody>{% for row in summary.months %}<tr><td data-label="年月">{{ row.month|replace('-','/') }}</td><td data-label="運行件数">{{ row.count }} 件</td><td data-label="走行距離">{% if row.distance=='—' %}{{ row.distance_state }}{% else %}{{ row.distance }} km{% if row.distance_state=='一部取得' %}（一部）{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table>
+{% if summary.metrics %}<h3>当月の運転傾向</h3><div class="driving-compact-summary">{% for item in summary.metrics %}<span>{{ item.name }} <strong>{{ item.value }}</strong> {{ item.unit }}</span>{% endfor %}</div>{% endif %}
+{% endif %}</section>
+{% endblock %}

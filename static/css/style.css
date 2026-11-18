@@ -70,7 +70,7 @@ body {
     background: rgba(255, 255, 255, 0.25);
 }
 
-.sidebar nav a {
+.sidebar nav a:not(.menu-item) {
     display: block;
     color: #d8e3f3;
     text-decoration: none;

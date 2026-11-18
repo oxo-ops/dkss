@@ -621,6 +621,11 @@
         referenceDrawer.replaceChildren(header, summary, content);
         referenceDrawerContent = content;
         referenceDrawerOpener = opener;
+        // Preserve the selected proposal when returning from its original source.
+        if (item.proposal_id) {
+            window.history.replaceState(window.history.state, "",
+                window.location.pathname + window.location.search + `#proposal=${encodeURIComponent(item.proposal_id)}`);
+        }
         showReferenceDrawer();
         close.focus();
     }
@@ -962,7 +967,7 @@
                 button.type = "button";
                 button.addEventListener("click", () => openReferenceDrawer(item, detail, button, data.sources));
                 if (!referenceLinkedProposalOpened && item.proposal_id
-                    && window.location.hash === `#proposal=${item.proposal_id}`) {
+                    && window.location.hash === `#proposal=${encodeURIComponent(item.proposal_id)}`) {
                     referenceLinkedProposalOpened = true;
                     queueMicrotask(() => {
                         const group = button.closest("details");
@@ -1046,58 +1051,25 @@
             if (!current) board.append(node("p", "kc-muted", "前回の提案を表示しています。"));
             const existing = table(ordered, "提案の根拠");
             const controls = [...existing.querySelectorAll("tbody tr")].map(tr => [...tr.lastElementChild.childNodes]);
-            const wrap = node("div", "ka7-proposal-scroll");
-            wrap.tabIndex = 0;wrap.setAttribute("role", "region");wrap.setAttribute("aria-label", "優先度順の予防整備・対応候補");
-            const grid = node("table", "ka7-proposal-table");
-            const head = node("thead");const header = node("tr");
-            for (const text of ["対象・対応優先度", "現在の状態", "リスク・懸念", "推奨する対応", "時期・回答"]) {const th=node("th","",text);th.scope="col";header.append(th);}
-            head.append(header);const body=node("tbody");
+            const list = node("ul", "ka-video-proposals");
+            list.setAttribute("aria-label", "優先度順の予防整備・対応候補");
             ordered.forEach((item,index) => {
-                const row=node("tr");row.dataset.priority=priorityPresentation?.read(item).label || "";
-                const target=node("td","ka7-target");target.append(node("strong","",item.target || item.title || "確認項目"));
-                const priority=responsePriorityBadge(item, "ka7-priority");
-                const priorityLine=node("div", "ka-context-priority");priorityLine.append(priority);target.append(priorityLine);
-                if (priorityPresentation) target.append(node("small", "priority-response-note", priorityPresentation.read(item).note));
-                if(item.category) {const tag=node("small", "ka10-category", item.category);tag.dataset.kind=item.category === "記録確認" ? "record" : "maintenance";target.append(tag);}
-                const state=node("td", "ka-context-state", recommendationState(item));
-                const concern=recommendationConcern(item);
-                const risk=node("td", "ka-context-risk");
-                if(!concern.explicit) risk.append(node("small", "ka-context-risk-label", concern.label));
-                risk.append(node("p", "", concern.text));
-                const action=node("td","ka7-next");action.append(node("strong","",item.category === "記録確認" && item.target ? `${item.target}の対応記録を確認` : item.title || item.action || "詳細を確認"));
-                const firstStep = Array.isArray(item.confirmation_steps) ? item.confirmation_steps.find(step => typeof step === "string" && step.trim()) : null;
-                const nextStep = item.action || firstStep;
-                if (nextStep && nextStep !== item.title) {const step=node("span","ka8-first-step",nextStep);step.title=nextStep;action.append(step);}
-                const timing=node("td","ka7-timing");timing.append(node("span","",item.timing || "時期は未判定"));
-                const rules=[];
-                for (const id of item.source_ids || []) for (const rule of data.sources?.[id]?.snapshot?.maintenance_rule_evidence?.rules || []) {
-                    if (rule.analysis_adoption?.status === "adopted_for_analysis" && rule.source_verification?.status === "quote_matched" && rule.semantic_review?.status === "supported") rules.push(rule);
-                }
-                if(rules.length===1 && rules[0].source_quote) {
-                    timing.title = String(rules[0].source_quote).replace(/\s+/g," ").trim();
-                    for (const text of preventiveRuleLabels(item, data.sources)) {
-                        const basis = node("span", "ka8-first-step", text);
-                        action.append(basis);
-                    }
-                    if(rules[0].timing_facts?.status === "held") timing.append(node("small","ka7-held","期限未判定"));
-                }
-                const actions=node("td","ka7-row-actions");actions.append(...timing.childNodes);
-                const ids=item.source_ids || [];
-                const id=ids.find(x=>/^(inspection|periodic):/.test(String(x))) || ids.find(x=>String(x).startsWith("maintenance:")) || ids[0];
-                const source=data.sources?.[id];
-                if(source) {
-                    const url=new URL(source.url,window.location.origin);
-                    if(url.origin===window.location.origin) {
-                        const name=/^(inspection|periodic):/.test(String(id)) ? "元の点検 ↗" : String(id).startsWith("maintenance:") ? "整備記録 ↗" : String(id).startsWith("knowledge:") ? "根拠資料 ↗" : "元の記録 ↗";
-                        const link=node("a","ka7-record-link",name);link.href=url.href;link.target="_blank";link.rel="noopener noreferrer";link.title=source.label || name;actions.append(link);
-                    }
-                }
+                const row=node("li", "ka-video-proposal");
+                row.dataset.priority=priorityPresentation?.read(item).label || "";
+                const listPriority = responsePriorityBadge(item, "ka7-priority");
+                const priorityFact = priorityPresentation?.read(item);
+                // The compact list shows the category; the detail retains its score and source.
+                if (priorityFact?.valid && priorityFact.label) listPriority.textContent = priorityFact.label;
+                row.append(listPriority);
+                const copy=node("div", "ka-video-copy");
+                copy.append(node("strong", "", item.target || item.title || "確認項目"));
+                copy.append(node("p", "", item.action || item.title || "詳細を確認"));
+                row.append(copy);
                 const button=controls[index].find(el=>el.nodeType===1&&el.matches("button"));
-                const badge=controls[index].find(el=>el.nodeType===1&&el.matches(".ka-reference-state"));
-                if(button){button.textContent="詳細・対応";actions.append(button);}if(badge)priorityLine.append(badge);
-                row.append(target,state,risk,action,actions);body.append(row);
+                if(button){button.textContent="詳細 ›";button.setAttribute("aria-label", `${item.target || item.title || "提案"}の詳細・対応`);row.append(button);}
+                list.append(row);
             });
-            grid.append(head,body);wrap.append(grid);board.append(wrap);
+            board.append(list);
         }
         if(current) {
             const related=new Set(ordered.flatMap(item=>item.source_ids || []));

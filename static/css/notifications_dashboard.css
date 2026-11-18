@@ -333,3 +333,21 @@ body:has(#notificationLayout) .notification-top-bar { min-height: 48px; margin-b
   .notifications-card:has(#notificationLayout) .notification-tabs { gap: 4px; }
   .notifications-card:has(#notificationLayout) .notification-view-tab { padding-left: 6px; padding-right: 6px; gap: 4px; font-size: 13px; }
 }
+
+/* Title and actions share one baseline at both desktop and phone widths. */
+body:has(#notificationLayout) .page-header.notification-page-header {
+  display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px;
+}
+body:has(#notificationLayout) .notification-page-header .notification-heading {
+  flex: 0 0 auto; width: auto; text-align: left;
+}
+body:has(#notificationLayout) .notification-page-header .notification-heading h2 { text-align: left; }
+body:has(#notificationLayout) .notification-page-header > .header-actions {
+  width: auto; min-width: 0; flex: 0 1 auto; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 0;
+}
+@media (max-width: 480px) {
+  body:has(#notificationLayout) .notification-page-header .notification-heading h2 { font-size: 18px; }
+  body:has(#notificationLayout) .notification-page-header #notificationReadAllButton,
+  body:has(#notificationLayout) .notification-page-header .notification-page-close { min-height: 44px; padding: 6px; font-size: 12px; white-space: nowrap; }
+  body:has(#notificationLayout) .notification-page-header .notification-page-close { gap: 3px; }
+}

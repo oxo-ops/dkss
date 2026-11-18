@@ -76,7 +76,7 @@ def main():
                 require(not result['rootOverflow'] and not any(r['overflow'] for r in result['items']),f'Panel overflow: {label} {result}')
                 require(result['inline']==0,'Inline style bypassed CSP')
                 require(all(r['fill'] in ['rgb(45, 107, 179)','rgb(144, 170, 206)'] for r in result['fills']),'Bar colors not applied')
-                require(not page.evaluate('window.ui5Csp'),'CSP violation')
+                require(not page.evaluate('window.ui5Csp'), 'CSP violation: '+json.dumps(page.evaluate('window.ui5Csp')))
             for width in [1440,1024,768,390,320]:
                 page.set_viewport_size(dict(width=width,height=1000));visit()
                 require('6.00' in page.locator('[data-rate=current]').inner_text(),'Own rate missing')

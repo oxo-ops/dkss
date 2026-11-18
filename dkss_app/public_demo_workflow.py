@@ -68,7 +68,8 @@ def role_return_target():
     except ValueError:
         return '/'
     if (parsed.scheme or parsed.netloc or parsed.fragment
-            or not re.fullmatch(r'/vehicle/checklists/[0-9]+', parsed.path)):
+            or not (re.fullmatch(r'/vehicle/checklists/[0-9]+', parsed.path)
+                    or parsed.path == '/vehicle/inspection-plans')):
         return '/'
     allowed = {'vehicle_record_id', 'year', 'month', 'active_day',
                'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day'}
@@ -76,7 +77,19 @@ def role_return_target():
     # guards still enforce company, vehicle, checklist and role permissions.
     values = {}
     for key, value in parse_qsl(parsed.query):
-        if key in allowed and re.fullmatch(r'[0-9]{1,10}', value):
+        if parsed.path == '/vehicle/inspection-plans':
+            # View filters only; the destination retains its role/company guards.
+            valid = (
+                (key in {'vehicle_id', 'year'} and re.fullmatch(r'[0-9]{1,10}', value))
+                or (key == 'month' and re.fullmatch(r'[0-9]{4}-[0-9]{2}', value))
+                or (key == 'scope' and value in {'vehicle', 'office', 'company'})
+                or (key == 'view' and value in {'month', 'year', 'calendar'})
+                or (key in {'office', 'q', 'kind', 'state'} and len(value) <= 100
+                    and not any(ord(char) < 32 for char in value))
+            )
+            if valid:
+                values[key] = value
+        elif key in allowed and re.fullmatch(r'[0-9]{1,10}', value):
             values[key] = value
     query = urlencode(values)
     return parsed.path + ('?' + query if query else '')

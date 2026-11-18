@@ -114,8 +114,8 @@
         context.fillText(unit, left, 10);
 
         if (line) {
-            context.strokeStyle = "#397dea";
-            context.lineWidth = 1.7;
+            context.strokeStyle = "#2f69aa";
+            context.lineWidth = 2.4;
             context.beginPath();
             let connected = false;
 
@@ -133,7 +133,7 @@
             });
 
             context.stroke();
-            context.fillStyle = "#397dea";
+            context.fillStyle = "#2f69aa";
 
             values.forEach((value, index) => {
                 if (value === null) return;
@@ -146,9 +146,9 @@
             });
         } else {
             const barWidth = Math.max(
-                1, Math.min(18, step * 0.6)
+                1, Math.min(38, step * 0.55)
             );
-            context.fillStyle = "#8271d7";
+            context.fillStyle = field === "cost" ? "#2f69aa" : "#8271d7";
 
             values.forEach((value, index) => {
                 if (value === null) return;
@@ -160,6 +160,20 @@
                 );
             });
         }
+
+        // Show actual values as in the reference video when labels fit.
+        // Missing records stay gaps; never invent zero or join across them.
+        context.fillStyle = "#173b60";
+        context.textAlign = "center";
+        context.font = '600 12px "Segoe UI", "Meiryo", sans-serif';
+        values.forEach((value, index) => {
+            if (value === null) return;
+            const label = value.toLocaleString("ja-JP", field === "distance"
+                ? { maximumFractionDigits: 0 } : {});
+            if (context.measureText(label).width + 12 > step) return;
+            context.fillText(label, x(index), Math.max(14, y(value) - 8));
+        });
+        context.font = '12px "Segoe UI", "Meiryo", sans-serif';
 
         const interval = Math.max(
             1, Math.ceil(rows.length / 4)

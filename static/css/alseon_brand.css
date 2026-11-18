@@ -54,3 +54,5 @@
 .sidebar-head .alseon-symbol img {
     filter: url(#alseon-dark-logo);
 }
+
+.alseon-brand-filter { position: absolute; pointer-events: none; }

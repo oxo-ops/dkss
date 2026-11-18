@@ -25,7 +25,7 @@ from unittest.mock import patch
 import json
 import os
 from pathlib import Path
-from urllib.parse import urlsplit, urljoin
+from urllib.parse import quote, urlsplit, urljoin
 from native_pdf_navigation import NativePdfNavigation
 from overview_layout_contract import assert_overview_readability
 
@@ -770,23 +770,29 @@ def run_browser(args, f, report, out, origin):
                 else:
                     with page.expect_response(response_is(f.analysis + '/result', 'GET')):
                         page.goto(origin + f.analysis, wait_until='networkidle')
-                rows = page.locator('.ka7-proposal-table tbody tr')
+                rows = page.locator('.ka-video-proposal')
                 expect(page.locator('.ka7-board')).to_be_visible()
                 expect(rows).to_have_count(len(order))
                 for index, value in enumerate(ordered):
                     row = rows.nth(index)
-                    expect(row.locator('.ka7-priority')).to_have_text(badge)
-                    expect(row.locator('.ka7-target > strong')).to_have_text(value.get('target') or value.get('title') or '確認項目')
+                    expect(row.locator('.ka7-priority')).to_have_text(badge.split(' · ')[0])
+                    expect(row.locator('.ka-video-copy > strong')).to_have_text(value.get('target') or value.get('title') or '確認項目')
                     ids = value['source_ids']
                     sid = next((sid for sid in ids if str(sid).startswith(('inspection:', 'periodic:'))),
                         next((sid for sid in ids if str(sid).startswith('maintenance:')), ids[0]))
                     source_url = data['sources'][sid]['url']
                     expected_url = source_url if urlsplit(source_url).netloc else origin + source_url
-                    expect(row.locator('.ka7-record-link')).to_have_attribute('href', expected_url)
+                    # Same source now lives behind the existing detail control.
+                    drawer = page.locator('.ka-reference-drawer')
+                    if drawer.is_visible(): drawer.locator('.ka-drawer-close').click()
+                    row.locator('.ka-reference-detail-button').click()
+                    expect(drawer).to_be_visible()
+                    source_hrefs = drawer.locator('.ka-reference-source-links a').evaluate_all('(links) => links.map(link => link.href)')
+                    require(expected_url in source_hrefs, 'Expected original record missing from proposal detail')
+                    drawer.locator('.ka-drawer-close').click()
                 if item:
                     drawer = page.locator('.ka-reference-drawer')
-                    if len(order) > 5:
-                        rows.nth(order.index(item['proposal_id'])).locator('.ka-reference-detail-button').click()
+                    rows.nth(order.index(item['proposal_id'])).locator('.ka-reference-detail-button').click()
                     expect(drawer).to_be_visible()
                     expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text(badge)
                     details = drawer.locator('.priority-response-details')
@@ -869,14 +875,14 @@ def run_browser(args, f, report, out, origin):
                 with page.expect_response(response_is(f.analysis + '/result', 'GET')) as fetched:
                     old_card.locator('.ko-proposal-detail').click()
                 f.assert_historical(fetched.value.json(), previous_item, previous_generated_at)
-                rows = page.locator('.ka7-proposal-table tbody tr')
+                rows = page.locator('.ka-video-proposal')
                 expect(rows).to_have_count(2)
                 old_row = rows.nth(ids.index(historical_item['proposal_id']))
                 current_row = rows.nth(ids.index(companion_id))
-                expect(old_row.locator('.ka7-target > strong')).to_have_text(historical_item['target'])
+                expect(old_row.locator('.ka-video-copy > strong')).to_have_text(historical_item['target'])
                 expect(old_row.locator('.ka7-priority')).to_have_text('高')
-                expect(current_row.locator('.ka7-target > strong')).to_have_text(companion['target'])
-                expect(current_row.locator('.ka7-priority')).to_have_text('高 · 60点')
+                expect(current_row.locator('.ka-video-copy > strong')).to_have_text(companion['target'])
+                expect(current_row.locator('.ka7-priority')).to_have_text('高')
                 expect(page.locator('.ka7-count')).to_have_text('2件（前回評価を含む）')
                 drawer = page.locator('.ka-reference-drawer')
                 expect(drawer).to_be_visible()
@@ -920,10 +926,11 @@ def run_browser(args, f, report, out, origin):
                 page.screenshot(path=str(out / f'{args.case}-historical-source-gap-{view_width}.png'), full_page=True)
                 drawer.locator('.ka-drawer-close').click()
                 expect(drawer).to_be_hidden()
+                expect(page).to_have_url(origin + f.analysis)
                 current_row.locator('.ka-reference-detail-button').click()
                 expect(drawer).to_be_visible()
-                # A row button opens the drawer without adding a deep-link hash.
-                expect(page).to_have_url(origin + f.analysis)
+                # Opening a row retains its exact selected proposal for Back from original evidence.
+                expect(page).to_have_url(origin + f.analysis + '#proposal=' + quote(companion['proposal_id'], safe=''))
                 expect(drawer.locator('#ka-reference-drawer-title')).to_have_text(companion['target'])
                 expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text('高 · 60点')
                 expect(drawer.locator('.ka-historical-source-gap')).to_have_count(0)

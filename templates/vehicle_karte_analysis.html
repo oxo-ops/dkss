@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}車両カルテ・分析{% endblock %}
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261118-2') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_presentation.css', v='20261111-common-3') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_comparison_panels.css', v='20261111-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_priority_preview.css', v='20261110-trial-3') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261023-detail-overlay-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_analysis.css', v='20261118-proposal-return-3') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='css/driving_reports.css',v='20261025-1') }}">
 {% endblock %}
 
@@ -52,10 +53,6 @@
         {% endfor %}
     </div>
     {% endif %}
-    <section class="ka7-proposals" aria-label="予防整備・対応候補">
-        <p id="ka-ai-status" role="status" aria-live="polite" data-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) }}">準備中</p>
-        <div id="ka-ai-results" hidden></div>
-    </section>
     {% if chart.distance_months > 1 or chart.cost_months > 1 %}
     <div class="ka7-trends">
         {% for chart_id, title, unit, count in [('ka-distance-chart', '月別走行距離', 'km', chart.distance_months), ('ka-cost-chart', '月別整備費', '円', chart.cost_months)] %}
@@ -74,6 +71,11 @@
     </div>
     {% endif %}
 
+
+    <section class="ka7-proposals" aria-label="予防整備・対応候補">
+        <p id="ka-ai-status" role="status" aria-live="polite" data-url="{{ url_for('vehicle_karte_analysis_result', vehicle_record_id=vehicle.id) }}">準備中</p>
+        <div id="ka-ai-results" hidden></div>
+    </section>
 
     <div class="ka7-evidence-grid">
         {% set recurring = data.repeated_failure_contents|selectattr('1', 'gt', 1)|list %}
@@ -118,9 +120,9 @@
 </div>
 <script type="application/json" id="ka-reference-context">{{ {'model': vehicle.model_code or '', 'start_date': data.start_date, 'end_date': data.end_date, 'vehicle_count': analysis_comparison.vehicle_count, 'note': analysis_comparison.note}|tojson }}</script>
 <script type="application/json" id="ka-chart-data">{{ data.monthly|tojson }}</script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='20261026-integer-distance-1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261111-confirmed-3') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis.js', v='video-20261118-20261026-integer-distance-1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_priority_presentation.js', v='20261118-proposal-return-3') }}" defer></script>
 <script src="{{ url_for('static', filename='js/vehicle_priority_preview.js', v='20261110-trial-2') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261111-confirmed-3') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vehicle_karte_analysis_ai.js', v='20261118-proposal-return-3') }}" defer></script>
 </div>
 {% endblock %}

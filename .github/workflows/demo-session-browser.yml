@@ -1,0 +1,57 @@
+name: Demo Session Recovery Browser
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'dkss_app/**'
+      - 'templates/base.html'
+      - 'static/js/public_demo_share.js'
+      - 'requirements.txt'
+      - 'tests/test_demo_session_recovery.py'
+      - 'tests/test_demo_share_entry.py'
+      - 'tests/test_demo_inspection_compact.py'
+      - 'tests/test_public_demo_workflow.py'
+      - 'tests/test_q02_daily_inspection_flow.py'
+      - 'tests/identity_fixture.py'
+      - 'tests/history_presentation_browser/guard/**'
+      - 'tests/demo_session_browser/**'
+      - '.github/workflows/demo-session-browser.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-session:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned isolated browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Verify isolated authentication boundaries
+        run: |
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/demo-session-results/preflight" bash tests/demo_session_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/browser-venv/bin/python" --preflight-only
+      - name: Verify exact head and native browser cookie recovery
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/browser-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/demo-session-results" bash tests/demo_session_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$PY" --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$CHROMIUM"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: demo-session-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/demo-session-results/
+          retention-days: 14
