@@ -270,3 +270,5 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-page-endpoint="driving_reports"] :is(.driving-extra-filters,.driving-export-menu) > summary {width:44px;height:44px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box;list-style:none;}
  body[data-page-endpoint="driving_reports"] :is(.driving-extra-filters,.driving-export-menu) > summary::-webkit-details-marker {display:none;}
 }
+
+@media screen and (max-width:767px){body[data-page-endpoint="driving_reports"] .driving-toolbar-actions > a[aria-label="日報を取り込む"]{width:44px;height:44px;min-width:44px;padding:0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;}}
