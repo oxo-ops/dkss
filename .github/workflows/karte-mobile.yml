@@ -38,3 +38,4 @@ jobs:
             ${{ runner.temp }}/karte-mobile/*.png
             ${{ runner.temp }}/karte-mobile/*report.json
             ${{ runner.temp }}/karte-mobile/failure.json
+            ${{ runner.temp }}/karte-mobile/geometry-diff.json
