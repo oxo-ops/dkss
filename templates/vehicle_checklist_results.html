@@ -3,7 +3,7 @@
 {% block title %}車両チェック結果{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261118-detail-buttons-7') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261119-workspace-toolbar-8') }}">
 {% endblock %}
 
 {% block content %}
@@ -21,22 +21,14 @@
 {% set vehicle_return_month = request.args.get('vehicle_return_month') or month %}
 {% set vehicle_return_day = request.args.get('vehicle_return_day') or active_day %}
 
+{% if vehicle_compact_ready %}<div class="vehicle-workspace-top">{% endif %}
 <div class="page-header{{ ' vehicle-workspace-header' if vehicle_compact_ready else '' }}">
     {% if vehicle_compact_ready %}
     <div class="vehicle-workspace-heading">
         {{ checklist_result_heading(checklist, checklist_navigation) }}
         <p class="vehicle-workspace-subtitle">
             <strong>{{ selected_vehicle.number or "ナンバー未登録" }}</strong>
-            <label class="vehicle-workspace-date">
-                <span>点検日</span>
-                <input
-                    type="date"
-                    id="vehicle_workspace_date"
-                    value="{{ '%04d-%02d-%02d'|format(year|int, month|int, active_day|int) }}"
-                    aria-label="表示する点検日"
-                    required
-                >
-            </label>
+
         </p>
     </div>
     {% else %}
@@ -50,6 +42,18 @@
     {% endif %}
 {% endfor %}
     <div class="header-actions">
+        {% if vehicle_compact_ready %}
+            <label class="vehicle-workspace-date">
+                <span>点検日</span>
+                <input
+                    type="date"
+                    id="vehicle_workspace_date"
+                    value="{{ '%04d-%02d-%02d'|format(year|int, month|int, active_day|int) }}"
+                    aria-label="表示する点検日"
+                    required
+                >
+            </label>
+        {% endif %}
 
         {% if vehicle_record_id and export_ns.result %}
         <a
@@ -225,6 +229,7 @@
 
 {% if vehicle_compact_ready %}
 </details>
+</div>
 {% endif %}
 
 {% if vehicle_today and selected_vehicle %}
@@ -2153,7 +2158,7 @@
     src="{{ url_for(
         'static',
         filename='js/vehicle_checklist_results.js',
-        v='20261118-item-focus-1'
+        v='20261119-workspace-toolbar-4'
     ) }}"
 ></script>
 
