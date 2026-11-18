@@ -11,6 +11,7 @@ from flask import Flask, request, session
 from jinja2 import Environment
 from werkzeug.serving import make_server
 from playwright.sync_api import sync_playwright
+from PIL import Image, ImageChops
 ROOT=Path(__file__).resolve().parents[2]
 OUT=Path(os.environ['BRAND_OUTPUT']);OUT.mkdir(parents=True,exist_ok=True)
 spec=importlib.util.spec_from_file_location('cache_under_test',ROOT/'dkss_app/bundled_asset_cache.py')
@@ -37,7 +38,7 @@ def index():
   for h in module.PUBLIC_ASSET_VERSIONS.values():markup=markup.replace(h,'old')
  markup=Environment(autoescape=True).from_string(markup).render(url_for=lambda ep,filename,**kw:'/static/'+filename+('?v='+kw['v'] if 'v' in kw else ''))
  return ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
- '<link rel="stylesheet" href="/static/css/alseon_brand.css"><style>body{margin:0;background:#f3f6fc;font:16px sans-serif}.sidebar{width:240px;background:#25304b;padding:10px}.sidebar-head{display:flex;align-items:center}.sidebar-toggle{padding:12px}main{padding:20px}body.sidebar-collapsed .sidebar{width:72px}</style>'
+ '<link rel="stylesheet" href="/static/css/alseon_brand.css"><style>body{margin:0;background:#f3f6fc;font:16px sans-serif}.sidebar{width:240px;background:#25304b;padding:10px}.sidebar-head{display:flex;align-items:center}.sidebar-toggle{padding:12px}main{padding:20px}@media(min-width:901px){body.sidebar-collapsed .sidebar{width:72px}}</style>'
  '<body>'+''.join(filters)+'<aside class="sidebar"><div class="sidebar-head">'+markup+'<button class="sidebar-toggle" id="toggle">☰</button></div></aside><main>Brand rendering fixture</main>'
  '<script>document.querySelector("#toggle").onclick=()=>document.body.classList.toggle("sidebar-collapsed")</script>')
 class LocalReferences(HTMLParser):
@@ -87,8 +88,12 @@ try:
    page.goto(origin+'/?png=1');page.wait_for_function('Array.from(document.images).every(i=>i.complete&&i.naturalWidth>0)')
    assert all(x.endswith('.png') for x in page.locator('picture img').evaluate_all('(xs)=>xs.map(i=>i.currentSrc)'))
    page.screenshot(path=str(OUT/f'brand-{width}-{dpr}-png-fallback.png'))
+   with Image.open(OUT/f'brand-{width}-{dpr}-expanded.png') as webp, Image.open(OUT/f'brand-{width}-{dpr}-png-fallback.png') as png:
+    extrema=ImageChops.difference(webp.convert('RGB'),png.convert('RGB')).getextrema()
+    max_delta=max(high for low,high in extrema)
+    assert max_delta<=1, ('browser pixel delta exceeds rounding tolerance',width,dpr,extrema)
    assert not violations, violations
-   results.append({'width':width,'dpr':dpr,'webp':True,'cache_reuse':True,'stale_no_store':True,'png_type_fallback':True})
+   results.append({'width':width,'dpr':dpr,'webp':True,'cache_reuse':True,'stale_no_store':True,'png_type_fallback':True,'max_browser_channel_delta':max_delta})
    context.close()
   browser.close()
  (OUT/'report.json').write_text(json.dumps({'results':results,'limits':['isolated brand markup, not whole application','fallback tests unsupported source MIME, not failed network','no actual iPhone or Redis','manual class toggle tests brand CSS, not real sidebar JS','static URL allowlist and request assertions; resolver rule alone not OS network isolation','new version chosen by full hash; same content stale URL tested']},indent=2))
