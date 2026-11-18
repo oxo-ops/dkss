@@ -56,6 +56,8 @@
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261119-sidebar-submenu-center-1') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_mobile_header_search.css', v='20261119-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-1') }}">
 </head>
 <body
     data-public-demo="{{ 'true' if session.get('aonagi_readonly_demo') else 'false' }}"
@@ -523,6 +525,7 @@
 {% if session.get('aonagi_readonly_demo') and public_demo_shared|default(false) and request.endpoint in ['dashboard', 'vehicle_checklist_results'] %}
 <script defer src="{{ url_for('static', filename='js/public_demo_share.js', v='20261117-1') }}"></script>
 {% endif %}
+<script defer src="{{ url_for('static', filename='js/karte_mobile_header_search.js', v='20261119-1') }}"></script>
 </body>
 </html>
 

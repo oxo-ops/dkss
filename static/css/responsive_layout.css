@@ -210,3 +210,10 @@
         margin:0 0 12px !important; min-block-size:56px;
     }
 }
+
+/* The responsive header occupies normal flow; do not reserve its height twice. */
+@media screen and (max-width:768px) {
+    body[data-responsive-shell] .main-content .page-breadcrumb {
+        padding-top:0;
+    }
+}
